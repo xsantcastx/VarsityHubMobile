@@ -11,16 +11,16 @@ import { captureBreadcrumb } from '@/utils/sentry';
 import { usePaymentSheet } from '@/utils/stripe';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    Alert,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    useColorScheme,
-    useWindowDimensions,
-    View,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useColorScheme,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -51,6 +51,7 @@ function ManageSubscription() {
   const isLargeScreen = width >= 768;
   const [loading, setLoading] = useState(false);
   const [ownerLeagueName, setOwnerLeagueName] = useState<string | null>(null);
+  const hasSyncedBillingRef = useRef(false);
   const me: any = user;
   const billing = getCanonicalBillingState(me);
   const plan = billing.plan;
@@ -79,19 +80,24 @@ function ManageSubscription() {
     return false;
   }
 
-  const syncBillingState = useCallback(async () => {
-    try {
-      return (await checkAuth().catch(() => null)) as any;
-    } catch (error) {
-      if (__DEV__) console.warn('[manage-subscription] Failed to sync billing state:', error);
-      return null;
-    }
-  }, [checkAuth]);
+  const syncBillingState = useCallback(
+    async (options?: { forceRefresh?: boolean }) => {
+      try {
+        return (await checkAuth({ forceRefresh: options?.forceRefresh === true }).catch(
+          () => null
+        )) as any;
+      } catch (error) {
+        if (__DEV__) console.warn('[manage-subscription] Failed to sync billing state:', error);
+        return null;
+      }
+    },
+    [checkAuth]
+  );
 
   const waitForPaidPlanActivation = useCallback(async () => {
     for (let i = 0; i < 15; i += 1) {
       await wait(2000);
-      const fresh: any = await syncBillingState();
+      const fresh: any = await syncBillingState({ forceRefresh: true });
       const freshBilling = getCanonicalBillingState(fresh);
       if (
         (freshBilling.plan === 'veteran' || freshBilling.plan === 'legend') &&
@@ -138,12 +144,15 @@ function ManageSubscription() {
   }, [paidByOwner]);
 
   useEffect(() => {
-    void syncBillingState();
+    void syncBillingState({ forceRefresh: true }).finally(() => {
+      hasSyncedBillingRef.current = true;
+    });
   }, [syncBillingState]);
 
   useFocusEffect(
     useCallback(() => {
-      void syncBillingState();
+      if (!hasSyncedBillingRef.current) return undefined;
+      void syncBillingState({ forceRefresh: true });
       return undefined;
     }, [syncBillingState])
   );
@@ -428,12 +437,7 @@ function ManageSubscription() {
         options={{ title: 'Manage Subscription', headerBackTitle: 'Back', headerShown: true }}
       />
       <ScrollView contentContainerStyle={styles.contentContainer}>
-        <View
-          style={[
-            styles.contentInner,
-            isLargeScreen ? styles.contentInnerLarge : null,
-          ]}
-        >
+        <View style={[styles.contentInner, isLargeScreen ? styles.contentInnerLarge : null]}>
           <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>
             Subscription
           </Text>
@@ -464,8 +468,8 @@ function ManageSubscription() {
                 <Text
                   style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}
                 >
-                  Your league owner manages the subscription. You have full access to coach
-                  features at no cost.
+                  Your league owner manages the subscription. You have full access to coach features
+                  at no cost.
                 </Text>
               </>
             ) : paidByOwner && approvalStatus === 'PENDING' ? (
@@ -480,8 +484,8 @@ function ManageSubscription() {
                 <Text
                   style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}
                 >
-                  Your subscription activates after your coach application is approved by the
-                  league owner.
+                  Your subscription activates after your coach application is approved by the league
+                  owner.
                 </Text>
               </>
             ) : (
@@ -517,8 +521,7 @@ function ManageSubscription() {
                             'https://play.google.com/store/account/subscriptions',
                             {
                               context: 'manage_subscription_google_play_link',
-                              errorMessage:
-                                'Unable to open Google Play subscriptions right now.',
+                              errorMessage: 'Unable to open Google Play subscriptions right now.',
                             }
                           )
                         }

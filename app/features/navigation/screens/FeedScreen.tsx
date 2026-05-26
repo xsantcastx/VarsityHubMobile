@@ -3,26 +3,26 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import {
-    Advertisement,
-    Event,
-    Feed,
-    Game,
-    Message,
-    Notification as NotificationApi,
+  Advertisement,
+  Event,
+  Feed,
+  Game,
+  Message,
+  Notification as NotificationApi,
 } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
@@ -41,10 +41,10 @@ import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import {
-    getNotificationHrefForUser,
-    getNotificationSubtitle,
-    getNotificationTitle,
-    isSystemNotification,
+  getNotificationHrefForUser,
+  getNotificationSubtitle,
+  getNotificationTitle,
+  isSystemNotification,
 } from '@/utils/notificationPresentation';
 import GameVerticalFeedScreen from '../../../game-details/GameVerticalFeedScreen';
 
@@ -313,6 +313,7 @@ export default function FeedScreen() {
   const lastLoadTimestampRef = useRef(0);
   const loadInFlightRef = useRef(false);
   const loadRequestIdRef = useRef(0);
+  const hasFocusedOnceRef = useRef(false);
   const LOAD_COOLDOWN_MS = 30_000;
 
   useEffect(() => {
@@ -368,212 +369,220 @@ export default function FeedScreen() {
     }
   }, []);
 
-  const showAdReportOptions = useCallback((ad: any) => {
-    Alert.alert(
-      'Report Ad',
-      `Report "${ad?.business_name || 'this ad'}" for:`,
-      [
+  const showAdReportOptions = useCallback(
+    (ad: any) => {
+      Alert.alert('Report Ad', `Report "${ad?.business_name || 'this ad'}" for:`, [
         { text: 'Spam', onPress: () => void submitAdReport(String(ad.id), 'spam') },
-        { text: 'False Info', onPress: () => void submitAdReport(String(ad.id), 'false_information') },
+        {
+          text: 'False Info',
+          onPress: () => void submitAdReport(String(ad.id), 'false_information'),
+        },
         { text: 'Other', onPress: () => void submitAdReport(String(ad.id), 'other') },
-      ]
-    );
-  }, [submitAdReport]);
+      ]);
+    },
+    [submitAdReport]
+  );
 
-  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
-    // Performance: skip silent reloads if data is fresh (< 30s old)
-    if (silent && Date.now() - lastLoadTimestampRef.current < LOAD_COOLDOWN_MS) return;
-    // Deduplicate concurrent load calls
-    if (loadInFlightRef.current && silent) return;
-    loadInFlightRef.current = true;
-    const requestId = ++loadRequestIdRef.current;
-    const isCurrentRequest = () => loadRequestIdRef.current === requestId;
-    if (!silent) setLoading(true);
-    setError(null);
-    try {
-      const userPromise = getAuthSnapshot(checkAuth, user)
-        .then(user => {
-          if (isCurrentRequest()) setMe(user);
-          return user;
-        })
-        .catch(err => {
-          if (__DEV__) console.warn('Feed load: unable to fetch user', err);
-          return null;
-        });
-
-      // Load games with better error handling
-      let gamesData: any = null;
+  const load = useCallback(
+    async ({ silent = false }: { silent?: boolean } = {}) => {
+      // Performance: skip silent reloads if data is fresh (< 30s old)
+      if (silent && Date.now() - lastLoadTimestampRef.current < LOAD_COOLDOWN_MS) return;
+      // Deduplicate concurrent load calls
+      if (loadInFlightRef.current && silent) return;
+      loadInFlightRef.current = true;
+      const requestId = ++loadRequestIdRef.current;
+      const isCurrentRequest = () => loadRequestIdRef.current === requestId;
+      if (!silent) setLoading(true);
+      setError(null);
       try {
-        gamesData = await Game.list('-date', { limit: 30 });
-      } catch (err: any) {
-        if (__DEV__) console.error('[Feed] Failed to load games:', err);
-        // If it's a network error, show a more helpful message
-        if (err?.isNetworkError || err?.status === 0) {
-          setError('Unable to connect to server. Please check your internet connection.');
-        } else if (err?.status === 401 || err?.status === 403) {
-          setError('Please sign in to view games.');
-        } else {
-          setError('Unable to load games. Please try again.');
-        }
-        gamesData = null;
-      }
+        const userPromise = getAuthSnapshot(checkAuth, user)
+          .then(user => {
+            if (isCurrentRequest()) setMe(user);
+            return user;
+          })
+          .catch(err => {
+            if (__DEV__) console.warn('Feed load: unable to fetch user', err);
+            return null;
+          });
 
-      let { games: normalizedGames, cursor } = normalizeGamesPage(gamesData);
-
-      // If no games exist, seed sample games as real DB records (stories/polls work)
-      if ((!normalizedGames || normalizedGames.length === 0) && gamesData !== null) {
+        // Load games with better error handling
+        let gamesData: any = null;
         try {
-          const { httpPost } = await import('@/api/http');
-          await httpPost('/games/seed-samples', {});
-          // Re-fetch games now that seeds exist
-          const seeded = await Game.list('-date', { limit: 30 }).catch(() => ({ games: [] }));
-          const seededPage = normalizeGamesPage(seeded);
-          if (seededPage.games.length > 0) {
-            normalizedGames = seededPage.games;
-            cursor = seededPage.cursor;
-            if (isCurrentRequest()) setShowSeedBanner(true);
-          }
-        } catch (seedErr: any) {
-          if (__DEV__) console.warn('[feed] seed-samples failed:', seedErr?.message);
-        }
-      }
-
-      if (isCurrentRequest()) {
-        setGames(normalizedGames);
-        setGamesCursor(cursor);
-        setHasMoreGames(!!cursor);
-        if (!silent) setLoading(false);
-      }
-
-      void (async () => {
-        try {
-          const user = await userPromise;
-          if (!isCurrentRequest()) return;
-
-          const countryCode =
-            typeof user?.preferences?.country_code === 'string'
-              ? String(user.preferences.country_code).toUpperCase()
-              : undefined;
-          const todayISO = new Date().toISOString().slice(0, 10);
-          const userZip =
-            typeof user?.preferences?.zip_code === 'string' ? user.preferences.zip_code : undefined;
-
-          let deviceLat: number | undefined;
-          let deviceLng: number | undefined;
-          if (userZip) {
-            if (isCurrentRequest()) setHasDeviceLocation(true);
+          gamesData = await Game.list('-date', { limit: 30 });
+        } catch (err: any) {
+          if (__DEV__) console.error('[Feed] Failed to load games:', err);
+          // If it's a network error, show a more helpful message
+          if (err?.isNetworkError || err?.status === 0) {
+            setError('Unable to connect to server. Please check your internet connection.');
+          } else if (err?.status === 401 || err?.status === 403) {
+            setError('Please sign in to view games.');
           } else {
-            try {
-              const { status } = await Location.getForegroundPermissionsAsync();
-              if (status === 'granted') {
-                const loc =
-                  (await Location.getLastKnownPositionAsync().catch(() => null)) ||
-                  (await Location.getCurrentPositionAsync({}).catch(() => null));
-                if (loc) {
-                  deviceLat = loc.coords.latitude;
-                  deviceLng = loc.coords.longitude;
+            setError('Unable to load games. Please try again.');
+          }
+          gamesData = null;
+        }
+
+        let { games: normalizedGames, cursor } = normalizeGamesPage(gamesData);
+
+        // If no games exist, seed sample games as real DB records (stories/polls work)
+        if ((!normalizedGames || normalizedGames.length === 0) && gamesData !== null) {
+          try {
+            const { httpPost } = await import('@/api/http');
+            await httpPost('/games/seed-samples', {});
+            // Re-fetch games now that seeds exist
+            const seeded = await Game.list('-date', { limit: 30 }).catch(() => ({ games: [] }));
+            const seededPage = normalizeGamesPage(seeded);
+            if (seededPage.games.length > 0) {
+              normalizedGames = seededPage.games;
+              cursor = seededPage.cursor;
+              if (isCurrentRequest()) setShowSeedBanner(true);
+            }
+          } catch (seedErr: any) {
+            if (__DEV__) console.warn('[feed] seed-samples failed:', seedErr?.message);
+          }
+        }
+
+        if (isCurrentRequest()) {
+          setGames(normalizedGames);
+          setGamesCursor(cursor);
+          setHasMoreGames(!!cursor);
+          if (!silent) setLoading(false);
+        }
+
+        void (async () => {
+          try {
+            const user = await userPromise;
+            if (!isCurrentRequest()) return;
+
+            const countryCode =
+              typeof user?.preferences?.country_code === 'string'
+                ? String(user.preferences.country_code).toUpperCase()
+                : undefined;
+            const todayISO = new Date().toISOString().slice(0, 10);
+            const userZip =
+              typeof user?.preferences?.zip_code === 'string'
+                ? user.preferences.zip_code
+                : undefined;
+
+            let deviceLat: number | undefined;
+            let deviceLng: number | undefined;
+            if (userZip) {
+              if (isCurrentRequest()) setHasDeviceLocation(true);
+            } else {
+              try {
+                const { status } = await Location.getForegroundPermissionsAsync();
+                if (status === 'granted') {
+                  const loc =
+                    (await Location.getLastKnownPositionAsync().catch(() => null)) ||
+                    (await Location.getCurrentPositionAsync({}).catch(() => null));
+                  if (loc) {
+                    deviceLat = loc.coords.latitude;
+                    deviceLng = loc.coords.longitude;
+                  }
                 }
+              } catch (e) {
+                if (__DEV__) console.warn('Feed: location for ads failed', e);
               }
-            } catch (e) {
-              if (__DEV__) console.warn('Feed: location for ads failed', e);
+
+              if (isCurrentRequest()) setHasDeviceLocation(!!deviceLat);
             }
 
-            if (isCurrentRequest()) setHasDeviceLocation(!!deviceLat);
-          }
+            const emptyPage = {
+              items: [],
+              nextCursor: null,
+              followed_feed_meta: undefined,
+              followed_teams_feed_meta: undefined,
+            };
 
-          const emptyPage = {
-            items: [],
-            nextCursor: null,
-            followed_feed_meta: undefined,
-            followed_teams_feed_meta: undefined,
-          };
+            const bundle = user
+              ? await Feed.bundle({
+                  country: countryCode,
+                  date: todayISO,
+                  zip: userZip,
+                  lat: deviceLat,
+                  lng: deviceLng,
+                  posts_limit: 20,
+                  highlights_limit: 20,
+                  ads_limit: 2,
+                }).catch(err => {
+                  if (__DEV__) console.warn('[feed] Bundle load failed:', err);
+                  return null;
+                })
+              : null;
 
-          const bundle = user
-            ? await Feed.bundle({
-                country: countryCode,
-                date: todayISO,
-                zip: userZip,
-                lat: deviceLat,
-                lng: deviceLng,
-                posts_limit: 20,
-                highlights_limit: 20,
-                ads_limit: 2,
-              }).catch(err => {
-                if (__DEV__) console.warn('[feed] Bundle load failed:', err);
-                return null;
-              })
-            : null;
+            if (!isCurrentRequest()) return;
 
-          if (!isCurrentRequest()) return;
+            const followedPage = bundle?.posts ?? emptyPage;
+            const followedTeamsPage = bundle?.posts_followed_teams ?? emptyPage;
+            const highlightsData = bundle?.highlights ?? null;
+            const forFeedAds = bundle?.ads ?? null;
 
-          const followedPage = bundle?.posts ?? emptyPage;
-          const followedTeamsPage = bundle?.posts_followed_teams ?? emptyPage;
-          const highlightsData = bundle?.highlights ?? null;
-          const forFeedAds = bundle?.ads ?? null;
-
-          setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
-          setFollowedFeedMeta(followedPage?.followed_feed_meta);
-          setFollowedTeamsPosts(
-            Array.isArray(followedTeamsPage?.items) ? followedTeamsPage.items : []
-          );
-          setFollowedTeamsFeedMeta(followedTeamsPage?.followed_teams_feed_meta);
-          setUnreadNotifCount(
-            typeof bundle?.unread_notifications === 'number' ? bundle.unread_notifications : 0
-          );
-          setUnreadMessagesCount(
-            typeof bundle?.unread_messages === 'number' ? bundle.unread_messages : 0
-          );
-
-          if (highlightsData) {
-            const merged: any[] = [];
-            if (Array.isArray(highlightsData.nationalTop)) merged.push(...highlightsData.nationalTop);
-            if (Array.isArray(highlightsData.ranked)) merged.push(...highlightsData.ranked);
-            const firstWithMedia = merged.find(
-              item => typeof item?.media_url === 'string' && item.media_url
+            setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
+            setFollowedFeedMeta(followedPage?.followed_feed_meta);
+            setFollowedTeamsPosts(
+              Array.isArray(followedTeamsPage?.items) ? followedTeamsPage.items : []
             );
-            setHighlightPreview(firstWithMedia || null);
-          } else {
-            setHighlightPreview(null);
-          }
+            setFollowedTeamsFeedMeta(followedTeamsPage?.followed_teams_feed_meta);
+            setUnreadNotifCount(
+              typeof bundle?.unread_notifications === 'number' ? bundle.unread_notifications : 0
+            );
+            setUnreadMessagesCount(
+              typeof bundle?.unread_messages === 'number' ? bundle.unread_messages : 0
+            );
 
-          if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
-            const list = ((forFeedAds as any).ads as any[]).filter(a => !!a);
-            for (let i = list.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [list[i], list[j]] = [list[j], list[i]];
+            if (highlightsData) {
+              const merged: any[] = [];
+              if (Array.isArray(highlightsData.nationalTop))
+                merged.push(...highlightsData.nationalTop);
+              if (Array.isArray(highlightsData.ranked)) merged.push(...highlightsData.ranked);
+              const firstWithMedia = merged.find(
+                item => typeof item?.media_url === 'string' && item.media_url
+              );
+              setHighlightPreview(firstWithMedia || null);
+            } else {
+              setHighlightPreview(null);
             }
-            setSponsoredAds(list);
-          } else {
-            setSponsoredAds([]);
+
+            if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
+              const list = ((forFeedAds as any).ads as any[]).filter(a => !!a);
+              for (let i = list.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [list[i], list[j]] = [list[j], list[i]];
+              }
+              setSponsoredAds(list);
+            } else {
+              setSponsoredAds([]);
+            }
+          } catch (backgroundErr) {
+            if (__DEV__) console.warn('[Feed] Background hydration failed:', backgroundErr);
           }
-        } catch (backgroundErr) {
-          if (__DEV__) console.warn('[Feed] Background hydration failed:', backgroundErr);
+        })();
+      } catch (e: any) {
+        if (__DEV__) console.error('[Feed] Failed to load feed:', e);
+        if (e?.isNetworkError || e?.status === 0) {
+          setError('Unable to connect to server. Please check your internet connection.');
+        } else if (e?.status === 401 || e?.status === 403) {
+          setError('Please sign in to view your feed.');
+        } else {
+          setError('Unable to load feed. Please try again.');
         }
-      })();
-    } catch (e: any) {
-      if (__DEV__) console.error('[Feed] Failed to load feed:', e);
-      if (e?.isNetworkError || e?.status === 0) {
-        setError('Unable to connect to server. Please check your internet connection.');
-      } else if (e?.status === 401 || e?.status === 403) {
-        setError('Please sign in to view your feed.');
-      } else {
-        setError('Unable to load feed. Please try again.');
+        setGames([]);
+        setHighlightPreview(null);
+        setSponsoredAds([]);
+        setFollowedPosts([]);
+        setFollowedFeedMeta(undefined);
+        setFollowedTeamsPosts([]);
+        setFollowedTeamsFeedMeta(undefined);
+      } finally {
+        if (!silent && isCurrentRequest()) setLoading(false);
+        if (isCurrentRequest()) {
+          loadInFlightRef.current = false;
+          lastLoadTimestampRef.current = Date.now();
+        }
       }
-      setGames([]);
-      setHighlightPreview(null);
-      setSponsoredAds([]);
-      setFollowedPosts([]);
-      setFollowedFeedMeta(undefined);
-      setFollowedTeamsPosts([]);
-      setFollowedTeamsFeedMeta(undefined);
-    } finally {
-      if (!silent && isCurrentRequest()) setLoading(false);
-      if (isCurrentRequest()) {
-        loadInFlightRef.current = false;
-        lastLoadTimestampRef.current = Date.now();
-      }
-    }
-  }, [checkAuth, user]);
+    },
+    [checkAuth, user]
+  );
 
   const _loadMore = useCallback(async () => {
     if (loadingMore || !hasMoreGames || !gamesCursor) return;
@@ -619,7 +628,11 @@ export default function FeedScreen() {
   useFocusEffect(
     useCallback(() => {
       let mounted = true;
-      void load({ silent: true });
+      if (hasFocusedOnceRef.current) {
+        void load({ silent: true });
+      } else {
+        hasFocusedOnceRef.current = true;
+      }
 
       const tick = async () => {
         try {
@@ -865,7 +878,11 @@ export default function FeedScreen() {
 
     // Add followed posts section
     if (me) {
-      items.push({ _t: 'section_header', title: 'From people you follow', key: 'followed_posts_header' });
+      items.push({
+        _t: 'section_header',
+        title: 'From people you follow',
+        key: 'followed_posts_header',
+      });
       if (followedPosts.length > 0) {
         followedPosts.forEach((post: any, idx: number) => {
           items.push({ _t: 'followed_post', data: post, idx });
@@ -877,7 +894,11 @@ export default function FeedScreen() {
 
     // Add followed teams posts section
     if (me) {
-      items.push({ _t: 'section_header', title: 'From teams you follow', key: 'followed_teams_header' });
+      items.push({
+        _t: 'section_header',
+        title: 'From teams you follow',
+        key: 'followed_teams_header',
+      });
       if (followedTeamsPosts.length > 0) {
         followedTeamsPosts.forEach((post: any, idx: number) => {
           items.push({ _t: 'followed_teams_post', data: post, idx });
@@ -1091,7 +1112,8 @@ export default function FeedScreen() {
             : null;
       const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
       const hasBanner = typeof banner === 'string' && banner.length > 0;
-      const gradient: [string, string] = Math.random() > 0.5 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+      const gradient: [string, string] =
+        Math.random() > 0.5 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
       const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
       const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
       const locationText = gameItem.location
@@ -1291,9 +1313,7 @@ export default function FeedScreen() {
           const gameStartMs = item.data.date ? new Date(item.data.date).getTime() : null;
           const nowMs = Date.now();
           const isLive =
-            gameStartMs != null &&
-            gameStartMs <= nowMs &&
-            nowMs - gameStartMs <= LIVE_WINDOW_MS;
+            gameStartMs != null && gameStartMs <= nowMs && nowMs - gameStartMs <= LIVE_WINDOW_MS;
           return (
             <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
               {renderGameCard(item.data, isLive, 'feed')}
@@ -1315,9 +1335,7 @@ export default function FeedScreen() {
                   },
                 ]}
               >
-                <Text
-                  style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}
-                >
+                <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
                   AD SPACE AVAILABLE
                 </Text>
                 <Pressable
@@ -1402,9 +1420,7 @@ export default function FeedScreen() {
               ]}
             >
               <View style={styles.sponsoredHeader}>
-                <Text
-                  style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}
-                >
+                <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
                   SPONSORED
                 </Text>
                 {!!adData?.id && (
@@ -1420,16 +1436,9 @@ export default function FeedScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="Report sponsored ad"
                   >
-                    <Ionicons
-                      name="flag-outline"
-                      size={14}
-                      color={Colors[colorScheme].mutedText}
-                    />
+                    <Ionicons name="flag-outline" size={14} color={Colors[colorScheme].mutedText} />
                     <Text
-                      style={[
-                        styles.adReportButtonText,
-                        { color: Colors[colorScheme].mutedText },
-                      ]}
+                      style={[styles.adReportButtonText, { color: Colors[colorScheme].mutedText }]}
                     >
                       Report
                     </Text>
@@ -1488,9 +1497,7 @@ export default function FeedScreen() {
                 }
                 onUpdated={updated =>
                   setFollowedPosts(prev =>
-                    prev.map(p =>
-                      String(p.id) === String(updated.id) ? { ...p, ...updated } : p
-                    )
+                    prev.map(p => (String(p.id) === String(updated.id) ? { ...p, ...updated } : p))
                   )
                 }
               />
@@ -1529,10 +1536,7 @@ export default function FeedScreen() {
                     : 'No posts from teams you follow yet'}
               </Text>
               <Text
-                style={[
-                  styles.socialFeedEmptySubtitle,
-                  { color: Colors[colorScheme].mutedText },
-                ]}
+                style={[styles.socialFeedEmptySubtitle, { color: Colors[colorScheme].mutedText }]}
               >
                 {isPeople
                   ? followedFeedMeta?.following_count === 0
@@ -1543,9 +1547,7 @@ export default function FeedScreen() {
                     : 'Check back soon — when they post, it will show up here.'}
               </Text>
               <Pressable
-                testID={
-                  isPeople ? 'feed-discover-users-button' : 'feed-discover-teams-button'
-                }
+                testID={isPeople ? 'feed-discover-users-button' : 'feed-discover-teams-button'}
                 style={[
                   styles.socialFeedEmptyButton,
                   { backgroundColor: Colors[colorScheme].tint },
@@ -1583,7 +1585,8 @@ export default function FeedScreen() {
           const teamLogo = team.logo_url || null;
           const mediaUrl = post.media_url || post.mediaUrl || null;
           const caption = post.caption || post.content || '';
-          const gradient: [string, string] = item.idx % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+          const gradient: [string, string] =
+            item.idx % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
           return (
             <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
               <Pressable
@@ -1817,7 +1820,10 @@ export default function FeedScreen() {
             accessibilityRole="button"
             accessibilityLabel="Open VarsityHub Instagram"
           >
-            <Image source={require('../../../../assets/images/logo.svg')} style={styles.logoImage} />
+            <Image
+              source={require('../../../../assets/images/logo.svg')}
+              style={styles.logoImage}
+            />
             <Text
               style={[styles.brand, { color: Colors[colorScheme].text }]}
               numberOfLines={1}
@@ -2101,11 +2107,11 @@ export default function FeedScreen() {
                 maxToRenderPerBatch={10}
                 windowSize={10}
                 removeClippedSubviews={true}
-	                renderItem={({ item }) => {
-	                  const title = getNotificationTitle(item);
-                    const subtitle = getNotificationSubtitle(item);
+                renderItem={({ item }) => {
+                  const title = getNotificationTitle(item);
+                  const subtitle = getNotificationSubtitle(item);
 
-	                  return (
+                  return (
                     <Pressable
                       style={[
                         styles.listRow,
@@ -2157,7 +2163,7 @@ export default function FeedScreen() {
                           />
                         </View>
                         {/* Overlay actual image — if it fails, fallback stays visible */}
-                        {(isSystemNotification(item) || !item.actor) ? (
+                        {isSystemNotification(item) || !item.actor ? (
                           <Image
                             source={VARSITYHUB_LOGO}
                             style={[styles.listAvatar, { position: 'absolute', top: 0, left: 0 }]}
@@ -2172,19 +2178,19 @@ export default function FeedScreen() {
                           />
                         ) : null}
                       </View>
-	                      <View style={{ flex: 1 }}>
-	                        <Text style={[styles.listTitle, { color: Colors[colorScheme].text }]}>
-	                          {title}
-	                        </Text>
-	                        {subtitle && (
-	                          <Text
-	                            numberOfLines={1}
-	                            style={[styles.listSubtitle, { color: Colors[colorScheme].mutedText }]}
-	                          >
-	                            {subtitle}
-	                          </Text>
-	                        )}
-	                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.listTitle, { color: Colors[colorScheme].text }]}>
+                          {title}
+                        </Text>
+                        {subtitle && (
+                          <Text
+                            numberOfLines={1}
+                            style={[styles.listSubtitle, { color: Colors[colorScheme].mutedText }]}
+                          >
+                            {subtitle}
+                          </Text>
+                        )}
+                      </View>
                       {!item.read_at && <View style={styles.unreadDot} />}
                     </Pressable>
                   );

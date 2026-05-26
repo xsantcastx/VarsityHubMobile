@@ -11,20 +11,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -36,6 +36,7 @@ import { usePostCache } from '@/context/PostCacheContext';
 import { useShareLink } from '@/hooks/useShareLink';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { getAuthSnapshot } from '@/utils/authState';
 import { sanitizeText } from '@/utils/formUtils';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -339,7 +340,7 @@ export default function PostDetailScreen() {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const currentUser = ((await checkAuth().catch(() => null)) ?? user) as any;
+        const currentUser = (await getAuthSnapshot(checkAuth, user)) as any;
         setCurrentUser(currentUser);
       } catch (error) {
         if (__DEV__) console.warn('[post-detail] Failed to load current user:', error);
@@ -497,7 +498,10 @@ export default function PostDetailScreen() {
       const r: any = await PostApi.toggleUpvote(currentPostId);
       const upvotedNow = typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted);
       if (upvotedNow) {
-        analytics.track(ANALYTICS_EVENTS.POST_UPVOTED, { post_id: currentPostId, source: 'post_detail' });
+        analytics.track(ANALYTICS_EVENTS.POST_UPVOTED, {
+          post_id: currentPostId,
+          source: 'post_detail',
+        });
       }
       // Reconcile with server values
       setPost((p: any) => {
@@ -561,11 +565,14 @@ export default function PostDetailScreen() {
       setComments(nextReal);
       setCommentsById(prev => ({ ...prev, [currentPostId]: nextReal }));
       // Increment comment count on the post object
-      setPost((p: any) => p ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
+      setPost((p: any) => (p ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
       setPostsById(prev => {
         const existing = prev[currentPostId];
         if (!existing) return prev;
-        return { ...prev, [currentPostId]: { ...existing, comments_count: (existing.comments_count || 0) + 1 } };
+        return {
+          ...prev,
+          [currentPostId]: { ...existing, comments_count: (existing.comments_count || 0) + 1 },
+        };
       });
     } catch (error) {
       // Revert optimistic insert on failure
@@ -1506,7 +1513,9 @@ export default function PostDetailScreen() {
                     if (loadingMoreComments || !commentsNextCursor) return;
                     setLoadingMoreComments(true);
                     try {
-                      const more = await PostApi.comments(postData.id, { cursor: commentsNextCursor });
+                      const more = await PostApi.comments(postData.id, {
+                        cursor: commentsNextCursor,
+                      });
                       const moreItems = Array.isArray(more) ? more : (more?.items ?? []);
                       setComments(prev => [...prev, ...moreItems]);
                       setCommentsNextCursor(more?.nextCursor ?? null);
@@ -1650,7 +1659,9 @@ export default function PostDetailScreen() {
                   activeScrollViewRef.current?.scrollTo({ y: 0, animated: true });
                 }}
               >
-                <Text style={[styles.scrollJumpEmoji, { color: Colors[colorScheme].text }]}>⬆️</Text>
+                <Text style={[styles.scrollJumpEmoji, { color: Colors[colorScheme].text }]}>
+                  ⬆️
+                </Text>
               </Pressable>
             )}
             {canJumpToBottom && (
@@ -1668,7 +1679,9 @@ export default function PostDetailScreen() {
                   activeScrollViewRef.current?.scrollTo({ y: maxActiveScrollY, animated: true });
                 }}
               >
-                <Text style={[styles.scrollJumpEmoji, { color: Colors[colorScheme].text }]}>⬇️</Text>
+                <Text style={[styles.scrollJumpEmoji, { color: Colors[colorScheme].text }]}>
+                  ⬇️
+                </Text>
               </Pressable>
             )}
           </View>

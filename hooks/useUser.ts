@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthProvider';
+import { getAuthSnapshot } from '@/utils/authState';
 
 /**
  * Custom hook to load and access current user data
- * 
+ *
  * @param autoLoad - Whether to automatically load user on mount (default: true)
  * @returns Object containing user data, loading state, error, and refresh function
  */
@@ -16,7 +17,7 @@ export function useUser(autoLoad: boolean = true) {
     setRefreshing(true);
     setError(null);
     try {
-      const me = (await checkAuth({ skipSubscriptionRefresh: true })) ?? user ?? null;
+      const me = await getAuthSnapshot(checkAuth, user);
       return me;
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to load user');
@@ -51,7 +52,7 @@ export function useUser(autoLoad: boolean = true) {
 /**
  * Custom hook to load user profile data (name, email, etc.)
  * Similar to useUser but returns extracted profile fields
- * 
+ *
  * @param autoLoad - Whether to automatically load user on mount (default: true)
  * @returns Object containing profile fields, loading state, error, and refresh function
  */

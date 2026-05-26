@@ -13,6 +13,8 @@ interface ExistingSessionActionOptions {
     email?: string;
     pendingVerification?: boolean;
     replaceSession?: boolean;
+    skipSubscriptionRefresh?: boolean;
+    forceRefresh?: boolean;
   }) => Promise<any>;
   routeCurrentUser: (resolvedUser?: any) => Promise<void>;
   expiredMessage: string;
@@ -63,15 +65,7 @@ export function useExistingSessionActions({
       }
       setError(restoreFailedMessage);
     }
-  }, [
-    authBusy,
-    checkAuth,
-    expiredMessage,
-    restoreFailedMessage,
-    routeCurrentUser,
-    setError,
-    user,
-  ]);
+  }, [authBusy, checkAuth, expiredMessage, restoreFailedMessage, routeCurrentUser, setError, user]);
 
   return {
     handleSignOutToContinue,

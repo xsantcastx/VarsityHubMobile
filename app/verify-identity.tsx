@@ -44,13 +44,16 @@ function VerifyScreen() {
     autoFinishOnVerified: false,
     resendCooldownSeconds: 60,
     getRequestSuccessState: (res: any) => ({
-      info: __DEV__ && res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent',
+      info:
+        __DEV__ && res?.dev_verification_code
+          ? `Code sent (dev: ${res.dev_verification_code})`
+          : 'Code sent',
       cooldownSeconds: 60,
     }),
     getConfirmErrorMessage: (e: any) => e?.message || e?.data?.error || 'Verification failed',
     getRequestErrorMessage: (e: any) => e?.message || e?.data?.error || 'Resend failed',
     onVerified: async () => {
-      const freshUser = (await checkAuth().catch(() => null)) as any;
+      const freshUser = (await getFreshAuthSnapshot(checkAuth, user)) as any;
       setScreenInfo('Email verified successfully!');
       setScreenError(null);
       setIsVerified(true);
@@ -93,7 +96,7 @@ function VerifyScreen() {
 
   const onContinue = async () => {
     try {
-      const userInfo = ((await checkAuth().catch(() => null)) ?? user) as any;
+      const userInfo = ((await getFreshAuthSnapshot(checkAuth, user)) ?? user) as any;
       if (!userInfo) {
         throw new Error('missing_user');
       }

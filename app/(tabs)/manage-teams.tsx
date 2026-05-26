@@ -6,8 +6,17 @@ import { getAuthSnapshot } from '@/utils/authState';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
@@ -15,10 +24,10 @@ import { EmptyState, SectionHeader, TeamCard, TeamCardSkeleton } from '@/compone
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
 
-type Team = { 
-  id: string; 
-  name: string; 
-  members: number; 
+type Team = {
+  id: string;
+  name: string;
+  members: number;
   status: 'active' | 'archived';
   sport?: string;
   season?: string;
@@ -43,8 +52,11 @@ function ManageTeamsSimpleScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [paymentStatus, setPaymentStatus] = useState<'none' | 'pending_approval' | 'ready_to_pay'>('none');
+  const [paymentStatus, setPaymentStatus] = useState<'none' | 'pending_approval' | 'ready_to_pay'>(
+    'none'
+  );
   const [userPlan, setUserPlan] = useState<string | null>(null);
+  const hasLoadedTeamsRef = useRef(false);
   const explicitFallback =
     typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
       ? params.fallback.trim()
@@ -54,41 +66,56 @@ function ManageTeamsSimpleScreen() {
           ? `/organization?id=${encodeURIComponent(params.orgId)}&tab=teams`
           : '/organization?tab=teams';
 
-  const loadTeams = useCallback(async () => {
-    if (!user) return;
-    try {
-      setError(null);
-      const list: any[] = await TeamApi.managed();
-      const formattedTeams = list.map((t: any) => ({
-        id: String(t.id),
-        name: String(t.name || 'Team'),
-        members: Number(t.members || t._count?.members || 0),
-        status: (t.status || 'active') as any,
-        sport: t.sport || null,
-        season: t.season || null,
-        avatar_url: t.avatar_url || null,
-        my_role: t.my_role || null,
-        organization: t.organization || null,
-      }));
-      setTeams(formattedTeams);
-    } catch (e: any) {
-      if (handleCoachAccessError(router, e, 'loading your teams', user)) {
-        return;
+  const loadTeams = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!user) return;
+      try {
+        if (!options?.silent || !hasLoadedTeamsRef.current) {
+          setLoading(true);
+        }
+        setError(null);
+        const list: any[] = await TeamApi.managed();
+        const formattedTeams = list.map((t: any) => ({
+          id: String(t.id),
+          name: String(t.name || 'Team'),
+          members: Number(t.members || t._count?.members || 0),
+          status: (t.status || 'active') as any,
+          sport: t.sport || null,
+          season: t.season || null,
+          avatar_url: t.avatar_url || null,
+          my_role: t.my_role || null,
+          organization: t.organization || null,
+        }));
+        setTeams(formattedTeams);
+        hasLoadedTeamsRef.current = true;
+      } catch (e: any) {
+        if (handleCoachAccessError(router, e, 'loading your teams', user)) {
+          return;
+        }
+        if (__DEV__) console.error('Failed to load teams:', e);
+        setError('Unable to load teams. Please try again.');
+        setTeams([]);
       }
-      if (__DEV__) console.error('Failed to load teams:', e);
-      setError('Unable to load teams. Please try again.');
-      setTeams([]);
-    }
-  }, [router, user]);
+    },
+    [router, user]
+  );
 
   useEffect(() => {
-    void loadTeams().catch((e) => { if (__DEV__) console.warn('[ManageTeams] load error:', e); }).finally(() => setLoading(false)); // VAL-4: .catch() before .finally()
+    void loadTeams()
+      .catch(e => {
+        if (__DEV__) console.warn('[ManageTeams] load error:', e);
+      })
+      .finally(() => setLoading(false)); // VAL-4: .catch() before .finally()
   }, [loadTeams]);
 
   // Auto-refresh when screen regains focus (e.g. after creating a team)
   useFocusEffect(
     useCallback(() => {
-      void loadTeams().catch((e) => { if (__DEV__) console.warn('[ManageTeams] focus reload error:', e); });
+      if (!hasLoadedTeamsRef.current) return undefined;
+      void loadTeams({ silent: true }).catch(e => {
+        if (__DEV__) console.warn('[ManageTeams] focus reload error:', e);
+      });
+      return undefined;
     }, [loadTeams])
   );
 
@@ -101,7 +128,10 @@ function ManageTeamsSimpleScreen() {
         // Check deferred payment status for paid plans (Rule A: use pending_plan)
         const plan = prefs.pending_plan || prefs.plan;
         setUserPlan(plan);
-        if (prefs.payment_pending === true && (prefs.pending_plan === 'veteran' || prefs.pending_plan === 'legend')) {
+        if (
+          prefs.payment_pending === true &&
+          (prefs.pending_plan === 'veteran' || prefs.pending_plan === 'legend')
+        ) {
           // Independent coaches (no join request) can pay immediately
           if (prefs.payment_approved === true || prefs.join_request_pending !== true) {
             setPaymentStatus('ready_to_pay');
@@ -126,12 +156,21 @@ function ManageTeamsSimpleScreen() {
       const prefs = me?.preferences || {};
       const plan = prefs.pending_plan || prefs.plan;
       setUserPlan(plan);
-      if (prefs.payment_pending === true && (prefs.pending_plan === 'veteran' || prefs.pending_plan === 'legend')) {
-        setPaymentStatus((prefs.payment_approved === true || prefs.join_request_pending !== true) ? 'ready_to_pay' : 'pending_approval');
+      if (
+        prefs.payment_pending === true &&
+        (prefs.pending_plan === 'veteran' || prefs.pending_plan === 'legend')
+      ) {
+        setPaymentStatus(
+          prefs.payment_approved === true || prefs.join_request_pending !== true
+            ? 'ready_to_pay'
+            : 'pending_approval'
+        );
       } else {
         setPaymentStatus('none');
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setRefreshing(false);
   }, [checkAuth, loadTeams, user]);
 
@@ -165,7 +204,10 @@ function ManageTeamsSimpleScreen() {
 
   if (coachLoading || !canAccessCoachTools) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['top', 'bottom']}
+      >
         <ActivityIndicator style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />
       </SafeAreaView>
     );
@@ -173,7 +215,10 @@ function ManageTeamsSimpleScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['top', 'bottom']}
+      >
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
         </View>
@@ -182,15 +227,15 @@ function ManageTeamsSimpleScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      edges={['top', 'bottom']}
+    >
       <Stack.Screen options={{ title: 'My Teams', headerShown: false }} />
-      
+
       {/* Simple Header */}
       <View style={[styles.header, { backgroundColor: theme.background }]}>
-        <Pressable 
-          style={styles.backButton} 
-          onPress={() => safeGoBack(router, explicitFallback)}
-        >
+        <Pressable style={styles.backButton} onPress={() => safeGoBack(router, explicitFallback)}>
           <MaterialIcons name="arrow-back" size={28} color={theme.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text }]}>My Teams</Text>
@@ -220,7 +265,9 @@ function ManageTeamsSimpleScreen() {
                 { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
               ]}
             >
-              {userPlan ? `${userPlan.charAt(0).toUpperCase() + userPlan.slice(1)} Plan Selected` : 'Plan Selected'}
+              {userPlan
+                ? `${userPlan.charAt(0).toUpperCase() + userPlan.slice(1)} Plan Selected`
+                : 'Plan Selected'}
             </Text>
             <Text
               style={[
@@ -277,14 +324,14 @@ function ManageTeamsSimpleScreen() {
 
       {/* Quick Action Buttons - Inline */}
       <View style={styles.quickActionsContainer}>
-        <Pressable 
+        <Pressable
           style={[styles.inlineActionButton, { backgroundColor: theme.tint }]}
           onPress={handleCreateTeamPress}
         >
           <MaterialIcons name="add-circle-outline" size={24} color="#fff" />
           <Text style={styles.inlineActionText}>Create Team</Text>
         </Pressable>
-        
+
         <Pressable
           style={[styles.inlineActionButton, { backgroundColor: '#10B981' }]}
           onPress={handleManageSeasonPress}
@@ -294,31 +341,28 @@ function ManageTeamsSimpleScreen() {
         </Pressable>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 20 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* League Card - BIG and Prominent */}
         {organization && (
-          <Pressable 
+          <Pressable
             style={styles.leagueCard}
-            onPress={() => { void router.push({
+            onPress={() => {
+              void router.push({
                 pathname: '/organization',
                 params: {
                   id: organization.id,
-                  name: organization.name
-                }
+                  name: organization.name,
+                },
               } as any);
             }}
           >
             <LinearGradient
               colors={
-                colorScheme === 'dark'
-                  ? [theme.background, theme.card]
-                  : ['#111827', '#1F2937'] // audit: intentional league card gradient, not text color
+                colorScheme === 'dark' ? [theme.background, theme.card] : ['#111827', '#1F2937'] // audit: intentional league card gradient, not text color
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -331,7 +375,7 @@ function ManageTeamsSimpleScreen() {
                   <Text style={styles.leagueName}>{organization.name}</Text>
                 </View>
               </View>
-              
+
               <View style={styles.leagueStats}>
                 <View style={styles.leagueStat}>
                   <Text style={styles.leagueStatNumber}>{activeTeams.length}</Text>
@@ -366,7 +410,7 @@ function ManageTeamsSimpleScreen() {
           <View style={styles.errorCard}>
             <MaterialIcons name="error" size={48} color="#EF4444" />
             <Text style={styles.errorText}>{error}</Text>
-            <Pressable style={styles.retryButton} onPress={loadTeams}>
+            <Pressable style={styles.retryButton} onPress={() => void loadTeams()}>
               <Text style={styles.retryButtonText}>Try Again</Text>
             </Pressable>
           </View>
@@ -375,12 +419,9 @@ function ManageTeamsSimpleScreen() {
         {/* Teams Section */}
         {!loading && !error && activeTeams.length > 0 && (
           <View style={styles.teamsSection}>
-            <SectionHeader 
-              title="MY TEAMS"
-              style={{ paddingHorizontal: 0 }}
-            />
-            
-            {activeTeams.map((team) => (
+            <SectionHeader title="MY TEAMS" style={{ paddingHorizontal: 0 }} />
+
+            {activeTeams.map(team => (
               <TeamCard
                 key={team.id}
                 team={{
@@ -413,7 +454,12 @@ function ManageTeamsSimpleScreen() {
               {/* v1.0.2 pass 10: use theme tint color so button matches dark/light schemes. */}
               <Pressable
                 onPress={handleCreateTeamPress}
-                style={{ backgroundColor: theme.tint, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+                style={{
+                  backgroundColor: theme.tint,
+                  paddingHorizontal: 24,
+                  paddingVertical: 12,
+                  borderRadius: 8,
+                }}
                 accessibilityRole="button"
                 accessibilityLabel="Create your first team"
               >
@@ -453,7 +499,7 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  
+
   // Quick Action Buttons (Inline)
   quickActionsContainer: {
     flexDirection: 'row',
@@ -476,7 +522,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  
+
   // League Card
   leagueCard: {
     marginHorizontal: 20,

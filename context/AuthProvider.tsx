@@ -111,6 +111,7 @@ export interface AuthContextType {
     pendingVerification?: boolean;
     replaceSession?: boolean;
     skipSubscriptionRefresh?: boolean;
+    forceRefresh?: boolean;
   }) => Promise<any>;
   signOut: () => Promise<void>;
   registerPushToken: () => Promise<boolean>;
@@ -154,7 +155,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const segments = useSegments();
   const unauthenticatedEntryRoute = Platform.OS === 'web' ? '/sign-up' : '/sign-in';
   const currentPath =
-    Array.isArray(segments) && segments.length ? segments.map(segment => String(segment)).join('/') : '';
+    Array.isArray(segments) && segments.length
+      ? segments.map(segment => String(segment)).join('/')
+      : '';
 
   const lastRedirectRef = React.useRef<string | null>(null);
   const recentRedirectsRef = React.useRef<Array<{ family: string; to: string; ts: number }>>([]);
@@ -178,7 +181,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     if (!lastRedirectRef.current) return;
 
     const normalizedTarget = lastRedirectRef.current.replace(/^\//, '');
-    if (currentPath === normalizedTarget || (currentPath !== '' && currentPath !== normalizedTarget)) {
+    if (
+      currentPath === normalizedTarget ||
+      (currentPath !== '' && currentPath !== normalizedTarget)
+    ) {
       lastRedirectRef.current = null;
     }
   }, [currentPath, segments]);
@@ -204,11 +210,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // Derived state
   const normalizedRole = String(user?.role || '').toLowerCase();
   const isAdmin =
-    user?.email_verified === true &&
-    (normalizedRole === 'super_admin' || user?.is_admin === true);
+    user?.email_verified === true && (normalizedRole === 'super_admin' || user?.is_admin === true);
   const isOnboardingComplete = useCallback(
-    (authUser: AuthUser | null | undefined) =>
-      isOnboardingCompleteSnapshot(authUser as any),
+    (authUser: AuthUser | null | undefined) => isOnboardingCompleteSnapshot(authUser as any),
     []
   );
 
@@ -402,6 +406,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       pendingVerification?: boolean;
       skipSubscriptionRefresh?: boolean;
       replaceSession?: boolean;
+      forceRefresh?: boolean;
     }) => {
       try {
         // If pending verification flag is set, store email and don't try to fetch user
@@ -440,10 +445,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         }
         setHasSession(true);
 
-        // AuthProvider is the canonical auth-state sync path. Always bypass the
-        // short-lived User.me() cache here so approval, agreement, and billing
-        // transitions propagate immediately into provider state.
-        const me: any = await User.me({ force: true });
+        // Most checkAuth callers are navigation/focus guards and can reuse the
+        // short-lived /me cache. Force a network refresh only for auth-critical
+        // transitions such as new session establishment.
+        const shouldForceRefresh =
+          options?.forceRefresh === true || options?.replaceSession === true;
+        const me: any = await User.me(shouldForceRefresh ? { force: true } : undefined);
         setHealthOk(true);
         setHealthError(null);
 
@@ -1174,14 +1181,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // Do not strand unauthenticated users on the passive root spinner when a
     // single startup health check fails. Let them reach /sign-in and surface
     // connectivity problems via OfflineBanner there instead.
-      if (!healthOk) {
+    if (!healthOk) {
       if (__DEV__) console.log('[AuthProvider] Backend unhealthy, limiting routing');
       if (!user && !pendingVerificationEmail && !isPublic) {
         if (lastRedirectRef.current !== unauthenticatedEntryRoute) {
-          redirectWithTelemetry(
-            unauthenticatedEntryRoute,
-            'unauthenticated_backend_unhealthy'
-          );
+          redirectWithTelemetry(unauthenticatedEntryRoute, 'unauthenticated_backend_unhealthy');
         }
       }
       return;

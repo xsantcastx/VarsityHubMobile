@@ -10,6 +10,7 @@ type AuthCheckFn<T> =
       pendingVerification?: boolean;
       replaceSession?: boolean;
       skipSubscriptionRefresh?: boolean;
+      forceRefresh?: boolean;
     }) => Promise<T | null | undefined>)
   | undefined;
 
@@ -55,8 +56,7 @@ export function getLinkedProvidersSnapshot(
 
   const hasOauthProvider = Boolean(source?.google_id || source?.apple_id);
   return {
-    password:
-      typeof source?.has_password === 'boolean' ? source.has_password : !hasOauthProvider,
+    password: typeof source?.has_password === 'boolean' ? source.has_password : !hasOauthProvider,
     google: Boolean(source?.google_id),
     apple: Boolean(source?.apple_id),
   };
@@ -67,9 +67,7 @@ export function getCanonicalRole(source: AuthStateLike | null | undefined): stri
   return normalizeString(source?.role) ?? normalizeString(preferences.role);
 }
 
-export function isOnboardingCompleteSnapshot(
-  source: AuthStateLike | null | undefined
-): boolean {
+export function isOnboardingCompleteSnapshot(source: AuthStateLike | null | undefined): boolean {
   if (typeof source?.onboarding_completed === 'boolean') {
     return source.onboarding_completed;
   }
@@ -86,9 +84,7 @@ export function getCanonicalOrganizationId(
   return normalizeString(preferences.organization_id);
 }
 
-export function isProceedingAsFanSnapshot(
-  source: AuthStateLike | null | undefined
-): boolean {
+export function isProceedingAsFanSnapshot(source: AuthStateLike | null | undefined): boolean {
   if (typeof source?.proceeding_as_fan === 'boolean') {
     return source.proceeding_as_fan;
   }
@@ -96,16 +92,16 @@ export function isProceedingAsFanSnapshot(
   return preferences.proceeding_as_fan === true;
 }
 
-export function hasAcceptedCoachAgreement(
-  source: AuthStateLike | null | undefined
-): boolean {
+export function hasAcceptedCoachAgreement(source: AuthStateLike | null | undefined): boolean {
   if (normalizeString(source?.coach_agreement_accepted_at)) return true;
   const preferences = readPreferences(source);
   return Boolean(normalizeString(preferences.coach_agreement_accepted_at));
 }
 
 export function isApprovedCoach(source: AuthStateLike | null | undefined): boolean {
-  const role = String(getCanonicalRole(source) || '').trim().toLowerCase();
+  const role = String(getCanonicalRole(source) || '')
+    .trim()
+    .toLowerCase();
   return role === 'coach' && String(source?.approval_status || '').toUpperCase() === 'APPROVED';
 }
 
@@ -136,7 +132,7 @@ export async function getFreshAuthSnapshot<T>(
   currentUser: T | null | undefined
 ): Promise<T | null> {
   if (typeof checkAuth === 'function') {
-    const fresh = await checkAuth({ skipSubscriptionRefresh: true });
+    const fresh = await checkAuth({ skipSubscriptionRefresh: true, forceRefresh: true });
     if (fresh != null) {
       return fresh;
     }

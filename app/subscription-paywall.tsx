@@ -92,7 +92,7 @@ function SubscriptionPaywallScreen() {
     for (let i = 0; i < 15; i++) {
       await new Promise(r => setTimeout(r, 2000));
       try {
-        const fresh: any = await checkAuth().catch(() => null);
+        const fresh: any = await checkAuth({ forceRefresh: true }).catch(() => null);
         const billing = getCanonicalBillingState(fresh);
         if (
           (billing.plan === 'veteran' || billing.plan === 'legend') &&
@@ -482,334 +482,344 @@ function SubscriptionPaywallScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={[styles.contentInner, isLargeScreen ? styles.contentInnerLarge : null]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-            Choose Your League Plan
-          </Text>
-          <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-            Select the plan that fits your league&apos;s needs
-          </Text>
-        </View>
-
-        {/* IAP Error Banner */}
-        {(isIOS || Platform.OS === 'android') && iapError ? (
-          <View
-            style={[
-              styles.errorBanner,
-              colorScheme === 'dark' && {
-                backgroundColor: 'rgba(220, 38, 38, 0.12)',
-                borderColor: 'rgba(220, 38, 38, 0.4)',
-              },
-            ]}
-          >
-            <Text style={[styles.errorBannerText, colorScheme === 'dark' && { color: '#FCA5A5' }]}>
-              Subscription plans are being set up. You can continue with the free Rookie plan for
-              now.
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
+              Choose Your League Plan
+            </Text>
+            <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
+              Select the plan that fits your league&apos;s needs
             </Text>
           </View>
-        ) : null}
 
-        {/* Tier Selection Pills */}
-        <View style={styles.tierSelector}>
-          {availableTiers.map(tier => (
-            <Pressable
-              key={tier}
-              style={[
-                styles.tierPill,
-                {
-                  backgroundColor: Colors[colorScheme].card,
-                  borderColor: Colors[colorScheme].border,
-                },
-                selectedTier === tier && styles.tierPillSelected,
-                selectedTier === tier && {
-                  borderColor: getTierColor(tier),
-                  backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : '#F9FAFB',
-                },
-              ]}
-              onPress={() => setSelectedTier(tier)}
-              accessibilityRole="button"
-              accessibilityLabel={`Select ${tier} plan`}
-              accessibilityState={{ selected: selectedTier === tier }}
-            >
-              <CoachTierBadge tier={tier} size="small" showLabel={true} />
-              {tier === 'legend' && (
-                <View style={styles.popularBadge}>
-                  <Text style={styles.popularText}>BEST VALUE</Text>
-                </View>
-              )}
-              {(isIOS || Platform.OS === 'android') &&
-              tier !== 'rookie' &&
-              getIAPPrice(tier as 'veteran' | 'legend') ? (
-                <Text style={[styles.iapPriceText, { color: Colors[colorScheme].mutedText }]}>
-                  {getIAPPrice(tier as 'veteran' | 'legend')}
-                </Text>
-              ) : null}
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Selected Tier Benefits */}
-        <View style={styles.benefitsSection}>
-          <CoachTierBenefits tier={selectedTier} compact={false} />
-        </View>
-
-        <View style={styles.disclosureSection}>
-          <SubscriptionDisclosureCard
-            colorScheme={colorScheme}
-            plan={selectedTier}
-            storePrice={selectedTier === 'rookie' ? null : getIAPPrice(selectedTier)}
-          />
-        </View>
-
-        {/* Comparison Table */}
-        <View style={styles.comparisonSection}>
-          <Text style={[styles.comparisonTitle, { color: Colors[colorScheme].text }]}>
-            Compare Plans
-          </Text>
-
-          <View style={[styles.comparisonTable, { borderColor: Colors[colorScheme].border }]}>
-            {/* Header Row */}
+          {/* IAP Error Banner */}
+          {(isIOS || Platform.OS === 'android') && iapError ? (
             <View
               style={[
-                styles.comparisonRow,
-                {
-                  borderBottomColor: Colors[colorScheme].border,
-                  backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : '#F3F4F6',
+                styles.errorBanner,
+                colorScheme === 'dark' && {
+                  backgroundColor: 'rgba(220, 38, 38, 0.12)',
+                  borderColor: 'rgba(220, 38, 38, 0.4)',
                 },
               ]}
             >
-              <View style={styles.comparisonFeature}>
-                <Text
-                  style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}
-                >
-                  Feature
-                </Text>
-              </View>
-              <View style={styles.comparisonTier}>
-                <Text
-                  style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}
-                >
-                  Rookie
-                </Text>
-              </View>
-              <View style={styles.comparisonTier}>
-                <Text
-                  style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}
-                >
-                  Veteran
-                </Text>
-              </View>
-              <View style={styles.comparisonTier}>
-                <Text
-                  style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}
-                >
-                  Legend
-                </Text>
-              </View>
+              <Text
+                style={[styles.errorBannerText, colorScheme === 'dark' && { color: '#FCA5A5' }]}
+              >
+                Subscription plans are being set up. You can continue with the free Rookie plan for
+                now.
+              </Text>
             </View>
+          ) : null}
 
-            {/* Feature Rows */}
-            {comparisonFeatures.map((feature, index) => (
+          {/* Tier Selection Pills */}
+          <View style={styles.tierSelector}>
+            {availableTiers.map(tier => (
+              <Pressable
+                key={tier}
+                style={[
+                  styles.tierPill,
+                  {
+                    backgroundColor: Colors[colorScheme].card,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                  selectedTier === tier && styles.tierPillSelected,
+                  selectedTier === tier && {
+                    borderColor: getTierColor(tier),
+                    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : '#F9FAFB',
+                  },
+                ]}
+                onPress={() => setSelectedTier(tier)}
+                accessibilityRole="button"
+                accessibilityLabel={`Select ${tier} plan`}
+                accessibilityState={{ selected: selectedTier === tier }}
+              >
+                <CoachTierBadge tier={tier} size="small" showLabel={true} />
+                {tier === 'legend' && (
+                  <View style={styles.popularBadge}>
+                    <Text style={styles.popularText}>BEST VALUE</Text>
+                  </View>
+                )}
+                {(isIOS || Platform.OS === 'android') &&
+                tier !== 'rookie' &&
+                getIAPPrice(tier as 'veteran' | 'legend') ? (
+                  <Text style={[styles.iapPriceText, { color: Colors[colorScheme].mutedText }]}>
+                    {getIAPPrice(tier as 'veteran' | 'legend')}
+                  </Text>
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Selected Tier Benefits */}
+          <View style={styles.benefitsSection}>
+            <CoachTierBenefits tier={selectedTier} compact={false} />
+          </View>
+
+          <View style={styles.disclosureSection}>
+            <SubscriptionDisclosureCard
+              colorScheme={colorScheme}
+              plan={selectedTier}
+              storePrice={selectedTier === 'rookie' ? null : getIAPPrice(selectedTier)}
+            />
+          </View>
+
+          {/* Comparison Table */}
+          <View style={styles.comparisonSection}>
+            <Text style={[styles.comparisonTitle, { color: Colors[colorScheme].text }]}>
+              Compare Plans
+            </Text>
+
+            <View style={[styles.comparisonTable, { borderColor: Colors[colorScheme].border }]}>
+              {/* Header Row */}
               <View
-                key={index}
                 style={[
                   styles.comparisonRow,
-                  { borderBottomColor: Colors[colorScheme].border },
-                  index % 2 === 0 && {
-                    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.02)' : '#F9FAFB',
+                  {
+                    borderBottomColor: Colors[colorScheme].border,
+                    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : '#F3F4F6',
                   },
                 ]}
               >
                 <View style={styles.comparisonFeature}>
-                  <Text style={[styles.comparisonFeatureText, { color: Colors[colorScheme].text }]}>
-                    {feature.name}
+                  <Text
+                    style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}
+                  >
+                    Feature
                   </Text>
                 </View>
                 <View style={styles.comparisonTier}>
-                  {renderFeatureValue(feature.rookie, colorScheme)}
+                  <Text
+                    style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}
+                  >
+                    Rookie
+                  </Text>
                 </View>
                 <View style={styles.comparisonTier}>
-                  {renderFeatureValue(feature.veteran, colorScheme)}
+                  <Text
+                    style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}
+                  >
+                    Veteran
+                  </Text>
                 </View>
                 <View style={styles.comparisonTier}>
-                  {renderFeatureValue(feature.legend, colorScheme)}
+                  <Text
+                    style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}
+                  >
+                    Legend
+                  </Text>
                 </View>
               </View>
-            ))}
-          </View>
-        </View>
 
-        {/* Promo Code Section — web/fallback only (Apple/Google don't allow promo codes through IAP) */}
-        {!isIOS && Platform.OS !== 'android' && selectedTier !== 'rookie' && (
-          <View
-            style={[
-              styles.promoSection,
-              {
-                backgroundColor: Colors[colorScheme].surface || Colors[colorScheme].card,
-                borderColor: Colors[colorScheme].border,
-              },
-            ]}
-          >
-            <Text style={[styles.promoLabel, { color: Colors[colorScheme].text }]}>
-              Have a promo code?
-            </Text>
-            <View style={styles.promoInputContainer}>
-              <TextInput
-                style={[
-                  styles.promoInput,
-                  {
-                    backgroundColor: Colors[colorScheme].background,
-                    color: Colors[colorScheme].text,
-                    borderColor: Colors[colorScheme].border,
-                  },
-                ]}
-                placeholder="Enter code"
-                placeholderTextColor="#9CA3AF"
-                value={promoCode}
-                onChangeText={setPromoCode}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                editable={!isProcessing}
-                accessibilityLabel="Promo code"
-              />
+              {/* Feature Rows */}
+              {comparisonFeatures.map((feature, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.comparisonRow,
+                    { borderBottomColor: Colors[colorScheme].border },
+                    index % 2 === 0 && {
+                      backgroundColor:
+                        colorScheme === 'dark' ? 'rgba(255,255,255,0.02)' : '#F9FAFB',
+                    },
+                  ]}
+                >
+                  <View style={styles.comparisonFeature}>
+                    <Text
+                      style={[styles.comparisonFeatureText, { color: Colors[colorScheme].text }]}
+                    >
+                      {feature.name}
+                    </Text>
+                  </View>
+                  <View style={styles.comparisonTier}>
+                    {renderFeatureValue(feature.rookie, colorScheme)}
+                  </View>
+                  <View style={styles.comparisonTier}>
+                    {renderFeatureValue(feature.veteran, colorScheme)}
+                  </View>
+                  <View style={styles.comparisonTier}>
+                    {renderFeatureValue(feature.legend, colorScheme)}
+                  </View>
+                </View>
+              ))}
             </View>
-            <Text style={[styles.promoHint, { color: theme.mutedText }]}>
-              Promo codes will be applied at checkout
-            </Text>
           </View>
-        )}
 
-        {/* CTA Button */}
-        <View style={styles.ctaSection}>
-          <Pressable
-            style={[
-              styles.ctaButton,
-              { backgroundColor: getTierColor(selectedTier) },
-              isProcessing && styles.ctaButtonDisabled,
-            ]}
-            onPress={handleSubscribe}
-            disabled={isProcessing}
-            accessibilityRole="button"
-            accessibilityLabel={
-              selectedTier === 'rookie'
-                ? 'Continue with Free Plan'
-                : `Upgrade to ${capitalize(selectedTier)}`
-            }
-          >
-            {isProcessing ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <Text style={styles.ctaButtonText}>
-                  {selectedTier === 'rookie'
-                    ? 'Continue with Free Plan'
-                    : `Upgrade to ${capitalize(selectedTier)}`}
-                </Text>
-                {selectedTier !== 'rookie' && (
-                  <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
-                )}
-              </>
+          {/* Promo Code Section — web/fallback only (Apple/Google don't allow promo codes through IAP) */}
+          {!isIOS && Platform.OS !== 'android' && selectedTier !== 'rookie' && (
+            <View
+              style={[
+                styles.promoSection,
+                {
+                  backgroundColor: Colors[colorScheme].surface || Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <Text style={[styles.promoLabel, { color: Colors[colorScheme].text }]}>
+                Have a promo code?
+              </Text>
+              <View style={styles.promoInputContainer}>
+                <TextInput
+                  style={[
+                    styles.promoInput,
+                    {
+                      backgroundColor: Colors[colorScheme].background,
+                      color: Colors[colorScheme].text,
+                      borderColor: Colors[colorScheme].border,
+                    },
+                  ]}
+                  placeholder="Enter code"
+                  placeholderTextColor="#9CA3AF"
+                  value={promoCode}
+                  onChangeText={setPromoCode}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  editable={!isProcessing}
+                  accessibilityLabel="Promo code"
+                />
+              </View>
+              <Text style={[styles.promoHint, { color: theme.mutedText }]}>
+                Promo codes will be applied at checkout
+              </Text>
+            </View>
+          )}
+
+          {/* CTA Button */}
+          <View style={styles.ctaSection}>
+            <Pressable
+              style={[
+                styles.ctaButton,
+                { backgroundColor: getTierColor(selectedTier) },
+                isProcessing && styles.ctaButtonDisabled,
+              ]}
+              onPress={handleSubscribe}
+              disabled={isProcessing}
+              accessibilityRole="button"
+              accessibilityLabel={
+                selectedTier === 'rookie'
+                  ? 'Continue with Free Plan'
+                  : `Upgrade to ${capitalize(selectedTier)}`
+              }
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.ctaButtonText}>
+                    {selectedTier === 'rookie'
+                      ? 'Continue with Free Plan'
+                      : `Upgrade to ${capitalize(selectedTier)}`}
+                  </Text>
+                  {selectedTier !== 'rookie' && (
+                    <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
+                  )}
+                </>
+              )}
+            </Pressable>
+
+            <Text style={[styles.ctaSubtext, { color: theme.mutedText }]}>
+              {selectedTier === 'legend' && 'Billed annually • Cancel anytime'}
+              {selectedTier === 'veteran' && 'Billed monthly per team • Cancel anytime'}
+              {selectedTier === 'rookie' && 'Free • No credit card required'}
+            </Text>
+
+            {isIOS && selectedTier !== 'rookie' && (
+              <Text style={[styles.ctaSubtext, { color: '#9CA3AF', fontSize: 11, marginTop: 4 }]}>
+                Payment will be charged to your Apple ID account. Subscription automatically renews
+                unless canceled at least 24 hours before the end of the current period. Manage
+                subscriptions in Settings.
+              </Text>
             )}
-          </Pressable>
+            {Platform.OS === 'android' && selectedTier !== 'rookie' && (
+              <Text style={[styles.ctaSubtext, { color: '#9CA3AF', fontSize: 11, marginTop: 4 }]}>
+                Payment will be charged to your Google Play account. Subscription automatically
+                renews unless canceled at least 24 hours before the end of the current period.
+                Manage subscriptions in Google Play.
+              </Text>
+            )}
 
-          <Text style={[styles.ctaSubtext, { color: theme.mutedText }]}>
-            {selectedTier === 'legend' && 'Billed annually • Cancel anytime'}
-            {selectedTier === 'veteran' && 'Billed monthly per team • Cancel anytime'}
-            {selectedTier === 'rookie' && 'Free • No credit card required'}
-          </Text>
-
-          {isIOS && selectedTier !== 'rookie' && (
-            <Text style={[styles.ctaSubtext, { color: '#9CA3AF', fontSize: 11, marginTop: 4 }]}>
-              Payment will be charged to your Apple ID account. Subscription automatically renews
-              unless canceled at least 24 hours before the end of the current period. Manage
-              subscriptions in Settings.
-            </Text>
-          )}
-          {Platform.OS === 'android' && selectedTier !== 'rookie' && (
-            <Text style={[styles.ctaSubtext, { color: '#9CA3AF', fontSize: 11, marginTop: 4 }]}>
-              Payment will be charged to your Google Play account. Subscription automatically renews
-              unless canceled at least 24 hours before the end of the current period. Manage
-              subscriptions in Google Play.
-            </Text>
-          )}
-
-          {/* Restore Purchases — required by Apple for IAP apps */}
-          {(isIOS || Platform.OS === 'android') && selectedTier !== 'rookie' && (
-            <>
-              <Pressable
-                style={[styles.restoreButton, { marginTop: 16 }]}
-                accessibilityRole="button"
-                accessibilityLabel="Restore Purchases"
-                onPress={async () => {
-                  if (isProcessing) return;
-                  setLoading(true);
-                  try {
-                    const restoreStatus = await iapRestore();
-                    await checkAuth().catch(() => {});
-                    if (restoreStatus === 'restored') {
-                      Alert.alert('Restore Complete', 'Your subscription has been restored.', [
-                        { text: 'OK', onPress: () => safeGoBack(router) },
-                      ]);
-                    } else if (restoreStatus === 'failed') {
+            {/* Restore Purchases — required by Apple for IAP apps */}
+            {(isIOS || Platform.OS === 'android') && selectedTier !== 'rookie' && (
+              <>
+                <Pressable
+                  style={[styles.restoreButton, { marginTop: 16 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Restore Purchases"
+                  onPress={async () => {
+                    if (isProcessing) return;
+                    setLoading(true);
+                    try {
+                      const restoreStatus = await iapRestore();
+                      await checkAuth({ forceRefresh: true }).catch(() => {});
+                      if (restoreStatus === 'restored') {
+                        Alert.alert('Restore Complete', 'Your subscription has been restored.', [
+                          { text: 'OK', onPress: () => safeGoBack(router) },
+                        ]);
+                      } else if (restoreStatus === 'failed') {
+                        Alert.alert(
+                          'Restore Failed',
+                          iapError ||
+                            'We found previous purchases, but could not restore your VarsityHub subscription.'
+                        );
+                      } else {
+                        Alert.alert(
+                          'No Purchases Found',
+                          'No previous subscription was found for this account.'
+                        );
+                      }
+                    } catch {
                       Alert.alert(
                         'Restore Failed',
-                        iapError ||
-                          'We found previous purchases, but could not restore your VarsityHub subscription.'
+                        'Unable to restore purchases. Please try again.'
                       );
-                    } else {
-                      Alert.alert(
-                        'No Purchases Found',
-                        'No previous subscription was found for this account.'
-                      );
+                    } finally {
+                      setLoading(false);
                     }
-                  } catch {
-                    Alert.alert('Restore Failed', 'Unable to restore purchases. Please try again.');
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                disabled={isProcessing}
-              >
-                <Text style={[styles.restoreButtonText, { color: Colors[colorScheme].tint }]}>
-                  Restore Purchases
-                </Text>
-              </Pressable>
-
-              <View style={styles.legalLinksRow}>
-                <Text style={[styles.legalLinksIntro, { color: theme.mutedText }]}>
-                  By subscribing, you agree to our{' '}
-                </Text>
-                <Pressable
-                  accessibilityRole="link"
-                  accessibilityLabel="Open Terms of Service"
-                  onPress={() =>
-                    void openExternalUrl(PUBLIC_TERMS_URL, {
-                      context: 'subscription_paywall_terms_link',
-                    })
-                  }
+                  }}
+                  disabled={isProcessing}
                 >
-                  <Text style={[styles.legalLinkText, { color: theme.tint }]}>
-                    Terms of Service
+                  <Text style={[styles.restoreButtonText, { color: Colors[colorScheme].tint }]}>
+                    Restore Purchases
                   </Text>
                 </Pressable>
-                <Text style={[styles.legalLinksIntro, { color: theme.mutedText }]}> and </Text>
-                <Pressable
-                  accessibilityRole="link"
-                  accessibilityLabel="Open Privacy Policy"
-                  onPress={() =>
-                    void openExternalUrl(PUBLIC_PRIVACY_POLICY_URL, {
-                      context: 'subscription_paywall_privacy_link',
-                    })
-                  }
-                >
-                  <Text style={[styles.legalLinkText, { color: theme.tint }]}>Privacy Policy</Text>
-                </Pressable>
-                <Text style={[styles.legalLinksIntro, { color: theme.mutedText }]}>.</Text>
-              </View>
-            </>
-          )}
-        </View>
+
+                <View style={styles.legalLinksRow}>
+                  <Text style={[styles.legalLinksIntro, { color: theme.mutedText }]}>
+                    By subscribing, you agree to our{' '}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="link"
+                    accessibilityLabel="Open Terms of Service"
+                    onPress={() =>
+                      void openExternalUrl(PUBLIC_TERMS_URL, {
+                        context: 'subscription_paywall_terms_link',
+                      })
+                    }
+                  >
+                    <Text style={[styles.legalLinkText, { color: theme.tint }]}>
+                      Terms of Service
+                    </Text>
+                  </Pressable>
+                  <Text style={[styles.legalLinksIntro, { color: theme.mutedText }]}> and </Text>
+                  <Pressable
+                    accessibilityRole="link"
+                    accessibilityLabel="Open Privacy Policy"
+                    onPress={() =>
+                      void openExternalUrl(PUBLIC_PRIVACY_POLICY_URL, {
+                        context: 'subscription_paywall_privacy_link',
+                      })
+                    }
+                  >
+                    <Text style={[styles.legalLinkText, { color: theme.tint }]}>
+                      Privacy Policy
+                    </Text>
+                  </Pressable>
+                  <Text style={[styles.legalLinksIntro, { color: theme.mutedText }]}>.</Text>
+                </View>
+              </>
+            )}
+          </View>
         </View>
       </ScrollView>
 

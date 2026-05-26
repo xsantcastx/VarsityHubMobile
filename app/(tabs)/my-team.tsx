@@ -10,18 +10,18 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 // @ts-ignore JS exports
 import { Team as TeamApi } from '@/api/entities';
@@ -94,7 +94,15 @@ function resolveNextSelectedTeamId(
   return teams[0].id;
 }
 
-const ROLE_OPTIONS = ['owner', 'manager', 'coach', 'assistant_coach', 'player', 'parent', 'member'] as const;
+const ROLE_OPTIONS = [
+  'owner',
+  'manager',
+  'coach',
+  'assistant_coach',
+  'player',
+  'parent',
+  'member',
+] as const;
 type Role = (typeof ROLE_OPTIONS)[number];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -130,10 +138,17 @@ function MyTeamScreen() {
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-  const params = useLocalSearchParams<{ teamId?: string; fallback?: string; orgId?: string; orgTab?: string }>();
+  const params = useLocalSearchParams<{
+    teamId?: string;
+    fallback?: string;
+    orgId?: string;
+    orgTab?: string;
+  }>();
 
   const routeTeamId =
-    typeof params.teamId === 'string' && params.teamId.trim().length > 0 ? params.teamId.trim() : null;
+    typeof params.teamId === 'string' && params.teamId.trim().length > 0
+      ? params.teamId.trim()
+      : null;
   const explicitFallback =
     typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
       ? params.fallback.trim()
@@ -178,18 +193,14 @@ function MyTeamScreen() {
     try {
       setError(null);
       const list = (await TeamApi.managed()) as RawManagedTeam[];
-      const formatted: ManagedTeam[] = list.map((t) => ({
+      const formatted: ManagedTeam[] = list.map(t => ({
         id: String(t.id),
         name: String(t.name || 'Team'),
         sport: t.sport || undefined,
         avatar_url: t.avatar_url || undefined,
       }));
       setTeams(formatted);
-      const nextSelectedTeamId = resolveNextSelectedTeamId(
-        formatted,
-        routeTeamId,
-        selectedTeamId
-      );
+      const nextSelectedTeamId = resolveNextSelectedTeamId(formatted, routeTeamId, selectedTeamId);
       setSelectedTeamId(nextSelectedTeamId);
       if (!nextSelectedTeamId) {
         setSelectedTeamId(null);
@@ -210,48 +221,48 @@ function MyTeamScreen() {
     }
   }, [routeTeamId, router, selectedTeamId, user]);
 
-  const loadMembers = useCallback(async (teamId: string) => {
-    try {
-      const list = (await TeamApi.members(teamId)) as RawTeamMember[];
-      setMembers(
-        list.map((m) => ({
-          id: String(m.id),
-          role: m.role || 'member',
-          status: m.status || 'active',
-          position: m.position || m.custom_position || undefined,
-          jersey_number: m.jersey_number || undefined,
-          user: {
-            id: String(m.user?.id || ''),
-            email: m.user?.email || '',
-            display_name: m.user?.display_name || m.user?.email || 'Unknown',
-            avatar_url: m.user?.avatar_url || undefined,
-            username: m.user?.username || undefined,
-            is_parent: m.user?.is_parent || false,
-          },
-        })),
-      );
-    } catch (error: unknown) {
-      const e = error as ApiErrorLike;
-      if (handleCoachAccessError(router, e, 'loading team members', user)) {
-        return;
+  const loadMembers = useCallback(
+    async (teamId: string) => {
+      try {
+        const list = (await TeamApi.members(teamId)) as RawTeamMember[];
+        setMembers(
+          list.map(m => ({
+            id: String(m.id),
+            role: m.role || 'member',
+            status: m.status || 'active',
+            position: m.position || m.custom_position || undefined,
+            jersey_number: m.jersey_number || undefined,
+            user: {
+              id: String(m.user?.id || ''),
+              email: m.user?.email || '',
+              display_name: m.user?.display_name || m.user?.email || 'Unknown',
+              avatar_url: m.user?.avatar_url || undefined,
+              username: m.user?.username || undefined,
+              is_parent: m.user?.is_parent || false,
+            },
+          }))
+        );
+      } catch (error: unknown) {
+        const e = error as ApiErrorLike;
+        if (handleCoachAccessError(router, e, 'loading team members', user)) {
+          return;
+        }
+        if (__DEV__) console.error('Failed to load members:', e);
+        setMembers([]);
       }
-      if (__DEV__) console.error('Failed to load members:', e);
-      setMembers([]);
-    }
-  }, [router, user]);
+    },
+    [router, user]
+  );
 
   const loadAll = useCallback(async () => {
-    const nextSelectedTeamId = await loadTeams();
-    if (nextSelectedTeamId) {
-      await loadMembers(nextSelectedTeamId);
-    }
-  }, [loadMembers, loadTeams]);
+    await loadTeams();
+  }, [loadTeams]);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
       void loadAll().finally(() => setLoading(false));
-    }, [loadAll]),
+    }, [loadAll])
   );
 
   useEffect(() => {
@@ -265,9 +276,8 @@ function MyTeamScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadAll();
-    if (selectedTeamId) await loadMembers(selectedTeamId);
     setRefreshing(false);
-  }, [loadAll, loadMembers, selectedTeamId]);
+  }, [loadAll]);
 
   const handleUpdateRole = useCallback(
     async (role: Role) => {
@@ -288,7 +298,7 @@ function MyTeamScreen() {
         setMemberActionLoading(false);
       }
     },
-    [selectedMember, selectedTeamId, loadMembers, memberActionLoading, router, user],
+    [selectedMember, selectedTeamId, loadMembers, memberActionLoading, router, user]
   );
 
   const handleUpdatePosition = useCallback(async () => {
@@ -309,7 +319,15 @@ function MyTeamScreen() {
     } finally {
       setMemberActionLoading(false);
     }
-  }, [selectedMember, selectedTeamId, positionInput, loadMembers, memberActionLoading, router, user]);
+  }, [
+    selectedMember,
+    selectedTeamId,
+    positionInput,
+    loadMembers,
+    memberActionLoading,
+    router,
+    user,
+  ]);
 
   const handleRemoveMember = useCallback(async () => {
     if (!selectedMember || memberActionLoading) return;
@@ -351,7 +369,7 @@ function MyTeamScreen() {
     }
   }, [selectedTeamId, inviteEmail, inviteRole, loadMembers, router, user]);
 
-  const selectedTeam = teams.find((t) => t.id === selectedTeamId);
+  const selectedTeam = teams.find(t => t.id === selectedTeamId);
 
   const renderMember = ({ item }: { item: TeamMember }) => {
     const badge = getRoleBadgeColor(item.role);
@@ -372,28 +390,43 @@ function MyTeamScreen() {
         {item.user.avatar_url ? (
           <Image source={{ uri: item.user.avatar_url }} style={styles.avatar} />
         ) : (
-          <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: Colors[colorScheme].border }]}>
+          <View
+            style={[
+              styles.avatar,
+              styles.avatarPlaceholder,
+              { backgroundColor: Colors[colorScheme].border },
+            ]}
+          >
             <MaterialIcons name="person" size={22} color={Colors[colorScheme].mutedText} />
           </View>
         )}
 
         <View style={styles.memberInfo}>
           <View style={styles.memberNameRow}>
-            <Text style={[styles.memberName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+            <Text
+              style={[styles.memberName, { color: Colors[colorScheme].text }]}
+              numberOfLines={1}
+            >
               {item.user.display_name}
             </Text>
             {item.jersey_number ? (
-              <Text style={[styles.jerseyNumber, { color: Colors[colorScheme].mutedText }]}>#{item.jersey_number}</Text>
+              <Text style={[styles.jerseyNumber, { color: Colors[colorScheme].mutedText }]}>
+                #{item.jersey_number}
+              </Text>
             ) : null}
           </View>
           <View style={styles.memberMeta}>
             {item.role !== 'fan' && (
               <View style={[styles.roleBadge, { backgroundColor: badge.bg }]}>
-                <Text style={[styles.roleBadgeText, { color: badge.text }]}>{ROLE_LABELS[item.role] || item.role}</Text>
+                <Text style={[styles.roleBadgeText, { color: badge.text }]}>
+                  {ROLE_LABELS[item.role] || item.role}
+                </Text>
               </View>
             )}
             {item.position ? (
-              <Text style={[styles.positionText, { color: Colors[colorScheme].mutedText }]}>{item.position}</Text>
+              <Text style={[styles.positionText, { color: Colors[colorScheme].mutedText }]}>
+                {item.position}
+              </Text>
             ) : null}
           </View>
         </View>
@@ -418,7 +451,10 @@ function MyTeamScreen() {
           ]}
         >
           <MaterialIcons name="groups" size={20} color={Colors[colorScheme].tint} />
-          <Text style={[styles.teamSelectorText, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+          <Text
+            style={[styles.teamSelectorText, { color: Colors[colorScheme].text }]}
+            numberOfLines={1}
+          >
             {selectedTeam?.name || 'Select Team'}
           </Text>
           <MaterialIcons name="arrow-drop-down" size={24} color={Colors[colorScheme].mutedText} />
@@ -428,7 +464,9 @@ function MyTeamScreen() {
       {teams.length === 1 && (
         <View style={styles.singleTeamHeader}>
           <MaterialIcons name="groups" size={20} color={Colors[colorScheme].tint} />
-          <Text style={[styles.singleTeamName, { color: Colors[colorScheme].text }]}>{selectedTeam?.name}</Text>
+          <Text style={[styles.singleTeamName, { color: Colors[colorScheme].text }]}>
+            {selectedTeam?.name}
+          </Text>
         </View>
       )}
 
@@ -446,18 +484,25 @@ function MyTeamScreen() {
         </Pressable>
       </View>
       {members.length > 0 && (
-        <Text style={[styles.longPressHint, { color: Colors[colorScheme].mutedText }]}>Long-press a member to edit role, position, or remove</Text>
+        <Text style={[styles.longPressHint, { color: Colors[colorScheme].mutedText }]}>
+          Long-press a member to edit role, position, or remove
+        </Text>
       )}
     </View>
   );
 
   const renderEmpty = () => {
-    if (loading) return (
-      <View style={styles.emptyContainer}>
-        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-        <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText, marginTop: 12 }]}>Loading...</Text>
-      </View>
-    );
+    if (loading)
+      return (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+          <Text
+            style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText, marginTop: 12 }]}
+          >
+            Loading...
+          </Text>
+        </View>
+      );
     if (teams.length === 0) {
       return (
         <View style={styles.emptyContainer}>
@@ -505,7 +550,10 @@ function MyTeamScreen() {
           title: 'My Team',
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
+            <Pressable
+              onPress={() => safeGoBack(router, explicitFallback)}
+              style={{ paddingRight: 8 }}
+            >
               <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
@@ -520,20 +568,31 @@ function MyTeamScreen() {
         <View style={styles.emptyContainer}>
           <MaterialIcons name="error-outline" size={48} color={Colors[colorScheme].destructive} />
           <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>Error</Text>
-          <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>{error}</Text>
-          <Pressable onPress={onRefresh} style={[styles.retryButton, { borderColor: Colors[colorScheme].tint }]}>
+          <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>
+            {error}
+          </Text>
+          <Pressable
+            onPress={onRefresh}
+            style={[styles.retryButton, { borderColor: Colors[colorScheme].tint }]}
+          >
             <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>Retry</Text>
           </Pressable>
         </View>
       ) : (
         <FlatList
           data={teams.length > 0 ? members : []}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           renderItem={renderMember}
           ListHeaderComponent={teams.length > 0 ? renderHeader : undefined}
           ListEmptyComponent={renderEmpty}
           contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors[colorScheme].tint} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors[colorScheme].tint}
+            />
+          }
           ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         />
       )}
@@ -571,50 +630,68 @@ function MyTeamScreen() {
       />
 
       {/* Edit Role Modal */}
-      <Modal visible={showRoleModal} transparent animationType="fade" onRequestClose={() => setShowRoleModal(false)}>
+      <Modal
+        visible={showRoleModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRoleModal(false)}
+      >
         <View style={styles.overlay}>
           <View style={[styles.modalCard, { backgroundColor: Colors[colorScheme].background }]}>
-            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Select Role</Text>
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
+              Select Role
+            </Text>
             <Text style={[styles.modalMessage, { color: Colors[colorScheme].mutedText }]}>
               {selectedMember?.user.display_name}
             </Text>
             {memberActionLoading ? (
               <ActivityIndicator style={{ marginVertical: 16 }} color={Colors[colorScheme].tint} />
-            ) : ROLE_OPTIONS.map((role) => {
-              const badge = getRoleBadgeColor(role);
-              const isActive = selectedMember?.role === role;
-              return (
-                <Pressable
-                  key={role}
-                  onPress={() => handleUpdateRole(role)}
-                  style={[
-                    styles.roleOption,
-                    {
-                      backgroundColor: isActive ? badge.bg + '20' : Colors[colorScheme].surface,
-                      borderColor: isActive ? badge.bg : Colors[colorScheme].border,
-                    },
-                  ]}
-                >
-                  <View style={[styles.roleOptionDot, { backgroundColor: badge.bg }]} />
-                  <Text style={[styles.roleOptionText, { color: Colors[colorScheme].text }]}>
-                    {ROLE_LABELS[role]}
-                  </Text>
-                  {isActive && <MaterialIcons name="check" size={18} color={badge.bg} />}
-                </Pressable>
-              );
-            })}
+            ) : (
+              ROLE_OPTIONS.map(role => {
+                const badge = getRoleBadgeColor(role);
+                const isActive = selectedMember?.role === role;
+                return (
+                  <Pressable
+                    key={role}
+                    onPress={() => handleUpdateRole(role)}
+                    style={[
+                      styles.roleOption,
+                      {
+                        backgroundColor: isActive ? badge.bg + '20' : Colors[colorScheme].surface,
+                        borderColor: isActive ? badge.bg : Colors[colorScheme].border,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.roleOptionDot, { backgroundColor: badge.bg }]} />
+                    <Text style={[styles.roleOptionText, { color: Colors[colorScheme].text }]}>
+                      {ROLE_LABELS[role]}
+                    </Text>
+                    {isActive && <MaterialIcons name="check" size={18} color={badge.bg} />}
+                  </Pressable>
+                );
+              })
+            )}
             <Pressable onPress={() => setShowRoleModal(false)} style={styles.cancelButton}>
-              <Text style={[styles.cancelText, { color: Colors[colorScheme].mutedText }]}>Cancel</Text>
+              <Text style={[styles.cancelText, { color: Colors[colorScheme].mutedText }]}>
+                Cancel
+              </Text>
             </Pressable>
           </View>
         </View>
       </Modal>
 
       {/* Edit Position Modal */}
-      <Modal visible={showPositionModal} transparent animationType="fade" onRequestClose={() => setShowPositionModal(false)}>
+      <Modal
+        visible={showPositionModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPositionModal(false)}
+      >
         <View style={styles.overlay}>
           <View style={[styles.modalCard, { backgroundColor: Colors[colorScheme].background }]}>
-            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Edit Position</Text>
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
+              Edit Position
+            </Text>
             <Text style={[styles.modalMessage, { color: Colors[colorScheme].mutedText }]}>
               {selectedMember?.user.display_name}
             </Text>
@@ -641,14 +718,26 @@ function MyTeamScreen() {
                 }}
                 style={[styles.modalActionBtn, { borderColor: Colors[colorScheme].border }]}
               >
-                <Text style={{ color: Colors[colorScheme].mutedText, fontWeight: '600' }}>Cancel</Text>
+                <Text style={{ color: Colors[colorScheme].mutedText, fontWeight: '600' }}>
+                  Cancel
+                </Text>
               </Pressable>
               <Pressable
                 onPress={handleUpdatePosition}
                 disabled={memberActionLoading}
-                style={[styles.modalActionBtn, { backgroundColor: Colors[colorScheme].tint, opacity: memberActionLoading ? 0.6 : 1 }]}
+                style={[
+                  styles.modalActionBtn,
+                  {
+                    backgroundColor: Colors[colorScheme].tint,
+                    opacity: memberActionLoading ? 0.6 : 1,
+                  },
+                ]}
               >
-                {memberActionLoading ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Save</Text>}
+                {memberActionLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Save</Text>
+                )}
               </Pressable>
             </View>
           </View>
@@ -680,10 +769,17 @@ function MyTeamScreen() {
       />
 
       {/* Invite Member Modal */}
-      <Modal visible={showInviteModal} transparent animationType="fade" onRequestClose={() => setShowInviteModal(false)}>
+      <Modal
+        visible={showInviteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowInviteModal(false)}
+      >
         <View style={styles.overlay}>
           <View style={[styles.modalCard, { backgroundColor: Colors[colorScheme].background }]}>
-            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Invite Member</Text>
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
+              Invite Member
+            </Text>
             <Text style={[styles.modalMessage, { color: Colors[colorScheme].mutedText }]}>
               Send an invitation to join {selectedTeam?.name || 'your team'}.
             </Text>
@@ -708,9 +804,13 @@ function MyTeamScreen() {
               autoFocus
             />
 
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text, marginTop: 12 }]}>Role</Text>
+            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text, marginTop: 12 }]}>
+              Role
+            </Text>
             <View style={styles.roleGrid}>
-              {(['player', 'coach', 'assistant_coach', 'parent', 'manager', 'member'] as Role[]).map((role) => {
+              {(
+                ['player', 'coach', 'assistant_coach', 'parent', 'manager', 'member'] as Role[]
+              ).map(role => {
                 const badge = getRoleBadgeColor(role);
                 const isActive = inviteRole === role;
                 return (
@@ -747,7 +847,9 @@ function MyTeamScreen() {
                 }}
                 style={[styles.modalActionBtn, { borderColor: Colors[colorScheme].border }]}
               >
-                <Text style={{ color: Colors[colorScheme].mutedText, fontWeight: '600' }}>Cancel</Text>
+                <Text style={{ color: Colors[colorScheme].mutedText, fontWeight: '600' }}>
+                  Cancel
+                </Text>
               </Pressable>
               <Pressable
                 onPress={handleInvite}
@@ -755,7 +857,9 @@ function MyTeamScreen() {
                 style={[
                   styles.modalActionBtn,
                   {
-                    backgroundColor: !inviteEmail.trim() ? Colors[colorScheme].border : Colors[colorScheme].tint,
+                    backgroundColor: !inviteEmail.trim()
+                      ? Colors[colorScheme].border
+                      : Colors[colorScheme].tint,
                   },
                 ]}
               >
@@ -771,11 +875,18 @@ function MyTeamScreen() {
       </Modal>
 
       {/* Team Picker Modal */}
-      <Modal visible={showTeamPicker} transparent animationType="fade" onRequestClose={() => setShowTeamPicker(false)}>
+      <Modal
+        visible={showTeamPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTeamPicker(false)}
+      >
         <View style={styles.overlay}>
           <View style={[styles.modalCard, { backgroundColor: Colors[colorScheme].background }]}>
-            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Select Team</Text>
-            {teams.map((team) => {
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
+              Select Team
+            </Text>
+            {teams.map(team => {
               const isActive = team.id === selectedTeamId;
               return (
                 <Pressable
@@ -787,7 +898,9 @@ function MyTeamScreen() {
                   style={[
                     styles.roleOption,
                     {
-                      backgroundColor: isActive ? Colors[colorScheme].tint + '15' : Colors[colorScheme].surface,
+                      backgroundColor: isActive
+                        ? Colors[colorScheme].tint + '15'
+                        : Colors[colorScheme].surface,
                       borderColor: isActive ? Colors[colorScheme].tint : Colors[colorScheme].border,
                     },
                   ]}
@@ -806,12 +919,16 @@ function MyTeamScreen() {
                   >
                     {team.name}
                   </Text>
-                  {isActive && <MaterialIcons name="check" size={18} color={Colors[colorScheme].tint} />}
+                  {isActive && (
+                    <MaterialIcons name="check" size={18} color={Colors[colorScheme].tint} />
+                  )}
                 </Pressable>
               );
             })}
             <Pressable onPress={() => setShowTeamPicker(false)} style={styles.cancelButton}>
-              <Text style={[styles.cancelText, { color: Colors[colorScheme].mutedText }]}>Cancel</Text>
+              <Text style={[styles.cancelText, { color: Colors[colorScheme].mutedText }]}>
+                Cancel
+              </Text>
             </Pressable>
           </View>
         </View>

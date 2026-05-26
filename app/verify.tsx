@@ -25,7 +25,7 @@ export default function VerifyScreen() {
 
   useEffect(() => {
     if (user?.email_verified === true && !isVerified) {
-      void checkAuth();
+      void checkAuth({ forceRefresh: true });
     }
   }, [user?.email_verified, checkAuth, isVerified]);
 
@@ -127,7 +127,7 @@ export default function VerifyScreen() {
       setScreenError(null);
       setIsVerified(true);
       try {
-        await checkAuth();
+        await checkAuth({ forceRefresh: true });
       } catch (userError) {
         captureException(
           typeof userError === 'string' ? new Error(userError) : (userError as Error),
@@ -143,9 +143,7 @@ export default function VerifyScreen() {
   });
   const setGateCode = gate.setCode;
   const devCodeParam =
-    __DEV__ && typeof params.devCode === 'string'
-      ? String(params.devCode).slice(0, 6)
-      : undefined;
+    __DEV__ && typeof params.devCode === 'string' ? String(params.devCode).slice(0, 6) : undefined;
   const clearMessages = () => {
     setScreenError(null);
     setScreenInfo(null);
@@ -176,7 +174,7 @@ export default function VerifyScreen() {
   });
 
   const onContinue = async () => {
-    await checkAuth();
+    await checkAuth({ forceRefresh: true });
   };
 
   const wrongAccountLabel = 'Wrong account? Sign out';

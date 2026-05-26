@@ -4,7 +4,7 @@ import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -91,6 +91,7 @@ function MessagesScreen() {
   const [suggested, setSuggested] = useState<MiniUser[]>([]);
   const [suggestedLoaded, setSuggestedLoaded] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+  const hasLoadedOnceRef = useRef(false);
 
   // Load suggested users (people the user follows) when compose modal opens
   useEffect(() => {
@@ -120,34 +121,40 @@ function MessagesScreen() {
     };
   }, [composeOpen, suggestedLoaded, me]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const load = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!options?.silent || !hasLoadedOnceRef.current) {
+        setLoading(true);
+      }
+      setError(null);
       try {
-        const u = await getAuthSnapshot(checkAuth, authUser);
-        setMe(u ? ((u as MiniUser) ?? null) : null);
-      } catch (error: any) {
-        if (__DEV__) {
-          if (__DEV__) console.warn('[Messages] Failed to load user:', error?.message || error);
+        try {
+          const u = await getAuthSnapshot(checkAuth, authUser);
+          setMe(u ? ((u as MiniUser) ?? null) : null);
+        } catch (error: any) {
+          if (__DEV__) {
+            if (__DEV__) console.warn('[Messages] Failed to load user:', error?.message || error);
+          }
+          // Continue without user data
         }
-        // Continue without user data
-      }
 
-      const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
-        ? Message.list('-created_at', 50)
-        : Message.filter({}, '-created_at'));
+        const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
+          ? Message.list('-created_at', 50)
+          : Message.filter({}, '-created_at'));
 
-      if (result && !('_isNotModified' in result)) {
-        setMessages(Array.isArray(result) ? result : []);
+        if (result && !('_isNotModified' in result)) {
+          setMessages(Array.isArray(result) ? result : []);
+        }
+        hasLoadedOnceRef.current = true;
+      } catch (e: any) {
+        if (__DEV__) console.error('Failed to load messages', e);
+        setError('Unable to load messages.');
+      } finally {
+        setLoading(false);
       }
-    } catch (e: any) {
-      if (__DEV__) console.error('Failed to load messages', e);
-      setError('Unable to load messages.');
-    } finally {
-      setLoading(false);
-    }
-  }, [authUser, checkAuth]);
+    },
+    [authUser, checkAuth]
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -180,7 +187,8 @@ function MessagesScreen() {
   // Reload when screen comes into focus (after returning from a thread)
   useFocusEffect(
     useCallback(() => {
-      void load();
+      if (!hasLoadedOnceRef.current) return undefined;
+      void load({ silent: true });
       return undefined;
     }, [load])
   );

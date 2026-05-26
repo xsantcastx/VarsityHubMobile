@@ -4,20 +4,20 @@ import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    AppState,
-    type AppStateStatus,
-    FlatList,
-    Keyboard,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  AppState,
+  type AppStateStatus,
+  FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
@@ -26,6 +26,7 @@ import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getAuthSnapshot } from '@/utils/authState';
 import { checkDMRestriction } from '@/utils/dmRestrictions';
 import { safeGoBack } from '@/utils/navigation';
 import { getCoachAccessState } from '@/utils/roleChecks';
@@ -55,16 +56,19 @@ function MessageThreadScreen() {
     with: withParam,
     prefill,
     fallback,
-  } = useLocalSearchParams<{ conversation_id?: string; with?: string; prefill?: string; fallback?: string }>();
+  } = useLocalSearchParams<{
+    conversation_id?: string;
+    with?: string;
+    prefill?: string;
+    fallback?: string;
+  }>();
   const router = useRouter();
   const { user, checkAuth } = useAuth();
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const explicitFallback =
-    typeof fallback === 'string' && fallback.trim().startsWith('/')
-      ? fallback.trim()
-      : '/messages';
+    typeof fallback === 'string' && fallback.trim().startsWith('/') ? fallback.trim() : '/messages';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<any>(null);
@@ -95,7 +99,7 @@ function MessageThreadScreen() {
     setLoading(true);
     setError(null);
     try {
-      const currentUser = ((await checkAuth().catch(() => null)) ?? user) as any;
+      const currentUser = (await getAuthSnapshot(checkAuth, user)) as any;
       setMe(currentUser);
       let list: Msg[] = [];
       if (conversation_id)
@@ -269,12 +273,17 @@ function MessageThreadScreen() {
       setMsgs(arr => arr.filter(m => m.id !== optimisticMsg.id));
       const code = err?.data?.code as string | undefined;
       const msg =
-        code === 'MESSAGE_BLOCKED'      ? "You can't message this person." :
-        code === 'DM_RESTRICTED'        ? 'This user has restricted their messages.' :
-        code === 'USER_BANNED'          ? 'This account is currently unavailable.' :
-        code === 'ORG_ACCOUNT'          ? "You can't directly message organization accounts." :
-        code === 'AGE_POLICY_BLOCKED'   ? 'This conversation is not available due to age policy.' :
-                                          'Your message could not be sent. Please try again.';
+        code === 'MESSAGE_BLOCKED'
+          ? "You can't message this person."
+          : code === 'DM_RESTRICTED'
+            ? 'This user has restricted their messages.'
+            : code === 'USER_BANNED'
+              ? 'This account is currently unavailable.'
+              : code === 'ORG_ACCOUNT'
+                ? "You can't directly message organization accounts."
+                : code === 'AGE_POLICY_BLOCKED'
+                  ? 'This conversation is not available due to age policy.'
+                  : 'Your message could not be sent. Please try again.';
       Alert.alert('Send Failed', msg);
     } finally {
       setSending(false);
@@ -394,7 +403,10 @@ function MessageThreadScreen() {
                 },
               ]}
             >
-              <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={styles.backButton}>
+              <Pressable
+                onPress={() => safeGoBack(router, explicitFallback)}
+                style={styles.backButton}
+              >
                 <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].text} />
               </Pressable>
 
@@ -665,26 +677,23 @@ function MessageThreadScreen() {
                   </Pressable>
 
                   {coachAccess.isCoach && !coachAccess.isApprovedCoach && (
-                      <Pressable
-                        style={[
-                          styles.modalVerifyButton,
-                          { borderColor: Colors[colorScheme].tint },
-                        ]}
-                        onPress={() => {
-                          setRestrictionModal({ show: false, message: '' });
-                          router.push('/help');
-                        }}
-                      >
-                        <MaterialIcons
-                          name="verified-user"
-                          size={20}
-                          color={Colors[colorScheme].tint}
-                        />
-                        <Text style={[styles.modalVerifyText, { color: Colors[colorScheme].tint }]}>
-                          Request Coach Verification
-                        </Text>
-                      </Pressable>
-                    )}
+                    <Pressable
+                      style={[styles.modalVerifyButton, { borderColor: Colors[colorScheme].tint }]}
+                      onPress={() => {
+                        setRestrictionModal({ show: false, message: '' });
+                        router.push('/help');
+                      }}
+                    >
+                      <MaterialIcons
+                        name="verified-user"
+                        size={20}
+                        color={Colors[colorScheme].tint}
+                      />
+                      <Text style={[styles.modalVerifyText, { color: Colors[colorScheme].tint }]}>
+                        Request Coach Verification
+                      </Text>
+                    </Pressable>
+                  )}
                 </Pressable>
               </Pressable>
             </Modal>

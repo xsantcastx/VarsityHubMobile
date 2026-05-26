@@ -4,7 +4,17 @@ import * as ImagePicker from 'expo-image-picker';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Support } from '@/api/entities';
@@ -35,13 +45,13 @@ export default function ReportAbuseScreen() {
     let canceled = false;
     void (async () => {
       try {
-        const me: any = ((await checkAuth().catch(() => null)) ?? user) as any;
+        const me: any = await getAuthSnapshot(checkAuth, user);
         if (canceled) return;
         if (typeof me?.display_name === 'string') {
-          setName((prev) => prev || me.display_name);
+          setName(prev => prev || me.display_name);
         }
         if (typeof me?.email === 'string') {
-          setEmail((prev) => prev || me.email);
+          setEmail(prev => prev || me.email);
         }
       } catch {
         // Ignore, user can fill fields manually.
@@ -60,10 +70,14 @@ export default function ReportAbuseScreen() {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission required', 'Please allow access to your photo library to upload evidence.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() },
-        ]);
+        Alert.alert(
+          'Permission required',
+          'Please allow access to your photo library to upload evidence.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
+        );
         return;
       }
 
@@ -96,9 +110,12 @@ export default function ReportAbuseScreen() {
         }
 
         if (newImages.length > 0) {
-          setEvidenceImages((prev) => [...prev, ...newImages].slice(0, 5));
+          setEvidenceImages(prev => [...prev, ...newImages].slice(0, 5));
           if (failedCount > 0) {
-            Alert.alert('Partial upload', `${failedCount} image${failedCount > 1 ? 's' : ''} failed to upload. ${newImages.length} uploaded successfully.`);
+            Alert.alert(
+              'Partial upload',
+              `${failedCount} image${failedCount > 1 ? 's' : ''} failed to upload. ${newImages.length} uploaded successfully.`
+            );
           }
         } else {
           Alert.alert('Upload failed', 'Could not upload the selected images. Please try again.');
@@ -112,7 +129,7 @@ export default function ReportAbuseScreen() {
   };
 
   const removeImage = (index: number) => {
-    setEvidenceImages((prev) => prev.filter((_, i) => i !== index));
+    setEvidenceImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
@@ -139,7 +156,7 @@ export default function ReportAbuseScreen() {
       });
       Alert.alert(
         'Report sent',
-        'Thank you for letting us know. Our safety team will review your report and follow up if we need more information.',
+        'Thank you for letting us know. Our safety team will review your report and follow up if we need more information.'
       );
       setDetails('');
       setAccused('');
@@ -156,126 +173,180 @@ export default function ReportAbuseScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Report Abuse', headerShown: true, headerBackTitle: 'Back', headerLeft: () => (
-            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: palette.background }]}
+      edges={['top', 'bottom']}
+    >
+      <Stack.Screen
+        options={{
+          title: 'Report Abuse',
+          headerShown: true,
+          headerBackTitle: 'Back',
+          headerLeft: () => (
+            <Pressable
+              onPress={() => {
+                safeGoBack(router);
+              }}
+              style={{ paddingRight: 8 }}
+            >
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
-          ) }} />
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          keyboardDismissMode="interactive"
-          style={styles.flex}
-          automaticallyAdjustKeyboardInsets
+          ),
+        }}
+      />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        keyboardDismissMode="interactive"
+        style={styles.flex}
+        automaticallyAdjustKeyboardInsets
+      >
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: palette.text }]}>Report Abuse</Text>
+          <Text style={[styles.subtitle, { color: palette.mutedText }]}>
+            Tell us what happened so we can investigate. Include any usernames, teams, or posts
+            involved.
+          </Text>
+        </View>
+
+        <View
+          style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}
         >
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: palette.text }]}>Report Abuse</Text>
-            <Text style={[styles.subtitle, { color: palette.mutedText }]}>
-              Tell us what happened so we can investigate. Include any usernames, teams, or posts involved.
-            </Text>
-          </View>
+          <Text style={[styles.label, { color: palette.mutedText }]}>Your name</Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="Optional"
+            placeholderTextColor={palette.mutedText}
+            style={[
+              styles.input,
+              {
+                color: palette.text,
+                borderColor: palette.border,
+                backgroundColor: palette.background,
+              },
+            ]}
+            autoCapitalize="words"
+            autoComplete="name"
+            returnKeyType="next"
+          />
 
-          <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-            <Text style={[styles.label, { color: palette.mutedText }]}>Your name</Text>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="Optional"
-              placeholderTextColor={palette.mutedText}
-              style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
-              autoCapitalize="words"
-              autoComplete="name"
-              returnKeyType="next"
-            />
+          <Text style={[styles.label, { color: palette.mutedText }]}>Email *</Text>
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@email.com"
+            placeholderTextColor={palette.mutedText}
+            style={[
+              styles.input,
+              {
+                color: palette.text,
+                borderColor: palette.border,
+                backgroundColor: palette.background,
+              },
+            ]}
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+          />
 
-            <Text style={[styles.label, { color: palette.mutedText }]}>Email *</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@email.com"
-              placeholderTextColor={palette.mutedText}
-              style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-            />
+          <Text style={[styles.label, { color: palette.mutedText }]}>Subject *</Text>
+          <SegmentedControl
+            tabs={['Report abuse', 'Safety concern']}
+            selected={subject}
+            onChange={setSubject}
+            style={{ marginBottom: 16 }}
+          />
 
-            <Text style={[styles.label, { color: palette.mutedText }]}>Subject *</Text>
-            <SegmentedControl
-              tabs={['Report abuse', 'Safety concern']}
-              selected={subject}
-              onChange={setSubject}
-              style={{ marginBottom: 16 }}
-            />
+          <Text style={[styles.label, { color: palette.mutedText }]}>Details *</Text>
+          <TextInput
+            value={details}
+            onChangeText={setDetails}
+            placeholder="Describe the situation, including relevant names, dates, or links."
+            placeholderTextColor={palette.mutedText}
+            style={[
+              styles.textArea,
+              {
+                color: palette.text,
+                borderColor: palette.border,
+                backgroundColor: palette.background,
+              },
+            ]}
+            multiline
+          />
 
-            <Text style={[styles.label, { color: palette.mutedText }]}>Details *</Text>
-            <TextInput
-              value={details}
-              onChangeText={setDetails}
-              placeholder="Describe the situation, including relevant names, dates, or links."
-              placeholderTextColor={palette.mutedText}
-              style={[
-                styles.textArea,
-                { color: palette.text, borderColor: palette.border, backgroundColor: palette.background },
-              ]}
-              multiline
-            />
+          <Text style={[styles.label, { color: palette.mutedText }]}>
+            Who are you reporting? (email or username)
+          </Text>
+          <TextInput
+            value={accused}
+            onChangeText={setAccused}
+            placeholder="user@example.com or username (optional)"
+            placeholderTextColor={palette.mutedText}
+            style={[
+              styles.input,
+              {
+                color: palette.text,
+                borderColor: palette.border,
+                backgroundColor: palette.background,
+              },
+            ]}
+            autoCapitalize="none"
+          />
 
-            <Text style={[styles.label, { color: palette.mutedText }]}>Who are you reporting? (email or username)</Text>
-            <TextInput
-              value={accused}
-              onChangeText={setAccused}
-              placeholder="user@example.com or username (optional)"
-              placeholderTextColor={palette.mutedText}
-              style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
-              autoCapitalize="none"
-            />
-
-            <Text style={[styles.label, { color: palette.mutedText }]}>Upload screenshots (optional)</Text>
-            <View style={styles.imageGrid}>
-              {evidenceImages.map((uri, index) => (
-                <View key={uri} style={styles.imageWrapper}>
-                  <Image source={{ uri }} style={styles.uploadedImage} contentFit="cover" />
-                  <Pressable
-                    style={[styles.removeImageBtn, { backgroundColor: palette.destructive || '#FF3B30' }]}
-                    onPress={() => removeImage(index)}
-                  >
-                    <MaterialIcons name="close" size={14} color="#fff" />
-                  </Pressable>
-                </View>
-              ))}
-              {evidenceImages.length < 5 && (
+          <Text style={[styles.label, { color: palette.mutedText }]}>
+            Upload screenshots (optional)
+          </Text>
+          <View style={styles.imageGrid}>
+            {evidenceImages.map((uri, index) => (
+              <View key={uri} style={styles.imageWrapper}>
+                <Image source={{ uri }} style={styles.uploadedImage} contentFit="cover" />
                 <Pressable
-                  style={[styles.addImageBtn, { borderColor: palette.border, backgroundColor: palette.background }]}
-                  onPress={pickImage}
-                  disabled={uploadingImage}
+                  style={[
+                    styles.removeImageBtn,
+                    { backgroundColor: palette.destructive || '#FF3B30' },
+                  ]}
+                  onPress={() => removeImage(index)}
                 >
-                  {uploadingImage ? (
-                    <ActivityIndicator size="small" color={palette.tint} />
-                  ) : (
-                    <>
-                      <MaterialIcons name="camera-alt" size={24} color={palette.mutedText} />
-                      <Text style={[styles.addImageText, { color: palette.mutedText }]}>Add</Text>
-                    </>
-                  )}
+                  <MaterialIcons name="close" size={14} color="#fff" />
                 </Pressable>
-              )}
-            </View>
-            <Text style={[styles.imageHelper, { color: palette.mutedText }]}>
-              Up to 5 images. Screenshots help us investigate faster.
-            </Text>
-
-            <Text style={[styles.helper, { color: palette.mutedText }]}>
-              We keep reports confidential and only use this information to enforce community guidelines.
-            </Text>
-
-            <Button onPress={handleSubmit} disabled={!canSubmit || submitting}>
-              {submitting ? 'Sending...' : 'Submit report'}
-            </Button>
+              </View>
+            ))}
+            {evidenceImages.length < 5 && (
+              <Pressable
+                style={[
+                  styles.addImageBtn,
+                  { borderColor: palette.border, backgroundColor: palette.background },
+                ]}
+                onPress={pickImage}
+                disabled={uploadingImage}
+              >
+                {uploadingImage ? (
+                  <ActivityIndicator size="small" color={palette.tint} />
+                ) : (
+                  <>
+                    <MaterialIcons name="camera-alt" size={24} color={palette.mutedText} />
+                    <Text style={[styles.addImageText, { color: palette.mutedText }]}>Add</Text>
+                  </>
+                )}
+              </Pressable>
+            )}
           </View>
-        </ScrollView>
+          <Text style={[styles.imageHelper, { color: palette.mutedText }]}>
+            Up to 5 images. Screenshots help us investigate faster.
+          </Text>
+
+          <Text style={[styles.helper, { color: palette.mutedText }]}>
+            We keep reports confidential and only use this information to enforce community
+            guidelines.
+          </Text>
+
+          <Button onPress={handleSubmit} disabled={!canSubmit || submitting}>
+            {submitting ? 'Sending...' : 'Submit report'}
+          </Button>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

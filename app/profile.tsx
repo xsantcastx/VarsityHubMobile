@@ -5,6 +5,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { calculateContrastRatio } from '@/utils/accessibility';
+import { getAuthSnapshot } from '@/utils/authState';
 import events from '@/utils/events';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
@@ -17,15 +18,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
@@ -363,7 +364,7 @@ export default function ProfileScreen() {
       setError(null);
 
       try {
-        const currentUser: any = ((await checkAuth().catch(() => null)) ?? userFromAuth) as any;
+        const currentUser: any = await getAuthSnapshot(checkAuth, userFromAuth);
         setCurrentUserId(currentUser?.id || null);
 
         let u: any;
@@ -446,7 +447,15 @@ export default function ProfileScreen() {
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [activeTab, checkAuth, refreshPosts, refreshReplies, refreshUpvotes, userFromAuth, viewingUserId]
+    [
+      activeTab,
+      checkAuth,
+      refreshPosts,
+      refreshReplies,
+      refreshUpvotes,
+      userFromAuth,
+      viewingUserId,
+    ]
   );
 
   // Initial load on mount - only once
@@ -666,12 +675,11 @@ export default function ProfileScreen() {
   const approvedCoach = coachAccess.isApprovedCoach;
   // v1.0.2 audit fix: do NOT surface "Pending Coach" to the user.
   // Pre-approval, display "Fan" so profile looks normal; internal approval_status stays intact.
-  const roleLabel =
-    coachAccess.isApprovedCoach
-      ? 'Coach / Organizer'
-      : roleRaw === 'player'
-        ? 'Player'
-        : null;
+  const roleLabel = coachAccess.isApprovedCoach
+    ? 'Coach / Organizer'
+    : roleRaw === 'player'
+      ? 'Player'
+      : null;
   // Guard against internal IDs (cuid / UUID) being leaked as username
   const isInternalId = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || // UUID
@@ -818,10 +826,7 @@ export default function ProfileScreen() {
             <View style={styles.headerActionRow}>
               <Pressable
                 testID="profile-message-button"
-                style={[
-                  styles.headerActionButton,
-                  styles.headerActionButtonGhost,
-                ]}
+                style={[styles.headerActionButton, styles.headerActionButtonGhost]}
                 onPress={() =>
                   void router.push({
                     pathname: '/message-thread',
@@ -943,8 +948,7 @@ export default function ProfileScreen() {
                   style={[
                     styles.avatarPlaceholder,
                     {
-                      backgroundColor:
-                        colorScheme === 'dark' ? theme.surface : '#E5E7EB',
+                      backgroundColor: colorScheme === 'dark' ? theme.surface : '#E5E7EB',
                     },
                   ]}
                 >

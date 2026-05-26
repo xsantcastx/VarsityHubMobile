@@ -176,6 +176,7 @@ function TeamScreen() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
+  const hasLoadedTeamOnceRef = useRef(false);
 
   const handleBack = useCallback(() => {
     if (from === 'game-details' && gameId) {
@@ -301,172 +302,175 @@ function TeamScreen() {
     }
   }, []);
 
-  const loadTeam = useCallback(async () => {
-    if (!mounted.current) return;
-    setLoading(true);
-    setError(null);
-    try {
-      // Validate and sanitize route params
-      const teamId = params.id?.trim();
-      const teamName = params.name?.trim();
-
-      // Validate ID format (alphanumeric, dash, underscore only)
-      if (teamId && !/^[a-zA-Z0-9_-]+$/.test(teamId)) {
-        if (mounted.current) {
-          setError('Invalid team ID format');
-          setLoading(false);
-        }
-        return;
+  const loadTeam = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!mounted.current) return;
+      if (!options?.silent || !hasLoadedTeamOnceRef.current) {
+        setLoading(true);
       }
-
-      if (!teamId && !teamName) {
-        if (mounted.current) {
-          setError('No team ID or name provided');
-          setLoading(false);
-        }
-        return;
-      }
-
-      let teamData: LeagueTeam | null = null;
-      let summaryMembers: TeamMember[] = [];
-      let summaryGames: GameItem[] = [];
-      let canManageTeam = false;
-
+      setError(null);
       try {
-        // Prefer the scoped summary endpoint so team page navigation and access
-        // stay aligned with the canonical team tools contracts.
-        if (teamId) {
-          try {
-            const summary: any = await Team.screenSummary(teamId);
-            if (summary?.team) {
-              teamData = summary.team as LeagueTeam;
-              summaryMembers = Array.isArray(summary.members)
-                ? (summary.members as TeamMember[])
-                : [];
-              summaryGames = Array.isArray(summary.games) ? (summary.games as GameItem[]) : [];
-              canManageTeam =
-                summary?.permissions?.can_manage === true ||
-                summary?.team?.can_manage_team === true;
-            } else {
-              const fullTeamData = await Team.get(teamId);
-              if (fullTeamData) {
-                teamData = fullTeamData as LeagueTeam;
-                canManageTeam = (fullTeamData as any)?.can_manage_team === true;
+        // Validate and sanitize route params
+        const teamId = params.id?.trim();
+        const teamName = params.name?.trim();
+
+        // Validate ID format (alphanumeric, dash, underscore only)
+        if (teamId && !/^[a-zA-Z0-9_-]+$/.test(teamId)) {
+          if (mounted.current) {
+            setError('Invalid team ID format');
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (!teamId && !teamName) {
+          if (mounted.current) {
+            setError('No team ID or name provided');
+            setLoading(false);
+          }
+          return;
+        }
+
+        let teamData: LeagueTeam | null = null;
+        let summaryMembers: TeamMember[] = [];
+        let summaryGames: GameItem[] = [];
+        let canManageTeam = false;
+
+        try {
+          // Prefer the scoped summary endpoint so team page navigation and access
+          // stay aligned with the canonical team tools contracts.
+          if (teamId) {
+            try {
+              const summary: any = await Team.screenSummary(teamId);
+              if (summary?.team) {
+                teamData = summary.team as LeagueTeam;
+                summaryMembers = Array.isArray(summary.members)
+                  ? (summary.members as TeamMember[])
+                  : [];
+                summaryGames = Array.isArray(summary.games) ? (summary.games as GameItem[]) : [];
+                canManageTeam =
+                  summary?.permissions?.can_manage === true ||
+                  summary?.team?.can_manage_team === true;
+              } else {
+                const fullTeamData = await Team.get(teamId);
+                if (fullTeamData) {
+                  teamData = fullTeamData as LeagueTeam;
+                  canManageTeam = (fullTeamData as any)?.can_manage_team === true;
+                }
               }
+            } catch (getErr: any) {
+              if (__DEV__)
+                console.warn('[team-page] Failed to get team by ID, trying list:', getErr);
             }
-          } catch (getErr: any) {
-            if (__DEV__) console.warn('[team-page] Failed to get team by ID, trying list:', getErr);
           }
+
+          // Fallback to list if get() didn't work or we only have teamName
+          if (!teamData) {
+            const allTeams = await Team.list(undefined, undefined, { limit: 100 });
+            const teamsList = Array.isArray(allTeams) ? allTeams : [];
+
+            if (teamId && !teamData) {
+              teamData = teamsList.find((t: LeagueTeam) => t.id === teamId) || null;
+            }
+
+            if (!teamData && teamName) {
+              teamData =
+                teamsList.find(
+                  (t: LeagueTeam) => t.name?.toLowerCase() === teamName.toLowerCase()
+                ) || null;
+            }
+          }
+        } catch (apiErr: any) {
+          if (__DEV__) console.error('[team-page] Failed to fetch teams from API:', apiErr);
+          // Continue to try fallback logic
         }
 
-        // Fallback to list if get() didn't work or we only have teamName
+        if (!teamData && teamName) {
+          teamData = {
+            id: teamId || `temp-${teamName}`,
+            name: teamName,
+            logo_url: undefined,
+          };
+        }
+
         if (!teamData) {
-          const allTeams = await Team.list(undefined, undefined, { limit: 100 });
-          const teamsList = Array.isArray(allTeams) ? allTeams : [];
+          throw new Error(`Could not load team (ID: ${teamId}, Name: ${teamName})`);
+        }
 
-          if (teamId && !teamData) {
-            teamData = teamsList.find((t: LeagueTeam) => t.id === teamId) || null;
-          }
+        if (!mounted.current) return;
 
-          if (!teamData && teamName) {
-            teamData =
-              teamsList.find((t: LeagueTeam) => t.name?.toLowerCase() === teamName.toLowerCase()) ||
-              null;
+        // Extract organization_id from team data (could be direct or nested in organization object)
+        const orgId = (teamData as any)?.organization_id || (teamData as any)?.organization?.id;
+        if (orgId) {
+          teamData = { ...teamData, organization_id: String(orgId) } as LeagueTeam;
+        }
+
+        setTeam(teamData);
+        setIsFollowing(!!(teamData as any).is_following);
+
+        if (mounted.current) {
+          setIsTeamAdmin(canManageTeam);
+          // Determine join request status from viewer state
+          const vjrs = (teamData as any).viewer_join_request_status;
+          const viewerRole = (teamData as any).viewer_role || (teamData as any).my_role;
+          if (viewerRole) {
+            setJoinRequestStatus('member');
+          } else if (vjrs === 'pending') {
+            setJoinRequestStatus('pending');
+          } else {
+            setJoinRequestStatus('none');
           }
         }
-      } catch (apiErr: any) {
-        if (__DEV__) console.error('[team-page] Failed to fetch teams from API:', apiErr);
-        // Continue to try fallback logic
+
+        // Use default theme color (teams don't have preferences field yet)
+        if (mounted.current) setTeamThemeColor('#3B82F6');
+
+        // Fetch games, posts, and members
+        const [gamesResult, membersResult] =
+          summaryGames.length || summaryMembers.length
+            ? [summaryGames, summaryMembers]
+            : await Promise.all([
+                Game.list('-date')
+                  .then(allGamesData => {
+                    if (!mounted.current) return [];
+                    const allGames = Array.isArray(allGamesData)
+                      ? allGamesData
+                      : allGamesData?.games || allGamesData?.items || [];
+                    const teamNameLower = (teamData!.name || '').toLowerCase();
+                    return allGames
+                      .filter((g: GameItem) => {
+                        const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
+                        const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
+                        return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
+                      })
+                      .sort((a: GameItem, b: GameItem) => {
+                        const dateA = new Date(a.date || a.created_at || 0).getTime();
+                        const dateB = new Date(b.date || b.created_at || 0).getTime();
+                        return dateA - dateB;
+                      });
+                  })
+                  .catch((err: any) => {
+                    if (__DEV__) console.error('[team-page] Failed to load games:', err);
+                    return [];
+                  }),
+                Promise.resolve([] as TeamMember[]),
+              ]);
+
+        if (!mounted.current) return;
+        setGames(gamesResult);
+        setMembers(membersResult);
+        hasLoadedTeamOnceRef.current = true;
+      } catch (err: any) {
+        if (!mounted.current) return;
+        if (__DEV__) console.error('[team-page] Failed to load team:', err);
+        const errorMessage = err?.message || 'Failed to load team data';
+        setError(errorMessage);
+      } finally {
+        if (mounted.current) setLoading(false);
       }
-
-      if (!teamData && teamName) {
-        teamData = {
-          id: teamId || `temp-${teamName}`,
-          name: teamName,
-          logo_url: undefined,
-        };
-      }
-
-      if (!teamData) {
-        throw new Error(`Could not load team (ID: ${teamId}, Name: ${teamName})`);
-      }
-
-      if (!mounted.current) return;
-
-      // Extract organization_id from team data (could be direct or nested in organization object)
-      const orgId = (teamData as any)?.organization_id || (teamData as any)?.organization?.id;
-      if (orgId) {
-        teamData = { ...teamData, organization_id: String(orgId) } as LeagueTeam;
-      }
-
-      setTeam(teamData);
-      setIsFollowing(!!(teamData as any).is_following);
-
-      if (mounted.current) {
-        setIsTeamAdmin(canManageTeam);
-        // Determine join request status from viewer state
-        const vjrs = (teamData as any).viewer_join_request_status;
-        const viewerRole = (teamData as any).viewer_role || (teamData as any).my_role;
-        if (viewerRole) {
-          setJoinRequestStatus('member');
-        } else if (vjrs === 'pending') {
-          setJoinRequestStatus('pending');
-        } else {
-          setJoinRequestStatus('none');
-        }
-      }
-
-      // Use default theme color (teams don't have preferences field yet)
-      if (mounted.current) setTeamThemeColor('#3B82F6');
-
-      // Fetch games, posts, and members
-      const [gamesResult, membersResult] =
-        summaryGames.length || summaryMembers.length
-          ? [summaryGames, summaryMembers]
-          : await Promise.all([
-              Game.list('-date')
-                .then(allGamesData => {
-                  if (!mounted.current) return [];
-                  const allGames = Array.isArray(allGamesData)
-                    ? allGamesData
-                    : allGamesData?.games || allGamesData?.items || [];
-                  const teamNameLower = (teamData!.name || '').toLowerCase();
-                  return allGames
-                    .filter((g: GameItem) => {
-                      const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
-                      const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
-                      return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
-                    })
-                    .sort((a: GameItem, b: GameItem) => {
-                      const dateA = new Date(a.date || a.created_at || 0).getTime();
-                      const dateB = new Date(b.date || b.created_at || 0).getTime();
-                      return dateA - dateB;
-                    });
-                })
-                .catch((err: any) => {
-                  if (__DEV__) console.error('[team-page] Failed to load games:', err);
-                  return [];
-                }),
-              Promise.resolve([] as TeamMember[]),
-            ]);
-
-      if (!mounted.current) return;
-      setGames(gamesResult);
-      setMembers(membersResult);
-
-      // Load initial posts
-      if (teamData.id) {
-        await refreshPosts(teamData.id);
-      }
-    } catch (err: any) {
-      if (!mounted.current) return;
-      if (__DEV__) console.error('[team-page] Failed to load team:', err);
-      const errorMessage = err?.message || 'Failed to load team data';
-      setError(errorMessage);
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, [params.id, params.name, refreshPosts]);
+    },
+    [params.id, params.name]
+  );
 
   useEffect(() => {
     void loadTeam();
@@ -481,7 +485,7 @@ function TeamScreen() {
         hasLoadedOnce.current = true;
         return;
       }
-      void loadTeam();
+      void loadTeam({ silent: true });
     }, [loadTeam])
   );
 
@@ -1173,7 +1177,7 @@ function TeamScreen() {
         <Stack.Screen options={{ title: 'Team' }} />
         <View style={styles.center}>
           <Text style={[styles.error, { color: theme.text }]}>{error}</Text>
-          <Pressable onPress={loadTeam} style={styles.retryButton}>
+          <Pressable onPress={() => void loadTeam()} style={styles.retryButton}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>
         </View>

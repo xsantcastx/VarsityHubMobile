@@ -1,7 +1,16 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useColorScheme,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
@@ -14,9 +23,9 @@ import { User } from '@/api/entities';
 
 const AGREEMENT_POINTS = [
   'No broadcast footage or copyrighted content. All uploads must be original.',
-  'Athlete content may involve NIL rights. Follow your school\'s media policies.',
-  'You are responsible for your team\'s compliance with school and conference policies.',
-  'You agree to VarsityHub\'s Terms of Service and Community Guidelines.',
+  "Athlete content may involve NIL rights. Follow your school's media policies.",
+  "You are responsible for your team's compliance with school and conference policies.",
+  "You agree to VarsityHub's Terms of Service and Community Guidelines.",
 ];
 
 function CoachAgreementScreen() {
@@ -36,7 +45,7 @@ function CoachAgreementScreen() {
         coach_agreement_accepted_at: new Date().toISOString(),
       });
       // Sync auth state and route from the canonical refreshed payload.
-      const freshUser = (await checkAuth()) as CoachUserLike | null;
+      const freshUser = (await getFreshAuthSnapshot(checkAuth, user)) as CoachUserLike | null;
       const decision = freshUser
         ? getCoachAgreementRouteDecision(freshUser, params.redirect)
         : { route: '/onboarding/step-3-league', params: undefined };
@@ -88,7 +97,8 @@ function CoachAgreementScreen() {
         </View>
 
         <Text style={[styles.disclaimer, { color: C.mutedText }]}>
-          By tapping "I Accept" below, you acknowledge that you have read and agree to these terms. Your acceptance is logged with a timestamp.
+          By tapping "I Accept" below, you acknowledge that you have read and agree to these terms.
+          Your acceptance is logged with a timestamp.
         </Text>
       </ScrollView>
 
