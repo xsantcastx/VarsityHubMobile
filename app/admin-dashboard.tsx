@@ -1,12 +1,12 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
 import { Organization } from '@/api/entities';
 import { captureBreadcrumb } from '@/utils/sentry';
@@ -66,6 +66,7 @@ interface DashboardStats {
 
 function AdminDashboardScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const router = useRouter();
   const params = useLocalSearchParams<{
     coach_id?: string;
@@ -299,24 +300,24 @@ function AdminDashboardScreen() {
   const StatCard = ({ title, value, subtitle, icon, color, onPress }: any) => (
     <Pressable 
       style={[styles.statCard, { 
-        backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-        borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+        backgroundColor: theme.card,
+        borderColor: theme.border,
       }]}
       onPress={onPress}
-      android_ripple={{ color: colorScheme === 'dark' ? '#374151' : '#F3F4F6' }}
+      android_ripple={{ color: theme.border }}
     >
       <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
         <MaterialIcons name={icon} size={24} color={color} />
       </View>
       <View style={styles.statContent}>
-        <Text style={[styles.statValue, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+        <Text style={[styles.statValue, { color: theme.text }]}>
           {value.toLocaleString()}
         </Text>
-        <Text style={[styles.statTitle, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+        <Text style={[styles.statTitle, { color: theme.mutedText }]}>
           {title}
         </Text>
         {subtitle && (
-          <Text style={[styles.statSubtitle, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+          <Text style={[styles.statSubtitle, { color: theme.mutedText }]}>
             {subtitle}
           </Text>
         )}
@@ -324,25 +325,25 @@ function AdminDashboardScreen() {
       <MaterialIcons 
         name="chevron-right" 
         size={20} 
-        color={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'} 
+        color={theme.mutedText} 
       />
     </Pressable>
   );
 
   const ActivityItem = ({ item }: any) => (
     <View style={[styles.activityItem, { 
-      backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#F9FAFB',
-      borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+      backgroundColor: theme.surface,
+      borderColor: theme.border,
     }]}>
       <View style={styles.activityDot} />
       <View style={{ flex: 1 }}>
-        <Text style={[styles.activityAction, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+        <Text style={[styles.activityAction, { color: theme.text }]}>
           {item.action}
         </Text>
-        <Text style={[styles.activityDesc, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+        <Text style={[styles.activityDesc, { color: theme.mutedText }]}>
           {item.description}
         </Text>
-        <Text style={[styles.activityTime, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+        <Text style={[styles.activityTime, { color: theme.mutedText }]}>
           {new Date(item.timestamp).toLocaleString()}
         </Text>
       </View>
@@ -373,8 +374,8 @@ function AdminDashboardScreen() {
         options={{
           title: 'Admin Dashboard',
           headerShown: true,
-          headerStyle: { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' },
-          headerTintColor: colorScheme === 'dark' ? '#ECEDEE' : '#111827',
+          headerStyle: { backgroundColor: theme.card },
+          headerTintColor: theme.text,
           headerLeft: () => (
             <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
@@ -418,17 +419,17 @@ function AdminDashboardScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={[styles.headerTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+              <Text style={[styles.headerTitle, { color: theme.text }]}>
                 🛡️ Admin Dashboard
               </Text>
-              <Text style={[styles.headerSubtitle, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+              <Text style={[styles.headerSubtitle, { color: theme.mutedText }]}>
                 Platform overview and moderation tools
               </Text>
             </View>
             <MaterialIcons 
               name="refresh" 
               size={24} 
-              color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} 
+              color={theme.mutedText} 
             />
           </View>
 
@@ -469,7 +470,7 @@ function AdminDashboardScreen() {
           {stats?.pendingLeagues && stats.pendingLeagues.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
                   Pending Leagues ({stats.pendingLeagues.length})
                 </Text>
               </View>
@@ -479,7 +480,7 @@ function AdminDashboardScreen() {
                   <Pressable
                     key={league.id}
                     style={[styles.statCard, {
-                      backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
+                      backgroundColor: theme.card,
                       borderColor: '#F59E0B',
                     }]}
                     onPress={() => setLeagueDetailModal(league)}
@@ -488,18 +489,18 @@ function AdminDashboardScreen() {
                       <MaterialIcons name="business" size={24} color="#F59E0B" />
                     </View>
                     <View style={styles.statContent}>
-                      <Text style={[styles.statValue, { fontSize: 16, color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                      <Text style={[styles.statValue, { fontSize: 16, color: theme.text }]}>
                         {league.name}
                       </Text>
                       {league.sport && (
-                        <Text style={[styles.statTitle, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                        <Text style={[styles.statTitle, { color: theme.mutedText }]}>
                           {league.sport}
                         </Text>
                       )}
-                      <Text style={[styles.statSubtitle, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+                      <Text style={[styles.statSubtitle, { color: theme.mutedText }]}>
                         {league.leagueOwner?.display_name || 'Unknown'} · {league.leagueOwner?.email || ''}
                       </Text>
-                      <Text style={[styles.statSubtitle, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+                      <Text style={[styles.statSubtitle, { color: theme.mutedText }]}>
                         {new Date(league.created_at).toLocaleDateString()}
                         {league._count ? ` · ${league._count.teams} team${league._count.teams !== 1 ? 's' : ''}` : ''}
                       </Text>
@@ -527,7 +528,7 @@ function AdminDashboardScreen() {
                           <Text style={styles.leagueBtnText}>Reject</Text>
                         </Pressable>
                       </View>
-                      <Text style={{ color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF', fontSize: 11, marginTop: 6 }}>
+                      <Text style={{ color: theme.mutedText, fontSize: 11, marginTop: 6 }}>
                         Tap card to view details & document
                       </Text>
                     </View>
@@ -541,12 +542,12 @@ function AdminDashboardScreen() {
           {stats?.pendingCoaches && stats.pendingCoaches.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
                   Pending Coaches ({stats.pendingCoaches.length})
                 </Text>
               </View>
               {stats.pendingLeagues && stats.pendingLeagues.length > 0 && (
-                <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', fontSize: 13, paddingHorizontal: 16, paddingBottom: 8, fontStyle: 'italic' }}>
+                <Text style={{ color: theme.mutedText, fontSize: 13, paddingHorizontal: 16, paddingBottom: 8, fontStyle: 'italic' }}>
                   Approve the coach's league first, then approve the coach.
                 </Text>
               )}
@@ -556,7 +557,7 @@ function AdminDashboardScreen() {
                   <Pressable
                     key={coach.id}
                     style={[styles.statCard, {
-                      backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
+                      backgroundColor: theme.card,
                       borderColor: '#3B82F6',
                     }]}
                     onPress={() => setCoachDetailModal(coach)}
@@ -565,17 +566,17 @@ function AdminDashboardScreen() {
                       <MaterialIcons name="person" size={24} color="#3B82F6" />
                     </View>
                     <View style={styles.statContent}>
-                      <Text style={[styles.statValue, { fontSize: 16, color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                      <Text style={[styles.statValue, { fontSize: 16, color: theme.text }]}>
                         {coach.display_name || coach.username || 'Unknown Coach'}
                       </Text>
-                      <Text style={[styles.statTitle, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                      <Text style={[styles.statTitle, { color: theme.mutedText }]}>
                         {coach.email}
                       </Text>
-                      <Text style={[styles.statSubtitle, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+                      <Text style={[styles.statSubtitle, { color: theme.mutedText }]}>
                         Applied {new Date(coach.created_at).toLocaleDateString()}
                       </Text>
                       {coach.coach_application?.organization_name ? (
-                        <Text style={[styles.statSubtitle, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                        <Text style={[styles.statSubtitle, { color: theme.mutedText }]}>
                           Application: {coach.coach_application.organization_name}
                         </Text>
                       ) : null}
@@ -603,7 +604,7 @@ function AdminDashboardScreen() {
                           <Text style={styles.leagueBtnText}>Reject</Text>
                         </Pressable>
                       </View>
-                      <Text style={{ color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF', fontSize: 11, marginTop: 6 }}>
+                      <Text style={{ color: theme.mutedText, fontSize: 11, marginTop: 6 }}>
                         Tap card to view full details
                       </Text>
                     </View>
@@ -615,7 +616,7 @@ function AdminDashboardScreen() {
 
           {/* Stats Grid */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
               Platform Statistics
             </Text>
             
@@ -667,111 +668,111 @@ function AdminDashboardScreen() {
 
           {/* Quick Actions */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
               Quick Actions
             </Text>
             
             <View style={styles.actionsGrid}>
               <Pressable 
                 style={[styles.actionButton, { 
-                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
                 }]}
                 onPress={() => void router.push('/admin-users')}
               >
                 <MaterialIcons name="group" size={28} color="#3B82F6" />
-                <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                <Text style={[styles.actionText, { color: theme.text }]}>
                   Manage Users
                 </Text>
               </Pressable>
 
               <Pressable 
                 style={[styles.actionButton, { 
-                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
                 }]}
                 onPress={() => void router.push('/admin-teams')}
               >
                 <MaterialIcons name="shield" size={28} color="#10B981" />
-                <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                <Text style={[styles.actionText, { color: theme.text }]}>
                   Manage Teams
                 </Text>
               </Pressable>
 
               <Pressable 
                 style={[styles.actionButton, { 
-                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
                 }]}
                 onPress={() => void router.push('/admin-ads')}
               >
                 <MaterialIcons name="campaign" size={28} color="#F59E0B" />
-                <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                <Text style={[styles.actionText, { color: theme.text }]}>
                   Review Ads
                 </Text>
               </Pressable>
 
               <Pressable 
                 style={[styles.actionButton, { 
-                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
                 }]}
                 onPress={() => void router.push('/admin-reports')}
               >
                 <MaterialIcons name="error" size={28} color="#EF4444" />
-                <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                <Text style={[styles.actionText, { color: theme.text }]}>
                   Abuse Reports
                 </Text>
               </Pressable>
 
               <Pressable
                 style={[styles.actionButton, {
-                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
                 }]}
                 onPress={() => void router.push('/admin-activity-log')}
               >
                 <MaterialIcons name="list" size={28} color="#8B5CF6" />
-                <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                <Text style={[styles.actionText, { color: theme.text }]}>
                   Activity Log
                 </Text>
               </Pressable>
 
               <Pressable
                 style={[styles.actionButton, {
-                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
                 }]}
                 onPress={() => void router.push('/admin-create-event')}
               >
                 <MaterialIcons name="event" size={28} color="#06B6D4" />
-                <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                <Text style={[styles.actionText, { color: theme.text }]}>
                   Events
                 </Text>
               </Pressable>
 
               <Pressable
                 style={[styles.actionButton, {
-                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
                 }]}
                 onPress={() => void router.push('/admin-transactions' as any)}
               >
                 <MaterialIcons name="receipt-long" size={28} color="#059669" />
-                <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                <Text style={[styles.actionText, { color: theme.text }]}>
                   Transactions
                 </Text>
               </Pressable>
 
               <Pressable
                 style={[styles.actionButton, {
-                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
                 }]}
                 onPress={() => void router.push('/admin-metrics' as any)}
               >
                 <MaterialIcons name="trending-up" size={28} color="#7C3AED" />
-                <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                <Text style={[styles.actionText, { color: theme.text }]}>
                   Metrics
                 </Text>
               </Pressable>
@@ -782,7 +783,7 @@ function AdminDashboardScreen() {
           {stats?.recentActivity && stats.recentActivity.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
                   Recent Activity
                 </Text>
                 <Pressable onPress={() => void router.push('/admin-activity-log')}>
@@ -802,26 +803,26 @@ function AdminDashboardScreen() {
       {/* League Approve/Reject Modal */}
       <Modal visible={!!leagueModal} transparent animationType="slide">
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 24 }}>
-          <View style={{ backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white', borderRadius: 16, padding: 20, width: '100%', maxWidth: 400 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', marginBottom: 8 }}>
+          <View style={{ backgroundColor: theme.card, borderRadius: 16, padding: 20, width: '100%', maxWidth: 400 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: theme.text, marginBottom: 8 }}>
               {leagueModal?.action === 'approve' ? 'Approve League' : 'Reject League'}
             </Text>
-            <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', marginBottom: 12 }}>
+            <Text style={{ color: theme.mutedText, marginBottom: 12 }}>
               {leagueModal?.action === 'approve'
                 ? `Approve "${leagueModal?.league.name}"? Add an optional note:`
                 : `Reject "${leagueModal?.league.name}"? Enter a reason (optional):`}
             </Text>
             <TextInput
-              style={{ borderWidth: 1, borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB', borderRadius: 8, padding: 10, color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB', minHeight: 60, textAlignVertical: 'top' }}
+              style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 8, padding: 10, color: theme.text, backgroundColor: theme.surface, minHeight: 60, textAlignVertical: 'top' }}
               value={leagueNote}
               onChangeText={setLeagueNote}
               placeholder={leagueModal?.action === 'approve' ? 'Note (optional)...' : 'Reason (optional)...'}
-              placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
+              placeholderTextColor={theme.mutedText}
               multiline
             />
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-              <Pressable style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB', alignItems: 'center' }} onPress={() => setLeagueModal(null)}>
-                <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', fontWeight: '700' }}>Cancel</Text>
+              <Pressable style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: theme.border, alignItems: 'center' }} onPress={() => setLeagueModal(null)}>
+                <Text style={{ color: theme.text, fontWeight: '700' }}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: leagueModal?.action === 'approve' ? '#22c55e' : '#dc2626', alignItems: 'center' }}
@@ -836,26 +837,26 @@ function AdminDashboardScreen() {
       {/* Coach Approve/Reject Modal */}
       <Modal visible={!!coachModal} transparent animationType="slide">
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 24 }}>
-          <View style={{ backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white', borderRadius: 16, padding: 20, width: '100%', maxWidth: 400 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', marginBottom: 8 }}>
+          <View style={{ backgroundColor: theme.card, borderRadius: 16, padding: 20, width: '100%', maxWidth: 400 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: theme.text, marginBottom: 8 }}>
               {coachModal?.action === 'approve' ? 'Approve Coach' : 'Reject Coach'}
             </Text>
-            <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', marginBottom: 12 }}>
+            <Text style={{ color: theme.mutedText, marginBottom: 12 }}>
               {coachModal?.action === 'approve'
                 ? `Approve "${coachModal?.coach.display_name || coachModal?.coach.username || coachModal?.coach.email}"? Add an optional note:`
                 : `Reject "${coachModal?.coach.display_name || coachModal?.coach.username || coachModal?.coach.email}"? A reason is required:`}
             </Text>
             <TextInput
-              style={{ borderWidth: 1, borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB', borderRadius: 8, padding: 10, color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB', minHeight: 60, textAlignVertical: 'top' }}
+              style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 8, padding: 10, color: theme.text, backgroundColor: theme.surface, minHeight: 60, textAlignVertical: 'top' }}
               value={coachNote}
               onChangeText={setCoachNote}
               placeholder={coachModal?.action === 'approve' ? 'Note (optional)...' : 'Reason (required)...'}
-              placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
+              placeholderTextColor={theme.mutedText}
               multiline
             />
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-              <Pressable style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB', alignItems: 'center' }} onPress={() => setCoachModal(null)}>
-                <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', fontWeight: '700' }}>Cancel</Text>
+              <Pressable style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: theme.border, alignItems: 'center' }} onPress={() => setCoachModal(null)}>
+                <Text style={{ color: theme.text, fontWeight: '700' }}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: coachModal?.action === 'approve' ? '#22c55e' : (coachNote.trim() ? '#dc2626' : '#9CA3AF'), alignItems: 'center' }}
@@ -872,52 +873,52 @@ function AdminDashboardScreen() {
       {/* Coach Detail Modal */}
       <Modal visible={!!coachDetailModal} transparent animationType="slide">
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View style={{ backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 }}>
+          <View style={{ backgroundColor: theme.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={{ fontSize: 20, fontWeight: '800', color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: theme.text }}>
                 Coach Application
               </Text>
               <Pressable onPress={() => setCoachDetailModal(null)}>
-                <MaterialIcons name="close" size={24} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
+                <MaterialIcons name="close" size={24} color={theme.mutedText} />
               </Pressable>
             </View>
             {coachDetailModal && (
               <>
                 <View style={{ gap: 10, marginBottom: 20 }}>
                   <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Name:</Text>
-                    <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{coachDetailModal.display_name || coachDetailModal.username || '—'}</Text>
+                    <Text style={{ fontWeight: '700', color: theme.mutedText, width: 80 }}>Name:</Text>
+                    <Text style={{ color: theme.text, flex: 1 }}>{coachDetailModal.display_name || coachDetailModal.username || '—'}</Text>
                   </View>
                   <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Email:</Text>
-                    <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{coachDetailModal.email}</Text>
+                    <Text style={{ fontWeight: '700', color: theme.mutedText, width: 80 }}>Email:</Text>
+                    <Text style={{ color: theme.text, flex: 1 }}>{coachDetailModal.email}</Text>
                   </View>
                   <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Applied:</Text>
-                    <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{new Date(coachDetailModal.created_at).toLocaleString()}</Text>
+                    <Text style={{ fontWeight: '700', color: theme.mutedText, width: 80 }}>Applied:</Text>
+                    <Text style={{ color: theme.text, flex: 1 }}>{new Date(coachDetailModal.created_at).toLocaleString()}</Text>
                   </View>
                   {coachDetailModal.coach_application?.organization_name && (
                     <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Request:</Text>
-                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{coachDetailModal.coach_application.organization_name}</Text>
+                      <Text style={{ fontWeight: '700', color: theme.mutedText, width: 80 }}>Request:</Text>
+                      <Text style={{ color: theme.text, flex: 1 }}>{coachDetailModal.coach_application.organization_name}</Text>
                     </View>
                   )}
                   {coachDetailModal.coach_application?.org_type && (
                     <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Type:</Text>
-                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1, textTransform: 'capitalize' }}>{coachDetailModal.coach_application.org_type}</Text>
+                      <Text style={{ fontWeight: '700', color: theme.mutedText, width: 80 }}>Type:</Text>
+                      <Text style={{ color: theme.text, flex: 1, textTransform: 'capitalize' }}>{coachDetailModal.coach_application.org_type}</Text>
                     </View>
                   )}
                   {coachDetailModal.coach_application?.location && (
                     <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Location:</Text>
-                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{coachDetailModal.coach_application.location}</Text>
+                      <Text style={{ fontWeight: '700', color: theme.mutedText, width: 80 }}>Location:</Text>
+                      <Text style={{ color: theme.text, flex: 1 }}>{coachDetailModal.coach_application.location}</Text>
                     </View>
                   )}
                   {coachDetailModal.preferences?.plan && (
                     <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Plan:</Text>
-                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1, textTransform: 'capitalize' }}>{coachDetailModal.preferences.plan}</Text>
+                      <Text style={{ fontWeight: '700', color: theme.mutedText, width: 80 }}>Plan:</Text>
+                      <Text style={{ color: theme.text, flex: 1, textTransform: 'capitalize' }}>{coachDetailModal.preferences.plan}</Text>
                     </View>
                   )}
                   {coachDetailModal.coach_application?.supporting_document_url && (
@@ -964,43 +965,43 @@ function AdminDashboardScreen() {
       {/* League Detail Modal */}
       <Modal visible={!!leagueDetailModal} transparent animationType="slide">
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View style={{ backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 }}>
+          <View style={{ backgroundColor: theme.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={{ fontSize: 20, fontWeight: '800', color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: theme.text }}>
                 League Application
               </Text>
               <Pressable onPress={() => setLeagueDetailModal(null)}>
-                <MaterialIcons name="close" size={24} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
+                <MaterialIcons name="close" size={24} color={theme.mutedText} />
               </Pressable>
             </View>
             {leagueDetailModal && (
               <>
                 <View style={{ gap: 10, marginBottom: 20 }}>
                   <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Name:</Text>
-                    <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{leagueDetailModal.name}</Text>
+                    <Text style={{ fontWeight: '700', color: theme.mutedText, width: 80 }}>Name:</Text>
+                    <Text style={{ color: theme.text, flex: 1 }}>{leagueDetailModal.name}</Text>
                   </View>
                   {leagueDetailModal.sport && (
                     <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Sport:</Text>
-                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{leagueDetailModal.sport}</Text>
+                      <Text style={{ fontWeight: '700', color: theme.mutedText, width: 80 }}>Sport:</Text>
+                      <Text style={{ color: theme.text, flex: 1 }}>{leagueDetailModal.sport}</Text>
                     </View>
                   )}
                   {leagueDetailModal.description && (
                     <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Desc:</Text>
-                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{leagueDetailModal.description}</Text>
+                      <Text style={{ fontWeight: '700', color: theme.mutedText, width: 80 }}>Desc:</Text>
+                      <Text style={{ color: theme.text, flex: 1 }}>{leagueDetailModal.description}</Text>
                     </View>
                   )}
                   <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Owner:</Text>
-                    <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>
+                    <Text style={{ fontWeight: '700', color: theme.mutedText, width: 80 }}>Owner:</Text>
+                    <Text style={{ color: theme.text, flex: 1 }}>
                       {leagueDetailModal.leagueOwner?.display_name || 'Unknown'} · {leagueDetailModal.leagueOwner?.email || ''}
                     </Text>
                   </View>
                   <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Applied:</Text>
-                    <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{new Date(leagueDetailModal.created_at).toLocaleString()}</Text>
+                    <Text style={{ fontWeight: '700', color: theme.mutedText, width: 80 }}>Applied:</Text>
+                    <Text style={{ color: theme.text, flex: 1 }}>{new Date(leagueDetailModal.created_at).toLocaleString()}</Text>
                   </View>
                   {leagueDetailModal.supporting_document_url && (
                     <Pressable
