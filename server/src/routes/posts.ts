@@ -804,38 +804,7 @@ postsRouter.post(
         .json({ error: 'Your account is suspended from posting.', code: 'USER_BANNED' });
     }
 
-    // v1.0.2 audit fix H-6: require coach role or team membership for post creation.
-    // Fans should not be able to create posts — only coaches, team staff, and admins.
-    // Use BOTH the top-level `role` column AND `preferences.role` to avoid drift blocking
-    // approved coaches whose preferences.role JSON has not yet been synced to the DB column.
-    const postCreator = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: { preferences: true, role: true },
-    });
-    const postCreatorPrefs =
-      postCreator?.preferences && typeof postCreator.preferences === 'object'
-        ? (postCreator.preferences as any)
-        : {};
-    const isCoachOrStaff =
-      postCreatorPrefs.role === 'coach' ||
-      postCreator?.role === 'coach' ||
-      (await getIsAdmin(req as any));
-    if (!isCoachOrStaff) {
-      // Check if user has any active team membership with a management role
-      const hasTeamRole = await prisma.teamMembership.findFirst({
-        where: {
-          user_id: req.user!.id,
-          role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-          status: 'active',
-        },
-      });
-      if (!hasTeamRole) {
-        return res.status(403).json({
-          error: 'Only coaches and team staff can create posts.',
-          code: 'COACH_REQUIRED',
-        });
-      }
-    }
+    // All authenticated, onboarded users can create posts (fans included).
 
     // req.user is guaranteed by requireVerified middleware
     const parsed = createPostSchema.safeParse(req.body);

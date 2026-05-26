@@ -842,13 +842,6 @@ function CreatePostScreen() {
               'This game has no event with location data. Only team members can post to this game.',
             );
             setError('Only team members can post to games without event location data.');
-          } else if (e?.data?.code === 'COACH_REQUIRED') {
-            Alert.alert(
-              'Coaches Only',
-              'Only coaches and team staff can create posts. Complete your coach onboarding to unlock this feature.',
-              [{ text: 'OK', style: 'cancel' }],
-            );
-            setError('Only coaches and team staff can create posts.');
           } else {
             setError(e?.data?.error || e?.data?.message || 'You do not have permission to post to this event.');
           }

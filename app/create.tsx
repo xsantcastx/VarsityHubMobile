@@ -88,11 +88,8 @@ function CreateScreen() {
             marginBottom: 4 
           }}>Verify your email to enable actions below.</Text>
         ) : null}
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border, opacity: isCoachRole ? 1 : 0.4 }]} onPress={() => isCoachRole ? go('/create-post') : undefined} accessibilityRole="button" accessibilityLabel="Create Post" accessibilityHint={isCoachRole ? "Double tap to create a new post" : "Only coaches and team staff can create posts"}>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post')} accessibilityRole="button" accessibilityLabel="Create Post" accessibilityHint="Double tap to create a new post">
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Post</Text>
-          {!isCoachRole && (
-            <Text style={{ fontSize: 11, color: Colors[colorScheme].mutedText, marginTop: 2 }}>Coaches &amp; team staff only</Text>
-          )}
         </Pressable>
         {canAccessCreateTeam && (
           <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')} accessibilityRole="button" accessibilityLabel="Create Team" accessibilityHint="Double tap to create a new team">
