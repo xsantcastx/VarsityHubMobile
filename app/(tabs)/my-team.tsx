@@ -1,5 +1,5 @@
-import CustomActionModal from '@/components/CustomActionModal';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
+import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -10,18 +10,18 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 // @ts-ignore JS exports
 import { Team as TeamApi } from '@/api/entities';
@@ -387,9 +387,11 @@ function MyTeamScreen() {
             ) : null}
           </View>
           <View style={styles.memberMeta}>
-            <View style={[styles.roleBadge, { backgroundColor: badge.bg }]}>
-              <Text style={[styles.roleBadgeText, { color: badge.text }]}>{ROLE_LABELS[item.role] || item.role}</Text>
-            </View>
+            {item.role !== 'fan' && (
+              <View style={[styles.roleBadge, { backgroundColor: badge.bg }]}>
+                <Text style={[styles.roleBadgeText, { color: badge.text }]}>{ROLE_LABELS[item.role] || item.role}</Text>
+              </View>
+            )}
             {item.position ? (
               <Text style={[styles.positionText, { color: Colors[colorScheme].mutedText }]}>{item.position}</Text>
             ) : null}

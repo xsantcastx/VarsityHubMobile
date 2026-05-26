@@ -24,17 +24,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    FlatList,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from '../../../game-details/GameVerticalFeedScreen';
@@ -758,12 +758,10 @@ export default function ProfileScreen() {
   // v1.0.2 audit fix: do NOT surface "Pending Coach" to the user.
   // Pre-approval, display "Fan" so profile looks normal; internal approval_status stays intact.
   const roleLabel =
-    roleRaw === 'coach'
-      ? approvedCoach
-        ? 'Coach / Organizer'
-        : 'Fan'
-      : roleRaw === 'fan'
-        ? 'Fan'
+    roleRaw === 'coach' && approvedCoach
+      ? 'Coach / Organizer'
+      : roleRaw === 'player'
+        ? 'Player'
         : null;
   // Guard against internal IDs (cuid / UUID) being leaked as username
   const isInternalId = (s: string) =>
@@ -1088,14 +1086,11 @@ export default function ProfileScreen() {
               <View
                 style={[
                   styles.roleBadge,
-                  roleRaw === 'coach' && (approvedCoach ? styles.coachBadge : styles.fanBadge),
+                  roleRaw === 'coach' && approvedCoach && styles.coachBadge,
                   roleRaw === 'player' && styles.playerBadge,
-                  roleRaw === 'fan' && styles.fanBadge,
                 ]}
               >
-                <Text style={styles.roleText}>
-                  {roleRaw === 'coach' ? (approvedCoach ? 'COACH' : 'FAN') : roleRaw.toUpperCase()}
-                </Text>
+                <Text style={styles.roleText}>{roleLabel.toUpperCase()}</Text>
               </View>
             )}
           </View>
