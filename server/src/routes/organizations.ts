@@ -2256,7 +2256,7 @@ organizationsRouter.post(
         { type: 'join_request_approved', organization_id: joinRequest.organization_id }
       )
         .then(() => {
-          console.log(`[notif] push sent JOIN_REQUEST_APPROVED to user=${joinRequest.user_id}`);
+          debugLog(`[notif] push sent JOIN_REQUEST_APPROVED to user=${joinRequest.user_id}`);
         })
         .catch(err => {
           console.error(
@@ -2278,9 +2278,7 @@ organizationsRouter.post(
             },
           },
         });
-        console.log(
-          `[notif] JOIN_REQUEST_APPROVED created id=${notif.id} for user=${joinRequest.user_id}`
-        );
+        debugLog(`[notif] JOIN_REQUEST_APPROVED created id=${notif.id} for user=${joinRequest.user_id}`);
       } catch (err) {
         console.error(
           '[notif] Failed to create JOIN_REQUEST_APPROVED notification:',
@@ -2417,7 +2415,7 @@ organizationsRouter.post(
         { type: 'join_request_denied', organization_id: joinRequest.organization_id }
       )
         .then(() => {
-          console.log(`[notif] push sent JOIN_REQUEST_DENIED to user=${user.id}`);
+          debugLog(`[notif] push sent JOIN_REQUEST_DENIED to user=${user.id}`);
         })
         .catch(err => {
           console.error(
@@ -3734,7 +3732,7 @@ organizationsRouter.post(
         { type: 'coach_approved', screen: 'onboarding', organization_id: orgId }
       )
         .then(() => {
-          console.log(`[notif] push sent TEAM_INVITE(coach_approved) to user=${coachId}`);
+          debugLog(`[notif] push sent TEAM_INVITE(coach_approved) to user=${coachId}`);
         })
         .catch(err => {
           console.error('[notif] coach approval push failed:', (err as any)?.message || err);
@@ -4135,7 +4133,7 @@ organizationsRouter.get(
       const id = String(req.params.id);
       const authedReq = req as AuthedRequest;
       const currentUserId = authedReq.user?.id ?? null;
-      console.log(`[org-get] id=${id} user=${currentUserId || 'anon'}`);
+      debugLog(`[org-get] id=${id} user=${currentUserId || 'anon'}`);
       const organization = await prisma.organization.findUnique({
         where: { id },
         select: buildOrganizationSerializeSelect({
@@ -4146,7 +4144,7 @@ organizationsRouter.get(
       });
 
       if (!organization) {
-        console.log(`[org-get] not found: id=${id}`);
+        debugLog(`[org-get] not found: id=${id}`);
         return res.status(404).json({ error: 'Organization not found' });
       }
 
@@ -4154,7 +4152,7 @@ organizationsRouter.get(
         const isAdminUser = await isCurrentUserPlatformAdmin(authedReq);
         if (!isAdminUser) {
           if (!currentUserId) {
-            console.log(`[org-get] unapproved+anon: id=${id}`);
+            debugLog(`[org-get] unapproved+anon: id=${id}`);
             return res.status(404).json({ error: 'Organization not found' });
           }
           const [membership, pendingJoin] = await Promise.all([
@@ -4163,7 +4161,7 @@ organizationsRouter.get(
           ]);
           const hasAccess = membership?.status === 'active' || pendingJoin?.status === 'pending';
           if (!hasAccess) {
-            console.log(`[org-get] unapproved+no-access: id=${id} user=${currentUserId}`);
+            debugLog(`[org-get] unapproved+no-access: id=${id} user=${currentUserId}`);
             return res.status(404).json({ error: 'Organization not found' });
           }
         }

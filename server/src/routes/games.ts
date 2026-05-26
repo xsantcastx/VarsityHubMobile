@@ -341,7 +341,7 @@ if (shouldRunStartupBackfills) {
         take: 1000,
       });
       if (missing.length === 0) return;
-      console.log(`[games] backfill: geocoding ${missing.length} games without coordinates`);
+      debugLog(`[games] backfill: geocoding ${missing.length} games without coordinates`);
       const { geocodeLocation } = await import('../lib/geocoding.js');
       let success = 0;
       let failed = 0;
@@ -372,9 +372,7 @@ if (shouldRunStartupBackfills) {
           );
         }
       }
-      console.log(
-        `[games] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`
-      );
+      debugLog(`[games] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`);
     } catch (err) {
       console.warn('[games] backfill failed:', err);
     }

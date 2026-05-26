@@ -364,7 +364,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
       // Ignoring this event for rookie users prevents spurious DB writes when
       // Stripe deletes an incomplete/expired subscription they never paid for.
       if (previousPlan !== 'veteran' && previousPlan !== 'legend') {
-        console.log('[webhook] customer.subscription.deleted: user was not on paid plan, skipping downgrade', {
+        debugLog('[webhook] customer.subscription.deleted: user was not on paid plan, skipping downgrade', {
           user_id: canceledUser.id,
           previous_plan: previousPlan,
           subscription_id: subscription.id,
@@ -428,9 +428,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
     const customerEmail = customer && !customer.deleted ? customer.email : null;
     const syncResult = await syncStripeSubscriptionState(subscription, 'subscription.updated');
     if (syncResult.userId) {
-      console.log(
-        `[webhook] subscription.updated: user ${syncResult.userId} -> status=${syncResult.normalizedStatus} plan=${syncResult.plan || 'unchanged'} tx=${syncResult.transactionStatus}`
-      );
+      debugLog(`[webhook] subscription.updated: user ${syncResult.userId} -> status=${syncResult.normalizedStatus} plan=${syncResult.plan || 'unchanged'} tx=${syncResult.transactionStatus}`);
     }
 
     void customerEmail;
@@ -3469,7 +3467,7 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
     const productId: string = transactionInfo.productId || '';
     const expiresDate: number = transactionInfo.expiresDate || 0; // ms timestamp
 
-    console.log('[apple-s2s] Notification received:', {
+    debugLog('[apple-s2s] Notification received:', {
       notificationUUID: redactIdentifier(notificationUUID),
       notificationType,
       subtype,

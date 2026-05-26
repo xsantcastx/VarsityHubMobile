@@ -272,7 +272,7 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, requireVerifiedUn
 
     // Diagnostic: log key fingerprint once per deploy so Railway logs confirm the right credentials are in use
     // Format: first 4 chars of api_key + secret length — safe to log, not reversible
-    console.log(`[uploads] Cloudinary signature issued — cloud=${cloudName} key=${apiKey.slice(0, 4)}… secret=[${apiSecret.length}ch]`);
+    debugLog(`[uploads] Cloudinary signature issued — cloud=${cloudName} key=${apiKey.slice(0, 4)}… secret=[${apiSecret.length}ch]`);
     addBreadcrumb('Cloudinary signature issued', 'uploads.signature', 'info', {
       configured: true,
       folder,

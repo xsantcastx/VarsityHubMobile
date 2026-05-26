@@ -172,7 +172,7 @@ if (shouldRunStartupBackfills) {
         take: 500,
       });
       if (unresolved.length === 0) return;
-      console.log(`[ads] backfill: resolving coords for ${unresolved.length} ads`);
+      debugLog(`[ads] backfill: resolving coords for ${unresolved.length} ads`);
       // Deduplicate by zip code — fetch coords once per unique zip, then batch update
       const uniqueZips = [...new Set(unresolved.map(a => a.target_zip_code!))];
       const coordsByZip = new Map<string, { lat: number; lon: number }>();
@@ -195,7 +195,7 @@ if (shouldRunStartupBackfills) {
           })
         );
       }
-      console.log('[ads] backfill: done');
+      debugLog('[ads] backfill: done');
     } catch (err) {
       console.warn('[ads] backfill failed (non-fatal):', (err as any)?.message || err);
     }

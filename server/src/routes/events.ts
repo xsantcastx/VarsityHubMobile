@@ -12,6 +12,7 @@ import {
     sendEventUpdatedEmail,
 } from '../lib/email.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
+import { debugLog } from '../lib/debugLog.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import {
@@ -233,7 +234,7 @@ if (shouldRunStartupBackfills) {
         take: 1000,
       });
       if (missing.length === 0) return;
-      console.log(`[events] backfill: geocoding ${missing.length} events without coordinates`);
+      debugLog(`[events] backfill: geocoding ${missing.length} events without coordinates`);
       let success = 0;
       let failed = 0;
       for (const ev of missing) {
@@ -259,9 +260,7 @@ if (shouldRunStartupBackfills) {
           );
         }
       }
-      console.log(
-        `[events] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`
-      );
+      debugLog(`[events] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`);
     } catch (err) {
       console.warn('[events] backfill failed:', err);
     }
@@ -1055,7 +1054,7 @@ eventsRouter.post(
         if (coords) {
           resolvedLat = coords.latitude;
           resolvedLng = coords.longitude;
-          console.log(`[events] auto-geocoded "${data.location}" → ${resolvedLat}, ${resolvedLng}`);
+          debugLog(`[events] auto-geocoded "${data.location}" → ${resolvedLat}, ${resolvedLng}`);
         }
       } catch (geocodeErr) {
         console.warn('[events] geocoding failed, continuing without coordinates:', geocodeErr);
@@ -1466,9 +1465,7 @@ eventsRouter.patch(
           if (coords) {
             updateData.latitude = coords.latitude;
             updateData.longitude = coords.longitude;
-            console.log(
-              `[events] auto-geocoded update "${data.location}" → ${coords.latitude}, ${coords.longitude}`
-            );
+            debugLog(`[events] auto-geocoded update "${data.location}" → ${coords.latitude}, ${coords.longitude}`);
           }
         } catch (geocodeErr) {
           console.warn('[events] geocoding update failed:', geocodeErr);

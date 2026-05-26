@@ -1205,7 +1205,7 @@ authRouter.post(
 
     await invalidateMeCacheForUser(userId).catch(() => {});
 
-    console.log(`[auth] Account soft-deleted and anonymized: ${userId}`);
+    console.warn(`[auth] Account soft-deleted and anonymized: ${userId}`);
 
     return res.json({
       ok: true,
