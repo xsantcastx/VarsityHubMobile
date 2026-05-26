@@ -110,33 +110,41 @@ function getAdBannerUploadId(req: Request) {
 const MUTABLE_AD_UPLOAD_STATUSES = ['draft', 'pending', 'approved', 'active'] as const;
 
 const requireVerifiedUnlessScopedAdBannerUpload = asyncHandler(async (req: AuthedRequest, res: Response, next: NextFunction) => {
-  const isAdBannerRoute =
-    isAdBannerUploadRequest(req) &&
-    ((req.method === 'GET' && req.path === '/cloudinary-signature') ||
-      (req.method === 'POST' && req.path === '/'));
+  // Cloudinary signature + direct media upload routes bypass email verification.
+  // This mirrors the original requireVerifiedUnlessAdBannerUpload behavior so
+  // profile photos, post media, and onboarding uploads work before the user
+  // verifies their email. Non-upload routes (e.g. /sign, /files) still require
+  // verification via the else branch below.
+  const isUploadRoute =
+    (req.method === 'GET' && req.path === '/cloudinary-signature') ||
+    (req.method === 'POST' && req.path === '/');
 
-  if (!isAdBannerRoute) {
+  if (!isUploadRoute) {
     return requireVerified(req as any, res, next);
   }
 
-  const adId = getAdBannerUploadId(req);
-  if (!adId) {
-    return requireVerified(req as any, res, next);
-  }
-  if (!/^[a-zA-Z0-9_-]{10,50}$/.test(adId)) {
-    return res.status(400).json({ error: 'Invalid ad_id' });
-  }
+  // For ad-banner uploads, additionally enforce that the caller owns the ad.
+  // This prevents unverified users from uploading arbitrary media under an ad ID.
+  if (isAdBannerUploadRequest(req)) {
+    const adId = getAdBannerUploadId(req);
+    if (!adId) {
+      return requireVerified(req as any, res, next);
+    }
+    if (!/^[a-zA-Z0-9_-]{10,50}$/.test(adId)) {
+      return res.status(400).json({ error: 'Invalid ad_id' });
+    }
 
-  const ad = await prisma.ad.findFirst({
-    where: {
-      id: adId,
-      user_id: req.user?.id,
-      status: { in: [...MUTABLE_AD_UPLOAD_STATUSES] },
-    },
-    select: { id: true },
-  });
-  if (!ad) {
-    return res.status(403).json({ error: 'Ad banner upload requires an ad you own' });
+    const ad = await prisma.ad.findFirst({
+      where: {
+        id: adId,
+        user_id: req.user?.id,
+        status: { in: [...MUTABLE_AD_UPLOAD_STATUSES] },
+      },
+      select: { id: true },
+    });
+    if (!ad) {
+      return res.status(403).json({ error: 'Ad banner upload requires an ad you own' });
+    }
   }
 
   return next();
