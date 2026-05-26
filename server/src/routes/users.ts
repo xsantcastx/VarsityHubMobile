@@ -1010,8 +1010,6 @@ usersRouter.post('/:id/reject-follow', requireAuth as any, requireVerified as an
   }
 }));
 
-
-
 // Suggested users to follow — people the current user doesn't follow yet
 // Ordered by: mutual connections first, then follower count
 usersRouter.get('/me/suggested', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
