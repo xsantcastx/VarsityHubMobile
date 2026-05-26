@@ -36,6 +36,11 @@ COPY ./server/package.json ./package.json
 COPY ./server/package-lock.json ./package-lock.json
 COPY ./server/prisma ./prisma/
 
+# @varsityhub/shared is a file: dependency declared in server/package.json.
+# npm ci resolves file:../shared relative to WORKDIR=/app → /shared.
+# Must be copied BEFORE npm ci so npm can link it into node_modules.
+COPY ./shared /shared
+
 # Install all dependencies (including devDependencies for build)
 RUN npm ci
 
@@ -47,10 +52,6 @@ COPY ./server/src ./src
 COPY ./server/tsconfig.json ./
 COPY ./server/start.sh ./start.sh
 COPY ./server/well-known ./well-known
-# Copy shared directory to filesystem root so import paths resolve correctly.
-# server/src/lib/ imports '../../../shared/runtime/...' — 3 levels up from
-# WORKDIR=/app/src/lib/ resolves to /shared/, not /app/shared/.
-COPY ./shared /shared
 # Copy exported Expo web bundle so the apex domain can serve the real web app.
 COPY --from=web-builder /web/dist ./web-dist
 

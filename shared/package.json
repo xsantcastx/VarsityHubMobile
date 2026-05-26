@@ -1,0 +1,10 @@
+{
+  "name": "@varsityhub/shared",
+  "version": "1.0.0",
+  "type": "module",
+  "exports": {
+    "./runtime/billingCore": "./runtime/billingCore.js",
+    "./runtime/sentrySanitization": "./runtime/sentrySanitization.js",
+    "./plan-definitions.json": "./plan-definitions.json"
+  }
+}

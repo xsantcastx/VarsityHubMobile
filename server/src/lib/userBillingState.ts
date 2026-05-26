@@ -1,13 +1,13 @@
-import { getPreferencesObject } from './userAuthState.js';
 import {
-  getCanonicalBillingState as getCanonicalBillingStateShared,
-  getCanonicalPendingPlan as getCanonicalPendingPlanShared,
-  getCanonicalPlan as getCanonicalPlanShared,
-  getEffectiveEntitledPlan as getEffectiveEntitledPlanShared,
-  getSelectedPlan as getSelectedPlanShared,
-  isPaymentApproved as isPaymentApprovedShared,
-  isPaymentPending as isPaymentPendingShared,
-} from '../../../shared/runtime/billingCore.js';
+    getCanonicalBillingState as getCanonicalBillingStateShared,
+    getCanonicalPendingPlan as getCanonicalPendingPlanShared,
+    getCanonicalPlan as getCanonicalPlanShared,
+    getEffectiveEntitledPlan as getEffectiveEntitledPlanShared,
+    getSelectedPlan as getSelectedPlanShared,
+    isPaymentApproved as isPaymentApprovedShared,
+    isPaymentPending as isPaymentPendingShared,
+} from '@varsityhub/shared/runtime/billingCore';
+import { getPreferencesObject } from './userAuthState.js';
 
 export type CanonicalMembershipPlan = 'rookie' | 'veteran' | 'legend';
 

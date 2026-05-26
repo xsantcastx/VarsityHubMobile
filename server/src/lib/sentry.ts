@@ -1,10 +1,9 @@
 import * as Sentry from '@sentry/node';
-import crypto from 'node:crypto';
-import type { Express, Request } from 'express';
 import {
-  SENSITIVE_SENTRY_KEY_RE as SENSITIVE_BREADCRUMB_KEY_RE,
-  normalizeSentryBreadcrumbData,
-} from '../../../shared/runtime/sentrySanitization.js';
+    normalizeSentryBreadcrumbData
+} from '@varsityhub/shared/runtime/sentrySanitization';
+import type { Express, Request } from 'express';
+import crypto from 'node:crypto';
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
