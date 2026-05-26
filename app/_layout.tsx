@@ -13,6 +13,7 @@ import { useFonts } from 'expo-font';
 import { Stack, useRootNavigationState, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Updates from 'expo-updates';
+const { useUpdates } = Updates;
 import React, { useEffect } from 'react';
 import { ActivityIndicator, AppState, LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -169,6 +170,17 @@ function RootLayout() {
   const navReady = Boolean(navState?.key);
   const updateCheckInFlight = React.useRef(false);
   const activeAppState = React.useRef(AppState.currentState);
+
+  // Immediately apply any update that finishes downloading mid-session.
+  // This fires even if the user never cold-starts the app again.
+  const { isUpdatePending } = useUpdates();
+
+  useEffect(() => {
+    if (__DEV__ || Platform.OS === 'web' || isExpoGo || !Updates.isEnabled) return;
+    if (isUpdatePending) {
+      Updates.reloadAsync().catch(() => {});
+    }
+  }, [isUpdatePending]);
 
   const syncOtaUpdate = React.useCallback(async () => {
     if (__DEV__ || Platform.OS === 'web' || isExpoGo || !Updates.isEnabled || updateCheckInFlight.current) {
