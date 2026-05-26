@@ -217,7 +217,6 @@ export const User = {
     httpPost(`/users/${encodeURIComponent(userId)}/reject-follow`, {}),
   suggested: (limit?: number) =>
     httpGet(`/users/me/suggested${limit ? `?limit=${limit}` : ''}`),
-  followRequests: () => httpGet('/users/me/follow-requests'),
 };
 
 export const DataExport = {

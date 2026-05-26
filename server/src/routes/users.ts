@@ -1010,27 +1010,7 @@ usersRouter.post('/:id/reject-follow', requireAuth as any, requireVerified as an
   }
 }));
 
-// Get pending follow requests for current user
-usersRouter.get('/me/follow-requests', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    const requests = await prisma.follows.findMany({
-      where: { following_id: req.user!.id, status: 'pending' },
-      include: {
-        follower: { select: { id: true, display_name: true, username: true, avatar_url: true } },
-      },
-      orderBy: { created_at: 'desc' },
-      take: 50,
-    });
-    res.json(requests.map(r => ({
-      id: r.follower_id,
-      follower: r.follower,
-      created_at: r.created_at,
-    })));
-  } catch (error) {
-    console.error('Follow requests error:', error);
-    res.status(500).json({ error: 'Something went wrong.' });
-  }
-}));
+
 
 // Suggested users to follow — people the current user doesn't follow yet
 // Ordered by: mutual connections first, then follower count
