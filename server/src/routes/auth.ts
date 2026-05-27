@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
+import { debugLog as baseDebugLog } from '../lib/debugLog.js';
 import {
     getCoachFlowState,
     getLatestCoachApplication,
@@ -297,12 +298,7 @@ async function clearLoginFailures(email: string): Promise<void> {
   await rlDel(`loginfail:${email}`);
 }
 
-const debugLog = (...args: Parameters<typeof console.log>) => {
-  if (process.env.NODE_ENV === 'production') return console.log(...args);
-  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
-    return console.log(...args);
-  }
-};
+const debugLog = baseDebugLog;
 const shouldExposeDevCodes =
   process.env.ENABLE_DEV_CODES === '1' &&
   (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test');
@@ -567,6 +563,7 @@ authRouter.post(
   '/register',
   asyncHandler(async (req, res) => {
     const start = Date.now();
+    req.log?.info({ path: '/register' }, '[register] start');
     debugLog('[register] Incoming request');
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {

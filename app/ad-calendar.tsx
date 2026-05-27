@@ -305,7 +305,7 @@ function AdCalendarScreen() {
   const showPaymentsWarning =
     (!paymentsStatusLoading && paymentsTemporarilyDisabled) ||
     (!!paymentsStatusError && !paymentsTemporarilyDisabled && Platform.OS !== 'ios');
-  const payButtonDisabled = submitting || selected.size === 0 || paymentsTemporarilyDisabled;
+  const payButtonDisabled = submitting || selected.size === 0 || paymentsTemporarilyDisabled || paymentsStatusLoading;
   const submitForApprovalDisabled = submitting;
   const isPending = adStatus === 'pending';
   const isApproved = adStatus === 'approved';

@@ -1279,6 +1279,7 @@ async function getOrCreateStripeCustomer(userId: string, email?: string | null) 
 
 // Create a Stripe Checkout Session for ad reservations
 paymentsRouter.post('/checkout', expressPkg.json(), requireAuth as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  req.log?.info({ userId: req.user?.id, path: '/checkout' }, '[checkout] start');
   const checkoutSchema = z.object({
     ad_id: z.string().optional(),
     dates: z.array(z.string()).optional(),
@@ -3007,6 +3008,7 @@ async function verifyAppleReceipt(receiptData: string, useSandbox = false): Prom
 
 // Apple IAP receipt validation
 paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  req.log?.info({ userId: req.user?.id, path: '/apple/verify-receipt' }, '[apple-iap] start');
   try {
     const appleReceiptSchema = z.object({
       jws: z.string().min(1).optional().nullable(),
