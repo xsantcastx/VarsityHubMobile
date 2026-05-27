@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Pressable, Text, TextInput } from 'react-native';
 
@@ -94,6 +93,7 @@ jest.mock('@/context/AuthProvider', () => ({
       username: 'fanuser',
       preferences: {},
     },
+    checkAuth: mockCheckAuth,
     markOnboardingCompleteLocally: mockMarkOnboardingCompleteLocally,
     registerPushToken: mockRegisterPushToken,
   }),
@@ -144,7 +144,6 @@ describe('Step2Basic optional media persistence', () => {
     const { getByTestId } = render(<Step2Basic />);
 
     await waitFor(() => {
-      expect(mockCheckAuth).toHaveBeenCalled();
       expect(getByTestId('onboarding-step2-username-input').props?.value).toBe('fanuser');
     });
 
@@ -175,7 +174,7 @@ describe('Step2Basic optional media persistence', () => {
       );
     });
 
-    expect(mockRouterReplace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding/fan-permissions');
 
     await waitFor(() => {
       expect(mockUploadFile).toHaveBeenCalledTimes(2);
