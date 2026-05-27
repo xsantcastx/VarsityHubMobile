@@ -1,18 +1,18 @@
 import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
 import { useAdIAP } from '@/hooks/useAdIAP';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 // @ts-ignore
 import { httpPost } from '@/api/http';
+import { AD_GEOFENCE_RADIUS_KM } from '@/constants/adGeofencing';
+import { safeGoBack } from '@/utils/navigation';
 import { format } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { safeGoBack } from '@/utils/navigation';
-import { AD_GEOFENCE_RADIUS_KM } from '@/constants/adGeofencing';
 import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement, Payments } from '@/api/entities';
@@ -748,7 +748,9 @@ function AdCalendarScreen() {
           }, error.code === 'Canceled' ? 'info' : 'error');
           if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
           if (data.payment_intent_id) {
-            httpPost('/payments/cancel-intent', { payment_intent_id: data.payment_intent_id }).catch(() => {});
+            httpPost('/payments/cancel-intent', { payment_intent_id: data.payment_intent_id }).catch((cancelErr: any) => {
+              console.warn('[ad-calendar] Failed to cancel payment intent — potential leaked intent:', cancelErr?.message || cancelErr);
+            });
           }
           return;
         }

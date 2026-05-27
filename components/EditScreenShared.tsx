@@ -34,6 +34,7 @@ type EditTextFieldProps = {
   mutedTextColor: string;
   surfaceColor: string;
   borderColor: string;
+  maxLength?: number;
 };
 
 export function EditScreenLoading({
@@ -104,6 +105,7 @@ export function EditTextField({
   mutedTextColor,
   surfaceColor,
   borderColor,
+  maxLength,
 }: EditTextFieldProps) {
   return (
     <View style={editScreenSharedStyles.inputGroup}>
@@ -121,6 +123,7 @@ export function EditTextField({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={mutedTextColor}
+        maxLength={maxLength}
       />
     </View>
   );

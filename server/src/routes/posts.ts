@@ -6,23 +6,24 @@ import { geocodeLocation } from '../lib/geocoding.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
 import {
-  getBlockedUserIds,
-  getExcludedPrivateAuthorIds,
-  getRequestBlockedCache,
-  isAuthorHiddenFromViewer,
+    getBlockedUserIds,
+    getExcludedPrivateAuthorIds,
+    getRequestBlockedCache,
+    isAuthorHiddenFromViewer,
 } from '../lib/privacyUtils.js';
 import {
-  canManageAnyTeam,
-  canManageTeam as canManageTeamScoped,
+    canManageAnyTeam,
+    canManageTeam as canManageTeamScoped,
 } from '../lib/teamAuthorization.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import {
-  commentLimiter,
-  interactionLimiter,
-  postCreationLimiter,
+    commentLimiter,
+    interactionLimiter,
+    postCreationLimiter,
 } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -690,15 +691,8 @@ postsRouter.get(
 postsRouter.get(
   '/debug/follows',
   requireAuth,
+  requireAdmin as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(404).json({ error: 'Not found' });
-    }
-    const isAdmin = await getIsAdmin(req as any);
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
     const currentUserId = req.user!.id;
 
     const follows = await prisma.follows.findMany({

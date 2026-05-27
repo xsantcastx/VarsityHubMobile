@@ -1,41 +1,41 @@
-import express from 'express';
 import escapeHtml from 'escape-html';
+import express from 'express';
 import { z } from 'zod';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { authMiddleware } from '../middleware/auth.js';
-import {
-  checkReportSpike,
-  getUserModerationHistory,
-  issueWarning,
-  suspendUser,
-} from '../lib/moderation.js';
-import { sendAccountModerationEmail } from '../lib/email.js';
-import { sendPushNotification } from '../lib/notifications.js';
-import { prisma } from '../lib/prisma.js';
-import { approveCoach, rejectCoach } from '../lib/approvalService.js';
 import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
+import { approveCoach, rejectCoach } from '../lib/approvalService.js';
+import { sendAccountModerationEmail } from '../lib/email.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
 import {
-  getAllTransactions,
-  getTransactionBySession,
-  getTransactionSummary,
-} from '../lib/transactionLogger.js';
-import { wipeCloudinary, wipeDatabase } from '../lib/wipeProduction.js';
-import { updateUserAndInvalidate } from '../lib/userCache.js';
+    checkReportSpike,
+    getUserModerationHistory,
+    issueWarning,
+    suspendUser,
+} from '../lib/moderation.js';
+import { prisma } from '../lib/prisma.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import {
-  requireAdmin as requireAdminMiddleware,
-  isEmailAdmin,
+    getAllTransactions,
+    getTransactionBySession,
+    getTransactionSummary,
+} from '../lib/transactionLogger.js';
+import { invalidateMeCacheForUser, updateUserAndInvalidate } from '../lib/userCache.js';
+import { wipeCloudinary, wipeDatabase } from '../lib/wipeProduction.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { adminLimiter } from '../middleware/rateLimiters.js';
+import {
+    isEmailAdmin,
+    requireAdmin as requireAdminMiddleware,
 } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { adminLimiter } from '../middleware/rateLimiters.js';
-import { captureException } from '../lib/sentry.js';
-import { invalidateMeCacheForUser } from '../lib/userCache.js';
 
 const adminRouter = express.Router();
 registerIdValidation(adminRouter);
 adminRouter.use(adminLimiter);
+// SECURITY: All admin routes must use `requireAdminMiddleware` or `handleCoachReview`
+// (which has its own token + signed-in admin check). Never add a route to adminRouter
+// without one of these guards — the router has no global auth middleware.
 
 function renderCoachReviewPage(action: 'approve' | 'reject', coachName: string, token: string) {
   const title = action === 'approve' ? 'Approve Coach' : 'Reject Coach';

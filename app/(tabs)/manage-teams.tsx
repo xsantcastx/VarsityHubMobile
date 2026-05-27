@@ -1,21 +1,21 @@
-import { useAuth } from '@/context/AuthProvider';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { getAuthSnapshot } from '@/utils/authState';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -141,8 +141,8 @@ function ManageTeamsSimpleScreen() {
         } else {
           setPaymentStatus('none');
         }
-      } catch {
-        // silently ignore
+      } catch (e) {
+        if (__DEV__) console.warn('[ManageTeams] payment status check error:', e);
       }
     })().catch(() => {});
   }, [canAccessCoachTools, checkAuth, coachLoading, user]);

@@ -1,26 +1,26 @@
 import {
-  EditScreenHeader,
-  EditScreenLoading,
-  EditTextField,
-  EditScreenSubmitButton,
-  editScreenSharedStyles as sharedStyles,
+    EditScreenHeader,
+    EditScreenLoading,
+    EditScreenSubmitButton,
+    EditTextField,
+    editScreenSharedStyles as sharedStyles,
 } from '@/components/EditScreenShared';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
-import { useAuth } from '@/context/AuthProvider';
-import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
+import { uploadFile } from '@/api/upload';
+import { useAuth } from '@/context/AuthProvider';
 
 function EditTeamScreen() {
   const router = useRouter();
@@ -355,6 +355,7 @@ function EditTeamScreen() {
             value={name}
             onChangeText={setName}
             placeholder="Enter your team name"
+            maxLength={100}
             textColor={Colors[colorScheme].text}
             mutedTextColor={Colors[colorScheme].mutedText}
             surfaceColor={Colors[colorScheme].surface}
@@ -369,10 +370,10 @@ function EditTeamScreen() {
               </Text>
             </View>
             <TextInput
-              style={[sharedStyles.textArea, styles.teamTextArea, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 500 ? '#DC2626' : Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+              style={[sharedStyles.textArea, styles.teamTextArea, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 1000 ? '#DC2626' : Colors[colorScheme].border, color: Colors[colorScheme].text }]}
               value={description}
               onChangeText={(text) => {
-                if (text.length <= 500) {
+                if (text.length <= 1000) {
                   setDescription(text);
                 }
               }}
@@ -380,7 +381,7 @@ function EditTeamScreen() {
               placeholderTextColor={Colors[colorScheme].mutedText}
               multiline
               numberOfLines={3}
-              maxLength={500}
+              maxLength={1000}
             />
           </View>
 

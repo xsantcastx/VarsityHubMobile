@@ -730,6 +730,7 @@ function CreateTeamScreen() {
                       style={[styles.textInput, { color: Colors[colorScheme].text }]}
                       accessibilityLabel="Team name"
                       returnKeyType="done"
+                      maxLength={100}
                     />,
                   ]}
                 />,
@@ -1207,7 +1208,7 @@ function CreateTeamScreen() {
                       multiline
                       numberOfLines={4}
                       textAlignVertical="top"
-                      maxLength={500}
+                      maxLength={1000}
                       accessibilityLabel="Team description"
                     />,
                   ]}

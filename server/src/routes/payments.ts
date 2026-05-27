@@ -121,10 +121,7 @@ export const paymentsRouter = Router();
 const OWNER_MANAGED_SUBSCRIPTION_ERROR =
   'Your league owner manages this subscription. Contact them if you need billing changes.';
 
-const debugLog = (...args: Parameters<typeof console.log>) => {
-  if (process.env.NODE_ENV === 'production') return console.log(...args);
-  return baseDebugLog(...args);
-};
+const debugLog = baseDebugLog;
 
 async function activateApprovedAdPaymentIntent(
   tx: Prisma.TransactionClient,
