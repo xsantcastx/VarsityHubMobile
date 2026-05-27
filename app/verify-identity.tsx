@@ -2,13 +2,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { VerificationCodeScreenBase } from '@/components/VerificationCodeScreenBase';
 import { useAuth } from '@/context/AuthProvider';
 import { useVerificationGate } from '@/hooks/useVerificationGate';
 import { useVerificationScreenActions } from '@/hooks/useVerificationScreenActions';
-import { safeGoBack } from '@/utils/navigation';
 import { getFreshAuthSnapshot } from '@/utils/authState';
+import { safeGoBack } from '@/utils/navigation';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
-import { VerificationCodeScreenBase } from '@/components/VerificationCodeScreenBase';
 
 type ParamValue = string | string[] | undefined;
 
@@ -79,7 +79,8 @@ function VerifyScreen() {
     },
   });
   const setGateCode = gate.setCode;
-  const devCodeParam = toSingleValue(params.devCode);
+  // Never use devCode in production — it would allow bypassing verification via URL param
+  const devCodeParam = __DEV__ ? toSingleValue(params.devCode) : undefined;
   const clearMessages = () => {
     setScreenError(null);
     setScreenInfo(null);
