@@ -30,11 +30,12 @@ regexes = [
   '''514463516787-[a-z0-9]+\.apps\.googleusercontent\.com''',
   # Sentry DSN — write-only token, embedded in every mobile binary.
   '''https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528\.ingest\.us\.sentry\.io/4510445740687360''',
-  # PostHog public project key — designed to be client-embedded.
-  '''phc_8y7VeTkwQftyHVGWTGxx11UAZO8ng4RigcbH82yzjQ1''',
 ]
 
-# Stop ourselves accidentally re-introducing the leaked Maps API key.
-# This is NOT an allowlist — listing it here as a comment so a reviewer
-# is reminded to scrub it from any new commit they see it in:
-#   AIzaSyDhct-4heIbBF1w9l_64SC8VafmyQWWQlg  (rotated; reject if seen)
+# Keys that must NEVER be re-committed — rotated or moved to EAS secrets.
+# If gitleaks ever sees these, it should flag them as violations:
+#   AIzaSyDhct-4heIbBF1w9l_64SC8VafmyQWWQlg  (Maps key — rotated Apr 2026)
+#   AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA  (Maps key — rotated Apr 2026)
+#   phc_8y7VeTkwQftyHVGWTGxx11UAZO8ng4RigcbH82yzjQ1  (PostHog — moved to EAS secret)
+#   sanchezemil82@gmail.com  (Apple ID — moved to EXPO_APPLE_ID env var)
+#   B5H8F69RW5  (Apple Team ID — moved to EXPO_APPLE_TEAM_ID env var)
