@@ -17,6 +17,7 @@ import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addBreadcrumb, addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
+import { requestLogging } from './middleware/logging.js';
 import { defaultApiLimiter } from './middleware/rateLimiters.js';
 import { requireAdmin } from './middleware/requireAdmin.js';
 import { requireAuth } from './middleware/requireAuth.js';
@@ -211,6 +212,7 @@ app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
   next(err);
 });
 
+app.use(requestLogging);
 app.use(authMiddleware);
 
 const shouldCaptureRequestBreadcrumb = (req: Request) => {

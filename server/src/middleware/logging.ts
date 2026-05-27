@@ -8,12 +8,16 @@ export interface RequestWithLogging extends Request {
 }
 
 /**
- * Middleware to add request ID and timing to every request
- * Logs request start and automatically logs response when finished
+ * Middleware to add request ID and timing to every request.
+ * Honors an incoming x-request-id header (e.g. from mobile client or Railway) so the
+ * same ID flows through Railway logs and client-side error reports. Falls back to a
+ * freshly-generated UUID when absent.
  */
 export function requestLogging(req: RequestWithLogging, res: Response, next: NextFunction) {
-  req.requestId = randomUUID();
+  req.requestId = (req.headers['x-request-id'] as string | undefined) || randomUUID();
   req.startTime = Date.now();
+  // Echo the ID back so clients can correlate their request with Railway logs.
+  res.setHeader('x-request-id', req.requestId);
 
   debugLog(`[${req.requestId}] → ${req.method} ${req.path}`);
 
