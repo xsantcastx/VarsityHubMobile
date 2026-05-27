@@ -2429,6 +2429,8 @@ authRouter.post(
     delete nextPrefs.team_name;
     nextPrefs.join_request_pending = false;
 
+    // Coach application involves 3 sequential writes; increase timeout from 5s default
+    // to 15s so connection pool pressure doesn't abort the transaction.
     const result = await prisma.$transaction(async tx => {
       await tx.coachApplication.updateMany({
         where: {
@@ -2477,7 +2479,7 @@ authRouter.post(
       });
 
       return { application, updatedUser };
-    });
+    }, { timeout: 15000, maxWait: 5000 });
 
     await invalidateMeCacheForUser(user.id);
 

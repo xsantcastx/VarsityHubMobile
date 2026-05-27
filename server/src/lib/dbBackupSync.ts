@@ -92,6 +92,24 @@ export async function syncDatabaseBackup(): Promise<{
     // Disable FK constraints on backup for clean truncate + insert
     await backup.$executeRawUnsafe('SET session_replication_role = replica');
 
+    // Build a map of backup table → set of existing columns.
+    // This lets us skip columns that haven't been migrated on the backup DB yet
+    // (schema drift between primary and backup after recent migrations).
+    const backupColumnCache = new Map<string, Set<string>>();
+    try {
+      const backupCols = await backup.$queryRaw<Array<{ table_name: string; column_name: string }>>`
+        SELECT table_name, column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+      `;
+      for (const row of backupCols) {
+        if (!backupColumnCache.has(row.table_name)) backupColumnCache.set(row.table_name, new Set());
+        backupColumnCache.get(row.table_name)!.add(row.column_name);
+      }
+    } catch (colErr: any) {
+      console.error('[db-backup] Failed to read backup column info — will attempt sync without column filtering:', colErr.message?.slice(0, 200));
+    }
+
     for (const table of TABLES_IN_ORDER) {
       // Prisma uses the model name as table name by default
       if (!existingTables.has(table)) {
@@ -113,8 +131,26 @@ export async function syncDatabaseBackup(): Promise<{
           continue;
         }
 
-        // Build and execute batch insert
-        const columns = Object.keys(rows[0]);
+        // Build column list: if we have backup column info, restrict to columns
+        // that exist in both primary data AND backup schema (handles schema drift
+        // where backup is missing recently-added migration columns).
+        const allPrimaryColumns = Object.keys(rows[0]);
+        const backupCols = backupColumnCache.get(table);
+        const columns = backupCols
+          ? allPrimaryColumns.filter((c) => backupCols.has(c))
+          : allPrimaryColumns;
+
+        if (columns.length === 0) {
+          console.error(`[db-backup] Table "${table}" has no matching columns in backup — skipping`);
+          failedTables.push(table);
+          continue;
+        }
+
+        const skippedCols = allPrimaryColumns.filter((c) => !columns.includes(c));
+        if (skippedCols.length > 0) {
+          debugLog(`[db-backup] "${table}": skipping ${skippedCols.length} column(s) missing from backup: ${skippedCols.join(', ')}`);
+        }
+
         const colList = columns.map((c) => `"${c}"`).join(', ');
 
         // Insert in batches of 500 to avoid query size limits

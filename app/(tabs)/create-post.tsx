@@ -796,7 +796,14 @@ function CreatePostScreen() {
         isSample: isSampleEvent(selectedGameId),
       });
       const issues = (e?.data?.issues || []) as { message: string }[];
-      if (issues.length) {
+      if (e?.status === 409 && e?.data?.code === 'DUPLICATE_POST') {
+        // Post was already submitted — navigate away as if successful.
+        // This handles double-tap and retry-after-timeout without showing
+        // a confusing error to the user.
+        setPostSuccess(true);
+        setTimeout(() => router.replace('/(tabs)' as any), 800);
+        return;
+      } else if (issues.length) {
         setError(issues.map(i => i.message).join('\n'));
       } else {
         // Provide more helpful error messages

@@ -81,8 +81,11 @@ function isDuplicateComment(userId: string, postId: string, content: string): bo
   return checkAndRecordDedup(recentCommentHashes, `comment:${userId}:${hash}`);
 }
 
-function isDuplicatePost(userId: string, content: string, gameId?: string): boolean {
-  const raw = `${userId}:${content?.trim() || ''}:${gameId || ''}`;
+function isDuplicatePost(userId: string, content: string, gameId?: string, mediaUrl?: string): boolean {
+  // Media-only posts (no text) must include the media URL in the hash — otherwise
+  // two different images by the same user within 30s would share the same key
+  // (both hash to `userId::gameId`) and the second would be falsely rejected.
+  const raw = `${userId}:${content?.trim() || ''}:${gameId || ''}:${mediaUrl || ''}`;
   const hash = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 16);
   return checkAndRecordDedup(recentPostHashes, `${userId}:${hash}`);
 }
@@ -807,7 +810,7 @@ postsRouter.post(
     const data = parsed.data;
 
     // Dedup guard: reject if identical post submitted within 30s window
-    if (isDuplicatePost(req.user!.id, data.content || '', (data as any).game_id)) {
+    if (isDuplicatePost(req.user!.id, data.content || '', (data as any).game_id, (data as any).media_url)) {
       return res.status(409).json({
         error: 'Duplicate post detected. Please wait before posting again.',
         code: 'DUPLICATE_POST',

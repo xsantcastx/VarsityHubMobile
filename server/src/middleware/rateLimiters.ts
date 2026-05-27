@@ -11,12 +11,7 @@
 import type { Request, Response } from 'express';
 import rateLimit, { Options, Store } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
-
-const debugLog = (...args: Parameters<typeof console.log>) => {
-  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
-    console.log(...args);
-  }
-};
+import { debugLog } from '../lib/debugLog.js';
 
 /**
  * Rate limiting is always active unless explicitly disabled via DISABLE_RATE_LIMITING.

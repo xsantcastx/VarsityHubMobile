@@ -4,12 +4,7 @@ import {
 } from '@varsityhub/shared/runtime/sentrySanitization';
 import type { Express, Request } from 'express';
 import crypto from 'node:crypto';
-
-const debugLog = (...args: Parameters<typeof console.log>) => {
-  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
-    console.log(...args);
-  }
-};
+import { debugLog } from './debugLog.js';
 
 const SERVER_SERVICE_TAG = 'server';
 
