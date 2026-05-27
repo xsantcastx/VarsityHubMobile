@@ -314,8 +314,8 @@ export async function syncStripeSubscriptionState(
     try {
       const stripe = await getStripe();
       await stripe.subscriptions.cancel(String(oldSubId));
-    } catch {
-      // Ignore old subscription cancel failures after the replacement entitlement is active.
+    } catch (cancelErr: any) {
+      console.warn('[payments] Old subscription cancel failed after new entitlement activated:', oldSubId, cancelErr?.message || cancelErr);
     }
   }
 

@@ -12,6 +12,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { uploadLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { debugLog } from '../lib/debugLog.js';
 
 // Magic byte signatures for file type validation (prevents MIME spoofing)
 const MAGIC_BYTES: Array<{ mime: string; bytes: number[]; offset?: number }> = [
@@ -39,12 +40,6 @@ function isHeicBuffer(buffer: Buffer): boolean {
   const brand = buffer.toString('ascii', 8, 12);
   return ['heic', 'heix', 'mif1', 'msf1', 'hevc'].includes(brand);
 }
-
-const debugLog = (...args: Parameters<typeof console.log>) => {
-  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
-    console.log(...args);
-  }
-};
 
 // File size limits by type (in bytes)
 const FILE_SIZE_LIMITS = {

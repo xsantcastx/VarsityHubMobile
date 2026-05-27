@@ -2,6 +2,7 @@ import { MembershipStatus } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { isOrganizationApproved } from '../lib/approvalService.js';
+import { debugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
 import { sendStaffMemberJoinedEmail, sendTeamInviteEmail } from '../lib/email.js';
 import { sendError } from '../lib/http/sendError.js';
@@ -42,12 +43,6 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 export const teamsRouter = Router();
 registerIdValidation(teamsRouter);
 const teamGroupChatLocks = new Map<string, Promise<any>>();
-const debugLog = (...args: Parameters<typeof console.log>) => {
-  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
-    console.log(...args);
-  }
-};
-
 async function ensureTeamGroupChatMembership(teamId: string, userId: string) {
   return withDistributedLock(
     {

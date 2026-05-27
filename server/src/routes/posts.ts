@@ -86,11 +86,6 @@ function isDuplicatePost(userId: string, content: string, gameId?: string): bool
   const hash = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 16);
   return checkAndRecordDedup(recentPostHashes, `${userId}:${hash}`);
 }
-const debugLog = (...args: Parameters<typeof console.log>) => {
-  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
-    console.log(...args);
-  }
-};
 
 const isMissingPollSchemaError = (error: any): boolean => {
   if (!error || (error.code !== 'P2021' && error.code !== 'P2022')) return false;
@@ -776,6 +771,7 @@ import { notifyMentions } from '../lib/mentionNotifications.js';
 import { notifyCommentReply, notifyPostInteraction } from '../lib/notifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { debugLog } from '../lib/debugLog.js';
 
 postsRouter.post(
   '/',

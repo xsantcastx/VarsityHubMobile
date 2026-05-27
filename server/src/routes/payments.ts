@@ -648,7 +648,11 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
     if (meta.ad_id) {
       const adId = meta.ad_id;
       let piDates: string[] = [];
-      try { piDates = JSON.parse(String(meta.dates || '[]')); } catch { /* ignore */ }
+      try { piDates = JSON.parse(String(meta.dates || '[]')); } catch { /* ignore — treat malformed dates as empty */ }
+      if (piDates.length === 0 && meta.dates) {
+        console.error('[webhook] ad payment_intent.succeeded: meta.dates malformed or empty — ad will NOT be activated, manual review needed', { adId, metaDates: meta.dates, piId: pi.id });
+        await updateTransactionStatus(pi.id, 'NEEDS_REVIEW', { stripePaymentIntentId: pi.id }).catch(() => {});
+      }
       if (piDates.length > 0) {
         try {
           await prisma.$transaction(async (tx) => {
