@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import StripeCtor, { type Stripe } from 'stripe';
 import { z } from 'zod';
 import { recordAppleNotificationReceipt } from '../lib/appleNotificationDedup.js';
-import { debugLog as baseDebugLog } from '../lib/debugLog.js';
+import { debugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
 import { sendBillingNoticeEmail } from '../lib/email.js';
 import { redactIdentifier } from '../lib/logRedaction.js';
@@ -122,8 +122,6 @@ export const paymentsRouter = Router();
 
 const OWNER_MANAGED_SUBSCRIPTION_ERROR =
   'Your league owner manages this subscription. Contact them if you need billing changes.';
-
-const debugLog = baseDebugLog;
 
 async function activateApprovedAdPaymentIntent(
   tx: Prisma.TransactionClient,

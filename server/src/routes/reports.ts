@@ -9,10 +9,11 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
+import { debugLog } from '../lib/debugLog.js';
 import { sendAbuseReportEmail } from '../lib/email.js';
 import { autoEscalate } from '../lib/moderation.js';
-import { stripHtml } from '../lib/sanitizeHtml.js';
 import { prisma } from '../lib/prisma.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { reportLimiter } from '../middleware/rateLimiters.js';
@@ -314,7 +315,7 @@ reportsRouter.post(
 
       // Log report for moderation tracking
       if (process.env.NODE_ENV !== 'production') {
-        console.log(
+        debugLog(
           `[Reports] User ${req.user.id} reported ${target_type}:${target_id} for ${reason}`
         );
       }

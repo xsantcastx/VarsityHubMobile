@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
-import { debugLog as baseDebugLog } from '../lib/debugLog.js';
+import { debugLog } from '../lib/debugLog.js';
 import {
     getCoachFlowState,
     getLatestCoachApplication,
@@ -298,7 +298,6 @@ async function clearLoginFailures(email: string): Promise<void> {
   await rlDel(`loginfail:${email}`);
 }
 
-const debugLog = baseDebugLog;
 const shouldExposeDevCodes =
   process.env.ENABLE_DEV_CODES === '1' &&
   (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test');
@@ -625,7 +624,7 @@ authRouter.post(
     const password_hash = await bcrypt.hash(password, 10);
     const code = String(crypto.randomInt(100000, 999999));
     if (process.env.NODE_ENV === 'development')
-      console.log(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
+      debugLog(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
     const exp = new Date(Date.now() + 30 * 60 * 1000);
     const userRole = role || 'fan';
 
@@ -666,7 +665,7 @@ authRouter.post(
       },
     });
     if (process.env.NODE_ENV === 'development')
-      console.log(
+      debugLog(
         `[verify-code] [register] Code hash stored in DB for user ${user.id} (expires ${exp.toISOString()})`
       );
     // New user defaults to session_epoch=0 in schema. Sign the access token
@@ -3825,7 +3824,7 @@ authRouter.post(
     }
     const code = String(crypto.randomInt(100000, 999999));
     if (process.env.NODE_ENV === 'development')
-      console.log(
+      debugLog(
         `[verify-code] [verify/request] Code generated: ${code} for user ${user.id} (${user.email})`
       );
     const exp = new Date(Date.now() + 30 * 60 * 1000);
@@ -3836,12 +3835,12 @@ authRouter.post(
       data: { email_verification_code: codeHash, email_verification_expires: exp },
     });
     if (process.env.NODE_ENV === 'development')
-      console.log(
+      debugLog(
         `[verify-code] [verify/request] Code hash stored in DB (expires ${exp.toISOString()})`
       );
     try {
       if (process.env.NODE_ENV === 'development')
-        console.log(
+        debugLog(
           `[verify-code] [verify/request] Calling sendVerificationEmail → to: ${user.email}`
         );
       const sent = await sendVerificationEmail(
@@ -3856,7 +3855,7 @@ authRouter.post(
         );
         payload.verification_email_error = 'EMAIL_DELIVERY_FAILED';
       } else {
-        console.log(
+        debugLog(
           '[verify-code] [verify/request] sendVerificationEmail returned true — email accepted by SendGrid'
         );
       }

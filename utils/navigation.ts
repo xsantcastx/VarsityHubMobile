@@ -13,7 +13,7 @@ import {
  */
 export function safeGoBack(
   router: ReturnType<typeof useRouter>,
-  explicitFallback?: Href
+  explicitFallback?: Href | string
 ) {
   if (router.canGoBack()) {
     router.back();
@@ -36,7 +36,7 @@ export function goBackToTrackedRoute(
   router: ReturnType<typeof useRouter>,
   currentHref: string | null | undefined,
   trackedPreviousHref: string | null | undefined,
-  explicitFallback?: Href
+  explicitFallback?: Href | string
 ) {
   if (trackedPreviousHref && trackedPreviousHref !== currentHref) {
     router.replace(trackedPreviousHref as Href);
@@ -81,7 +81,7 @@ export function useSafeNavigation() {
  */
 export function createSafeBack(
   router: ReturnType<typeof useRouter>,
-  explicitFallback?: Href
+  explicitFallback?: Href | string
 ) {
   return () => {
     safeGoBack(router, explicitFallback);

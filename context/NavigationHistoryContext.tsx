@@ -15,7 +15,7 @@ const MAX_HISTORY = 50;
 /** Module-level fallback for safeGoBack(router) when used outside React tree (e.g. Alert callbacks) */
 let globalGetFallback: (() => string) | null = null;
 let globalGetCurrentHref: (() => string | null) | null = null;
-let globalSafeBack: ((explicitFallback?: Href) => boolean) | null = null;
+let globalSafeBack: ((explicitFallback?: Href | string) => boolean) | null = null;
 export function setNavigationFallbackGetter(fn: (() => string) | null) {
   globalGetFallback = fn;
 }
@@ -28,10 +28,10 @@ export function setCurrentHrefGetter(fn: (() => string | null) | null) {
 export function getCurrentHref(): string | null {
   return globalGetCurrentHref?.() ?? null;
 }
-export function setNavigationSafeBackHandler(fn: ((explicitFallback?: Href) => boolean) | null) {
+export function setNavigationSafeBackHandler(fn: ((explicitFallback?: Href | string) => boolean) | null) {
   globalSafeBack = fn;
 }
-export function performTrackedSafeBack(explicitFallback?: Href): boolean {
+export function performTrackedSafeBack(explicitFallback?: Href | string): boolean {
   return globalSafeBack?.(explicitFallback) ?? false;
 }
 
@@ -52,7 +52,7 @@ function segmentsToRoute(segments: string[]): string {
 
 
 interface NavigationHistoryContextType {
-  safeGoBack: (explicitFallback?: Href) => void;
+  safeGoBack: (explicitFallback?: Href | string) => void;
   getFallbackRoute: () => string;
 }
 
@@ -70,7 +70,7 @@ export function useNavigationHistory() {
  * Hook that returns a safeGoBack function.
  * @param explicitFallback - When provided, use this route when canGoBack is false (e.g. '/(tabs)/my-ads')
  */
-export function useSafeGoBack(explicitFallback?: Href): () => void {
+export function useSafeGoBack(explicitFallback?: Href | string): () => void {
   const router = useRouter();
   const context = useContext(NavigationHistoryContext);
 
@@ -134,7 +134,7 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
     return lastTabRouteRef.current;
   }, []);
 
-  const safeGoBack = useCallback((explicitFallback?: Href) => {
+  const safeGoBack = useCallback((explicitFallback?: Href | string) => {
     if (router.canGoBack()) {
       router.back();
       return true;
