@@ -16,6 +16,31 @@ import { invalidateMeCacheForUser } from './userCache.js';
 const MAX_AD_SLOTS = 2;
 const isJestRuntime = process.env.JEST_WORKER_ID != null;
 
+/**
+ * Encode ISO date strings into a compact format safe for Stripe's 500-char metadata limit.
+ * 56 dates × 7 chars = 392 chars max — well under the 500-char limit.
+ * Format: "YYMMDD,YYMMDD,..." e.g. "240315,240316"
+ */
+export function encodeAdDates(isoDates: string[]): string {
+  return isoDates.map(d => d.replace(/-/g, '').slice(2)).join(',');
+}
+
+/**
+ * Decode ad dates from Stripe metadata. Backward-compatible:
+ * - Compact format: "240315,240316" (new, post-fix sessions)
+ * - JSON array:     '["2024-03-15","2024-03-16"]' (legacy, in-flight sessions pre-fix)
+ */
+export function decodeAdDates(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const s = String(raw).trim();
+  if (s.startsWith('[')) {
+    try { return JSON.parse(s); } catch { return []; }
+  }
+  return s.split(',').filter(Boolean).map(d =>
+    `20${d.slice(0, 2)}-${d.slice(2, 4)}-${d.slice(4, 6)}`
+  );
+}
+
 const formatUsd = (cents?: number | null) => {
   if (typeof cents !== 'number' || Number.isNaN(cents)) return '';
   return `$${(cents / 100).toFixed(2)}`;
@@ -995,15 +1020,7 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
       ? session.amount_total
       : Number(meta.total_cents || transactionLog?.total_cents || 0) || 0;
   const ad_id = meta.ad_id || '';
-  let dates: string[] = [];
-  try {
-    dates = JSON.parse(String(meta.dates || '[]'));
-  } catch (err) {
-    console.warn(
-      '[payments] Failed to parse ad dates from session metadata:',
-      (err as any)?.message || err
-    );
-  }
+  const dates = decodeAdDates(meta.dates);
   if (ad_id && Array.isArray(dates) && dates.length) {
     debugLog('[payments] Processing ad reservation payment', {
       ad_id,
@@ -1084,15 +1101,7 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
       sendAdPaymentEmail({
         userId: adForEmail?.user_id || null,
         adId: String(ad_id),
-        dates: Array.isArray(meta?.dates)
-          ? (meta.dates as any)
-          : (() => {
-              try {
-                return JSON.parse(String(session.metadata?.dates || '[]'));
-              } catch {
-                return [];
-              }
-            })(),
+        dates: decodeAdDates(session.metadata?.dates),
         totalCents: session.amount_total ?? null,
         businessName: adForEmail?.business_name,
         zipCode: adForEmail?.target_zip_code,

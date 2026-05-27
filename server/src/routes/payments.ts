@@ -27,7 +27,9 @@ import {
     resolveVeteranQuantityUpdate,
     runFinalizeFromSession,
     sendAdPaymentEmail,
-    syncStripeSubscriptionState
+    syncStripeSubscriptionState,
+    encodeAdDates,
+    decodeAdDates
 } from '../lib/paymentInternals.js';
 import {
     SERVER_LEGEND_PRICE_CENTS,
@@ -647,8 +649,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
     const meta = pi.metadata || {};
     if (meta.ad_id) {
       const adId = meta.ad_id;
-      let piDates: string[] = [];
-      try { piDates = JSON.parse(String(meta.dates || '[]')); } catch { /* ignore — treat malformed dates as empty */ }
+      let piDates: string[] = decodeAdDates(meta.dates);
       if (piDates.length === 0 && meta.dates) {
         console.error('[webhook] ad payment_intent.succeeded: meta.dates malformed or empty — ad will NOT be activated, manual review needed', { adId, metaDates: meta.dates, piId: pi.id });
         await updateTransactionStatus(pi.id, 'NEEDS_REVIEW', { stripePaymentIntentId: pi.id }).catch(() => {});
@@ -1519,7 +1520,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireAuth as any, paymentL
     // Useful metadata for webhook
     metadata: {
       ad_id: String(ad_id),
-      dates: JSON.stringify(isoDates),
+      dates: encodeAdDates(isoDates),
       user_id: req.user!.id,
       subtotal_cents: String(subtotal),
       tax_cents: String(taxCents),
@@ -1909,7 +1910,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
       automatic_payment_methods: { enabled: true },
       metadata: {
         ad_id: String(ad_id),
-        dates: JSON.stringify(isoDates),
+        dates: encodeAdDates(isoDates),
         user_id: userId,
         subtotal_cents: String(subtotal),
         tax_cents: String(taxCents),
