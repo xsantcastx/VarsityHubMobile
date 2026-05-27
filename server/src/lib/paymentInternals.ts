@@ -1,26 +1,20 @@
-import type { Prisma, AdStatus } from '@prisma/client';
+import type { AdStatus, Prisma } from '@prisma/client';
 import type { Stripe } from 'stripe';
-import { debugLog as baseDebugLog } from './debugLog.js';
-import { prisma } from './prisma.js';
-import { getMaxTeamsForPlan } from './planLimits.js';
+import { debugLog } from './debugLog.js';
 import {
-  SERVER_ROOKIE_TEAM_LIMIT,
-  SERVER_VETERAN_MIN_TOTAL_TEAMS,
+    SERVER_ROOKIE_TEAM_LIMIT,
+    SERVER_VETERAN_MIN_TOTAL_TEAMS,
 } from './planDefinitions.js';
+import { getMaxTeamsForPlan } from './planLimits.js';
+import { prisma } from './prisma.js';
 import { captureException } from './sentry.js';
-import { invalidateMeCacheForUser } from './userCache.js';
 import {
-  buildBillingStateColumns,
-  getCanonicalPlan,
-  mergeBillingStateIntoPreferences,
+    buildBillingStateColumns,
+    mergeBillingStateIntoPreferences
 } from './userBillingState.js';
+import { invalidateMeCacheForUser } from './userCache.js';
 const MAX_AD_SLOTS = 2;
 const isJestRuntime = process.env.JEST_WORKER_ID != null;
-
-const debugLog = (...args: Parameters<typeof console.log>) => {
-  if (process.env.NODE_ENV === 'production') return console.log(...args);
-  return baseDebugLog(...args);
-};
 
 const formatUsd = (cents?: number | null) => {
   if (typeof cents !== 'number' || Number.isNaN(cents)) return '';
