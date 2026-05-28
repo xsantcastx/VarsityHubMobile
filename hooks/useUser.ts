@@ -3,7 +3,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { getAuthSnapshot } from '@/utils/authState';
 
 /**
- * Custom hook to load and access current user data
+ * Custom hook to load and access current user data.
  *
  * @param autoLoad - Whether to automatically load user on mount (default: true)
  * @returns Object containing user data, loading state, error, and refresh function
@@ -50,24 +50,18 @@ export function useUser(autoLoad: boolean = true) {
 }
 
 /**
- * Custom hook to load user profile data (name, email, etc.)
- * Similar to useUser but returns extracted profile fields
- *
- * @param autoLoad - Whether to automatically load user on mount (default: true)
- * @returns Object containing profile fields, loading state, error, and refresh function
+ * Derives display-oriented fields from the canonical auth snapshot.
+ * Prefer useAuth() directly if you need the full user object.
  */
 export function useUserProfile(autoLoad: boolean = true) {
-  const { user, loading, error, loadUser } = useUser(autoLoad);
-  const profileUser = (user || null) as any;
-
+  const { user, loading, error, refresh } = useUser(autoLoad);
   return {
-    displayName: profileUser?.display_name || '',
-    email: profileUser?.email || '',
-    avatarUrl: profileUser?.avatar_url || null,
-    zipCode: profileUser?.preferences?.zip_code || '',
-    user,
+    displayName: user?.display_name ?? null,
+    email: user?.email ?? null,
+    avatarUrl: user?.avatar_url ?? null,
+    zipCode: (user?.preferences as Record<string, string> | undefined)?.zip_code ?? null,
     loading,
     error,
-    refresh: loadUser,
+    refresh,
   };
 }
