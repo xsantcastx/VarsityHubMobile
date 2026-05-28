@@ -59,9 +59,6 @@ describe('membership status guards', () => {
 
   it('coach-request review routes require owner role on org membership', () => {
     expect(orgsSrc).toMatch(/\/:id\/join-requests[\s\S]{0,2500}?membership\.role\s*!==\s*'owner'/);
-    expect(orgsSrc).toMatch(/\/:id\/pending-coaches[\s\S]{0,2500}?role:\s*'owner'/);
-    expect(orgsSrc).toMatch(/\/:id\/coaches\/:userId\/approve[\s\S]{0,2500}?role:\s*'owner'/);
-    expect(orgsSrc).toMatch(/\/:id\/coaches\/:userId\/reject[\s\S]{0,2500}?role:\s*'owner'/);
   });
 
   it('org transfer-ownership requires active current + new owner memberships', () => {

@@ -667,18 +667,6 @@ export const Organization = {
     httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/deny`, { reason }),
   update: (id: string, data: Record<string, any>) =>
     httpPatch(`/organizations/${encodeURIComponent(id)}`, data),
-  pendingCoaches: (organizationId: string) =>
-    httpGet(`/organizations/${encodeURIComponent(organizationId)}/pending-coaches`),
-  approveCoach: (organizationId: string, userId: string, note?: string) =>
-    httpPost(
-      `/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/approve`,
-      { note }
-    ),
-  rejectCoach: (organizationId: string, userId: string, reason?: string) =>
-    httpPost(
-      `/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/reject`,
-      { reason }
-    ),
   approveLeague: (organizationId: string, note?: string) =>
     httpPost(`/organizations/${encodeURIComponent(organizationId)}/approve`, { note }),
   rejectLeague: (organizationId: string, reason?: string) =>
