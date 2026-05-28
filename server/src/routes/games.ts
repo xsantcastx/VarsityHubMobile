@@ -1,5 +1,5 @@
 import escapeHtml from 'escape-html';
-import { Router, type Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
@@ -25,12 +25,372 @@ import {
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authMiddleware, type AuthedRequest } from '../middleware/auth.js';
 import { gameCreationLimiter, storyCreationLimiter, voteLimiter } from '../middleware/rateLimiters.js';
+import { verifyStoryPostingPermission } from '../lib/geofencing.js';
 import { getIsAdmin, isEmailAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { makeCreateStoryHandler, makeListMediaHandler } from './gameStories.js';
+
+// ---------------------------------------------------------------------------
+// Game media / stories — inlined to keep all game-related logic in one file
+// ---------------------------------------------------------------------------
+
+const isVideoUrl = (url?: string | null) => {
+  if (!url) return false;
+  const sanitized = url.split('?')[0].toLowerCase();
+  return ['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mkv'].some(ext => sanitized.endsWith(ext));
+};
+
+const serializeMedia = (story: any) => {
+  const isVideo = isVideoUrl(story.media_url);
+  return {
+    id: story.id,
+    url: story.media_url,
+    kind: isVideo ? 'video' : 'photo',
+    thumbnail_url: isVideo ? getVideoPreviewUrl(story.media_url) : null,
+    created_at:
+      story.created_at instanceof Date ? story.created_at.toISOString() : story.created_at,
+    caption: story.caption ?? null,
+    user_id: story.user_id ?? null,
+    expires_at:
+      story.expires_at instanceof Date
+        ? story.expires_at.toISOString()
+        : (story.expires_at ?? null),
+  };
+};
+
+const isMissingStoryLocationColumnError = (error: any): boolean => {
+  if (!error || error.code !== 'P2022') return false;
+  const modelName = String(error?.meta?.modelName ?? '');
+  const column = String(error?.meta?.column ?? '');
+  return modelName === 'Story' && (column === 'Story.lat' || column === 'Story.lng');
+};
+
+const locationSchema = z
+  .object({
+    lat: z.number().nullable().optional(),
+    lng: z.number().nullable().optional(),
+    source: z.enum(['device', 'places', 'zip', 'derived']).nullable().optional(),
+  })
+  .optional();
+
+const storySchema = z.object({
+  media_url: z
+    .string()
+    .url({ message: 'media_url must be a valid URL' })
+    .refine(
+      url => {
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol !== 'https:') return false;
+          const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
+          return allowed.some(d => parsed.hostname.endsWith(d));
+        } catch {
+          return false;
+        }
+      },
+      { message: 'media_url must be an HTTPS Cloudinary or VarsityHub CDN URL' }
+    ),
+  caption: z.string().max(500).optional(),
+  location: locationSchema,
+});
+
+type StoryDeps = { prisma: typeof import('../lib/prisma.js').prisma };
+
+async function canViewGameMedia(
+  prismaClient: StoryDeps['prisma'],
+  gameId: string,
+  req: AuthedRequest
+): Promise<{ allowed: boolean; exists: boolean }> {
+  const game = await prismaClient.game.findUnique({
+    where: { id: gameId },
+    select: {
+      id: true,
+      approval_status: true,
+      created_by_id: true,
+      home_team_id: true,
+      away_team_id: true,
+    } as any,
+  });
+  if (!game) return { allowed: false, exists: false };
+  if ((game as any).approval_status === 'approved') return { allowed: true, exists: true };
+
+  const viewerId = req.user?.id ?? null;
+  if (!viewerId) return { allowed: false, exists: true };
+  if ((game as any).created_by_id && (game as any).created_by_id === viewerId)
+    return { allowed: true, exists: true };
+  if (await getIsAdmin(req as any)) return { allowed: true, exists: true };
+
+  const teamIds = [(game as any).home_team_id, (game as any).away_team_id].filter(
+    Boolean
+  ) as string[];
+  if (teamIds.length === 0) return { allowed: false, exists: true };
+
+  const teamMembership = await prismaClient.teamMembership.findFirst({
+    where: {
+      user_id: viewerId,
+      team_id: { in: teamIds },
+      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+      status: 'active',
+    },
+    select: { id: true },
+  });
+  if (teamMembership) return { allowed: true, exists: true };
+
+  const teams = await prismaClient.team.findMany({
+    where: { id: { in: teamIds } },
+    select: { organization_id: true },
+    take: teamIds.length,
+  });
+  const organizationIds = teams.map(team => team.organization_id).filter(Boolean) as string[];
+  if (organizationIds.length === 0) return { allowed: false, exists: true };
+
+  const orgMembership = await prismaClient.organizationMembership.findFirst({
+    where: {
+      user_id: viewerId,
+      organization_id: { in: organizationIds },
+      role: { in: ['owner', 'manager'] },
+      status: 'active',
+    },
+    select: { id: true },
+  });
+  return { allowed: !!orgMembership, exists: true };
+}
+
+const makeListMediaHandler =
+  ({ prisma: p }: StoryDeps) =>
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    try {
+      const visibility = await canViewGameMedia(p, id, req as AuthedRequest);
+      if (!visibility.exists) return res.status(404).json({ error: 'Not found' });
+      if (!visibility.allowed) return res.status(404).json({ error: 'Not found' });
+
+      void (async () => {
+        try {
+          const expired = await p.story.findMany({
+            where: { game_id: id, expires_at: { lt: new Date() } },
+            select: { id: true, media_url: true },
+            take: 200,
+          });
+          if (expired.length === 0) return;
+
+          await p.story.deleteMany({ where: { id: { in: expired.map(s => s.id) } } });
+
+          const { extractCloudinaryPublicId, destroyCloudinaryAsset } = await import(
+            '../lib/cloudinary.js'
+          );
+          for (const story of expired) {
+            if (!story.media_url) continue;
+            const parsed = extractCloudinaryPublicId(story.media_url);
+            if (!parsed) continue;
+            destroyCloudinaryAsset(parsed.publicId, parsed.resourceType).catch(err =>
+              console.warn(
+                '[gameStories] Cloudinary destroy failed for expired story',
+                story.id,
+                err?.message || err
+              )
+            );
+          }
+        } catch (err: any) {
+          console.warn('[gameStories] lazy expired-cleanup failed:', err?.message || err);
+        }
+      })();
+
+      const items = await p.story.findMany({
+        where: { game_id: id },
+        orderBy: { created_at: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          media_url: true,
+          created_at: true,
+          caption: true,
+          user_id: true,
+          expires_at: true,
+        },
+      });
+      return res.json(items.map(serializeMedia));
+    } catch (error: any) {
+      if (isMissingStoryLocationColumnError(error)) {
+        console.warn('[stories] Story location columns missing, falling back to legacy query');
+        if (!/^[a-zA-Z0-9_-]+$/.test(id) || id.length > 100) {
+          return res.status(400).json({ error: 'Invalid game id' });
+        }
+        try {
+          const items = await p.$queryRaw<
+            Array<{
+              id: string;
+              media_url: string;
+              created_at: Date | string;
+              caption: string | null;
+              user_id: string | null;
+            }>
+          >`
+            SELECT "id", "media_url", "created_at", "caption", "user_id"
+            FROM "Story"
+            WHERE "game_id" = ${id}
+            ORDER BY "created_at" DESC
+            LIMIT 50
+          `;
+          return res.json(items.map(serializeMedia));
+        } catch (fallbackError) {
+          console.error('[stories] Legacy fallback query failed:', fallbackError);
+          return res.status(500).json({ error: 'Failed to load game media' });
+        }
+      }
+      console.error('[stories] Failed to list game media:', error);
+      return res.status(500).json({ error: 'Failed to load game media' });
+    }
+  });
+
+const makeCreateStoryHandler =
+  ({ prisma: p }: StoryDeps) =>
+  asyncHandler(async (req: AuthedRequest, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const id = String(req.params.id);
+    const parsed = storySchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+
+    const isSampleGame = /^sample-/i.test(id);
+
+    if (!isSampleGame) {
+      const game = await p.game.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          description: true,
+          home_team_id: true,
+          away_team_id: true,
+          events: {
+            orderBy: { date: 'asc' },
+            take: 1,
+            select: { id: true, date: true, latitude: true, longitude: true, location: true },
+          },
+        },
+      });
+
+      const isDemoMatchup =
+        typeof game?.description === 'string' && game.description.includes('[DEMO_MATCHUP]');
+
+      const isAdmin = await getIsAdmin(req as any);
+      const teamIds = [game?.home_team_id, game?.away_team_id].filter(Boolean) as string[];
+      const isTeamMember =
+        teamIds.length > 0
+          ? !!(await p.teamMembership.findFirst({
+              where: { user_id: req.user.id, team_id: { in: teamIds }, status: 'active' },
+              select: { id: true },
+            }))
+          : false;
+
+      if (!isDemoMatchup && !isAdmin && !isTeamMember && game?.events && game.events.length > 0) {
+        const event = game.events[0];
+        const location = parsed.data.location;
+        const hasDeviceOriginLocation =
+          location?.source === 'device' &&
+          typeof location?.lat === 'number' &&
+          typeof location?.lng === 'number';
+
+        if (!hasDeviceOriginLocation) {
+          return res.status(403).json({
+            error: 'LOCATION_REQUIRED',
+            message: 'Stories require current device location within 1 km of the venue.',
+          });
+        }
+        const lat = location.lat ?? null;
+        const lng = location.lng ?? null;
+
+        const ipAddr =
+          (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+          req.socket.remoteAddress ||
+          null;
+        const verification = await verifyStoryPostingPermission(
+          event.id,
+          req.user.id,
+          lat,
+          lng,
+          ipAddr
+        );
+
+        if (!verification.allowed) {
+          return res.status(403).json({
+            error: verification.code || 'LOCATION_VERIFICATION_FAILED',
+            message: verification.reason,
+            distance: verification.distance,
+          });
+        }
+      }
+    }
+
+    const location = parsed.data.location;
+    const lat = location?.lat ?? null;
+    const lng = location?.lng ?? null;
+
+    const createData: any = {
+      game_id: id,
+      user_id: req.user.id,
+      media_url: parsed.data.media_url,
+      caption: parsed.data.caption ? stripHtml(parsed.data.caption) : undefined,
+    };
+    if (typeof lat === 'number') createData.lat = lat;
+    if (typeof lng === 'number') createData.lng = lng;
+
+    let story;
+    try {
+      story = await p.story.create({ data: createData });
+    } catch (error: any) {
+      if (!isMissingStoryLocationColumnError(error)) {
+        console.error('[stories] Failed to create story:', error);
+        return res.status(500).json({ error: 'Failed to create story' });
+      }
+      console.warn('[stories] Story location columns missing, retrying without lat/lng');
+      const { lat: _lat, lng: _lng, ...withoutCoords } = createData;
+      try {
+        story = await p.story.create({ data: withoutCoords });
+      } catch (fallbackError) {
+        console.error('[stories] Failed to create story in fallback mode:', fallbackError);
+        return res.status(500).json({ error: 'Failed to create story' });
+      }
+    }
+
+    try {
+      const game = await p.game.findUnique({
+        where: { id },
+        select: { id: true, title: true, created_by_id: true },
+      });
+      if (game?.created_by_id && game.created_by_id !== req.user.id) {
+        const poster = await p.user.findUnique({
+          where: { id: req.user.id },
+          select: { display_name: true },
+        });
+        const posterName = poster?.display_name || 'Someone';
+
+        await p.notification.create({
+          data: {
+            user_id: game.created_by_id,
+            actor_id: req.user.id,
+            type: 'GAME_STORY_ADDED',
+            meta: { game_id: id, game_title: game.title, poster_name: posterName },
+          },
+        });
+
+        const { sendPushNotification } = await import('../lib/notifications.js');
+        void sendPushNotification(
+          game.created_by_id,
+          `New story on ${game.title}`,
+          `${posterName} added a story to your game`,
+          { type: 'game_story_added', game_id: id, screen: 'game-detail' }
+        ).catch((pushErr) => {
+          console.warn('[stories] Failed to send game story push:', pushErr);
+        });
+      }
+    } catch (notifErr) {
+      console.error('[stories] Failed to send game story notification:', notifErr);
+    }
+
+    return res.status(201).json(story);
+  });
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
