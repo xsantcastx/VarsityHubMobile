@@ -1215,13 +1215,21 @@ postsRouter.post(
         }),
       ]);
     } else {
-      await prisma.$transaction([
-        prisma.pollVote.create({ data: { poll_option_id: option_id, user_id: userId } }),
-        prisma.pollOption.update({
-          where: { id: option_id },
-          data: { votes_count: { increment: 1 } },
-        }),
-      ]);
+      try {
+        await prisma.$transaction([
+          prisma.pollVote.create({ data: { poll_option_id: option_id, user_id: userId } }),
+          prisma.pollOption.update({
+            where: { id: option_id },
+            data: { votes_count: { increment: 1 } },
+          }),
+        ]);
+      } catch (e: any) {
+        // Race condition: concurrent vote on same option — treat as already cast
+        if (e?.code === 'P2002') {
+          return res.status(200).json({ message: 'Vote already cast' });
+        }
+        throw e;
+      }
     }
 
     const updatedPoll = await prisma.poll.findUnique({
@@ -1232,17 +1240,14 @@ postsRouter.post(
     });
 
     // Return serialized poll with the voted option
+    if (!updatedPoll) {
+      return res.status(404).json({ error: 'Poll not found' });
+    }
     const postForQuestion = await prisma.post.findUnique({
       where: { id: postId },
       select: { content: true },
     });
-    res
-      .status(200)
-      .json(
-        updatedPoll
-          ? serializePoll(updatedPoll, postForQuestion?.content ?? null, option_id)
-          : updatedPoll
-      );
+    res.status(200).json(serializePoll(updatedPoll, postForQuestion?.content ?? null, option_id));
   })
 );
 

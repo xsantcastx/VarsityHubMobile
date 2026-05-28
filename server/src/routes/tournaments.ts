@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import { getOrganizationState } from '../lib/organizationState.js';
 import { prisma } from '../lib/prisma.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 import {
   buildOrganizationSerializeSelect,
   serializeOrganization,
@@ -83,28 +84,32 @@ tournamentsRouter.post(
         tournament_format,
       } = parsed.data;
 
-      const tournament = await prisma.organization.create({
-        data: {
-          name,
-          description: description
-            ? stripHtml(description)
-            : `${season ? `${season} ` : ''}${sport ?? ''} Tournament`.trim() || undefined,
-          org_type: 'tournament',
-          sport: sport ?? undefined,
-          location: location ?? undefined,
-          updated_at: new Date(),
-        },
-        select: buildOrganizationSerializeSelect(),
-      });
+      const tournament = await prisma.$transaction(async (tx) => {
+        const org = await tx.organization.create({
+          data: {
+            name,
+            description: description
+              ? stripHtml(description)
+              : `${season ? `${season} ` : ''}${sport ?? ''} Tournament`.trim() || undefined,
+            org_type: 'tournament',
+            sport: sport ?? undefined,
+            location: location ?? undefined,
+            updated_at: new Date(),
+          },
+          select: buildOrganizationSerializeSelect(),
+        });
 
-      // Add creator as org owner
-      await prisma.organizationMembership.create({
-        data: {
-          organization_id: tournament.id,
-          user_id: req.user!.id,
-          role: 'owner',
-        },
-        select: { id: true },
+        // Add creator as org owner — inside transaction so org is never left ownerless
+        await tx.organizationMembership.create({
+          data: {
+            organization_id: org.id,
+            user_id: req.user!.id,
+            role: 'owner',
+          },
+          select: { id: true },
+        });
+
+        return org;
       });
 
       return res.status(201).json(serializeOrganization(tournament));
