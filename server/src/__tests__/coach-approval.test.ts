@@ -1170,98 +1170,6 @@ describe('Coach Approval Workflow', () => {
       await prisma.user.delete({ where: { id: managerId } }).catch(() => {});
     });
 
-    it('manager cannot GET /organizations/:id/pending-coaches', async () => {
-      const hash = await bcrypt.hash(PASSWORD, 10);
-      const coach = await prisma.user.create({
-        data: {
-          email: `pending-list-${ts}-${Math.random()}@example.com`,
-          password_hash: hash,
-          display_name: 'Pending Coach',
-          email_verified: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
-          approval_status: 'PENDING',
-        },
-      });
-      await prisma.organizationJoinRequest.create({
-        data: { organization_id: orgId, user_id: coach.id, status: 'pending' },
-        select: { id: true },
-      });
-
-      const res = await request(app)
-        .get(`/organizations/${orgId}/pending-coaches`)
-        .set('Authorization', `Bearer ${managerToken}`);
-
-      expect(res.status).toBe(403);
-      expect(String(res.body?.error || '')).toMatch(/league owner/i);
-
-      await prisma.organizationJoinRequest.deleteMany({ where: { user_id: coach.id } });
-      await prisma.user.delete({ where: { id: coach.id } });
-    });
-
-    it('manager cannot POST /organizations/:id/coaches/:userId/approve', async () => {
-      const hash = await bcrypt.hash(PASSWORD, 10);
-      const coach = await prisma.user.create({
-        data: {
-          email: `manager-approve-${ts}-${Math.random()}@example.com`,
-          password_hash: hash,
-          display_name: 'Manager Approves',
-          email_verified: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
-          approval_status: 'PENDING',
-        },
-      });
-      await prisma.organizationJoinRequest.create({
-        data: { organization_id: orgId, user_id: coach.id, status: 'pending' },
-        select: { id: true },
-      });
-
-      const res = await request(app)
-        .post(`/organizations/${orgId}/coaches/${coach.id}/approve`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({});
-
-      expect(res.status).toBe(403);
-      const userAfter = await prisma.user.findUnique({
-        where: { id: coach.id },
-        select: { approval_status: true },
-      });
-      expect(userAfter?.approval_status).toBe('PENDING');
-
-      await prisma.organizationJoinRequest.deleteMany({ where: { user_id: coach.id } });
-      await prisma.organizationMembership.deleteMany({ where: { user_id: coach.id } });
-      await prisma.user.delete({ where: { id: coach.id } });
-    });
-
-    it('manager cannot POST /organizations/:id/coaches/:userId/reject', async () => {
-      const hash = await bcrypt.hash(PASSWORD, 10);
-      const coach = await prisma.user.create({
-        data: {
-          email: `manager-reject-${ts}-${Math.random()}@example.com`,
-          password_hash: hash,
-          display_name: 'Manager Rejects',
-          email_verified: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
-          approval_status: 'PENDING',
-        },
-      });
-      await prisma.organizationJoinRequest.create({
-        data: { organization_id: orgId, user_id: coach.id, status: 'pending' },
-        select: { id: true },
-      });
-
-      const res = await request(app)
-        .post(`/organizations/${orgId}/coaches/${coach.id}/reject`)
-        .set('Authorization', `Bearer ${managerToken}`)
-        .send({ reason: 'Not a fit' });
-
-      expect(res.status).toBe(403);
-      const reqAfter = await getOrganizationJoinRequestStateForUser(orgId, coach.id);
-      expect(reqAfter?.status).toBe('pending');
- 
-      await prisma.organizationJoinRequest.deleteMany({ where: { user_id: coach.id } });
-      await prisma.user.delete({ where: { id: coach.id } });
-    });
-
     it('manager cannot use join-request review endpoints', async () => {
       const hash = await bcrypt.hash(PASSWORD, 10);
       const coach = await prisma.user.create({
@@ -1299,45 +1207,10 @@ describe('Coach Approval Workflow', () => {
       await prisma.organizationJoinRequest.deleteMany({ where: { user_id: coach.id } });
       await prisma.user.delete({ where: { id: coach.id } });
     });
-
-    it('non-admin org member cannot view or approve pending coaches', async () => {
-      const hash = await bcrypt.hash(PASSWORD, 10);
-      const member = await prisma.user.create({
-        data: {
-          email: `non-admin-member-${ts}-${Math.random()}@example.com`,
-          password_hash: hash,
-          display_name: 'Plain Member',
-          email_verified: true,
-          role: 'coach',
-          onboarding_completed: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
-          approval_status: 'APPROVED',
-        },
-      });
-      const memberToken = signJwt({ id: member.id });
-      await prisma.organizationMembership.create({
-        data: { organization_id: orgId, user_id: member.id, role: 'coach', status: 'active' },
-        select: { id: true },
-      });
-
-      const listRes = await request(app)
-        .get(`/organizations/${orgId}/pending-coaches`)
-        .set('Authorization', `Bearer ${memberToken}`);
-      expect(listRes.status).toBe(403);
-
-      const approveRes = await request(app)
-        .post(`/organizations/${orgId}/coaches/${member.id}/approve`)
-        .set('Authorization', `Bearer ${memberToken}`)
-        .send({});
-      expect(approveRes.status).toBe(403);
-
-      await prisma.organizationMembership.deleteMany({ where: { user_id: member.id } });
-      await prisma.user.delete({ where: { id: member.id } });
-    });
   });
 
   describe('League owner approval sets coach to APPROVED', () => {
-    it('league owner approving coach sets coach to APPROVED', async () => {
+    it('league owner approving coach join request sets coach to APPROVED', async () => {
       const coachHash = await bcrypt.hash(PASSWORD, 10);
       const coach = await prisma.user.create({
         data: {
@@ -1350,7 +1223,7 @@ describe('Coach Approval Workflow', () => {
         },
       });
 
-      await prisma.organizationJoinRequest.create({
+      const joinRequest = await prisma.organizationJoinRequest.create({
         data: {
           organization_id: orgId,
           user_id: coach.id,
@@ -1360,7 +1233,7 @@ describe('Coach Approval Workflow', () => {
       });
 
       const res = await request(app)
-        .post(`/organizations/${orgId}/coaches/${coach.id}/approve`)
+        .post(`/organizations/join-requests/${joinRequest.id}/approve`)
         .set('Authorization', `Bearer ${leagueOwnerToken}`)
         .send({});
 
