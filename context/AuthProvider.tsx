@@ -698,25 +698,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         currentPath.startsWith('sign-in/') ||
         currentPath === 'sign-up' ||
         currentPath.startsWith('sign-up/');
-      if (pushTokenTimeoutRef.current) {
-        clearTimeout(pushTokenTimeoutRef.current);
-        pushTokenTimeoutRef.current = null;
-      }
-      if (subscriptionFetchTimeoutRef.current) {
-        clearTimeout(subscriptionFetchTimeoutRef.current);
-        subscriptionFetchTimeoutRef.current = null;
-      }
-      clearPostCacheOnLogout();
-      setUser(null);
-      setHasSession(false);
-      setSentryUser(null);
-      analytics.reset();
-      setPendingVerificationEmail(null);
-      setHasCompletedOnboarding(false);
-      setSubscriptionTier('rookie');
-      setHasActiveSubscription(false);
+      clearLocalAuthState();
       await clearUserScopedStorage();
-      lastPushRegistrationRef.current = null;
       // Only surface a message if the user was actually signed in — a
       // missing refresh token during a background bootstrap doesn't need
       // a toast ("you were never really signed in").
@@ -727,7 +710,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
       redirectWithTelemetry('/sign-in', `session_expired:${reason}`, userBeforeExpiry);
     },
-    [clearUserScopedStorage, redirectWithTelemetry, user]
+    [clearLocalAuthState, clearUserScopedStorage, redirectWithTelemetry, user]
   );
 
   useEffect(() => {

@@ -191,10 +191,7 @@ function resolveServerDirectedPostAuthKind(user: RoutingUserLike): ServerDirecte
   }
 }
 
-function resolvePendingRouteKind(route: string, baseKind: 'pending_coach_waiting' | 'approved_coach_finish_setup'): PostAuthRouteKind {
-  if (route === '/onboarding/league-pending-approval') {
-    return baseKind;
-  }
+function resolvePendingRouteKind(_route: string, baseKind: 'pending_coach_waiting' | 'approved_coach_finish_setup'): PostAuthRouteKind {
   return baseKind;
 }
 

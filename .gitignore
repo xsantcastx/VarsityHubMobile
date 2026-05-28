@@ -143,3 +143,4 @@ dist-verify/
 # Claude Code internal — agent worktrees, never push
 .claude/worktrees/
 .jscpd/
+uploads/
