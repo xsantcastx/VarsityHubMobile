@@ -11,6 +11,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 import {
   buildTeamPlanLockedError,
+  buildRosterLimitError,
   getTeamEntitlementState,
   isAuthorizedTeamRole,
   TEAM_AUTHORIZED_ROLES,
@@ -85,6 +86,24 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
         throw new Error('TEAM_PLAN_LOCKED');
       }
 
+      // Enforce roster size limit — counts active members + all pending invites
+      // so the cap cannot be bypassed by sending invites instead of direct adds.
+      if (entitlement.maxRoster !== null) {
+        const activeMemberCount = await tx.teamMembership.count({
+          where: { team_id: teamId, status: 'active' },
+        });
+        const pendingInviteCount = await tx.teamInvite.count({
+          where: {
+            team_id: teamId,
+            status: 'pending',
+            ...(current ? { id: { not: current.id } } : {}),
+          },
+        });
+        if (activeMemberCount + pendingInviteCount + 1 > entitlement.maxRoster) {
+          throw new Error(`ROSTER_LIMIT_REACHED:${entitlement.maxRoster}`);
+        }
+      }
+
       if (isAuthorizedTeamRole(assignedRole)) {
         const limit = entitlement.maxAuthorizedUsers;
         if (limit !== null) {
@@ -132,6 +151,10 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
         error: 'USER_LIMIT_REACHED',
         message: message || 'Plan limit reached for authorized users.',
       });
+    }
+    if (e?.message?.startsWith('ROSTER_LIMIT_REACHED:')) {
+      const limit = parseInt(e.message.split(':')[1], 10);
+      return res.status(403).json(buildRosterLimitError(limit));
     }
     throw e;
   }
