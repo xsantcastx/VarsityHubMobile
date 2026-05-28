@@ -257,12 +257,9 @@ export function getPostAuthRouteDecision(
     };
   }
 
-  if (coachAccess.isApprovedCoach && !coachAccess.hasCurrentCoachAgreement) {
-    return {
-      kind: 'coach_agreement_required',
-      route: POST_AUTH_ROUTE_BY_KIND.coach_agreement_required,
-    };
-  }
+  // Coach agreement is prompted via notification (getCoachApprovalNotificationRoute),
+  // not enforced as a hard gate here. Approved coaches go straight to the app.
+  // This avoids the UX where a coach gets approved but immediately feels blocked.
 
   if (needsOnboarding && coachAccess.isApprovedCoach) {
     const route = getPendingCoachRoute(user) as AppRoute;
