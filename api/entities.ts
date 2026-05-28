@@ -1003,8 +1003,18 @@ export const Advertisement = {
     ),
   trackImpression: (adId: string) => httpPost(`/ads/${encodeURIComponent(adId)}/impression`, {}),
   trackClick: (adId: string) => httpPost(`/ads/${encodeURIComponent(adId)}/click`, {}),
-  review: (adId: string, action: 'approve' | 'reject', note?: string) =>
-    httpPost(`/ads/${encodeURIComponent(adId)}/review`, { action, note }),
+  review: (
+    adId: string,
+    action: 'approve' | 'reject',
+    note?: string,
+    overrideBannerFlag?: boolean,
+    overrideReason?: string
+  ) =>
+    httpPost(`/ads/${encodeURIComponent(adId)}/review`, {
+      action,
+      note,
+      ...(overrideBannerFlag ? { override_banner_flag: true, override_reason: overrideReason } : {}),
+    }),
   report: (adId: string, reason: string, details?: string) =>
     httpPost('/reports', { target_type: 'ad', target_id: adId, reason, details }),
 };

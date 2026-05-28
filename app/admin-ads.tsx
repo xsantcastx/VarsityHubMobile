@@ -1,16 +1,16 @@
+import {
+    AdminGuardState,
+    AdminScreenShell,
+    adminScreenSharedStyles as sharedStyles,
+} from '@/components/AdminScreenShared';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import {
-  AdminGuardState,
-  AdminScreenShell,
-  adminScreenSharedStyles as sharedStyles,
-} from '@/components/AdminScreenShared';
+import { getCompositeAdBadge } from '@/utils/adStatusBadge';
+import { safeGoBack } from '@/utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { safeGoBack } from '@/utils/navigation';
-import { getCompositeAdBadge } from '@/utils/adStatusBadge';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 // @ts-ignore
@@ -35,8 +35,9 @@ function AdminAdsScreen() {
   const [reviewingAdId, setReviewingAdId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | AdStatus>('all');
   // Cross-platform modal for approve/reject notes (Alert.prompt is iOS-only)
-  const [reviewModal, setReviewModal] = useState<{ adId: string; action: 'approve' | 'reject' } | null>(null);
+  const [reviewModal, setReviewModal] = useState<{ adId: string; action: 'approve' | 'reject'; bannerModerationStatus?: string | null } | null>(null);
   const [reviewNote, setReviewNote] = useState('');
+  const [overrideReason, setOverrideReason] = useState('');
   const [detailAd, setDetailAd] = useState<any>(null);
   // Track the specific email/deep-link signature we last handled so a second
   // approval email opened in the same app session still works.
@@ -76,7 +77,8 @@ function AdminAdsScreen() {
     lastHandledLinkRef.current = signature;
     if (action) {
       setReviewNote('');
-      setReviewModal({ adId: matchedAd.id, action });
+      setOverrideReason('');
+      setReviewModal({ adId: matchedAd.id, action, bannerModerationStatus: matchedAd.banner_moderation_status });
       return;
     }
     setDetailAd(matchedAd);
@@ -429,7 +431,7 @@ function AdminAdsScreen() {
                   <Pressable
                     style={[styles.btn, { backgroundColor: '#22c55e', flex: 1, opacity: reviewingAdId === item.id ? 0.6 : 1 }]}
                     disabled={reviewingAdId === item.id}
-                    onPress={() => { setReviewNote(''); setReviewModal({ adId: item.id, action: 'approve' }); }}
+                    onPress={() => { setReviewNote(''); setOverrideReason(''); setReviewModal({ adId: item.id, action: 'approve', bannerModerationStatus: item.banner_moderation_status }); }}
                   >
                     {reviewingAdId === item.id ? <ActivityIndicator size={16} color="#fff" /> : <Ionicons name="checkmark-circle" size={16} color="#fff" />}
                     <Text style={styles.btnText}>{reviewingAdId === item.id ? 'Saving...' : 'Approve'}</Text>
@@ -437,7 +439,7 @@ function AdminAdsScreen() {
                   <Pressable
                     style={[styles.btn, { backgroundColor: '#dc2626', flex: 1, opacity: reviewingAdId === item.id ? 0.6 : 1 }]}
                     disabled={reviewingAdId === item.id}
-                    onPress={() => { setReviewNote(''); setReviewModal({ adId: item.id, action: 'reject' }); }}
+                    onPress={() => { setReviewNote(''); setOverrideReason(''); setReviewModal({ adId: item.id, action: 'reject', bannerModerationStatus: item.banner_moderation_status }); }}
                   >
                     <Ionicons name="close-circle" size={16} color="#fff" />
                     <Text style={styles.btnText}>Reject</Text>
@@ -578,7 +580,13 @@ function AdminAdsScreen() {
             <Text style={{ fontSize: 18, fontWeight: '800', color: theme.text, marginBottom: 8 }}>
               {reviewModal?.action === 'approve' ? 'Approve Ad' : 'Reject Ad'}
             </Text>
-            <Text style={{ color: theme.mutedText, marginBottom: 12 }}>
+            {reviewModal?.action === 'approve' && reviewModal?.bannerModerationStatus === 'flagged' && (
+              <View style={{ backgroundColor: '#FEE2E2', borderRadius: 8, padding: 10, marginBottom: 12 }}>
+                <Text style={{ color: '#991B1B', fontWeight: '700', fontSize: 13, marginBottom: 2 }}>⚠️ Banner flagged by moderation</Text>
+                <Text style={{ color: '#991B1B', fontSize: 12 }}>You must provide an override reason to approve this ad.</Text>
+              </View>
+            )}
+            <Text style={{ color: theme.mutedText, marginBottom: 8 }}>
               {reviewModal?.action === 'approve' ? 'Add an optional note for the advertiser:' : 'Add a reason for the advertiser (optional):'}
             </Text>
             <TextInput
@@ -589,19 +597,42 @@ function AdminAdsScreen() {
               placeholderTextColor={theme.mutedText}
               multiline
             />
+            {reviewModal?.action === 'approve' && reviewModal?.bannerModerationStatus === 'flagged' && (
+              <>
+                <Text style={{ color: theme.mutedText, marginTop: 12, marginBottom: 6, fontSize: 13 }}>
+                  Override reason <Text style={{ color: '#DC2626' }}>*</Text> (required, min 10 chars):
+                </Text>
+                <TextInput
+                  style={{ borderWidth: 1, borderColor: overrideReason.trim().length > 0 ? theme.border : '#DC2626', borderRadius: 8, padding: 10, color: theme.text, backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB', minHeight: 60, textAlignVertical: 'top' }}
+                  value={overrideReason}
+                  onChangeText={setOverrideReason}
+                  placeholder="Why is it safe to approve despite the flag?"
+                  placeholderTextColor={theme.mutedText}
+                  multiline
+                />
+              </>
+            )}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
               <Pressable style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: theme.border, alignItems: 'center' }} onPress={() => setReviewModal(null)}>
                 <Text style={{ color: theme.text, fontWeight: '700' }}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: reviewModal?.action === 'approve' ? '#22c55e' : '#dc2626', alignItems: 'center' }}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: (reviewModal?.action === 'approve' && reviewModal?.bannerModerationStatus === 'flagged' && overrideReason.trim().length < 10) ? '#9CA3AF' : reviewModal?.action === 'approve' ? '#22c55e' : '#dc2626', alignItems: 'center' }}
+                disabled={reviewModal?.action === 'approve' && reviewModal?.bannerModerationStatus === 'flagged' && overrideReason.trim().length < 10}
                 onPress={async () => {
                   if (!reviewModal) return;
-                  const { adId, action } = reviewModal;
+                  const { adId, action, bannerModerationStatus } = reviewModal;
                   setReviewModal(null);
                   setReviewingAdId(adId);
+                  const isFlagged = action === 'approve' && bannerModerationStatus === 'flagged';
                   try {
-                    await AdsApi.review(adId, action, reviewNote.trim() || undefined);
+                    await AdsApi.review(
+                      adId,
+                      action,
+                      reviewNote.trim() || undefined,
+                      isFlagged ? true : undefined,
+                      isFlagged ? overrideReason.trim() : undefined
+                    );
                     Alert.alert('Success', `Ad ${action === 'approve' ? 'approved' : 'rejected'}`);
                     await load();
                   } catch (e: any) {
@@ -680,13 +711,13 @@ function AdminAdsScreen() {
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
                   <Pressable
                     style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: '#22c55e', alignItems: 'center' }}
-                    onPress={() => { setDetailAd(null); setReviewNote(''); setReviewModal({ adId: detailAd.id, action: 'approve' }); }}
+                    onPress={() => { setDetailAd(null); setReviewNote(''); setOverrideReason(''); setReviewModal({ adId: detailAd.id, action: 'approve', bannerModerationStatus: detailAd.banner_moderation_status }); }}
                   >
                     <Text style={{ color: '#fff', fontWeight: '700' }}>Approve</Text>
                   </Pressable>
                   <Pressable
                     style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: '#dc2626', alignItems: 'center' }}
-                    onPress={() => { setDetailAd(null); setReviewNote(''); setReviewModal({ adId: detailAd.id, action: 'reject' }); }}
+                    onPress={() => { setDetailAd(null); setReviewNote(''); setOverrideReason(''); setReviewModal({ adId: detailAd.id, action: 'reject', bannerModerationStatus: detailAd.banner_moderation_status }); }}
                   >
                     <Text style={{ color: '#fff', fontWeight: '700' }}>Reject</Text>
                   </Pressable>
