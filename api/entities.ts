@@ -88,13 +88,9 @@ export const User = {
     qq.push('limit=' + String(limit));
     return httpGet('/users' + (qq.length ? '?' + qq.join('&') : ''));
   },
-  listAllAdmin: (q?: string, limit: number = 100, banned?: boolean) => {
-    const qq: string[] = [];
-    if (q) qq.push('q=' + encodeURIComponent(q));
-    if (banned) qq.push('banned=1');
-    qq.push('limit=' + String(limit));
-    return httpGet('/users' + (qq.length ? '?' + qq.join('&') : ''));
-  },
+  /** @deprecated Use listAll() — identical endpoint and parameters */
+  listAllAdmin: (q?: string, limit: number = 100, banned?: boolean) =>
+    User.listAll(q, limit, banned),
   ban: (id: string, reason?: string) => {
     if (!id || id === 'undefined' || id === 'null') throw new Error('[User.ban] Invalid user ID');
     return httpPost('/admin/users/' + encodeURIComponent(id) + '/ban', {
