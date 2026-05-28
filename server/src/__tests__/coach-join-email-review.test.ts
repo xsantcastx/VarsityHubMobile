@@ -124,7 +124,7 @@ describe('Coach join request email-token review routes', () => {
     expect(res.text).toMatch(/Link Expired/i);
   });
 
-  it('renders a confirmation page on GET with a valid approve token', async () => {
+  it('approves the coach directly on GET with a valid approve token (no confirmation form)', async () => {
     const token = signReviewToken(
       { requestId, orgId, action: 'approve_join_request' },
       '48h'
@@ -133,20 +133,8 @@ describe('Coach join request email-token review routes', () => {
       `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
     );
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Approve this coach request/i);
-    expect(res.text).toMatch(/Pending Coach/);
-  });
-
-  it('approves the coach on POST with a valid token (no app login required)', async () => {
-    const token = signReviewToken(
-      { requestId, orgId, action: 'approve_join_request' },
-      '48h'
-    );
-    const res = await request(app).post(
-      `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
-    );
-    expect(res.status).toBe(200);
     expect(res.text).toMatch(/Coach Approved/i);
+    expect(res.text).toMatch(/Pending Coach/);
 
     const requestAfter = await getOrganizationJoinRequestState(requestId);
     expect(requestAfter?.status).toBe('approved');
@@ -169,7 +157,7 @@ describe('Coach join request email-token review routes', () => {
       { requestId, orgId, action: 'approve_join_request' },
       '48h'
     );
-    const res = await request(app).post(
+    const res = await request(app).get(
       `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
     );
     expect(res.status).toBe(200);

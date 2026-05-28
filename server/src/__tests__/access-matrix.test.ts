@@ -13,30 +13,30 @@
  *   - Missing clean permission message         → FLAG_BAD_DENIAL
  */
 
-import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
-import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import express from 'express';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
+import request from 'supertest';
 
 /* ──────────────────────────────────────────── */
 /*  Build a test app that mounts ALL routers    */
 /* ──────────────────────────────────────────── */
+import { signJwt } from '../lib/jwt.js';
+import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { adsRouter } from '../routes/ads.js';
 import { authRouter } from '../routes/auth.js';
 import { eventsRouter } from '../routes/events.js';
+import { messagesRouter } from '../routes/messages.js';
+import { notificationsRouter } from '../routes/notifications.js';
+import { organizationsRouter } from '../routes/organizations.js';
 import { postsRouter } from '../routes/posts.js';
+import { reportsRouter } from '../routes/reports.js';
+import { supportRouter } from '../routes/support.js';
 import { teamsRouter } from '../routes/teams.js';
 import { uploadsRouter } from '../routes/uploads.js';
 import { usersRouter } from '../routes/users.js';
-import { organizationsRouter } from '../routes/organizations.js';
-import { adsRouter } from '../routes/ads.js';
-import { messagesRouter } from '../routes/messages.js';
-import { notificationsRouter } from '../routes/notifications.js';
-import { reportsRouter } from '../routes/reports.js';
-import { supportRouter } from '../routes/support.js';
-import { prisma } from '../lib/prisma.js';
-import { signJwt } from '../lib/jwt.js';
 import { createTestUser } from './helpers/createTestUser.js';
 
 const fullApp = express();
@@ -592,9 +592,9 @@ describe('Access Matrix — Full Feature Scan', () => {
       const { fan, rookie, veteran } = await hitAll('post', '/posts', {
         content: `Access matrix post ${ts} ${Math.random()}`,
       });
-      record('Create post', 'POST /posts', fan, rookie, veteran, { coachOnly: true });
-      // Posts are coach/staff only now.
-      expect(fan.status).toBe(403);
+      // All onboarded users (including fans) can create posts.
+      record('Create post', 'POST /posts', fan, rookie, veteran);
+      expect(fan.status).toBe(201);
       expect(rookie.status).toBe(201);
       expect(veteran.status).toBe(201);
     });

@@ -6,6 +6,8 @@ type OAuthVerifiableUser = {
   email_verified?: boolean | null;
   google_id?: string | null;
   apple_id?: string | null;
+  email_verification_code?: string | null;
+  email_verification_expires?: Date | string | null;
 };
 
 export function isOAuthLinkedUser(user: OAuthVerifiableUser | null | undefined): boolean {
@@ -16,6 +18,16 @@ export async function ensureOAuthUserVerified<T extends OAuthVerifiableUser | nu
   user: T
 ): Promise<T> {
   if (!user || user.email_verified === true || !isOAuthLinkedUser(user)) {
+    return user;
+  }
+
+  // If the user has a pending (non-expired) email verification code, let them
+  // complete that flow rather than bypassing it via OAuth auto-verify.
+  if (
+    user.email_verification_code &&
+    user.email_verification_expires &&
+    new Date(user.email_verification_expires as string | Date) > new Date()
+  ) {
     return user;
   }
 

@@ -2534,12 +2534,19 @@ function renderJoinRequestStatePage(
   }
 ) {
   if (joinRequest.status === 'approved') {
-    return renderJoinRequestResultPage({
-      status: 'approved',
-      coachName: details?.coachName,
-      coachUsername: details?.coachUsername,
-      organizationName: details?.organizationName,
-    });
+    const coachName = escapeHtml(details?.coachName || 'This coach');
+    const username =
+      typeof details?.coachUsername === 'string' && details.coachUsername.trim()
+        ? `<p style="margin:10px 0 0;color:#64748B;font-size:14px;">@${escapeHtml(details.coachUsername.trim())}</p>`
+        : '';
+    const organizationName = details?.organizationName
+      ? `<p style="margin:14px 0 0;font-size:16px;color:#111827;">League: <strong>${escapeHtml(details.organizationName)}</strong></p>`
+      : '';
+    return joinReviewHtml(
+      'Already Approved',
+      `<h1 style="color:#16A34A">Already Approved</h1><p><strong>${coachName}</strong> has already been approved for this organization.</p>${username}${organizationName}`,
+      '#16A34A'
+    );
   }
   if (joinRequest.status === 'denied') {
     return renderJoinRequestResultPage({

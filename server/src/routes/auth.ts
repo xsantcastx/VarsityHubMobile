@@ -133,6 +133,8 @@ const ME_USER_SELECT = {
   bio: true,
   created_at: true,
   email_verified: true,
+  email_verification_code: true,
+  email_verification_expires: true,
   preferences: true,
   role: true,
   onboarding_completed: true,
@@ -627,6 +629,13 @@ authRouter.post(
       debugLog(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
     const exp = new Date(Date.now() + 30 * 60 * 1000);
     const userRole = role || 'fan';
+    if (userRole === 'coach') {
+      return res.status(400).json({
+        error:
+          'Direct coach registration is disabled. Please register as fan accounts and use the upgrade-to-coach flow.',
+        code: 'COACH_REGISTRATION_DISABLED',
+      });
+    }
 
     // Set admin flag based on ADMIN_EMAILS env var
     const isAdmin = isAdminEmail(sanitizedEmail);

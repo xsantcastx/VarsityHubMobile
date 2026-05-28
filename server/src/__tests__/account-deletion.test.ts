@@ -18,12 +18,12 @@
  *   • Already-deleted user → 200 with already_deleted=true (idempotent)
  */
 
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, describe, expect, it, jest } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
-import { prisma } from '../lib/prisma.js';
 import { signJwt } from '../lib/jwt.js';
+import { prisma } from '../lib/prisma.js';
 import { app } from '../testApp.js';
 
 const PASSWORD = 'CorrectPassword123!';
@@ -132,7 +132,7 @@ describe('POST /auth/account/delete', () => {
   describe('password account', () => {
     it('rejects with 400 PASSWORD_REQUIRED when password is omitted', async () => {
       const { token } = await createPasswordUser();
-      const res = await deleteAccount(token);
+      const res = await deleteAccount(token, { delete_confirmation: 'DELETE' });
       expect(res.status).toBe(400);
       expect(res.body?.error).toBe('PASSWORD_REQUIRED');
     });
@@ -149,14 +149,14 @@ describe('POST /auth/account/delete', () => {
 
     it('rejects with 401 INVALID_PASSWORD when password is wrong', async () => {
       const { token } = await createPasswordUser();
-      const res = await deleteAccount(token, { password: WRONG_PASSWORD });
+      const res = await deleteAccount(token, { delete_confirmation: 'DELETE', password: WRONG_PASSWORD });
       expect(res.status).toBe(401);
       expect(res.body?.error).toBe('INVALID_PASSWORD');
     });
 
     it('soft-deletes + anonymizes the user with correct password and blocks subsequent login', async () => {
       const { id, email, token } = await createPasswordUser();
-      const res = await deleteAccount(token, { password: PASSWORD });
+      const res = await deleteAccount(token, { delete_confirmation: 'DELETE', password: PASSWORD });
 
       expect(res.status).toBe(200);
       expect(res.body?.ok).toBe(true);
@@ -172,7 +172,7 @@ describe('POST /auth/account/delete', () => {
 
     it('allows an unverified password account to self-delete', async () => {
       const { id, token } = await createUnverifiedPasswordUser();
-      const res = await deleteAccount(token, { password: PASSWORD });
+      const res = await deleteAccount(token, { delete_confirmation: 'DELETE', password: PASSWORD });
 
       expect(res.status).toBe(200);
       expect(res.body?.ok).toBe(true);
@@ -183,7 +183,7 @@ describe('POST /auth/account/delete', () => {
   describe('OAuth-only account', () => {
     it('soft-deletes without requiring a password (no password_hash on file)', async () => {
       const { id, token } = await createOAuthOnlyUser();
-      const res = await deleteAccount(token);
+      const res = await deleteAccount(token, { delete_confirmation: 'DELETE' });
       expect(res.status).toBe(200);
       expect(res.body?.ok).toBe(true);
       await expectUserSoftDeleted(id);
@@ -194,14 +194,14 @@ describe('POST /auth/account/delete', () => {
     it('returns 200 with already_deleted=true on a second call', async () => {
       const { token } = await createPasswordUser();
 
-      const first = await deleteAccount(token, { password: PASSWORD });
+      const first = await deleteAccount(token, { delete_confirmation: 'DELETE', password: PASSWORD });
       expect(first.status).toBe(200);
 
       // Second call uses the same token. The token MAY be invalidated post-
       // delete (session_epoch bump etc.) — accept either 401 (token killed)
       // OR 200 with already_deleted (account already gone). Both are correct
       // observable outcomes.
-      const second = await deleteAccount(token, { password: PASSWORD });
+      const second = await deleteAccount(token, { delete_confirmation: 'DELETE', password: PASSWORD });
 
       if (second.status === 200) {
         expect(second.body?.already_deleted).toBe(true);
