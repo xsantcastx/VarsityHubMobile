@@ -42,6 +42,9 @@ export async function createTestUser({
       role,
       onboarding_completed: true,
       ...(role === 'coach' ? { approval_status: 'APPROVED' } : {}),
+      // plan column defaults to 'rookie' in the DB schema — must be set
+      // explicitly so getCanonicalPlan() returns the right tier.
+      ...(plan ? { plan: plan as any } : {}),
       preferences,
       ...extras,
     },

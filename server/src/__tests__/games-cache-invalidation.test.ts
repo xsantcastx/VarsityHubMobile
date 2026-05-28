@@ -89,6 +89,7 @@ jest.unstable_mockModule('../middleware/rateLimiters.js', () => {
   const pass = (_req: any, _res: any, next: any) => next();
   return {
     gameCreationLimiter: pass,
+    storyCreationLimiter: pass,
     voteLimiter: pass,
   };
 });

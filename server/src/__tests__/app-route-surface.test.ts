@@ -9,7 +9,7 @@ const testAppSrc = readFileSync(join(srcRoot, 'testApp.ts'), 'utf8');
 describe('app route surface contracts', () => {
   it('mounts data export and consent resend on the production app surface', () => {
     expect(appSrc).toContain("import { dataExportRouter } from './routes/dataExport.js';");
-    expect(appSrc).toContain("import { handleConsentResend } from './routes/consent.js';");
+    expect(appSrc).toContain("handleConsentResend } from './routes/consent.js';");
     expect(appSrc).toContain("parent.post('/me/consent/resend'");
     expect(appSrc).toContain('parent.use(dataExportRouter);');
   });

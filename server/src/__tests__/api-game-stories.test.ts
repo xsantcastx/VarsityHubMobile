@@ -178,7 +178,7 @@ describeDb('Game stories API geofencing', () => {
         .post(`/games/${gameId}/stories`)
         .set('Authorization', `Bearer ${testUserToken}`)
         .send({
-          media_url: 'https://example.com/story.jpg',
+          media_url: 'https://res.cloudinary.com/demo/image/upload/story.jpg',
           caption: 'Trying to post with non-device coordinates',
           location: {
             lat: 40.7128,
@@ -198,7 +198,7 @@ describeDb('Game stories API geofencing', () => {
       .post(`/games/${gameId}/stories`)
       .set('Authorization', `Bearer ${testUserToken}`)
       .send({
-        media_url: 'https://example.com/story-missing-source.jpg',
+        media_url: 'https://res.cloudinary.com/demo/image/upload/story-missing-source.jpg',
         caption: 'Trying to post without an explicit device source',
         location: {
           lat: 40.7128,
@@ -216,7 +216,7 @@ describeDb('Game stories API geofencing', () => {
       .post(`/games/${gameId}/stories`)
       .set('Authorization', `Bearer ${testUserToken}`)
       .send({
-        media_url: 'https://example.com/story-device.jpg',
+        media_url: 'https://res.cloudinary.com/demo/image/upload/story-device.jpg',
         caption: 'Posting with device coordinates',
         location: {
           lat: 40.7128,
@@ -236,7 +236,7 @@ describeDb('Game stories API geofencing', () => {
       .post(`/games/${gameId}/stories`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        media_url: 'https://example.com/story-admin-bypass.jpg',
+        media_url: 'https://res.cloudinary.com/demo/image/upload/story-admin-bypass.jpg',
         caption: 'Admin bypasses geofence',
         location: {
           source: 'places',
@@ -254,7 +254,7 @@ describeDb('Game stories API geofencing', () => {
       .post(`/games/${gameId}/stories`)
       .set('Authorization', `Bearer ${bypassMemberToken}`)
       .send({
-        media_url: 'https://example.com/story-team-bypass.jpg',
+        media_url: 'https://res.cloudinary.com/demo/image/upload/story-team-bypass.jpg',
         caption: 'Team member bypasses geofence',
         location: {
           source: 'derived',

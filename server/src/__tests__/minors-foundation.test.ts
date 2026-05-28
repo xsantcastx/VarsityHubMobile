@@ -334,7 +334,7 @@ describeDb('Minors Foundation Integration', () => {
     const res = await request(app)
       .delete('/users/me')
       .set('Authorization', `Bearer ${deleteUserToken}`)
-      .send({ password: PASSWORD });
+      .send({ password: PASSWORD, delete_confirmation: 'DELETE' });
 
     expect(res.status).toBe(202);
     expect(res.body?.deleted).toBe(true);

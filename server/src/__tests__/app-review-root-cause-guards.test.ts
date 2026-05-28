@@ -43,7 +43,7 @@ describe('App Review root-cause guards', () => {
   it('limits ad approval bypass to the exact App Review demo email', () => {
     expect(adsRoute).toMatch(/import \{ APP_REVIEW_EMAIL \} from '\.\.\/lib\/appReviewFixture\.js';/);
     expect(adsRoute).toMatch(
-      /String\(user\?\.email \|\| ''\)\.trim\(\)\.toLowerCase\(\) === APP_REVIEW_EMAIL\.toLowerCase\(\)/
+      /String\(user\?\.email \|\| ''\)\s*\.trim\(\)\s*\.toLowerCase\(\)\s*===\s*APP_REVIEW_EMAIL\.toLowerCase\(\)/
     );
     expect(adsRoute).not.toMatch(/@varsityhub\.app['"]?\s*\.test/);
     expect(adsRoute).not.toMatch(/includes\(\s*APP_REVIEW_EMAIL/);

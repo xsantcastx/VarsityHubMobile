@@ -106,7 +106,9 @@ describe('ad lifecycle structural invariants', () => {
   });
 
   it('draft creation and submit-for-approval transitions stay explicit', () => {
-    expect(ads).toMatch(/status:\s*'draft',\s*payment_status:\s*'unpaid'/);
+    // Draft creation uses a ternary (bypassApproval ? 'approved' : 'draft') for App Review accounts;
+    // the nominal path always produces 'draft'. Verify the ternary + 'unpaid' literal.
+    expect(ads).toMatch(/bypassApproval\s*\?\s*'approved'\s*:\s*'draft',\s*\n\s*payment_status:\s*'unpaid'/);
     expect(ads).toMatch(/data:\s*\{\s*status:\s*'pending',\s*payment_status:\s*'pending_approval'\s*\}/);
     expectAllowedTuple('draft', 'unpaid');
     expectAllowedTuple('pending', 'pending_approval');

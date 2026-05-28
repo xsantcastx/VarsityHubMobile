@@ -3,8 +3,8 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import request from 'supertest';
 import bcrypt from 'bcrypt';
+import request from 'supertest';
 import { app } from '../testApp.js';
 
 let prisma: any;
@@ -81,12 +81,14 @@ describeDb('Uploads API Endpoints', () => {
       expect(res.statusCode).toEqual(401);
     });
 
-    it('should require verified email', async () => {
+    it('allows unverified users through (verification bypassed for onboarding uploads)', async () => {
+      // POST /uploads intentionally bypasses email verification so unverified
+      // users can upload during onboarding. Without a file the handler returns 400.
       const res = await request(app)
         .post('/uploads')
         .set('Authorization', `Bearer ${unverifiedUserToken}`);
-      expect(res.statusCode).toEqual(403);
-      expect(res.body.error).toEqual('Email verification required');
+      expect(res.statusCode).toEqual(400);
+      expect(res.body.error).toEqual('No file uploaded');
     });
 
     it('should reject unverified ad-banner uploads for ads the caller does not own', async () => {
@@ -119,12 +121,13 @@ describeDb('Uploads API Endpoints', () => {
       expect(res.statusCode).toEqual(401);
     });
 
-    it('should require verified email', async () => {
+    it('allows unverified users through (verification bypassed for onboarding uploads)', async () => {
+      // GET /cloudinary-signature intentionally bypasses email verification.
+      // In test environment Cloudinary is not configured so we get 503.
       const res = await request(app)
         .get('/uploads/cloudinary-signature')
         .set('Authorization', `Bearer ${unverifiedUserToken}`);
-      expect(res.statusCode).toEqual(403);
-      expect(res.body.error).toEqual('Email verification required');
+      expect([200, 503]).toContain(res.statusCode);
     });
 
     it('should allow unverified ad-banner signatures for caller-owned ads only', async () => {
