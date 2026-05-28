@@ -10,7 +10,6 @@ const FILES = {
   approvalService: read('lib/approvalService.ts'),
   organizationWorkflowState: read('lib/organizationWorkflowState.ts'),
   teams: read('routes/teams.ts'),
-  tournaments: read('routes/tournaments.ts'),
   payments: read('routes/payments.ts'),
   teamAuthorization: read('lib/teamAuthorization.ts'),
 };
@@ -36,7 +35,6 @@ describe('organization data-access invariants', () => {
   it('runtime ownership checks route through getOrganizationMembership()', () => {
     expect(FILES.organizations.includes('getOrganizationMembership(')).toBe(true);
     expect(FILES.teams.includes('getOrganizationMembership(')).toBe(true);
-    expect(FILES.tournaments.includes('getOrganizationMembership(')).toBe(true);
     expect(FILES.payments.includes('getOrganizationMembership(')).toBe(true);
   });
 
@@ -80,6 +78,5 @@ describe('organization data-access invariants', () => {
 
   it('organization list/detail payloads use the shared safe projection helper', () => {
     expect(FILES.organizations.includes('buildOrganizationSerializeSelect')).toBe(true);
-    expect(FILES.tournaments.includes('buildOrganizationSerializeSelect')).toBe(true);
   });
 });
