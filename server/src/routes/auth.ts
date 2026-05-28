@@ -2686,237 +2686,149 @@ const updateMeSchema = z.object({
     .nullable(),
 });
 
+async function handleUpdateMe(req: AuthedRequest, res: Response) {
+  const body = (req.body || {}) as Record<string, unknown>;
+  if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      message: 'Use PATCH /me/preferences to update preferences.',
+    });
+  }
+  const parsed = updateMeSchema.safeParse(body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
+    });
+  }
+  const data = parsed.data as any;
+  let patch: any = { ...data };
+
+  // Strip null values for fields that should not be cleared (treat null as "don't change")
+  // bio and avatar_url CAN be null (user wants to clear them), but display_name/username should not be wiped
+  if (patch.display_name === null) delete patch.display_name;
+  if (patch.username === null) delete patch.username;
+
+  // Validate username availability if provided
+  let priorUsername: string | null = null;
+  if (data.username) {
+    const exists = await prisma.user.findFirst({
+      where: {
+        username: { equals: data.username, mode: 'insensitive' },
+        NOT: { id: req.user!.id },
+      },
+      select: { id: true },
+    });
+    if (exists) {
+      return sendError(res, 400, 'Username taken', {
+        message: 'This username is already in use.',
+      });
+    }
+    // Capture prior username so we can rewrite mentions in posts/comments below.
+    const me = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { username: true },
+    });
+    priorUsername = me?.username || null;
+    patch.username = data.username;
+  }
+  const { preferences, ...rest } = patch;
+
+  // Fetch the current avatar_url before overwriting so we can clean up the old
+  // Cloudinary asset if the user is replacing their profile photo.
+  let priorAvatarUrl: string | null = null;
+  if (data.avatar_url !== undefined) {
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { avatar_url: true },
+    });
+    priorAvatarUrl = currentUser?.avatar_url ?? null;
+  }
+
+  // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
+  let user;
+  try {
+    user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { ...rest, ...(preferences ? { preferences } : {}) },
+    });
+  } catch (err: any) {
+    // P2002 = unique constraint violation — username was claimed by a concurrent request
+    // between our findFirst check above and this update.
+    if (err?.code === 'P2002' && err?.meta?.target?.includes('username')) {
+      return sendError(res, 400, 'Username taken', {
+        message: 'This username is already in use.',
+      });
+    }
+    throw err;
+  }
+  await invalidateMeCacheForUser(req.user!.id);
+
+  // Rewrite @mentions in existing posts + comments so old @oldname becomes @newname.
+  // Fire-and-forget so the user's response isn't blocked. Uses raw SQL for case-insensitive
+  // word-boundary replace; safe because both names are validated against /^[a-z0-9_.]+$/.
+  if (
+    priorUsername &&
+    data.username &&
+    priorUsername.toLowerCase() !== data.username.toLowerCase()
+  ) {
+    const oldHandle = '@' + priorUsername;
+    const newHandle = '@' + data.username;
+    const mentionRewriteSql = (table: 'Post' | 'Comment') =>
+      Prisma.sql`UPDATE ${Prisma.raw(`"${table}"`)}
+        SET content = regexp_replace(content, '\\m' || ${oldHandle} || '\\M', ${newHandle}, 'g')
+        WHERE content ILIKE '%' || ${oldHandle} || '%'`;
+    (async () => {
+      try {
+        await prisma.$executeRaw(mentionRewriteSql('Post'));
+        await prisma.$executeRaw(mentionRewriteSql('Comment'));
+      } catch (err: any) {
+        console.error(
+          '[auth] mention rewrite after username change failed:',
+          err?.message || err
+        );
+      }
+    })();
+  }
+
+  // Fire-and-forget: destroy the old Cloudinary avatar if it was replaced.
+  // Only destroy res.cloudinary.com URLs we own — skip Google/Apple CDN avatars.
+  if (
+    priorAvatarUrl &&
+    priorAvatarUrl !== (data.avatar_url ?? null) &&
+    priorAvatarUrl.includes('res.cloudinary.com')
+  ) {
+    (async () => {
+      try {
+        const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
+          await import('../lib/cloudinary.js');
+        const parsed = extractCloudinaryPublicId(priorAvatarUrl!);
+        if (parsed) {
+          await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
+        }
+      } catch (err: any) {
+        console.warn('[auth] old avatar Cloudinary cleanup failed:', err?.message || err);
+      }
+    })();
+  }
+
+  return res.json(sanitizeUser(user));
+}
+
 authRouter.put(
   '/me',
   requireAuth as any,
   requireVerified as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    const body = (req.body || {}) as Record<string, unknown>;
-    if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
-      return res.status(400).json({
-        error: 'Invalid payload',
-        message: 'Use PATCH /me/preferences to update preferences.',
-      });
-    }
-    const parsed = updateMeSchema.safeParse(body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: 'Invalid payload',
-        issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
-      });
-    }
-    const data = parsed.data as any;
-    let patch: any = { ...data };
-
-    // Strip null values for fields that should not be cleared (treat null as "don't change")
-    // bio and avatar_url CAN be null (user wants to clear them), but display_name/username should not be wiped
-    if (patch.display_name === null) delete patch.display_name;
-    if (patch.username === null) delete patch.username;
-
-    // Validate username availability if provided
-    let priorUsername: string | null = null;
-    if (data.username) {
-      const exists = await prisma.user.findFirst({
-        where: {
-          username: { equals: data.username, mode: 'insensitive' },
-          NOT: { id: req.user!.id },
-        },
-        select: { id: true },
-      });
-      if (exists) {
-        return sendError(res, 400, 'Username taken', {
-          message: 'This username is already in use.',
-        });
-      }
-      // v1.0.2 pass 9: capture prior username so we can rewrite mentions in posts/comments below.
-      const me = await prisma.user.findUnique({
-        where: { id: req.user!.id },
-        select: { username: true },
-      });
-      priorUsername = me?.username || null;
-      patch.username = data.username;
-    }
-    const { preferences, ...rest } = patch;
-
-    // Fetch the current avatar_url before overwriting so we can clean up the old
-    // Cloudinary asset if the user is replacing their profile photo.
-    let priorAvatarUrl: string | null = null;
-    if (data.avatar_url !== undefined) {
-      const currentUser = await prisma.user.findUnique({
-        where: { id: req.user!.id },
-        select: { avatar_url: true },
-      });
-      priorAvatarUrl = currentUser?.avatar_url ?? null;
-    }
-
-    // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
-    let user;
-    try {
-      user = await prisma.user.update({
-        where: { id: req.user!.id },
-        data: { ...rest, ...(preferences ? { preferences } : {}) },
-      });
-    } catch (err: any) {
-      // P2002 = unique constraint violation — username was claimed by a concurrent request
-      // between our findFirst check above and this update.
-      if (err?.code === 'P2002' && err?.meta?.target?.includes('username')) {
-        return sendError(res, 400, 'Username taken', {
-          message: 'This username is already in use.',
-        });
-      }
-      throw err;
-    }
-    await invalidateMeCacheForUser(req.user!.id);
-
-    // v1.0.2 pass 9: rewrite @mentions in existing posts + comments so old @oldname becomes @newname.
-    // Fire-and-forget so the user's response isn't blocked. Uses raw SQL for case-insensitive
-    // word-boundary replace; safe because both names are validated against /^[a-z0-9_.]+$/.
-    if (
-      priorUsername &&
-      data.username &&
-      priorUsername.toLowerCase() !== data.username.toLowerCase()
-    ) {
-      const oldHandle = '@' + priorUsername;
-      const newHandle = '@' + data.username;
-      const mentionRewriteSql = (table: 'Post' | 'Comment') =>
-        Prisma.sql`UPDATE ${Prisma.raw(`"${table}"`)}
-          SET content = regexp_replace(content, '\\m' || ${oldHandle} || '\\M', ${newHandle}, 'g')
-          WHERE content ILIKE '%' || ${oldHandle} || '%'`;
-      (async () => {
-        try {
-          // Postgres regexp_replace with word boundaries using bound params.
-          await prisma.$executeRaw(mentionRewriteSql('Post'));
-          await prisma.$executeRaw(mentionRewriteSql('Comment'));
-        } catch (err: any) {
-          console.error(
-            '[auth] mention rewrite after username change failed:',
-            err?.message || err
-          );
-        }
-      })();
-    }
-
-    // Fire-and-forget: destroy the old Cloudinary avatar if it was replaced.
-    // Only destroy res.cloudinary.com URLs we own — skip Google/Apple CDN avatars.
-    if (
-      priorAvatarUrl &&
-      priorAvatarUrl !== (data.avatar_url ?? null) &&
-      priorAvatarUrl.includes('res.cloudinary.com')
-    ) {
-      (async () => {
-        try {
-          const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
-            await import('../lib/cloudinary.js');
-          const parsed = extractCloudinaryPublicId(priorAvatarUrl!);
-          if (parsed) {
-            await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
-          }
-        } catch (err: any) {
-          console.warn('[auth] old avatar Cloudinary cleanup failed:', err?.message || err);
-        }
-      })();
-    }
-
-    return res.json(sanitizeUser(user));
-  })
+  asyncHandler((req: AuthedRequest, res) => handleUpdateMe(req, res))
 );
 
-// PATCH /me (alias) to support partial profile updates (preferences use /me/preferences)
+// PATCH /me now delegates to the same shared handler as PUT /me,
+// ensuring @mention rewrites are applied consistently on username changes.
 authRouter.patch(
   '/me',
   requireAuth as any,
   requireVerified as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    const body = (req.body || {}) as Record<string, unknown>;
-    if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
-      return res.status(400).json({
-        error: 'Invalid payload',
-        message: 'Use PATCH /me/preferences to update preferences.',
-      });
-    }
-    const parsed = updateMeSchema.safeParse(body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        error: 'Invalid payload',
-        issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
-      });
-    }
-    const data = parsed.data as any;
-    let patch: any = { ...data };
-
-    // Strip null values for fields that should not be cleared (treat null as "don't change")
-    if (patch.display_name === null) delete patch.display_name;
-    if (patch.username === null) delete patch.username;
-
-    // Validate username availability if provided
-    if (data.username) {
-      const exists = await prisma.user.findFirst({
-        where: {
-          username: { equals: data.username, mode: 'insensitive' },
-          NOT: { id: req.user!.id },
-        },
-        select: { id: true },
-      });
-      if (exists) {
-        return res.status(400).json({
-          error: 'Username taken',
-          message: 'This username is already in use.',
-        });
-      }
-      patch.username = data.username;
-    }
-    const { preferences: prefs2, ...rest } = patch;
-
-    // Capture old avatar_url before overwriting for Cloudinary cleanup.
-    let priorAvatarUrlPatch: string | null = null;
-    if (data.avatar_url !== undefined) {
-      const currentUser = await prisma.user.findUnique({
-        where: { id: req.user!.id },
-        select: { avatar_url: true },
-      });
-      priorAvatarUrlPatch = currentUser?.avatar_url ?? null;
-    }
-
-    // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
-    let user;
-    try {
-      user = await prisma.user.update({
-        where: { id: req.user!.id },
-        data: { ...rest, ...(prefs2 ? { preferences: prefs2 } : {}) },
-      });
-    } catch (err: any) {
-      // P2002 = unique constraint violation — username claimed by a concurrent request.
-      if (err?.code === 'P2002' && err?.meta?.target?.includes('username')) {
-        return sendError(res, 400, 'Username taken', {
-          message: 'This username is already in use.',
-        });
-      }
-      throw err;
-    }
-    await invalidateMeCacheForUser(req.user!.id);
-
-    // Fire-and-forget: destroy replaced Cloudinary avatar.
-    if (
-      priorAvatarUrlPatch &&
-      priorAvatarUrlPatch !== (data.avatar_url ?? null) &&
-      priorAvatarUrlPatch.includes('res.cloudinary.com')
-    ) {
-      (async () => {
-        try {
-          const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
-            await import('../lib/cloudinary.js');
-          const parsedUrl = extractCloudinaryPublicId(priorAvatarUrlPatch!);
-          if (parsedUrl) {
-            await destroyCloudinaryAsset(parsedUrl.publicId, parsedUrl.resourceType);
-          }
-        } catch (err: any) {
-          console.warn('[auth] old avatar Cloudinary cleanup failed (PATCH):', err?.message || err);
-        }
-      })();
-    }
-
-    return res.json(sanitizeUser(user));
-  })
+  asyncHandler((req: AuthedRequest, res) => handleUpdateMe(req, res))
 );
 
 // Utility to deep-merge preferences, preserving nested notification keys

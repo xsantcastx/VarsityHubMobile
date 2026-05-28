@@ -6,6 +6,18 @@ import { setUserContext, clearUserContext } from '../lib/sentry.js';
 export interface AuthedRequest extends Request {
   user?: { id: string };
   file?: Express.Multer.File;
+  /** Cached DB user populated by requireVerified so requireOnboarded can skip a redundant lookup. */
+  _dbUser?: {
+    id: string;
+    email_verified: boolean;
+    google_id: string | null;
+    apple_id: string | null;
+    preferences: unknown;
+    approval_status: string | null;
+    email: string | null;
+    role: string | null;
+    onboarding_completed: boolean | null;
+  };
 }
 
 // Routes that never need auth — skip DB lookup entirely.
@@ -54,6 +66,17 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
           ban_reason: true,
           deleted_at: true,
           deletion_anonymized: true,
+          // Prefetch these so requireVerified + requireOnboarded can reuse them
+          // from req._dbUser instead of doing separate DB round-trips.
+          id: true,
+          email_verified: true,
+          google_id: true,
+          apple_id: true,
+          preferences: true,
+          approval_status: true,
+          email: true,
+          role: true,
+          onboarding_completed: true,
         },
       });
     } catch (dbErr) {
@@ -97,6 +120,9 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
     }
 
     req.user = { id: payload.id };
+    // Populate _dbUser so downstream middleware (requireVerified, requireOnboarded)
+    // can reuse this data without a second DB round-trip.
+    req._dbUser = user as AuthedRequest['_dbUser'];
     // Set Sentry user context for better error tracking
     setUserContext(payload.id);
   } else {

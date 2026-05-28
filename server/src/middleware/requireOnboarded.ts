@@ -18,7 +18,9 @@ import {
 export async function requireOnboarded(req: AuthedRequest, res: Response, next: NextFunction) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-  const u = await prisma.user.findUnique({
+  // Reuse the DB user cached by requireVerified (when both middleware are stacked) to avoid
+  // a redundant DB round-trip for the same user on the same request.
+  const u = req._dbUser ?? await prisma.user.findUnique({
     where: { id: req.user.id },
     select: {
       preferences: true,

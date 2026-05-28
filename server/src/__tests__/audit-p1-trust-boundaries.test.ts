@@ -137,10 +137,12 @@ describe('audit P1 — trust-boundary regression guards', () => {
 
   describe('#9 PUT /auth/me mention rewrite avoids executeRawUnsafe', () => {
     it('uses executeRaw with bound params for mention rewrites', () => {
-      const putMeBlock = auth.match(/authRouter\.put\(\s*'\/me'[\s\S]+?return res\.json\(sanitizeUser\(user\)\);[\s\S]+?\)\s*\)/m)?.[0] || '';
-      expect(putMeBlock).toMatch(/\$executeRaw\(mentionRewriteSql\('Post'\)\)/);
-      expect(putMeBlock).toMatch(/\$executeRaw\(mentionRewriteSql\('Comment'\)\)/);
-      expect(putMeBlock).not.toMatch(/\$executeRawUnsafe/);
+      // After refactoring, the @mention rewrite lives in the shared `handleUpdateMe` function
+      // used by both PUT /me and PATCH /me. The test looks for the function body.
+      const handlerBlock = auth.match(/async function handleUpdateMe[\s\S]+?return res\.json\(sanitizeUser\(user\)\);[\s\S]+?\n\}/m)?.[0] || '';
+      expect(handlerBlock).toMatch(/\$executeRaw\(mentionRewriteSql\('Post'\)\)/);
+      expect(handlerBlock).toMatch(/\$executeRaw\(mentionRewriteSql\('Comment'\)\)/);
+      expect(handlerBlock).not.toMatch(/\$executeRawUnsafe/);
     });
   });
 
