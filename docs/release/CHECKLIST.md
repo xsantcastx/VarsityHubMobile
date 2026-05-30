@@ -5,6 +5,7 @@
 > For one-time post-audit operator actions (credential rotations, EAS rebuild bundle, DNS attach, etc.) see [PENDING_OPERATOR_ACTIONS.md](./PENDING_OPERATOR_ACTIONS.md). Work through that doc first; it consolidates the spring-2026 audit + spiderweb-sweep follow-ups.
 > For provider-by-provider click paths in Stripe, Railway, SendGrid, App Store Connect, Play Console, EAS, and Namecheap, use [PROVIDER_DASHBOARD_VERIFICATION.md](./PROVIDER_DASHBOARD_VERIFICATION.md).
 > For final real-world launch sign-off with explicit owners and pass/fail criteria, use [LAUNCH_READINESS_GATE.md](./LAUNCH_READINESS_GATE.md).
+> For one linear execution order from current worktree to launch, use [FINAL_LAUNCH_SEQUENCE.md](./FINAL_LAUNCH_SEQUENCE.md).
 
 ## Go / No-Go Security Gate (Run This First)
 
@@ -40,28 +41,33 @@ Mark release **NO-GO** if any required command fails.
 - [ ] **NO-GO** when any required gate is red, unknown, or unverified
 
 ## Pre-Release: Code Quality
+
 - [ ] `./scripts/check-repo-health.sh` passes (no logs/artifacts committed)
 - [ ] CI green: `npm run lint` passes
 - [ ] CI green: `npm run typecheck` passes
 - [ ] All tests pass: `npm test`
 
 ## Data and Migrations
+
 - [ ] `server/prisma` migrations generated and applied in staging
 - [ ] Migration smoke check completed (read/write on core tables)
 - [ ] Database backup created before migration (production)
 
 ## Observability
+
 - [ ] Sentry DSN configured for production (`SENTRY_DSN`)
 - [ ] Sentry events visible in project dashboard
 - [ ] Error tracking verified (test error appears in Sentry)
 
 ## Security and Rate Limiting
+
 - [ ] Auth rate limiting enabled in production (`RATE_LIMIT_DISABLE=0`)
 - [ ] JWT secret rotated and stored securely (32+ chars, not in git)
 - [ ] Environment validation passes on boot (server refuses to start if required vars missing)
 - [ ] All secrets stored in Railway/environment (not in code)
 
 ## Configuration
+
 - [ ] `.env.example` updated for any new vars
 - [ ] Railway/production env vars set and verified
 - [ ] Required env vars present:
@@ -72,6 +78,7 @@ Mark release **NO-GO** if any required command fails.
   - `SENTRY_DSN` (for error tracking)
 
 ## Smoke Test
+
 - [ ] `./scripts/smoke-test.sh` passes against production URL
   ```bash
   SERVICE_URL="https://your-service.up.railway.app" ./scripts/smoke-test.sh
@@ -81,6 +88,7 @@ Mark release **NO-GO** if any required command fails.
 - [ ] Optional: Login test passes (if `SMOKE_TEST_EMAIL` and `SMOKE_TEST_PASSWORD` set)
 
 ## Final Gate
+
 - [ ] All checklist items completed
 - [ ] Release notes updated (CHANGELOG.md)
 - [ ] Version bumped (package.json, app.json)

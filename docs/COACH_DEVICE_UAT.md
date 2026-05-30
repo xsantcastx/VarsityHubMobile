@@ -12,6 +12,9 @@ npm run coach:uat:baseline
 
 # Seed the six coach UAT accounts in the current DATABASE_URL
 npm run coach:uat:prepare
+
+# Runtime verification for fan signup + org manager access + public fan join block
+npm --prefix server run verify:org-manager-access
 ```
 
 The seed script creates the account matrix below, one shared password, one managed team per approved coach, and rookie fixtures for the approvals screen.
@@ -54,6 +57,14 @@ Note: set `COACH_UAT_FAN_MODE_STATUS=PENDING` before `npm run coach:uat:prepare`
 - `Team Schedule`
 - `Approvals`
 - `Manage Org`
+
+### Org admin and public fan surfaces
+
+- `/organization?id=<org_id>`
+- `/organization-join-requests`
+- `/approvals`
+- `/event-approvals`
+- Public org profile opened while signed in as a normal fan
 
 ## Manual Pass
 
@@ -103,10 +114,40 @@ Run these on rookie, veteran, legend, paid-by-owner, and missing-agreement accou
   - Coach approval follow-up should land in the approved coach experience without an extra agreement detour.
   - Event/game approval links should land on the approval screen without losing auth state.
 
+### 5. Org manager and public fan checks
+
+Run these with one real org owner account, one fan-role org manager account, and one normal fan.
+
+- Fan-role org manager:
+  - Open `/approvals` and confirm it opens instead of redirecting away.
+  - Open `/event-approvals` and confirm it opens instead of redirecting away.
+  - Open the organization profile and confirm:
+    - admin tools render
+    - `Invite Coach` is visible
+    - `Edit Profile` is not visible
+    - `Coach Requests` only appears if the account is the owner, not just a manager
+  - Confirm pending event/game moderation data loads from the seeded org/team.
+- Normal public fan:
+  - Open the same organization profile.
+  - Confirm `Request to Join` is not shown on the org profile.
+  - Confirm the fan can still follow/unfollow normally.
+  - If testing via the dedicated join-organization flow, confirm the API still blocks the request with the coach-upgrade message.
+
+### 6. Runtime evidence to capture
+
+- Save the output from `npm --prefix server run verify:org-manager-access`.
+- If the device UI contradicts the script result, capture:
+  - account email used
+  - exact route/screen entered
+  - screenshot or short video
+  - matching API response if available
+
 ## Acceptance Criteria
 
 - No non-approved coach reaches a functional coach screen.
 - No approved coach is incorrectly blocked, including the missing-agreement fixture.
+- A fan-role user with active `manager` org membership can reach org-admin surfaces without being treated as org owner.
+- A normal fan is not shown a false `Request to Join` CTA on the organization profile.
 - Quick Actions route correctly on first tap.
 - No stale offline/auth latch appears after refresh or relaunch.
 - `APPROVAL_REQUIRED` and `APPROVAL_REJECTED` are surfaced with distinct UX for blocked users.

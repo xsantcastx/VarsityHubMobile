@@ -7,29 +7,29 @@ import { approveOrganization, rejectOrganization } from '../lib/approvalService.
 import { getLatestCoachApplication } from '../lib/coachApplications.js';
 import { debugLog } from '../lib/debugLog.js';
 import {
-    buildCoachJoinRequestReviewUrl,
-    sendCoachApprovedEmail,
-    sendCoachJoinRequestEmail,
-    sendCoachRejectedEmail,
-    sendLeagueApprovalRequestEmail,
-    sendOrganizationInviteEmail,
-    sendStaffMemberJoinedEmail,
+  buildCoachJoinRequestReviewUrl,
+  sendCoachApprovedEmail,
+  sendCoachJoinRequestEmail,
+  sendCoachRejectedEmail,
+  sendLeagueApprovalRequestEmail,
+  sendOrganizationInviteEmail,
+  sendStaffMemberJoinedEmail,
 } from '../lib/email.js';
 import { sendError } from '../lib/http/sendError.js';
 import { redactEmail } from '../lib/logRedaction.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import {
-    getOrganizationMembership,
-    isOrganizationOwner as isOrganizationOwnerScoped,
-    ORGANIZATION_OWNER_ROLE,
+  getOrganizationMembership,
+  isOrganizationOwner as isOrganizationOwnerScoped,
+  ORGANIZATION_OWNER_ROLE,
 } from '../lib/organizationAuthorization.js';
 import {
-    getOrganizationInviteState,
-    getOrganizationJoinRequestState,
-    getOrganizationJoinRequestStateForUser,
-    listOrganizationInvitesForEmail,
-    listOrganizationJoinRequestsForOrganization,
-    listOrganizationJoinRequestsForUser,
+  getOrganizationInviteState,
+  getOrganizationJoinRequestState,
+  getOrganizationJoinRequestStateForUser,
+  listOrganizationInvitesForEmail,
+  listOrganizationJoinRequestsForOrganization,
+  listOrganizationJoinRequestsForUser,
 } from '../lib/organizationWorkflowState.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
@@ -37,14 +37,14 @@ import { consumeReviewToken, signReviewToken, verifyReviewToken } from '../lib/r
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import {
-    buildOrganizationSerializeSelect,
-    serializeOrganization,
+  buildOrganizationSerializeSelect,
+  serializeOrganization,
 } from '../lib/serializeOrganization.js';
 import {
-    buildAuthStateColumns,
-    getCanonicalUserRole,
-    getPreferencesObject,
-    mergeAuthStateIntoPreferences,
+  buildAuthStateColumns,
+  getCanonicalUserRole,
+  getPreferencesObject,
+  mergeAuthStateIntoPreferences,
 } from '../lib/userAuthState.js';
 import { buildBillingStateColumns, getEffectiveEntitledPlan } from '../lib/userBillingState.js';
 import { invalidateMeCacheForUser } from '../lib/userCache.js';
@@ -2278,7 +2278,9 @@ organizationsRouter.post(
             },
           },
         });
-        debugLog(`[notif] JOIN_REQUEST_APPROVED created id=${notif.id} for user=${joinRequest.user_id}`);
+        debugLog(
+          `[notif] JOIN_REQUEST_APPROVED created id=${notif.id} for user=${joinRequest.user_id}`
+        );
       } catch (err) {
         console.error(
           '[notif] Failed to create JOIN_REQUEST_APPROVED notification:',
@@ -3282,7 +3284,11 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         `Approved league: ${org.name || orgId}${adminNote ? ` — ${adminNote}` : ''}`
       );
     } else {
-      await logAdminActivityFromReq(req, 'APPROVE_LEAGUE', 'organization', orgId,
+      await logAdminActivityFromReq(
+        req,
+        'APPROVE_LEAGUE',
+        'organization',
+        orgId,
         `Approved league: ${org.name || orgId}${adminNote ? ` — ${adminNote}` : ''}`
       );
     }
@@ -3518,7 +3524,11 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
         `Rejected league: ${org.name || orgId}${reason ? ` — ${reason}` : ''}`
       );
     } else {
-      await logAdminActivityFromReq(req, 'REJECT_LEAGUE', 'organization', orgId,
+      await logAdminActivityFromReq(
+        req,
+        'REJECT_LEAGUE',
+        'organization',
+        orgId,
         `Rejected league: ${org.name || orgId}${reason ? ` — ${reason}` : ''}`
       );
     }
@@ -3719,7 +3729,8 @@ organizationsRouter.get(
           viewerRole: membershipRole,
           isMember: membership?.status === 'active',
           isOwner: membershipRole === ORGANIZATION_OWNER_ROLE,
-          canEdit: canManage,
+          canEdit: membershipRole === ORGANIZATION_OWNER_ROLE,
+          canManage,
           canReviewCoaches: canReviewCoachRequests,
         }),
         permissions: {
@@ -3830,6 +3841,7 @@ organizationsRouter.get(
         viewerMembership?.status === 'active' ? String(viewerMembership.role || '') : null;
       const isMember = viewerMembership?.status === 'active';
       const isOwner = viewerRole === ORGANIZATION_OWNER_ROLE;
+      const canManage = isOrganizationAdmin(viewerRole);
 
       const isFollowing = currentUserId
         ? !!(await prisma.organizationFollow.findFirst({
@@ -3847,6 +3859,7 @@ organizationsRouter.get(
           isMember,
           isOwner,
           canEdit: isOwner,
+          canManage,
           canReviewCoaches: isOwner,
         })
       );

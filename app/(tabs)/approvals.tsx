@@ -1,8 +1,7 @@
 import { Organization } from '@/api/entities';
 import type { OrganizationReviewSummaryArrayResponse } from '@/api/schemas/organization';
-import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { safeGoBack } from '@/utils/navigation';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -32,7 +31,7 @@ function buildOrganizationRequestsRoute(id: string): Href {
 }
 
 export default function ApprovalsScreen() {
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  const { loading: authLoading } = useAuth();
   const router = useRouter();
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
@@ -46,7 +45,8 @@ export default function ApprovalsScreen() {
   const loadData = useCallback(async () => {
     setError(null);
     try {
-      const summaries = (await Organization.reviewSummaries()) as OrganizationReviewSummaryArrayResponse;
+      const summaries =
+        (await Organization.reviewSummaries()) as OrganizationReviewSummaryArrayResponse;
       setEntries(
         (Array.isArray(summaries) ? summaries : []).map(summary => ({
           id: String(summary.organization?.id || ''),
@@ -66,8 +66,9 @@ export default function ApprovalsScreen() {
   }, []);
 
   useEffect(() => {
+    if (authLoading) return;
     void loadData();
-  }, [loadData]);
+  }, [authLoading, loadData]);
 
   useEffect(() => {
     if (loading || refreshing || error || entries.length !== 1 || hasAutoForwardedRef.current) {
@@ -83,23 +84,13 @@ export default function ApprovalsScreen() {
     void loadData();
   }, [loadData]);
 
-  if (coachLoading) {
+  if (authLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={theme.tint} />
         </View>
       </SafeAreaView>
-    );
-  }
-
-  if (!canAccessCoachTools) {
-    return (
-      <CoachAccessRedirecting
-        backgroundColor={theme.background}
-        spinnerColor={theme.tint}
-        textColor={theme.mutedText}
-      />
     );
   }
 
@@ -121,7 +112,8 @@ export default function ApprovalsScreen() {
         <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.heroTitle, { color: theme.text }]}>Organization Requests</Text>
           <Text style={[styles.heroBody, { color: theme.mutedText }]}>
-            Coach approvals and org moderation now live inside Organization Tools. This screen is just the org picker.
+            Coach approvals and org moderation now live inside Organization Tools. This screen is
+            just the org picker.
           </Text>
         </View>
 
@@ -135,7 +127,9 @@ export default function ApprovalsScreen() {
           </View>
         ) : entries.length === 0 ? (
           <View style={styles.centered}>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>No organization admin access</Text>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+              No organization admin access
+            </Text>
             <Text style={[styles.heroBody, { color: theme.mutedText }]}>
               You do not currently own or manage any organization with review tools.
             </Text>
@@ -153,7 +147,8 @@ export default function ApprovalsScreen() {
                 <View style={{ flex: 1, gap: 6 }}>
                   <Text style={[styles.cardTitle, { color: theme.text }]}>{entry.name}</Text>
                   <Text style={[styles.cardMeta, { color: theme.mutedText }]}>
-                    {entry.pendingCoachRequests} coach requests  |  {entry.pendingGameReviews} game reviews  |  {entry.pendingEventReviews} event reviews
+                    {entry.pendingCoachRequests} coach requests | {entry.pendingGameReviews} game
+                    reviews | {entry.pendingEventReviews} event reviews
                   </Text>
                 </View>
                 <View style={styles.badge}>

@@ -1,17 +1,18 @@
 /**
  * SendGrid Email Provider
- * 
+ *
  * Implements EmailProvider interface for SendGrid
  */
 
 import sgMail, { MailDataRequired } from '@sendgrid/mail';
 import type {
-    BaseEmailOptions,
-    EmailProvider,
-    EmailResult,
-    TemplateEmailOptions
+  BaseEmailOptions,
+  EmailProvider,
+  EmailResult,
+  TemplateEmailOptions,
 } from '../types.js';
 import { EmailErrorCode } from '../types.js';
+import { isPlaceholderSendGridApiKey, isValidSendGridApiKey } from '../../../lib/sendgridConfig.js';
 
 export class SendGridProvider implements EmailProvider {
   name = 'sendgrid';
@@ -19,11 +20,7 @@ export class SendGridProvider implements EmailProvider {
   private defaultFrom: string;
   private timeout: number;
 
-  constructor(config: {
-    apiKey: string;
-    defaultFrom: string;
-    timeout?: number;
-  }) {
+  constructor(config: { apiKey: string; defaultFrom: string; timeout?: number }) {
     this.apiKey = config.apiKey;
     this.defaultFrom = config.defaultFrom;
     this.timeout = config.timeout || 10000; // 10 seconds default
@@ -44,6 +41,10 @@ export class SendGridProvider implements EmailProvider {
       errors.push('SENDGRID_API_KEY is required');
     } else if (!this.apiKey.startsWith('SG.')) {
       errors.push('SENDGRID_API_KEY appears to be invalid (should start with SG.)');
+    } else if (isPlaceholderSendGridApiKey(this.apiKey)) {
+      errors.push('SENDGRID_API_KEY appears to be a placeholder value');
+    } else if (!isValidSendGridApiKey(this.apiKey)) {
+      errors.push('SENDGRID_API_KEY appears to be invalid');
     }
 
     if (!this.defaultFrom) {
@@ -108,7 +109,7 @@ export class SendGridProvider implements EmailProvider {
 
   private async sendMailData(mailData: MailDataRequired): Promise<EmailResult> {
     const sendPromise = sgMail.send(mailData);
-    const timeoutPromise = new Promise<EmailResult>((resolve) => {
+    const timeoutPromise = new Promise<EmailResult>(resolve => {
       setTimeout(
         () =>
           resolve({
@@ -143,9 +144,7 @@ export class SendGridProvider implements EmailProvider {
     additionalData?: Partial<MailDataRequired>
   ): MailDataRequired {
     const to = this.normalizeRecipient(options.to);
-    const from = options.from
-      ? this.normalizeRecipient(options.from)
-      : this.defaultFrom;
+    const from = options.from ? this.normalizeRecipient(options.from) : this.defaultFrom;
 
     const baseData: any = {
       to,
@@ -173,7 +172,7 @@ export class SendGridProvider implements EmailProvider {
 
     // Add attachments if provided
     if (options.attachments && options.attachments.length > 0) {
-      baseData.attachments = options.attachments.map((att) => ({
+      baseData.attachments = options.attachments.map(att => ({
         content: att.content,
         filename: att.filename,
         type: att.type,
@@ -204,14 +203,17 @@ export class SendGridProvider implements EmailProvider {
   }
 
   private normalizeRecipient(
-    recipient: string | { email: string; name?: string } | Array<string | { email: string; name?: string }>
+    recipient:
+      | string
+      | { email: string; name?: string }
+      | Array<string | { email: string; name?: string }>
   ): string | string[] {
     if (typeof recipient === 'string') {
       return recipient;
     }
 
     if (Array.isArray(recipient)) {
-      return recipient.map((r) => this.normalizeRecipient(r) as string);
+      return recipient.map(r => this.normalizeRecipient(r) as string);
     }
 
     if (recipient.name) {
@@ -234,7 +236,7 @@ export class SendGridProvider implements EmailProvider {
 
     return {
       success: false,
-      error: sgErrors ? JSON.stringify(sgErrors) : (error.message || 'Unknown SendGrid error'),
+      error: sgErrors ? JSON.stringify(sgErrors) : error.message || 'Unknown SendGrid error',
       errorCode,
       provider: this.name,
     };

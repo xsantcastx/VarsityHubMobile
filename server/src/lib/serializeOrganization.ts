@@ -44,6 +44,9 @@ export interface SerializeOrganizationOptions {
   /** Whether the viewer can edit the org. */
   canEdit?: boolean;
 
+  /** Whether the viewer can access org-admin management surfaces. */
+  canManage?: boolean;
+
   /** Whether the viewer can review coach requests for this org. */
   canReviewCoaches?: boolean;
 }
@@ -77,7 +80,7 @@ type BuildOrganizationSerializeSelectOptions = {
 };
 
 export function buildOrganizationSerializeSelect(
-  opts: BuildOrganizationSerializeSelectOptions = {},
+  opts: BuildOrganizationSerializeSelectOptions = {}
 ) {
   const countSelect: Record<string, true> = {};
   if (opts.includeCounts) {
@@ -203,6 +206,7 @@ export function serializeOrganization(organization: any, opts: SerializeOrganiza
     base.is_member = opts.isMember === true;
     base.is_owner = opts.isOwner === true;
     base.can_edit = opts.canEdit === true;
+    base.can_manage = opts.canManage === true;
     base.can_review_coaches = opts.canReviewCoaches === true;
   }
 

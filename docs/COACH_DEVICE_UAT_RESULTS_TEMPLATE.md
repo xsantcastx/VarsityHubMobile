@@ -2,25 +2,28 @@
 
 ## Session Metadata
 
-| Field                 | Value                        |
-| --------------------- | ---------------------------- |
-| Tester                |                              |
-| Date                  |                              |
-| App build             |                              |
-| Backend environment   |                              |
-| Seed command used     | `npm run coach:uat:prepare`  |
-| Baseline command used | `npm run coach:uat:baseline` |
+| Field                 | Value                                               |
+| --------------------- | --------------------------------------------------- |
+| Tester                |                                                     |
+| Date                  |                                                     |
+| App build             |                                                     |
+| Backend environment   |                                                     |
+| Seed command used     | `npm run coach:uat:prepare`                         |
+| Baseline command used | `npm run coach:uat:baseline`                        |
+| Manager verify script | `npm --prefix server run verify:org-manager-access` |
 
 ## Account Matrix
 
-| Account state             | Email used | Login | Expected gate                            | Actual outcome | Pass/Fail | Notes |
-| ------------------------- | ---------- | ----- | ---------------------------------------- | -------------- | --------- | ----- |
-| Rookie approved           |            |       | Coach tools open                         |                |           |       |
-| Veteran approved + paid   |            |       | Paid entitlements persist                |                |           |       |
-| Legend approved + paid    |            |       | Paid entitlements persist                |                |           |       |
-| Paid by owner             |            |       | No self-checkout prompt                  |                |           |       |
-| Missing agreement         |            |       | Coach tools still open                   |                |           |       |
-| Pending/rejected fan mode |            |       | Coach tools blocked, fan-safe paths work |                |           |       |
+| Account state             | Email used | Login | Expected gate                                      | Actual outcome | Pass/Fail | Notes |
+| ------------------------- | ---------- | ----- | -------------------------------------------------- | -------------- | --------- | ----- |
+| Rookie approved           |            |       | Coach tools open                                   |                |           |       |
+| Veteran approved + paid   |            |       | Paid entitlements persist                          |                |           |       |
+| Legend approved + paid    |            |       | Paid entitlements persist                          |                |           |       |
+| Paid by owner             |            |       | No self-checkout prompt                            |                |           |       |
+| Missing agreement         |            |       | Coach tools still open                             |                |           |       |
+| Pending/rejected fan mode |            |       | Coach tools blocked, fan-safe paths work           |                |           |       |
+| Fan-role org manager      |            |       | Org admin surfaces open, owner-only actions hidden |                |           |       |
+| Public fan                |            |       | Org profile has no false join CTA                  |                |           |       |
 
 ## Quick Actions
 
@@ -32,6 +35,8 @@
 | Paid by owner             |              |               |           |            |          |         |       |
 | Missing agreement         |              |               |           |            |          |         |       |
 | Pending/rejected fan mode |              |               |           |            |          |         |       |
+| Fan-role org manager      |              |               |           |            |          |         |       |
+| Public fan                |              |               |           |            |          |         |       |
 
 ## Coach Screens
 
@@ -47,6 +52,18 @@
 | `/team-hub`        |        |         |        |               |                   |                           |       |
 | `/create-team`     |        |         |        |               |                   |                           |       |
 | `/edit-team`       |        |         |        |               |                   |                           |       |
+
+## Org admin and public fan surfaces
+
+| Surface                  | Owner | Fan-role manager | Public fan | Notes |
+| ------------------------ | ----- | ---------------- | ---------- | ----- |
+| `/approvals`             |       |                  |            |       |
+| `/event-approvals`       |       |                  |            |       |
+| Org profile admin tools  |       |                  |            |       |
+| `Invite Coach` visible   |       |                  |            |       |
+| `Edit Profile` visible   |       |                  |            |       |
+| `Coach Requests` visible |       |                  |            |       |
+| `Request to Join` shown  |       |                  |            |       |
 
 ## Billing / Agreement / Relaunch
 
@@ -64,6 +81,8 @@
 | ----------------------------------------------------- | ------ | ----- |
 | Coach-approval follow-up to approved coach experience |        |       |
 | Event/game approval deep link                         |        |       |
+| Manager account can open org-admin surfaces           |        |       |
+| Public fan org profile hides false join CTA           |        |       |
 
 ## Issues
 

@@ -3,6 +3,7 @@
 **Source:** consolidated output from the spring-2026 audit + spiderweb sweep + parallel payment / IAP / SendGrid / smoke-harness work. Code-side fixes are merged on `main`; this document tracks **everything that needs an operator (Railway / Stripe / SendGrid / App Store Connect / Play Console / Namecheap / EAS) — i.e. things I cannot do from a code repo.**
 
 For per-provider click paths and dashboard-level verification steps, use the companion guide [PROVIDER_DASHBOARD_VERIFICATION.md](./PROVIDER_DASHBOARD_VERIFICATION.md).
+For the SendGrid-specific release gate, use [EMAIL_GO_LIVE_CHECKLIST.md](./EMAIL_GO_LIVE_CHECKLIST.md).
 
 Read top to bottom. Items are ordered so each block can be done independently, with hard ordering called out where it matters.
 

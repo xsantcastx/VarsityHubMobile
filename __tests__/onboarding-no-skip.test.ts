@@ -105,7 +105,9 @@ describe('onboarding flow — no screens can be skipped', () => {
     });
 
     it('step-2 bootstraps from canonical auth state instead of refetching User.me on focus', () => {
-      expect(step2).toMatch(/const \{ user, markOnboardingCompleteLocally, registerPushToken \} = useAuth\(\)/);
+      expect(step2).toMatch(
+        /const \{ user, markOnboardingCompleteLocally, registerPushToken \} = useAuth\(\)/
+      );
       expect(step2).not.toMatch(/User\.me\(\)/);
       expect(step2).not.toMatch(/useFocusEffect/);
     });
@@ -130,7 +132,9 @@ describe('onboarding flow — no screens can be skipped', () => {
     it('pending approval screens poll through the shared canonical auth snapshot helper', () => {
       expect(pendingApproval).toMatch(/getPendingApprovalAuthSnapshot/);
       expect(leaguePendingApproval).toMatch(/getPendingApprovalAuthSnapshot/);
-      expect(pendingApprovalFlowHook).toMatch(/export async function getPendingApprovalAuthSnapshot/);
+      expect(pendingApprovalFlowHook).toMatch(
+        /export async function getPendingApprovalAuthSnapshot/
+      );
       expect(pendingApproval).not.toMatch(/User\.me\(\)/);
       expect(leaguePendingApproval).not.toMatch(/User\.refresh\(\)/);
     });
@@ -178,16 +182,13 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(coachAgreement).toMatch(/updatePreferences/);
     });
 
-    it('coach-agreement routes from the canonical checkAuth refresh instead of refetching /me', () => {
-      expect(coachAgreement).toMatch(/const freshUser = \(await checkAuth\(\)\)/);
+    it('coach-agreement routes from the canonical auth refresh helper instead of refetching /me', () => {
+      expect(coachAgreement).toMatch(/getFreshAuthSnapshot\(checkAuth, user\)/);
       expect(coachAgreement).not.toMatch(/await checkAuth\(\);[\s\S]{0,120}User\.me\(\)/);
     });
 
-    it('AuthProvider routes approved coaches to /onboarding/coach-agreement when unsigned', () => {
-      // This is the "no skip" gate for coach tools. An approved coach who
-      // closes the app mid-flow is routed back to coach-agreement on next
-      // open, not dropped into tabs where requireOnboarded would 403.
-      expect(authProvider).toMatch(/\/onboarding\/coach-agreement/);
+    it('AuthProvider keeps coach-agreement as an optional screen, not a hard approved-coach gate', () => {
+      expect(authProvider).not.toMatch(/redirectWithTelemetry\('\/onboarding\/coach-agreement'/);
       expect(authProvider).toMatch(/coach_agreement_accepted_at/);
     });
 
@@ -196,7 +197,9 @@ describe('onboarding flow — no screens can be skipped', () => {
     });
 
     it('AuthProvider only keeps coach-agreement mounted while acceptance is still missing', () => {
-      expect(authProvider).toMatch(/const needsCoachAgreementAcceptance =[\s\S]*!hasAcceptedCoachAgreement\(user as any\)/);
+      expect(authProvider).toMatch(
+        /const needsCoachAgreementAcceptance =[\s\S]*!hasAcceptedCoachAgreement\(user as any\)/
+      );
       expect(authProvider).toMatch(/!needsCoachAgreementAcceptance/);
     });
   });
@@ -232,7 +235,9 @@ describe('onboarding flow — no screens can be skipped', () => {
 
     it('AuthProvider still routes unauthenticated users to sign-in when backend health is down', () => {
       expect(authProvider).toMatch(/unauthenticated_backend_unhealthy/);
-      expect(authProvider).toMatch(/Do not strand unauthenticated users on the passive root spinner/);
+      expect(authProvider).toMatch(
+        /Do not strand unauthenticated users on the passive root spinner/
+      );
     });
 
     it('app/index.tsx has a root-screen failsafe redirect', () => {
@@ -283,7 +288,9 @@ describe('onboarding flow — no screens can be skipped', () => {
     it('AuthProvider has a payment-required redirect for paid-plan coaches', () => {
       // Approved coach with a paid plan selected must go through checkout
       // before accessing coach tools — not into tabs with payment_pending.
-      expect(authProvider).toMatch(/subscription-paywall|manage-subscription|coach_checkout|payment_pending/);
+      expect(authProvider).toMatch(
+        /subscription-paywall|manage-subscription|coach_checkout|payment_pending/
+      );
     });
 
     it('AuthProvider has a server-is-truth guard against AsyncStorage onboarding flag', () => {
@@ -316,7 +323,9 @@ describe('onboarding flow — no screens can be skipped', () => {
 
     it('existing-org continue path routes from fresh canonical auth state before completing onboarding', () => {
       expect(step3).toMatch(/getPostAuthRouteDecision/);
-      expect(step3).toMatch(/const authUser = \(await checkAuth\(\)\.catch\(\(\) => null\)\) \?\? user/);
+      expect(step3).toMatch(
+        /const authUser = \(await checkAuth\(\)\.catch\(\(\) => null\)\) \?\? user/
+      );
       expect(step3).toMatch(/routeFromDecision\(nextDecision\.route/);
     });
 

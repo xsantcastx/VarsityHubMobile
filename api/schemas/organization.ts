@@ -58,6 +58,7 @@ export const organizationSchema = z
     is_member: z.boolean().optional(),
     is_owner: z.boolean().optional(),
     can_edit: z.boolean().optional(),
+    can_manage: z.boolean().optional(),
     can_review_coaches: z.boolean().optional(),
     _count: organizationCountSchema.optional(),
     teams: z.array(organizationTeamSchema).nullable().optional(),

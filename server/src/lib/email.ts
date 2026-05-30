@@ -6,6 +6,7 @@ import escapeHtml from 'escape-html';
 import { signReviewToken } from './reviewTokens.js';
 import { prisma } from './prisma.js';
 import { redactEmail, sanitizeEmailLogMessage, sanitizeEmailSubject } from './emailRedaction.js';
+import { isValidSendGridApiKey } from './sendgridConfig.js';
 import { captureException, captureMessage } from './sentry.js';
 
 /**
@@ -333,7 +334,7 @@ export const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = [
 ];
 
 export function isSendGridConfigured(): boolean {
-  return Boolean(SENDGRID_API_KEY);
+  return isValidSendGridApiKey(SENDGRID_API_KEY);
 }
 
 export function getMissingEmailTemplates(

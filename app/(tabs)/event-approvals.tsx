@@ -1,7 +1,6 @@
 import { Colors } from '@/constants/Colors';
-import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -107,7 +106,7 @@ const ROLE_LABELS: Record<string, string> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function EventApprovalsScreen() {
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  const { loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams<{
     event_id?: string;
@@ -146,8 +145,12 @@ export default function EventApprovalsScreen() {
   const isSessionExpiryError = (err: ApprovalError) => {
     const status = err?.status || err?.response?.status;
     const serverData = err?.data || err?.response?.data;
-    const message = String(serverData?.error || serverData?.message || err?.message || '').toLowerCase();
-    return err?.isSessionExpired === true || (status === 401 && message.includes('session expired'));
+    const message = String(
+      serverData?.error || serverData?.message || err?.message || ''
+    ).toLowerCase();
+    return (
+      err?.isSessionExpired === true || (status === 401 && message.includes('session expired'))
+    );
   };
 
   // ── Loaders ──────────────────────────────────────────────────────────────
@@ -163,11 +166,12 @@ export default function EventApprovalsScreen() {
         Event.pending().catch(() => []),
         Game.list(undefined, { showPending: true, limit: 50 }).catch(() => ({ games: [] })),
       ]);
-      const pendingEvents = asArray<RawPendingEvent>(eventsData)
-        .filter((event) => event?.approval_status === 'pending');
+      const pendingEvents = asArray<RawPendingEvent>(eventsData).filter(
+        event => event?.approval_status === 'pending'
+      );
       const pendingGames = asArray<RawPendingGame>((gamesData as { games?: unknown })?.games)
-        .filter((game) => game?.approval_status === 'pending')
-        .map((game) => ({
+        .filter(game => game?.approval_status === 'pending')
+        .map(game => ({
           ...game,
           _isGame: true, // Flag to use game approve endpoint
           event_type: game.event_type || 'game',
@@ -190,8 +194,9 @@ export default function EventApprovalsScreen() {
   const loadTeamInvites = useCallback(async () => {
     try {
       const data = await Team.myInvites();
-      const pending = asArray<TeamInvite & { status?: string }>(data)
-        .filter((invite) => invite?.status === 'pending');
+      const pending = asArray<TeamInvite & { status?: string }>(data).filter(
+        invite => invite?.status === 'pending'
+      );
       setTeamInvites(pending);
       loadInvitesFailedRef.current = false;
     } catch (error: unknown) {
@@ -223,27 +228,17 @@ export default function EventApprovalsScreen() {
 
   const loadAll = useCallback(async () => {
     setError(null);
-    // Team invites (Section 2) and org join request status (Section 3) are always loaded.
-    // Pitched events (Section 1) require full coach-tool access, matching requireOnboarded.
-    const loaders: Promise<void>[] = [loadTeamInvites(), loadOrgRequests()];
-    if (canAccessCoachTools) {
-      loaders.push(loadEvents());
-    } else {
-      setEvents([]);
-      setEventsLoading(false);
-    }
+    const loaders: Promise<void>[] = [loadEvents(), loadTeamInvites(), loadOrgRequests()];
     await Promise.allSettled(loaders);
-    if (
-      loadInvitesFailedRef.current &&
-      loadOrgFailedRef.current &&
-      (!canAccessCoachTools || loadEventsFailedRef.current)
-    ) {
+    if (loadInvitesFailedRef.current && loadOrgFailedRef.current && loadEventsFailedRef.current) {
       setError('Failed to load approvals. Pull down to refresh.');
     }
-  }, [canAccessCoachTools, loadEvents, loadOrgRequests, loadTeamInvites]);
+  }, [loadEvents, loadOrgRequests, loadTeamInvites]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
-  useEffect(() => { void loadAll(); }, []);
+  useEffect(() => {
+    if (authLoading) return;
+    void loadAll();
+  }, [authLoading, loadAll]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -256,51 +251,59 @@ export default function EventApprovalsScreen() {
 
   // ── Event actions ─────────────────────────────────────────────────────────
 
-  const handleApproveEvent = useCallback(async (eventId: string) => {
-    setProcessingEventId(eventId);
-    const evt = events.find(event => event.id === eventId);
-    captureBreadcrumb('Event approval started', 'admin.approval', {
-      action: 'approve',
-      actor: 'coach_tools',
-      event_id: eventId,
-      is_game: !!evt?._isGame,
-    });
-    try {
-      if (evt?._isGame) {
-        await Game.setApprovalStatus(eventId, 'approved');
-      } else {
-        await Event.approve(eventId);
-      }
-      captureBreadcrumb('Event approval succeeded', 'admin.approval', {
+  const handleApproveEvent = useCallback(
+    async (eventId: string) => {
+      setProcessingEventId(eventId);
+      const evt = events.find(event => event.id === eventId);
+      captureBreadcrumb('Event approval started', 'admin.approval', {
         action: 'approve',
         actor: 'coach_tools',
         event_id: eventId,
         is_game: !!evt?._isGame,
       });
-      analytics.track(ANALYTICS_EVENTS.COACH_APPROVED, {
-        approval_type: 'event',
-        event_id: eventId,
-        is_game: !!evt?._isGame,
-      });
-      Alert.alert('Approved', 'The event has been published.');
-      setEvents(prev => prev.filter(event => event.id !== eventId));
-    } catch (error: unknown) {
-      const e = error as ApprovalError;
-      if (isSessionExpiryError(e)) {
-        return;
+      try {
+        if (evt?._isGame) {
+          await Game.setApprovalStatus(eventId, 'approved');
+        } else {
+          await Event.approve(eventId);
+        }
+        captureBreadcrumb('Event approval succeeded', 'admin.approval', {
+          action: 'approve',
+          actor: 'coach_tools',
+          event_id: eventId,
+          is_game: !!evt?._isGame,
+        });
+        analytics.track(ANALYTICS_EVENTS.COACH_APPROVED, {
+          approval_type: 'event',
+          event_id: eventId,
+          is_game: !!evt?._isGame,
+        });
+        Alert.alert('Approved', 'The event has been published.');
+        setEvents(prev => prev.filter(event => event.id !== eventId));
+      } catch (error: unknown) {
+        const e = error as ApprovalError;
+        if (isSessionExpiryError(e)) {
+          return;
+        }
+        captureBreadcrumb(
+          'Event approval failed',
+          'admin.approval',
+          {
+            action: 'approve',
+            actor: 'coach_tools',
+            event_id: eventId,
+            is_game: !!evt?._isGame,
+            error: e?.message || 'unknown_error',
+          },
+          'error'
+        );
+        Alert.alert('Error', e?.message || 'Failed to approve event.');
+      } finally {
+        setProcessingEventId(null);
       }
-      captureBreadcrumb('Event approval failed', 'admin.approval', {
-        action: 'approve',
-        actor: 'coach_tools',
-        event_id: eventId,
-        is_game: !!evt?._isGame,
-        error: e?.message || 'unknown_error',
-      }, 'error');
-      Alert.alert('Error', e?.message || 'Failed to approve event.');
-    } finally {
-      setProcessingEventId(null);
-    }
-  }, [events]);
+    },
+    [events]
+  );
 
   const [rejectModal, setRejectModal] = useState<{ eventId: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -343,13 +346,18 @@ export default function EventApprovalsScreen() {
       if (isSessionExpiryError(e)) {
         return;
       }
-      captureBreadcrumb('Event rejection failed', 'admin.approval', {
-        action: 'reject',
-        actor: 'coach_tools',
-        event_id: eventId,
-        is_game: !!evt?._isGame,
-        error: e?.message || 'unknown_error',
-      }, 'error');
+      captureBreadcrumb(
+        'Event rejection failed',
+        'admin.approval',
+        {
+          action: 'reject',
+          actor: 'coach_tools',
+          event_id: eventId,
+          is_game: !!evt?._isGame,
+          error: e?.message || 'unknown_error',
+        },
+        'error'
+      );
       Alert.alert('Error', e?.message || 'Failed to reject event.');
     } finally {
       setProcessingEventId(null);
@@ -359,16 +367,15 @@ export default function EventApprovalsScreen() {
   useEffect(() => {
     const eventId = String(params.event_id || '').trim();
     const action = params.action === 'approve' || params.action === 'reject' ? params.action : null;
-    const reviewKind = params.review_kind === 'game' || params.review_kind === 'event'
-      ? params.review_kind
-      : null;
+    const reviewKind =
+      params.review_kind === 'game' || params.review_kind === 'event' ? params.review_kind : null;
 
-    if (!canAccessCoachTools || events.length === 0 || !eventId || !action) return;
+    if (events.length === 0 || !eventId || !action) return;
 
     const signature = `${reviewKind ?? ''}|${eventId}|${action}`;
     if (lastHandledLinkRef.current === signature) return;
 
-    const matchedEvent = events.find((item) => {
+    const matchedEvent = events.find(item => {
       if (item.id !== eventId) return false;
       if (reviewKind === 'game') return item._isGame === true;
       if (reviewKind === 'event') return item._isGame !== true;
@@ -382,7 +389,14 @@ export default function EventApprovalsScreen() {
       return;
     }
     handleRejectEvent(matchedEvent.id);
-  }, [canAccessCoachTools, events, handleApproveEvent, handleRejectEvent, params.action, params.event_id, params.review_kind]);
+  }, [
+    events,
+    handleApproveEvent,
+    handleRejectEvent,
+    params.action,
+    params.event_id,
+    params.review_kind,
+  ]);
 
   // ── Team invite actions ───────────────────────────────────────────────────
 
@@ -433,7 +447,7 @@ export default function EventApprovalsScreen() {
     icon: keyof typeof Ionicons.glyphMap,
     count: number,
     color: string,
-    onAddPress?: () => void,
+    onAddPress?: () => void
   ) => (
     <View style={styles.sectionHeader}>
       <View style={[styles.sectionIconWrap, { backgroundColor: color + '22' }]}>
@@ -446,7 +460,11 @@ export default function EventApprovalsScreen() {
         </View>
       )}
       {onAddPress ? (
-        <Pressable onPress={onAddPress} style={[styles.addButton, { backgroundColor: color + '22' }]} hitSlop={8}>
+        <Pressable
+          onPress={onAddPress}
+          style={[styles.addButton, { backgroundColor: color + '22' }]}
+          hitSlop={8}
+        >
           <Ionicons name="add" size={20} color={color} />
         </Pressable>
       ) : null}
@@ -579,13 +597,13 @@ export default function EventApprovalsScreen() {
     // Section 3 shows the current user's OWN join requests (read-only status view).
     // Approve/deny actions belong to the org owner on the approvals.tsx screen.
     const statusColor =
-      item.status === 'approved' ? '#10B981' :
-      item.status === 'denied' ? '#DC2626' :
-      '#F59E0B';
+      item.status === 'approved' ? '#10B981' : item.status === 'denied' ? '#DC2626' : '#F59E0B';
     const statusLabel =
-      item.status === 'approved' ? 'Approved' :
-      item.status === 'denied' ? 'Denied' :
-      'Pending Review';
+      item.status === 'approved'
+        ? 'Approved'
+        : item.status === 'denied'
+          ? 'Denied'
+          : 'Pending Review';
     return (
       <View key={item.id} style={[styles.card, { backgroundColor: C.card, borderColor: C.border }]}>
         <View style={styles.cardRow}>
@@ -609,7 +627,9 @@ export default function EventApprovalsScreen() {
         <View style={styles.metaRow}>
           <Ionicons name="time-outline" size={14} color={C.mutedText} />
           <Text style={[styles.metaText, { color: C.mutedText }]}>
-            {item.status === 'pending' ? 'Waiting for organization owner to review' : `Request ${statusLabel.toLowerCase()}`}
+            {item.status === 'pending'
+              ? 'Waiting for organization owner to review'
+              : `Request ${statusLabel.toLowerCase()}`}
           </Text>
         </View>
       </View>
@@ -624,37 +644,61 @@ export default function EventApprovalsScreen() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  if (coachLoading) {
+  if (authLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: C.background }]}
+        edges={['bottom']}
+      >
         <ActivityIndicator style={{ marginTop: 40 }} color={C.tint} />
       </SafeAreaView>
     );
   }
 
-  if (!canAccessCoachTools) {
-    return (
-      <CoachAccessRedirecting
-        backgroundColor={C.background}
-        spinnerColor={C.tint}
-        textColor={C.mutedText}
-        edges={['bottom']}
-      />
-    );
-  }
-
   return (
-      <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
-        <Stack.Screen options={{ title: 'Approvals', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
+    <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
+      <Stack.Screen
+        options={{
+          title: 'Approvals',
+          headerShown: true,
+          headerLeft: () => (
+            <Pressable
+              onPress={() => safeGoBack(router, explicitFallback)}
+              style={{ paddingRight: 8 }}
+            >
               <Ionicons name="chevron-back" size={28} color={C.tint} />
             </Pressable>
-          ) }} />
+          ),
+        }}
+      />
 
       {error && !isLoading && (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Text style={{ color: colorScheme === 'dark' ? '#FCA5A5' : '#DC2626', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>{error}</Text>
-          <TouchableOpacity onPress={() => { setError(null); setEventsLoading(true); setInvitesLoading(true); setOrgRequestsLoading(true); void loadAll(); }} style={{ backgroundColor: C.tint, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}>
+          <Text
+            style={{
+              color: colorScheme === 'dark' ? '#FCA5A5' : '#DC2626',
+              fontSize: 16,
+              textAlign: 'center',
+              marginBottom: 16,
+            }}
+          >
+            {error}
+          </Text>
+          <TouchableOpacity
+            onPress={() => {
+              setError(null);
+              setEventsLoading(true);
+              setInvitesLoading(true);
+              setOrgRequestsLoading(true);
+              void loadAll();
+            }}
+            style={{
+              backgroundColor: C.tint,
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 8,
+            }}
+          >
             <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -663,61 +707,106 @@ export default function EventApprovalsScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={C.tint} />
         </View>
-      ) : !error && (
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />
-          }
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Empty state */}
-          {totalPending === 0 && (
-            <View style={[styles.globalEmpty, { borderColor: C.border }]}>
-              <Ionicons name="checkmark-done-circle-outline" size={40} color={C.mutedText} />
-              <Text style={[styles.globalEmptyTitle, { color: C.text }]}>All caught up</Text>
-              <Text style={[styles.globalEmptyText, { color: C.mutedText }]}>
-                No pending approvals right now.
-              </Text>
-            </View>
-          )}
+      ) : (
+        !error && (
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />
+            }
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Empty state */}
+            {totalPending === 0 && (
+              <View style={[styles.globalEmpty, { borderColor: C.border }]}>
+                <Ionicons name="checkmark-done-circle-outline" size={40} color={C.mutedText} />
+                <Text style={[styles.globalEmptyTitle, { color: C.text }]}>All caught up</Text>
+                <Text style={[styles.globalEmptyText, { color: C.mutedText }]}>
+                  No pending approvals right now.
+                </Text>
+              </View>
+            )}
 
-          {/* ── Section 1: Pitched Events ── */}
-          {renderSectionHeader('Pitched Events', 'calendar-outline', events.length, '#F59E0B')}
-          {eventsLoading
-            ? <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
-            : events.length === 0
-              ? renderEmpty('No pending event submissions.')
-              : events.map(renderEventCard)
-          }
+            {/* ── Section 1: Pitched Events ── */}
+            {renderSectionHeader('Pitched Events', 'calendar-outline', events.length, '#F59E0B')}
+            {eventsLoading ? (
+              <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
+            ) : events.length === 0 ? (
+              renderEmpty('No pending event submissions.')
+            ) : (
+              events.map(renderEventCard)
+            )}
 
-          {/* ── Section 2: Roster Invites ── */}
-          {renderSectionHeader('Roster Invites', 'people-outline', teamInvites.length, '#3B82F6', () => router.push('/my-team' as never))}
-          {invitesLoading
-            ? <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
-            : teamInvites.length === 0
-              ? renderEmpty('No pending team invitations.')
-              : teamInvites.map(renderInviteCard)
-          }
+            {/* ── Section 2: Roster Invites ── */}
+            {renderSectionHeader(
+              'Roster Invites',
+              'people-outline',
+              teamInvites.length,
+              '#3B82F6',
+              () => router.push('/my-team' as never)
+            )}
+            {invitesLoading ? (
+              <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
+            ) : teamInvites.length === 0 ? (
+              renderEmpty('No pending team invitations.')
+            ) : (
+              teamInvites.map(renderInviteCard)
+            )}
 
-          {/* ── Section 3: Organization Join Requests ── */}
-          {renderSectionHeader('Organization Join Requests', 'shield-checkmark-outline', pendingOrgRequests.length, '#8B5CF6')}
-          {orgRequestsLoading
-            ? <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
-            : orgRequests.length === 0
-              ? renderEmpty('No organization join requests.')
-              : orgRequests.map(renderOrgRequestCard)
-          }
-        </ScrollView>
+            {/* ── Section 3: Organization Join Requests ── */}
+            {renderSectionHeader(
+              'Organization Join Requests',
+              'shield-checkmark-outline',
+              pendingOrgRequests.length,
+              '#8B5CF6'
+            )}
+            {orgRequestsLoading ? (
+              <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
+            ) : orgRequests.length === 0 ? (
+              renderEmpty('No organization join requests.')
+            ) : (
+              orgRequests.map(renderOrgRequestCard)
+            )}
+          </ScrollView>
+        )
       )}
       {/* Reject Event Modal */}
       <Modal visible={!!rejectModal} transparent animationType="slide">
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 24 }}>
-          <View style={{ backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white', borderRadius: 16, padding: 20, width: '100%', maxWidth: 400 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 8 }}>Reject Event</Text>
-            <Text style={{ color: C.mutedText, marginBottom: 12 }}>Provide a reason for rejection (optional):</Text>
+        <View
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            padding: 24,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
+              borderRadius: 16,
+              padding: 20,
+              width: '100%',
+              maxWidth: 400,
+            }}
+          >
+            <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 8 }}>
+              Reject Event
+            </Text>
+            <Text style={{ color: C.mutedText, marginBottom: 12 }}>
+              Provide a reason for rejection (optional):
+            </Text>
             <TextInput
-              style={{ borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 10, color: C.text, backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB', minHeight: 60, textAlignVertical: 'top' }}
+              style={{
+                borderWidth: 1,
+                borderColor: C.border,
+                borderRadius: 8,
+                padding: 10,
+                color: C.text,
+                backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB',
+                minHeight: 60,
+                textAlignVertical: 'top',
+              }}
               value={rejectReason}
               onChangeText={setRejectReason}
               placeholder="Reason (optional)..."
@@ -725,10 +814,28 @@ export default function EventApprovalsScreen() {
               multiline
             />
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-              <Pressable style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.border, alignItems: 'center' }} onPress={() => setRejectModal(null)}>
+              <Pressable
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  borderRadius: 8,
+                  backgroundColor: C.border,
+                  alignItems: 'center',
+                }}
+                onPress={() => setRejectModal(null)}
+              >
                 <Text style={{ color: C.text, fontWeight: '700' }}>Cancel</Text>
               </Pressable>
-              <Pressable style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#dc2626', alignItems: 'center' }} onPress={confirmRejectEvent}>
+              <Pressable
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  borderRadius: 8,
+                  backgroundColor: '#dc2626',
+                  alignItems: 'center',
+                }}
+                onPress={confirmRejectEvent}
+              >
                 <Text style={{ color: 'white', fontWeight: '700' }}>Reject</Text>
               </Pressable>
             </View>

@@ -18,10 +18,7 @@ const pendingApprovalFlowHook = readFileSync(
   join(process.cwd(), '..', 'hooks', 'usePendingApprovalFlow.ts'),
   'utf8'
 );
-const adminAdsScreen = readFileSync(
-  join(process.cwd(), '..', 'app', 'admin-ads.tsx'),
-  'utf8'
-);
+const adminAdsScreen = readFileSync(join(process.cwd(), '..', 'app', 'admin-ads.tsx'), 'utf8');
 const adminDashboardScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'admin-dashboard.tsx'),
   'utf8'
@@ -38,10 +35,7 @@ const onboardingIndexScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'onboarding', 'index.tsx'),
   'utf8'
 );
-const authProvider = readFileSync(
-  join(process.cwd(), '..', 'context', 'AuthProvider.tsx'),
-  'utf8'
-);
+const authProvider = readFileSync(join(process.cwd(), '..', 'context', 'AuthProvider.tsx'), 'utf8');
 const appRouteDecisions = readFileSync(
   join(process.cwd(), '..', 'utils', 'appRouteDecisions.ts'),
   'utf8'
@@ -54,6 +48,8 @@ const step3LeagueScreen = readFileSync(
 describe('coach approval UI guards', () => {
   it('approvals screen is now an org-picker shell that forwards into organization requests', () => {
     expect(approvalsScreen).toContain('Organization.reviewSummaries()');
+    expect(approvalsScreen).toContain('useAuth');
+    expect(approvalsScreen).not.toContain('CoachAccessRedirecting');
     expect(approvalsScreen).toContain('function buildOrganizationRequestsRoute');
     expect(approvalsScreen).toContain("safeGoBack(router, '/organization?tab=requests')");
     expect(approvalsScreen).toMatch(/const hasAutoForwardedRef = useRef\(false\)/);
@@ -71,7 +67,9 @@ describe('coach approval UI guards', () => {
       /const handleApprovedNavigation = useCallback\(\s*async \(redirect: 'organization' \| 'create-team'\) => \{[\s\S]*?if \(isNavigatingRef\.current\) return;/
     );
     expect(pendingApprovalFlowHook).toMatch(/setNavigationTarget\(redirect\);/);
-    expect(pendingApprovalFlowHook).toMatch(/if \(mountedRef\.current\) setNavigationTarget\(null\);/);
+    expect(pendingApprovalFlowHook).toMatch(
+      /if \(mountedRef\.current\) setNavigationTarget\(null\);/
+    );
 
     expect(pendingApprovalScreen).toContain('usePendingApprovalActions({');
     expect(pendingApprovalScreen).toMatch(/disabled=\{navigationTarget !== null\}/);
@@ -92,11 +90,15 @@ describe('coach approval UI guards', () => {
     ['league-pending-approval.tsx', leaguePendingApprovalScreen],
   ])('%s enables fan mode without rewriting the account role', (_name, source) => {
     expect(source).toMatch(/User\.updatePreferences\(\{\s*proceeding_as_fan:\s*true\s*\}\)/);
-    expect(source).not.toMatch(/User\.updatePreferences\(\{\s*proceeding_as_fan:\s*true,\s*role:\s*'fan'\s*\}\)/);
+    expect(source).not.toMatch(
+      /User\.updatePreferences\(\{\s*proceeding_as_fan:\s*true,\s*role:\s*'fan'\s*\}\)/
+    );
   });
 
   it('pending approval screen keys fan mode off proceeding_as_fan instead of a raw role fallback', () => {
-    expect(pendingApprovalScreen).toContain('const isProceedingAsFan = isProceedingAsFanSnapshot(me);');
+    expect(pendingApprovalScreen).toContain(
+      'const isProceedingAsFan = isProceedingAsFanSnapshot(me);'
+    );
     expect(pendingApprovalScreen).not.toContain("isProceedingAsFanSnapshot(me) || role === 'fan'");
   });
 
@@ -110,11 +112,7 @@ describe('coach approval UI guards', () => {
   });
 
   it.each([
-    [
-      'admin-ads.tsx',
-      adminAdsScreen,
-      /const signature = `\$\{adId\}\|\$\{action \?\? ''\}`;/,
-    ],
+    ['admin-ads.tsx', adminAdsScreen, /const signature = `\$\{adId\}\|\$\{action \?\? ''\}`;/],
     [
       'admin-dashboard.tsx',
       adminDashboardScreen,
@@ -130,12 +128,24 @@ describe('coach approval UI guards', () => {
       eventApprovalsScreen,
       /const signature = `\$\{reviewKind \?\? ''\}\|\$\{eventId\}\|\$\{action\}`;/,
     ],
-  ])('%s handles email review links by deep-link signature, not one-shot session state', (_name, source, signatureRegex) => {
-    expect(source).toMatch(/const lastHandledLinkRef = useRef<string \| null>\(null\)/);
-    expect(source).not.toMatch(/emailReviewHandledRef/);
-    expect(source).toMatch(signatureRegex);
-    expect(source).toMatch(/if \(lastHandledLinkRef\.current === signature\) return;/);
-    expect(source).toMatch(/lastHandledLinkRef\.current = signature;/);
+  ])(
+    '%s handles email review links by deep-link signature, not one-shot session state',
+    (_name, source, signatureRegex) => {
+      expect(source).toMatch(/const lastHandledLinkRef = useRef<string \| null>\(null\)/);
+      expect(source).not.toMatch(/emailReviewHandledRef/);
+      expect(source).toMatch(signatureRegex);
+      expect(source).toMatch(/if \(lastHandledLinkRef\.current === signature\) return;/);
+      expect(source).toMatch(/lastHandledLinkRef\.current = signature;/);
+    }
+  );
+
+  it('event approvals keeps roster invites and org request status available outside the old coach-only guard', () => {
+    expect(eventApprovalsScreen).toContain(
+      'const loaders: Promise<void>[] = [loadEvents(), loadTeamInvites(), loadOrgRequests()];'
+    );
+    expect(eventApprovalsScreen).toContain('useAuth');
+    expect(eventApprovalsScreen).not.toContain('CoachAccessRedirecting');
+    expect(eventApprovalsScreen).not.toMatch(/if \(!canAccessCoachTools\) \{/);
   });
 
   it('onboarding index trusts canonical onboarding completion before falling back to preferences', () => {
@@ -165,13 +175,15 @@ describe('coach approval UI guards', () => {
   });
 
   it('final coach setup mode suppresses search-and-join UI and explains that approval already happened', () => {
-    expect(step3LeagueScreen).toContain('const canSearchForExistingOrganization = !isFinalCoachSetup;');
+    expect(step3LeagueScreen).toContain(
+      'const canSearchForExistingOrganization = !isFinalCoachSetup;'
+    );
     expect(step3LeagueScreen).toContain('setShowSearch(false);');
     expect(step3LeagueScreen).toContain('Approved Coach Setup');
-    expect(step3LeagueScreen).toContain('You do not need to apply again or search for an existing league here.');
-    expect(step3LeagueScreen).toMatch(
-      /\{canSearchForExistingOrganization && showSearch \?/
+    expect(step3LeagueScreen).toContain(
+      'You do not need to apply again or search for an existing league here.'
     );
+    expect(step3LeagueScreen).toMatch(/\{canSearchForExistingOrganization && showSearch \?/);
   });
 
   it('join-existing onboarding copy points to the league owner as decision maker', () => {
@@ -181,8 +193,6 @@ describe('coach approval UI guards', () => {
   });
 
   it('client admin access requires a verified admin account before showing admin screens', () => {
-    expect(authProvider).toMatch(
-      /const isAdmin =\s*user\?\.email_verified === true &&\s*\(/
-    );
+    expect(authProvider).toMatch(/const isAdmin =\s*user\?\.email_verified === true &&\s*\(/);
   });
 });

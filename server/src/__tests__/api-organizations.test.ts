@@ -139,15 +139,21 @@ describe('API Organization Endpoints', () => {
 
   afterAll(async () => {
     await prisma.organizationJoinRequest.deleteMany({ where: { user_id: userId } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({
-      where: { user_id: { in: [userId, ownerId, managerId].filter(Boolean) } },
-    }).catch(() => {});
-    await prisma.organization.deleteMany({
-      where: { id: { in: [approvedOrgId, pendingOrgId, ownedOrgId].filter(Boolean) } },
-    }).catch(() => {});
-    await prisma.user.deleteMany({
-      where: { id: { in: [userId, ownerId, managerId].filter(Boolean) } },
-    }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({
+        where: { user_id: { in: [userId, ownerId, managerId].filter(Boolean) } },
+      })
+      .catch(() => {});
+    await prisma.organization
+      .deleteMany({
+        where: { id: { in: [approvedOrgId, pendingOrgId, ownedOrgId].filter(Boolean) } },
+      })
+      .catch(() => {});
+    await prisma.user
+      .deleteMany({
+        where: { id: { in: [userId, ownerId, managerId].filter(Boolean) } },
+      })
+      .catch(() => {});
   });
 
   describe('GET /organizations', () => {
@@ -182,6 +188,7 @@ describe('API Organization Endpoints', () => {
       expect(response.body.is_member).toBe(true);
       expect(response.body.is_owner).toBe(true);
       expect(response.body.can_edit).toBe(true);
+      expect(response.body.can_manage).toBe(true);
       expect(response.body.can_review_coaches).toBe(true);
     });
 
@@ -225,7 +232,22 @@ describe('API Organization Endpoints', () => {
       expect(response.body.is_member).toBe(true);
       expect(response.body.is_owner).toBe(false);
       expect(response.body.can_edit).toBe(false);
+      expect(response.body.can_manage).toBe(true);
       expect(response.body.can_review_coaches).toBe(false);
+    });
+
+    it('GET /organizations/:id/admin-summary keeps manager admin access without edit privileges', async () => {
+      const response = await request(app)
+        .get(`/organizations/${ownedOrgId}/admin-summary`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .expect(200);
+
+      expect(response.body.permissions?.can_manage).toBe(true);
+      expect(response.body.permissions?.membership_role).toBe('manager');
+      expect(response.body.organization?.viewer_role).toBe('manager');
+      expect(response.body.organization?.can_manage).toBe(true);
+      expect(response.body.organization?.can_edit).toBe(false);
+      expect(response.body.organization?.can_review_coaches).toBe(false);
     });
 
     it('POST /organizations/:id/transfer-ownership updates both membership roles and league_owner_id', async () => {

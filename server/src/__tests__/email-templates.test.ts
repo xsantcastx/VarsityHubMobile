@@ -26,9 +26,15 @@ describe('Email template helpers', () => {
   });
 
   it('isSendGridConfigured returns true when SENDGRID_API_KEY is set', async () => {
-    process.env.SENDGRID_API_KEY = 'SG.test-key';
+    process.env.SENDGRID_API_KEY = 'SG.1234567890abcdef1234567890abcdef';
     const { isSendGridConfigured } = await import('../lib/email.js');
     expect(isSendGridConfigured()).toBe(true);
+  });
+
+  it('isSendGridConfigured returns false when SENDGRID_API_KEY is a placeholder', async () => {
+    process.env.SENDGRID_API_KEY = 'SG.your-real-sendgrid-key-here';
+    const { isSendGridConfigured } = await import('../lib/email.js');
+    expect(isSendGridConfigured()).toBe(false);
   });
 
   it('getMissingEmailTemplates returns required keys when env vars are empty', async () => {

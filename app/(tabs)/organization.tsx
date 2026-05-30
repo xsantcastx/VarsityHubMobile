@@ -5,11 +5,25 @@ import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { getCanonicalOrganizationId } from '@/utils/authState';
 import { goBackToTrackedRoute } from '@/utils/navigation';
+import { getCoachAccessState } from '@/utils/roleChecks';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type OrganizationData = {
@@ -27,6 +41,12 @@ type OrganizationData = {
   formatted_address?: string;
   followers_count?: number;
   is_following?: boolean;
+  viewer_role?: string | null;
+  is_member?: boolean;
+  is_owner?: boolean;
+  can_edit?: boolean;
+  can_manage?: boolean;
+  can_review_coaches?: boolean;
 };
 
 type TeamItem = {
@@ -75,8 +95,7 @@ export default function OrganizationScreen() {
   const navHistory = useContext(NavigationHistoryContext);
   const href = useUnstableGlobalHref();
   const currentHref = typeof href === 'string' ? href : null;
-  const backFallback =
-    params.from === 'discover-quick-actions' ? '/(tabs)/discover' : undefined;
+  const backFallback = params.from === 'discover-quick-actions' ? '/(tabs)/discover' : undefined;
   const handleBack = useCallback(() => {
     goBackToTrackedRoute(router, currentHref, navHistory?.getFallbackRoute?.(), backFallback);
   }, [backFallback, currentHref, navHistory, router]);
@@ -87,8 +106,10 @@ export default function OrganizationScreen() {
   const [teams, setTeams] = useState<TeamItem[]>([]);
   const [games, setGames] = useState<GameItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [isOrgOwner, setIsOrgOwner] = useState(false);
   const [isOrgMember, setIsOrgMember] = useState(false);
+  const [canReviewCoachRequests, setCanReviewCoachRequests] = useState(false);
   const [pendingCoachCount, setPendingCoachCount] = useState(0);
   const [pendingCoachError, setPendingCoachError] = useState(false);
   const [pendingAuthorizedInviteCount, setPendingAuthorizedInviteCount] = useState(0);
@@ -105,6 +126,9 @@ export default function OrganizationScreen() {
       mounted.current = false;
     };
   }, []);
+  const coachAccess = getCoachAccessState(user as any);
+  const canRequestToJoin =
+    coachAccess.isCoach && !coachAccess.isProceedingAsFan && user?.is_admin !== true;
 
   const loadOrganization = useCallback(async () => {
     if (!mounted.current || !user) return;
@@ -113,7 +137,12 @@ export default function OrganizationScreen() {
       let orgId = params.id?.trim();
 
       // Fallback: if no orgId in params, look up the user's org from the server
-      if (!orgId || orgId === 'undefined' || orgId === 'null' || !/^[a-zA-Z0-9_-]{1,128}$/.test(orgId)) {
+      if (
+        !orgId ||
+        orgId === 'undefined' ||
+        orgId === 'null' ||
+        !/^[a-zA-Z0-9_-]{1,128}$/.test(orgId)
+      ) {
         try {
           const summaries = await Organization.reviewSummaries();
           const firstOrg = Array.isArray(summaries) ? summaries[0]?.organization : null;
@@ -125,7 +154,10 @@ export default function OrganizationScreen() {
             orgId = getCanonicalOrganizationId(user as any) || undefined;
           }
           if (!orgId) {
-            if (mounted.current) { setError('not_found'); setLoading(false); }
+            if (mounted.current) {
+              setError('not_found');
+              setLoading(false);
+            }
             return;
           }
         } catch {
@@ -133,7 +165,10 @@ export default function OrganizationScreen() {
           if (orgId) {
             // fall through and load via canonical auth snapshot
           } else {
-            if (mounted.current) { setError('not_found'); setLoading(false); }
+            if (mounted.current) {
+              setError('not_found');
+              setLoading(false);
+            }
             return;
           }
         }
@@ -159,30 +194,41 @@ export default function OrganizationScreen() {
 
       const ownerAccess =
         (orgData as any)?.can_edit === true || (orgData as any)?.is_owner === true;
-      const memberAccess = ownerAccess || (orgData as any)?.is_member === true;
+      const adminAccess = (orgData as any)?.can_manage === true || ownerAccess;
+      const reviewCoachAccess =
+        (orgData as any)?.can_review_coaches === true || (orgData as any)?.is_owner === true;
+      const memberAccess = adminAccess || (orgData as any)?.is_member === true;
       if (mounted.current) {
+        setIsOrgAdmin(adminAccess);
         setIsOrgOwner(ownerAccess);
         setIsOrgMember(memberAccess);
+        setCanReviewCoachRequests(reviewCoachAccess);
       }
-      if (ownerAccess) {
-        Organization.adminSummary(orgId as string).then((summary: any) => {
-          if (!mounted.current) return;
-          setPendingCoachError(false);
-          setPendingCoachCount(Number(summary?.counts?.pending_coach_requests || 0));
-          setPendingAuthorizedInviteCount(Number(summary?.counts?.pending_authorized_invites || 0));
-          setPendingAuthorizedInvites(
-            Array.isArray(summary?.requests?.authorized_invites)
-              ? summary.requests.authorized_invites as AuthorizedInvite[]
-              : []
-          );
-        }).catch(() => {
-          if (!mounted.current) return;
-          setPendingCoachError(true);
-          setPendingCoachCount(0);
-          setPendingAuthorizedInviteCount(0);
-          setPendingAuthorizedInvites([]);
-        });
+      if (adminAccess) {
+        Organization.adminSummary(orgId as string)
+          .then((summary: any) => {
+            if (!mounted.current) return;
+            setPendingCoachError(false);
+            setPendingCoachCount(Number(summary?.counts?.pending_coach_requests || 0));
+            setPendingAuthorizedInviteCount(
+              Number(summary?.counts?.pending_authorized_invites || 0)
+            );
+            setPendingAuthorizedInvites(
+              Array.isArray(summary?.requests?.authorized_invites)
+                ? (summary.requests.authorized_invites as AuthorizedInvite[])
+                : []
+            );
+          })
+          .catch(() => {
+            if (!mounted.current) return;
+            setPendingCoachError(true);
+            setPendingCoachCount(0);
+            setPendingAuthorizedInviteCount(0);
+            setPendingAuthorizedInvites([]);
+          });
       } else if (mounted.current) {
+        setIsOrgAdmin(false);
+        setCanReviewCoachRequests(false);
         setPendingCoachCount(0);
         setPendingCoachError(false);
         setPendingAuthorizedInviteCount(0);
@@ -191,7 +237,10 @@ export default function OrganizationScreen() {
 
       let allTeams: any[] = [];
       try {
-        allTeams = await Team.list(undefined, undefined, { organization_id: orgId as string, limit: 100 });
+        allTeams = await Team.list(undefined, undefined, {
+          organization_id: orgId as string,
+          limit: 100,
+        });
       } catch (err: any) {
         if (__DEV__) console.error('[organization] Failed to load teams list:', err);
         allTeams = [];
@@ -214,13 +263,15 @@ export default function OrganizationScreen() {
       try {
         const allGamesData = await Game.list('-date');
         if (!mounted.current) return;
-        const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
-        const teamNames = orgTeams.map((t) => t.name.toLowerCase());
+        const allGames = Array.isArray(allGamesData)
+          ? allGamesData
+          : allGamesData?.games || allGamesData?.items || [];
+        const teamNames = orgTeams.map(t => t.name.toLowerCase());
         const orgGames: GameItem[] = allGames
           .filter((g: any) => {
             const homeTeam = (g.home_team || '').toLowerCase();
             const awayTeam = (g.away_team || '').toLowerCase();
-            return teamNames.some((name) => homeTeam.includes(name) || awayTeam.includes(name));
+            return teamNames.some(name => homeTeam.includes(name) || awayTeam.includes(name));
           })
           .map((g: any) => ({
             id: String(g.id),
@@ -291,7 +342,10 @@ export default function OrganizationScreen() {
 
   if (loading && !refreshing) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        edges={['top']}
+      >
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.tint} />
         </View>
@@ -301,12 +355,29 @@ export default function OrganizationScreen() {
 
   if (error === 'not_found') {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        edges={['top']}
+      >
         <View style={styles.errorContainer}>
-          <Ionicons name="business" size={48} color={theme.mutedText} style={{ marginBottom: 12 }} />
-          <Text style={[styles.errorText, { color: theme.text, fontSize: 18, fontWeight: '600' }]}>Not Found</Text>
-          <Text style={{ color: theme.mutedText, textAlign: 'center', marginTop: 4, marginBottom: 16 }}>This organization doesn't exist or the link is invalid.</Text>
-          <Pressable onPress={handleBack} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
+          <Ionicons
+            name="business"
+            size={48}
+            color={theme.mutedText}
+            style={{ marginBottom: 12 }}
+          />
+          <Text style={[styles.errorText, { color: theme.text, fontSize: 18, fontWeight: '600' }]}>
+            Not Found
+          </Text>
+          <Text
+            style={{ color: theme.mutedText, textAlign: 'center', marginTop: 4, marginBottom: 16 }}
+          >
+            This organization doesn't exist or the link is invalid.
+          </Text>
+          <Pressable
+            onPress={handleBack}
+            style={[styles.retryButton, { backgroundColor: theme.tint }]}
+          >
             <Text style={styles.retryText}>Go Back</Text>
           </Pressable>
         </View>
@@ -316,10 +387,16 @@ export default function OrganizationScreen() {
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        edges={['top']}
+      >
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
-          <Pressable onPress={loadOrganization} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
+          <Pressable
+            onPress={loadOrganization}
+            style={[styles.retryButton, { backgroundColor: theme.tint }]}
+          >
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>
         </View>
@@ -345,7 +422,7 @@ export default function OrganizationScreen() {
     });
   };
   const upcomingGames = games
-    .filter((g) => {
+    .filter(g => {
       const d = g.scheduled_date || g.date;
       return d && new Date(d as string) >= new Date();
     })
@@ -358,33 +435,40 @@ export default function OrganizationScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} colors={[theme.tint]} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.tint}
+            colors={[theme.tint]}
+          />
         }
         showsVerticalScrollIndicator={false}
       >
         {/* Back Button */}
-        <Pressable
-          onPress={handleBack}
-          style={[styles.backButton, { borderColor: theme.border }]}
-        >
+        <Pressable onPress={handleBack} style={[styles.backButton, { borderColor: theme.border }]}>
           <Ionicons name="arrow-back" size={22} color={theme.text} />
         </Pressable>
 
         {/* Admin: View Join Requests */}
-        {isOrgOwner && organization?.id && (
+        {organization?.id && (canReviewCoachRequests || isOrgAdmin) && (
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: '/organization-join-requests',
-                  params: { organization_id: organization.id, organization_name: organization.name || orgName },
-                })
-              }
-              style={[styles.adminButton, { backgroundColor: theme.tint, flex: 1 }]}
-            >
-              <Ionicons name="people" size={20} color="#fff" />
-              <Text style={styles.adminButtonText}>Coach Requests</Text>
-            </Pressable>
+            {canReviewCoachRequests ? (
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: '/organization-join-requests',
+                    params: {
+                      organization_id: organization.id,
+                      organization_name: organization.name || orgName,
+                    },
+                  })
+                }
+                style={[styles.adminButton, { backgroundColor: theme.tint, flex: 1 }]}
+              >
+                <Ionicons name="people" size={20} color="#fff" />
+                <Text style={styles.adminButtonText}>Coach Requests</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={() => {
                 setInviteEmail('');
@@ -396,7 +480,7 @@ export default function OrganizationScreen() {
                   backgroundColor: theme.card,
                   borderWidth: 1,
                   borderColor: theme.border,
-                  flex: 1,
+                  flex: canReviewCoachRequests ? 1 : undefined,
                 },
               ]}
             >
@@ -407,19 +491,37 @@ export default function OrganizationScreen() {
         )}
 
         {/* Cover Image */}
-        <View style={[styles.card, styles.coverCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View
+          style={[
+            styles.card,
+            styles.coverCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
           {organization?.background_url ? (
-            <Image source={{ uri: organization.background_url }} style={styles.coverImage} contentFit="cover" />
+            <Image
+              source={{ uri: organization.background_url }}
+              style={styles.coverImage}
+              contentFit="cover"
+            />
           ) : (
             <View style={[styles.coverPlaceholder, { borderColor: theme.border }]}>
               <Ionicons name="business-outline" size={28} color={theme.mutedText} />
-              <Text style={[styles.placeholderText, { color: theme.mutedText }]}>No cover image</Text>
+              <Text style={[styles.placeholderText, { color: theme.mutedText }]}>
+                No cover image
+              </Text>
             </View>
           )}
         </View>
 
         {/* Profile Card */}
-        <View style={[styles.card, styles.profileCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View
+          style={[
+            styles.card,
+            styles.profileCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
           <View style={[styles.avatarShell, { borderColor: theme.border }]}>
             {organization?.avatar_url || organization?.logo_url ? (
               <Image
@@ -438,8 +540,10 @@ export default function OrganizationScreen() {
             <Text style={[styles.profileHandle, { color: theme.mutedText }]}>@{handle}</Text>
             <View style={styles.statsRow}>
               <Text style={[styles.statNumber, { color: theme.text }]}>{teams.length}</Text>
-              <Text style={[styles.statLabel, { color: theme.mutedText }]}> Teams  </Text>
-              <Text style={[styles.statNumber, { color: theme.text }]}>{organization?.followers_count ?? 0}</Text>
+              <Text style={[styles.statLabel, { color: theme.mutedText }]}> Teams </Text>
+              <Text style={[styles.statNumber, { color: theme.text }]}>
+                {organization?.followers_count ?? 0}
+              </Text>
               <Text style={[styles.statLabel, { color: theme.mutedText }]}> Followers</Text>
             </View>
           </View>
@@ -449,7 +553,10 @@ export default function OrganizationScreen() {
         <View style={styles.actionRow}>
           {isOrgOwner ? (
             <Pressable
-              style={[styles.actionBtn, { flex: 1, backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
+              style={[
+                styles.actionBtn,
+                { flex: 1, backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 },
+              ]}
               onPress={() =>
                 router.push({
                   pathname: '/edit-organization',
@@ -485,13 +592,18 @@ export default function OrganizationScreen() {
                     if (isFollowing) {
                       await Organization.unfollow(organization.id);
                       setIsFollowing(false);
-                      setOrganization((prev) =>
-                        prev ? { ...prev, followers_count: Math.max(0, (prev.followers_count ?? 0) - 1) } : null
+                      setOrganization(prev =>
+                        prev
+                          ? {
+                              ...prev,
+                              followers_count: Math.max(0, (prev.followers_count ?? 0) - 1),
+                            }
+                          : null
                       );
                     } else {
                       await Organization.follow(organization.id);
                       setIsFollowing(true);
-                      setOrganization((prev) =>
+                      setOrganization(prev =>
                         prev ? { ...prev, followers_count: (prev.followers_count ?? 0) + 1 } : null
                       );
                     }
@@ -503,17 +615,26 @@ export default function OrganizationScreen() {
                   }
                 }}
               >
-                <Ionicons name={isFollowing ? 'checkmark' : 'add'} size={16} color={isFollowing ? '#fff' : theme.tint} />
+                <Ionicons
+                  name={isFollowing ? 'checkmark' : 'add'}
+                  size={16}
+                  color={isFollowing ? '#fff' : theme.tint}
+                />
                 <Text style={[styles.actionBtnText, { color: isFollowing ? '#fff' : theme.tint }]}>
                   {isFollowing ? 'Following' : 'Follow'}
                 </Text>
               </Pressable>
 
-              {!isOrgMember && (
+              {!isOrgMember && canRequestToJoin && (
                 <Pressable
                   style={[
                     styles.actionBtn,
-                    { flex: 1, backgroundColor: 'transparent', borderColor: theme.border, borderWidth: 1 },
+                    {
+                      flex: 1,
+                      backgroundColor: 'transparent',
+                      borderColor: theme.border,
+                      borderWidth: 1,
+                    },
                   ]}
                   disabled={isRequestingJoin}
                   onPress={async () => {
@@ -521,7 +642,10 @@ export default function OrganizationScreen() {
                     setIsRequestingJoin(true);
                     try {
                       await Organization.requestToJoin(organization.id);
-                      Alert.alert('Request Sent', 'Your request to join this organization has been submitted.');
+                      Alert.alert(
+                        'Request Sent',
+                        'Your request to join this organization has been submitted.'
+                      );
                     } catch (err: any) {
                       Alert.alert('Error', err?.message || 'Failed to send join request.');
                     } finally {
@@ -534,7 +658,9 @@ export default function OrganizationScreen() {
                   ) : (
                     <>
                       <Ionicons name="person-add-outline" size={16} color={theme.text} />
-                      <Text style={[styles.actionBtnText, { color: theme.text }]}>Request to Join</Text>
+                      <Text style={[styles.actionBtnText, { color: theme.text }]}>
+                        Request to Join
+                      </Text>
                     </>
                   )}
                 </Pressable>
@@ -544,11 +670,23 @@ export default function OrganizationScreen() {
         </View>
 
         {/* Pending Coaches Quick Action */}
-        {isOrgOwner && pendingCoachError && organization?.id && (
+        {canReviewCoachRequests && pendingCoachError && organization?.id && (
           <Pressable
-            style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', gap: 12 }]}
+            style={[
+              styles.card,
+              styles.sectionCard,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+              },
+            ]}
             onPress={() =>
-              router.push(buildOrganizationJoinRequestsRoute(organization.id, organization.name || orgName))
+              router.push(
+                buildOrganizationJoinRequestsRoute(organization.id, organization.name || orgName)
+              )
             }
           >
             <MaterialIcons name="error-outline" size={24} color={theme.destructive} />
@@ -556,27 +694,29 @@ export default function OrganizationScreen() {
               <Text style={{ fontSize: 14, color: theme.destructive, fontWeight: '600' }}>
                 Could not load pending coaches
               </Text>
-              <Text style={{ fontSize: 12, color: theme.mutedText, marginTop: 2 }}>Tap to open approvals</Text>
+              <Text style={{ fontSize: 12, color: theme.mutedText, marginTop: 2 }}>
+                Tap to open approvals
+              </Text>
             </View>
           </Pressable>
         )}
-        {isOrgOwner && pendingCoachCount > 0 && organization?.id && (
+        {canReviewCoachRequests && pendingCoachCount > 0 && organization?.id && (
           <Pressable
             style={[
               styles.card,
               styles.sectionCard,
               {
-                backgroundColor:
-                  colorScheme === 'dark' ? 'rgba(245,158,11,0.12)' : '#FEF9C3',
-                borderColor:
-                  colorScheme === 'dark' ? 'rgba(245,158,11,0.35)' : '#DAA520',
+                backgroundColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.12)' : '#FEF9C3',
+                borderColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.35)' : '#DAA520',
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 12,
               },
             ]}
             onPress={() =>
-              router.push(buildOrganizationJoinRequestsRoute(organization.id, organization.name || orgName))
+              router.push(
+                buildOrganizationJoinRequestsRoute(organization.id, organization.name || orgName)
+              )
             }
           >
             <MaterialIcons
@@ -612,27 +752,47 @@ export default function OrganizationScreen() {
           </Pressable>
         )}
 
-        {isOrgOwner && (
-          <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        {isOrgAdmin && (
+          <View
+            style={[
+              styles.card,
+              styles.sectionCard,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
               <Text style={[styles.sectionTitle, { color: theme.text }]}>Authorized Invites</Text>
               <Text style={[styles.metaText, { color: theme.mutedText }]}>
                 {pendingAuthorizedInviteCount || pendingAuthorizedInvites.length} pending
               </Text>
             </View>
             {pendingAuthorizedInvites.length === 0 ? (
-              <Text style={[styles.emptyText, { color: theme.mutedText }]}>No pending authorized invites.</Text>
+              <Text style={[styles.emptyText, { color: theme.mutedText }]}>
+                No pending authorized invites.
+              </Text>
             ) : (
-              pendingAuthorizedInvites.map((invite) => (
+              pendingAuthorizedInvites.map(invite => (
                 <View
                   key={invite.id}
-                  style={[styles.rowItem, { borderColor: theme.border, justifyContent: 'space-between' }]}
+                  style={[
+                    styles.rowItem,
+                    { borderColor: theme.border, justifyContent: 'space-between' },
+                  ]}
                 >
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
                       {invite.email || 'Pending invite'}
                     </Text>
-                    <Text style={[styles.rowSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+                    <Text
+                      style={[styles.rowSubtitle, { color: theme.mutedText }]}
+                      numberOfLines={1}
+                    >
                       {String(invite.role || 'member').replace(/_/g, ' ')}
                     </Text>
                   </View>
@@ -646,7 +806,17 @@ export default function OrganizationScreen() {
                         Alert.alert('Error', err?.message || 'Failed to cancel invite.');
                       }
                     }}
-                    style={[styles.actionBtn, { backgroundColor: 'transparent', borderColor: theme.border, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, minHeight: 0 }]}
+                    style={[
+                      styles.actionBtn,
+                      {
+                        backgroundColor: 'transparent',
+                        borderColor: theme.border,
+                        borderWidth: 1,
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        minHeight: 0,
+                      },
+                    ]}
                   >
                     <Text style={[styles.actionBtnText, { color: theme.text }]}>Cancel</Text>
                   </Pressable>
@@ -657,24 +827,32 @@ export default function OrganizationScreen() {
         )}
 
         {/* About */}
-        <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View
+          style={[
+            styles.card,
+            styles.sectionCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.text }]}>About</Text>
-          {orgBio ? (
-            <Text style={[styles.bioText, { color: theme.text }]}>
-              {orgBio}
-            </Text>
-          ) : null}
+          {orgBio ? <Text style={[styles.bioText, { color: theme.text }]}>{orgBio}</Text> : null}
           {contactText && (
             <View style={[styles.contactRow, { borderColor: theme.border }]}>
               <Ionicons name="mail-outline" size={16} color={theme.mutedText} />
-              <Text style={[styles.contactText, { color: theme.mutedText }]} selectable>{contactText}</Text>
+              <Text style={[styles.contactText, { color: theme.mutedText }]} selectable>
+                {contactText}
+              </Text>
             </View>
           )}
           {organization?.created_at && (
             <View style={styles.metaRow}>
               <Ionicons name="calendar-outline" size={14} color={theme.mutedText} />
               <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                Created {new Date(organization.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                Created{' '}
+                {new Date(organization.created_at).toLocaleDateString('en-US', {
+                  month: 'long',
+                  year: 'numeric',
+                })}
               </Text>
             </View>
           )}
@@ -682,9 +860,18 @@ export default function OrganizationScreen() {
 
         {/* Location */}
         {locationText ? (
-          <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View
+            style={[
+              styles.card,
+              styles.sectionCard,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Location</Text>
-            <Pressable onPress={handleLocationPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Pressable
+              onPress={handleLocationPress}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+            >
               <Ionicons name="location-outline" size={16} color={theme.tint} />
               <Text style={{ color: theme.tint }}>{locationText}</Text>
             </Pressable>
@@ -692,12 +879,18 @@ export default function OrganizationScreen() {
         ) : null}
 
         {/* Teams */}
-        <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View
+          style={[
+            styles.card,
+            styles.sectionCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Teams</Text>
           {teams.length === 0 ? (
             <Text style={[styles.emptyText, { color: theme.mutedText }]}>No teams yet.</Text>
           ) : (
-            teams.map((team) => {
+            teams.map(team => {
               const subline = [team.sport, team.season].filter(Boolean).join(' • ');
               return (
                 <Pressable
@@ -710,7 +903,10 @@ export default function OrganizationScreen() {
                       {team.name}
                     </Text>
                     {subline.length > 0 && (
-                      <Text style={[styles.rowSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+                      <Text
+                        style={[styles.rowSubtitle, { color: theme.mutedText }]}
+                        numberOfLines={1}
+                      >
                         {subline}
                       </Text>
                     )}
@@ -723,12 +919,18 @@ export default function OrganizationScreen() {
         </View>
 
         {/* Upcoming Events */}
-        <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View
+          style={[
+            styles.card,
+            styles.sectionCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Upcoming Events</Text>
           {upcomingGames.length === 0 ? (
             <Text style={[styles.emptyText, { color: theme.mutedText }]}>No upcoming events.</Text>
           ) : (
-            upcomingGames.map((game) => {
+            upcomingGames.map(game => {
               const dateStr = formatEventDate(game.scheduled_date || game.date);
               const opponent = game.opponent_name || game.away_team || 'TBD';
               return (
@@ -745,11 +947,16 @@ export default function OrganizationScreen() {
                       vs {opponent}
                     </Text>
                     <View style={styles.eventMetaRow}>
-                      <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}>{dateStr}</Text>
+                      <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}>
+                        {dateStr}
+                      </Text>
                       {game.location && (
                         <>
                           <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}> • </Text>
-                          <Text style={[styles.rowSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+                          <Text
+                            style={[styles.rowSubtitle, { color: theme.mutedText }]}
+                            numberOfLines={1}
+                          >
                             {game.location}
                           </Text>
                         </>
@@ -764,13 +971,26 @@ export default function OrganizationScreen() {
         </View>
       </ScrollView>
       {/* Invite Coach Modal — replaces iOS-only Alert.prompt */}
-      <Modal visible={inviteModalVisible} transparent animationType="fade" onRequestClose={() => setInviteModalVisible(false)}>
+      <Modal
+        visible={inviteModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInviteModalVisible(false)}
+      >
         <Pressable style={styles.modalOverlay} onPress={() => setInviteModalVisible(false)}>
-          <Pressable style={[styles.modalContent, { backgroundColor: theme.card }]} onPress={() => {}}>
+          <Pressable
+            style={[styles.modalContent, { backgroundColor: theme.card }]}
+            onPress={() => {}}
+          >
             <Text style={[styles.modalTitle, { color: theme.text }]}>Invite Coach</Text>
-            <Text style={[styles.modalSubtitle, { color: theme.mutedText }]}>Enter the email address of the coach to invite:</Text>
+            <Text style={[styles.modalSubtitle, { color: theme.mutedText }]}>
+              Enter the email address of the coach to invite:
+            </Text>
             <TextInput
-              style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+              style={[
+                styles.modalInput,
+                { backgroundColor: theme.background, borderColor: theme.border, color: theme.text },
+              ]}
               placeholder="coach@example.com"
               placeholderTextColor={theme.mutedText}
               value={inviteEmail}
@@ -781,20 +1001,26 @@ export default function OrganizationScreen() {
               autoFocus
             />
             <View style={styles.modalButtons}>
-              <Pressable style={[styles.modalButton, { borderColor: theme.border }]} onPress={() => setInviteModalVisible(false)}>
+              <Pressable
+                style={[styles.modalButton, { borderColor: theme.border }]}
+                onPress={() => setInviteModalVisible(false)}
+              >
                 <Text style={[styles.modalButtonText, { color: theme.mutedText }]}>Cancel</Text>
               </Pressable>
-                  <Pressable
-                    style={[styles.modalButton, { backgroundColor: theme.tint }]}
-                    onPress={async () => {
-                      if (!inviteEmail.trim() || !organization) return;
-                      try {
-                        await Organization.invite(organization.id, inviteEmail.trim(), 'member');
-                        setInviteModalVisible(false);
-                        await loadOrganization();
-                        Alert.alert('Invited', `Invitation sent to ${inviteEmail.trim()}`);
-                      } catch (err: any) {
-                        Alert.alert('Error', err?.data?.error || err?.message || 'Failed to send invite');
+              <Pressable
+                style={[styles.modalButton, { backgroundColor: theme.tint }]}
+                onPress={async () => {
+                  if (!inviteEmail.trim() || !organization) return;
+                  try {
+                    await Organization.invite(organization.id, inviteEmail.trim(), 'member');
+                    setInviteModalVisible(false);
+                    await loadOrganization();
+                    Alert.alert('Invited', `Invitation sent to ${inviteEmail.trim()}`);
+                  } catch (err: any) {
+                    Alert.alert(
+                      'Error',
+                      err?.data?.error || err?.message || 'Failed to send invite'
+                    );
                   }
                 }}
               >
