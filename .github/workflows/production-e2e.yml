@@ -66,6 +66,7 @@ jobs:
           PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           PROD_ADMIN_EMAIL: ${{ secrets.PROD_ADMIN_EMAIL }}
           PROD_ADMIN_PASSWORD: ${{ secrets.PROD_ADMIN_PASSWORD }}
+          PROD_ADMIN_REFRESH_TOKEN: ${{ secrets.PROD_ADMIN_REFRESH_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -80,8 +81,8 @@ jobs:
               exit 1
             fi
 
-            if [ -z "${PROD_ADMIN_PASSWORD:-}" ]; then
-              echo "Missing GitHub secret: PROD_ADMIN_PASSWORD"
+            if [ -z "${PROD_ADMIN_PASSWORD:-}" ] && [ -z "${PROD_ADMIN_REFRESH_TOKEN:-}" ]; then
+              echo "Missing GitHub secret: PROD_ADMIN_PASSWORD or PROD_ADMIN_REFRESH_TOKEN"
               exit 1
             fi
           fi
@@ -205,18 +206,44 @@ jobs:
           API_URL: https://api-production-8ac3.up.railway.app
           ADMIN_EMAIL: ${{ secrets.PROD_ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.PROD_ADMIN_PASSWORD }}
+          ADMIN_REFRESH_TOKEN: ${{ secrets.PROD_ADMIN_REFRESH_TOKEN }}
         run: |
           set -euo pipefail
 
-          LOGIN_JSON="$(
-            curl -fsS -X POST "$API_URL/auth/login" \
-              -H 'Content-Type: application/json' \
-              -d "$(jq -cn --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
-          )"
-          ACCESS_TOKEN="$(printf '%s' "$LOGIN_JSON" | jq -r '.access_token // empty')"
+          ACCESS_TOKEN=""
+          REFRESH_TOKEN="$ADMIN_REFRESH_TOKEN"
+
+          if [ -n "$REFRESH_TOKEN" ]; then
+            REFRESH_STATUS="$(
+              curl -sS -o /tmp/production-admin-refresh.json -w '%{http_code}' \
+                -X POST "$API_URL/auth/refresh" \
+                -H 'Content-Type: application/json' \
+                -d "$(jq -cn --arg refresh_token "$REFRESH_TOKEN" '{refresh_token:$refresh_token}')"
+            )"
+            if [ "$REFRESH_STATUS" = "200" ]; then
+              REFRESH_JSON="$(cat /tmp/production-admin-refresh.json)"
+              ACCESS_TOKEN="$(printf '%s' "$REFRESH_JSON" | jq -r '.access_token // empty')"
+              ROTATED_REFRESH="$(printf '%s' "$REFRESH_JSON" | jq -r '.refresh_token // empty')"
+              if [ -n "$ROTATED_REFRESH" ]; then
+                echo "::add-mask::$ROTATED_REFRESH"
+                echo "admin_refresh_token=$ROTATED_REFRESH" >> "$GITHUB_OUTPUT"
+              fi
+            else
+              echo "Admin refresh token was rejected with status $REFRESH_STATUS; falling back to password login."
+            fi
+          fi
+
           if [ -z "$ACCESS_TOKEN" ]; then
-            echo "Configured production admin could not log in"
-            echo "$LOGIN_JSON"
+            LOGIN_JSON="$(
+              curl -fsS -X POST "$API_URL/auth/login" \
+                -H 'Content-Type: application/json' \
+                -d "$(jq -cn --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
+            )"
+            ACCESS_TOKEN="$(printf '%s' "$LOGIN_JSON" | jq -r '.access_token // empty')"
+          fi
+
+          if [ -z "$ACCESS_TOKEN" ]; then
+            echo "Configured production admin could not obtain an access token"
             exit 1
           fi
           echo "::add-mask::$ACCESS_TOKEN"
