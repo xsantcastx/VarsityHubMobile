@@ -70,10 +70,17 @@
 - Railway auto-deploys from `main` — test locally first with `railway run npm run dev`
 
 ### Touching the email system
-- Required templates (server exits if missing): VERIFICATION, PASSWORD_RESET, TEAM_INVITE, ORG_INVITE, BILLING_NOTICE
+- Do not rely on hardcoded template-count summaries in docs; check `TEMPLATE_IDS`, `REQUIRED_TEMPLATE_KEYS`, and `RECOMMENDED_TEMPLATE_KEYS` in `server/src/lib/email.ts`
 - All other templates degrade silently — always add a plain-text fallback
 - Email functions are in `server/src/lib/email.ts`
 - BullMQ queue with concurrency 5, max 20/sec
+
+### Touching release/readiness flow
+- Canonical release path is `docs/release/RELEASE_WORKFLOW.md`
+- Use `npm run release:verify:local` for code, regression, approval, and local gates
+- Use `npm run release:verify:build` for EAS/build-readiness gates
+- Use `BASE_URL="https://your-api" npm run release:verify:runtime` after Railway/provider changes
+- Final launch sign-off lives in `docs/release/LAUNCH_READINESS_GATE.md`
 
 ### Payment changes
 - iOS: Apple IAP only — never add Stripe links on iOS paths
@@ -94,7 +101,7 @@
 - Don't run `eas build` or `eas submit` — costs credits, let the user run those
 - Don't add client-side workarounds that bypass server-enforced rules
 - Don't push to `main` without testing — Railway auto-deploys immediately
-- Don't change Railway env vars (JWT_SECRET, OAuth keys) without understanding blast radius
+- Don't change Railway env vars casually. Sensitive vars like `JWT_SECRET`, OAuth keys, and Apple signing keys have production blast radius; rotate/change them only when the task explicitly requires it and after understanding impact.
 - **Don't run `git stash apply` directly** — use `npm run stash:apply`. A bare stash apply leaves conflict markers silently; the script scans and reports them immediately.
 - **Don't `git add -A` when the working tree has unresolved conflicts** — always stage files explicitly by path after verifying each one.
 

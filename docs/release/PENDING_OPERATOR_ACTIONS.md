@@ -1,5 +1,7 @@
 # Pending Operator Actions
 
+Use this during Phase 3 of [RELEASE_WORKFLOW.md](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/docs/release/RELEASE_WORKFLOW.md).
+
 **Source:** consolidated output from the spring-2026 audit + spiderweb sweep + parallel payment / IAP / SendGrid / smoke-harness work. Code-side fixes are merged on `main`; this document tracks **everything that needs an operator (Railway / Stripe / SendGrid / App Store Connect / Play Console / Namecheap / EAS) — i.e. things I cannot do from a code repo.**
 
 For per-provider click paths and dashboard-level verification steps, use the companion guide [PROVIDER_DASHBOARD_VERIFICATION.md](./PROVIDER_DASHBOARD_VERIFICATION.md).
@@ -28,7 +30,7 @@ These keys were exposed in commit `97a715ee` (server/.env in git history) and on
 | A3  | **JWT**      | `JWT_SECRET`                                | Was in 97a715ee. ⚠️ Rotation invalidates every active session. Pick a low-traffic window. CLAUDE.md normally bans changing this — exposed-secret overrides that rule, but coordinate. |
 | A4  | AWS          | `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY` | Create new IAM key, update Railway, soak 24h, delete old key.                                                                                                                         |
 | A5  | Postgres     | `DATABASE_URL` password                     | Railway dashboard handles the rotation; Prisma reconnects on next deploy.                                                                                                             |
-| A6  | Google Cloud | Maps API key                                | Rotate AND restrict to bundle IDs `com.varsithub.varsityhub-ios` + `com.varsityhub.varsityhub`.                                                                                       |
+| A6  | Google Cloud | Maps API key                                | Rotate AND restrict to bundle IDs `com.varsithub.varsityhub-ios` + `com.xsantcastx.varsityhub`.                                                                                       |
 | A7  | SMTP         | `SMTP_PASS`                                 | Provider-dependent.                                                                                                                                                                   |
 
 **After every A-block rotation:** sanity-check the corresponding feature in prod (one Stripe charge, one S3 upload, one email send, etc.).

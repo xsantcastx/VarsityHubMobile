@@ -1,5 +1,7 @@
 # Email Go-Live Checklist
 
+Use this during Phase 3 of [RELEASE_WORKFLOW.md](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/docs/release/RELEASE_WORKFLOW.md).
+
 Use this once the code-side release baseline is green and the only remaining blocker is real outbound email.
 
 ## Purpose

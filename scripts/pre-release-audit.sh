@@ -426,7 +426,9 @@ check_secret_plaintext_at_rest() {
   for col in "${sensitive_cols[@]}"; do
     # Every non-null/non-undefined assignment of the column in src/
     while IFS= read -r hit; do
-      # Skip tests, migrations, and assignments to null/undefined (clearing).
+      # Skip tests, migrations, field selections, and assignments to
+      # null/undefined (clearing).
+      echo "$hit" | grep -qE ":[[:space:]]*(true|false),?$" && continue
       echo "$hit" | grep -qE "null|undefined" && continue
       # Accept if the assigned value references a hash helper.
       echo "$hit" | grep -qE "hashRefreshToken|hashReset|codeHash|resetCodeHash|hash\(" && continue

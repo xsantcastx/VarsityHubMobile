@@ -94,12 +94,6 @@ jest.unstable_mockModule('../middleware/rateLimiters.js', () => {
   };
 });
 
-jest.unstable_mockModule('../routes/gameStories.js', () => ({
-  makeCreateStoryHandler: () => (_req: any, res: any) => res.status(501).json({ error: 'unused' }),
-  makeListMediaHandler: () => (_req: any, res: any) => res.json([]),
-  serializeMedia: jest.fn(),
-}));
-
 jest.unstable_mockModule('../lib/privacyUtils.js', () => ({
   getExcludedPrivateAuthorIds: jest.fn(async () => []),
 }));

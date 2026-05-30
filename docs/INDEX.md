@@ -90,6 +90,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 
 ## Release
 
+- [Release Workflow](./release/RELEASE_WORKFLOW.md)
 - [PR Checklist](./PR_CHECKLIST.md)
 - [Release Checklist](./release/CHECKLIST.md)
 - [Production Readiness](./release/PRODUCTION_READINESS.md)

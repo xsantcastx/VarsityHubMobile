@@ -5,7 +5,7 @@ Use this after `npm run verify:play-store`.
 ## Repo-Verified
 
 - Android build profile ships an AAB with remote EAS credentials.
-- Play submit service account can call Android Publisher for `com.varsityhub.varsityhub`.
+- Play submit service account can call Android Publisher for `com.xsantcastx.varsityhub`.
 - Release manifest disables cleartext traffic.
 - High-risk legacy permissions are removed.
 - Package name, asset links, and deep links are aligned.
@@ -22,7 +22,7 @@ Use this after `npm run verify:play-store`.
 
 - Upload the production AAB from EAS or a signed local release.
 - In Play Console `Setup -> API access`, link the service account used by `service-account-key.json`.
-- Grant that service account app access for `com.varsityhub.varsityhub` with a role that can create and manage releases, such as `Release Manager`.
+- Grant that service account app access for `com.xsantcastx.varsityhub` with a role that can create and manage releases, such as `Release Manager`.
 - Confirm Play App Signing is enabled and the upload key matches your credentials.
 - Set the Privacy Policy URL to `https://varsityhub.app/privacy-policy`.
 - Set the Account Deletion URL to `https://varsityhub.app/account-deletion`.

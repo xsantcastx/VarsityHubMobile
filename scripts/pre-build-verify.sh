@@ -140,10 +140,10 @@ check_step "Android build.gradle exists" "test -f android/app/build.gradle"
 check_step "Android manifest exists" "test -f android/app/src/main/AndroidManifest.xml"
 
 # Check for critical Android config
-if grep -q "namespace.*com.varsityhub.varsityhub" android/app/build.gradle; then
+if grep -q "namespace.*com.xsantcastx.varsityhub" android/app/build.gradle; then
     echo -e "${GREEN}✅ Android namespace configured${NC}"
 else
-    echo -e "${RED}❌ Android namespace not found${NC}"
+    echo -e "${RED}❌ Android namespace not found (expected com.xsantcastx.varsityhub)${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 

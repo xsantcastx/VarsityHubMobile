@@ -38,7 +38,7 @@ npm test            # jest
 
 **Railway auto-deploys from `main`.** A bad push is an instant production outage. The app is live in the App Store.
 
-**Never change Railway env vars** (JWT_SECRET, GOOGLE_OAUTH_CLIENT_IDS, APPLE_KEY_ID, APPLE_PRIVATE_KEY) — changing them invalidates all active sessions.
+**Do not change Railway env vars casually.** Sensitive vars like `JWT_SECRET`, OAuth keys, and Apple signing keys have production blast radius. Only rotate/change them when the task explicitly requires it, or when exposed-secret / provider-remediation work makes it necessary, and coordinate the impact first.
 
 ## Claude Worktrees
 
@@ -113,6 +113,14 @@ rg -n "sgMail.send" server/src --glob "*.ts" -g '!server/src/services/email/prov
 grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 ```
 
+## Release Workflow
+
+- Canonical release path: `docs/release/RELEASE_WORKFLOW.md`
+- Phase 1 local gate: `npm run release:verify:local`
+- Phase 2 build gate: `npm run release:verify:build`
+- Phase 3 runtime gate: `BASE_URL="https://your-api" npm run release:verify:runtime`
+- Final sign-off: `docs/release/LAUNCH_READINESS_GATE.md`
+
 ## Git Workflow
 
 **Never run `git stash apply` directly** — use `npm run stash:apply` instead. This applies the stash and immediately scans for unresolved conflict markers, listing every affected file with block counts.
@@ -133,10 +141,10 @@ npm run verify:error-envelope   # no raw res.status().json()
 
 - Local `server/.env` has placeholder Cloudinary creds — uploads only work in production
 - Sub-screens appear in both root Stack AND as `hiddenTab` in `(tabs)/_layout.tsx` — this is intentional Expo Router behavior
-- Email templates: `TEMPLATE_IDS` has 20 keys and `REQUIRED_TEMPLATE_KEYS` has 18 in `server/src/lib/email.ts`
+- Email template coverage has grown substantially; do not rely on hardcoded counts in docs. Check `TEMPLATE_IDS`, `REQUIRED_TEMPLATE_KEYS`, and `RECOMMENDED_TEMPLATE_KEYS` directly in `server/src/lib/email.ts`
 - `service-account-key.json` in project root is gitignored — needed for Android Play Store submissions
 - `@react-native-community/netinfo` is dynamically imported via try-catch in `OfflineBanner.tsx` — safe for OTA to binaries built before it was added
-- `GOOGLE_MAPS_API_KEY` must be set in Railway for geocoding and map pins to work. Without it, all geocoding returns null silently.
+- Server geocoding depends on Railway `GOOGLE_MAPS_API_KEY`; mobile map rendering depends on EAS `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`
 - Poll voting now hits the API for all events including those without a linked `gameId` (uses `eventId` as fallback). Previously event-only pages silently discarded votes.
 - Signup email send is fire-and-forget — `POST /register` does not await SendGrid before responding.
 

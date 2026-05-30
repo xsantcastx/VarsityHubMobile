@@ -9,6 +9,7 @@ Use this as the final release sign-off gate for real-world readiness.
 
 Related docs:
 
+- [RELEASE_WORKFLOW.md](./RELEASE_WORKFLOW.md)
 - [CHECKLIST.md](./CHECKLIST.md)
 - [PROVIDER_DASHBOARD_VERIFICATION.md](./PROVIDER_DASHBOARD_VERIFICATION.md)
 - [../PR_CHECKLIST.md](../PR_CHECKLIST.md)

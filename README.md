@@ -38,6 +38,7 @@ See **[docs/INDEX.md](./docs/INDEX.md)** for the full documentation index.
 - **[docs/AUDIT_STANDARD.md](./docs/AUDIT_STANDARD.md)** - Canonical audit standard and invariants
 - **[docs/AUDIT_EXECUTION_GUIDE.md](./docs/AUDIT_EXECUTION_GUIDE.md)** - Audit workflow and finding templates
 - **[docs/PR_CHECKLIST.md](./docs/PR_CHECKLIST.md)** - PR review and release readiness checklist for protected changes
+- **[docs/release/RELEASE_WORKFLOW.md](./docs/release/RELEASE_WORKFLOW.md)** - Canonical release and go-live order
 - **[docs/01-SETUP.md](./docs/01-SETUP.md)** - Development environment setup
 - **[docs/04-DEVELOPMENT.md](./docs/04-DEVELOPMENT.md)** - Development workflow and standards
 - **[docs/07-PRODUCTION.md](./docs/07-PRODUCTION.md)** - Production launch guide

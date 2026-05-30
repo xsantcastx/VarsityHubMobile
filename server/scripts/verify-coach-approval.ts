@@ -51,12 +51,13 @@ check(
   conditionalPendingWrite.test(orgRoutes)
 );
 
-// 3. POST /organizations/create uses the same conditional pending write
+// 3. POST /organizations/create routes through the shared create handler with
+// the force-pending decision computed for that route too.
 const createRouteHasConditionalPending =
-  /organizationsRouter\.post\(\s*['"]\/create['"][\s\S]*?\.\.\.\(shouldForcePendingApproval \? \{ approval_status: 'PENDING' \} : \{\}\)/m
+  /organizationsRouter\.post\(\s*['"]\/create['"][\s\S]*?shouldForcePendingApprovalOnOrganizationCreate[\s\S]*?handleOrganizationCreateRequest[\s\S]*?routeTag:\s*['"]\/create['"]/m
     .test(orgRoutes);
 check(
-  'POST /organizations/create conditionally sets creator to PENDING',
+  'POST /organizations/create uses shared conditional pending approval flow',
   createRouteHasConditionalPending
 );
 
@@ -69,8 +70,10 @@ check(
 
 // 5. Coach approval by league owner
 check(
-  'League owner can approve coaches (POST /:id/coaches/:userId/approve)',
-  orgRoutes.includes('coaches/:userId/approve') && orgRoutes.includes('requireOnboarded'),
+  'League owner can approve coaches (POST /join-requests/:requestId/approve)',
+  orgRoutes.includes('/join-requests/:requestId/approve') &&
+    orgRoutes.includes("Only the league owner can approve coach requests") &&
+    orgRoutes.includes("approval_status: 'APPROVED'"),
 );
 
 // 6. Join request sets coach to PENDING

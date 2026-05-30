@@ -348,17 +348,21 @@ else
 fi
 
 # Apple submission info check
-if grep -q '"appleId":' eas.json && grep -q '"ascAppId":' eas.json; then
-    APPLE_ID=$(grep -o '"appleId": "[^"]*"' eas.json | cut -d'"' -f4)
-    ASC_APP_ID=$(grep -o '"ascAppId": "[^"]*"' eas.json | cut -d'"' -f4)
-    if [ -n "$APPLE_ID" ] && [ -n "$ASC_APP_ID" ] && [ "$APPLE_ID" != "your-email@gmail.com" ] && [ "$ASC_APP_ID" != "1234567890" ]; then
-        echo -e "${GREEN}✅ Apple submission info configured (appleId, ascAppId)${NC}"
+APPLE_ID=$(grep -o '"appleId": "[^"]*"' eas.json 2>/dev/null | cut -d'"' -f4 || true)
+ASC_APP_ID=$(grep -o '"ascAppId": "[^"]*"' eas.json 2>/dev/null | cut -d'"' -f4 || true)
+if [ -n "$ASC_APP_ID" ] && [ "$ASC_APP_ID" != "1234567890" ]; then
+    echo -e "${GREEN}✅ Apple submission app ID configured (ascAppId)${NC}"
+    if [ -n "$APPLE_ID" ] && [ "$APPLE_ID" != "your-email@gmail.com" ]; then
+        echo -e "${GREEN}✅ Apple submit account configured (appleId)${NC}"
+    elif [ -n "$APPLE_ID" ]; then
+        mark_warning_or_error "Apple submit account may contain placeholder data"
     else
-        mark_warning_or_error "Apple submission info may contain placeholders"
+        echo -e "${YELLOW}⚠️  appleId not set in eas.json (acceptable if submit auth is handled outside repo config)${NC}"
+        WARNINGS=$((WARNINGS + 1))
     fi
 else
-    echo -e "${RED}❌ Apple submission info missing in eas.json${NC}"
-    echo -e "${RED}   Required for App Store submission${NC}"
+    echo -e "${RED}❌ Apple submission app ID missing in eas.json${NC}"
+    echo -e "${RED}   submit.production.ios.ascAppId is required for App Store submission${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 
@@ -646,7 +650,7 @@ echo ""
 echo -e "${BLUE}Step 12: Email format validation...${NC}"
 
 # Validate Apple ID email
-APPLE_ID_EMAIL=$(grep -o '"appleId": "[^"]*"' eas.json | cut -d'"' -f4)
+APPLE_ID_EMAIL=$(grep -o '"appleId": "[^"]*"' eas.json 2>/dev/null | cut -d'"' -f4 || true)
 if [ -n "$APPLE_ID_EMAIL" ]; then
     if [[ "$APPLE_ID_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
         echo -e "${GREEN}✅ Apple ID email format valid: $APPLE_ID_EMAIL${NC}"
@@ -655,8 +659,8 @@ if [ -n "$APPLE_ID_EMAIL" ]; then
         ERRORS=$((ERRORS + 1))
     fi
 else
-    echo -e "${RED}❌ Apple ID email not found in eas.json${NC}"
-    ERRORS=$((ERRORS + 1))
+    echo -e "${YELLOW}⚠️  Apple ID email not set in eas.json${NC}"
+    WARNINGS=$((WARNINGS + 1))
 fi
 
 # Validate Admin emails
@@ -860,7 +864,9 @@ echo ""
 
 # Step 19: Release Readiness Check (Roles, Onboarding, Rules)
 echo -e "${BLUE}Step 19: Release readiness verification...${NC}"
-if bash scripts/verify-release-readiness.sh 2>&1 | grep -q "BLOCKER\|ERROR"; then
+if [ "${SKIP_RELEASE_READINESS:-0}" = "1" ] || [ "${RUN_RELEASE_READINESS_IN_BUILD:-1}" = "0" ]; then
+    echo -e "${YELLOW}⚠️  Skipped - release workflow already ran verify:release in Phase 1${NC}"
+elif bash scripts/verify-release-readiness.sh 2>&1 | grep -q "BLOCKER\|ERROR"; then
     echo -e "${RED}❌ Release readiness check found blockers or errors${NC}"
     echo -e "${RED}   Run: bash scripts/verify-release-readiness.sh for details${NC}"
     ERRORS=$((ERRORS + 1))
