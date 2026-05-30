@@ -49,19 +49,12 @@ export function useRequireCoach() {
       return;
     }
 
-    if (coachAccess.needsPaidPlanCheckout) {
-      const recoveryRoute = getCoachRecoveryRoute(coachUser);
-      if (recoveryRoute) {
-        router.replace(recoveryRoute as never);
-        return;
-      }
-    }
-
-    if (coachAccess.isPendingCoach || coachAccess.isRejectedCoach) {
+    if (!canAccessCoachTools) {
       const recoveryRoute = getCoachRecoveryRoute(coachUser);
       router.replace((recoveryRoute || '/onboarding/pending-approval') as never);
+      return;
     }
-  }, [coachAccess, coachUser, isCoach, loading, router, user]);
+  }, [canAccessCoachTools, coachAccess, coachUser, isCoach, loading, router, user]);
 
   return { isCoach, isApprovedCoach, canAccessCoachTools, loading };
 }

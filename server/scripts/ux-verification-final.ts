@@ -1,11 +1,13 @@
 /**
  * FINAL UX VERIFICATION — All flows against production
  * Tests Flows 1-6 and 8 at API level with exact timing.
+ *
+ * Requires explicit env vars. Do not hardcode production credentials here.
  */
 
-const BASE = 'https://api-production-8ac3.up.railway.app';
-const ADMIN_EMAIL = 'support@varsityhub.app';
-const ADMIN_PASS = 'Lime3100$';
+const BASE = process.env.BASE_URL || 'https://api-production-8ac3.up.railway.app';
+const ADMIN_EMAIL = process.env.UX_VERIFY_ADMIN_EMAIL || '';
+const ADMIN_PASS = process.env.UX_VERIFY_ADMIN_PASSWORD || '';
 const ts = Date.now();
 
 interface FlowResult { flow: string; status: 'PASS' | 'PARTIAL' | 'FAIL'; time: number; details: string[]; }
@@ -28,6 +30,11 @@ async function main() {
   console.log('╔══════════════════════════════════════════════════════════╗');
   console.log('║      FINAL UX VERIFICATION — PRODUCTION                ║');
   console.log('╚══════════════════════════════════════════════════════════╝\n');
+
+  if (!ADMIN_EMAIL || !ADMIN_PASS) {
+    console.log('❌ Missing UX_VERIFY_ADMIN_EMAIL or UX_VERIFY_ADMIN_PASSWORD');
+    return;
+  }
 
   // Get admin token
   const adminLogin = await api('POST', '/auth/login', { email: ADMIN_EMAIL, password: ADMIN_PASS });
@@ -155,11 +162,10 @@ async function main() {
   let f4Status: 'PASS' | 'PARTIAL' | 'FAIL' = 'PASS';
 
   f4Details.push('Pending screen polls GET /auth/me every 10 seconds');
-  f4Details.push('When approval_status changes to APPROVED:');
-  f4Details.push('  - Heading changes: "Application Submitted" → "You\'re Approved!"');
-  f4Details.push('  - Icon circle turns green');
-  f4Details.push('  - "Continue to VarsityHub" green button appears');
-  f4Details.push('  - No auto-redirect — user taps button when ready');
+  f4Details.push('When /auth/me changes to coach_agreement_required or coach_final_setup_required:');
+  f4Details.push('  - Waiting UI exits the submission state');
+  f4Details.push('  - User is routed to the exact server-provided recovery step');
+  f4Details.push('  - No client-side stage should be fabricated from approval_status alone');
   f4Details.push('Push notification: server sends via sendPushNotification()');
   f4Details.push('In-app notification: TEAM_INVITE with coach_approved=true created');
   f4Details.push('Updates tab: shows "League approved your coach application"');
@@ -225,7 +231,7 @@ async function main() {
   f6Details.push('Email contains: league name, owner name, sport, Approve/Reject buttons');
   f6Details.push('Click Approve → browser shows HTML form "Approve this league?"');
   f6Details.push('Click confirm → browser shows "League Approved" with league name');
-  f6Details.push('Server atomically: org.admin_approved=true + coach.approval_status=APPROVED');
+  f6Details.push('Server atomically approves the org/application and returns staged coach recovery via /auth/me');
   f6Details.push('Coach gets: email + push notification + ORG_APPROVED in-app notification');
   f6Details.push('Coach pending screen detects change on next poll (≤10 seconds)');
 

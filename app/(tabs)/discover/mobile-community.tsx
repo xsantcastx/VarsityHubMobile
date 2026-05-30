@@ -1670,7 +1670,7 @@ function CommunityDiscoverScreen() {
         <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
           {/* Role-based actions */}
-          {coachAccess.isApprovedCoach ? (
+          {coachAccess.canAccessCoachTools ? (
             <>
               <Pressable
                 style={[
@@ -2499,7 +2499,7 @@ function CommunityDiscoverScreen() {
           onSave={handleQuickGameSave}
           currentTeamName={me?.team?.name}
           currentTeamId={me?.team?.id}
-          userRole={coachAccess.isApprovedCoach || me?.is_admin === true ? 'coach' : 'fan'}
+          userRole={coachAccess.canAccessCoachTools || me?.is_admin === true ? 'coach' : 'fan'}
         />
       </View>
     </SwipeBackContainer>

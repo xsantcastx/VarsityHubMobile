@@ -19,14 +19,17 @@ jobs:
             label: Coach Approval Flow
             script: server/scripts/e2e/test-coach-application-flow.sh
             requires_admin: "true"
+            requires_db: "true"
           - id: single-session
             label: Single Session
             script: server/scripts/e2e/test-single-session.sh
             requires_admin: "false"
+            requires_db: "false"
           - id: cross-system
             label: Cross-System
             script: server/scripts/e2e/test-integration-crossmatrix.sh
             requires_admin: "true"
+            requires_db: "true"
 
     steps:
       - name: Checkout code
@@ -64,7 +67,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "${RAILWAY_TOKEN:-}" ]; then
+          if [ "${{ matrix.requires_db }}" = "true" ] && [ -z "${RAILWAY_TOKEN:-}" ]; then
             echo "Missing GitHub secret: RAILWAY_TOKEN"
             exit 1
           fi
@@ -82,6 +85,7 @@ jobs:
           fi
 
       - name: Link Railway production project
+        if: ${{ matrix.requires_db == 'true' }}
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
@@ -89,6 +93,7 @@ jobs:
           railway link --project 22899614-5ae1-47e9-bdd6-7f6d5ce5619e --environment production --service 6bf477a3-56a7-44d0-aa29-ff86a76cdc02
 
       - name: Resolve production database URL
+        if: ${{ matrix.requires_db == 'true' }}
         id: db
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -130,7 +135,7 @@ jobs:
           exit "$status"
 
       - name: Upload production verification log
-        if: always()
+        if: always() && steps.run-script.outputs.log_file != ''
         uses: actions/upload-artifact@v4
         with:
           name: production-e2e-${{ matrix.id }}-log

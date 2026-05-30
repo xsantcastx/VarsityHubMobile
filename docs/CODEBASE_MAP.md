@@ -51,7 +51,7 @@ VarsityHubMobile/
 │   │   ├── index.tsx            # Redirects to next incomplete step
 │   │   ├── step-1-role.tsx      # Select Fan or Coach
 │   │   ├── step-2-basic.tsx     # Username, DOB, zip, affiliation
-│   │   ├── step-3-league.tsx    # Join or create league (coach only)
+│   │   ├── step-3-league.tsx    # Coach application/final-setup screen (server-directed)
 │   │   ├── league-pending-approval.tsx # Coach created league — waiting approval
 │   │   ├── pending-approval.tsx # Coach requested to join — waiting approval
 │   │   ├── parental-consent.tsx # COPPA consent for under-18 users
@@ -220,8 +220,8 @@ All onboarding screens share `OnboardingContext` for state. Steps progress in se
 - `User.updatePreferences({...})` → `PATCH /me/preferences`
 **Navigation:** Next → `step-3-league` (coach) or complete onboarding (fan)
 
-#### `app/onboarding/step-3-league.tsx` — League (Coach only)
-**Purpose:** Coach joins existing organization (search + request) or creates new league. Plan/checkout and team creation can be part of this flow or post-approval.
+#### `app/onboarding/step-3-league.tsx` — League / Final Setup
+**Purpose:** Coach joins existing organization, creates a new league application, or finishes server-directed final setup when `/auth/me` returns `coach_final_setup_required`.
 **API calls:**
 - `Organization.list(q)`, `Organization.checkDuplicate(name)`, `Organization.joinRequests` / `Organization.create`, etc.
 - `User.completeOnboarding(data)` → `POST /me/complete-onboarding` when finishing
@@ -1107,7 +1107,7 @@ Front and backend audit against codebase map and recent security fixes. **Confir
 - **Organizations POST / and POST /create**: requireAuth only (correct — org is created during onboarding before completion). Coach approval and org admin_approved enforced by requireOnboarded on all mutating coach actions.
 
 ### Frontend — Auth & routing
-- **AuthProvider**: Single source of truth. Redirects unauthenticated → sign-in; unverified → verify; needs onboarding → /onboarding/step-1-role; pending coach (no proceeding_as_fan) → /onboarding/pending-approval; coach needs checkout → /settings/manage-subscription; completed onboarding on onboarding route → /(tabs). Uses server `user.preferences.onboarding_completed` and `user.approval_status` (never trust AsyncStorage alone).
+- **AuthProvider**: Single source of truth. Redirects from the server contract first: `account_state` + `next_step` decide coach recovery, agreement, final setup, and pending approval routing. AsyncStorage is only a local hint and must never override server auth state.
 - **app/index.tsx**: Passive splash; 3s fallback redirect if still on index (sign-in / verify / onboarding / tabs).
 - **app/onboarding/_layout.tsx**: Guards all onboarding: if !user after loading, redirect to sign-in; shows loading while loading or when !user.
 

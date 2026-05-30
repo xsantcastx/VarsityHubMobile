@@ -6,12 +6,18 @@
  *   BASE_URL=https://api-production-8ac3.up.railway.app \
  *   APP_REVIEW_PASSWORD='...' \
  *   npm --prefix server run verify:app-review
+ *
+ * Localhost convenience:
+ *   When BASE_URL points at localhost and APP_REVIEW_PASSWORD is omitted, the
+ *   script seeds the local fixture with a deterministic test password.
  */
 import type { Server } from 'node:http';
+import { PrismaClient } from '@prisma/client';
 import {
   APP_REVIEW_AD_NAME,
   APP_REVIEW_EMAIL,
   APP_REVIEW_PLAN,
+  ensureAppReviewFixture,
   APP_REVIEW_SUBSCRIPTION_TIER,
 } from '../src/lib/appReviewFixture.js';
 
@@ -30,7 +36,10 @@ type LoginBody = {
 type MeBody = {
   email?: string;
   role?: string;
+  is_admin?: boolean;
   approval_status?: string;
+  account_state?: string;
+  next_step?: string | null;
   email_verified?: boolean;
   onboarding_completed?: boolean;
   organization_id?: string | null;
@@ -41,9 +50,12 @@ type MeBody = {
 };
 
 const BASE_URL = (process.env.BASE_URL || 'http://localhost:4000').replace(/\/$/, '');
-const PASSWORD = String(
+const EXPLICIT_PASSWORD = String(
   process.env.APP_REVIEW_PASSWORD || process.env.DEMO_ACCOUNT_PASSWORD || ''
 ).trim();
+const LOCALHOST_FALLBACK_PASSWORD = 'LocalAppReview123!';
+const PASSWORD =
+  EXPLICIT_PASSWORD || (isLocalBaseUrl(BASE_URL) ? LOCALHOST_FALLBACK_PASSWORD : '');
 
 const results: StepResult[] = [];
 let embeddedLocalServer: Server | null = null;
@@ -131,6 +143,19 @@ async function ensureLocalServer() {
   );
 }
 
+async function ensureLocalFixture() {
+  if (!isLocalBaseUrl(BASE_URL)) return;
+  if (EXPLICIT_PASSWORD) return;
+
+  const prisma = new PrismaClient();
+  try {
+    await ensureAppReviewFixture(prisma, LOCALHOST_FALLBACK_PASSWORD);
+    console.log('[app-review-verify] Seeded local App Review fixture with fallback password.');
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 async function shutdownEmbeddedLocalServer() {
   if (!embeddedLocalServer) return;
   const server = embeddedLocalServer;
@@ -161,6 +186,7 @@ function requireLogin(body: LoginBody): { accessToken: string; refreshToken: str
 async function main() {
   try {
     await ensureLocalServer();
+    await ensureLocalFixture();
     requirePassword();
 
     const login = await api<LoginBody>('POST', '/auth/login', {
@@ -190,9 +216,24 @@ async function main() {
         detail: `role=${String(me.role || '')}`,
       },
       {
+        step: 'review has admin access',
+        ok: me.is_admin === true,
+        detail: `is_admin=${String(me.is_admin)}`,
+      },
+      {
         step: 'review approval approved',
         ok: String(me.approval_status || '').toUpperCase() === 'APPROVED',
         detail: `approval_status=${String(me.approval_status || '')}`,
+      },
+      {
+        step: 'review account_state coach_active',
+        ok: String(me.account_state || '') === 'coach_active',
+        detail: `account_state=${String(me.account_state || '')}`,
+      },
+      {
+        step: 'review next_step tabs',
+        ok: String(me.next_step || '') === '/(tabs)',
+        detail: `next_step=${String(me.next_step || '')}`,
       },
       {
         step: 'review email verified',

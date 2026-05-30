@@ -96,6 +96,7 @@ export function getCoachAccessState(user: CoachUserLike | null | undefined): Coa
   const preferences = user?.preferences ?? null;
   const role = getCanonicalCoachRole(user);
   const approvalStatus = normalizeString(user?.approval_status);
+  const accountState = normalizeString(user?.account_state);
   const acceptedCoachAgreementVersion = normalizeNumber(
     preferences?.coach_agreement_version,
     1
@@ -105,6 +106,7 @@ export function getCoachAccessState(user: CoachUserLike | null | undefined): Coa
     1
   );
   const pendingPlan = normalizeString(preferences?.pending_plan ?? preferences?.plan)?.toLowerCase();
+  const organizationId = getCoachOrganizationId(user);
   const isCoach = role === 'coach';
   const isApprovedCoach = isCoach && approvalStatus === 'APPROVED';
   const isPendingCoach = isCoach && approvalStatus === 'PENDING';
@@ -123,6 +125,22 @@ export function getCoachAccessState(user: CoachUserLike | null | undefined): Coa
     preferences?.payment_pending === true &&
     (pendingPlan === 'veteran' || pendingPlan === 'legend') &&
     (preferences?.payment_approved === true || preferences?.join_request_pending !== true);
+  const isServerBlockedCoachState =
+    accountState !== null &&
+    [
+      'coach_basic_info_required',
+      'coach_application_required',
+      'coach_application_submitted',
+      'coach_application_rejected',
+      'coach_pending_approval',
+      'coach_agreement_required',
+      'coach_final_setup_required',
+    ].includes(accountState);
+  const canAccessCoachTools =
+    isApprovedCoach &&
+    hasCurrentCoachAgreement &&
+    Boolean(organizationId) &&
+    !isServerBlockedCoachState;
 
   return {
     role,
@@ -135,7 +153,7 @@ export function getCoachAccessState(user: CoachUserLike | null | undefined): Coa
     onboardingCompleted,
     hasAcceptedCoachAgreement,
     hasCurrentCoachAgreement,
-    canAccessCoachTools: isApprovedCoach,
+    canAccessCoachTools,
     requiredCoachAgreementVersion,
     acceptedCoachAgreementVersion,
     needsPaidPlanCheckout,
@@ -350,6 +368,8 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
       'coach_application_submitted',
       'coach_application_rejected',
       'coach_pending_approval',
+      'coach_agreement_required',
+      'coach_final_setup_required',
     ].includes(accountState)
   ) {
     return explicitNextStep;
@@ -361,6 +381,14 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
 
   if (accountState === 'coach_application_required') {
     return '/onboarding/coach-application';
+  }
+
+  if (accountState === 'coach_agreement_required') {
+    return '/onboarding/coach-agreement';
+  }
+
+  if (accountState === 'coach_final_setup_required') {
+    return '/onboarding/step-3-league';
   }
 
   if (
@@ -394,6 +422,19 @@ export function getCoachApprovalNotificationRoute(user: CoachUserLike | null | u
   const coachAccess = getCoachAccessState(user);
   if (coachAccess.isProceedingAsFan) {
     return '/(tabs)';
+  }
+
+  const explicitNextStep =
+    typeof user.next_step === 'string' && user.next_step.trim().startsWith('/')
+      ? user.next_step.trim()
+      : null;
+  const accountState = normalizeString(user.account_state);
+  if (
+    explicitNextStep &&
+    accountState &&
+    ['coach_agreement_required', 'coach_final_setup_required'].includes(accountState)
+  ) {
+    return explicitNextStep;
   }
 
   if (coachAccess.hasAcceptedCoachAgreement) {

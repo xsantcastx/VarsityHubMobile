@@ -140,7 +140,8 @@ function CreateFanEventScreen() {
     getAuthSnapshot(checkAuth, user)
       .then((u: MeResponse) => {
         const coachAccess = getCoachAccessState(u);
-        const canCreateCoachEvents = coachAccess.isApprovedCoach && coachAccess.onboardingCompleted;
+        const canCreateCoachEvents =
+          coachAccess.canAccessCoachTools && coachAccess.onboardingCompleted;
         setUserRole(canCreateCoachEvents ? 'coach' : 'fan');
         // Fans can't create game events — default to watch_party
         if (!canCreateCoachEvents) {

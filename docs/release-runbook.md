@@ -131,12 +131,13 @@ What to verify:
 - `/auth/me` says:
   - `role=coach`
   - `approval_status=APPROVED`
-  - no legacy blocked `account_state`
-  - `next_step` is empty or `/(tabs)`
+  - `account_state=coach_active`
+  - `next_step=/(tabs)`
   - `email_verified=true`
   - `onboarding_completed=true`
 - `organization_id` present
 - `proceeding_as_fan=false`
+- coach tools return 200 (`/teams/managed`, `/events/pending`)
 
 Automated check:
 
@@ -146,12 +147,7 @@ APP_REVIEW_PASSWORD='...' \
 npm --prefix server run verify:app-review
 ```
 
-Run this against:
-
-- a normal approved coach account
-- an approved coach account that still lacks an agreement signature
-
-Both should pass. If the second account fails, approval-only access has regressed.
+Do not reuse this verifier for staged coach accounts. `coach_agreement_required` and `coach_final_setup_required` should be checked with `verify:coach-route-battery`, and those accounts are expected to be blocked from coach tools until recovery is complete.
 
 ## Failure Triage
 

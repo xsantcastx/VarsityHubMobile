@@ -48,8 +48,9 @@ node scripts/stripe/create_stripe_prices.js
   - Usage: `BASE_URL=https://api-production-8ac3.up.railway.app npm run verify:production-health`
 
 - **`verify-coach-route-battery.ts`** - read-only approved-coach route verification for production or staging
-  - Confirms `approval_status=APPROVED` is sufficient for coach route access
-  - Catches stale blocked `account_state` / `next_step` values on approved accounts
+  - Confirms only `coach_active` accounts reach coach tools
+  - Verifies staged approved accounts still recover correctly through `coach_agreement_required` and `coach_final_setup_required`
+  - Catches stale `account_state` / `next_step` drift on approved and recovering coach accounts
   - Usage: `BASE_URL=https://api.example.com COACH_ROUTE_BATTERY_EMAIL=coach@example.com COACH_ROUTE_BATTERY_PASSWORD=secret npm run verify:coach-route-battery`
   - Localhost fallback: when `BASE_URL` is `http://localhost:4000` (or `127.0.0.1`) and no explicit battery creds are set, it seeds the coach UAT fixtures and runs against the deterministic approved rookie coach automatically
 
