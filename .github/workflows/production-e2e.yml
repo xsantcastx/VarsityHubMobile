@@ -13,6 +13,7 @@ jobs:
     timeout-minutes: 10
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - id: coach-approval-flow
@@ -123,7 +124,7 @@ jobs:
           echo "::add-mask::$DATABASE_URL"
           echo "database_url=$DATABASE_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Normalize verification login account
+      - name: Ensure verification login account exists
         if: ${{ matrix.requires_admin == 'true' }}
         env:
           DATABASE_URL: ${{ steps.db.outputs.database_url }}
@@ -133,7 +134,7 @@ jobs:
           set -euo pipefail
 
           if [ -z "${DATABASE_URL:-}" ]; then
-            echo "DATABASE_URL is required to normalize the verification login account"
+            echo "DATABASE_URL is required to ensure the verification login account exists"
             exit 1
           fi
 
@@ -148,68 +149,53 @@ jobs:
             -v ON_ERROR_STOP=1 \
             -v admin_email="$EMAIL_LC" \
             -v password_hash="$HASH" <<'SQL'
-          WITH upserted AS (
-            INSERT INTO "User" (
-              id,
-              email,
-              password_hash,
-              display_name,
-              created_at,
-              email_verified,
-              password_changed_at,
-              session_epoch,
-              banned,
-              preferences,
-              role,
-              onboarding_completed,
-              proceeding_as_fan,
-              plan,
-              payment_pending,
-              payment_approved,
-              approval_status,
-              subscription_tier,
-              subscription_status,
-              max_teams,
-              paid_by_owner
-            )
-            VALUES (
-              'seed_' || substr(md5(random()::text || clock_timestamp()::text), 1, 24),
-              :'admin_email',
-              :'password_hash',
-              'Production Verification Admin',
-              NOW(),
-              TRUE,
-              NOW(),
-              0,
-              FALSE,
-              '{"role":"fan","onboarding_completed":true}'::jsonb,
-              'fan'::"UserRole",
-              TRUE,
-              FALSE,
-              'rookie'::"MembershipPlan",
-              FALSE,
-              FALSE,
-              'APPROVED'::"ApprovalStatus",
-              'free',
-              'active',
-              3,
-              FALSE
-            )
-            ON CONFLICT (email) DO UPDATE
-            SET
-              password_hash = EXCLUDED.password_hash,
-              email_verified = TRUE,
-              password_changed_at = NOW(),
-              session_epoch = "User".session_epoch + 1,
-              banned = FALSE,
-              banned_until = NULL,
-              ban_reason = NULL,
-              deleted_at = NULL,
-              deletion_anonymized = FALSE
-            RETURNING id
+          INSERT INTO "User" (
+            id,
+            email,
+            password_hash,
+            display_name,
+            created_at,
+            email_verified,
+            password_changed_at,
+            session_epoch,
+            banned,
+            preferences,
+            role,
+            onboarding_completed,
+            proceeding_as_fan,
+            plan,
+            payment_pending,
+            payment_approved,
+            approval_status,
+            subscription_tier,
+            subscription_status,
+            max_teams,
+            paid_by_owner
           )
-          DELETE FROM "RefreshToken"
-          WHERE user_id IN (SELECT id FROM upserted);
+          VALUES (
+            'seed_' || substr(md5(random()::text || clock_timestamp()::text), 1, 24),
+            :'admin_email',
+            :'password_hash',
+            'Production Verification Admin',
+            NOW(),
+            TRUE,
+            NOW(),
+            0,
+            FALSE,
+            '{"role":"fan","onboarding_completed":true}'::jsonb,
+            'fan'::"UserRole",
+            TRUE,
+            FALSE,
+            'rookie'::"MembershipPlan",
+            FALSE,
+            FALSE,
+            'APPROVED'::"ApprovalStatus",
+            'free',
+            'active',
+            3,
+            FALSE
+          )
+          ON CONFLICT (email) DO NOTHING;
           SQL
 
       - name: Preflight admin access contract
