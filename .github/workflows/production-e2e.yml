@@ -123,7 +123,7 @@ jobs:
           echo "::add-mask::$DATABASE_URL"
           echo "database_url=$DATABASE_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Provision verification admin account
+      - name: Normalize verification login account
         if: ${{ matrix.requires_admin == 'true' }}
         env:
           DATABASE_URL: ${{ steps.db.outputs.database_url }}
@@ -133,7 +133,7 @@ jobs:
           set -euo pipefail
 
           if [ -z "${DATABASE_URL:-}" ]; then
-            echo "DATABASE_URL is required to provision the verification admin account"
+            echo "DATABASE_URL is required to normalize the verification login account"
             exit 1
           fi
 
@@ -198,7 +198,6 @@ jobs:
             ON CONFLICT (email) DO UPDATE
             SET
               password_hash = EXCLUDED.password_hash,
-              display_name = EXCLUDED.display_name,
               email_verified = TRUE,
               password_changed_at = NOW(),
               session_epoch = "User".session_epoch + 1,
@@ -206,25 +205,52 @@ jobs:
               banned_until = NULL,
               ban_reason = NULL,
               deleted_at = NULL,
-              deletion_anonymized = FALSE,
-              preferences = '{"role":"fan","onboarding_completed":true}'::jsonb,
-              role = 'fan'::"UserRole",
-              onboarding_completed = TRUE,
-              proceeding_as_fan = FALSE,
-              plan = 'rookie'::"MembershipPlan",
-              pending_plan = NULL,
-              payment_pending = FALSE,
-              payment_approved = FALSE,
-              approval_status = 'APPROVED'::"ApprovalStatus",
-              subscription_tier = 'free',
-              subscription_status = 'active',
-              max_teams = 3,
-              paid_by_owner = FALSE
+              deletion_anonymized = FALSE
             RETURNING id
           )
           DELETE FROM "RefreshToken"
           WHERE user_id IN (SELECT id FROM upserted);
           SQL
+
+      - name: Preflight admin access contract
+        if: ${{ matrix.requires_admin == 'true' }}
+        env:
+          API_URL: https://api-production-8ac3.up.railway.app
+          ADMIN_EMAIL: ${{ secrets.PROD_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.PROD_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          LOGIN_JSON="$(
+            curl -fsS -X POST "$API_URL/auth/login" \
+              -H 'Content-Type: application/json' \
+              -d "$(jq -cn --arg email "$ADMIN_EMAIL" --arg password "$ADMIN_PASSWORD" '{email:$email,password:$password}')"
+          )"
+          ACCESS_TOKEN="$(printf '%s' "$LOGIN_JSON" | jq -r '.access_token // empty')"
+          if [ -z "$ACCESS_TOKEN" ]; then
+            echo "Configured production admin could not log in"
+            echo "$LOGIN_JSON"
+            exit 1
+          fi
+
+          ME_JSON="$(curl -fsS "$API_URL/auth/me" -H "Authorization: Bearer $ACCESS_TOKEN")"
+          IS_ADMIN="$(printf '%s' "$ME_JSON" | jq -r '.is_admin // false')"
+          if [ "$IS_ADMIN" != "true" ]; then
+            echo "Configured production admin is not recognized as admin by /auth/me"
+            echo "$ME_JSON"
+            exit 1
+          fi
+
+          DASH_STATUS="$(
+            curl -sS -o /tmp/production-admin-dashboard.json -w '%{http_code}' \
+              "$API_URL/admin/dashboard" \
+              -H "Authorization: Bearer $ACCESS_TOKEN"
+          )"
+          if [ "$DASH_STATUS" != "200" ]; then
+            echo "Configured production admin failed /admin/dashboard preflight"
+            cat /tmp/production-admin-dashboard.json
+            exit 1
+          fi
 
       - name: Run production verification script
         id: run-script

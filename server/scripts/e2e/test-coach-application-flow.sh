@@ -1,7 +1,8 @@
 #!/bin/bash
 # E2E test of the post-refactor coach-application flow.
-# Walks the full canonical state machine: fan → application submitted →
-# admin approve → coach agreement → final setup (org + team) → coach_active.
+# Walks the full canonical state machine: fan → coach_basic_info_required →
+# application submitted → admin approve → coach agreement →
+# final setup (org + team) → coach_active.
 # Every assertion hits the real server via HTTP, with /auth/me as the canonical state oracle.
 
 set -u
@@ -60,8 +61,8 @@ UPGRADE_OK=$(echo "$UPGRADE" | jq -r '.ok // .user.role // empty')
 ME=$(me_state "$COACH_TOKEN")
 AS=$(echo "$ME" | jq -r '.account_state // empty')
 NS=$(echo "$ME" | jq -r '.next_step // empty')
-[ "$AS" = "coach_application_required" ] && pass "account_state=coach_application_required" || fail "account_state=$AS (expected coach_application_required)"
-[ "$NS" = "/onboarding/step-3-league" ] && pass "next_step=/onboarding/step-3-league" || fail "next_step=$NS"
+[ "$AS" = "coach_basic_info_required" ] && pass "account_state=coach_basic_info_required" || fail "account_state=$AS (expected coach_basic_info_required)"
+[ "$NS" = "/onboarding/step-2-basic" ] && pass "next_step=/onboarding/step-2-basic" || fail "next_step=$NS"
 
 hdr "T2 — Submit coach application (canonical application flow)"
 SUB=$(curl -sS -X POST "$API/auth/coach-applications" -H "$COACH_AUTH" -H 'Content-Type: application/json' \
@@ -186,7 +187,7 @@ echo "Final DB state: users=$USERS teams=$TEAMS orgs=$ORGS coach_apps=$APPS"
 if [ "$FAILED" = "0" ]; then
   echo ""
   echo "🎉 CANONICAL COACH-APPLICATION FLOW VERIFIED"
-  echo "   register → application_required → submitted → approved → agreement → final_setup → active"
+  echo "   register → basic_info_required → submitted → approved → agreement → final_setup → active"
   exit 0
 else
   echo ""
