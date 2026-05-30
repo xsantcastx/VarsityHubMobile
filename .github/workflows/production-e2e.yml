@@ -86,11 +86,18 @@ jobs:
           fi
 
       - name: Link Railway production project
-        if: ${{ matrix.requires_db == 'true' && secrets.PRODUCTION_DATABASE_URL == '' }}
+        if: ${{ matrix.requires_db == 'true' }}
         env:
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
           set -euo pipefail
+
+          if [ -n "${PRODUCTION_DATABASE_URL:-}" ]; then
+            echo "PRODUCTION_DATABASE_URL provided; skipping Railway link."
+            exit 0
+          fi
+
           railway link --project 22899614-5ae1-47e9-bdd6-7f6d5ce5619e --environment production --service 6bf477a3-56a7-44d0-aa29-ff86a76cdc02
 
       - name: Resolve production database URL
