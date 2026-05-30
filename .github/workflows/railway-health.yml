@@ -5,36 +5,40 @@ on:
   schedule:
     - cron: '0 * * * *' # Hourly uptime probe
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   health-check:
     name: Verify Railway API Health
     runs-on: ubuntu-latest
-    continue-on-error: true  # Prevents GitHub email spam on scheduled failures
     
     steps:
       - uses: actions/checkout@v4
 
       - name: Check Railway API health
         id: health
-        continue-on-error: true
         run: |
-          bash scripts/railway-health-check.sh --ci
-          HEALTH_STATUS=$?
-          
-          if [ $HEALTH_STATUS -eq 0 ]; then
+          set -euo pipefail
+
+          if bash scripts/railway-health-check.sh --ci; then
             echo "status=healthy" >> $GITHUB_OUTPUT
           else
             echo "status=unhealthy" >> $GITHUB_OUTPUT
+            exit 1
           fi
 
       - name: Detailed health report
         if: always()
         run: |
+          set -euo pipefail
           bash scripts/railway-health-check.sh > /tmp/health-report.txt 2>&1 || true
           cat /tmp/health-report.txt
 
       - name: Create status badge
         run: |
+          set -euo pipefail
           if [ "${{ steps.health.outputs.status }}" == "healthy" ]; then
             echo "🟢 Railway API is healthy" > /tmp/badge.txt
             exit 0
@@ -48,13 +52,24 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.create({
+            const title = '🚨 Railway API Health Check Failed';
+            const issues = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: '🚨 Railway API Health Check Failed',
-              body: `**Date:** ${new Date().toISOString()}\n\nThe Railway API health endpoint is not responding. Check the API deployment and logs.`,
-              labels: ['alert', 'infrastructure']
+              state: 'open',
+              labels: 'alert,infrastructure'
             });
+
+            const existingIssue = issues.data.find(issue => issue.title === title);
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body: `**Date:** ${new Date().toISOString()}\n\nThe Railway API health endpoint is not responding. Check the API deployment and logs.`,
+                labels: ['alert', 'infrastructure']
+              });
+            }
 
       - name: Upload health report
         if: always()

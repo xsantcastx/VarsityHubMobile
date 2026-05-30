@@ -2195,23 +2195,25 @@ gamesRouter.delete(
         }
 
         const { sendPushNotification } = await import('../lib/notifications.js');
-        for (const uid of rsvpUserIds) {
-          await prisma.notification.create({
-            data: {
+        const notificationUserIds = [...rsvpUserIds];
+        if (notificationUserIds.length > 0) {
+          await prisma.notification.createMany({
+            data: notificationUserIds.map((uid) => ({
               user_id: uid,
               actor_id: req.user!.id,
               type: 'GAME_CANCELLED',
               meta: { game_id: id, game_title: gameTitle },
-            },
+            })),
           });
-
-          sendPushNotification(uid, `Game cancelled`, `${gameTitle} has been cancelled`, {
-            type: 'game_cancelled',
-            game_id: id,
-            screen: 'games',
-          }).catch(err => {
-            console.warn('[games] game cancelled push failed:', err);
-          });
+          await Promise.allSettled(
+            notificationUserIds.map((uid) =>
+              sendPushNotification(uid, `Game cancelled`, `${gameTitle} has been cancelled`, {
+                type: 'game_cancelled',
+                game_id: id,
+                screen: 'games',
+              })
+            )
+          );
         }
       } catch (notifErr) {
         console.error('[games] Failed to send game cancelled notifications:', notifErr);

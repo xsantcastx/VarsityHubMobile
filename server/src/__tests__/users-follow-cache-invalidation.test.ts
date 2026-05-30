@@ -84,6 +84,7 @@ jest.unstable_mockModule('../middleware/requireVerified.js', () => ({
 
 jest.unstable_mockModule('../middleware/requireAdmin.js', () => ({
   requireAdmin: (_req: any, _res: any, next: any) => next(),
+  getIsAdmin: jest.fn(async () => false),
 }));
 
 jest.unstable_mockModule('../middleware/rateLimiters.js', () => {

@@ -84,51 +84,6 @@ type CommentItem = {
   optimistic?: boolean;
 };
 
-type FeedRailNavButtonsProps = {
-  show: boolean;
-  canPrev: boolean;
-  canNext: boolean;
-  onPrev: () => void;
-  onNext: () => void;
-};
-
-export function FeedRailNavButtons({
-  show,
-  canPrev,
-  canNext,
-  onPrev,
-  onNext,
-}: FeedRailNavButtonsProps) {
-  if (!show) return null;
-
-  return (
-    <View style={styles.railNavWrap}>
-      <Pressable
-        testID="highlights-nav-up"
-        onPress={canPrev ? onPrev : undefined}
-        disabled={!canPrev}
-        accessibilityRole="button"
-        accessibilityLabel="Previous highlight"
-        accessibilityState={{ disabled: !canPrev }}
-        style={[styles.railNavBtn, !canPrev ? styles.railNavBtnDisabled : null]}
-      >
-        <Ionicons name="chevron-up" size={16} color="#fff" />
-      </Pressable>
-      <Pressable
-        testID="highlights-nav-down"
-        onPress={canNext ? onNext : undefined}
-        disabled={!canNext}
-        accessibilityRole="button"
-        accessibilityLabel="Next highlight"
-        accessibilityState={{ disabled: !canNext }}
-        style={[styles.railNavBtn, !canNext ? styles.railNavBtnDisabled : null]}
-      >
-        <Ionicons name="chevron-down" size={16} color="#fff" />
-      </Pressable>
-    </View>
-  );
-}
-
 export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
   const idValue = item?.id ?? item?.post_id ?? item?.highlight_id;
   if (!idValue) return null;
@@ -202,16 +157,12 @@ const FeedCard = memo(
     onDoubleTap,
     onDeletePost,
     onEditPost,
-    onMoreOptions,
+    onCopyLink,
+    onReportPost,
     registerVideo,
     insets,
     colorScheme,
     meInfo,
-    showNavButtons,
-    canPrev,
-    canNext,
-    onPrev,
-    onNext,
   }: {
     post: FeedPost;
     isActive: boolean;
@@ -224,16 +175,12 @@ const FeedCard = memo(
     onDoubleTap: () => void;
     onDeletePost?: () => void;
     onEditPost?: (caption: string) => void;
-    onMoreOptions: () => void;
+    onCopyLink: () => void;
+    onReportPost: () => void;
     registerVideo: (id: string, player: any | null) => void;
     insets: { top: number; bottom: number };
     colorScheme: 'light' | 'dark';
     meInfo?: { id?: string; display_name?: string | null; username?: string | null } | null;
-    showNavButtons: boolean;
-    canPrev: boolean;
-    canNext: boolean;
-    onPrev: () => void;
-    onNext: () => void;
   }) => {
     const { user, checkAuth } = useAuth();
     const lastTapRef = useRef(0);
@@ -498,14 +445,6 @@ const FeedCard = memo(
         </View>
 
         <View style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 24, 96) }]}>
-          <FeedRailNavButtons
-            show={showNavButtons}
-            canPrev={canPrev}
-            canNext={canNext}
-            onPrev={onPrev}
-            onNext={onNext}
-          />
-
           {/* Avatar tap opens the poster profile. The previous "+" follow
               badge overlay (red-on-avatar) was removed in v1.0.3 at user
               request — it cluttered the viewer and duplicated the follow
@@ -552,11 +491,6 @@ const FeedCard = memo(
             <Text style={styles.railLabel}>{post.comments_count}</Text>
           </Pressable>
 
-          <Pressable onPress={onSharePost} style={styles.railBtn}>
-            <Ionicons name="share-outline" size={34} color="#fff" />
-            <Text style={styles.railLabel}>Share</Text>
-          </Pressable>
-
           <Pressable onPress={onToggleBookmark} style={styles.railBtn}>
             <Ionicons
               name={post.has_bookmarked ? 'bookmark' : 'bookmark-outline'}
@@ -581,7 +515,31 @@ const FeedCard = memo(
               <Pressable
                 onPress={() => {
                   setShowOptionsMenu(false);
-                  onMoreOptions();
+                  onSharePost();
+                }}
+                style={styles.optionButton}
+              >
+                <Ionicons name="share-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>
+                  Share Post
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setShowOptionsMenu(false);
+                  onCopyLink();
+                }}
+                style={styles.optionButton}
+              >
+                <Ionicons name="link-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>
+                  Copy Link
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setShowOptionsMenu(false);
+                  onReportPost();
                 }}
                 style={styles.optionButton}
               >
@@ -1190,37 +1148,15 @@ function GameVerticalFeedScreen({
     Share.share({ message: shareLink.shareMessage, url: shareLink.webUrl }).catch(() => {});
   }, []);
 
-  const handleMoreOptions = useCallback((post: FeedPost) => {
-    Alert.alert('Options', undefined, [
-      {
-        text: 'Report Post',
-        onPress: () => {
-          Alert.alert('Report Post', 'Select a reason:', [
-            { text: 'Spam', onPress: () => submitReport(post, 'spam') },
-            { text: 'Harassment', onPress: () => submitReport(post, 'harassment') },
-            { text: 'Hate Speech', onPress: () => submitReport(post, 'hate_speech') },
-            { text: 'Violence', onPress: () => submitReport(post, 'violence') },
-            { text: 'False Information', onPress: () => submitReport(post, 'false_information') },
-            { text: 'Cancel', style: 'cancel' },
-          ]);
-        },
-      },
-      {
-        text: 'Copy Link',
-        onPress: async () => {
-          try {
-            const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
-            const Clipboard = await import('expo-clipboard');
-            await Clipboard.setStringAsync(shareLink.webUrl);
-            Alert.alert('Copied', 'Link copied to clipboard.');
-          } catch {
-            Alert.alert('Error', 'Failed to copy link.');
-          }
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excludes submitReport to avoid re-creating action sheet handler
+  const handleCopyLink = useCallback(async (post: FeedPost) => {
+    try {
+      const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
+      const Clipboard = await import('expo-clipboard');
+      await Clipboard.setStringAsync(shareLink.webUrl);
+      Alert.alert('Copied', 'Link copied to clipboard.');
+    } catch {
+      Alert.alert('Error', 'Failed to copy link.');
+    }
   }, []);
 
   const submitReport = useCallback(async (post: FeedPost, reason: string) => {
@@ -1235,6 +1171,17 @@ function GameVerticalFeedScreen({
       }
     }
   }, []);
+
+  const handleReportPost = useCallback((post: FeedPost) => {
+    Alert.alert('Report Post', 'Select a reason:', [
+      { text: 'Spam', onPress: () => submitReport(post, 'spam') },
+      { text: 'Harassment', onPress: () => submitReport(post, 'harassment') },
+      { text: 'Hate Speech', onPress: () => submitReport(post, 'hate_speech') },
+      { text: 'Violence', onPress: () => submitReport(post, 'violence') },
+      { text: 'False Information', onPress: () => submitReport(post, 'false_information') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [submitReport]);
 
   const handleDeletePost = useCallback((post: FeedPost) => {
     // Remove the post from the current posts array
@@ -1345,16 +1292,6 @@ function GameVerticalFeedScreen({
     [handleToggleUpvote]
   );
 
-  const scrollToPostIndex = useCallback(
-    (index: number) => {
-      const clampedIndex = Math.max(0, Math.min(posts.length - 1, index));
-      if (posts.length === 0 || clampedIndex === activeIndex) return;
-      flatListRef.current?.scrollToIndex({ index: clampedIndex, animated: true });
-      setActiveIndex(clampedIndex);
-    },
-    [activeIndex, posts.length]
-  );
-
   const renderItem = useCallback(
     ({ item, index }: { item: FeedPost; index: number }) => (
       <FeedCard
@@ -1370,25 +1307,22 @@ function GameVerticalFeedScreen({
         onDoubleTap={() => handleDoubleTap(item)}
         onDeletePost={() => handleDeletePost(item)}
         onEditPost={(newCaption: string) => handleEditPost(item, newCaption)}
-        onMoreOptions={() => handleMoreOptions(item)}
+        onCopyLink={() => void handleCopyLink(item)}
+        onReportPost={() => handleReportPost(item)}
         registerVideo={registerVideo}
         insets={{ top: insets.top, bottom: insets.bottom }}
         colorScheme={colorScheme}
         meInfo={meInfo}
-        showNavButtons={posts.length > 1}
-        canPrev={index > 0}
-        canNext={index < posts.length - 1}
-        onPrev={() => scrollToPostIndex(index - 1)}
-        onNext={() => scrollToPostIndex(index + 1)}
       />
     ),
     [
       activeIndex,
+      handleCopyLink,
       handleDoubleTap,
       handleDeletePost,
       handleEditPost,
-      handleMoreOptions,
       handleOpenAuthorProfile,
+      handleReportPost,
       handleShare,
       handleToggleBookmark,
       handleToggleFollow,
@@ -1399,8 +1333,6 @@ function GameVerticalFeedScreen({
       registerVideo,
       colorScheme,
       meInfo,
-      posts.length,
-      scrollToPostIndex,
     ]
   );
 
@@ -1776,24 +1708,6 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 24,
     alignItems: 'center',
-  },
-  railNavWrap: {
-    marginBottom: 12,
-    alignItems: 'center',
-    gap: 8,
-  },
-  railNavBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.48)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  railNavBtnDisabled: {
-    opacity: 0.35,
   },
   railAvatarWrap: {
     marginBottom: 28,

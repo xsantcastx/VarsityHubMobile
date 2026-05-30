@@ -10,8 +10,8 @@
  * @module jobs/workers/emailWorker
  */
 
-import * as Sentry from '@sentry/node';
 import { Job, Worker } from 'bullmq';
+import { captureException } from '../../lib/sentry.js';
 import type { EmailJob } from '../queues.js';
 
 let worker: Worker<EmailJob> | null = null;
@@ -93,11 +93,10 @@ export async function startEmailWorker(): Promise<Worker<EmailJob> | null> {
 
     worker.on('failed', (job, err) => {
       console.error(`[EmailWorker] Job ${job?.id} failed after ${job?.attemptsMade} attempts:`, err);
-      if (Sentry) {
-        Sentry.captureException(err, {
-          tags: { worker: 'email', jobId: job?.id },
-        });
-      }
+      captureException(err, {
+        context: 'email_worker_failed',
+        tags: { worker: 'email', jobId: String(job?.id ?? 'unknown') },
+      });
     });
 
     worker.on('error', (err) => {

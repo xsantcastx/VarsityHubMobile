@@ -104,6 +104,14 @@ describe('API Event Endpoints', () => {
 
   afterAll(async () => {
     try {
+      await prisma.eventRsvp.deleteMany({
+        where: {
+          user_id: {
+            in: [coachUserId, fanUserId],
+          },
+        },
+      });
+
       // Clean up events
       await prisma.event.deleteMany({
         where: {
@@ -404,6 +412,90 @@ describe('API Event Endpoints', () => {
     });
   });
 
+  describe('event list pagination', () => {
+    it('paginates my-events with a stable created_at/id cursor in response headers', async () => {
+      const base = Date.now() + 10_000;
+      for (let i = 0; i < 3; i += 1) {
+        await prisma.event.create({
+          data: {
+            title: `My Events Cursor ${i}`,
+            date: new Date(base + (i + 1) * 60_000),
+            location: 'Cursor Arena',
+            event_type: 'fundraiser',
+            approval_status: 'pending',
+            status: 'draft',
+            creator_id: fanUserId,
+            created_at: new Date(base - i * 1000),
+          },
+        });
+      }
+
+      const firstPage = await request(app)
+        .get('/events/my-events?limit=2')
+        .set('Authorization', `Bearer ${fanToken}`)
+        .expect(200);
+
+      expect(Array.isArray(firstPage.body)).toBe(true);
+      expect(firstPage.body).toHaveLength(2);
+      expect(firstPage.headers['x-has-more']).toBe('1');
+      expect(typeof firstPage.headers['x-next-cursor']).toBe('string');
+
+      const secondPage = await request(app)
+        .get(`/events/my-events?limit=2&cursor=${encodeURIComponent(firstPage.headers['x-next-cursor'])}`)
+        .set('Authorization', `Bearer ${fanToken}`)
+        .expect(200);
+
+      expect(Array.isArray(secondPage.body)).toBe(true);
+      expect(secondPage.body.length).toBeGreaterThanOrEqual(1);
+      expect(secondPage.headers['x-has-more']).toBe('0');
+    });
+
+    it('paginates pending events for managed coaches with a stable created_at/id cursor', async () => {
+      const base = Date.now() + 20_000;
+      for (let i = 0; i < 3; i += 1) {
+        await prisma.event.create({
+          data: {
+            title: `Pending Events Cursor ${i}`,
+            date: new Date(base + (i + 1) * 60_000),
+            location: 'Pending Arena',
+            team_id: testTeamId,
+            event_type: 'game',
+            approval_status: 'pending',
+            status: 'draft',
+            creator_id: fanUserId,
+            created_at: new Date(base - i * 1000),
+          },
+        });
+      }
+
+      const firstPage = await request(app)
+        .get('/events/pending?limit=2')
+        .set('Authorization', `Bearer ${coachToken}`)
+        .expect(200);
+
+      expect(Array.isArray(firstPage.body)).toBe(true);
+      expect(firstPage.body).toHaveLength(2);
+      expect(firstPage.headers['x-has-more']).toBe('1');
+      expect(typeof firstPage.headers['x-next-cursor']).toBe('string');
+
+      const secondPage = await request(app)
+        .get(`/events/pending?limit=2&cursor=${encodeURIComponent(firstPage.headers['x-next-cursor'])}`)
+        .set('Authorization', `Bearer ${coachToken}`)
+        .expect(200);
+
+      expect(Array.isArray(secondPage.body)).toBe(true);
+      expect(secondPage.body.length).toBeGreaterThanOrEqual(1);
+      expect(
+        secondPage.body.some(
+          (event: { title?: string }) =>
+            typeof event.title === 'string' && event.title.startsWith('Pending Events Cursor ')
+        )
+      ).toBe(true);
+      const firstPageIds = new Set(firstPage.body.map((event: { id: string }) => event.id));
+      expect(secondPage.body.every((event: { id: string }) => !firstPageIds.has(event.id))).toBe(true);
+    });
+  });
+
   // ── Org-admin fallback + broader-cancel-semantics regression tests.
   //
   // Closes the third original boundary bug: /events/:id/cancel used to require
@@ -576,4 +668,5 @@ describe('API Event Endpoints', () => {
         .catch(() => {});
     });
   });
+
 });

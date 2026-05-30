@@ -5,18 +5,27 @@ on:
   schedule:
     - cron: '0 11 * * 1' # Weekly Monday 11 AM UTC
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   audit-github-secrets:
     name: Verify GitHub Secrets
     runs-on: ubuntu-latest
-    continue-on-error: true  # Prevents GitHub email spam on scheduled failures
     
     steps:
       - uses: actions/checkout@v4
 
       - name: Check mobile app secrets
         id: mobile
+        env:
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }}
+          EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
         run: |
+          set -euo pipefail
           echo "## Mobile App Environment Variables" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
@@ -47,6 +56,7 @@ jobs:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
         run: |
+          set -euo pipefail
           echo "## Railway Production Secrets" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
@@ -71,6 +81,7 @@ jobs:
 
       - name: Fail if secrets missing
         run: |
+          set -euo pipefail
           if [ "${{ steps.mobile.outputs.missing }}" -gt 0 ] || [ "${{ steps.railway.outputs.missing }}" -gt 0 ]; then
             echo "❌ Missing required environment variables"
             exit 1
@@ -94,6 +105,7 @@ jobs:
       - name: Check Railway API health
         id: health
         run: |
+          set -euo pipefail
           response=$(curl -sf https://api-production-8ac3.up.railway.app/health || echo '{"error":"unreachable"}')
           
           echo "## Railway Service Health" >> $GITHUB_STEP_SUMMARY
@@ -219,16 +231,18 @@ jobs:
           node-version: '20'
 
       - name: Run env alignment check
-        continue-on-error: true
         run: |
+          set -euo pipefail
           if [ -f "scripts/check-env-alignment.js" ]; then
             node scripts/check-env-alignment.js >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️  scripts/check-env-alignment.js not found" >> $GITHUB_STEP_SUMMARY
+            echo "❌ scripts/check-env-alignment.js not found" >> $GITHUB_STEP_SUMMARY
+            exit 1
           fi
 
       - name: Check .env files exist
         run: |
+          set -euo pipefail
           echo "## Local Environment Files" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           

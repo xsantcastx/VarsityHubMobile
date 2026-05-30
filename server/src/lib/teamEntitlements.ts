@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { getAuthorizedUsersPerTeam, getMaxRosterSizePerTeam, getMaxTeamsForPlan, resolvePlan } from './planLimits.js';
 import { prisma } from './prisma.js';
-import { getUserPlan } from '../middleware/subscription.js';
+import { getUserPlans } from '../middleware/subscription.js';
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
@@ -19,6 +19,19 @@ export interface TeamEntitlementState {
   maxTeams: NullableLimit;
   maxRoster: NullableLimit;
   maxAuthorizedUsers: NullableLimit;
+}
+
+function buildUnlockedTeamEntitlementState(teamId: string): TeamEntitlementState {
+  return {
+    teamId,
+    teamLocked: false,
+    ownerIds: [],
+    entitledOwnerIds: [],
+    ownerPlans: {},
+    maxTeams: null,
+    maxRoster: null,
+    maxAuthorizedUsers: null,
+  };
 }
 
 type MembershipMutationGuardResult =
@@ -75,52 +88,16 @@ export function buildAuthorizedUserLimitError(limit: number) {
   };
 }
 
-export async function getTeamEntitlementState(db: DbClient, teamId: string): Promise<TeamEntitlementState> {
-  // audit-allow unbounded: entitlement checks must consider every active owner on the team
-  const ownerMemberships = await db.teamMembership.findMany({
-    where: { team_id: teamId, role: 'owner', status: 'active' },
-    select: { user_id: true },
-  });
-
-  const ownerIds = Array.from(new Set(ownerMemberships.map((membership) => membership.user_id)));
+function buildTeamEntitlementState(
+  teamId: string,
+  ownerIds: string[],
+  ownerPlans: Record<string, string>,
+  ownershipRowsByOwnerId: Map<string, Array<{ team_id: string; team: { created_at: Date } | null }>>
+): TeamEntitlementState {
   if (ownerIds.length === 0) {
-    return {
-      teamId,
-      teamLocked: false,
-      ownerIds: [],
-      entitledOwnerIds: [],
-      ownerPlans: {},
-      maxTeams: null,
-      maxRoster: null,
-      maxAuthorizedUsers: null,
-    };
+    return buildUnlockedTeamEntitlementState(teamId);
   }
 
-  const [ownerPlansEntries, ownershipRows] = await Promise.all([
-    Promise.all(ownerIds.map(async (ownerId) => {
-      const currentPlan = resolvePlan(await getUserPlan(ownerId, db));
-      return [ownerId, currentPlan] as const;
-    })),
-    // audit-allow unbounded: owner entitlement depends on the owner's full active team set
-    db.teamMembership.findMany({
-      where: {
-        user_id: { in: ownerIds },
-        role: 'owner',
-        status: 'active',
-      },
-      select: {
-        user_id: true,
-        team_id: true,
-        team: {
-          select: {
-            created_at: true,
-          },
-        },
-      },
-    }),
-  ]);
-
-  const ownerPlans = Object.fromEntries(ownerPlansEntries);
   const entitledOwnerIds: string[] = [];
   let bestMaxTeams: NullableLimit | undefined;
   let bestMaxRoster: NullableLimit | undefined;
@@ -131,8 +108,8 @@ export async function getTeamEntitlementState(db: DbClient, teamId: string): Pro
     const maxTeams = getMaxTeamsForPlan(ownerPlan);
     const maxRoster = getMaxRosterSizePerTeam(ownerPlan);
     const maxAuthorizedUsers = getAuthorizedUsersPerTeam(ownerPlan);
-    const ownedTeamIds = ownershipRows
-      .filter((row) => row.user_id === ownerId)
+    const ownedTeamIds = (ownershipRowsByOwnerId.get(ownerId) || [])
+      .slice()
       .sort(compareTeamOwnership)
       .map((row) => row.team_id);
 
@@ -153,7 +130,10 @@ export async function getTeamEntitlementState(db: DbClient, teamId: string): Pro
       const ownerPlan = ownerPlans[ownerId] || 'rookie';
       bestMaxTeams = mergeLargestLimit(bestMaxTeams, getMaxTeamsForPlan(ownerPlan));
       bestMaxRoster = mergeLargestLimit(bestMaxRoster, getMaxRosterSizePerTeam(ownerPlan));
-      bestMaxAuthorizedUsers = mergeLargestLimit(bestMaxAuthorizedUsers, getAuthorizedUsersPerTeam(ownerPlan));
+      bestMaxAuthorizedUsers = mergeLargestLimit(
+        bestMaxAuthorizedUsers,
+        getAuthorizedUsersPerTeam(ownerPlan)
+      );
     }
   }
 
@@ -167,6 +147,91 @@ export async function getTeamEntitlementState(db: DbClient, teamId: string): Pro
     maxRoster: bestMaxRoster ?? null,
     maxAuthorizedUsers: bestMaxAuthorizedUsers ?? null,
   };
+}
+
+export async function getTeamEntitlementStates(
+  db: DbClient,
+  teamIds: string[]
+): Promise<Map<string, TeamEntitlementState>> {
+  const uniqueTeamIds = [...new Set(teamIds.filter(Boolean))];
+  const result = new Map<string, TeamEntitlementState>();
+  if (uniqueTeamIds.length === 0) return result;
+
+  // audit-allow unbounded: entitlement checks must consider every active owner on the team set
+  const ownerMemberships = await db.teamMembership.findMany({
+    where: {
+      team_id: { in: uniqueTeamIds },
+      role: 'owner',
+      status: 'active',
+    },
+    select: { team_id: true, user_id: true },
+  });
+
+  const ownerIdsByTeamId = new Map<string, string[]>();
+  for (const membership of ownerMemberships) {
+    const existing = ownerIdsByTeamId.get(membership.team_id) || [];
+    existing.push(membership.user_id);
+    ownerIdsByTeamId.set(membership.team_id, existing);
+  }
+
+  const ownerIds = [...new Set(ownerMemberships.map((membership) => membership.user_id))];
+  if (ownerIds.length === 0) {
+    for (const teamId of uniqueTeamIds) {
+      result.set(teamId, buildUnlockedTeamEntitlementState(teamId));
+    }
+    return result;
+  }
+
+  const [ownerPlansMap, ownershipRows] = await Promise.all([
+    getUserPlans(ownerIds, db),
+    // audit-allow unbounded: owner entitlement depends on the owner's full active team set
+    db.teamMembership.findMany({
+      where: {
+        user_id: { in: ownerIds },
+        role: 'owner',
+        status: 'active',
+      },
+      select: {
+        user_id: true,
+        team_id: true,
+        team: {
+          select: {
+            created_at: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const ownerPlans = Object.fromEntries(
+    ownerIds.map((ownerId) => [ownerId, resolvePlan(ownerPlansMap.get(ownerId))])
+  );
+  const ownershipRowsByOwnerId = new Map<
+    string,
+    Array<{ team_id: string; team: { created_at: Date } | null }>
+  >();
+  for (const row of ownershipRows) {
+    const existing = ownershipRowsByOwnerId.get(row.user_id) || [];
+    existing.push({ team_id: row.team_id, team: row.team });
+    ownershipRowsByOwnerId.set(row.user_id, existing);
+  }
+
+  for (const teamId of uniqueTeamIds) {
+    const teamOwnerIds = [...new Set(ownerIdsByTeamId.get(teamId) || [])];
+    result.set(
+      teamId,
+      buildTeamEntitlementState(teamId, teamOwnerIds, ownerPlans, ownershipRowsByOwnerId)
+    );
+  }
+
+  return result;
+}
+
+export async function getTeamEntitlementState(db: DbClient, teamId: string): Promise<TeamEntitlementState> {
+  return (
+    (await getTeamEntitlementStates(db, [teamId])).get(teamId) ||
+    buildUnlockedTeamEntitlementState(teamId)
+  );
 }
 
 export async function guardTeamMembershipMutation(

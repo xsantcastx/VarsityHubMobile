@@ -39,6 +39,15 @@ const prismaDatasourceUrl =
       const url = new URL(raw);
       const connectionLimit = url.searchParams.get('connection_limit');
       const poolTimeout = url.searchParams.get('pool_timeout');
+      if (
+        isProduction &&
+        process.env.PRISMA_SKIP_POOL_GUARD !== '1' &&
+        (!connectionLimit || !poolTimeout)
+      ) {
+        throw new Error(
+          'Production DATABASE_URL must include connection_limit and pool_timeout query params.'
+        );
+      }
       if (connectionLimit || poolTimeout) {
         debugLog(
           `[prisma] Connection pool: limit=${connectionLimit || 'default'}, timeout=${poolTimeout || 'default'}s`
@@ -47,8 +56,11 @@ const prismaDatasourceUrl =
         debugLog('[prisma] ⚠️ No connection pool configured. For production, add to DATABASE_URL:');
         debugLog('[prisma]    ?connection_limit=20&pool_timeout=10');
       }
-    } catch {
-      // URL parsing failed, skip pool logging
+    } catch (error) {
+      if (error instanceof Error && isProduction && process.env.PRISMA_SKIP_POOL_GUARD !== '1') {
+        throw error;
+      }
+      // URL parsing failed, skip pool logging outside the production guard.
     }
   } else {
     debugLog('[env] DATABASE_URL is not set (prisma init)');

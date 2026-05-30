@@ -4,7 +4,7 @@ import { runStripeSubscriptionReconciliation } from '../lib/billingLifecycle.js'
 import { runPostUpvoteReconciliation } from '../lib/postUpvoteReconciliation.js';
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../jobs/queues.js';
-import { captureException } from '../lib/sentry.js';
+import { captureException, captureMessage } from '../lib/sentry.js';
 import { releaseExpiredPendingApprovalReservations } from '../lib/adReservationLifecycle.js';
 import {
   hardDeleteAnonymizedUsers,
@@ -467,10 +467,9 @@ export function startStripeSubscriptionReconciliation() {
       );
       const threshold = Number(process.env.SUBSCRIPTION_RECONCILIATION_ALERT_THRESHOLD) || 10;
       if (!suppress && (result.updated > threshold || result.failed > 0)) {
-        captureException(
-          new Error(
-            `Stripe reconciliation summary: updated=${result.updated}, failed=${result.failed}, scanned=${result.scanned}`
-          ),
+        captureMessage(
+          `Stripe reconciliation summary: updated=${result.updated}, failed=${result.failed}, scanned=${result.scanned}`,
+          'warning',
           {
             extra: {
               context: 'stripe_subscription_reconciliation_summary',
@@ -611,10 +610,9 @@ export function startAnonymizedUserPurge() {
       // accounts. Small counts are normal; a persistent nonzero run-over-run
       // signals a class of account we can't finalize.
       if (result.skipped > 0) {
-        captureException(
-          new Error(
-            `anonymized-purge skipped ${result.skipped} of ${result.scanned} users (likely FK restrict)`
-          ),
+        captureMessage(
+          `anonymized-purge skipped ${result.skipped} of ${result.scanned} users (likely FK restrict)`,
+          'warning',
           {
             extra: {
               context: 'anonymized_user_purge_skipped',

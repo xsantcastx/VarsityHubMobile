@@ -186,6 +186,10 @@ function resolveServerDirectedPostAuthKind(user: RoutingUserLike): ServerDirecte
         : explicitNextStep === '/onboarding/league-pending-approval'
           ? 'server_pending_approval_league_waiting'
           : 'server_pending_approval_waiting';
+    case 'coach_agreement_required':
+      return 'server_coach_agreement_required';
+    case 'coach_final_setup_required':
+      return 'server_final_setup_required';
     default:
       return null;
   }

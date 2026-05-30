@@ -49,6 +49,30 @@ const shouldRunStartupBackfills =
  *  raise if/when production traces show a real ceiling. */
 const RSVP_FANOUT_LIMIT = 50_000;
 const RSVP_FANOUT_BATCH = 200;
+const encodeEventRsvpCursor = (row: { created_at: Date | string; id: string }) => {
+  const createdAt =
+    row.created_at instanceof Date ? row.created_at.toISOString() : new Date(row.created_at).toISOString();
+  return `${createdAt}::${row.id}`;
+};
+
+const parseEventRsvpCursor = (cursor: string): { createdAt: Date; id: string } | null => {
+  const [createdAtRaw, id] = cursor.split('::');
+  if (!createdAtRaw || !id) return null;
+  const createdAt = new Date(createdAtRaw);
+  if (Number.isNaN(createdAt.getTime())) return null;
+  return { createdAt, id };
+};
+
+const buildCreatedAtIdCursorWhere = (cursor: { createdAt: Date; id: string } | null) => {
+  if (!cursor) return undefined;
+  return [
+    { created_at: { lt: cursor.createdAt } },
+    {
+      created_at: { equals: cursor.createdAt },
+      id: { lt: cursor.id },
+    },
+  ];
+};
 
 /**
  * Async iterator over an event's RSVPs in cursor-paged batches. Replaces the
@@ -490,9 +514,27 @@ eventsRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      const limit = Math.max(1, Math.min(Number.parseInt(String(req.query.limit ?? '50'), 10) || 50, 100));
+      const cursorRaw = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+      const cursor = cursorRaw ? parseEventRsvpCursor(cursorRaw) : null;
+      if (cursorRaw && !cursor) {
+        return res.status(400).json({ error: 'INVALID_CURSOR' });
+      }
+
+      const where: any = { user_id: req.user.id };
+      if (cursor) {
+        where.OR = [
+          { created_at: { lt: cursor.createdAt } },
+          {
+            created_at: { equals: cursor.createdAt },
+            id: { lt: cursor.id },
+          },
+        ];
+      }
+
       const rows = await prisma.eventRsvp.findMany({
-        where: { user_id: req.user.id },
-        orderBy: { created_at: 'desc' },
+        where,
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
         include: {
           event: {
             include: {
@@ -512,9 +554,16 @@ eventsRouter.get(
             },
           },
         },
-        take: 100,
+        take: limit + 1,
       });
-      const list = rows.map(r => ({
+      const page = rows.slice(0, limit);
+      const nextCursor = rows.length > limit ? encodeEventRsvpCursor(page[page.length - 1]!) : null;
+      if (nextCursor) {
+        res.set('x-next-cursor', nextCursor);
+      }
+      res.set('x-has-more', nextCursor ? '1' : '0');
+
+      const list = page.map(r => ({
         id: r.id,
         created_at: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
         event: r.event ? serializeEvent(r.event, { includeGame: true }) : null,
@@ -533,11 +582,21 @@ eventsRouter.get(
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      // req.user is guaranteed by requireAuth middleware
+      const limit = Math.max(1, Math.min(Number.parseInt(String(req.query.limit ?? '25'), 10) || 25, 100));
+      const cursorRaw = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+      const cursor = cursorRaw ? parseEventRsvpCursor(cursorRaw) : null;
+      if (cursorRaw && !cursor) {
+        return res.status(400).json({ error: 'INVALID_CURSOR' });
+      }
+
+      const createdAtCursorWhere = buildCreatedAtIdCursorWhere(cursor);
       const events = await prisma.event.findMany({
-        where: { creator_id: req.user!.id },
-        orderBy: { created_at: 'desc' },
-        take: 50,
+        where: {
+          creator_id: req.user!.id,
+          ...(createdAtCursorWhere ? { OR: createdAtCursorWhere } : {}),
+        },
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
         select: {
           id: true,
           title: true,
@@ -552,7 +611,13 @@ eventsRouter.get(
           description: true,
         },
       });
-      return res.json(events);
+      const page = events.slice(0, limit);
+      const nextCursor = events.length > limit ? encodeEventRsvpCursor(page[page.length - 1]!) : null;
+      if (nextCursor) {
+        res.set('x-next-cursor', nextCursor);
+      }
+      res.set('x-has-more', nextCursor ? '1' : '0');
+      return res.json(page);
     } catch (err) {
       console.error('[events] GET /my-events error:', err);
       return res.status(500).json({ error: 'Internal server error' });
@@ -613,9 +678,17 @@ eventsRouter.get(
             : { approval_status: 'pending', team_id: '__no_visible_pending_events__' };
       }
 
+      const limit = Math.max(1, Math.min(Number.parseInt(String(req.query.limit ?? '50'), 10) || 50, 100));
+      const cursorRaw = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+      const cursor = cursorRaw ? parseEventRsvpCursor(cursorRaw) : null;
+      if (cursorRaw && !cursor) {
+        return res.status(400).json({ error: 'INVALID_CURSOR' });
+      }
+      const createdAtCursorWhere = buildCreatedAtIdCursorWhere(cursor);
+
       const events = await prisma.event.findMany({
-        where,
-        orderBy: { created_at: 'desc' },
+        where: createdAtCursorWhere ? { ...where, OR: createdAtCursorWhere } : where,
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
         include: {
           game: {
             select: {
@@ -632,11 +705,18 @@ eventsRouter.get(
           },
           creator: { select: { id: true, display_name: true, avatar_url: true } },
         },
-        take: 100,
+        take: limit + 1,
       });
 
+      const page = events.slice(0, limit);
+      const nextCursor = events.length > limit ? encodeEventRsvpCursor(page[page.length - 1]!) : null;
+      if (nextCursor) {
+        res.set('x-next-cursor', nextCursor);
+      }
+      res.set('x-has-more', nextCursor ? '1' : '0');
+
       return res.json(
-        events.map(event => serializeEvent(event, { includeGame: true, includeCreator: true }))
+        page.map(event => serializeEvent(event, { includeGame: true, includeCreator: true }))
       );
     } catch (err) {
       console.error('[events] GET /pending error:', err);

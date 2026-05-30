@@ -20,6 +20,7 @@ let getOrganizationJoinRequestStateForUser: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
+const REQUIRED_COACH_AGREEMENT_VERSION = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
 
 describe('Coach Approval Workflow', () => {
   let pendingCoachId: string;
@@ -91,7 +92,15 @@ describe('Coach Approval Workflow', () => {
         email_verified: true,
         role: 'coach',
         onboarding_completed: true,
-        preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+        coach_agreement_accepted_at: new Date(),
+        coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
+        preferences: {
+          role: 'coach',
+          plan: 'rookie',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+          coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
+        },
         approval_status: 'APPROVED',
       },
     });
@@ -108,7 +117,15 @@ describe('Coach Approval Workflow', () => {
         email_verified: true,
         role: 'coach',
         onboarding_completed: true,
-        preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+        coach_agreement_accepted_at: new Date(),
+        coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
+        preferences: {
+          role: 'coach',
+          plan: 'veteran',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+          coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
+        },
         approval_status: 'APPROVED',
       },
     });
@@ -415,13 +432,15 @@ describe('Coach Approval Workflow', () => {
   });
 
   describe('Approved coach access', () => {
-    it('APPROVED coach without coach_agreement_accepted_at can create a team once approved', async () => {
-      // Clear the agreement so this test verifies approval is the only gate.
+    it('APPROVED coach without coach_agreement_accepted_at is blocked from creating a team', async () => {
+      // Clear the agreement so this test verifies the agreement gate remains server-enforced.
       await prisma.user.update({
         where: { id: approvedCoachId },
         data: {
           role: 'coach',
           onboarding_completed: true,
+          coach_agreement_accepted_at: null,
+          coach_agreement_version: null,
           preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
         },
       });
@@ -448,11 +467,8 @@ describe('Coach Approval Workflow', () => {
         .set('Authorization', `Bearer ${approvedCoachToken}`)
         .send({ name: 'Agreement Allowed Team', organization_id: approvedOrg!.id });
 
-      expect(res.status).toBe(201);
-      expect(res.body?.team?.id).toBeTruthy();
-      if (res.body?.team?.id) {
-        await prisma.team.delete({ where: { id: res.body.team.id } }).catch(() => {});
-      }
+      expect(res.status).toBe(403);
+      expect(res.body?.code).toBe('COACH_AGREEMENT_REQUIRED');
     });
 
     it('APPROVED coach with coach_agreement_accepted_at can create team', async () => {
@@ -465,11 +481,14 @@ describe('Coach Approval Workflow', () => {
       await prisma.user.update({
         where: { id: approvedCoachId },
         data: {
+          coach_agreement_accepted_at: new Date(),
+          coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
           preferences: {
             role: 'coach',
             plan: 'rookie',
             onboarding_completed: true,
             coach_agreement_accepted_at: new Date().toISOString(),
+            coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
           },
         },
       });
@@ -500,7 +519,15 @@ describe('Coach Approval Workflow', () => {
           date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
           role: 'coach',
           onboarding_completed: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+          coach_agreement_accepted_at: new Date(),
+          coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+            coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
+          },
           approval_status: 'APPROVED',
         },
       });
@@ -542,11 +569,14 @@ describe('Coach Approval Workflow', () => {
           date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
           role: 'coach',
           onboarding_completed: true,
+          coach_agreement_accepted_at: new Date(),
+          coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
           preferences: {
             role: 'coach',
             plan: 'rookie',
             onboarding_completed: true,
             coach_agreement_accepted_at: new Date().toISOString(),
+            coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
           },
           approval_status: 'APPROVED',
         },
@@ -612,7 +642,15 @@ describe('Coach Approval Workflow', () => {
           date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
           role: 'coach',
           onboarding_completed: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+          coach_agreement_accepted_at: new Date(),
+          coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+            coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
+          },
           approval_status: 'APPROVED',
         },
       });
@@ -659,11 +697,14 @@ describe('Coach Approval Workflow', () => {
           date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
           role: 'coach',
           onboarding_completed: true,
+          coach_agreement_accepted_at: new Date(),
+          coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
           preferences: {
             role: 'coach',
             plan: 'rookie',
             onboarding_completed: true,
             coach_agreement_accepted_at: new Date().toISOString(),
+            coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
           },
           approval_status: 'APPROVED',
         },
@@ -1153,7 +1194,15 @@ describe('Coach Approval Workflow', () => {
           email_verified: true,
           role: 'coach',
           onboarding_completed: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+          coach_agreement_accepted_at: new Date(),
+          coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+            coach_agreement_version: REQUIRED_COACH_AGREEMENT_VERSION,
+          },
           approval_status: 'APPROVED',
         },
       });

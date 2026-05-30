@@ -27,6 +27,9 @@ import type { Server } from 'node:http';
 import { writeFile } from 'node:fs/promises';
 import {
   COACH_ROUTE_BATTERY_LOCAL_EMAIL,
+  COACH_ROUTE_BATTERY_LOCAL_FAN_MODE_EMAIL,
+  COACH_ROUTE_BATTERY_LOCAL_FAN_MODE_STATUS,
+  COACH_ROUTE_BATTERY_LOCAL_MISSING_AGREEMENT_EMAIL,
   COACH_UAT_PASSWORD,
   disconnectCoachUatAccountsPrisma,
   prepareCoachUatAccounts,
@@ -67,6 +70,18 @@ type RouteProbe = {
   status: number;
   ok: boolean;
   detail?: string;
+};
+
+type LocalVariantExpectation = {
+  label: string;
+  email: string;
+  expectedAccountState: string;
+  expectedNextStep: string;
+  expectProceedingAsFan: boolean;
+  protectedRoute: string;
+  protectedRouteExpectedStatus: number;
+  fanSafeRoute?: string;
+  fanSafeRouteExpectedStatus?: number;
 };
 
 const BASE_URL = (process.env.BASE_URL || 'http://localhost:4000').replace(/\/$/, '');
@@ -257,6 +272,92 @@ function isLegacyBlockedCoachState(me: MeBody): boolean {
   );
 }
 
+async function verifyLocalVariant(
+  variant: LocalVariantExpectation,
+  routeResults: RouteProbe[],
+) {
+  const login = await api<LoginBody>('POST', '/auth/login', {
+    email: variant.email,
+    password: COACH_UAT_PASSWORD,
+  });
+  const loginOk = login.status === 200;
+  record(`${variant.label} login`, loginOk, login.status, loginOk ? undefined : 'login failed');
+  if (!loginOk) return false;
+
+  const { accessToken, refreshToken } = requireLogin(login.data as LoginBody);
+  const meRes = await api<MeBody>('GET', '/auth/me', undefined, accessToken);
+  const me = (meRes.data || null) as MeBody | null;
+  const meOk = meRes.status === 200;
+  record(`${variant.label} auth/me`, meOk, meRes.status, meOk ? undefined : 'unexpected /auth/me response');
+  if (!meOk) return false;
+
+  const meChecks: Array<{ step: string; ok: boolean; detail?: string }> = [
+    {
+      step: `${variant.label} account_state`,
+      ok: String(me?.account_state || '').trim() === variant.expectedAccountState,
+      detail: `account_state=${String(me?.account_state || '')}`,
+    },
+    {
+      step: `${variant.label} next_step`,
+      ok: String(me?.next_step || '').trim() === variant.expectedNextStep,
+      detail: `next_step=${String(me?.next_step || '')}`,
+    },
+    {
+      step: `${variant.label} proceeding_as_fan`,
+      ok: isProceedingAsFan(me || {}) === variant.expectProceedingAsFan,
+      detail: `proceeding_as_fan=${String(isProceedingAsFan(me || {}))}`,
+    },
+  ];
+
+  for (const check of meChecks) {
+    record(check.step, check.ok, meRes.status, check.ok ? undefined : check.detail);
+  }
+
+  const protectedRes = await api('GET', variant.protectedRoute, undefined, accessToken);
+  const protectedOk = protectedRes.status === variant.protectedRouteExpectedStatus;
+  const protectedDetail =
+    summarizeBody(protectedRes.data) || `expected ${variant.protectedRouteExpectedStatus}`;
+  routeResults.push({
+    path: `[${variant.label}] ${variant.protectedRoute}`,
+    required: true,
+    status: protectedRes.status,
+    ok: protectedOk,
+    detail: protectedDetail,
+  });
+  record(
+    `${variant.label} route ${variant.protectedRoute}`,
+    protectedOk,
+    protectedRes.status,
+    protectedOk ? protectedDetail : `expected ${variant.protectedRouteExpectedStatus}, got ${protectedRes.status}`
+  );
+
+  if (variant.fanSafeRoute) {
+    const fanSafeRes = await api('GET', variant.fanSafeRoute, undefined, accessToken);
+    const expectedStatus = variant.fanSafeRouteExpectedStatus ?? 200;
+    const fanSafeOk = fanSafeRes.status === expectedStatus;
+    const fanSafeDetail = summarizeBody(fanSafeRes.data) || `expected ${expectedStatus}`;
+    routeResults.push({
+      path: `[${variant.label}] ${variant.fanSafeRoute}`,
+      required: true,
+      status: fanSafeRes.status,
+      ok: fanSafeOk,
+      detail: fanSafeDetail,
+    });
+    record(
+      `${variant.label} route ${variant.fanSafeRoute}`,
+      fanSafeOk,
+      fanSafeRes.status,
+      fanSafeOk ? fanSafeDetail : `expected ${expectedStatus}, got ${fanSafeRes.status}`
+    );
+  }
+
+  const logout = await api('POST', '/auth/logout', { refresh_token: refreshToken });
+  const logoutOk = logout.status === 200 && (logout.data as any)?.ok === true;
+  record(`${variant.label} logout`, logoutOk, logout.status);
+
+  return meChecks.every((check) => check.ok) && protectedOk && logoutOk;
+}
+
 async function writeReport(
   ok: boolean,
   routeResults: RouteProbe[],
@@ -402,6 +503,41 @@ async function main() {
         ok ? summarizeBody(response.data) : summarizeBody(response.data) || 'route failed';
       routeResults.push({ path, required: true, status: response.status, ok, detail });
       record(`route ${path}`, ok, response.status, detail);
+    }
+
+    if (credentials.source === 'local_seeded_uat') {
+      const localVariants: LocalVariantExpectation[] = [
+        {
+          label: 'missing-agreement',
+          email: COACH_ROUTE_BATTERY_LOCAL_MISSING_AGREEMENT_EMAIL,
+          expectedAccountState: 'coach_agreement_required',
+          expectedNextStep: '/onboarding/coach-agreement',
+          expectProceedingAsFan: false,
+          protectedRoute: '/events/pending',
+          protectedRouteExpectedStatus: 403,
+        },
+        {
+          label:
+            COACH_ROUTE_BATTERY_LOCAL_FAN_MODE_STATUS === 'PENDING'
+              ? 'pending-fan-mode'
+              : 'rejected-fan-mode',
+          email: COACH_ROUTE_BATTERY_LOCAL_FAN_MODE_EMAIL,
+          expectedAccountState:
+            COACH_ROUTE_BATTERY_LOCAL_FAN_MODE_STATUS === 'PENDING'
+              ? 'coach_pending_approval'
+              : 'coach_pending_approval',
+          expectedNextStep: '/(tabs)',
+          expectProceedingAsFan: true,
+          protectedRoute: '/events/pending',
+          protectedRouteExpectedStatus: 403,
+          fanSafeRoute: '/feed/bundle',
+          fanSafeRouteExpectedStatus: 200,
+        },
+      ];
+
+      for (const variant of localVariants) {
+        await verifyLocalVariant(variant, routeResults);
+      }
     }
 
     const logout = await api('POST', '/auth/logout', { refresh_token: refreshToken });

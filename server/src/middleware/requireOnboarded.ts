@@ -5,6 +5,8 @@ import { isEmailAdmin } from './requireAdmin.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
 import { SERVER_ROOKIE_TEAM_LIMIT } from '../lib/planDefinitions.js';
 import {
+  getCoachAgreementAcceptedAt,
+  getCoachAgreementVersion,
   getCanonicalUserRole,
   hasCoachFanModeAccess,
   isUserOnboardingComplete,
@@ -34,12 +36,20 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
       // "Please complete onboarding before creating content.").
       role: true,
       onboarding_completed: true,
+      coach_agreement_accepted_at: true,
+      coach_agreement_version: true,
     },
   });
   const prefs = u?.preferences as Record<string, unknown> | null;
   const role = getCanonicalUserRole(u as any);
   const onboardingComplete = isUserOnboardingComplete(u as any);
   const hasFanModeAccess = hasCoachFanModeAccess(u as any);
+  const requiredCoachAgreementVersion = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
+  const acceptedCoachAgreementAt = getCoachAgreementAcceptedAt(u as any);
+  const acceptedCoachAgreementVersion = Number(getCoachAgreementVersion(u as any) ?? 0);
+  const hasCurrentCoachAgreement =
+    Boolean(acceptedCoachAgreementAt) &&
+    acceptedCoachAgreementVersion >= requiredCoachAgreementVersion;
 
   // God-admins bypass all onboarding/approval checks
   if (isEmailAdmin(u?.email)) {
@@ -131,6 +141,13 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     });
   }
 
+  if (role === 'coach' && !hasCurrentCoachAgreement) {
+    return res.status(403).json({
+      error: 'You must accept the coach agreement before using coach features.',
+      code: 'COACH_AGREEMENT_REQUIRED',
+    });
+  }
+
   // v1.0.2 pass 8: safety net for Apple IAP grace period expiry. If Apple's EXPIRED
   // notification was lost, this catches users whose grace period has elapsed and
   // downgrades them lazily on their next coach API call. Without this, users could
@@ -152,7 +169,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
         },
       });
       console.warn('[requireOnboarded] Lazy-downgraded user after grace period expiry', { userId: req.user.id });
-      // Continue with downgraded state; approval remains the only coach-feature gate here.
+      // Continue with downgraded state; coach access gates above remain authoritative.
     }
   }
 

@@ -17,6 +17,7 @@ import { captureException } from '../lib/sentry.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 export const feedRouter = Router();
+type FollowedFeedMode = 'followed' | 'followed_teams';
 
 const isMissingPollSchemaError = (error: any): boolean => {
   if (!error || (error.code !== 'P2021' && error.code !== 'P2022')) return false;
@@ -67,10 +68,74 @@ async function getZipCoordinatesWithFallback(
   return null;
 }
 
+const buildFollowedPostsWhereClause = (currentUserId: string, mode: FollowedFeedMode) => {
+  if (mode === 'followed') {
+    return [
+      {
+        author: {
+          followers: {
+            some: {
+              follower_id: currentUserId,
+              status: 'accepted',
+            },
+          },
+        },
+      },
+      { type: 'admin_broadcast' },
+    ];
+  }
+
+  return [
+    {
+      team: {
+        is: {
+          followers: {
+            some: {
+              user_id: currentUserId,
+            },
+          },
+        },
+      },
+    },
+    {
+      game: {
+        is: {
+          OR: [
+            {
+              homeTeam: {
+                is: {
+                  followers: {
+                    some: {
+                      user_id: currentUserId,
+                    },
+                  },
+                },
+              },
+            },
+            {
+              awayTeam: {
+                is: {
+                  followers: {
+                    some: {
+                      user_id: currentUserId,
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+    { type: 'admin_broadcast' },
+  ];
+};
+
 async function getFollowedPostsPage(
   req: AuthedRequest,
-  mode: 'followed' | 'followed_teams',
-  limit: number
+  mode: FollowedFeedMode,
+  limit: number,
+  cursor: string | null = null
 ) {
   const currentUserId = req.user?.id ?? null;
   if (!currentUserId) {
@@ -88,49 +153,27 @@ async function getFollowedPostsPage(
   let followedTeamsFeedMeta: { followed_teams_count: number } | undefined;
 
   if (mode === 'followed') {
-    const following = await prisma.follows.findMany({
+    const followingCount = await prisma.follows.count({
       where: { follower_id: currentUserId, status: 'accepted' },
-      select: { following_id: true },
-      take: 1000,
     });
-    const followingIds = following.map((row: any) => row.following_id);
-    followedFeedMeta = { following_count: followingIds.length };
-    if (followingIds.length === 0) {
+    followedFeedMeta = { following_count: followingCount };
+    if (followingCount === 0) {
       return { items: [], nextCursor: null, followed_feed_meta: followedFeedMeta };
     }
-    where.OR = [{ author_id: { in: followingIds } }, { type: 'admin_broadcast' }];
+    where.OR = buildFollowedPostsWhereClause(currentUserId, mode);
   } else {
-    const teamFollows = await prisma.teamFollow.findMany({
+    const followedTeamsCount = await prisma.teamFollow.count({
       where: { user_id: currentUserId },
-      select: { team_id: true },
-      take: 1000,
     });
-    const followedTeamIds = teamFollows.map((row: any) => row.team_id);
-    followedTeamsFeedMeta = { followed_teams_count: followedTeamIds.length };
-    if (followedTeamIds.length === 0) {
+    followedTeamsFeedMeta = { followed_teams_count: followedTeamsCount };
+    if (followedTeamsCount === 0) {
       return {
         items: [],
         nextCursor: null,
         followed_teams_feed_meta: followedTeamsFeedMeta,
       };
     }
-    const gamesWithFollowedTeams = await prisma.game.findMany({
-      where: {
-        OR: [
-          { home_team_id: { in: followedTeamIds } },
-          { away_team_id: { in: followedTeamIds } },
-        ],
-      },
-      select: { id: true },
-      take: 500,
-      orderBy: { date: 'desc' },
-    });
-    const gameIds = gamesWithFollowedTeams.map((row: any) => row.id);
-    where.OR = [
-      { team_id: { in: followedTeamIds } },
-      ...(gameIds.length > 0 ? [{ game_id: { in: gameIds } }] : []),
-      { type: 'admin_broadcast' },
-    ];
+    where.OR = buildFollowedPostsWhereClause(currentUserId, mode);
   }
 
   const excludedIds = await getExcludedPrivateAuthorIds(currentUserId);
@@ -150,7 +193,7 @@ async function getFollowedPostsPage(
 
   const query: any = {
     where,
-    orderBy: [{ created_at: 'desc' as const }],
+    orderBy: [{ created_at: 'desc' as const }, { id: 'desc' as const }],
     include: {
       author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
       team: { select: { id: true, name: true, logo_url: true } },
@@ -159,6 +202,10 @@ async function getFollowedPostsPage(
     },
     take: limit + 1,
   };
+  if (cursor) {
+    query.cursor = { id: cursor };
+    query.skip = 1;
+  }
 
   let rows: any[] = [];
   try {
@@ -350,11 +397,15 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
   }
 
   let followedSet = new Set<string>();
-  if (req.user?.id) {
+  if (req.user?.id && pool.length > 0) {
+    const authorIds = [...new Set(pool.map((post: any) => post.author_id).filter(Boolean))];
     const follows = await prisma.follows.findMany({
-      where: { follower_id: req.user.id },
+      where: {
+        follower_id: req.user.id,
+        following_id: { in: authorIds },
+      },
       select: { following_id: true },
-      take: 1000,
+      take: Math.max(authorIds.length, 1),
     });
     followedSet = new Set(follows.map((row: any) => row.following_id));
   }
@@ -546,8 +597,20 @@ feedRouter.get(
       const ADS_FALLBACK = { date: todayISO, ads: [] };
 
       const settled = await Promise.allSettled([
-        getFollowedPostsPage(req, 'followed', postsLimit),
-        getFollowedPostsPage(req, 'followed_teams', postsLimit),
+        getFollowedPostsPage(
+          req,
+          'followed',
+          postsLimit,
+          typeof req.query.posts_cursor === 'string' ? req.query.posts_cursor : null
+        ),
+        getFollowedPostsPage(
+          req,
+          'followed_teams',
+          postsLimit,
+          typeof req.query.posts_followed_teams_cursor === 'string'
+            ? req.query.posts_followed_teams_cursor
+            : null
+        ),
         getHighlightsBundle(req, highlightsLimit),
         getAdsBundle(viewer, req, adsLimit),
         prisma.notification.count({

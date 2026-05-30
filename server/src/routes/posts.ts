@@ -185,6 +185,69 @@ async function isCoachOfPostTeam(
 
 /** Time-decay trending score: upvotes / (hours_since_posted + 2)^1.5 */
 const TRENDING_POOL_SIZE = 200;
+const buildFollowedPostsWhereClause = (currentUserId: string, mode: 'followed' | 'followed_teams') => {
+  if (mode === 'followed') {
+    return [
+      {
+        author: {
+          followers: {
+            some: {
+              follower_id: currentUserId,
+              status: 'accepted',
+            },
+          },
+        },
+      },
+      { type: 'admin_broadcast' },
+    ];
+  }
+
+  return [
+    {
+      team: {
+        is: {
+          followers: {
+            some: {
+              user_id: currentUserId,
+            },
+          },
+        },
+      },
+    },
+    {
+      game: {
+        is: {
+          OR: [
+            {
+              homeTeam: {
+                is: {
+                  followers: {
+                    some: {
+                      user_id: currentUserId,
+                    },
+                  },
+                },
+              },
+            },
+            {
+              awayTeam: {
+                is: {
+                  followers: {
+                    some: {
+                      user_id: currentUserId,
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+    { type: 'admin_broadcast' },
+  ];
+};
+
 const trendingScore = (upvotes: number, createdAt: Date): number => {
   const ageHours = Math.max((Date.now() - createdAt.getTime()) / 3600000, 0);
   return (upvotes || 0) / Math.pow(ageHours + 2, 1.5);
@@ -219,18 +282,14 @@ postsRouter.get(
             .status(401)
             .json({ items: [], nextCursor: null, followed_feed_meta: { following_count: 0 } });
         }
-        const following = await prisma.follows.findMany({
+        const followingCount = await prisma.follows.count({
           where: { follower_id: currentUserId, status: 'accepted' },
-          select: { following_id: true },
-          take: 1000,
         });
-        const followingIds = following.map(f => f.following_id);
-        followedFeedMeta = { following_count: followingIds.length };
-        if (followingIds.length === 0) {
+        followedFeedMeta = { following_count: followingCount };
+        if (followingCount === 0) {
           return res.json({ items: [], nextCursor: null, followed_feed_meta: followedFeedMeta });
         }
-        // Show posts from followed users OR admin broadcast posts (visible to everyone)
-        where.OR = [{ author_id: { in: followingIds } }, { type: 'admin_broadcast' }];
+        where.OR = buildFollowedPostsWhereClause(currentUserId, 'followed');
       }
 
       // Followed teams feed: posts from teams the user follows (team_id or game's teams)
@@ -243,37 +302,18 @@ postsRouter.get(
             followed_teams_feed_meta: { followed_teams_count: 0 },
           });
         }
-        const teamFollows = await prisma.teamFollow.findMany({
+        const followedTeamsCount = await prisma.teamFollow.count({
           where: { user_id: currentUserId },
-          select: { team_id: true },
-          take: 1000,
         });
-        const followedTeamIds = teamFollows.map(f => f.team_id);
-        followedTeamsFeedMeta = { followed_teams_count: followedTeamIds.length };
-        if (followedTeamIds.length === 0) {
+        followedTeamsFeedMeta = { followed_teams_count: followedTeamsCount };
+        if (followedTeamsCount === 0) {
           return res.json({
             items: [],
             nextCursor: null,
             followed_teams_feed_meta: followedTeamsFeedMeta,
           });
         }
-        const gamesWithFollowedTeams = await prisma.game.findMany({
-          where: {
-            OR: [
-              { home_team_id: { in: followedTeamIds } },
-              { away_team_id: { in: followedTeamIds } },
-            ],
-          },
-          select: { id: true },
-          take: 500,
-          orderBy: { date: 'desc' },
-        });
-        const gameIds = gamesWithFollowedTeams.map(g => g.id);
-        where.OR = [
-          { team_id: { in: followedTeamIds } },
-          ...(gameIds.length > 0 ? [{ game_id: { in: gameIds } }] : []),
-          { type: 'admin_broadcast' },
-        ];
+        where.OR = buildFollowedPostsWhereClause(currentUserId, 'followed_teams');
       }
 
       if (req.query.game_id) {

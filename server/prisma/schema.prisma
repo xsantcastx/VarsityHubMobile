@@ -476,6 +476,8 @@ model Game {
   @@index([home_team_id])
   @@index([away_team_id])
   @@index([approval_status])
+  @@index([approval_status, date])
+  @@index([approval_status, created_at])
 }
 
 model Post {
@@ -604,6 +606,7 @@ model Event {
   @@index([creator_id])
   @@index([creator_id, created_at])
   @@index([approval_status])
+  @@index([approval_status, status, date])
   @@index([event_type])
   @@index([status])
   @@index([team_id])
@@ -761,6 +764,7 @@ model EventRsvp {
   @@unique([event_id, user_id])
   @@index([event_id, created_at])
   @@index([user_id])
+  @@index([user_id, created_at, id])
 }
 
 // ===========================
@@ -958,7 +962,10 @@ model Notification {
   message Message? @relation(fields: [message_id], references: [id], onDelete: SetNull)
 
   @@index([user_id, created_at])
+  @@index([user_id, created_at, id])
   @@index([user_id, read_at])
+  @@index([user_id, read_at, created_at])
+  @@index([user_id, read_at, created_at, id])
   @@index([actor_id])
   @@index([type, created_at])
   @@index([post_id])

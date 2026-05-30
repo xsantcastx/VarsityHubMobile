@@ -213,8 +213,8 @@ describe('coach flow structural invariants', () => {
       ).toBe(true);
     });
 
-    it('requireOnboarded no longer blocks approved coaches on coach agreement state', () => {
-      expect(/COACH_AGREEMENT_REQUIRED/.test(requireOnboarded)).toBe(false);
+    it('requireOnboarded blocks approved coaches until the coach agreement is accepted', () => {
+      expect(/COACH_AGREEMENT_REQUIRED/.test(requireOnboarded)).toBe(true);
     });
 
     it('requireOnboarded no longer blocks approved coaches on org admin approval state', () => {
@@ -496,8 +496,9 @@ describe('coach flow structural invariants', () => {
   describe('server/src/index.ts startup safety guards', () => {
     const indexSrc = read(join(SRC_DIR, 'index.ts'));
 
-    it('warns loudly if ADMIN_EMAILS is empty at boot', () => {
+    it('warns loudly if ADMIN_EMAILS is empty at boot and scopes access to the App Review demo account', () => {
       expect(/ADMIN_EMAILS env var is empty/.test(indexSrc)).toBe(true);
+      expect(/only the App Review demo account/.test(indexSrc)).toBe(true);
     });
 
     it('warns loudly if SENDGRID_API_KEY is missing at boot', () => {

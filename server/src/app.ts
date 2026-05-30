@@ -173,7 +173,7 @@ const corsOptions: cors.CorsOptions = {
     'Cache-Control',
     'Pragma',
   ],
-  exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
+  exposedHeaders: ['X-Total-Count', 'X-Page-Count', 'X-Next-Cursor', 'X-Has-More'],
 };
 debugLog(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);
 app.use(cors(corsOptions));

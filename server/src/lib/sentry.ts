@@ -162,12 +162,25 @@ export function clearUserContext() {
   Sentry.setUser(null);
 }
 
+function getNestedExtraContext(context: Record<string, any>): Record<string, any> | null {
+  const extra = context.extra;
+  return extra && typeof extra === 'object' && !Array.isArray(extra)
+    ? (extra as Record<string, any>)
+    : null;
+}
+
+function getContextValue(context: Record<string, any>, key: string): unknown {
+  if (typeof context[key] !== 'undefined') return context[key];
+  const extra = getNestedExtraContext(context);
+  return extra ? extra[key] : undefined;
+}
+
 function applyScopeTags(scope: Sentry.Scope, context: Record<string, any>) {
   scope.setTag('service', SERVER_SERVICE_TAG);
 
   const explicitContextTag =
-    typeof context.context === 'string'
-      ? context.context
+    typeof getContextValue(context, 'context') === 'string'
+      ? (getContextValue(context, 'context') as string)
       : typeof context.tags?.context === 'string'
         ? context.tags.context
         : null;
@@ -176,12 +189,24 @@ function applyScopeTags(scope: Sentry.Scope, context: Record<string, any>) {
     scope.setTag('vh_context', contextTag);
   }
 
-  const route = typeof context.path === 'string' ? context.path : typeof context.route === 'string' ? context.route : null;
+  const routeValue =
+    typeof getContextValue(context, 'path') === 'string'
+      ? getContextValue(context, 'path')
+      : typeof getContextValue(context, 'route') === 'string'
+        ? getContextValue(context, 'route')
+        : null;
+  const route = typeof routeValue === 'string' ? routeValue : null;
   if (route && !context.tags?.route) {
     scope.setTag('route', normalizeRoutePath(route));
   }
 
-  const job = typeof context.job === 'string' ? context.job : typeof context.jobName === 'string' ? context.jobName : null;
+  const jobValue =
+    typeof getContextValue(context, 'job') === 'string'
+      ? getContextValue(context, 'job')
+      : typeof getContextValue(context, 'jobName') === 'string'
+        ? getContextValue(context, 'jobName')
+        : null;
+  const job = typeof jobValue === 'string' ? jobValue : null;
   if (job && !context.tags?.job) {
     scope.setTag('job', job);
   }
@@ -202,11 +227,19 @@ function applyScopeTags(scope: Sentry.Scope, context: Record<string, any>) {
 }
 
 function inferProviderTag(context: Record<string, any>, contextTag?: string | null): string | null {
+  const extra = getNestedExtraContext(context);
   const candidates = [
     contextTag,
-    typeof context.provider === 'string' ? context.provider : null,
-    typeof context.label === 'string' ? context.label : null,
-    typeof context.message === 'string' ? context.message : null,
+    typeof getContextValue(context, 'provider') === 'string'
+      ? (getContextValue(context, 'provider') as string)
+      : null,
+    typeof getContextValue(context, 'label') === 'string'
+      ? (getContextValue(context, 'label') as string)
+      : null,
+    typeof getContextValue(context, 'message') === 'string'
+      ? (getContextValue(context, 'message') as string)
+      : null,
+    typeof extra?.message === 'string' ? extra.message : null,
   ].filter((value): value is string => Boolean(value));
 
   for (const candidate of candidates) {

@@ -10,8 +10,8 @@
  * @module jobs/workers/notificationWorker
  */
 
-import * as Sentry from '@sentry/node';
 import { Job, Worker } from 'bullmq';
+import { captureException } from '../../lib/sentry.js';
 import type { NotificationJob } from '../queues.js';
 
 let worker: Worker<NotificationJob> | null = null;
@@ -70,11 +70,10 @@ export async function startNotificationWorker(): Promise<Worker<NotificationJob>
 
     worker.on('failed', (job, err) => {
       console.error(`[NotificationWorker] Job ${job?.id} failed:`, err);
-      if (Sentry) {
-        Sentry.captureException(err, {
-          tags: { worker: 'notification', jobId: job?.id },
-        });
-      }
+      captureException(err, {
+        context: 'notification_worker_failed',
+        tags: { worker: 'notification', jobId: String(job?.id ?? 'unknown') },
+      });
     });
 
     worker.on('error', (err) => {

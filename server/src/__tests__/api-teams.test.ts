@@ -474,6 +474,98 @@ describe('API Team Endpoints', () => {
       expect(row.my_role).toBe('owner');
       expect(row.viewer_role).toBe('owner');
     });
+
+    it('supports pagination headers for managed teams without breaking the array contract', async () => {
+      const paginationCoach = await prisma.user.create({
+        data: {
+          email: `pagination-coach-${Date.now()}@example.com`,
+          password_hash: await bcrypt.hash(TEST_PASSWORD, 10),
+          display_name: 'Pagination Coach',
+          email_verified: true,
+          role: 'coach',
+          onboarding_completed: true,
+          approval_status: 'APPROVED',
+          plan: 'legend',
+          coach_agreement_accepted_at: new Date(),
+          preferences: {
+            role: 'coach',
+            plan: 'legend',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+        },
+        select: { id: true },
+      });
+      const paginationToken = signJwt({ id: paginationCoach.id });
+      const paginationOrg = await prisma.organization.create({
+        data: {
+          name: `Managed Pagination League ${Date.now()}`,
+          org_type: 'club',
+          admin_approved: true,
+          league_owner_id: paginationCoach.id,
+          updated_at: new Date(),
+        },
+        select: { id: true },
+      });
+      await prisma.organizationMembership.create({
+        data: {
+          organization_id: paginationOrg.id,
+          user_id: paginationCoach.id,
+          role: 'owner',
+          status: 'active',
+        },
+      });
+
+      const createdTeams = [];
+      for (const suffix of ['A', 'B', 'C']) {
+        const team = await prisma.team.create({
+          data: {
+            name: `Managed Page Team ${suffix} ${Date.now()}`,
+            description: 'Managed pagination fixture',
+            organization_id: paginationOrg.id,
+            sport: 'Basketball',
+          },
+          select: { id: true, name: true },
+        });
+        await prisma.teamMembership.create({
+          data: { team_id: team.id, user_id: paginationCoach.id, role: 'owner', status: 'active' },
+        });
+        createdTeams.push(team);
+      }
+
+      const firstPage = await request(app)
+        .get(`/teams/managed?q=${encodeURIComponent('Managed Page Team')}&limit=1`)
+        .set('Authorization', `Bearer ${paginationToken}`)
+        .expect(200);
+
+      expect(Array.isArray(firstPage.body)).toBe(true);
+      expect(firstPage.body).toHaveLength(1);
+      expect(firstPage.headers['x-next-cursor']).toBeTruthy();
+      expect(firstPage.headers['x-has-more']).toBe('1');
+
+      const secondPage = await request(app)
+        .get(
+          `/teams/managed?q=${encodeURIComponent('Managed Page Team')}&limit=1&cursor=${encodeURIComponent(firstPage.headers['x-next-cursor'])}`
+        )
+        .set('Authorization', `Bearer ${paginationToken}`)
+        .expect(200);
+
+      expect(Array.isArray(secondPage.body)).toBe(true);
+      expect(secondPage.body).toHaveLength(1);
+      expect(secondPage.body[0]?.id).not.toBe(firstPage.body[0]?.id);
+
+      await prisma.teamMembership.deleteMany({
+        where: { team_id: { in: createdTeams.map((team: any) => team.id) } },
+      });
+      await prisma.team.deleteMany({
+        where: { id: { in: createdTeams.map((team: any) => team.id) } },
+      });
+      await prisma.organizationMembership.deleteMany({
+        where: { organization_id: paginationOrg.id },
+      });
+      await prisma.organization.delete({ where: { id: paginationOrg.id } });
+      await prisma.user.delete({ where: { id: paginationCoach.id } });
+    });
   });
 
   describe('GET /teams contracts', () => {

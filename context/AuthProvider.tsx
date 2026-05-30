@@ -1002,11 +1002,6 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         postAuthDecision.kind.startsWith('server_') &&
         explicitNextStep !== '/(tabs)' &&
         !coachAccess.isProceedingAsFan &&
-        [
-          'coach_application_submitted',
-          'coach_application_rejected',
-          'coach_pending_approval',
-        ].includes(accountState) &&
         !isOnExplicitNextStep
       ) {
         if (lastRedirectRef.current !== explicitNextStep) {

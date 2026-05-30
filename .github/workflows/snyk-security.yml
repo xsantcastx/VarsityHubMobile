@@ -71,21 +71,25 @@ jobs:
         uses: snyk/actions/setup@master
 
       - name: Run Snyk Code scan (SAST) - Frontend
+        id: frontend-code-scan
         if: steps.snyk-check.outputs.has-token == 'true'
         run: snyk code test --severity-threshold=high --sarif-file-output=snyk-frontend.sarif
         continue-on-error: true
 
       - name: Run Snyk Code scan (SAST) - Server
+        id: server-code-scan
         if: steps.snyk-check.outputs.has-token == 'true'
         run: cd server && snyk code test --severity-threshold=high --sarif-file-output=../snyk-server.sarif
         continue-on-error: true
 
       - name: Run Snyk Open Source scan (SCA) - Frontend
+        id: frontend-dep-scan
         if: steps.snyk-check.outputs.has-token == 'true'
         run: snyk test --severity-threshold=high
         continue-on-error: true
 
       - name: Run Snyk Open Source scan (SCA) - Server
+        id: server-dep-scan
         if: steps.snyk-check.outputs.has-token == 'true'
         run: cd server && snyk test --severity-threshold=high
         continue-on-error: true
@@ -110,6 +114,22 @@ jobs:
         with:
           sarif_file: snyk-server.sarif
           category: snyk-server
+
+      - name: Fail if Snyk token missing
+        if: steps.snyk-check.outputs.has-token != 'true'
+        run: |
+          echo "❌ SNYK_TOKEN is not configured, so this security workflow cannot provide real signal."
+          exit 1
+
+      - name: Fail on Snyk findings
+        if: >-
+          steps.frontend-code-scan.outcome == 'failure' ||
+          steps.server-code-scan.outcome == 'failure' ||
+          steps.frontend-dep-scan.outcome == 'failure' ||
+          steps.server-dep-scan.outcome == 'failure'
+        run: |
+          echo "❌ Snyk reported one or more high-severity findings."
+          exit 1
 
   # npm audit is intentionally NOT run here. It's covered by:
   #   - npm-audit.yml (nightly, severity-aware: fails on critical/high)
@@ -152,6 +172,7 @@ jobs:
         run: docker build -t varsityhub-server:latest -f server/Dockerfile .
 
       - name: Run Snyk container scan
+        id: container-scan
         if: steps.snyk-check.outputs.has-token == 'true'
         run: snyk container test varsityhub-server:latest --severity-threshold=high --file=server/Dockerfile
         continue-on-error: true
@@ -161,11 +182,23 @@ jobs:
         run: snyk container monitor varsityhub-server:latest --project-name=varsityhub-server-container --file=server/Dockerfile
         continue-on-error: true
 
+      - name: Fail if Snyk token missing
+        if: steps.snyk-check.outputs.has-token != 'true'
+        run: |
+          echo "❌ SNYK_TOKEN is not configured, so this container security workflow cannot provide real signal."
+          exit 1
+
+      - name: Fail on container findings
+        if: steps.container-scan.outcome == 'failure'
+        run: |
+          echo "❌ Snyk container scan reported one or more high-severity findings."
+          exit 1
+
   security-report:
     runs-on: ubuntu-latest
     name: Security Summary
     if: always()
-    needs: [snyk-scan]
+    needs: [snyk-scan, container-scan]
 
     steps:
       - name: Check scan results

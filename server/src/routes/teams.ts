@@ -1,4 +1,4 @@
-import { MembershipStatus } from '@prisma/client';
+import { MembershipStatus, Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { isOrganizationApproved } from '../lib/approvalService.js';
@@ -23,6 +23,7 @@ import {
 import {
     buildTeamPlanLockedError,
     getTeamEntitlementState,
+    getTeamEntitlementStates,
     isAuthorizedTeamRole,
     isManagementRole,
     TEAM_AUTHORIZED_ROLES,
@@ -43,6 +44,39 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 export const teamsRouter = Router();
 registerIdValidation(teamsRouter);
 const teamGroupChatLocks = new Map<string, Promise<any>>();
+
+type ManagedTeamCursor = {
+  orgName: string;
+  teamName: string;
+  teamId: string;
+};
+
+const encodeManagedTeamCursor = (cursor: ManagedTeamCursor) =>
+  Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+
+const parseManagedTeamCursor = (raw: string): ManagedTeamCursor | null => {
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<ManagedTeamCursor>;
+    if (
+      typeof parsed.orgName !== 'string' ||
+      typeof parsed.teamName !== 'string' ||
+      typeof parsed.teamId !== 'string' ||
+      parsed.orgName.length === 0 ||
+      parsed.teamName.length === 0 ||
+      parsed.teamId.length === 0
+    ) {
+      return null;
+    }
+    return {
+      orgName: parsed.orgName,
+      teamName: parsed.teamName,
+      teamId: parsed.teamId,
+    };
+  } catch {
+    return null;
+  }
+};
+
 async function ensureTeamGroupChatMembership(teamId: string, userId: string) {
   return withDistributedLock(
     {
@@ -355,60 +389,123 @@ teamsRouter.get(
       const q = String((req.query as any).q || '')
         .trim()
         .toLowerCase();
+      const limitRaw = Number.parseInt(String((req.query as any).limit || ''), 10);
+      const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 50;
+      const cursorRaw = typeof (req.query as any).cursor === 'string' ? String((req.query as any).cursor) : null;
+      const cursor = cursorRaw ? parseManagedTeamCursor(cursorRaw) : null;
+      if (cursorRaw && !cursor) {
+        return sendError(res, 400, 'INVALID_CURSOR', {
+          message: 'Managed teams cursor is invalid.',
+        });
+      }
       const userId = req.user.id;
       const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
+      const managementRoleSql = Prisma.join(
+        managementRoles.map((role) => Prisma.sql`${role}::"TeamRole"`)
+      );
 
-      let where: any = {
-        status: 'active',
+      const select: any = {
+        ...buildTeamSerializeSelect({
+          includeCounts: true,
+          includeOrganization: true,
+        }),
         memberships: {
-          some: {
-            user_id: userId,
-            role: { in: managementRoles },
-            status: 'active',
-          },
+          where: { user_id: userId, status: MembershipStatus.active },
+          select: { role: true },
         },
       };
+      const batchSize = Math.min(Math.max(limit * 2, 25), 100);
+      let exhausted = false;
+      let rawCursor = cursor;
+      const visibleRows: Array<{ team: any; cursor: ManagedTeamCursor }> = [];
 
-      if (q) {
-        where.name = { contains: q, mode: 'insensitive' };
+      while (visibleRows.length < limit + 1 && !exhausted) {
+        const searchClause = q
+          ? Prisma.sql`AND t."name" ILIKE ${`%${q}%`}`
+          : Prisma.empty;
+        const cursorClause = rawCursor
+          ? Prisma.sql`AND ROW(o."name", t."name", t."id") > ROW(${rawCursor.orgName}, ${rawCursor.teamName}, ${rawCursor.teamId})`
+          : Prisma.empty;
+
+        const candidates = await prisma.$queryRaw<Array<{ id: string; org_name: string; team_name: string }>>(
+          Prisma.sql`
+            SELECT t."id", o."name" AS org_name, t."name" AS team_name
+            FROM "Team" t
+            INNER JOIN "Organization" o ON o."id" = t."organization_id"
+            WHERE t."status" = 'active'
+              AND EXISTS (
+                SELECT 1
+                FROM "TeamMembership" tm
+                WHERE tm."team_id" = t."id"
+                  AND tm."user_id" = ${userId}
+                  AND tm."status" = 'active'
+                  AND tm."role" IN (${managementRoleSql})
+              )
+              ${searchClause}
+              ${cursorClause}
+            ORDER BY o."name" ASC, t."name" ASC, t."id" ASC
+            LIMIT ${batchSize}
+          `
+        );
+
+        exhausted = candidates.length < batchSize;
+        if (candidates.length === 0) break;
+
+        rawCursor = {
+          orgName: candidates[candidates.length - 1]!.org_name,
+          teamName: candidates[candidates.length - 1]!.team_name,
+          teamId: candidates[candidates.length - 1]!.id,
+        };
+
+        const teamIds = candidates.map((team) => team.id);
+        const [rows, entitlementsByTeamId] = await Promise.all([
+          prisma.team.findMany({
+            where: { id: { in: teamIds } },
+            select,
+            take: teamIds.length,
+          }),
+          getTeamEntitlementStates(prisma, teamIds),
+        ]);
+        const rowsById = new Map<string, any>();
+        for (const team of rows as Array<any>) {
+          rowsById.set(team.id, team);
+        }
+
+        for (const candidate of candidates) {
+          const entitlement = entitlementsByTeamId.get(candidate.id);
+          if (entitlement?.teamLocked) continue;
+          const hydrated = rowsById.get(candidate.id);
+          if (!hydrated) continue;
+          visibleRows.push({
+            team: hydrated,
+            cursor: {
+              orgName: candidate.org_name,
+              teamName: candidate.team_name,
+              teamId: candidate.id,
+            },
+          });
+          if (visibleRows.length >= limit + 1) break;
+        }
       }
 
-      const rows = await prisma.team.findMany({
-        where,
-        orderBy: [{ organization: { name: 'asc' } }, { name: 'asc' }],
-        take: 100,
-        select: {
-          ...buildTeamSerializeSelect({
-            includeCounts: true,
-            includeOrganization: true,
-          }),
-          memberships: {
-            where: { user_id: userId, status: 'active' },
-            select: { role: true },
-          },
-        },
-      });
+      const hasMore = visibleRows.length > limit;
+      const pageEntries = hasMore ? visibleRows.slice(0, limit) : visibleRows;
+      const pageRows = pageEntries.map((entry) => entry.team);
+      const nextCursor = hasMore
+        ? encodeManagedTeamCursor(pageEntries[pageEntries.length - 1]!.cursor)
+        : null;
       const teamStateById = new Map(
-        (await listTeamStates(rows.map(team => team.id))).map(team => [team.id, team])
+        (await listTeamStates(pageRows.map(team => team.id))).map(team => [team.id, team])
       );
 
-      const entitlements = await Promise.all(
-        rows.map(team => getTeamEntitlementState(prisma, team.id))
-      );
-      const manageableTeamIds = new Set(
-        entitlements
-          .filter(entitlement => !entitlement.teamLocked)
-          .map(entitlement => entitlement.teamId)
-      );
-      const visibleRows = rows.filter(team => manageableTeamIds.has(team.id));
       const followedTeamRows = await prisma.teamFollow.findMany({
-        where: { user_id: userId, team_id: { in: visibleRows.map(team => team.id) } },
+        where: { user_id: userId, team_id: { in: pageRows.map(team => team.id) } },
         select: { team_id: true },
-        take: Math.max(visibleRows.length, 1),
+        take: Math.max(pageRows.length, 1),
       });
       const followedTeamIds = new Set(followedTeamRows.map(row => row.team_id));
 
-      const list = visibleRows.map(team =>
+      const list = pageRows.map(team =>
         serializeTeam(
           {
             ...team,
@@ -424,6 +521,10 @@ teamsRouter.get(
         )
       );
 
+      if (nextCursor) {
+        res.set('x-next-cursor', nextCursor);
+      }
+      res.set('x-has-more', hasMore ? '1' : '0');
       return res.json(list);
     } catch (err) {
       console.error('[teams] managed error:', err);

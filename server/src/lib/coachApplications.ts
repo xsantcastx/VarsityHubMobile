@@ -1,6 +1,8 @@
 import type { CoachApplication, PrismaClient } from '@prisma/client';
 import {
   getCanonicalOrganizationId,
+  getCoachAgreementAcceptedAt,
+  getCoachAgreementVersion,
   getCanonicalUserRole,
   isProceedingAsFan,
   isUserOnboardingComplete,
@@ -53,6 +55,8 @@ export type CoachAccountState =
   | 'coach_application_submitted'
   | 'coach_application_rejected'
   | 'coach_pending_approval'
+  | 'coach_agreement_required'
+  | 'coach_final_setup_required'
   | 'coach_active';
 
 export function serializeCoachApplication(
@@ -101,6 +105,11 @@ export function getCoachFlowState(
   const joinRequestStatus = String(joinRequest?.status || '').trim().toLowerCase();
   const hasOrganizationJoinRequest = Boolean(joinRequest?.organization_id);
   const pendingFanModeNextStep = '/(tabs)';
+  const requiredCoachAgreementVersion = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
+  const acceptedCoachAgreementAt = getCoachAgreementAcceptedAt(user as any);
+  const acceptedCoachAgreementVersion = Number(getCoachAgreementVersion(user as any) ?? 0);
+  const hasCurrentCoachAgreement =
+    Boolean(acceptedCoachAgreementAt) && acceptedCoachAgreementVersion >= requiredCoachAgreementVersion;
 
   if (role !== 'coach') {
     return onboardingCompleted
@@ -163,6 +172,27 @@ export function getCoachFlowState(
     return {
       account_state: 'coach_application_required',
       next_step: '/onboarding/coach-application',
+    };
+  }
+
+  if (approvalStatus === 'APPROVED') {
+    if (!hasCurrentCoachAgreement) {
+      return {
+        account_state: 'coach_agreement_required',
+        next_step: '/onboarding/coach-agreement',
+      };
+    }
+
+    if (!organizationId) {
+      return {
+        account_state: 'coach_final_setup_required',
+        next_step: '/onboarding/step-3-league',
+      };
+    }
+
+    return {
+      account_state: 'coach_active',
+      next_step: '/(tabs)',
     };
   }
 

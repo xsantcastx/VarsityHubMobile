@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { sendError } from '../lib/http/sendError.js';
@@ -8,6 +9,33 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const notificationsRouter = Router();
 registerIdValidation(notificationsRouter);
+
+const NOTIFICATIONS_QUERY_TIMEOUT_MS = 25000;
+
+const encodeNotificationCursor = (row: { created_at: Date | string; id: string }) => {
+  const createdAt =
+    row.created_at instanceof Date ? row.created_at.toISOString() : new Date(row.created_at).toISOString();
+  return `${createdAt}::${row.id}`;
+};
+
+const parseNotificationCursor = (cursor: string): { createdAt: Date; id: string } | null => {
+  const [createdAtRaw, id] = cursor.split('::');
+  if (!createdAtRaw || !id) return null;
+  const createdAt = new Date(createdAtRaw);
+  if (Number.isNaN(createdAt.getTime())) return null;
+  return { createdAt, id };
+};
+
+const toSqlTimestamp = (value: Date) => value.toISOString().replace('T', ' ').replace('Z', '');
+
+const withQueryTimeout = async <T>(promise: Promise<T>, timeoutMs = NOTIFICATIONS_QUERY_TIMEOUT_MS): Promise<T> => {
+  let timeoutHandle: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error('Query timeout')), timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutHandle!)) as Promise<T>;
+};
 
 const summarize = (n: any) => {
   switch (n.type) {
@@ -76,81 +104,94 @@ notificationsRouter.get(
     try {
       const userId = req.user!.id;
       const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50));
-      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+      const cursorRaw = typeof req.query.cursor === 'string' ? req.query.cursor : null;
       const unreadOnly = String((req.query as any).unread || '') === '1';
 
-      // Build where clause
-      const where: any = { user_id: userId };
-      if (unreadOnly) {
-        where.read_at = null;
+      let cursor: { createdAt: Date; id: string } | null = null;
+      if (cursorRaw) {
+        cursor = parseNotificationCursor(cursorRaw);
+        if (!cursor) {
+          return sendError(res, 400, 'INVALID_CURSOR', {
+            message: 'Notification cursor is invalid.',
+          });
+        }
       }
 
-      // Handle cursor pagination
-      if (cursor) {
-        // For cursor pagination, use id-based cursor (simpler and more reliable)
-        where.id = { lt: cursor };
+      const pageSize = limit + 1;
+      const cursorTimestamp = cursor ? toSqlTimestamp(cursor.createdAt) : null;
+      const cursorClause = cursor
+        ? Prisma.sql`AND ROW("created_at", "id") < ROW(CAST(${cursorTimestamp} AS timestamp), ${cursor.id})`
+        : Prisma.empty;
+      const unreadClause = unreadOnly ? Prisma.sql`AND "read_at" IS NULL` : Prisma.empty;
+
+      const pageRows = await withQueryTimeout(
+        prisma.$queryRaw<Array<{ id: string; created_at: Date }>>(Prisma.sql`
+          SELECT "id", "created_at"
+          FROM "Notification"
+          WHERE "user_id" = ${userId}
+          ${unreadClause}
+          ${cursorClause}
+          ORDER BY "created_at" DESC, "id" DESC
+          LIMIT ${pageSize}
+        `)
+      );
+
+      const items = pageRows.slice(0, limit);
+      const notificationIds = items.map((row) => row.id);
+      const nextCursor =
+        pageRows.length > limit && items.length > 0
+          ? encodeNotificationCursor(items[items.length - 1])
+          : null;
+
+      if (notificationIds.length === 0) {
+        return res.json({ items: [], nextCursor: null });
       }
 
-      // Standard orderBy - always use created_at desc, id desc for consistency
-      const orderBy = [{ created_at: 'desc' as const }, { id: 'desc' as const }];
-
-      // Build Prisma query
-      const query = {
-        where,
-        orderBy,
-        take: limit + 1,
-        select: {
-          id: true,
-          type: true,
-          created_at: true,
-          read_at: true,
-          meta: true,
-          // message_id removed - column doesn't exist in database yet
-          actor: {
-            select: {
-              id: true,
-              username: true,
-              display_name: true,
-              avatar_url: true,
+      const rows = await withQueryTimeout(
+        prisma.notification.findMany({
+          where: { id: { in: notificationIds } },
+          select: {
+            id: true,
+            type: true,
+            created_at: true,
+            read_at: true,
+            meta: true,
+            // message_id removed - column doesn't exist in database yet
+            actor: {
+              select: {
+                id: true,
+                username: true,
+                display_name: true,
+                avatar_url: true,
+              },
+            },
+            post: {
+              select: {
+                id: true,
+                content: true,
+                media_url: true,
+                upvotes_count: true,
+                created_at: true,
+                author_id: true,
+              },
+            },
+            comment: {
+              select: {
+                id: true,
+                content: true,
+                post_id: true,
+                created_at: true,
+              },
             },
           },
-          post: {
-            select: {
-              id: true,
-              content: true,
-              media_url: true,
-              upvotes_count: true,
-              created_at: true,
-              author_id: true,
-            },
-          },
-          comment: {
-            select: {
-              id: true,
-              content: true,
-              post_id: true,
-              created_at: true,
-            },
-          },
-        },
-      };
+        })
+      );
+      const rowsById = new Map(rows.map((row: any) => [row.id, row]));
+      const orderedRows = notificationIds
+        .map((id) => rowsById.get(id))
+        .filter((row): row is NonNullable<typeof row> => Boolean(row));
 
-      // Execute query with timeout
-      // audit-allow unbounded: query object already carries the page take bound
-      const queryPromise = prisma.notification.findMany(query);
-      let timeoutHandle: ReturnType<typeof setTimeout>;
-      const timeoutPromise = new Promise((_, reject) => {
-        timeoutHandle = setTimeout(() => reject(new Error('Query timeout')), 25000);
-      });
-
-      const rows = (await Promise.race([queryPromise, timeoutPromise]).finally(() =>
-        clearTimeout(timeoutHandle!)
-      )) as any[];
-      const items = rows.slice(0, limit);
-      // Use id as cursor (simpler and works with our where clause)
-      const nextCursor = rows.length > limit ? rows[limit].id : null;
-
-      const payload = items.map((n: any) => {
+      const payload = orderedRows.map((n: any) => {
         const meta = (n.meta as any) || {};
         // Extract message_id from meta if it exists (stored there temporarily until migration)
         const messageId = meta.message_id;

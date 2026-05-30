@@ -17,6 +17,8 @@ export interface AuthedRequest extends Request {
     email: string | null;
     role: string | null;
     onboarding_completed: boolean | null;
+    coach_agreement_accepted_at: Date | null;
+    coach_agreement_version: number | null;
   };
 }
 
@@ -77,6 +79,8 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
           email: true,
           role: true,
           onboarding_completed: true,
+          coach_agreement_accepted_at: true,
+          coach_agreement_version: true,
         },
       });
     } catch (dbErr) {

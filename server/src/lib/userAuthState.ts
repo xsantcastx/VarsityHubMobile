@@ -129,7 +129,14 @@ export function getCoachAgreementVersion(source: UserAuthStateSource | null | un
   const fromColumn = asNullableNumber(source?.coach_agreement_version);
   if (fromColumn !== null) return fromColumn;
   const prefs = getPreferencesObject(source?.preferences);
-  return asNullableNumber(prefs.coach_agreement_version);
+  const fromPrefs = asNullableNumber(prefs.coach_agreement_version);
+  if (fromPrefs !== null) return fromPrefs;
+
+  // Backward compatibility: older approved coaches could have an acceptance
+  // timestamp persisted before version stamping was introduced. Treat that as
+  // version 1 so server-side route gates stay aligned with the client-side
+  // role checks and migrated users don't get blocked from coach tools.
+  return getCoachAgreementAcceptedAt(source) ? 1 : null;
 }
 
 export function mergeAuthStateIntoPreferences(

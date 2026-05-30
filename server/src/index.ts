@@ -5,6 +5,8 @@ import { initEmailService } from './lib/email.js';
 import { initializeQueues, shutdownQueues } from './jobs/queues.js';
 import { setupScheduler, startSchedulerWorker } from './jobs/scheduler.js';
 import { env } from './lib/env.js';
+import { APP_REVIEW_EMAIL } from './lib/appReviewFixture.js';
+import { ADMIN_EMAILS, ADMIN_NOTIFICATION_EMAILS } from './lib/adminEmails.js';
 const isPlaywrightE2E = process.env.PLAYWRIGHT_E2E === '1';
 
 // Initialize SendGrid email service
@@ -12,23 +14,25 @@ await initEmailService();
 
 // v1.0.2: surface admin-email config issues at startup so silent-failures are obvious in logs
 {
-  const adminEmails = (process.env.ADMIN_EMAILS || '')
+  const configuredAdminEmails = (process.env.ADMIN_EMAILS || '')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean);
-  const adminNotificationEmails = (
-    process.env.ADMIN_NOTIFICATION_EMAILS || process.env.ADMIN_EMAILS || ''
-  )
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
-  if (adminEmails.length === 0) {
+  const adminNotificationEmails = ADMIN_NOTIFICATION_EMAILS;
+  if (configuredAdminEmails.length === 0) {
     const msg =
-      '[startup] ⚠️  ADMIN_EMAILS env var is empty — no one will have admin dashboard access';
+      `[startup] ⚠️  ADMIN_EMAILS env var is empty — only the App Review demo account (${APP_REVIEW_EMAIL}) will have admin dashboard access`;
     console.warn(msg);
     captureMessage(msg, 'warning');
   } else {
-    console.log(`[startup] ADMIN_EMAILS configured: ${adminEmails.length} recipient(s)`);
+    console.log(
+      `[startup] ADMIN_EMAILS configured: ${configuredAdminEmails.length} env recipient(s) + App Review demo access`
+    );
+  }
+  if (ADMIN_EMAILS.length === 0) {
+    const msg = '[startup] ⚠️  effective admin access list is empty';
+    console.warn(msg);
+    captureMessage(msg, 'warning');
   }
   if (adminNotificationEmails.length === 0) {
     const msg =

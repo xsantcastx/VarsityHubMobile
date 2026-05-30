@@ -1,4 +1,4 @@
-name: CI Checks (DEPRECATED - Use ci.yml instead)
+name: Deprecated CI Checks
 
 on:
   # DEPRECATED: This workflow is kept for reference but disabled
@@ -6,84 +6,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  lint:
-    name: Lint
+  deprecated:
+    name: Deprecated
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run ESLint
-        run: npm run lint
-
-  typecheck:
-    name: Type Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run TypeScript type check
-        run: npm run typecheck
-
-  format-check:
-    name: Format Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check code formatting
+      - name: Workflow retired
         run: |
-          if npm run format:check --if-present 2>/dev/null; then
-            echo "✅ Format check passed"
-          else
-            echo "⚠️  format:check script not found, skipping"
-          fi
-        continue-on-error: true
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
-        run: npm test
+          echo "This workflow is retired."
+          echo "Use .github/workflows/ci.yml for CI and .github/workflows/verify-production-ready.yml for readiness audits."

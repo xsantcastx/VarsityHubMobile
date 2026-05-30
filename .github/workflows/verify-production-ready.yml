@@ -1,10 +1,3 @@
-#!/bin/bash
-# GitHub Actions CI workflow for VarsityHub
-# Save as: .github/workflows/verify-production-ready.yml
-# 
-# This workflow runs the production readiness checks on every push and PR
-# to ensure pre-launch requirements are always met.
-
 name: Production Readiness Check
 
 on:
@@ -15,78 +8,33 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    continue-on-error: true  # Prevents GitHub email spam on scheduled failures
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Run Production Readiness Verification
-      run: |
-        if [ -f "scripts/moved-from-root/verify-production-ready.sh" ]; then
-          bash scripts/moved-from-root/verify-production-ready.sh
-        elif [ -f "scripts/verify-production-ready.sh" ]; then
-          bash scripts/verify-production-ready.sh
-        else
-          echo "⚠️  verify-production-ready.sh not found, skipping"
-          echo "Production readiness check skipped" > verification-report.txt
-        fi
-    
-    - name: Upload verification report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: verification-report
-        path: verification-report.txt
-        retention-days: 30
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  typecheck:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: TypeScript Compilation Check
-      run: npx tsc --noEmit
-    
-    - name: ESLint Check
-      run: npm run lint
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
 
-  build:
-    runs-on: ubuntu-latest
-    needs: [verify, typecheck]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Build server
-      run: cd server && npm ci && npm run build
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Run readiness verification
+        run: npm run verify:production-ready
+
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-report
+          path: verification-report.txt
+          retention-days: 30

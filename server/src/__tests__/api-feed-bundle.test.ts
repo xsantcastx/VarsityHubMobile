@@ -19,6 +19,7 @@ describeDb('GET /feed/bundle', () => {
   const teamIds: string[] = [];
   const orgIds: string[] = [];
   const adIds: string[] = [];
+  const gameIds: string[] = [];
 
   let viewerToken = '';
   let viewerId = '';
@@ -198,6 +199,7 @@ describeDb('GET /feed/bundle', () => {
           OR: [{ user_id: { in: userIds } }, { actor_id: { in: userIds } }],
         },
       }).catch(() => {});
+      await prisma.game.deleteMany({ where: { id: { in: gameIds } } }).catch(() => {});
       await prisma.postUpvote.deleteMany({
         where: {
           user_id: { in: userIds },
@@ -259,5 +261,111 @@ describeDb('GET /feed/bundle', () => {
       select: { id: true },
     });
     expect(viewerRow?.id).toBe(viewerId);
+  });
+
+  it('includes followed-user posts even after the viewer follows more than 1000 users', async () => {
+    const overflowUserIds = Array.from({ length: 1001 }, (_, index) => `feed-overflow-user-${ts}-${index}`);
+    const overflowPostId = `feed-overflow-post-${ts}`;
+    const overflowAuthorId = overflowUserIds[overflowUserIds.length - 1]!;
+
+    await prisma.user.createMany({
+      data: overflowUserIds.map((id, index) => ({
+        id,
+        email: `feed-overflow-user-${ts}-${index}@example.com`,
+        email_verified: true,
+        onboarding_completed: true,
+      })),
+    });
+    userIds.push(...overflowUserIds);
+
+    await prisma.follows.createMany({
+      data: overflowUserIds.map((followingId) => ({
+        follower_id: viewerId,
+        following_id: followingId,
+        status: 'accepted',
+      })),
+    });
+
+    await prisma.post.create({
+      data: {
+        id: overflowPostId,
+        author_id: overflowAuthorId,
+        title: 'Overflow followed post',
+        content: 'Should still be visible after 1000 follows',
+        type: 'post',
+        country_code: 'US',
+      },
+    });
+    postIds.push(overflowPostId);
+
+    const res = await request(app)
+      .get('/feed/bundle')
+      .set('Authorization', `Bearer ${viewerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body?.posts?.followed_feed_meta?.following_count).toBe(1002);
+    expect((res.body?.posts?.items ?? []).map((item: any) => item.id)).toContain(overflowPostId);
+  });
+
+  it('includes followed-team game posts even after the viewer follows more than 1000 teams', async () => {
+    const overflowTeamIds = Array.from({ length: 1001 }, (_, index) => `feed-overflow-team-${ts}-${index}`);
+    const overflowGameId = `feed-overflow-game-${ts}`;
+    const overflowPostId = `feed-overflow-team-post-${ts}`;
+    const overflowTeamId = overflowTeamIds[overflowTeamIds.length - 1]!;
+
+    await prisma.team.createMany({
+      data: overflowTeamIds.map((id, index) => ({
+        id,
+        name: `Overflow Team ${index}`,
+        organization_id: orgIds[0],
+        status: 'active',
+      })),
+    });
+    teamIds.push(...overflowTeamIds);
+
+    await prisma.teamFollow.createMany({
+      data: overflowTeamIds.map((teamId) => ({
+        user_id: viewerId,
+        team_id: teamId,
+      })),
+    });
+
+    await prisma.game.create({
+      data: {
+        id: overflowGameId,
+        title: 'Overflow team game',
+        date: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        location: 'Overflow Stadium',
+        approval_status: 'approved',
+        home_team_id: overflowTeamId,
+      },
+    });
+    gameIds.push(overflowGameId);
+
+    await prisma.post.create({
+      data: {
+        id: overflowPostId,
+        author_id: userIds[1],
+        game_id: overflowGameId,
+        title: 'Overflow followed team post',
+        content: 'Game-linked post from an overflow followed team',
+        type: 'post',
+        country_code: 'US',
+      },
+    });
+    postIds.push(overflowPostId);
+
+    const res = await request(app)
+      .get('/feed/bundle')
+      .set('Authorization', `Bearer ${viewerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body?.posts_followed_teams?.followed_teams_feed_meta?.followed_teams_count).toBe(1002);
+    expect((res.body?.posts_followed_teams?.items ?? []).map((item: any) => item.id)).toContain(
+      overflowPostId
+    );
+
+    await prisma.game.delete({ where: { id: overflowGameId } }).catch(() => {});
+    gameIds.pop();
   });
 });

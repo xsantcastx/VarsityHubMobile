@@ -1,3 +1,5 @@
+import { APP_REVIEW_EMAIL } from './appReviewFixture.js';
+
 /**
  * Parsed ADMIN_EMAILS — cached at module load time.
  * Used only for admin access control.
@@ -9,8 +11,13 @@ function parseEmailList(raw: string | undefined): string[] {
     .filter(Boolean);
 }
 
+function withAppReviewAdminAccess(emails: string[]): string[] {
+  const demoEmail = APP_REVIEW_EMAIL.trim().toLowerCase();
+  return emails.includes(demoEmail) ? emails : [...emails, demoEmail];
+}
+
 const rawAdminEmails = process.env.ADMIN_EMAILS || '';
-export const ADMIN_EMAILS: string[] = parseEmailList(rawAdminEmails);
+export const ADMIN_EMAILS: string[] = withAppReviewAdminAccess(parseEmailList(rawAdminEmails));
 
 /**
  * Parsed ADMIN_NOTIFICATION_EMAILS — cached at module load time.
@@ -21,7 +28,7 @@ const rawAdminNotificationEmails =
 export const ADMIN_NOTIFICATION_EMAILS: string[] = parseEmailList(rawAdminNotificationEmails);
 
 function getCurrentAdminEmails(): string[] {
-  return parseEmailList(process.env.ADMIN_EMAILS);
+  return withAppReviewAdminAccess(parseEmailList(process.env.ADMIN_EMAILS));
 }
 
 function getCurrentAdminNotificationEmails(): string[] {

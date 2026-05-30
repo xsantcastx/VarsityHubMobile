@@ -93,11 +93,13 @@ async function main() {
   }
 }
 
-main()
-  .catch(error => {
-    console.error(error);
-    process.exit(1);
-  })
-  .finally(async () => {
+void main()
+  .then(async () => {
     await prisma.$disconnect().catch(() => {});
+    process.exit(0);
+  })
+  .catch(async error => {
+    console.error(error);
+    await prisma.$disconnect().catch(() => {});
+    process.exit(1);
   });

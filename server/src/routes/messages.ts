@@ -1,8 +1,8 @@
-import * as Sentry from '@sentry/node';
 import { Router } from 'express';
 import { z } from 'zod';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { sendError } from '../lib/http/sendError.js';
+import { captureException } from '../lib/sentry.js';
 import { notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { getUserAge } from '../lib/userAge.js';
@@ -343,8 +343,8 @@ messagesRouter.post(
           convId!
         ).catch(e => {
           console.error('Failed to send message push notification:', e);
-          Sentry.captureException(e instanceof Error ? e : new Error(String(e)), {
-            tags: { context: 'message_notification' },
+          captureException(e instanceof Error ? e : new Error(String(e)), {
+            context: 'message_notification',
             extra: { message_id: created.id, recipient_id: toId, sender_id: meId },
           });
         });
@@ -354,8 +354,8 @@ messagesRouter.post(
         // the in-app notification table or push service would silently
         // swallow user-visible reachability for hours.
         console.error('Failed to send message notification:', e);
-        Sentry.captureException(e instanceof Error ? e : new Error(String(e)), {
-          tags: { context: 'message_notification' },
+        captureException(e instanceof Error ? e : new Error(String(e)), {
+          context: 'message_notification',
           extra: { message_id: created.id, recipient_id: toId, sender_id: meId },
         });
       }

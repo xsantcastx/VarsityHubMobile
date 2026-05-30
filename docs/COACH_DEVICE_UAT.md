@@ -2,7 +2,7 @@
 
 This is the focused manual certification bundle for the coach surface. It assumes the backend/client guard audit is already green and uses real-device runtime checks to certify navigation, billing UX, blocked-state messaging, and state transitions.
 
-Current policy: coach-feature access is controlled by approval only. Once `approval_status=APPROVED`, the user should be able to use coach features even if an older account still lacks an agreement signature or has stale paid-plan metadata.
+Current policy: coach-feature access is controlled by the full server recovery contract, not approval alone. An approved coach who has not accepted the current agreement must remain in `coach_agreement_required` and be redirected to `/onboarding/coach-agreement` until that step is completed.
 
 ## Commands
 
@@ -31,7 +31,7 @@ The script prints the final emails if you override `COACH_UAT_EMAIL_DOMAIN` or `
 | Approved veteran coach + paid      | `coach-uat-veteran@varsityhub.test`                 | Veteran entitlements persist after restart                |
 | Approved legend coach + paid       | `coach-uat-legend@varsityhub.test`                  | Legend entitlements persist after restart                 |
 | Paid-by-owner coach                | `coach-uat-owner-covered@varsityhub.test`           | Premium access works without self-checkout                |
-| Approved coach missing agreement   | `coach-uat-missing-agreement@varsityhub.test`       | Coach screens still open; no forced redirect to agreement |
+| Approved coach missing agreement   | `coach-uat-missing-agreement@varsityhub.test`       | Coach tools blocked; recovery routes redirect to agreement |
 | Pending/rejected coach in fan mode | `coach-uat-rejected-fan@varsityhub.test` by default | Coach tools blocked, fan-safe actions still usable        |
 
 Note: set `COACH_UAT_FAN_MODE_STATUS=PENDING` before `npm run coach:uat:prepare` if you want the sixth account seeded as pending instead of rejected.
@@ -70,7 +70,7 @@ Note: set `COACH_UAT_FAN_MODE_STATUS=PENDING` before `npm run coach:uat:prepare`
 
 ### 1. Allowed-state checks
 
-Run these on rookie, veteran, legend, paid-by-owner, and missing-agreement accounts.
+Run these on rookie, veteran, legend, and paid-by-owner accounts.
 
 - Sign in, land on Discover, and confirm the 4 coach Quick Actions render on first load.
 - Open each Quick Action and verify first-tap navigation, data load, and back navigation.
@@ -82,9 +82,9 @@ Run these on rookie, veteran, legend, paid-by-owner, and missing-agreement accou
 
 - Missing-agreement account:
   - Attempt each coach-only route directly.
-  - Confirm coach tools still open.
-  - Confirm there is no redirect loop into `/onboarding/coach-agreement`.
-  - If the agreement screen is opened manually, accepting it should complete cleanly without a forced logout/login cycle.
+  - Confirm coach tools remain blocked until the agreement is accepted.
+  - Confirm recovery lands on `/onboarding/coach-agreement` without a redirect loop.
+  - Accept the agreement and confirm coach access unlocks cleanly without a forced logout/login cycle.
 - Pending/rejected fan-mode account:
   - Attempt each coach-only route directly.
   - Confirm coach tools stay blocked.
@@ -103,15 +103,15 @@ Run these on rookie, veteran, legend, paid-by-owner, and missing-agreement accou
   - Open `settings/manage-subscription`.
   - Confirm the user is shown as covered by the owner league and is not asked to self-pay.
 - Missing-agreement account:
-  - Confirm missing agreement does not block coach access.
-  - Confirm any billing UI still behaves as informational or premium-specific, not as a coach-access gate.
+  - Confirm missing agreement blocks coach access until acceptance.
+  - Confirm any billing UI still behaves as informational or premium-specific, not as the reason for the block.
 
 ### 4. Approval and deep-link checks
 
 - Rookie account:
   - Open `Approvals` and verify the seeded pending event/game list loads.
 - If a live notification/deep link is available:
-  - Coach approval follow-up should land in the approved coach experience without an extra agreement detour.
+  - Coach approval follow-up should land in the agreement screen first when the agreement is still missing, and continue into the approved coach experience after acceptance.
   - Event/game approval links should land on the approval screen without losing auth state.
 
 ### 5. Org manager and public fan checks
@@ -145,7 +145,8 @@ Run these with one real org owner account, one fan-role org manager account, and
 ## Acceptance Criteria
 
 - No non-approved coach reaches a functional coach screen.
-- No approved coach is incorrectly blocked, including the missing-agreement fixture.
+- No fully completed approved coach is incorrectly blocked.
+- Missing-agreement fixtures are blocked only on the agreement gate and recover cleanly after acceptance.
 - A fan-role user with active `manager` org membership can reach org-admin surfaces without being treated as org owner.
 - A normal fan is not shown a false `Request to Join` CTA on the organization profile.
 - Quick Actions route correctly on first tap.

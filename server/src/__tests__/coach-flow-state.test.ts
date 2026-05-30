@@ -257,14 +257,15 @@ describe('getCoachFlowState', () => {
     });
   });
 
-  it('treats approved coaches as active without extra agreement or setup gates', () => {
-    const firstApprovedState = getCoachFlowState(
+  it('routes approved coaches without an accepted agreement to the agreement step', () => {
+    const state = getCoachFlowState(
       {
         role: 'coach',
         approval_status: 'APPROVED',
         onboarding_completed: false,
         organization_id: null,
         coach_agreement_accepted_at: null,
+        coach_agreement_version: null,
       },
       buildApplication({
         id: 'app_3',
@@ -274,18 +275,21 @@ describe('getCoachFlowState', () => {
       })
     );
 
-    expect(firstApprovedState).toEqual({
-      account_state: 'coach_active',
-      next_step: '/(tabs)',
+    expect(state).toEqual({
+      account_state: 'coach_agreement_required',
+      next_step: '/onboarding/coach-agreement',
     });
+  });
 
-    const secondApprovedState = getCoachFlowState(
+  it('routes approved coaches with an accepted agreement but no organization to final setup', () => {
+    const state = getCoachFlowState(
       {
         role: 'coach',
         approval_status: 'APPROVED',
         onboarding_completed: false,
         organization_id: null,
         coach_agreement_accepted_at: new Date(),
+        coach_agreement_version: 1,
       },
       buildApplication({
         id: 'app_3',
@@ -295,7 +299,31 @@ describe('getCoachFlowState', () => {
       })
     );
 
-    expect(secondApprovedState).toEqual({
+    expect(state).toEqual({
+      account_state: 'coach_final_setup_required',
+      next_step: '/onboarding/step-3-league',
+    });
+  });
+
+  it('treats approved coaches with an accepted agreement and organization as active', () => {
+    const state = getCoachFlowState(
+      {
+        role: 'coach',
+        approval_status: 'APPROVED',
+        onboarding_completed: true,
+        organization_id: 'org_approved',
+        coach_agreement_accepted_at: new Date(),
+        coach_agreement_version: 1,
+      },
+      buildApplication({
+        id: 'app_3',
+        status: 'approved',
+        reviewed_at: new Date(),
+        reviewed_by: 'admin_1',
+      })
+    );
+
+    expect(state).toEqual({
       account_state: 'coach_active',
       next_step: '/(tabs)',
     });

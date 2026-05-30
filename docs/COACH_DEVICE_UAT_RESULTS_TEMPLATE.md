@@ -20,7 +20,7 @@
 | Veteran approved + paid   |            |       | Paid entitlements persist                          |                |           |       |
 | Legend approved + paid    |            |       | Paid entitlements persist                          |                |           |       |
 | Paid by owner             |            |       | No self-checkout prompt                            |                |           |       |
-| Missing agreement         |            |       | Coach tools still open                             |                |           |       |
+| Missing agreement         |            |       | Coach tools blocked until agreement acceptance     |                |           |       |
 | Pending/rejected fan mode |            |       | Coach tools blocked, fan-safe paths work           |                |           |       |
 | Fan-role org manager      |            |       | Org admin surfaces open, owner-only actions hidden |                |           |       |
 | Public fan                |            |       | Org profile has no false join CTA                  |                |           |       |
@@ -33,7 +33,7 @@
 | Veteran approved + paid   |              |               |           |            |          |         |       |
 | Legend approved + paid    |              |               |           |            |          |         |       |
 | Paid by owner             |              |               |           |            |          |         |       |
-| Missing agreement         |              |               |           |            |          |         |       |
+| Missing agreement         | blocked      | blocked       | blocked   | blocked    | n/a      | n/a     |       |
 | Pending/rejected fan mode |              |               |           |            |          |         |       |
 | Fan-role org manager      |              |               |           |            |          |         |       |
 | Public fan                |              |               |           |            |          |         |       |
@@ -67,9 +67,10 @@
 
 ## Billing / Agreement / Relaunch
 
-| Check                                                               | Result | Notes |
-| ------------------------------------------------------------------- | ------ | ----- |
-| Missing-agreement account keeps coach access without forced relogin |        |       |
+| Check                                                                    | Result | Notes |
+| ------------------------------------------------------------------------ | ------ | ----- |
+| Missing-agreement account redirects to agreement until acceptance         |        |       |
+| Missing-agreement account gains coach access immediately after acceptance |        |       |
 | Veteran account retains entitlements after app restart              |        |       |
 | Legend account retains entitlements after app restart               |        |       |
 | Paid-by-owner account shows covered billing state                   |        |       |

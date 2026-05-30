@@ -48,6 +48,11 @@ function coachEmail(slug: string) {
 }
 
 export const COACH_ROUTE_BATTERY_LOCAL_EMAIL = coachEmail('rookie');
+export const COACH_ROUTE_BATTERY_LOCAL_MISSING_AGREEMENT_EMAIL = coachEmail('missing-agreement');
+export const COACH_ROUTE_BATTERY_LOCAL_FAN_MODE_EMAIL = coachEmail(
+  FAN_MODE_STATUS === 'PENDING' ? 'pending-fan' : 'rejected-fan'
+);
+export const COACH_ROUTE_BATTERY_LOCAL_FAN_MODE_STATUS = FAN_MODE_STATUS;
 
 function coachUsername(slug: string) {
   return `cuat_${slug}`.slice(0, 20);
@@ -138,7 +143,7 @@ const coachStates: CoachStateSeed[] = [
     paymentApproved: false,
     paymentPending: false,
     proceedingAsFan: false,
-    expectation: 'Coach screens still open because approval is the only access gate.',
+    expectation: 'Coach tools stay blocked until the agreement is accepted; recovery routes should point to coach-agreement.',
     maxTeams: 2,
   },
   {

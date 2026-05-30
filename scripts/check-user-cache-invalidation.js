@@ -2,13 +2,26 @@
 
 const { execFileSync } = require('node:child_process');
 
-const baseSha = process.env.GIT_BASE_SHA || process.argv[2];
-const headSha = process.env.GIT_HEAD_SHA || process.argv[3] || 'HEAD';
+function resolveBaseSha() {
+  const explicitBaseSha = process.env.GIT_BASE_SHA || process.argv[2];
+  if (explicitBaseSha) return explicitBaseSha;
 
-if (!baseSha) {
-  console.log('[cache-guard] No base SHA provided; skipping raw prisma.user.update guard.');
-  process.exit(0);
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD^'], { encoding: 'utf8' }).trim();
+  } catch {
+    const message =
+      '[cache-guard] No base SHA provided. Set GIT_BASE_SHA or run from a git checkout with at least two commits.';
+    if (process.env.ALLOW_GUARD_SKIP === '1') {
+      console.warn(`${message} Skipping because ALLOW_GUARD_SKIP=1.`);
+      process.exit(0);
+    }
+    console.error(message);
+    process.exit(1);
+  }
 }
+
+const baseSha = resolveBaseSha();
+const headSha = process.env.GIT_HEAD_SHA || process.argv[3] || 'HEAD';
 
 const allowedPaths = new Set(['server/src/lib/userCache.ts']);
 const exemptToken = 'cache-invalidation-exempt';

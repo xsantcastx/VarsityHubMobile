@@ -137,18 +137,23 @@ export async function notifyMentions(params: {
     ? `${actorName} mentioned you in a post`
     : `${actorName} mentioned you in a comment`;
 
-  for (const recipientId of recipientIds) {
-    try {
-      await prisma.notification.create({
-        data: {
-          user_id: recipientId,
-          actor_id: actorId,
-          type: 'MENTION',
-          post_id: postId,
-          comment_id: commentId ?? undefined,
-        },
-      });
-      await sendPushNotification(
+  try {
+    await prisma.notification.createMany({
+      data: recipientIds.map((recipientId) => ({
+        user_id: recipientId,
+        actor_id: actorId,
+        type: 'MENTION',
+        post_id: postId,
+        comment_id: commentId ?? undefined,
+      })),
+    });
+  } catch (error) {
+    console.error('[mentions] Failed to create mention notifications:', error);
+  }
+
+  await Promise.allSettled(
+    recipientIds.map((recipientId) =>
+      sendPushNotification(
         recipientId,
         title,
         context === 'post'
@@ -163,10 +168,8 @@ export async function notifyMentions(params: {
           post_id_param: postId,
           comment_id_param: commentId ?? undefined,
         }
-      );
-    } catch (e) {
-      console.error('[mentions] Failed to notify mentioned user:', recipientId, e);
-    }
-  }
+      )
+    )
+  );
   debugLog(`[mentions] Notified ${recipientIds.length} users for ${context}`);
 }

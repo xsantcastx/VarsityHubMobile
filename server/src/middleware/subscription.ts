@@ -25,6 +25,17 @@ export type CanonicalTier = typeof canonicalOrder[number];
 export type OnboardingTier = typeof onboardingOrder[number];
 export type AnyTier = CanonicalTier | OnboardingTier;
 type DbClient = Prisma.TransactionClient | typeof prisma;
+type PlanUserRow = {
+  id: string;
+  subscription_tier: string | null;
+  subscription_status: string | null;
+  preferences: unknown;
+  paid_by_owner: boolean;
+  plan: string | null;
+  pending_plan: string | null;
+  payment_pending: boolean;
+  payment_approved: boolean;
+};
 
 function isAnyTier(value: any): value is AnyTier {
   return canonicalOrder.includes(value) || onboardingOrder.includes(value);
@@ -37,6 +48,18 @@ function toCanonical(tier: string | undefined | null): CanonicalTier {
   return 'free';
 }
 
+const userPlanSelect = {
+  id: true,
+  subscription_tier: true,
+  subscription_status: true,
+  preferences: true,
+  paid_by_owner: true,
+  plan: true,
+  pending_plan: true,
+  payment_pending: true,
+  payment_approved: true,
+} as const;
+
 // Compare tiers irrespective of naming variant
 function tierGte(a: AnyTier, b: AnyTier): boolean {
   const ca = toCanonical(a);
@@ -44,37 +67,15 @@ function tierGte(a: AnyTier, b: AnyTier): boolean {
   return canonicalOrder.indexOf(ca) >= canonicalOrder.indexOf(cb);
 }
 
-// Fetch plan from preferences (rookie/veteran/legend) falling back to subscription_tier column
-export async function getUserPlan(userId: string, db: DbClient = prisma): Promise<AnyTier> {
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: {
-      subscription_tier: true,
-      subscription_status: true,
-      preferences: true,
-      paid_by_owner: true,
-      plan: true,
-      pending_plan: true,
-      payment_pending: true,
-      payment_approved: true,
-    },
-  });
+function resolvePlanFromUserRecord(user: Omit<PlanUserRow, 'id' | 'paid_by_owner'> | null | undefined): AnyTier {
   if (!user) return 'free';
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const prefs = user.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
 
-  // Coaches covered by league owner: look up the owner's plan instead
-  if (user.paid_by_owner) {
-    return getLeagueOwnerPlan(userId, db);
-  }
-
-  // Rule A: Pending checkout never unlocks paid entitlements.
   const effectivePlan = getEffectiveEntitledPlan(user as any);
   if (effectivePlan === 'rookie') return 'free';
 
-  // Rule A2: If subscription is past_due or unpaid, downgrade to free until payment resolves.
   if (user.subscription_status === 'past_due' || user.subscription_status === 'unpaid') return 'free';
 
-  // Rule B: If subscription has an expiry date and it's in the past, treat as free.
   const expiryRaw = prefs.subscription_end_date || prefs.plan_expiry_date;
   if (expiryRaw) {
     const expiry = new Date(expiryRaw);
@@ -84,54 +85,83 @@ export async function getUserPlan(userId: string, db: DbClient = prisma): Promis
   }
 
   const plan = effectivePlan || user.subscription_tier;
-
   return toCanonical(plan);
 }
 
-// For coaches with paid_by_owner, resolve the league owner's plan
-async function getLeagueOwnerPlan(coachId: string, db: DbClient): Promise<AnyTier> {
-  // Find the coach's active org membership → org → league owner
-  const membership = await db.organizationMembership.findFirst({
-    where: { user_id: coachId, status: 'active' },
-    select: {
-      organization: {
-        select: {
-          league_owner_id: true,
+export async function getUserPlans(userIds: string[], db: DbClient = prisma): Promise<Map<string, AnyTier>> {
+  const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+  const result = new Map<string, AnyTier>();
+  if (uniqueUserIds.length === 0) return result;
+
+  const users = await db.user.findMany({
+    where: { id: { in: uniqueUserIds } },
+    select: userPlanSelect,
+  });
+  const usersById = new Map(users.map((user) => [user.id, user]));
+
+  const paidByOwnerUserIds = users.filter((user) => user.paid_by_owner).map((user) => user.id);
+  let ownerPlanByCoachId = new Map<string, AnyTier>();
+
+  if (paidByOwnerUserIds.length > 0) {
+    const ownerLinks = await db.organizationMembership.findMany({
+      where: {
+        user_id: { in: paidByOwnerUserIds },
+        status: 'active',
+      },
+      select: {
+        user_id: true,
+        organization: {
+          select: {
+            league_owner_id: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  const ownerId = membership?.organization?.league_owner_id;
-  if (!ownerId) return 'free'; // no league owner found
+    const ownerIdByCoachId = new Map<string, string>();
+    for (const link of ownerLinks) {
+      const ownerId = link.organization?.league_owner_id;
+      if (ownerId && !ownerIdByCoachId.has(link.user_id)) {
+        ownerIdByCoachId.set(link.user_id, ownerId);
+      }
+    }
 
-  // Get the owner's plan (non-recursive — owners are never paid_by_owner)
-  const owner = await db.user.findUnique({
-    where: { id: ownerId },
-    select: {
-      subscription_tier: true,
-      preferences: true,
-      plan: true,
-      pending_plan: true,
-      payment_pending: true,
-      payment_approved: true,
-    },
-  });
-  if (!owner) return 'free';
+    const ownerIds = [...new Set(ownerIdByCoachId.values())];
+    const ownerRows = ownerIds.length
+      ? await db.user.findMany({
+          where: { id: { in: ownerIds } },
+          select: userPlanSelect,
+        })
+      : [];
+    const ownerRowsById = new Map(ownerRows.map((owner) => [owner.id, owner]));
 
-  const ownerPrefs = (owner.preferences && typeof owner.preferences === 'object') ? (owner.preferences as any) : {};
-
-  const effectivePlan = getEffectiveEntitledPlan(owner as any);
-  if (effectivePlan === 'rookie') return 'free';
-
-  const expiryRaw = ownerPrefs.subscription_end_date || ownerPrefs.plan_expiry_date;
-  if (expiryRaw) {
-    const expiry = new Date(expiryRaw);
-    if (!isNaN(expiry.getTime()) && expiry < new Date()) return 'free';
+    ownerPlanByCoachId = new Map(
+      [...ownerIdByCoachId.entries()].map(([coachId, ownerId]) => [
+        coachId,
+        resolvePlanFromUserRecord(ownerRowsById.get(ownerId) ?? null),
+      ])
+    );
   }
 
-  const plan = effectivePlan || owner.subscription_tier;
-  return toCanonical(plan);
+  for (const userId of uniqueUserIds) {
+    const user = usersById.get(userId);
+    if (!user) {
+      result.set(userId, 'free');
+      continue;
+    }
+    if (user.paid_by_owner) {
+      result.set(userId, ownerPlanByCoachId.get(userId) ?? 'free');
+      continue;
+    }
+    result.set(userId, resolvePlanFromUserRecord(user));
+  }
+
+  return result;
+}
+
+// Fetch plan from preferences (rookie/veteran/legend) falling back to subscription_tier column
+export async function getUserPlan(userId: string, db: DbClient = prisma): Promise<AnyTier> {
+  return (await getUserPlans([userId], db)).get(userId) ?? 'free';
 }
 
 // Express middleware factory enforcing minimum plan

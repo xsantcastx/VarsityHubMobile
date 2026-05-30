@@ -424,6 +424,16 @@ describe('coach onboarding logic — universal suite', () => {
         })
       ).toBe(2);
     });
+
+    it('treats legacy accepted_at without a version stamp as agreement version 1', () => {
+      expect(
+        getCoachAgreementVersion({
+          coach_agreement_version: null,
+          coach_agreement_accepted_at: null,
+          preferences: { coach_agreement_accepted_at: '2026-04-01T00:00:00Z' },
+        })
+      ).toBe(1);
+    });
   });
 
   describe('isProceedingAsFan — "continue as fan" escape hatch', () => {

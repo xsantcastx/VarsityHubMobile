@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../teamGateTestApp.js';
@@ -8,6 +8,13 @@ import { signJwt } from '../lib/jwt.js';
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
+const REQUIRED_COACH_AGREEMENT_VERSION = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
+let emailSeq = 0;
+
+function uniqueEmail(prefix: string) {
+  emailSeq += 1;
+  return `${prefix}-${ts}-${emailSeq}@example.com`;
+}
 
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
 const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
@@ -36,6 +43,105 @@ describeDb('requireOnboarded coach gate matrix', () => {
     orgs: [] as string[],
     teams: [] as string[],
   };
+
+  beforeAll(async () => {
+    // Clear interrupted local fixture rows from prior reruns. This suite uses
+    // the shared dev DB rather than an isolated ephemeral test database.
+    const lingeringUsers = await prisma.user.findMany({
+      where: {
+        OR: [
+          { email: { startsWith: 'coach-gate-' } },
+          { username: { startsWith: 'cg' } },
+        ],
+      },
+      select: { id: true },
+    });
+    const lingeringUserIds = lingeringUsers.map(user => user.id);
+
+    const lingeringOrgs = await prisma.organization.findMany({
+      where: { name: { startsWith: 'Coach Gate ' } },
+      select: { id: true },
+    });
+    const lingeringOrgIds = lingeringOrgs.map(org => org.id);
+
+    if (lingeringUserIds.length || lingeringOrgIds.length) {
+      if (lingeringOrgIds.length && lingeringUserIds.length) {
+        await prisma.teamInvite.deleteMany({
+          where: {
+            OR: [
+              { team: { organization_id: { in: lingeringOrgIds } } },
+              { invited_by_user_id: { in: lingeringUserIds } },
+            ],
+          },
+        }).catch(() => {});
+        await prisma.teamMembership.deleteMany({
+          where: {
+            OR: [
+              { user_id: { in: lingeringUserIds } },
+              { team: { organization_id: { in: lingeringOrgIds } } },
+            ],
+          },
+        }).catch(() => {});
+        await prisma.organizationJoinRequest.deleteMany({
+          where: {
+            OR: [
+              { user_id: { in: lingeringUserIds } },
+              { organization_id: { in: lingeringOrgIds } },
+            ],
+          },
+        }).catch(() => {});
+        await prisma.organizationMembership.deleteMany({
+          where: {
+            OR: [
+              { user_id: { in: lingeringUserIds } },
+              { organization_id: { in: lingeringOrgIds } },
+            ],
+          },
+        }).catch(() => {});
+      } else if (lingeringOrgIds.length) {
+        await prisma.teamInvite.deleteMany({
+          where: { team: { organization_id: { in: lingeringOrgIds } } },
+        }).catch(() => {});
+        await prisma.teamMembership.deleteMany({
+          where: { team: { organization_id: { in: lingeringOrgIds } } },
+        }).catch(() => {});
+        await prisma.organizationJoinRequest.deleteMany({
+          where: { organization_id: { in: lingeringOrgIds } },
+        }).catch(() => {});
+        await prisma.organizationMembership.deleteMany({
+          where: { organization_id: { in: lingeringOrgIds } },
+        }).catch(() => {});
+      } else if (lingeringUserIds.length) {
+        await prisma.teamInvite.deleteMany({
+          where: { invited_by_user_id: { in: lingeringUserIds } },
+        }).catch(() => {});
+        await prisma.teamMembership.deleteMany({
+          where: { user_id: { in: lingeringUserIds } },
+        }).catch(() => {});
+        await prisma.organizationJoinRequest.deleteMany({
+          where: { user_id: { in: lingeringUserIds } },
+        }).catch(() => {});
+        await prisma.organizationMembership.deleteMany({
+          where: { user_id: { in: lingeringUserIds } },
+        }).catch(() => {});
+      }
+
+      if (lingeringOrgIds.length) {
+        await prisma.team.deleteMany({
+          where: { organization_id: { in: lingeringOrgIds } },
+        }).catch(() => {});
+        await prisma.organization.deleteMany({
+          where: { id: { in: lingeringOrgIds } },
+        }).catch(() => {});
+      }
+
+      if (lingeringUserIds.length) {
+        await prisma.user.deleteMany({
+          where: { id: { in: lingeringUserIds } },
+        }).catch(() => {});
+      }
+    }
+  });
 
   afterAll(async () => {
     if (!prisma) return;
@@ -82,13 +188,20 @@ describeDb('requireOnboarded coach gate matrix', () => {
     const prefsRole = options.preferences?.role;
     const role = prefsRole === 'coach' || prefsRole === 'fan' ? prefsRole : undefined;
     const onboardingCompleted = options.preferences?.onboarding_completed === true;
+    const coachAgreementAcceptedAtValue = options.preferences?.coach_agreement_accepted_at;
+    const coachAgreementAcceptedAt = coachAgreementAcceptedAtValue
+      ? new Date(String(coachAgreementAcceptedAtValue))
+      : null;
+    const coachAgreementVersionValue = options.preferences?.coach_agreement_version;
+    const coachAgreementVersion = coachAgreementAcceptedAt
+      ? Number(coachAgreementVersionValue ?? REQUIRED_COACH_AGREEMENT_VERSION)
+      : null;
     const user = await prisma.user.create({
       data: {
         email: options.email,
         password_hash: passwordHash,
         display_name: options.displayName,
-        username: `${options.displayName.toLowerCase().replace(/[^a-z0-9]/g, '')}${Date.now()}`
-          .slice(0, 20),
+        username: `cg${ts}${emailSeq}`.slice(0, 20),
         email_verified: true,
         approval_status: options.approvalStatus ?? 'APPROVED',
         paid_by_owner: options.paidByOwner ?? false,
@@ -97,6 +210,8 @@ describeDb('requireOnboarded coach gate matrix', () => {
         date_of_birth: options.dateOfBirth ?? new Date('1990-01-01'),
         ...(role ? { role } : {}),
         onboarding_completed: onboardingCompleted,
+        coach_agreement_accepted_at: coachAgreementAcceptedAt,
+        coach_agreement_version: coachAgreementVersion,
         preferences: options.preferences,
       },
     });
@@ -160,7 +275,7 @@ describeDb('requireOnboarded coach gate matrix', () => {
 
   it('allows approved coach with Veteran plan + payment_pending once approval is granted', async () => {
     const { user: owner } = await createUser({
-      email: `coach-gate-owner-payment-${ts}@example.com`,
+      email: uniqueEmail('coach-gate-owner-payment'),
       displayName: 'Coach Gate Owner Payment',
       preferences: {
         role: 'coach',
@@ -175,8 +290,8 @@ describeDb('requireOnboarded coach gate matrix', () => {
       adminApproved: true,
     });
 
-    const { token } = await createUser({
-      email: `coach-gate-payment-${ts}@example.com`,
+    const member = await createUser({
+      email: uniqueEmail('coach-gate-payment'),
       displayName: 'Coach Gate Payment',
       preferences: {
         role: 'coach',
@@ -187,10 +302,9 @@ describeDb('requireOnboarded coach gate matrix', () => {
         payment_pending: true,
       },
     });
-    const memberId = cleanup.users[cleanup.users.length - 1];
-    await addOrgMembership(org.id, memberId);
+    await addOrgMembership(org.id, member.user.id);
 
-    const res = await createTeamViaApi(token, org.id, `Payment Allowed Team ${ts}`);
+    const res = await createTeamViaApi(member.token, org.id, `Payment Allowed Team ${ts}`);
 
     expect(res.status).toBe(201);
     expect(res.body?.team?.id ?? res.body?.id).toBeTruthy();
@@ -198,7 +312,7 @@ describeDb('requireOnboarded coach gate matrix', () => {
 
   it('allows approved coach whose org.admin_approved = false once approval is granted', async () => {
     const { user: owner } = await createUser({
-      email: `coach-gate-owner-org-${ts}@example.com`,
+      email: uniqueEmail('coach-gate-owner-org'),
       displayName: 'Coach Gate Owner Org',
       preferences: {
         role: 'coach',
@@ -214,7 +328,7 @@ describeDb('requireOnboarded coach gate matrix', () => {
     });
 
     const member = await createUser({
-      email: `coach-gate-org-${ts}@example.com`,
+      email: uniqueEmail('coach-gate-org'),
       displayName: 'Coach Gate Org',
       preferences: {
         role: 'coach',
@@ -235,7 +349,7 @@ describeDb('requireOnboarded coach gate matrix', () => {
   it('blocks rejected applicant within 48h REJECTION_COOLDOWN on POST /auth/upgrade-to-coach', async () => {
     const rejectedAt = new Date(Date.now() - 60 * 60 * 1000);
     const applicant = await createUser({
-      email: `coach-gate-upgrade-cooldown-${ts}@example.com`,
+      email: uniqueEmail('coach-gate-upgrade-cooldown'),
       displayName: 'Coach Gate Upgrade Cooldown',
       approvalStatus: 'REJECTED',
       rejectedAt,
@@ -260,7 +374,7 @@ describeDb('requireOnboarded coach gate matrix', () => {
   it('blocks rejected coach within 48h REJECTION_COOLDOWN on POST /auth/coach/reapply', async () => {
     const rejectedAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
     const rejectedCoach = await createUser({
-      email: `coach-gate-reapply-cooldown-${ts}@example.com`,
+      email: uniqueEmail('coach-gate-reapply-cooldown'),
       displayName: 'Coach Gate Reapply Cooldown',
       approvalStatus: 'REJECTED',
       rejectedAt,
@@ -285,7 +399,7 @@ describeDb('requireOnboarded coach gate matrix', () => {
 
   it('allows coach past 48h REJECTION_COOLDOWN to reapply', async () => {
     const { user: owner } = await createUser({
-      email: `coach-gate-reapply-owner-${ts}@example.com`,
+      email: uniqueEmail('coach-gate-reapply-owner'),
       displayName: 'Coach Gate Reapply Owner',
       preferences: {
         role: 'coach',
@@ -302,7 +416,7 @@ describeDb('requireOnboarded coach gate matrix', () => {
 
     const rejectedAt = new Date(Date.now() - FORTY_EIGHT_HOURS_MS - 60 * 1000);
     const rejectedCoach = await createUser({
-      email: `coach-gate-reapply-ok-${ts}@example.com`,
+      email: uniqueEmail('coach-gate-reapply-ok'),
       displayName: 'Coach Gate Reapply Ok',
       approvalStatus: 'REJECTED',
       rejectedAt,
@@ -359,7 +473,7 @@ describeDb('requireOnboarded coach gate matrix', () => {
 
   it('allows approved coach with paid_by_owner=true on paid tier without checkout', async () => {
     const owner = await createUser({
-      email: `coach-gate-owner-bypass-${ts}@example.com`,
+      email: uniqueEmail('coach-gate-owner-bypass'),
       displayName: 'Coach Gate Owner Bypass',
       preferences: {
         role: 'coach',
@@ -375,7 +489,7 @@ describeDb('requireOnboarded coach gate matrix', () => {
     });
 
     const member = await createUser({
-      email: `coach-gate-paid-by-owner-${ts}@example.com`,
+      email: uniqueEmail('coach-gate-paid-by-owner'),
       displayName: 'Coach Gate Paid By Owner',
       paidByOwner: true,
       preferences: {
