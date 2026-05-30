@@ -161,21 +161,17 @@ if [ -n "$AD_ID" ]; then
 fi
 
 ###############################################################################
-hdr "X5 — Single-session still holds across cross-system interactions"
+hdr "X5 — Multi-session login contract still holds across cross-system interactions"
 ###############################################################################
-# The coach has been through multiple API calls. Login again — session_epoch bumps,
-# current token dies, new token works. This confirms single-session isn't
-# accidentally disabled by any of the intervening writes.
-SE_BEFORE=$(psql "$DB" -tA -c "SELECT session_epoch FROM \"User\" WHERE id='$COACH_ID';" 2>/dev/null)
+# The coach has been through multiple API calls. A fresh login should mint
+# another valid session without killing the current access token. Forced
+# security events like password changes are covered separately above.
 LOG=$(curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$COACH_EMAIL\",\"password\":\"$NEW_PASSWORD\"}")
 TOKEN_C=$(echo "$LOG" | jq -r '.access_token // empty')
-SE_AFTER=$(psql "$DB" -tA -c "SELECT session_epoch FROM \"User\" WHERE id='$COACH_ID';" 2>/dev/null)
-[ "$SE_AFTER" -gt "$SE_BEFORE" ] 2>/dev/null && pass "session_epoch incremented ($SE_BEFORE → $SE_AFTER)" \
-  || fail "session_epoch did not bump ($SE_BEFORE → $SE_AFTER)"
 CODE_OLD=$(me_code "$COACH_TOKEN")
 CODE_NEW=$(me_code "$TOKEN_C")
-[ "$CODE_OLD" = "401" ] && pass "old token kicked (401)" || fail "old token → $CODE_OLD"
+[ "$CODE_OLD" = "200" ] && pass "existing token remains valid after relogin (200)" || fail "existing token → $CODE_OLD"
 [ "$CODE_NEW" = "200" ] && pass "new token active (200)" || fail "new token → $CODE_NEW"
 
 ###############################################################################
@@ -196,7 +192,7 @@ if [ "$FAILED" = "0" ]; then
   echo ""
   echo "🎉 CROSS-SYSTEM INTEGRATION PASSES"
   echo "   OAuth 409 · password-change session kick · approved coach tools (org/team/event)"
-  echo "   · ad lifecycle · single-session interlock"
+  echo "   · ad lifecycle · multi-session relogin contract"
   exit 0
 else
   echo ""

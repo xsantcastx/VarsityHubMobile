@@ -687,16 +687,23 @@ adminRouter.get(
     try {
       const { type, status, userId, startDate, endDate, limit = '50', offset = '0' } = req.query;
 
+      const dateParam = z.string().optional().transform((value, ctx) => {
+        if (!value) return undefined;
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Invalid ISO date',
+          });
+          return z.NEVER;
+        }
+        return parsed;
+      });
+
       const dateParsed = z
         .object({
-          startDate: z
-            .string()
-            .optional()
-            .transform(s => (s ? new Date(s) : undefined)),
-          endDate: z
-            .string()
-            .optional()
-            .transform(s => (s ? new Date(s) : undefined)),
+          startDate: dateParam,
+          endDate: dateParam,
         })
         .safeParse({ startDate, endDate });
       if (!dateParsed.success) {

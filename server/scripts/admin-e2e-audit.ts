@@ -384,8 +384,9 @@ async function testUserManagement(token: string): Promise<void> {
 
   // Create a disposable test user for ban/unban/warn/suspend
   const email = `audit-bantest-${RUN}@test.varsityhub.app`;
+  const password = 'AuditBan123!';
   const reg = await api('POST', '/auth/register', {
-    body: { email, password: 'AuditBan123!', display_name: `Audit Ban ${RUN}` },
+    body: { email, password, display_name: `Audit Ban ${RUN}` },
   });
   const testUserId = reg.data?.user?.id;
   const testToken = reg.data?.access_token;
@@ -441,14 +442,16 @@ async function testUserManagement(token: string): Promise<void> {
   const unbanRes = await api('POST', `/admin/users/${testUserId}/unban`, { token });
   record('Unban user succeeds', unbanRes.status === 200 && unbanRes.data?.ok === true, unbanRes.status);
 
-  // Test 6: Unbanned user can access again
+  // Test 6: Unbanned user can log in again with a fresh session
   if (testToken) {
-    const unbannedAccess = await api('GET', '/auth/me', { token: testToken });
+    const relogin = await api('POST', '/auth/login', {
+      body: { email, password },
+    });
     record(
-      'Unbanned user can access /auth/me again',
-      unbannedAccess.status === 200,
-      unbannedAccess.status,
-      unbannedAccess.status !== 200 ? 'BUG: unban did not restore access' : undefined,
+      'Unbanned user can log in again',
+      relogin.status === 200 && Boolean(relogin.data?.access_token),
+      relogin.status,
+      relogin.status !== 200 ? 'BUG: unbanned user could not start a new session' : undefined,
     );
   }
 
