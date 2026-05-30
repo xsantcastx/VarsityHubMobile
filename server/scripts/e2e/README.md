@@ -83,8 +83,8 @@ the same production checks without putting admin credentials in a local shell.
 
 Required GitHub Actions secrets:
 
-- `RAILWAY_TOKEN` for the DB-backed jobs (`coach-approval-flow` and
-  `cross-system`)
+- `PRODUCTION_DATABASE_URL` for the DB-backed jobs (`coach-approval-flow` and
+  `cross-system`), or `RAILWAY_TOKEN` as a fallback resolver
 - `PROD_ADMIN_EMAIL` for the existing verified admin account
 - `PROD_ADMIN_PASSWORD` for that admin account
 

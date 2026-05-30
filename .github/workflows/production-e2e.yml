@@ -62,13 +62,14 @@ jobs:
       - name: Validate workflow secrets
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           PROD_ADMIN_EMAIL: ${{ secrets.PROD_ADMIN_EMAIL }}
           PROD_ADMIN_PASSWORD: ${{ secrets.PROD_ADMIN_PASSWORD }}
         run: |
           set -euo pipefail
 
-          if [ "${{ matrix.requires_db }}" = "true" ] && [ -z "${RAILWAY_TOKEN:-}" ]; then
-            echo "Missing GitHub secret: RAILWAY_TOKEN"
+          if [ "${{ matrix.requires_db }}" = "true" ] && [ -z "${PRODUCTION_DATABASE_URL:-}" ] && [ -z "${RAILWAY_TOKEN:-}" ]; then
+            echo "Missing GitHub secret: PRODUCTION_DATABASE_URL or RAILWAY_TOKEN"
             exit 1
           fi
 
@@ -85,7 +86,7 @@ jobs:
           fi
 
       - name: Link Railway production project
-        if: ${{ matrix.requires_db == 'true' }}
+        if: ${{ matrix.requires_db == 'true' && secrets.PRODUCTION_DATABASE_URL == '' }}
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
@@ -96,14 +97,19 @@ jobs:
         if: ${{ matrix.requires_db == 'true' }}
         id: db
         env:
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
           set -euo pipefail
 
-          DATABASE_URL="$(railway variable list --service 9f1e9f03-53f7-4d90-8744-d711e76f5e80 --environment production --kv | awk -F= '/^DATABASE_PUBLIC_URL=/{print $2}')"
+          if [ -n "${PRODUCTION_DATABASE_URL:-}" ]; then
+            DATABASE_URL="$PRODUCTION_DATABASE_URL"
+          else
+            DATABASE_URL="$(railway variable list --service 9f1e9f03-53f7-4d90-8744-d711e76f5e80 --environment production --kv | awk -F= '/^DATABASE_PUBLIC_URL=/{print $2}')"
+          fi
 
           if [ -z "$DATABASE_URL" ]; then
-            echo "Failed to resolve DATABASE_PUBLIC_URL from Railway"
+            echo "Failed to resolve production database URL"
             exit 1
           fi
 
