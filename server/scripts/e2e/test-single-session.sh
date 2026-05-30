@@ -10,23 +10,62 @@
 
 set -u
 API="${API_URL:-https://api-production-8ac3.up.railway.app}"
-# DB URL must be injected at runtime only when you intentionally create a
-# temporary admin connection. Never hardcode a production credential.
-DB="${DATABASE_URL:?Set DATABASE_URL env var before running. See server/scripts/e2e/README.md.}"
+DB="${DATABASE_URL:-}"
 STAMP=$(date +%s)
 EMAIL="session-test-${STAMP}@varsityhub-test.local"
 PASSWORD="TestPass123!"
+CURRENT_PASSWORD="$PASSWORD"
+ACTIVE_TOKEN=""
+USER_ID=""
 
 pass() { echo "  ✅ $1"; }
 fail() { echo "  ❌ $1"; FAILED=1; }
 hdr()  { echo ""; echo "=== $1 ==="; }
 FAILED=0
 
+cleanup() {
+  hdr "CLEANUP"
+
+  local cleanup_token="${ACTIVE_TOKEN:-}"
+  if [ -z "$cleanup_token" ] && [ -n "${CURRENT_PASSWORD:-}" ]; then
+    local login
+    login=$(curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' \
+      -d "{\"email\":\"$EMAIL\",\"password\":\"$CURRENT_PASSWORD\"}")
+    cleanup_token=$(echo "$login" | jq -r '.access_token // empty')
+  fi
+
+  if [ -n "$cleanup_token" ]; then
+    local delete_res delete_ok
+    delete_res=$(curl -sS -X POST "$API/auth/account/delete" \
+      -H "Authorization: Bearer $cleanup_token" \
+      -H 'Content-Type: application/json' \
+      -d "{\"password\":\"$CURRENT_PASSWORD\",\"delete_confirmation\":\"DELETE\"}")
+    delete_ok=$(echo "$delete_res" | jq -r '.ok // empty')
+    if [ "$delete_ok" = "true" ]; then
+      pass "test user deleted via API"
+      return
+    fi
+    fail "API cleanup failed: $delete_res"
+  fi
+
+  if [ -n "$DB" ] && [ -n "$USER_ID" ]; then
+    psql "$DB" -c "DELETE FROM \"RefreshToken\" WHERE user_id='$USER_ID'; DELETE FROM \"User\" WHERE id='$USER_ID';" >/dev/null 2>&1 \
+      && pass "test user deleted via DB fallback" \
+      || fail "DB cleanup failed for user_id=$USER_ID"
+    return
+  fi
+
+  fail "cleanup skipped: no valid token and no DATABASE_URL fallback"
+}
+
+trap cleanup EXIT
+
 hdr "1. Register user (gets session A)"
 REG=$(curl -sS -X POST "$API/auth/register" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\",\"display_name\":\"Session Test\",\"role\":\"fan\",\"dob\":\"1995-06-15\"}")
 TOKEN_A=$(echo "$REG" | jq -r '.access_token // empty')
 USER_ID=$(echo "$REG" | jq -r '.user.id // empty')
+ACTIVE_TOKEN="$TOKEN_A"
 [ -n "$TOKEN_A" ] && pass "registered, got token_A" || { fail "register: $REG"; exit 1; }
 
 hdr "2. Use token_A — should work"
@@ -37,6 +76,7 @@ hdr "3. Login again as same user (token_B should coexist with token_A)"
 LOGIN=$(curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}")
 TOKEN_B=$(echo "$LOGIN" | jq -r '.access_token // empty')
+[ -n "$TOKEN_B" ] && ACTIVE_TOKEN="$TOKEN_B"
 [ -n "$TOKEN_B" ] && pass "logged in, got token_B" || { fail "login: $LOGIN"; exit 1; }
 
 hdr "4. Use token_A — should still work after relogin"
@@ -53,6 +93,7 @@ PW=$(curl -sS -X POST "$API/auth/password/change" -H "$(
 )" -H 'Content-Type: application/json' \
   -d "{\"current_password\":\"$PASSWORD\",\"new_password\":\"${PASSWORD}X\"}")
 PW_OK=$(echo "$PW" | jq -r '.ok // .message // empty')
+[ -n "$PW_OK" ] && CURRENT_PASSWORD="${PASSWORD}X"
 [ -n "$PW_OK" ] && pass "password changed" || fail "password change: $PW"
 
 ME_A3=$(curl -sS -o /dev/null -w "%{http_code}" "$API/auth/me" -H "Authorization: Bearer $TOKEN_A")
@@ -65,13 +106,10 @@ hdr "7. Login with new password — token_C should work"
 LOGIN2=$(curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$EMAIL\",\"password\":\"${PASSWORD}X\"}")
 TOKEN_C=$(echo "$LOGIN2" | jq -r '.access_token // empty')
+[ -n "$TOKEN_C" ] && ACTIVE_TOKEN="$TOKEN_C"
 [ -n "$TOKEN_C" ] && pass "logged in with new password, got token_C" || fail "relogin: $LOGIN2"
 ME_C=$(curl -sS -o /dev/null -w "%{http_code}" "$API/auth/me" -H "Authorization: Bearer $TOKEN_C")
 [ "$ME_C" = "200" ] && pass "/me with token_C → 200" || fail "/me token_C → $ME_C"
-
-hdr "CLEANUP"
-psql "$DB" -c "DELETE FROM \"RefreshToken\" WHERE user_id='$USER_ID'; DELETE FROM \"User\" WHERE id='$USER_ID';" >/dev/null 2>&1
-pass "test user deleted"
 
 if [ "$FAILED" = "0" ]; then
   echo ""

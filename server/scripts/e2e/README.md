@@ -14,7 +14,7 @@ account instead of deleting/recreating the canonical admin email.
 Walks the complete coach approval flow:
 
 1. Register as fan
-2. Upgrade to coach (bumps `approval_status=PENDING`)
+2. Upgrade to coach and confirm `coach_basic_info_required`
 3. Submit CoachApplication
 4. Admin approves via `/admin/coaches/:id/approve`
 5. Accept coach agreement
@@ -33,6 +33,9 @@ Verifies the current access-token invalidation policy:
 3. Change password → token A and token B both return 401
 4. Login with new password → token C works
 
+This script cleans up through the public account-deletion API. `DATABASE_URL`
+is optional here and only used as a fallback when API cleanup fails.
+
 ### `test-integration-crossmatrix.sh`
 
 Cross-system boundary test:
@@ -47,9 +50,12 @@ Cross-system boundary test:
 ## Requirements
 
 - `curl`, `jq`, `psql` installed locally
-- **`DATABASE_URL` env var is optional**. If you set it, it must be a temporary
-  admin connection string created outside the repo. Do not commit it, store it
-  in scripts, or normalize a public DB URL as the default production path.
+- **`DATABASE_URL` env var is required for**
+  `test-coach-application-flow.sh` and `test-integration-crossmatrix.sh`.
+  It remains optional for `test-single-session.sh`, where it is only a cleanup
+  fallback. If you set it, use a temporary admin connection string created
+  outside the repo. Do not commit it, store it in scripts, or normalize a
+  public DB URL as the default production path.
 - **`ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars must be set** for
   `test-coach-application-flow.sh` and `test-integration-crossmatrix.sh`.
 - Optional `API_URL` env var to override the API host (defaults to production).
@@ -77,7 +83,8 @@ the same production checks without putting admin credentials in a local shell.
 
 Required GitHub Actions secrets:
 
-- `RAILWAY_TOKEN` if the workflow needs Railway CLI access
+- `RAILWAY_TOKEN` for the DB-backed jobs (`coach-approval-flow` and
+  `cross-system`)
 - `PROD_ADMIN_EMAIL` for the existing verified admin account
 - `PROD_ADMIN_PASSWORD` for that admin account
 
