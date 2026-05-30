@@ -528,6 +528,18 @@ export const adminLimiter = createLimiter({
 });
 
 /**
+ * Public route limiter
+ * Baseline guard for unauthenticated informational routes mounted outside the
+ * main API bundle, such as /health, /.well-known, and public HTML handoff pages.
+ */
+export const publicRouteLimiter = createLimiter({
+  name: 'public-route',
+  windowMs: 60 * 1000,
+  max: rateLimitingDisabled ? 100000 : 60,
+  keyGenerator: req => `ip:${req.ip || 'unknown'}`,
+});
+
+/**
  * Default API limiter
  * Baseline guard for routes that do not define a stricter per-endpoint limiter.
  * Webhook callbacks are excluded because providers, not end users, control their retry cadence.
@@ -576,6 +588,7 @@ export const rateLimiters = {
   mentionsSearch: mentionsSearchLimiter,
   geocodingLocation: geocodingLocationLimiter,
   geocodingAutocomplete: geocodingAutocompleteLimiter,
+  publicRoute: publicRouteLimiter,
   defaultApi: defaultApiLimiter,
 };
 

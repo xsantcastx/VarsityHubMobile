@@ -12,7 +12,7 @@ import { invalidateMeCacheForUser, updateUserAndInvalidate } from '../lib/userCa
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { followLimiter, mentionsSearchLimiter, userLookupLimiter, usernameAvailableLimiter } from '../middleware/rateLimiters.js';
-import { requireAdmin } from '../middleware/requireAdmin.js';
+import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -720,8 +720,8 @@ usersRouter.get('/username-available', usernameAvailableLimiter, asyncHandler(as
   return res.json({ available: !exists, valid: true });
 }));
 
-// Lookup user by email or username (for onboarding authorized users flow)
-// CRITICAL: Requires authentication and rate limiting to prevent enumeration
+// Lookup user by username. Email-based lookup is intentionally restricted to
+// admins so normal users cannot enumerate whether other users exist by email.
 usersRouter.get('/lookup', requireAuth as any, userLookupLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -739,6 +739,14 @@ usersRouter.get('/lookup', requireAuth as any, userLookupLimiter, asyncHandler(a
 
   if (!email || !email.includes('@')) {
     return res.status(400).json({ error: 'Invalid email or username required' });
+  }
+
+  const isAdmin = await getIsAdmin(req);
+  if (!isAdmin) {
+    return res.status(403).json({
+      error: 'EMAIL_LOOKUP_FORBIDDEN',
+      message: 'Email-based user lookup is restricted.',
+    });
   }
 
   const u = await prisma.user.findUnique({
@@ -1192,7 +1200,8 @@ usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as
     return res.json({ users: [] });
   }
 
-  // Search all users by username, display_name, or email
+  // Search users by public profile fields only. Email matching here turns an
+  // @mention helper into a directory-enumeration surface for authenticated users.
   const users = await prisma.user.findMany({
     where: {
       AND: [
@@ -1201,8 +1210,7 @@ usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as
           OR: [
             // Search by username
             { username: { contains: query, mode: 'insensitive' } },
-            // Search by email (for team invites)
-            { email: { contains: query, mode: 'insensitive' } }
+            { display_name: { contains: query, mode: 'insensitive' } },
           ]
         }
       ]
@@ -1303,14 +1311,12 @@ usersRouter.get('/:id', asyncHandler(async (req: AuthedRequest, res) => {
       bio: true,
       created_at: true,
       preferences: true,
-      approval_status: true,
     },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
 
   const prefs = (user.preferences || {}) as any;
   const profile_private = prefs?.profile_private === true;
-  const is_parent = prefs?.is_parent === true;
 
   // Check if viewer is the profile owner or a follower
   let isFollower = false;
@@ -1357,13 +1363,11 @@ usersRouter.get('/:id', asyncHandler(async (req: AuthedRequest, res) => {
     avatar_url: user.avatar_url,
     bio: user.bio,
     created_at: user.created_at,
-    approval_status: (user as any).approval_status || null,
     posts_count,
     followers_count,
     following_count,
     is_following: Boolean(rel) && rel?.status === 'accepted',
     follow_status: rel?.status || null,
-    is_parent, // Include parent status for coaches viewing profiles
   });
 }));
 

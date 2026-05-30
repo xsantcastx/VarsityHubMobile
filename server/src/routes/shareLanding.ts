@@ -29,6 +29,7 @@
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma.js';
 
 const APP_STORE_URL =
@@ -66,6 +67,22 @@ function wantsHtml(req: Request): boolean {
   if (SOCIAL_CRAWLER_UA.test(ua)) return true;
   return false;
 }
+
+const shareLandingLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 60 : 100000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => `ip:${req.ip || 'unknown'}`,
+  skip: req => !wantsHtml(req),
+  handler: (_req, res) => {
+    res.status(429).json({
+      error: 'Too many requests',
+      message: 'Please slow down and try again later',
+      retryAfter: 60,
+    });
+  },
+});
 
 function escapeHtml(s: unknown): string {
   return String(s ?? '').replace(/[&<>"']/g, (c) =>
@@ -351,6 +368,7 @@ function genericLandingHandler(req: Request, res: Response, next: NextFunction) 
 }
 
 export const shareLandingRouter = Router();
+shareLandingRouter.use(shareLandingLimiter);
 shareLandingRouter.get('/posts/:id', postLanding);
 shareLandingRouter.get('/games/:id', gameLanding);
 shareLandingRouter.get('/teams/:id', teamLanding);

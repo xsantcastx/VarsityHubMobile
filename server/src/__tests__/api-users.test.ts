@@ -63,6 +63,8 @@ describeDb('Users API Endpoints', () => {
       expect(res.statusCode).toEqual(200);
       expect(res.body.id).toBe(testUser.id);
       expect(res.body.display_name).toBe(testUser.display_name);
+      expect(res.body.approval_status).toBeUndefined();
+      expect(res.body.is_parent).toBeUndefined();
     });
 
     it('should return 404 for non-existent user', async () => {
@@ -159,6 +161,29 @@ describeDb('Users API Endpoints', () => {
       if (users.length > 0) {
         expect(users[0].email).toBeUndefined();
       }
+    });
+
+    it('should not find users by email fragments', async () => {
+      const emailFragment = String(otherUser.email).split('@')[0];
+      const res = await request(app)
+        .get(`/users/search/mentions?q=${encodeURIComponent(emailFragment)}`)
+        .set('Authorization', `Bearer ${testUserToken}`);
+
+      expect(res.statusCode).toEqual(200);
+      const users = Array.isArray(res.body) ? res.body : res.body.users;
+      expect(Array.isArray(users)).toBe(true);
+      expect(users.some((user: any) => user.id === otherUser.id)).toBe(false);
+    });
+  });
+
+  describe('GET /users/lookup', () => {
+    it('should block email-based lookup for non-admin users', async () => {
+      const res = await request(app)
+        .get(`/users/lookup?email=${encodeURIComponent(otherUser.email)}`)
+        .set('Authorization', `Bearer ${testUserToken}`);
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toBe('EMAIL_LOOKUP_FORBIDDEN');
     });
   });
 });

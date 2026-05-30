@@ -18,7 +18,7 @@ import { addBreadcrumb, addSentryErrorHandler, initSentry } from './lib/sentry.j
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
 import { requestLogging } from './middleware/logging.js';
-import { defaultApiLimiter } from './middleware/rateLimiters.js';
+import { defaultApiLimiter, publicRouteLimiter } from './middleware/rateLimiters.js';
 import { requireAdmin } from './middleware/requireAdmin.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { requireParentalConsent } from './middleware/requireParentalConsent.js';
@@ -278,10 +278,10 @@ const authLimiter = rateLimit({
   skip: () => isDev,
 });
 
-app.use('/health', healthRouter);
+app.use('/health', publicRouteLimiter, healthRouter);
 
 // Universal links - must be at /.well-known/ for iOS and Android
-app.use('/.well-known', wellKnownRouter);
+app.use('/.well-known', publicRouteLimiter, wellKnownRouter);
 
 // Share-landing fallback: serves an HTML page with OG metadata + smart
 // "Open in app" UX when a browser hits a universal-link URL (e.g.
@@ -368,8 +368,8 @@ if (process.env.NODE_ENV !== 'production') {
   debugLog('📧 Test email endpoints available at /test-emails/*');
 }
 
-app.use(publicAppHandoffRouter);
-app.use(publicSiteRouter);
+app.use(publicRouteLimiter, publicAppHandoffRouter);
+app.use(publicRouteLimiter, publicSiteRouter);
 
 // Add centralized error handler (must be before Sentry)
 import { errorHandler } from './middleware/errorHandler.js';
