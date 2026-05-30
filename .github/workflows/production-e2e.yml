@@ -55,7 +55,7 @@ jobs:
 
       - name: Install runtime tools
         run: |
-          npm install --global @railway/cli
+          npm install --global @railway/cli bcryptjs
           sudo apt-get update
           sudo apt-get install --yes jq postgresql-client
 
@@ -122,6 +122,109 @@ jobs:
 
           echo "::add-mask::$DATABASE_URL"
           echo "database_url=$DATABASE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Provision verification admin account
+        if: ${{ matrix.requires_admin == 'true' }}
+        env:
+          DATABASE_URL: ${{ steps.db.outputs.database_url }}
+          PROD_ADMIN_EMAIL: ${{ secrets.PROD_ADMIN_EMAIL }}
+          PROD_ADMIN_PASSWORD: ${{ secrets.PROD_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "DATABASE_URL is required to provision the verification admin account"
+            exit 1
+          fi
+
+          HASH="$(
+            NODE_PATH="$(npm root -g)" node -e \
+              "const bcrypt=require('bcryptjs'); process.stdout.write(bcrypt.hashSync(process.argv[1], 10));" \
+              "$PROD_ADMIN_PASSWORD"
+          )"
+          EMAIL_LC="$(printf '%s' "$PROD_ADMIN_EMAIL" | tr '[:upper:]' '[:lower:]')"
+
+          psql "$DATABASE_URL" \
+            -v ON_ERROR_STOP=1 \
+            -v admin_email="$EMAIL_LC" \
+            -v password_hash="$HASH" <<'SQL'
+          WITH upserted AS (
+            INSERT INTO "User" (
+              id,
+              email,
+              password_hash,
+              display_name,
+              created_at,
+              email_verified,
+              password_changed_at,
+              session_epoch,
+              banned,
+              preferences,
+              role,
+              onboarding_completed,
+              proceeding_as_fan,
+              plan,
+              payment_pending,
+              payment_approved,
+              approval_status,
+              subscription_tier,
+              subscription_status,
+              max_teams,
+              paid_by_owner
+            )
+            VALUES (
+              'seed_' || substr(md5(random()::text || clock_timestamp()::text), 1, 24),
+              :'admin_email',
+              :'password_hash',
+              'Production Verification Admin',
+              NOW(),
+              TRUE,
+              NOW(),
+              0,
+              FALSE,
+              '{"role":"fan","onboarding_completed":true}'::jsonb,
+              'fan'::"UserRole",
+              TRUE,
+              FALSE,
+              'rookie'::"MembershipPlan",
+              FALSE,
+              FALSE,
+              'APPROVED'::"ApprovalStatus",
+              'free',
+              'active',
+              3,
+              FALSE
+            )
+            ON CONFLICT (email) DO UPDATE
+            SET
+              password_hash = EXCLUDED.password_hash,
+              display_name = EXCLUDED.display_name,
+              email_verified = TRUE,
+              password_changed_at = NOW(),
+              session_epoch = "User".session_epoch + 1,
+              banned = FALSE,
+              banned_until = NULL,
+              ban_reason = NULL,
+              deleted_at = NULL,
+              deletion_anonymized = FALSE,
+              preferences = '{"role":"fan","onboarding_completed":true}'::jsonb,
+              role = 'fan'::"UserRole",
+              onboarding_completed = TRUE,
+              proceeding_as_fan = FALSE,
+              plan = 'rookie'::"MembershipPlan",
+              pending_plan = NULL,
+              payment_pending = FALSE,
+              payment_approved = FALSE,
+              approval_status = 'APPROVED'::"ApprovalStatus",
+              subscription_tier = 'free',
+              subscription_status = 'active',
+              max_teams = 3,
+              paid_by_owner = FALSE
+            RETURNING id
+          )
+          DELETE FROM "RefreshToken"
+          WHERE user_id IN (SELECT id FROM upserted);
+          SQL
 
       - name: Run production verification script
         id: run-script
