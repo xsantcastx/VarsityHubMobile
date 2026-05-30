@@ -199,6 +199,7 @@ jobs:
           SQL
 
       - name: Preflight admin access contract
+        id: admin-auth
         if: ${{ matrix.requires_admin == 'true' }}
         env:
           API_URL: https://api-production-8ac3.up.railway.app
@@ -218,6 +219,8 @@ jobs:
             echo "$LOGIN_JSON"
             exit 1
           fi
+          echo "::add-mask::$ACCESS_TOKEN"
+          echo "admin_token=$ACCESS_TOKEN" >> "$GITHUB_OUTPUT"
 
           ME_JSON="$(curl -fsS "$API_URL/auth/me" -H "Authorization: Bearer $ACCESS_TOKEN")"
           IS_ADMIN="$(printf '%s' "$ME_JSON" | jq -r '.is_admin // false')"
@@ -246,6 +249,7 @@ jobs:
           DATABASE_URL: ${{ steps.db.outputs.database_url }}
           ADMIN_EMAIL: ${{ secrets.PROD_ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.PROD_ADMIN_PASSWORD }}
+          ADMIN_TOKEN: ${{ steps.admin-auth.outputs.admin_token }}
         run: |
           set -euo pipefail
 

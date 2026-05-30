@@ -29,10 +29,15 @@ me_state() {
 }
 
 hdr "Setup — temp admin user via real register + login"
-ADMIN_LOGIN=$(curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-ADMIN_TOKEN=$(echo "$ADMIN_LOGIN" | jq -r '.access_token // empty')
-[ -n "$ADMIN_TOKEN" ] && pass "admin logged in" || { fail "admin login: $ADMIN_LOGIN"; exit 1; }
+ADMIN_TOKEN="${ADMIN_TOKEN:-}"
+if [ -n "$ADMIN_TOKEN" ]; then
+  pass "admin token provided by workflow preflight"
+else
+  ADMIN_LOGIN=$(curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
+  ADMIN_TOKEN=$(echo "$ADMIN_LOGIN" | jq -r '.access_token // empty')
+  [ -n "$ADMIN_TOKEN" ] && pass "admin logged in" || { fail "admin login: $ADMIN_LOGIN"; exit 1; }
+fi
 ADMIN_AUTH="Authorization: Bearer $ADMIN_TOKEN"
 ADMIN_ID=$(psql "$DB" -tA -c "SELECT id FROM \"User\" WHERE lower(email)=lower('$ADMIN_EMAIL') LIMIT 1;" 2>/dev/null)
 [ -n "$ADMIN_ID" ] && pass "admin user resolved id=$ADMIN_ID" || { fail "admin user lookup failed"; exit 1; }
