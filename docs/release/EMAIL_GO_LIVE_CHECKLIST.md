@@ -4,6 +4,10 @@ Use this during Phase 3 of [RELEASE_WORKFLOW.md](/Users/varsityhub/Desktop/CODE/
 
 Use this once the code-side release baseline is green and the only remaining blocker is real outbound email.
 
+Latest blocker snapshot:
+
+- [CURRENT_RUNTIME_BLOCKERS.md](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/docs/release/CURRENT_RUNTIME_BLOCKERS.md)
+
 ## Purpose
 
 - Confirm the SendGrid API key is real, not a placeholder.
@@ -27,10 +31,11 @@ npx tsx server/scripts/email-delivery-test.ts
 ## Required operator actions
 
 1. Replace `SENDGRID_API_KEY` in Railway if the verifier reports `placeholder`, `missing`, or `invalid`.
-2. Set every missing `SENDGRID_*_TEMPLATE_ID` variable in Railway.
-3. Recreate and publish any stale SendGrid templates before setting those env vars.
-4. Re-run `verify:email-go-live` and `verify:email` until both are clean.
-5. Send a controlled end-to-end delivery pass with `email-delivery-test.ts`.
+2. If real send attempts return `401` with `The provided authorization grant is invalid, expired, or revoked`, rotate the key in SendGrid and update Railway before doing anything else.
+3. Set every missing `SENDGRID_*_TEMPLATE_ID` variable in Railway.
+4. Recreate and publish any stale SendGrid templates before setting those env vars.
+5. Re-run `verify:email-go-live` and `verify:email` until both are clean.
+6. Send a controlled end-to-end delivery pass with `email-delivery-test.ts`.
 
 ## Current known stale catalog IDs
 
@@ -44,6 +49,7 @@ These were flagged by the repo export metadata and need a fresh published templa
 
 - `verify:email-go-live` exits `0`
 - `verify:email` exits `0`
+- `npm run release:verify:local` exits `0`
 - One real verification email is delivered
 - One real invite/moderation-style email is delivered
 - Railway production logs show no SendGrid `401` or `template_id must be a valid GUID` errors

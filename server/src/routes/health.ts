@@ -1,6 +1,12 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
-import { CloudinaryUpstreamError, getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
+import {
+  CloudinaryUpstreamError,
+  getCloudinaryCredentials,
+  getCloudinaryFolder,
+  isCloudinaryConfigured,
+  uploadBufferToCloudinary,
+} from '../lib/cloudinary.js';
 import {
   getEmailBaseUrlDiagnostics,
   getMissingEmailTemplates,
@@ -12,12 +18,14 @@ import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
 import { prisma } from '../lib/prisma.js';
+import { runDatabaseHealthcheck } from '../lib/healthProbe.js';
 import { getObjectStorageAdapter } from '../lib/objectStorage.js';
 import { resolveHealthCheckSecret } from '../lib/healthCheckSecret.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const healthRouter = Router();
+const isDatabaseHealthy = () => runDatabaseHealthcheck(() => prisma.$queryRaw`SELECT 1`);
 
 /**
  * Health check endpoint
@@ -26,124 +34,136 @@ export const healthRouter = Router();
  * Returns full integration status (booleans only, no secrets).
  * GET /health?include=payments - also returns payments config (fallback when /payments/config 404s)
  */
-healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
-  // Only return detailed status if the caller provides the correct secret
-  const secret = resolveHealthCheckSecret();
-  const provided = String(req.headers['x-health-check-secret'] || '').trim();
-  if (!secret || !provided || provided !== secret) {
-    // Basic health: verify DB connectivity with a real query. Timestamp is
-    // emitted unconditionally — it's non-sensitive and lets external probes
-    // distinguish a stale cached 200 from a live response without needing
-    // the HEALTH_CHECK_SECRET to do it.
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      return res.json({ status: 'ok', timestamp: new Date().toISOString() });
-    } catch {
-      return res.status(503).json({ status: 'error', message: 'Database unreachable', timestamp: new Date().toISOString() });
+healthRouter.get(
+  '/',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    // Only return detailed status if the caller provides the correct secret
+    const secret = resolveHealthCheckSecret();
+    const provided = String(req.headers['x-health-check-secret'] || '').trim();
+    if (!secret || !provided || provided !== secret) {
+      // Basic health: verify DB connectivity with a real query. Timestamp is
+      // emitted unconditionally — it's non-sensitive and lets external probes
+      // distinguish a stale cached 200 from a live response without needing
+      // the HEALTH_CHECK_SECRET to do it.
+      if (await isDatabaseHealthy()) {
+        return res.json({ status: 'ok', timestamp: new Date().toISOString() });
+      }
+      return res.status(503).json({
+        status: 'error',
+        message: 'Database unreachable',
+        timestamp: new Date().toISOString(),
+      });
     }
-  }
 
-  const missingEmailTemplates = getMissingEmailTemplates();
-  const missingRecommendedTemplates = getMissingRecommendedTemplates();
-  const emailBaseUrlDiagnostics = getEmailBaseUrlDiagnostics();
-  const emailService = getEmailService();
-  const emailServiceReady = emailService.isConfigured() && emailService.validateConfig().valid;
-  const sendgridReady = isSendGridConfigured() && missingEmailTemplates.length === 0 && emailServiceReady;
+    const missingEmailTemplates = getMissingEmailTemplates();
+    const missingRecommendedTemplates = getMissingRecommendedTemplates();
+    const emailBaseUrlDiagnostics = getEmailBaseUrlDiagnostics();
+    const emailService = getEmailService();
+    const emailServiceReady = emailService.isConfigured() && emailService.validateConfig().valid;
+    const sendgridReady =
+      isSendGridConfigured() && missingEmailTemplates.length === 0 && emailServiceReady;
 
-  // Check Redis/Queue connectivity
-  let redisConnected = false;
-  try {
-    const { initializeQueues } = await import('../jobs/queues.js');
-    const queuesReady = await initializeQueues();
-    redisConnected = queuesReady;
-  } catch (error) {
-    // Redis not available is not a critical error
-    redisConnected = false;
-  }
-
-  // Data export storage adapter (R2 / S3-compatible). Surfaces whether the
-  // four required env vars are present so ops can verify before smoke-testing
-  // the GDPR export flow. Matches the `isConfigured()` contract on the adapter.
-  const dataExportStorageReady = (() => {
+    // Check Redis/Queue connectivity
+    let redisConnected = false;
     try {
-      return getObjectStorageAdapter().isConfigured();
-    } catch {
-      return false;
+      const { initializeQueues } = await import('../jobs/queues.js');
+      const queuesReady = await initializeQueues();
+      redisConnected = queuesReady;
+    } catch (error) {
+      // Redis not available is not a critical error
+      redisConnected = false;
     }
-  })();
 
-  const integrations = {
-    database: await prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
-    jwt: !!process.env.JWT_SECRET,
-    cloudinary: isCloudinaryConfigured(),
-    twilio: isTwilioConfigured(),
-    stripe: !!process.env.STRIPE_SECRET_KEY,
-    sendgrid: sendgridReady,
-    googleOAuth: !!process.env.GOOGLE_OAUTH_CLIENT_IDS,
-    googleMaps: !!process.env.GOOGLE_MAPS_API_KEY,
-    appleIAP: !!process.env.APPLE_BUNDLE_ID,
-    appleIAPLegacyReceipt: !!process.env.APPLE_IAP_SHARED_SECRET,
-    sentry: !!process.env.SENTRY_DSN,
-    redis: redisConnected,
-    dataExportStorage: dataExportStorageReady,
-  };
+    // Data export storage adapter (R2 / S3-compatible). Surfaces whether the
+    // four required env vars are present so ops can verify before smoke-testing
+    // the GDPR export flow. Matches the `isConfigured()` contract on the adapter.
+    const dataExportStorageReady = (() => {
+      try {
+        return getObjectStorageAdapter().isConfigured();
+      } catch {
+        return false;
+      }
+    })();
 
-  const allConfigured = Object.entries(integrations)
-    .filter(([key]) => !['twilio', 'sentry', 'redis', 'dataExportStorage'].includes(key)) // Optional services
-    .every(([, value]) => value);
-
-  const stripePublishableKey =
-    process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
-    process.env.STRIPE_PUBLISHABLE_KEY ||
-    '';
-  const includePayments = req.query.include === 'payments';
-  const body: Record<string, unknown> = {
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    integrations,
-    ready: allConfigured,
-    warnings: [
-      ...(!integrations.twilio ? ['Twilio not configured - SMS disabled'] : []),
-      ...(!sendgridReady
-        ? [
-            missingEmailTemplates.length
-              ? `SendGrid critical templates missing: ${missingEmailTemplates.join(', ')}`
-              : 'SendGrid API key missing - transactional email disabled',
-          ]
-        : []),
-      ...(missingRecommendedTemplates.length
-        ? [`SendGrid recommended templates missing (non-blocking): ${missingRecommendedTemplates.join(', ')}`]
-        : []),
-      ...(!integrations.appleIAP
-        ? ['APPLE_BUNDLE_ID missing - Apple signed transaction verification will fail for App Review, TestFlight, and live iOS purchases']
-        : []),
-      ...(!integrations.appleIAPLegacyReceipt
-        ? ['Apple IAP shared secret missing - legacy receipt fallback disabled']
-        : []),
-      ...(!integrations.sentry ? ['Sentry not configured - error tracking disabled'] : []),
-      ...(!integrations.redis ? ['Redis not configured - background jobs will use fallback mode'] : []),
-      ...(!integrations.dataExportStorage
-        ? ['Data export storage not configured - POST /me/data-export will return 503 (set DATA_EXPORT_S3_BUCKET, DATA_EXPORT_S3_REGION, DATA_EXPORT_S3_ACCESS_KEY_ID, DATA_EXPORT_S3_SECRET_ACCESS_KEY)']
-        : []),
-    ],
-    metadata: {
-      missingEmailTemplates,
-      missingRecommendedTemplates,
-      emailBaseUrlDiagnostics,
-    },
-  };
-  if (includePayments) {
-    body.payments_config = {
-      stripe_publishable_key: stripePublishableKey,
-      available_plans: getAllPlanDefinitions(),
-      payments_enabled: true,
-      stripe_configured: !!(stripePublishableKey && process.env.STRIPE_SECRET_KEY),
-      has_webhook_secret: !!process.env.STRIPE_WEBHOOK_SECRET,
+    const integrations = {
+      database: await isDatabaseHealthy(),
+      jwt: !!process.env.JWT_SECRET,
+      cloudinary: isCloudinaryConfigured(),
+      twilio: isTwilioConfigured(),
+      stripe: !!process.env.STRIPE_SECRET_KEY,
+      sendgrid: sendgridReady,
+      googleOAuth: !!process.env.GOOGLE_OAUTH_CLIENT_IDS,
+      googleMaps: !!process.env.GOOGLE_MAPS_API_KEY,
+      appleIAP: !!process.env.APPLE_BUNDLE_ID,
+      appleIAPLegacyReceipt: !!process.env.APPLE_IAP_SHARED_SECRET,
+      sentry: !!process.env.SENTRY_DSN,
+      redis: redisConnected,
+      dataExportStorage: dataExportStorageReady,
     };
-  }
-  res.json(body);
-}));
+
+    const allConfigured = Object.entries(integrations)
+      .filter(([key]) => !['twilio', 'sentry', 'redis', 'dataExportStorage'].includes(key)) // Optional services
+      .every(([, value]) => value);
+
+    const stripePublishableKey =
+      process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '';
+    const includePayments = req.query.include === 'payments';
+    const body: Record<string, unknown> = {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      integrations,
+      ready: allConfigured,
+      warnings: [
+        ...(!integrations.twilio ? ['Twilio not configured - SMS disabled'] : []),
+        ...(!sendgridReady
+          ? [
+              missingEmailTemplates.length
+                ? `SendGrid critical templates missing: ${missingEmailTemplates.join(', ')}`
+                : 'SendGrid API key missing - transactional email disabled',
+            ]
+          : []),
+        ...(missingRecommendedTemplates.length
+          ? [
+              `SendGrid recommended templates missing (non-blocking): ${missingRecommendedTemplates.join(', ')}`,
+            ]
+          : []),
+        ...(!integrations.appleIAP
+          ? [
+              'APPLE_BUNDLE_ID missing - Apple signed transaction verification will fail for App Review, TestFlight, and live iOS purchases',
+            ]
+          : []),
+        ...(!integrations.appleIAPLegacyReceipt
+          ? ['Apple IAP shared secret missing - legacy receipt fallback disabled']
+          : []),
+        ...(!integrations.sentry ? ['Sentry not configured - error tracking disabled'] : []),
+        ...(!integrations.redis
+          ? ['Redis not configured - background jobs will use fallback mode']
+          : []),
+        ...(!integrations.dataExportStorage
+          ? [
+              'Data export storage not configured - POST /me/data-export will return 503 (set DATA_EXPORT_S3_BUCKET, DATA_EXPORT_S3_REGION, DATA_EXPORT_S3_ACCESS_KEY_ID, DATA_EXPORT_S3_SECRET_ACCESS_KEY)',
+            ]
+          : []),
+      ],
+      metadata: {
+        missingEmailTemplates,
+        missingRecommendedTemplates,
+        emailBaseUrlDiagnostics,
+      },
+    };
+    if (includePayments) {
+      body.payments_config = {
+        stripe_publishable_key: stripePublishableKey,
+        available_plans: getAllPlanDefinitions(),
+        payments_enabled: true,
+        stripe_configured: !!(stripePublishableKey && process.env.STRIPE_SECRET_KEY),
+        has_webhook_secret: !!process.env.STRIPE_WEBHOOK_SECRET,
+      };
+    }
+    res.json(body);
+  })
+);
 
 /**
  * v1.0.2 audit addition: /health/email
@@ -151,72 +171,75 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
  * Returns 200 if SendGrid is wired up + critical templates present; 503 otherwise.
  * Use for external monitoring (UptimeRobot, etc.) and quick CI checks post-deploy.
  */
-healthRouter.get('/email', asyncHandler(async (req: AuthedRequest, res) => {
-  const secret = resolveHealthCheckSecret();
-  const provided = String(req.headers['x-health-check-secret'] || '').trim();
-  if (!secret || !provided || provided !== secret) {
-    return res.status(401).json({ status: 'unauthorized' });
-  }
-  const missingEmailTemplates = getMissingEmailTemplates();
-  const missingRecommended = getMissingRecommendedTemplates();
-  const emailBaseUrlDiagnostics = getEmailBaseUrlDiagnostics();
-  const emailService = getEmailService();
-  const serviceReady = emailService.isConfigured() && emailService.validateConfig().valid;
-  const sendgridOk = isSendGridConfigured();
-  const ready = sendgridOk && serviceReady && missingEmailTemplates.length === 0;
-  // If ?probe=<email> is provided, send a real verification-style email
-  // to test end-to-end deliverability (not just config).
-  const probeAddress = req.query.probe as string | undefined;
-  if (probeAddress) {
-    if (!ready) {
-      return res.status(503).json({
-        status: 'not_ready',
-        message: 'Email service not configured — cannot send probe',
-        sendgrid_configured: sendgridOk,
-        service_ready: serviceReady,
-        missing_critical_templates: missingEmailTemplates,
-      });
+healthRouter.get(
+  '/email',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const secret = resolveHealthCheckSecret();
+    const provided = String(req.headers['x-health-check-secret'] || '').trim();
+    if (!secret || !provided || provided !== secret) {
+      return res.status(401).json({ status: 'unauthorized' });
+    }
+    const missingEmailTemplates = getMissingEmailTemplates();
+    const missingRecommended = getMissingRecommendedTemplates();
+    const emailBaseUrlDiagnostics = getEmailBaseUrlDiagnostics();
+    const emailService = getEmailService();
+    const serviceReady = emailService.isConfigured() && emailService.validateConfig().valid;
+    const sendgridOk = isSendGridConfigured();
+    const ready = sendgridOk && serviceReady && missingEmailTemplates.length === 0;
+    // If ?probe=<email> is provided, send a real verification-style email
+    // to test end-to-end deliverability (not just config).
+    const probeAddress = req.query.probe as string | undefined;
+    if (probeAddress) {
+      if (!ready) {
+        return res.status(503).json({
+          status: 'not_ready',
+          message: 'Email service not configured — cannot send probe',
+          sendgrid_configured: sendgridOk,
+          service_ready: serviceReady,
+          missing_critical_templates: missingEmailTemplates,
+        });
+      }
+
+      // Basic email format check
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(probeAddress)) {
+        return res.status(400).json({ status: 'invalid_email', probe: probeAddress });
+      }
+
+      const probeCode = '000000';
+      const startMs = Date.now();
+      try {
+        const sent = await sendVerificationEmail(probeAddress, probeCode, 'VarsityHub Probe');
+        const durationMs = Date.now() - startMs;
+        return res.status(sent ? 200 : 502).json({
+          status: sent ? 'delivered' : 'rejected',
+          probe: probeAddress,
+          duration_ms: durationMs,
+          message: sent
+            ? 'SendGrid accepted the email — check inbox/spam for delivery confirmation'
+            : 'sendVerificationEmail returned false — check Railway logs for EMAIL_AUDIT and SendGridProvider errors',
+        });
+      } catch (error: any) {
+        const durationMs = Date.now() - startMs;
+        return res.status(502).json({
+          status: 'error',
+          probe: probeAddress,
+          duration_ms: durationMs,
+          error: error.message || 'Unknown error',
+        });
+      }
     }
 
-    // Basic email format check
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(probeAddress)) {
-      return res.status(400).json({ status: 'invalid_email', probe: probeAddress });
-    }
-
-    const probeCode = '000000';
-    const startMs = Date.now();
-    try {
-      const sent = await sendVerificationEmail(probeAddress, probeCode, 'VarsityHub Probe');
-      const durationMs = Date.now() - startMs;
-      return res.status(sent ? 200 : 502).json({
-        status: sent ? 'delivered' : 'rejected',
-        probe: probeAddress,
-        duration_ms: durationMs,
-        message: sent
-          ? 'SendGrid accepted the email — check inbox/spam for delivery confirmation'
-          : 'sendVerificationEmail returned false — check Railway logs for EMAIL_AUDIT and SendGridProvider errors',
-      });
-    } catch (error: any) {
-      const durationMs = Date.now() - startMs;
-      return res.status(502).json({
-        status: 'error',
-        probe: probeAddress,
-        duration_ms: durationMs,
-        error: error.message || 'Unknown error',
-      });
-    }
-  }
-
-  res.status(ready ? 200 : 503).json({
-    status: ready ? 'ok' : 'degraded',
-    sendgrid_configured: sendgridOk,
-    service_ready: serviceReady,
-    missing_critical_templates: missingEmailTemplates,
-    missing_recommended_templates: missingRecommended,
-    email_base_urls: emailBaseUrlDiagnostics,
-    timestamp: new Date().toISOString(),
-  });
-}));
+    res.status(ready ? 200 : 503).json({
+      status: ready ? 'ok' : 'degraded',
+      sendgrid_configured: sendgridOk,
+      service_ready: serviceReady,
+      missing_critical_templates: missingEmailTemplates,
+      missing_recommended_templates: missingRecommended,
+      email_base_urls: emailBaseUrlDiagnostics,
+      timestamp: new Date().toISOString(),
+    });
+  })
+);
 
 /**
  * v1.0.3: /health/cloudinary
@@ -235,80 +258,84 @@ healthRouter.get('/email', asyncHandler(async (req: AuthedRequest, res) => {
  *   curl -H "x-health-check-secret: $S" \
  *     "https://api-production-xxx.up.railway.app/health/cloudinary"
  */
-healthRouter.get('/cloudinary', asyncHandler(async (req: AuthedRequest, res) => {
-  const secret = resolveHealthCheckSecret();
-  const provided = String(req.headers['x-health-check-secret'] || '').trim();
-  if (!secret || !provided || provided !== secret) {
-    return res.status(401).json({ status: 'unauthorized' });
-  }
-  if (!isCloudinaryConfigured()) {
-    return res.status(503).json({ status: 'not_configured' });
-  }
+healthRouter.get(
+  '/cloudinary',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const secret = resolveHealthCheckSecret();
+    const provided = String(req.headers['x-health-check-secret'] || '').trim();
+    if (!secret || !provided || provided !== secret) {
+      return res.status(401).json({ status: 'unauthorized' });
+    }
+    if (!isCloudinaryConfigured()) {
+      return res.status(503).json({ status: 'not_configured' });
+    }
 
-  const { cloudName, apiKey, apiSecret } = getCloudinaryCredentials();
-  const folder = getCloudinaryFolder();
+    const { cloudName, apiKey, apiSecret } = getCloudinaryCredentials();
+    const folder = getCloudinaryFolder();
 
-  // A 1x1 red PNG — smallest valid image bytes we can upload to verify
-  // the signed-upload pipeline end-to-end.
-  const tinyPng = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
-    'base64'
-  );
-  const startMs = Date.now();
-  try {
-    const result = await uploadBufferToCloudinary(
-      {
-        buffer: tinyPng,
-        originalname: 'health-probe.png',
-        mimetype: 'image/png',
-        size: tinyPng.length,
-      } as Express.Multer.File,
-      { resourceType: 'image' }
+    // A 1x1 red PNG — smallest valid image bytes we can upload to verify
+    // the signed-upload pipeline end-to-end.
+    const tinyPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+      'base64'
     );
-    const durationMs = Date.now() - startMs;
-    return res.status(200).json({
-      status: 'ok',
-      duration_ms: durationMs,
-      uploaded_url: result.secure_url || result.url,
-      public_id: result.public_id,
-      cloud_name: cloudName,
-      api_key_prefix: `${apiKey.slice(0, 4)}…`,
-      secret_fingerprint: `${apiSecret.slice(0, 3)}…[${apiSecret.length}ch]`,
-      folder,
-    });
-  } catch (err: any) {
-    const durationMs = Date.now() - startMs;
-    const isUpstream = err instanceof CloudinaryUpstreamError;
-    // Reproduce the exact string-to-sign so the caller can compare against
-    // Cloudinary's error payload directly. Keys must mirror cloudinary.ts.
-    const timestamp = Math.floor(Date.now() / 1000);
-    const signedParams: Record<string, string> = {
-      folder,
-      timestamp: String(timestamp),
-      flags: 'exif_autostrip,strip_profile',
-    };
-    const sampleToSign = Object.keys(signedParams)
-      .sort()
-      .map((k) => `${k}=${signedParams[k]}`)
-      .join('&');
-    const sampleSignature = crypto
-      .createHash('sha1')
-      .update(`${sampleToSign}${apiSecret}`)
-      .digest('hex');
-    return res.status(502).json({
-      status: isUpstream ? 'upstream_rejected' : 'error',
-      duration_ms: durationMs,
-      cloudinary_status: isUpstream ? err.http_code : undefined,
-      cloudinary_kind: isUpstream ? err.kind : undefined,
-      cloudinary_message: isUpstream ? err.cloudinary_message : err?.message,
-      sample_string_to_sign: sampleToSign,
-      sample_signature: sampleSignature,
-      cloud_name: cloudName,
-      api_key_prefix: `${apiKey.slice(0, 4)}…`,
-      secret_fingerprint: `${apiSecret.slice(0, 3)}…[${apiSecret.length}ch]`,
-      hint: isUpstream && err.kind === 'invalid_signature'
-        ? 'Our string-to-sign matches Cloudinary reconstruction but the signatures differ. Verify CLOUDINARY_API_SECRET in Railway matches Cloudinary → Settings → API Keys.'
-        : undefined,
-    });
-  }
-}));
+    const startMs = Date.now();
+    try {
+      const result = await uploadBufferToCloudinary(
+        {
+          buffer: tinyPng,
+          originalname: 'health-probe.png',
+          mimetype: 'image/png',
+          size: tinyPng.length,
+        } as Express.Multer.File,
+        { resourceType: 'image' }
+      );
+      const durationMs = Date.now() - startMs;
+      return res.status(200).json({
+        status: 'ok',
+        duration_ms: durationMs,
+        uploaded_url: result.secure_url || result.url,
+        public_id: result.public_id,
+        cloud_name: cloudName,
+        api_key_prefix: `${apiKey.slice(0, 4)}…`,
+        secret_fingerprint: `${apiSecret.slice(0, 3)}…[${apiSecret.length}ch]`,
+        folder,
+      });
+    } catch (err: any) {
+      const durationMs = Date.now() - startMs;
+      const isUpstream = err instanceof CloudinaryUpstreamError;
+      // Reproduce the exact string-to-sign so the caller can compare against
+      // Cloudinary's error payload directly. Keys must mirror cloudinary.ts.
+      const timestamp = Math.floor(Date.now() / 1000);
+      const signedParams: Record<string, string> = {
+        folder,
+        timestamp: String(timestamp),
+        flags: 'exif_autostrip,strip_profile',
+      };
+      const sampleToSign = Object.keys(signedParams)
+        .sort()
+        .map(k => `${k}=${signedParams[k]}`)
+        .join('&');
+      const sampleSignature = crypto
+        .createHash('sha1')
+        .update(`${sampleToSign}${apiSecret}`)
+        .digest('hex');
+      return res.status(502).json({
+        status: isUpstream ? 'upstream_rejected' : 'error',
+        duration_ms: durationMs,
+        cloudinary_status: isUpstream ? err.http_code : undefined,
+        cloudinary_kind: isUpstream ? err.kind : undefined,
+        cloudinary_message: isUpstream ? err.cloudinary_message : err?.message,
+        sample_string_to_sign: sampleToSign,
+        sample_signature: sampleSignature,
+        cloud_name: cloudName,
+        api_key_prefix: `${apiKey.slice(0, 4)}…`,
+        secret_fingerprint: `${apiSecret.slice(0, 3)}…[${apiSecret.length}ch]`,
+        hint:
+          isUpstream && err.kind === 'invalid_signature'
+            ? 'Our string-to-sign matches Cloudinary reconstruction but the signatures differ. Verify CLOUDINARY_API_SECRET in Railway matches Cloudinary → Settings → API Keys.'
+            : undefined,
+      });
+    }
+  })
+);

@@ -75,13 +75,13 @@ Pass:
 
 After A is done, set/verify these in Railway → `capable-trust` → `api` service → Variables.
 
-| #   | Var                                                 | Value / source                   | Why                                                                                                                                                                 |
-| --- | --------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | `APPLE_BUNDLE_ID`                                   | `com.varsithub.varsityhub-ios`   | Server now fail-fasts on boot in production if missing (see `server/src/lib/env.ts`). Without it, Apple S2S receipt verification fails later, much harder to debug. |
-| B2  | `STRIPE_WEBHOOK_SECRET`                             | new value from A2                | Server boot already requires this in production.                                                                                                                    |
-| B3  | `STRIPE_SECRET_KEY`                                 | new value from A1                | Same.                                                                                                                                                               |
-| B4  | `SENDGRID_*_TEMPLATE_ID` (18 keys)                  | from SendGrid template dashboard | Local smoke still warns several are missing — confirm prod has them. The `getMissingEmailTemplates()` helper lists exactly which are required.                      |
-| B5  | (none — the Maps key now lives in EAS, not Railway) | n/a                              | After committing the eas.json change in `ec32714a`, prod Maps key flows through EAS secrets, not Railway env. See Block D.                                          |
+| #   | Var                                                        | Value / source                   | Why                                                                                                                                                                                        |
+| --- | ---------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| B1  | `APPLE_BUNDLE_ID`                                          | `com.varsithub.varsityhub-ios`   | Server now fail-fasts on boot in production if missing (see `server/src/lib/env.ts`). Without it, Apple S2S receipt verification fails later, much harder to debug.                        |
+| B2  | `STRIPE_WEBHOOK_SECRET`                                    | new value from A2                | Server boot already requires this in production.                                                                                                                                           |
+| B3  | `STRIPE_SECRET_KEY`                                        | new value from A1                | Same.                                                                                                                                                                                      |
+| B4  | `SENDGRID_*_TEMPLATE_ID` values referenced by current code | from SendGrid template dashboard | Do not stop at the older 18-key minimum list. `npm --prefix server run verify:email-go-live` is the source of truth and currently audits 45 canonical env names across 42 template groups. |
+| B5  | (none — the Maps key now lives in EAS, not Railway)        | n/a                              | After committing the eas.json change in `ec32714a`, prod Maps key flows through EAS secrets, not Railway env. See Block D.                                                                 |
 
 ### Block B validation
 
@@ -97,37 +97,10 @@ test -n "$STRIPE_SECRET_KEY" && test -n "$STRIPE_WEBHOOK_SECRET" \
   || (echo "Stripe env vars missing"; exit 1)
 ```
 
-**SendGrid template-ID shape check**
+**SendGrid source-of-truth check**
 
 ```bash
-node - <<'NODE'
-const keys = [
-  'SENDGRID_VERIFICATION_TEMPLATE_ID',
-  'SENDGRID_PASSWORD_RESET_TEMPLATE_ID',
-  'SENDGRID_TEAM_INVITE_TEMPLATE_ID',
-  'SENDGRID_ORG_INVITE_TEMPLATE_ID',
-  'SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID',
-  'SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID',
-  'SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID',
-  'SENDGRID_EVENT_APPROVED_TEMPLATE_ID',
-  'SENDGRID_EVENT_DENIED_TEMPLATE_ID',
-  'SENDGRID_EVENT_CANCELED_TEMPLATE_ID',
-  'SENDGRID_PAYMENT_FAILED_TEMPLATE_ID',
-  'SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID',
-  'SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID',
-  'SENDGRID_AD_APPROVED_TEMPLATE_ID',
-  'SENDGRID_AD_REJECTED_TEMPLATE_ID',
-  'SENDGRID_ORG_APPROVAL_TEMPLATE_ID',
-  'SENDGRID_ORG_DENIAL_TEMPLATE_ID',
-  'SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID',
-];
-const bad = keys.filter(k => !/^d-[a-f0-9]{32}$/i.test((process.env[k] || '').trim()));
-if (bad.length) {
-  console.error(`Missing/invalid template IDs: ${bad.join(', ')}`);
-  process.exit(1);
-}
-console.log('All required SendGrid template IDs look valid');
-NODE
+npm --prefix server run verify:email-go-live
 ```
 
 **API boot / health pass/fail**
@@ -184,7 +157,7 @@ Multiple unrelated changes converge on the next iOS/Android binary. Bundle them 
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | D1  | `eas secret:create --scope project --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY --value <rotated-key-from-A6> --type string`                                                       | Required because `ec32714a` removed the hardcoded value from `eas.json`. `verify-build-ready.sh` will refuse to build without it. |
 | D2  | (Optional) commit the uncommitted mobile worktree batch (ad rejection-recovery + coach reapply + theming + companion tests) before building so the next binary picks them up | Listed in the "Worktree" section below.                                                                                           |
-| D3  | Bump `@sentry/react-native` from `~7.2.0` to `~7.91.x` to match server `@sentry/node` (Phase 9)                                                                              | Run `npm install --save @sentry/react-native@~7.91.0`, smoke-test source-map upload locally, commit.                              |
+| D3  | Defer mobile Sentry SDK bump until Expo SDK supports a newer `@sentry/react-native` line                                                                                      | Current Expo SDK 54 validation expects `@sentry/react-native@~7.2.0`; attempted bump to newer 7.x makes `expo-doctor` fail. Keep the supported version on this release branch. |
 | D4  | `eas build --platform ios --profile production`                                                                                                                              | After D1+D3 are confirmed.                                                                                                        |
 | D5  | `eas build --platform android --profile production`                                                                                                                          | After D1+D3 are confirmed.                                                                                                        |
 | D6  | `eas submit --platform ios` and `eas submit --platform android`                                                                                                              | After both builds finish + you've confirmed entitlements / IAPs work via TestFlight + internal track.                             |
