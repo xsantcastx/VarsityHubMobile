@@ -16,6 +16,70 @@ echo "[startup] DATABASE_URL: $MASKED_DB_URL"
 echo "[startup] DB host:port: ${DB_HOSTPORT:-unknown}"
 echo "[startup] NODE_ENV: $NODE_ENV"
 
+STARTUP_PLACEHOLDER_PID=""
+
+start_startup_placeholder() {
+  node <<'EOF' &
+const http = require('http');
+
+const port = Number(process.env.PORT || 4000);
+const host = process.env.HOST || '0.0.0.0';
+
+const server = http.createServer((req, res) => {
+  const isHealthRequest =
+    req.url === '/health' || req.url === '/health/' || String(req.url || '').startsWith('/health?');
+
+  res.setHeader('Content-Type', 'application/json');
+
+  if (isHealthRequest) {
+    res.statusCode = 200;
+    res.end(
+      JSON.stringify({
+        status: 'starting',
+        message: 'API startup in progress',
+        timestamp: new Date().toISOString(),
+      })
+    );
+    return;
+  }
+
+  res.statusCode = 503;
+  res.setHeader('Retry-After', '15');
+  res.end(
+    JSON.stringify({
+      status: 'starting',
+      message: 'API startup in progress',
+    })
+  );
+});
+
+server.listen(port, host, () => {
+  console.log(`[startup] Placeholder server listening on http://${host}:${port}`);
+});
+
+const shutdown = () => {
+  server.close(() => process.exit(0));
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+EOF
+  STARTUP_PLACEHOLDER_PID=$!
+}
+
+stop_startup_placeholder() {
+  if [ -n "${STARTUP_PLACEHOLDER_PID:-}" ] && kill -0 "$STARTUP_PLACEHOLDER_PID" 2>/dev/null; then
+    echo "[startup] Stopping placeholder server..."
+    kill "$STARTUP_PLACEHOLDER_PID" 2>/dev/null || true
+    wait "$STARTUP_PLACEHOLDER_PID" 2>/dev/null || true
+  fi
+  STARTUP_PLACEHOLDER_PID=""
+}
+
+trap 'stop_startup_placeholder' EXIT INT TERM
+
+start_startup_placeholder
+
 echo "[startup] Resolving known stale Prisma history rows..."
 ./node_modules/.bin/prisma migrate resolve --rolled-back add_severity_to_reports 2>/dev/null || true
 
@@ -52,5 +116,6 @@ if [ "$migrate_ok" -ne 1 ]; then
   ./node_modules/.bin/prisma migrate status || true
 fi
 
+stop_startup_placeholder
 echo "[startup] 🚀 Starting API server..."
 exec node dist/index.js

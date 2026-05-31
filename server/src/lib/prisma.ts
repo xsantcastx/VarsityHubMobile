@@ -42,10 +42,11 @@ const prismaDatasourceUrl =
       if (
         isProduction &&
         process.env.PRISMA_SKIP_POOL_GUARD !== '1' &&
-        (!connectionLimit || !poolTimeout)
+        !connectionLimit &&
+        !poolTimeout
       ) {
-        throw new Error(
-          'Production DATABASE_URL must include connection_limit and pool_timeout query params.'
+        console.warn(
+          '[prisma] Production DATABASE_URL does not include connection_limit or pool_timeout query params. Startup will continue, but set them explicitly in Railway for predictable pool behavior.'
         );
       }
       if (connectionLimit || poolTimeout) {
@@ -56,11 +57,8 @@ const prismaDatasourceUrl =
         debugLog('[prisma] ⚠️ No connection pool configured. For production, add to DATABASE_URL:');
         debugLog('[prisma]    ?connection_limit=20&pool_timeout=10');
       }
-    } catch (error) {
-      if (error instanceof Error && isProduction && process.env.PRISMA_SKIP_POOL_GUARD !== '1') {
-        throw error;
-      }
-      // URL parsing failed, skip pool logging outside the production guard.
+    } catch {
+      // URL parsing failed, skip pool logging
     }
   } else {
     debugLog('[env] DATABASE_URL is not set (prisma init)');

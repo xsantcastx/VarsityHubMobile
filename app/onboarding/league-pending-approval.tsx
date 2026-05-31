@@ -18,7 +18,6 @@ import {
   usePendingApprovalActions,
   usePendingApprovalPolling,
 } from '@/hooks/usePendingApprovalFlow';
-import { bestEffortRegisterPushToken } from '@/utils/pushRegistration';
 import { captureException } from '@/utils/sentry';
 import {
   CoachSetupActions,
@@ -150,10 +149,7 @@ function LeaguePendingApproval() {
         if (org?.admin_approved === true || me?.approval_status === 'APPROVED') {
           setApproved(true);
           stopPolling();
-          bestEffortRegisterPushToken(
-            registerPushToken,
-            'push-token-register-league-pending-approval'
-          );
+          void registerPushToken().catch(() => {});
         }
       } catch {
         // ignore polling errors
