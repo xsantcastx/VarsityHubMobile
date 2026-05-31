@@ -15,7 +15,9 @@ const adConfirmation = read('app/ad-confirmation.tsx');
 
 describe('iap review ui guards', () => {
   it('settings uses canonical billing state to keep the billing entry point visible', () => {
-    expect(settingsScreen).toContain("import { getCanonicalBillingState } from '@/utils/billingState';");
+    expect(settingsScreen).toContain(
+      "import { getCanonicalBillingState } from '@/utils/billingState';"
+    );
     expect(settingsScreen).toContain('const billingState = getCanonicalBillingState(me as any);');
     expect(settingsScreen).toContain('setPlan(billingState.selected_plan);');
   });
@@ -24,7 +26,8 @@ describe('iap review ui guards', () => {
     expect(manageSubscription).toContain('const isLargeScreen = width >= 768;');
     expect(manageSubscription).toContain('contentInnerLarge');
     expect(manageSubscription).toContain('maxWidth: 720');
-    expect(manageSubscription).toContain('getFreshAuthSnapshot');
+    expect(manageSubscription).toContain('syncBillingState');
+    expect(manageSubscription).toContain('checkAuth({ forceRefresh: options?.forceRefresh === true })');
   });
 
   it('subscription paywall constrains content width and keeps restore purchases visible', () => {

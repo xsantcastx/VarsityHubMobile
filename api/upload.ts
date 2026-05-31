@@ -1,5 +1,8 @@
 import { compressImageForUpload } from '@/utils/ensureUploadableUri';
-import { isEmailVerificationRequiredError, openVerificationGate } from '@/hooks/useVerificationGate';
+import {
+  isEmailVerificationRequiredError,
+  openVerificationGate,
+} from '@/hooks/useVerificationGate';
 import { emitSessionExpired } from '@/utils/sessionEvents';
 import auth from './auth';
 import {
@@ -16,7 +19,7 @@ function computeBase(provided?: string | null) {
 
 function buildUploadUrl(
   target: string,
-  formFields?: Record<string, string | number | boolean | null | undefined>,
+  formFields?: Record<string, string | number | boolean | null | undefined>
 ) {
   if (!formFields) return target;
   const params = new URLSearchParams();
@@ -59,21 +62,18 @@ interface PreparedUploadInput {
   isMedia: boolean;
 }
 
-async function resolveUploadToken(): Promise<string | null> {
-  const fromSession = await auth.getToken();
-  if (fromSession) return fromSession;
-  try {
-    const refreshed = await auth.refreshToken();
-    return refreshed?.accessToken ?? null;
-  } catch {
-    return null;
-  }
-}
-
 const MIME_MAP: Record<string, string> = {
-  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
-  webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
-  mp4: 'video/mp4', mov: 'video/quicktime', avi: 'video/x-msvideo', mkv: 'video/x-matroska',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  avi: 'video/x-msvideo',
+  mkv: 'video/x-matroska',
 };
 
 function detectMime(mimeType?: string, filename?: string, uri?: string): string {
@@ -87,7 +87,7 @@ function buildUploadFormData(
   uri: string,
   filename: string,
   mimeType: string,
-  formFields?: Record<string, string | number | boolean | null | undefined>,
+  formFields?: Record<string, string | number | boolean | null | undefined>
 ): FormData {
   const form = new FormData();
   form.append('file', { uri, name: filename, type: mimeType } as any);
@@ -126,9 +126,7 @@ async function resolveUploadHeaders(): Promise<Record<string, string>> {
 }
 
 function buildTransientUploadAuthError(refreshResult: RefreshOutcome): Error {
-  const transientAuthErr: any = new Error(
-    'Unable to refresh session right now. Please try again.'
-  );
+  const transientAuthErr: any = new Error('Unable to refresh session right now. Please try again.');
   transientAuthErr.status = 503;
   transientAuthErr.isTransientAuthError = true;
   transientAuthErr.refreshFailureReason = refreshResult.reason;
@@ -150,9 +148,7 @@ async function applyRefreshResultToUploadBoundary(
   if (refreshResult?.reason === 'auth' || refreshResult?.reason === 'missing') {
     await auth.clearTokensOnly();
     if (error) error.isSessionExpired = true;
-    emitSessionExpired(
-      refreshResult.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
-    );
+    emitSessionExpired(refreshResult.reason === 'missing' ? 'refresh_missing' : 'refresh_failed');
     return false;
   }
 
@@ -163,7 +159,7 @@ async function handleUploadAccessBoundary(
   error: any,
   headers: Record<string, string>,
   verificationPromptedRef: { current: boolean },
-  refreshAttemptedRef: { current: boolean },
+  refreshAttemptedRef: { current: boolean }
 ): Promise<boolean> {
   if (error?.status === 401 && !refreshAttemptedRef.current) {
     refreshAttemptedRef.current = true;
@@ -193,14 +189,13 @@ async function prepareUploadInput(
   baseUrl: string | null | undefined,
   uri: string,
   filename?: string,
-  mimeType?: string,
+  mimeType?: string
 ): Promise<PreparedUploadInput> {
   const finalBase = computeBase(baseUrl);
   let finalMimeType = detectMime(mimeType, filename, uri);
   const finalFilename = filename || 'upload';
   let finalUri = uri;
-  const isMedia =
-    finalMimeType.startsWith('image/') || finalMimeType.startsWith('video/');
+  const isMedia = finalMimeType.startsWith('image/') || finalMimeType.startsWith('video/');
 
   if (finalMimeType.startsWith('image/')) {
     try {
@@ -264,7 +259,7 @@ async function uploadViaFetchWithRetries({
         throw new Error(`Non-JSON response (HTTP ${res.status}): ${text.substring(0, 100)}`);
       }
       if (!res.ok) {
-        const err: any = new Error((data?.error || data?.message) || `HTTP ${res.status}`);
+        const err: any = new Error(data?.error || data?.message || `HTTP ${res.status}`);
         err.status = res.status;
         err.data = data;
         throw err;
@@ -275,20 +270,16 @@ async function uploadViaFetchWithRetries({
       lastErr = err;
 
       if (
-        await handleUploadAccessBoundary(
-          err,
-          headers,
-          verificationPromptedRef,
-          refreshAttemptedRef,
-        )
+        await handleUploadAccessBoundary(err, headers, verificationPromptedRef, refreshAttemptedRef)
       ) {
         continue;
       }
 
       const isNetwork = err instanceof TypeError && err.message === 'Network request failed';
-      const isTimeout = err?.name === 'AbortError' || /timeout|timed out/i.test(String(err?.message || ''));
+      const isTimeout =
+        err?.name === 'AbortError' || /timeout|timed out/i.test(String(err?.message || ''));
       if (attempt < retries && (isNetwork || isTimeout)) {
-        await new Promise((resolve) => setTimeout(resolve, backoffMs * Math.pow(2, attempt)));
+        await new Promise(resolve => setTimeout(resolve, backoffMs * Math.pow(2, attempt)));
         attempt++;
         continue;
       }
@@ -305,12 +296,15 @@ async function uploadViaFetchWithRetries({
 // -----------------------------------------------
 
 // Cache signature for 55s (signatures valid ~60min, but re-fetch well before expiry)
-let _sigCache: { sig: { cloudName: string; apiKey: string; signature: string; timestamp: number; folder: string }; fetchedAt: number } | null = null;
+let _sigCache: {
+  sig: { cloudName: string; apiKey: string; signature: string; timestamp: number; folder: string };
+  fetchedAt: number;
+} | null = null;
 const SIG_CACHE_TTL_MS = 55_000;
 
 async function getCloudinarySignature(
   baseUrl: string,
-  options?: UploadOptions,
+  options?: UploadOptions
 ): Promise<{
   cloudName: string;
   apiKey: string;
@@ -338,29 +332,29 @@ async function getCloudinarySignature(
 
   while (token) {
     try {
-      const res = await fetch(buildUploadUrl(`${baseUrl}/uploads/cloudinary-signature`, options?.formFields), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-        const data = await res.json().catch(() => null);
-        if (!res.ok) {
-          if (res.status === 401 && !refreshAttempted) {
-            refreshAttempted = true;
-            const refreshed = await refreshAccessTokenWithCache();
-            token = refreshed?.accessToken ?? null;
-            if (token) continue;
-            if (refreshed.reason === 'auth' || refreshed.reason === 'missing') {
-              await auth.clearTokensOnly();
-              emitSessionExpired(
-                refreshed.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
-              );
-              return null;
-            }
-            throw buildTransientUploadAuthError(refreshed);
+      const res = await fetch(
+        buildUploadUrl(`${baseUrl}/uploads/cloudinary-signature`, options?.formFields),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        if (res.status === 401 && !refreshAttempted) {
+          refreshAttempted = true;
+          const refreshed = await refreshAccessTokenWithCache();
+          token = refreshed?.accessToken ?? null;
+          if (token) continue;
+          if (refreshed.reason === 'auth' || refreshed.reason === 'missing') {
+            await auth.clearTokensOnly();
+            emitSessionExpired(
+              refreshed.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
+            );
+            return null;
           }
-        if (
-          isEmailVerificationRequiredError(res.status, data) &&
-          !verificationPrompted
-        ) {
+          throw buildTransientUploadAuthError(refreshed);
+        }
+        if (isEmailVerificationRequiredError(res.status, data) && !verificationPrompted) {
           verificationPrompted = true;
           const verified = await openVerificationGate();
           if (verified) {
@@ -368,7 +362,8 @@ async function getCloudinarySignature(
             if (token) continue;
           }
         }
-        if (__DEV__) console.warn('[upload] Cloudinary signature failed:', res.status, data || res.statusText);
+        if (__DEV__)
+          console.warn('[upload] Cloudinary signature failed:', res.status, data || res.statusText);
         return null;
       }
       const sig = data as any;
@@ -395,7 +390,7 @@ async function uploadDirectToCloudinary(
     allowed_formats?: string;
     max_bytes?: string;
   },
-  options?: UploadOptions,
+  options?: UploadOptions
 ): Promise<{ url: string; type: string; mime: string }> {
   const isVideo = mimeType.startsWith('video/');
   const resourceType = isVideo ? 'video' : 'image';
@@ -420,9 +415,13 @@ async function uploadDirectToCloudinary(
     const xhr = new XMLHttpRequest();
 
     if (options?.onProgress) {
-      xhr.upload.onprogress = (event) => {
+      xhr.upload.onprogress = event => {
         if (event.lengthComputable) {
-          options.onProgress!(Math.round((event.loaded / event.total) * 100), event.loaded, event.total);
+          options.onProgress!(
+            Math.round((event.loaded / event.total) * 100),
+            event.loaded,
+            event.total
+          );
         }
       };
     }
@@ -474,10 +473,14 @@ export async function uploadFile(
   uri: string,
   filename?: string,
   mimeType?: string,
-  options?: UploadOptions,
+  options?: UploadOptions
 ): Promise<any> {
-  const { finalBase, finalUri, finalFilename, finalMimeType, isMedia } =
-    await prepareUploadInput(baseUrl, uri, filename, mimeType);
+  const { finalBase, finalUri, finalFilename, finalMimeType, isMedia } = await prepareUploadInput(
+    baseUrl,
+    uri,
+    filename,
+    mimeType
+  );
 
   // Non-media files (PDFs, docs) go straight to the general-file server endpoint.
   // Don't try Cloudinary direct — the signature flow assumes resource_type=image|video.
@@ -495,7 +498,10 @@ export async function uploadFile(
     }
   } catch (directErr: any) {
     if (__DEV__) {
-      console.warn('[upload] Direct upload failed, falling back to server proxy:', directErr?.message);
+      console.warn(
+        '[upload] Direct upload failed, falling back to server proxy:',
+        directErr?.message
+      );
       if (directErr?.status) console.warn('[upload] Error status:', directErr.status);
       if (directErr?.response) console.warn('[upload] Response:', directErr.response);
     }
@@ -516,7 +522,7 @@ async function uploadRawViaServer(
   uri: string,
   filename: string,
   mimeType: string,
-  options?: UploadOptions,
+  options?: UploadOptions
 ): Promise<any> {
   const target = buildUploadUrl(`${base}/uploads/files`, options?.formFields);
   const timeoutMs = options?.timeoutMs ?? 180000;
@@ -538,10 +544,14 @@ export async function uploadFileWithProgress(
   uri: string,
   filename?: string,
   mimeType?: string,
-  options?: UploadOptions,
+  options?: UploadOptions
 ): Promise<any> {
-  const { finalBase, finalUri, finalFilename, finalMimeType } =
-    await prepareUploadInput(baseUrl, uri, filename, mimeType);
+  const { finalBase, finalUri, finalFilename, finalMimeType } = await prepareUploadInput(
+    baseUrl,
+    uri,
+    filename,
+    mimeType
+  );
 
   // Try direct-to-Cloudinary (has XHR progress built in)
   try {
@@ -552,7 +562,10 @@ export async function uploadFileWithProgress(
     }
   } catch (directErr: any) {
     if (__DEV__) {
-      console.warn('[upload] Direct upload failed (with progress), falling back to server proxy:', directErr?.message);
+      console.warn(
+        '[upload] Direct upload failed (with progress), falling back to server proxy:',
+        directErr?.message
+      );
       if (directErr?.status) console.warn('[upload] Error status:', directErr.status);
     }
   }
@@ -575,14 +588,11 @@ export async function uploadFileWithProgress(
     form.append(key, String(value));
   }
 
-  const attemptUpload = async (
-    currentToken: string,
-    refreshAttempted = false
-  ): Promise<any> =>
+  const attemptUpload = async (currentToken: string, refreshAttempted = false): Promise<any> =>
     new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       if (onProgress) {
-        xhr.upload.onprogress = (event) => {
+        xhr.upload.onprogress = event => {
           if (event.lengthComputable) {
             onProgress(Math.round((event.loaded / event.total) * 100), event.loaded, event.total);
           }
@@ -649,7 +659,7 @@ async function uploadViaServer(
   uri: string,
   filename: string,
   mimeType: string,
-  options?: UploadOptions,
+  options?: UploadOptions
 ): Promise<any> {
   const target = buildUploadUrl(`${base}/uploads`, options?.formFields);
   const isVideo = mimeType.startsWith('video/');

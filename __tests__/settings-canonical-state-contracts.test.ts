@@ -16,19 +16,23 @@ describe('settings canonical state contracts', () => {
 
   it('settings bootstraps from the auth snapshot before falling back to checkAuth', () => {
     expect(settingsScreen).toContain(
-      "const { user, checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();"
+      'const { user, checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();'
     );
-    expect(settingsScreen).toContain(
-      "const me = ((user as UserMeResponse | null) ??"
-    );
-    expect(settingsScreen).not.toContain("const me = (await User.me()) as UserMeResponse;");
+    expect(settingsScreen).toContain("import {");
+    expect(settingsScreen).toContain("getAuthSnapshot,");
+    expect(settingsScreen).toContain("getFreshAuthSnapshot,");
+    expect(settingsScreen).toContain('const getSettingsSnapshot = useCallback(');
+    expect(settingsScreen).toContain('const fallback = (options?.fallback ?? user ?? null)');
+    expect(settingsScreen).toContain('getAuthSnapshot(checkAuth, fallback)');
+    expect(settingsScreen).not.toContain('const me = (await User.me()) as UserMeResponse;');
   });
 
   it('settings restart-onboarding preload also reuses auth state instead of refetching /me', () => {
     const restartBlock =
-      settingsScreen.match(/const _restartOnboarding = async \(\) => \{[\s\S]*?router\.replace\('\/onboarding\/step-1-role'\);/)?.[0] || '';
-    expect(restartBlock).toContain("const me = ((user as UserMeResponse | null) ??");
-    expect(restartBlock).toContain("((await checkAuth().catch(() => null)) as UserMeResponse | null))");
+      settingsScreen.match(
+        /const _restartOnboarding = async \(\) => \{[\s\S]*?router\.replace\('\/onboarding\/step-1-role'\);/
+      )?.[0] || '';
+    expect(restartBlock).toContain('const me = await getSettingsSnapshot();');
     expect(restartBlock).not.toContain('User.me()');
   });
 });

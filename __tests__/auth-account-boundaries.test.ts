@@ -39,19 +39,31 @@ describe('account boundary invariants', () => {
 
     it('auth context exposes hasSession for persisted-token boundary checks', () => {
       expect(authProvider).toMatch(/hasSession:\s*boolean/);
-      expect(authProvider).toMatch(/const\s*\[\s*hasSession,\s*setHasSession\s*\]\s*=\s*useState\(false\)/);
+      expect(authProvider).toMatch(
+        /const\s*\[\s*hasSession,\s*setHasSession\s*\]\s*=\s*useState\(false\)/
+      );
     });
 
     it('replaceSession clears old local auth state before refreshing /me', () => {
       const block = authProvider.match(/const checkAuth = useCallback\([\s\S]{0,5000}/)?.[0] || '';
-      expect(block).toMatch(/if\s*\(options\?\.replaceSession\)\s*\{[\s\S]{0,400}clearLocalAuthState\(\)/);
+      expect(block).toMatch(
+        /if\s*\(options\?\.replaceSession\)\s*\{[\s\S]{0,400}clearLocalAuthState\(\)/
+      );
       expect(block).toMatch(/setHasSession\(true\)/);
-      expect(block).toMatch(/User\.me\(\{\s*force:\s*true\s*\}\)/);
+      expect(block).toMatch(
+        /const shouldForceRefresh =[\s\S]{0,200}options\?\.forceRefresh === true \|\| options\?\.replaceSession === true/
+      );
+      expect(block).toMatch(/User\.me\(shouldForceRefresh \? \{ force: true \} : undefined\)/);
     });
 
     it('replaceSession does not preserve a stale user on refresh failure', () => {
-      const block = authProvider.match(/const checkAuth = useCallback\([\s\S]*?catch\s*\(err:\s*any\)\s*\{[\s\S]{0,1200}/)?.[0] || '';
-      expect(block).toMatch(/if\s*\(options\?\.replaceSession\)\s*\{[\s\S]{0,200}clearLocalAuthState\(\)/);
+      const block =
+        authProvider.match(
+          /const checkAuth = useCallback\([\s\S]*?catch\s*\(err:\s*any\)\s*\{[\s\S]{0,1200}/
+        )?.[0] || '';
+      expect(block).toMatch(
+        /if\s*\(options\?\.replaceSession\)\s*\{[\s\S]{0,200}clearLocalAuthState\(\)/
+      );
       expect(block).toMatch(/if\s*\(options\?\.replaceSession\)\s*\{[\s\S]{0,300}throw err/);
     });
 
@@ -74,9 +86,15 @@ describe('account boundary invariants', () => {
     });
 
     it('bootstrap does not abort active auth-establishing requests when no token is present yet', () => {
-      expect(authProvider).toMatch(/clearLocalAuthState = useCallback\(\(options\?: \{ abortInflight\?: boolean \}\)/);
-      expect(authProvider).toMatch(/if \(options\?\.abortInflight !== false\) \{\s*abortAllInflight\('sign_out_or_session_expiry'\);/);
-      expect(authProvider).toMatch(/if \(!token\) \{[\s\S]{0,400}clearLocalAuthState\(\{\s*abortInflight:\s*false\s*\}\)/);
+      expect(authProvider).toMatch(
+        /clearLocalAuthState = useCallback\(\(options\?: \{ abortInflight\?: boolean \}\)/
+      );
+      expect(authProvider).toMatch(
+        /if \(options\?\.abortInflight !== false\) \{\s*abortAllInflight\('sign_out_or_session_expiry'\);/
+      );
+      expect(authProvider).toMatch(
+        /if \(!token\) \{[\s\S]{0,400}clearLocalAuthState\(\{\s*abortInflight:\s*false\s*\}\)/
+      );
     });
   });
 
@@ -89,20 +107,28 @@ describe('account boundary invariants', () => {
 
     it('sign-in branches on needs_verification before normal post-login routing', () => {
       expect(signIn).toMatch(/if\s*\(res\?\.needs_verification\)/);
-      expect(signIn).toMatch(/checkAuth\(\{\s*email:\s*sanitizedEmail,\s*pendingVerification:\s*true\s*\}\)/);
+      expect(signIn).toMatch(
+        /checkAuth\(\{\s*email:\s*sanitizedEmail,\s*pendingVerification:\s*true\s*\}\)/
+      );
     });
 
     it('server auth responses keep platform admin in is_admin instead of rewriting role to admin', () => {
-      expect(serverAuthRoutes).toMatch(/user:\s*\{\s*\.\.\.sanitized,\s*is_admin:\s*isLoginAdmin\s*\}/);
+      expect(serverAuthRoutes).toMatch(
+        /user:\s*\{\s*\.\.\.sanitized,\s*is_admin:\s*isLoginAdmin\s*\}/
+      );
       expect(serverAuthRoutes).toMatch(/is_admin:\s*isOAuthAdmin/);
       expect(serverAuthRoutes).toMatch(/is_admin:\s*isAppleOAuthAdmin/);
       expect(serverAuthRoutes).not.toMatch(/\.\.\.\(isLoginAdmin \? \{ role: 'admin' } : \{\}\)/);
       expect(serverAuthRoutes).not.toMatch(/\.\.\.\(isOAuthAdmin \? \{ role: 'admin' } : \{\}\)/);
-      expect(serverAuthRoutes).not.toMatch(/\.\.\.\(isAppleOAuthAdmin \? \{ role: 'admin' } : \{\}\)/);
+      expect(serverAuthRoutes).not.toMatch(
+        /\.\.\.\(isAppleOAuthAdmin \? \{ role: 'admin' } : \{\}\)/
+      );
     });
 
     it('AuthProvider derives dashboard admin from is_admin, not the role=admin string', () => {
-      expect(authProvider).toMatch(/normalizedRole === 'super_admin' \|\| user\?\.is_admin === true/);
+      expect(authProvider).toMatch(
+        /normalizedRole === 'super_admin' \|\| user\?\.is_admin === true/
+      );
       expect(authProvider).not.toMatch(/normalizedRole === 'admin'/);
     });
 
@@ -115,7 +141,9 @@ describe('account boundary invariants', () => {
       expect(signIn).toMatch(/if \(submitInFlightRef\.current\) return;/);
       expect(signIn).toMatch(/const sanitizedEmail = sanitizeEmail\(email\)/);
       expect(signIn).toMatch(/loginViaEmailPassword\(sanitizedEmail,\s*password\)/);
-      expect(signIn).toMatch(/checkAuth\(\{\s*email:\s*sanitizedEmail,\s*pendingVerification:\s*true\s*\}\)/);
+      expect(signIn).toMatch(
+        /checkAuth\(\{\s*email:\s*sanitizedEmail,\s*pendingVerification:\s*true\s*\}\)/
+      );
     });
 
     it('sign-up uses replaceSession when completing OAuth account creation', () => {
@@ -123,7 +151,9 @@ describe('account boundary invariants', () => {
     });
 
     it('sign-up seeds pending verification state through AuthProvider before routing to verify', () => {
-      expect(signUp).toMatch(/await checkAuth\(\{\s*email:\s*sanitizedEmail,\s*pendingVerification:\s*true\s*\}\)/);
+      expect(signUp).toMatch(
+        /await checkAuth\(\{\s*email:\s*sanitizedEmail,\s*pendingVerification:\s*true\s*\}\)/
+      );
       expect(signUp).toMatch(/pathname:\s*'\/verify'/);
     });
 
@@ -155,22 +185,30 @@ describe('account boundary invariants', () => {
     });
 
     it('sign-up preserves host-specific transport errors from api/http', () => {
-      expect(signUp).toMatch(/e\?\.isNetworkError === true \|\| errMsg\.startsWith\('Cannot connect to server'\)/);
+      expect(signUp).toMatch(
+        /e\?\.isNetworkError === true \|\| errMsg\.startsWith\('Cannot connect to server'\)/
+      );
     });
 
     it('sign-up retries registration on the current transport-error contract', () => {
       expect(signUp).toMatch(/const isRetryableError =[\s\S]{0,300}e\?\.isNetworkError === true/);
-      expect(signUp).toMatch(/const isRetryableError =[\s\S]{0,300}errMsg\.startsWith\('Cannot connect to server'\)/);
+      expect(signUp).toMatch(
+        /const isRetryableError =[\s\S]{0,300}errMsg\.startsWith\('Cannot connect to server'\)/
+      );
     });
 
     it('settings and safety helpers do not treat role=admin as equivalent to email-admin', () => {
       expect(settingsScreen).not.toMatch(/me\?\.role === 'admin'/);
-      expect(dmRestrictions).toMatch(/user\?\.is_admin === true \|\| user\?\.role === 'super_admin'/);
+      expect(dmRestrictions).toMatch(
+        /user\?\.is_admin === true \|\| user\?\.role === 'super_admin'/
+      );
       expect(dmRestrictions).not.toMatch(/user\?\.role === 'admin'/);
     });
 
     it('apple auth preserves or reconstructs host-specific transport errors', () => {
-      expect(appleAuth).toMatch(/err\?\.isNetworkError === true \|\| message\.startsWith\('Cannot connect to server'\)/);
+      expect(appleAuth).toMatch(
+        /err\?\.isNetworkError === true \|\| message\.startsWith\('Cannot connect to server'\)/
+      );
       expect(appleAuth).toMatch(/Cannot connect to server at \$\{getApiBaseUrl\(\)\}\./);
     });
 
@@ -186,9 +224,13 @@ describe('account boundary invariants', () => {
 
     it('verification hook retains the synchronous resend\/confirm guards', () => {
       expect(verificationGate).toMatch(/resendInFlightRef/);
-      expect(verificationGate).toMatch(/if \(loading \|\| resendInFlightRef\.current \|\| resendCooldown > 0\) return;/);
+      expect(verificationGate).toMatch(
+        /if \(loading \|\| resendInFlightRef\.current \|\| resendCooldown > 0\) return;/
+      );
       expect(verificationGate).toMatch(/verifyInFlightRef/);
-      expect(verificationGate).toMatch(/if \(loading \|\| verifyInFlightRef\.current \|\| code\.trim\(\)\.length !== 6\) return;/);
+      expect(verificationGate).toMatch(
+        /if \(loading \|\| verifyInFlightRef\.current \|\| code\.trim\(\)\.length !== 6\) return;/
+      );
     });
 
     it('forgot-password synchronously guards duplicate send/reset submissions', () => {
@@ -209,13 +251,19 @@ describe('account boundary invariants', () => {
     });
 
     it('manage subscription routes unverified users into the guarded verify flow', () => {
-      expect(manageSubscriptionScreen).toMatch(/\{\s*text:\s*'Verify now', onPress: \(\) => void router\.push\('\/verify'\)\s*\}/);
+      expect(manageSubscriptionScreen).toMatch(
+        /\{\s*text:\s*'Verify now', onPress: \(\) => void router\.push\('\/verify'\)\s*\}/
+      );
       expect(manageSubscriptionScreen).not.toMatch(/User\.requestVerification\(\)/);
     });
 
     it('server profile mutation routes require verified accounts before changing canonical user state', () => {
-      expect(serverAuthRoutes).toMatch(/authRouter\.put\(\s*'\/me',\s*requireAuth as any,\s*requireVerified as any,/);
-      expect(serverAuthRoutes).toMatch(/authRouter\.patch\(\s*'\/me',\s*requireAuth as any,\s*requireVerified as any,/);
+      expect(serverAuthRoutes).toMatch(
+        /authRouter\.put\(\s*'\/me',\s*requireAuth as any,\s*requireVerified as any,/
+      );
+      expect(serverAuthRoutes).toMatch(
+        /authRouter\.patch\(\s*'\/me',\s*requireAuth as any,\s*requireVerified as any,/
+      );
       expect(serverAuthRoutes).toMatch(
         /authRouter\.patch\(\s*'\/me\/preferences',\s*requireAuth as any,\s*requireVerified as any,/
       );
@@ -224,12 +272,16 @@ describe('account boundary invariants', () => {
     it('refresh uses the dedicated refresh-token limiter and logout verifies the full refresh token before cleanup', () => {
       expect(serverAuthRoutes).toMatch(/authRouter\.post\(\s*'\/refresh',\s*refreshTokenLimiter,/);
       expect(serverAuthRoutes).toMatch(/verifyRefreshTokenHash\(\s*refresh_token,/);
-      expect(serverAuthRoutes).not.toMatch(/logout's purpose is delete \+ push-token cleanup, so a key-id-only match is sufficient/);
+      expect(serverAuthRoutes).not.toMatch(
+        /logout's purpose is delete \+ push-token cleanup, so a key-id-only match is sufficient/
+      );
     });
 
     it('client sends a stable device id header and refresh enforces it for bound sessions', () => {
       expect(httpApi).toMatch(/headers\['X-VarsityHub-Device-Id'\]\s*=\s*deviceId/);
-      expect(serverAuthRoutes).toMatch(/verifyStoredSessionFingerprint\(stored\.device_info,\s*req\)/);
+      expect(serverAuthRoutes).toMatch(
+        /verifyStoredSessionFingerprint\(stored\.device_info,\s*req\)/
+      );
       expect(serverAuthRoutes).toMatch(/auth\.refresh\.delete-device-mismatch-token/);
     });
   });

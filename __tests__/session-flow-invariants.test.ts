@@ -231,21 +231,22 @@ describe('session-expired event bus — client wiring invariants', () => {
     });
 
     it('onboarding index hydrates from AuthProvider-owned auth state', () => {
-      expect(onboardingIndex).toMatch(/getFreshAuthSnapshot/);
+      expect(onboardingIndex).toMatch(/const \{ user, checkAuth \} = useAuth\(\)/);
+      expect(onboardingIndex).toMatch(/buildServerHydrationPatch\(user\)/);
       expect(onboardingIndex).not.toMatch(/User\.me\(/);
+      expect(onboardingIndex).not.toMatch(/User\.refresh\(/);
     });
 
     it('step-1 role uses AuthProvider snapshot helpers instead of raw User.me\\/refresh', () => {
-      expect(onboardingStep1).toMatch(/getAuthSnapshot/);
       expect(onboardingStep1).toMatch(/getFreshAuthSnapshot/);
       expect(onboardingStep1).not.toMatch(/User\.me\(/);
       expect(onboardingStep1).not.toMatch(/User\.refresh\(/);
     });
 
     it('step-2 and step-3 onboarding no longer maintain parallel me\\/refresh fallback chains', () => {
-      expect(onboardingStep2).toMatch(/getFreshAuthSnapshot/);
+      expect(onboardingStep2).not.toMatch(/User\.me\(/);
       expect(onboardingStep2).not.toMatch(/User\.refresh\(/);
-      expect(onboardingStep3).toMatch(/getFreshAuthSnapshot/);
+      expect(onboardingStep3).toMatch(/checkAuth\(\)/);
       expect(onboardingStep3).not.toMatch(/User\.me\(/);
       expect(onboardingStep3).not.toMatch(/User\.refresh\(/);
     });

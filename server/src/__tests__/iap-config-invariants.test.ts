@@ -39,8 +39,12 @@ describe('IAP product configuration invariants', () => {
   });
 
   it('server maps MIDTIER/TOPTIER for Apple and Google subscription verification', () => {
-    expect(paymentInternals).toMatch(/export const APPLE_PRODUCT_TO_PLAN[\s\S]*MIDTIER:\s*'veteran'/);
-    expect(paymentInternals).toMatch(/export const APPLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/);
+    expect(paymentInternals).toMatch(
+      /export const APPLE_PRODUCT_TO_PLAN[\s\S]*MIDTIER:\s*'veteran'/
+    );
+    expect(paymentInternals).toMatch(
+      /export const APPLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/
+    );
     expect(payments).toMatch(/const GOOGLE_PRODUCT_TO_PLAN[\s\S]*MIDTIER:\s*'veteran'/);
     expect(payments).toMatch(/const GOOGLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/);
   });
@@ -57,8 +61,12 @@ describe('IAP product configuration invariants', () => {
 
   it('mobile ad checkout uses Apple IAP on iOS and Stripe PaymentSheet elsewhere', () => {
     expect(adCalendarScreen).toMatch(/if \(Platform\.OS === 'ios'\)/);
-    expect(adCalendarScreen).toMatch(/const result = await purchaseAd\(\{ adId: String\(adId\), dates, weekdayBlocks, weekendBlocks \}\)/);
-    expect(adCalendarScreen).toMatch(/httpPost\('\/payments\/create-payment-sheet', \{ ad_id: String\(adId\), dates, promo_code: promo \|\| undefined \}\)/);
+    expect(adCalendarScreen).toMatch(
+      /const result = await purchaseAd\(\{\s*adId: String\(adId\),\s*dates,\s*weekdayBlocks,\s*weekendBlocks,\s*\}\)/
+    );
+    expect(adCalendarScreen).toMatch(
+      /httpPost\('\/payments\/create-payment-sheet', \{\s*ad_id: String\(adId\),\s*dates,\s*promo_code: promo \|\| undefined,\s*\}\)/
+    );
     expect(adCalendarScreen).toMatch(/const \{ error \} = await presentPaymentSheet\(\)/);
   });
 
@@ -82,13 +90,23 @@ describe('IAP product configuration invariants', () => {
 
   it('operator docs describe Android ad checkout as Stripe-based, not Play IAP', () => {
     expect(externalSetupDoc).toMatch(/Android ad bookings use Stripe PaymentSheet/i);
-    expect(externalSetupDoc).toMatch(/Do \*\*not\*\* create `MOND_THURS` or `FRI_SUN` in Google Play Console/i);
+    expect(externalSetupDoc).toMatch(
+      /Do \*\*not\*\* create `MOND_THURS` or `FRI_SUN` in Google Play Console/i
+    );
     expect(adIapDoc).toMatch(/iOS-only checklist/i);
     expect(adIapDoc).toMatch(/Android ad bookings use Stripe PaymentSheet/i);
-    expect(fullUatDoc).toMatch(/iOS ad checkout uses Apple IAP only for `MOND_THURS` and `FRI_SUN`/i);
-    expect(fullUatDoc).toMatch(/Android ad checkout uses Stripe PaymentSheet and does not depend on Play ad IAP SKUs/i);
-    expect(stripePricingDoc).toMatch(/These Stripe ad prices are used by Android and non-iOS checkout paths/i);
-    expect(stripePricingDoc).toMatch(/On iOS, ad booking uses Apple IAP product IDs `MOND_THURS` and `FRI_SUN`/i);
+    expect(fullUatDoc).toMatch(
+      /iOS ad checkout uses Apple IAP only for `MOND_THURS` and `FRI_SUN`/i
+    );
+    expect(fullUatDoc).toMatch(
+      /Android ad checkout uses Stripe PaymentSheet and does not depend on Play ad IAP SKUs/i
+    );
+    expect(stripePricingDoc).toMatch(
+      /These Stripe ad prices are used by Android and non-iOS checkout paths/i
+    );
+    expect(stripePricingDoc).toMatch(
+      /On iOS, ad booking uses Apple IAP product IDs `MOND_THURS` and `FRI_SUN`/i
+    );
   });
 
   it('production env validation hard-fails if APPLE_BUNDLE_ID is missing', () => {

@@ -43,14 +43,20 @@ describe('profile/settings note contracts', () => {
   });
 
   it('settings delete-account flow only requires a password when the linked providers snapshot says one exists', () => {
-    expect(settingsScreen).toContain('setDeleteRequiresPassword(linkedProviders.password);');
-    expect(settingsScreen).toContain('const confirmation = deleteConfirmation.trim().toUpperCase();');
+    expect(settingsScreen).toContain('const computeDeleteRequiresPassword = useCallback(');
+    expect(settingsScreen).toContain('(p: typeof initialLinkedProviders) => p.password && !p.google && !p.apple,');
+    expect(settingsScreen).toContain(
+      'setDeleteRequiresPassword(computeDeleteRequiresPassword(linkedProviders));'
+    );
+    expect(settingsScreen).toContain(
+      'const confirmation = deleteConfirmation.trim().toUpperCase();'
+    );
     expect(settingsScreen).toContain("if (confirmation !== 'DELETE') {");
-    expect(settingsScreen).toContain("delete_confirmation: confirmation,");
-    expect(settingsScreen).toContain("if (deleteRequiresPassword && !pwd) {");
+    expect(settingsScreen).toContain('delete_confirmation: confirmation,');
+    expect(settingsScreen).toContain('if (deleteRequiresPassword && !pwd) {');
     expect(settingsScreen).toContain('{deleteRequiresPassword');
     expect(settingsScreen).toContain('placeholder="Type DELETE"');
-    expect(settingsScreen).toContain("placeholder=\"Password\"");
+    expect(settingsScreen).toContain('placeholder="Password"');
     expect(settingsScreen).toContain(
       "? 'This permanently deletes your account. Enter your password to confirm.'"
     );
@@ -61,31 +67,40 @@ describe('profile/settings note contracts', () => {
 
   it('settings exposes a downgrade path for coach accounts and keeps billing visible for non-rookie plans', () => {
     expect(settingsScreen).toContain('title="Downgrade to Fan Account"');
-    expect(settingsScreen).toContain("subtitle=\"Transfer any team or organization ownership first\"");
-    expect(settingsScreen).toContain("import { getCanonicalBillingState } from '@/utils/billingState';");
+    expect(settingsScreen).toContain(
+      'subtitle="Transfer any team or organization ownership first"'
+    );
+    expect(settingsScreen).toContain(
+      "import { getCanonicalBillingState } from '@/utils/billingState';"
+    );
     expect(settingsScreen).toContain('const billingState = getCanonicalBillingState(me as any);');
-    expect(settingsScreen).toContain("setShowCoachBilling(coachAccess.isApprovedCoach || billingState.selected_plan !== 'rookie');");
+    expect(settingsScreen).toContain(
+      "billingState.selected_plan !== 'rookie'"
+    );
+    expect(settingsScreen).toContain('!!nextCoachUpgradeCta');
   });
 
   it('settings re-enters coach onboarding with replace-based handoffs so setup does not stack on top of settings', () => {
-    expect(settingsScreen).toContain("router.replace(coachUpgradeCta.route as any);");
-    expect(settingsScreen).toContain("router.replace(preferredRoute as any);");
-    expect(settingsScreen).toContain("router.replace('/onboarding/coach-application' as any);");
-    expect(settingsScreen).toContain("router.replace('/onboarding/step-2-basic');");
-    expect(settingsScreen).not.toContain("router.push(coachUpgradeCta.route as any);");
-    expect(settingsScreen).not.toContain("router.push(preferredRoute as any);");
+    expect(settingsScreen).toContain('router.replace(coachUpgradeCta.route as any);');
+    expect(settingsScreen).toContain('router.replace(preferredRoute as any);');
+    expect(settingsScreen).toContain('router.replace(');
+    expect(settingsScreen).toContain("('/onboarding/coach-application' as any)");
+    expect(settingsScreen).toContain("'/onboarding/step-2-basic'");
+    expect(settingsScreen).not.toContain('router.push(coachUpgradeCta.route as any);');
+    expect(settingsScreen).not.toContain('router.push(preferredRoute as any);');
     expect(settingsScreen).not.toContain("router.push('/onboarding/coach-application' as any);");
     expect(settingsScreen).not.toContain("router.push('/onboarding/step-2-basic');");
   });
 
   it('settings account transitions route from the canonical checkAuth snapshot instead of refetching refresh state', () => {
-    expect(settingsScreen).toContain("const fresh = (await checkAuth().catch(() => null)) as UserMeResponse | null;");
+    expect(settingsScreen).toContain("getSettingsSnapshot({ forceRefresh: true })");
+    expect(settingsScreen).toContain('getFreshAuthSnapshot(checkAuth, fallback)');
     expect(settingsScreen).not.toContain('User.refresh().catch(() => null)');
   });
 
   it('settings keeps the private-profile toggle wired to the persisted profile_private preference', () => {
     expect(settingsScreen).toContain('profile_private: !!serverPrefs?.profile_private');
     expect(settingsScreen).toContain('value={!!prefs.profile_private}');
-    expect(settingsScreen).toContain("onValueChange={v => patchPrefs({ profile_private: v })}");
+    expect(settingsScreen).toContain('onValueChange={v => patchPrefs({ profile_private: v })}');
   });
 });

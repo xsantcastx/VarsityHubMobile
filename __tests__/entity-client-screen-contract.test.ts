@@ -1,8 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const read = (...parts: string[]) =>
-  fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
+const read = (...parts: string[]) => fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
 
 describe('entity client screen contract', () => {
   it('keeps organization screens on the shared Organization client', () => {
@@ -15,11 +14,13 @@ describe('entity client screen contract', () => {
     expect(organizationsIndex).not.toContain('httpGet(`/organizations?limit=20`)');
     expect(organizationsIndex).not.toContain("httpGet('/organizations?limit=20')");
 
-    expect(organizationDetail).toContain("import { Organization as OrganizationApi } from '@/api/entities';");
+    expect(organizationDetail).toContain(
+      "import { Organization as OrganizationApi } from '@/api/entities';"
+    );
     expect(organizationDetail).toContain('await OrganizationApi.get(normalizedId)');
     expect(organizationDetail).not.toContain('httpGet(`/organizations/${normalizedId}`)');
 
-    expect(leaguePendingApproval).toContain("Organization } from '@/api/entities';");
+    expect(leaguePendingApproval).toContain("Organization, User } from '@/api/entities';");
     expect(leaguePendingApproval).toContain('await Organization.get(orgId)');
     expect(leaguePendingApproval).not.toContain('httpGet(`/organizations/${orgId}`)');
   });
@@ -34,11 +35,13 @@ describe('entity client screen contract', () => {
     const entities = read('api', 'entities.ts');
 
     expect(entities).toContain('mine: () =>');
-    expect(entities).toContain("httpGet('/events/my-events').then(data => validateEventSummaryArray('events.mine', data))");
+    expect(entities).toContain(
+      "httpGet('/events/my-events').then(data => validateEventSummaryArray('events.mine', data))"
+    );
     expect(entities).toContain('followed: (): Promise<any> =>');
     expect(entities).toContain("httpGet('/follows/teams?user_id=me').then(data =>");
 
-    expect(followedTeams).toContain('const rows = await Team.followed()');
+    expect(followedTeams).toContain('const rows = (await Team.followed()) as FollowedTeam[];');
     expect(followedTeams).not.toContain("httpGet('/follows/teams?user_id=me')");
 
     expect(createFanEvent).toContain('Event.mine()');
@@ -47,19 +50,27 @@ describe('entity client screen contract', () => {
     expect(createFanEvent).not.toContain("httpGet('/follows/teams?user_id=me')");
 
     expect(entities).toContain('pending: () =>');
-    expect(entities).toContain('myJoinRequests: () => httpGet(\'/organizations/join-requests/me\')');
+    expect(entities).toContain("myJoinRequests: () => httpGet('/organizations/join-requests/me')");
     expect(entities).toContain('createPaymentSheet: (payload: {');
-    expect(entities).toContain("cancelIntent: (paymentIntentId: string) =>");
+    expect(entities).toContain('cancelIntent: (paymentIntentId: string) =>');
 
-    expect(eventApprovals).toContain("import { Event, Game, Organization, Team } from '@/api/entities';");
+    expect(eventApprovals).toContain(
+      "import { Event, Game, Organization, Team } from '@/api/entities';"
+    );
     expect(eventApprovals).toContain('Event.pending().catch(() => [])');
-    expect(eventApprovals).toContain('Game.list(undefined, { showPending: true, limit: 50 }).catch(() => ({ games: [] }))');
+    expect(eventApprovals).toContain(
+      'Game.list(undefined, { showPending: true, limit: 50 }).catch(() => ({ games: [] }))'
+    );
     expect(eventApprovals).toContain('const data = await Team.myInvites()');
     expect(eventApprovals).toContain('const data = await Organization.myJoinRequests()');
     expect(eventApprovals).toContain('await Event.approve(eventId)');
-    expect(eventApprovals).toContain("await Event.reject(eventId, rejectReason.trim() || undefined)");
+    expect(eventApprovals).toContain(
+      'await Event.reject(eventId, rejectReason.trim() || undefined)'
+    );
     expect(eventApprovals).toContain("await Game.setApprovalStatus(eventId, 'approved')");
-    expect(eventApprovals).toContain("await Game.setApprovalStatus(eventId, 'rejected', rejectReason.trim() || undefined)");
+    expect(eventApprovals).toContain(
+      "await Game.setApprovalStatus(eventId, 'rejected', rejectReason.trim() || undefined)"
+    );
     expect(eventApprovals).toContain('await Team.acceptInvite(inviteId)');
     expect(eventApprovals).toContain('await Team.declineInvite(inviteId)');
     expect(eventApprovals).not.toContain("httpGet('/events/pending')");
@@ -67,7 +78,9 @@ describe('entity client screen contract', () => {
     expect(eventApprovals).not.toContain("httpGet('/organizations/join-requests/me')");
 
     expect(subscriptionPaywall).toContain('await Payments.createPaymentSheet({');
-    expect(subscriptionPaywall).toContain('Payments.cancelIntent(data.payment_intent_id).catch(() => {});');
+    expect(subscriptionPaywall).toContain(
+      'Payments.cancelIntent(data.payment_intent_id).catch(() => {});'
+    );
     expect(subscriptionPaywall).not.toContain("httpPost('/payments/create-payment-sheet'");
     expect(subscriptionPaywall).not.toContain("httpPost('/payments/cancel-intent'");
 

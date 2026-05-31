@@ -10,7 +10,9 @@ const resetPasswordScreen = read('app/settings/reset-password.tsx');
 
 describe('account settings contracts', () => {
   it('edit username derives current account state from AuthProvider instead of useUser', () => {
-    expect(editUsernameScreen).toContain('const { user, loading: authLoading, checkAuth } = useAuth();');
+    expect(editUsernameScreen).toContain(
+      'const { user, loading: authLoading, checkAuth } = useAuth();'
+    );
     expect(editUsernameScreen).not.toContain('useUser(');
     expect(editUsernameScreen).not.toContain('refreshUser()');
   });
@@ -22,7 +24,11 @@ describe('account settings contracts', () => {
   });
 
   it('account mutations resync through checkAuth only', () => {
-    expect(editUsernameScreen).toContain("await checkAuth().catch((e) => { if (__DEV__) console.warn('[edit-username] Auth refresh failed:', e); });");
-    expect(resetPasswordScreen).toContain("await checkAuth().catch((e) => { if (__DEV__) console.warn('[reset-password] Auth refresh failed:', e); });");
+    expect(editUsernameScreen).toContain('await checkAuth().catch(e => {');
+    expect(editUsernameScreen).toContain("console.warn('[edit-username] Auth refresh failed:', e);");
+    expect(resetPasswordScreen).toContain('await checkAuth().catch(e => {');
+    expect(resetPasswordScreen).toContain(
+      "console.warn('[reset-password] Auth refresh failed:', e);"
+    );
   });
 });

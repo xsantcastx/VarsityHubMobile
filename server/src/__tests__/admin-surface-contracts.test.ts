@@ -14,7 +14,9 @@ const adminTeamsScreen = readRepo('app/admin-teams.tsx');
 describe('admin surface contracts', () => {
   it('admin user list and full-detail payloads include display_name', () => {
     expect(usersRoute).toMatch(/display_name/);
-    expect(usersRoute).toMatch(/select:\s*\{ id: true, email: true, display_name: true, username: true/);
+    expect(usersRoute).toMatch(
+      /select:\s*\{[\s\S]*id: true,[\s\S]*email: true,[\s\S]*display_name: true,[\s\S]*username: true/
+    );
   });
 
   it('admin user list search matches display_name as well as email and username', () => {

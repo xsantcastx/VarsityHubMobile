@@ -6,7 +6,6 @@ import { captureAnalyticsException } from '@/utils/analytics';
 import {
   MAX_SENTRY_VALUE_LENGTH as MAX_BREADCRUMB_VALUE_LENGTH,
   SENSITIVE_SENTRY_KEY_RE as SENSITIVE_BREADCRUMB_KEY_RE,
-  normalizeSentryBreadcrumbData,
   normalizeSentryValue,
 } from '@/shared/runtime/sentrySanitization.js';
 
@@ -50,18 +49,30 @@ function redactSensitiveString(value: string): string {
 }
 
 function getErrorStatus(error: unknown): number | null {
-  const status = (error as { status?: unknown; response?: { status?: unknown } } | null | undefined)?.status
-    ?? (error as { response?: { status?: unknown } } | null | undefined)?.response?.status;
+  const status =
+    (error as { status?: unknown; response?: { status?: unknown } } | null | undefined)?.status ??
+    (error as { response?: { status?: unknown } } | null | undefined)?.response?.status;
   const numeric = Number(status);
   return Number.isFinite(numeric) ? numeric : null;
 }
 
 function getErrorCode(error: unknown): string {
   const candidate =
-    (error as { code?: unknown; data?: { code?: unknown; error?: unknown; errorCode?: unknown } } | null | undefined)?.code
-    ?? (error as { data?: { code?: unknown; error?: unknown; errorCode?: unknown } } | null | undefined)?.data?.code
-    ?? (error as { data?: { error?: unknown; errorCode?: unknown } } | null | undefined)?.data?.errorCode
-    ?? (error as { data?: { error?: unknown } } | null | undefined)?.data?.error;
+    (
+      error as
+        | { code?: unknown; data?: { code?: unknown; error?: unknown; errorCode?: unknown } }
+        | null
+        | undefined
+    )?.code ??
+    (
+      error as
+        | { data?: { code?: unknown; error?: unknown; errorCode?: unknown } }
+        | null
+        | undefined
+    )?.data?.code ??
+    (error as { data?: { error?: unknown; errorCode?: unknown } } | null | undefined)?.data
+      ?.errorCode ??
+    (error as { data?: { error?: unknown } } | null | undefined)?.data?.error;
   return typeof candidate === 'string' ? candidate.trim().toUpperCase() : '';
 }
 
@@ -74,8 +85,10 @@ function isTransientClientTransportError(error: unknown): boolean {
   const status = getErrorStatus(error);
   const message = getErrorMessage(error).toLowerCase();
   return (
-    (error as { isNetworkError?: unknown; isTransientAuthError?: unknown } | null | undefined)?.isNetworkError === true ||
-    (error as { isTransientAuthError?: unknown } | null | undefined)?.isTransientAuthError === true ||
+    (error as { isNetworkError?: unknown; isTransientAuthError?: unknown } | null | undefined)
+      ?.isNetworkError === true ||
+    (error as { isTransientAuthError?: unknown } | null | undefined)?.isTransientAuthError ===
+      true ||
     status === 0 ||
     status === 408 ||
     status === 502 ||
@@ -87,7 +100,10 @@ function isTransientClientTransportError(error: unknown): boolean {
   );
 }
 
-function isExpectedAuthUxError(error: unknown, event?: { tags?: Record<string, unknown> | undefined }): boolean {
+function isExpectedAuthUxError(
+  error: unknown,
+  event?: { tags?: Record<string, unknown> | undefined }
+): boolean {
   const context = typeof event?.tags?.context === 'string' ? event.tags.context : '';
   if (!EXPECTED_AUTH_CONTEXTS.has(context)) return false;
 
@@ -231,11 +247,7 @@ export function captureException(error: Error | unknown, context?: Record<string
       const { tags, ...rest } = context;
       if (tags && typeof tags === 'object' && !Array.isArray(tags)) {
         Object.entries(tags).forEach(([key, value]) => {
-          if (
-            value !== undefined &&
-            value !== null &&
-            !SENSITIVE_BREADCRUMB_KEY_RE.test(key)
-          ) {
+          if (value !== undefined && value !== null && !SENSITIVE_BREADCRUMB_KEY_RE.test(key)) {
             scope.setTag(key, String(value));
           }
         });
@@ -250,8 +262,6 @@ export function captureException(error: Error | unknown, context?: Record<string
   });
 }
 
-
-
 function sanitizeContextValue(value: unknown, depth = 0): unknown {
   if (value == null || typeof value === 'boolean') return value ?? null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : 'non-finite';
@@ -265,7 +275,9 @@ function sanitizeContextValue(value: unknown, depth = 0): unknown {
     return normalizeSentryValue(value);
   }
   if (Array.isArray(value)) {
-    return value.slice(0, MAX_CONTEXT_ARRAY_ITEMS).map(item => sanitizeContextValue(item, depth + 1));
+    return value
+      .slice(0, MAX_CONTEXT_ARRAY_ITEMS)
+      .map(item => sanitizeContextValue(item, depth + 1));
   }
   if (typeof value === 'object') {
     const sanitized = Object.fromEntries(
@@ -306,7 +318,7 @@ export function captureBreadcrumb(
   data?: Record<string, any>,
   level: 'fatal' | 'error' | 'warning' | 'info' | 'debug' = 'info'
 ) {
-  const normalizedData = normalizeSentryBreadcrumbData(data);
+  const normalizedData = sanitizeContextData(data);
 
   if (!sentryReady) {
     if (__DEV__) {
