@@ -18,6 +18,10 @@ const games = readFileSync(
   join(process.cwd(), 'src', 'routes', 'games.ts'),
   'utf8'
 );
+const ads = readFileSync(
+  join(process.cwd(), 'src', 'routes', 'ads.ts'),
+  'utf8'
+);
 
 const extractFunctionBody = (source: string, name: string): string => {
   const match = source.match(new RegExp(`export async function ${name}[\\s\\S]*?^\\}`, 'm'));
@@ -70,6 +74,13 @@ describe('approval notification guards', () => {
 
     expect(games).toMatch(/const reviewerUserId = req\.user\?\.id \?\? null;/);
     expect(games).not.toMatch(/action === 'approve' \? 'approved' : 'rejected',\s*'email-token'/);
+  });
+
+  it('ad review routes pass reviewer identity into rejectAdService when available', () => {
+    expect(ads).toMatch(/async function rejectAd\(id: string, reason\?: string \| null, adminId\?: string \| null\)/);
+    expect(ads).toMatch(/return rejectAdService\(id, adminId \|\| null, prisma, \{ reason: reason \|\| undefined \}\);/);
+    expect(ads).toMatch(/await rejectAd\(\s*id,\s*req\.body\?\.reason \|\| \(req\.query\?\.reason as string\) \|\| null,\s*req\.user\?\.id \|\| null\s*\)/);
+    expect(ads).toMatch(/await rejectAd\(id, note, req\.user\?\.id \|\| null\);/);
   });
 
   it('ad approval and rejection fan out admin confirmation emails', () => {
