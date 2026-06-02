@@ -7,6 +7,12 @@ import { setupScheduler, startSchedulerWorker } from './jobs/scheduler.js';
 import { env } from './lib/env.js';
 import { APP_REVIEW_EMAIL } from './lib/appReviewFixture.js';
 import { ADMIN_EMAILS, ADMIN_NOTIFICATION_EMAILS } from './lib/adminEmails.js';
+import { runRouteStartupBackfills } from './startup/routeBackfills.js';
+import {
+  getSendGridApiKeyFingerprint,
+  isPlaceholderSendGridApiKey,
+  isValidSendGridApiKey,
+} from './lib/sendgridConfig.js';
 const isPlaywrightE2E = process.env.PLAYWRIGHT_E2E === '1';
 
 // Initialize SendGrid email service
@@ -49,6 +55,14 @@ await initEmailService();
       '[startup] ⚠️  SENDGRID_API_KEY is missing — all outbound email (verification, invites, admin notifications) will fail silently';
     console.warn(msg);
     captureMessage(msg, 'warning');
+  } else {
+    const fingerprint = getSendGridApiKeyFingerprint(env.SENDGRID_API_KEY);
+    const keyState = isPlaceholderSendGridApiKey(env.SENDGRID_API_KEY)
+      ? 'placeholder'
+      : isValidSendGridApiKey(env.SENDGRID_API_KEY)
+        ? 'valid-looking'
+        : 'invalid-looking';
+    console.log(`[startup] SENDGRID_API_KEY loaded (${keyState}): ${fingerprint}`);
   }
 }
 
@@ -225,6 +239,11 @@ setupScheduler()
     console.error('[startup] Scheduler failed to start:', error);
     captureException(error, { context: 'scheduler_startup' });
   });
+
+runRouteStartupBackfills().catch(error => {
+  console.error('[startup] Route startup backfills failed:', error);
+  captureException(error, { context: 'route_startup_backfills' });
+});
 
 const PORT = Number(env.PORT || 4000);
 // Bind to 0.0.0.0 so the API is reachable from other devices on the LAN (useful for Expo on a phone/emulator)

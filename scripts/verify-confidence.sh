@@ -48,7 +48,7 @@ ensure_local_api() {
   : > "$API_LOG_FILE"
   (
     cd server
-    npx tsx src/index.ts
+    npx tsx scripts/start-verify-api.ts
   ) >"$API_LOG_FILE" 2>&1 &
   STARTED_API_PID=$!
   trap cleanup_api EXIT
@@ -62,5 +62,8 @@ run_step "Server invariants" npm --prefix server run test:invariants
 run_step "Coach approval wiring" npm --prefix server run verify:coach-approval
 ensure_local_api
 run_step "Coach route battery" npm --prefix server run verify:coach-flow
+run_step "Event approval flow" npm --prefix server run verify:event-approval-flow
+run_step "Ad approval flow" npm --prefix server run verify:ad-approval-flow
+run_step "Ad dashboard review flow" npm --prefix server run verify:ad-dashboard-review-flow
 cleanup_api
 run_step "Server build" npm --prefix server run build

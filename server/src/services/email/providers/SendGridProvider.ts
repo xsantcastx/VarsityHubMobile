@@ -25,13 +25,13 @@ export class SendGridProvider implements EmailProvider {
     this.defaultFrom = config.defaultFrom;
     this.timeout = config.timeout || 10000; // 10 seconds default
 
-    if (this.apiKey) {
+    if (isValidSendGridApiKey(this.apiKey)) {
       sgMail.setApiKey(this.apiKey);
     }
   }
 
   isConfigured(): boolean {
-    return Boolean(this.apiKey && this.defaultFrom);
+    return Boolean(isValidSendGridApiKey(this.apiKey) && this.defaultFrom && this.isValidEmail(this.defaultFrom));
   }
 
   validateConfig(): { valid: boolean; errors: string[] } {

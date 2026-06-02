@@ -21,6 +21,11 @@ import {
   resolveEmailFrom,
 } from '../src/lib/emailSender.js';
 import {
+  getSendGridApiKeyFingerprint,
+  isPlaceholderSendGridApiKey,
+  isValidSendGridApiKey,
+} from '../src/lib/sendgridConfig.js';
+import {
   getEmailBaseUrlDiagnostics,
   getMissingEmailTemplates,
   getMissingRecommendedTemplates,
@@ -45,6 +50,18 @@ const probeMode = (process.env.EMAIL_PROBE_MODE || 'verification').trim().toLowe
 
 console.log(`Environment:        ${NODE_ENV}`);
 console.log(`SENDGRID_API_KEY:   ${SENDGRID_API_KEY ? `set (${SENDGRID_API_KEY.substring(0, 5)}...)` : '❌ MISSING'}`);
+console.log(`Key fingerprint:    ${getSendGridApiKeyFingerprint(SENDGRID_API_KEY)}`);
+console.log(
+  `Key status:         ${
+    !SENDGRID_API_KEY
+      ? 'missing'
+      : isPlaceholderSendGridApiKey(SENDGRID_API_KEY)
+        ? 'placeholder'
+        : isValidSendGridApiKey(SENDGRID_API_KEY)
+          ? 'valid-looking'
+          : 'invalid-looking'
+  }`
+);
 console.log(`EMAIL_FROM:         ${EMAIL_FROM}`);
 console.log(`EMAIL_OVERRIDE_TO:  ${process.env.EMAIL_OVERRIDE_TO || '(none)'}`);
 if (!isCanonicalEmailFrom(EMAIL_FROM)) {

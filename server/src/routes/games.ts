@@ -394,8 +394,6 @@ const makeCreateStoryHandler =
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
-const shouldRunStartupBackfills =
-  process.env.NODE_ENV !== 'test' && process.env.JEST_WORKER_ID == null;
 
 async function invalidateGamesListCache(): Promise<void> {
   await cacheDelPattern('games:*');
@@ -691,52 +689,51 @@ async function handleGameTokenReview(
 }
 
 // One-time startup backfill: geocode games that have a location string but no coordinates.
-// Fire-and-forget — safe to run repeatedly (skips games already populated).
-if (shouldRunStartupBackfills) {
-  void (async () => {
-    try {
-      const missing = await (prisma.game.findMany as any)({
-        where: { location: { not: null }, latitude: null, venue_lat: null },
-        select: { id: true, location: true },
-        take: 1000,
-      });
-      if (missing.length === 0) return;
-      debugLog(`[games] backfill: geocoding ${missing.length} games without coordinates`);
-      const { geocodeLocation } = await import('../lib/geocoding.js');
-      let success = 0;
-      let failed = 0;
-      for (const game of missing) {
-        try {
-          const coords = await geocodeLocation(game.location!);
-          if (coords) {
-            await (prisma.game.update as any)({
-              where: { id: game.id },
-              data: { latitude: coords.latitude, longitude: coords.longitude },
-            });
-            await prisma.event.updateMany({
-              where: { game_id: game.id, latitude: null },
-              data: { latitude: coords.latitude, longitude: coords.longitude },
-            });
-            success++;
-          } else {
-            failed++;
-            console.warn(
-              `[games] backfill: geocode returned null for game ${game.id} location="${game.location}"`
-            );
-          }
-        } catch (err: any) {
+// Safe to run repeatedly (skips games already populated). Kept explicit so
+// importing the router never mutates data during tests or verification.
+export async function runGamesStartupBackfill(): Promise<void> {
+  try {
+    const missing = await (prisma.game.findMany as any)({
+      where: { location: { not: null }, latitude: null, venue_lat: null },
+      select: { id: true, location: true },
+      take: 1000,
+    });
+    if (missing.length === 0) return;
+    debugLog(`[games] backfill: geocoding ${missing.length} games without coordinates`);
+    const { geocodeLocation } = await import('../lib/geocoding.js');
+    let success = 0;
+    let failed = 0;
+    for (const game of missing) {
+      try {
+        const coords = await geocodeLocation(game.location!);
+        if (coords) {
+          await (prisma.game.update as any)({
+            where: { id: game.id },
+            data: { latitude: coords.latitude, longitude: coords.longitude },
+          });
+          await prisma.event.updateMany({
+            where: { game_id: game.id, latitude: null },
+            data: { latitude: coords.latitude, longitude: coords.longitude },
+          });
+          success++;
+        } else {
           failed++;
-          console.error(
-            `[games] backfill: failed game ${game.id} location="${game.location}":`,
-            err?.message || err
+          console.warn(
+            `[games] backfill: geocode returned null for game ${game.id} location="${game.location}"`
           );
         }
+      } catch (err: any) {
+        failed++;
+        console.error(
+          `[games] backfill: failed game ${game.id} location="${game.location}":`,
+          err?.message || err
+        );
       }
-      debugLog(`[games] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`);
-    } catch (err) {
-      console.warn('[games] backfill failed:', err);
     }
-  })();
+    debugLog(`[games] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`);
+  } catch (err) {
+    console.warn('[games] backfill failed:', err);
+  }
 }
 
 // Helper function to generate Google Maps links
