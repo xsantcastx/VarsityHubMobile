@@ -1718,7 +1718,7 @@ const TEAM_LOGO_URL_VALIDATOR = z
         const parsed = new URL(url);
         if (parsed.protocol !== 'https:') return false;
         const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
-        return allowed.some(d => parsed.hostname.endsWith(d));
+        return allowed.some(d => parsed.hostname === d || parsed.hostname.endsWith(`.${d}`));
       } catch {
         return false;
       }

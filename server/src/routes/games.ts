@@ -85,7 +85,7 @@ const storySchema = z.object({
           const parsed = new URL(url);
           if (parsed.protocol !== 'https:') return false;
           const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
-          return allowed.some(d => parsed.hostname.endsWith(d));
+          return allowed.some(d => parsed.hostname === d || parsed.hostname.endsWith(`.${d}`));
         } catch {
           return false;
         }
@@ -1583,7 +1583,7 @@ gamesRouter.post(
     });
     const isAdmin = isEmailAdmin(currentUser?.email);
 
-    // Verify caller manages at least one of the referenced teams (mirrors single POST auth check)
+    // Verify caller manages every referenced team (mirrors single POST auth check per game).
     if (!isAdmin) {
       const allTeamIds = [
         ...new Set(
@@ -1596,8 +1596,8 @@ gamesRouter.post(
         return sendError(res, 400, 'Each game must reference a home_team_id or away_team_id.');
       }
       const checks = await Promise.all(allTeamIds.map(id => canManageTeamScoped(userId, id)));
-      if (!checks.some(Boolean)) {
-        return sendError(res, 403, 'You do not manage any of the referenced teams.');
+      if (!checks.every(Boolean)) {
+        return sendError(res, 403, 'You must manage every referenced team.');
       }
     }
 
@@ -1633,7 +1633,6 @@ gamesRouter.post(
       console.error('[games/bulk] failed — rolled back:', err?.message || err);
       return res.status(500).json({
         error: 'Bulk game creation failed and was rolled back.',
-        detail: err?.message || 'unknown',
       });
     }
   })
@@ -2216,7 +2215,8 @@ gamesRouter.delete(
         console.error('[games] Failed to send game cancelled notifications:', notifErr);
       }
 
-      // Delete the game (cascade deletes will handle related records)
+      // Delete the game. Game-specific children cascade; historical posts/events
+      // keep their content and are detached by SetNull FKs.
       await prisma.game.delete({ where: { id } });
       await invalidateGamesListCache();
 

@@ -854,13 +854,11 @@ paymentsRouter.get('/config', (_req, res) => {
     '';
   const availablePlans = getAllPlanDefinitions();
   const stripeConfigured = !!(stripePublishableKey && process.env.STRIPE_SECRET_KEY);
-  const hasWebhookSecret = !!process.env.STRIPE_WEBHOOK_SECRET;
   res.json({
     stripe_publishable_key: stripePublishableKey,
     available_plans: availablePlans,
     payments_enabled: stripeConfigured,
     stripe_configured: stripeConfigured,
-    has_webhook_secret: hasWebhookSecret,
   });
 });
 
@@ -1305,7 +1303,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireAuth as any, paymentL
     } catch (err: any) {
       const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
       captureException(err, { context: 'stripe_checkout_error', plan });
-      return res.status(status).json({ error: err?.message || 'Unable to start subscription checkout' });
+      return res.status(status).json({ error: 'Unable to start checkout' });
     }
   }
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required' });
@@ -1701,7 +1699,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
     const hasExplicitPriceId = /^price_/i.test(normalizedPriceId) && !['price_xxx', 'price_yyy', 'your_price_id'].some((h) => normalizedPriceId.toLowerCase().includes(h));
 
     if (!hasExplicitPriceId && process.env.NODE_ENV === 'production') {
-      return res.status(500).json({ error: `Stripe price ID not configured for ${chosen} plan. Set STRIPE_PRICE_${chosen.toUpperCase()} env var.` });
+      return res.status(500).json({ error: 'Payment service temporarily unavailable' });
     }
 
     const items = hasExplicitPriceId
@@ -1974,7 +1972,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
     });
   } catch (err: any) {
     captureException(err, { context: 'create_payment_sheet_ad', ad_id });
-    return res.status(500).json({ error: err?.message || 'Unable to create payment' });
+    return res.status(500).json({ error: 'Unable to create payment' });
   }
 }));
 
@@ -2121,7 +2119,7 @@ paymentsRouter.post('/subscribe', expressPkg.json(), requireVerified as any, pay
     return res.json({ url, session_id: sessionId });
   } catch (err: any) {
     const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
-    return res.status(status).json({ error: err?.message || 'Unable to start subscription checkout' });
+    return res.status(status).json({ error: 'Unable to start checkout' });
   }
 }));
 
@@ -2148,7 +2146,8 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
     try {
       subscription = await stripe.subscriptions.retrieve(subscriptionId);
     } catch (err: any) {
-      return res.status(404).json({ error: 'Subscription not found in Stripe', detail: err?.message });
+      console.warn('[payments] subscription cancel retrieve failed:', err?.message || err);
+      return res.status(404).json({ error: 'Subscription not found in Stripe' });
     }
     const subCustomerId =
       typeof subscription.customer === 'string'
@@ -2212,7 +2211,8 @@ paymentsRouter.post('/subscription/resume', expressPkg.json(), requireAuth as an
     try {
       sub = await stripe.subscriptions.retrieve(subscriptionId);
     } catch (err: any) {
-      return res.status(404).json({ error: 'Subscription not found in Stripe', detail: err?.message });
+      console.warn('[payments] subscription resume retrieve failed:', err?.message || err);
+      return res.status(404).json({ error: 'Subscription not found in Stripe' });
     }
     const resumeSubCustomerId =
       typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;
@@ -2779,7 +2779,8 @@ paymentsRouter.post('/finalize-subscription', expressPkg.json(), requireVerified
     try {
       subscription = await stripe.subscriptions.retrieve(subscription_id);
     } catch (err: any) {
-      return res.status(404).json({ error: 'Subscription not found in Stripe', detail: err?.message });
+      console.warn('[payments] finalize-subscription retrieve failed:', err?.message || err);
+      return res.status(404).json({ error: 'Subscription not found in Stripe' });
     }
 
     const subCustomerId =
@@ -3056,7 +3057,8 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
       try {
         signedTransaction = verifyAppleSignedJws(jws);
       } catch (error: any) {
-        return res.status(400).json({ error: error?.message || 'Invalid Apple transaction signature' });
+        console.warn('[apple-iap] Invalid subscription transaction signature:', error?.message || error);
+        return res.status(400).json({ error: 'Invalid Apple transaction signature' });
       }
 
       const signedProductId = String(signedTransaction.productId || signedTransaction.product_id || '').trim();
@@ -3222,7 +3224,8 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
         try {
           signedTransaction = verifyAppleSignedJws(jws);
         } catch (error: any) {
-          return res.status(400).json({ error: error?.message || 'Invalid Apple transaction signature' });
+          console.warn('[apple-iap] Invalid ad transaction signature:', error?.message || error);
+          return res.status(400).json({ error: 'Invalid Apple transaction signature' });
         }
         const signedProductId = String(signedTransaction.productId || signedTransaction.product_id || '').trim();
         if (signedProductId !== productId) {

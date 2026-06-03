@@ -710,9 +710,7 @@ const updateOrgSchema = z.object({
       url => {
         try {
           const h = new URL(url).hostname;
-          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d =>
-            h.endsWith(d)
-          );
+          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d => h === d || h.endsWith(`.${d}`));
         } catch {
           return false;
         }
@@ -729,9 +727,7 @@ const updateOrgSchema = z.object({
       url => {
         try {
           const h = new URL(url).hostname;
-          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d =>
-            h.endsWith(d)
-          );
+          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d => h === d || h.endsWith(`.${d}`));
         } catch {
           return false;
         }
@@ -748,9 +744,7 @@ const updateOrgSchema = z.object({
       url => {
         try {
           const h = new URL(url).hostname;
-          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d =>
-            h.endsWith(d)
-          );
+          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d => h === d || h.endsWith(`.${d}`));
         } catch {
           return false;
         }
