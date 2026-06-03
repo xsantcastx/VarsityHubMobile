@@ -25,19 +25,34 @@ function renderLandingPage() {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>VarsityHub</title><style>${pageStyle}</style></head><body><div class="card"><h1>VarsityHub</h1><p>The home for teams, events, and sports communities.</p><p>The web app bundle is not available on this deployment yet. Legal pages and support routes are still online.</p><div class="actions"><a class="btn" href="/support">Support</a><a class="btn btn-secondary" href="/privacy-policy">Privacy Policy</a><a class="btn btn-secondary" href="/terms">Terms of Service</a></div><p class="meta">Deploy the exported web bundle to this host to replace this fallback shell.</p></div></body></html>`;
 }
 
+let cachedWebAppOriginKey: string | null = null;
+let cachedWebAppOrigin: string | null = null;
+let cachedWebHostsKey: string | null = null;
+let cachedWebHosts: Set<string> | null = null;
+let cachedWebDistDirKey: string | null = null;
+let cachedWebDistDir: string | null | undefined;
+let cachedIndexHtmlPathKey: string | null = null;
+let cachedIndexHtmlPath: string | null | undefined;
+
 function getWebAppOrigin(): string {
   const raw = process.env.WEB_APP_ORIGIN?.trim();
-  if (!raw) return FALLBACK_WEB_APP_ORIGIN;
-  return raw.replace(/\/+$/, '');
+  const cacheKey = raw || '';
+  if (cachedWebAppOrigin !== null && cachedWebAppOriginKey === cacheKey) return cachedWebAppOrigin;
+  cachedWebAppOriginKey = cacheKey;
+  cachedWebAppOrigin = raw ? raw.replace(/\/+$/, '') : FALLBACK_WEB_APP_ORIGIN;
+  return cachedWebAppOrigin;
 }
 
 function getWebHosts(): Set<string> {
   const raw = process.env.PUBLIC_WEB_HOSTS || process.env.WEB_HOSTS || '';
+  if (cachedWebHosts && cachedWebHostsKey === raw) return cachedWebHosts;
+  cachedWebHostsKey = raw;
   const configured = raw
     .split(',')
     .map(host => host.trim().toLowerCase())
     .filter(Boolean);
-  return new Set(configured.length > 0 ? configured : FALLBACK_WEB_HOSTS);
+  cachedWebHosts = new Set(configured.length > 0 ? configured : FALLBACK_WEB_HOSTS);
+  return cachedWebHosts;
 }
 
 function normalizeHostname(hostname: string | undefined): string {
@@ -52,9 +67,13 @@ function isWebHost(hostname: string | undefined): boolean {
 }
 
 function getWebDistDir(): string | null {
-  const configured = process.env.WEB_DIST_DIR?.trim();
+  const configured = process.env.WEB_DIST_DIR?.trim() || '';
+  if (cachedWebDistDir !== undefined && cachedWebDistDirKey === configured) {
+    return cachedWebDistDir;
+  }
+  cachedWebDistDirKey = configured;
   const candidates = [
-    configured,
+    configured || undefined,
     path.resolve(process.cwd(), 'web-dist'),
     path.resolve(process.cwd(), '../web-dist'),
     path.resolve(process.cwd(), 'dist'),
@@ -71,21 +90,41 @@ function getWebDistDir(): string | null {
     }
   }
 
-  return null;
+  cachedWebDistDir = null;
+  return cachedWebDistDir;
 }
 
 function getIndexHtmlPath(distDir: string): string {
   return path.join(distDir, 'index.html');
 }
 
-function canServeWebDist(): boolean {
+function getResolvedIndexHtmlPath(): string | null {
   const distDir = getWebDistDir();
-  if (!distDir) return false;
-  return fs.existsSync(getIndexHtmlPath(distDir));
+  const cacheKey = distDir || 'none';
+  if (cachedIndexHtmlPath !== undefined && cachedIndexHtmlPathKey === cacheKey) {
+    return cachedIndexHtmlPath;
+  }
+  cachedIndexHtmlPathKey = cacheKey;
+  if (!distDir) {
+    cachedIndexHtmlPath = null;
+    return cachedIndexHtmlPath;
+  }
+  const indexHtmlPath = getIndexHtmlPath(distDir);
+  cachedIndexHtmlPath = fs.existsSync(indexHtmlPath) ? indexHtmlPath : null;
+  return cachedIndexHtmlPath;
+}
+
+function canServeWebDist(): boolean {
+  return Boolean(getResolvedIndexHtmlPath());
 }
 
 function shouldKeepServerPage(pathname: string): boolean {
-  return pathname === '/privacy-policy' || pathname === '/terms' || pathname === '/support';
+  return (
+    pathname === '/privacy-policy' ||
+    pathname === '/terms' ||
+    pathname === '/support' ||
+    pathname === '/account-deletion'
+  );
 }
 
 function shouldRedirectToWebApp(pathname: string): boolean {
@@ -140,9 +179,9 @@ publicSiteRouter.use((req, res, next) => {
 
 publicSiteRouter.get('/', (req, res) => {
   if (isWebHost(req.hostname)) {
-    const distDir = getWebDistDir();
-    if (distDir && fs.existsSync(getIndexHtmlPath(distDir))) {
-      return res.sendFile(getIndexHtmlPath(distDir));
+    const indexHtmlPath = getResolvedIndexHtmlPath();
+    if (indexHtmlPath) {
+      return res.sendFile(indexHtmlPath);
     }
     res.setHeader('Content-Type', 'text/html');
     res.send(renderLandingPage());
@@ -153,8 +192,9 @@ publicSiteRouter.get('/', (req, res) => {
 });
 
 publicSiteRouter.get('*', (req, res, next) => {
-  if (isWebHost(req.hostname) && canServeWebDist() && !shouldKeepServerPage(req.path)) {
-    return res.sendFile(getIndexHtmlPath(getWebDistDir()!));
+  const indexHtmlPath = getResolvedIndexHtmlPath();
+  if (isWebHost(req.hostname) && indexHtmlPath && !shouldKeepServerPage(req.path)) {
+    return res.sendFile(indexHtmlPath);
   }
   if (isWebHost(req.hostname) && !canServeWebDist() && !shouldKeepServerPage(req.path)) {
     if (maybeRedirectToWebApp(req, res)) return;

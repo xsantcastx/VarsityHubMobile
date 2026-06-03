@@ -14,7 +14,9 @@ const NOTIFICATIONS_QUERY_TIMEOUT_MS = 25000;
 
 const encodeNotificationCursor = (row: { created_at: Date | string; id: string }) => {
   const createdAt =
-    row.created_at instanceof Date ? row.created_at.toISOString() : new Date(row.created_at).toISOString();
+    row.created_at instanceof Date
+      ? row.created_at.toISOString()
+      : new Date(row.created_at).toISOString();
   return `${createdAt}::${row.id}`;
 };
 
@@ -28,13 +30,18 @@ const parseNotificationCursor = (cursor: string): { createdAt: Date; id: string 
 
 const toSqlTimestamp = (value: Date) => value.toISOString().replace('T', ' ').replace('Z', '');
 
-const withQueryTimeout = async <T>(promise: Promise<T>, timeoutMs = NOTIFICATIONS_QUERY_TIMEOUT_MS): Promise<T> => {
+const withQueryTimeout = async <T>(
+  promise: Promise<T>,
+  timeoutMs = NOTIFICATIONS_QUERY_TIMEOUT_MS
+): Promise<T> => {
   let timeoutHandle: ReturnType<typeof setTimeout>;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutHandle = setTimeout(() => reject(new Error('Query timeout')), timeoutMs);
   });
 
-  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutHandle!)) as Promise<T>;
+  return Promise.race([promise, timeoutPromise]).finally(() =>
+    clearTimeout(timeoutHandle!)
+  ) as Promise<T>;
 };
 
 const summarize = (n: any) => {
@@ -137,7 +144,7 @@ notificationsRouter.get(
       );
 
       const items = pageRows.slice(0, limit);
-      const notificationIds = items.map((row) => row.id);
+      const notificationIds = items.map(row => row.id);
       const nextCursor =
         pageRows.length > limit && items.length > 0
           ? encodeNotificationCursor(items[items.length - 1])
@@ -148,6 +155,7 @@ notificationsRouter.get(
       }
 
       const rows = await withQueryTimeout(
+        // audit-allow unbounded -- bounded by notificationIds derived from the paginated page slice above
         prisma.notification.findMany({
           where: { id: { in: notificationIds } },
           select: {
@@ -188,7 +196,7 @@ notificationsRouter.get(
       );
       const rowsById = new Map(rows.map((row: any) => [row.id, row]));
       const orderedRows = notificationIds
-        .map((id) => rowsById.get(id))
+        .map(id => rowsById.get(id))
         .filter((row): row is NonNullable<typeof row> => Boolean(row));
 
       const payload = orderedRows.map((n: any) => {

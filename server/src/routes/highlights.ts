@@ -4,7 +4,11 @@ import { highlightPostSelect } from '../lib/highlightPostSelect.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
-import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
+import {
+  getBlockedUserIds,
+  getExcludedPrivateAuthorIds,
+  getRequestBlockedCache,
+} from '../lib/privacyUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const highlightsRouter = Router();
@@ -32,9 +36,13 @@ highlightsRouter.get(
       const since = new Date(Date.now() - SINCE_DAYS * 864e5);
       const RADIUS_KM = 100; // Wider radius for more posts
 
-      // Privacy: exclude posts from private-profile authors the viewer doesn't follow
-      const excludedIds = await getExcludedPrivateAuthorIds(req.user?.id ?? null);
-      const privacyWhere = excludedIds.length ? { author_id: { notIn: excludedIds } } : {};
+      // Privacy + blocks: exclude private-profile authors and blocked users
+      const [excludedIds, blockedIds] = await Promise.all([
+        getExcludedPrivateAuthorIds(req.user?.id ?? null),
+        getBlockedUserIds(req.user?.id ?? null, getRequestBlockedCache(req)),
+      ]);
+      const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
+      const privacyWhere = allExcluded.length ? { author_id: { notIn: allExcluded } } : {};
 
       // Top 10 national posts (increased from 3)
       // Only include posts with media (highlights should be visual)
@@ -149,15 +157,16 @@ highlightsRouter.get(
           p.lng <= lng + dLng;
       }
 
-      // Followed authors (only if authenticated)
+      // Followed authors (only if authenticated) — bound by authors actually in the pool
       const currentUserId = req.user?.id;
       let followedSet = new Set<string>();
 
-      if (currentUserId) {
+      if (currentUserId && pool.length > 0) {
+        const poolAuthorIds = [...new Set(pool.map((p: any) => p.author_id).filter(Boolean))];
         const follows = await prisma.follows.findMany({
-          where: { follower_id: currentUserId },
+          where: { follower_id: currentUserId, following_id: { in: poolAuthorIds } },
           select: { following_id: true },
-          take: 1000,
+          take: poolAuthorIds.length,
         });
         followedSet = new Set(follows.map(f => f.following_id));
       }

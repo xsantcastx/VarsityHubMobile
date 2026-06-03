@@ -719,18 +719,7 @@ function TeamScreen() {
                 accessibilityLabel={isFollowing ? 'Unfollow team' : 'Follow team'}
                 disabled={followLoading}
                 onPress={async () => {
-                  // eslint-disable-next-line no-console
-                  if (__DEV__)
-                    console.log(
-                      '[Follow] button pressed — team?.id:',
-                      team?.id,
-                      '| isFollowing:',
-                      isFollowing
-                    );
                   if (!team?.id || team.id.startsWith('temp-') || followLoading) {
-                    // eslint-disable-next-line no-console
-                    if (__DEV__)
-                      console.warn('[Follow] blocked: team or team.id is missing/temporary');
                     return;
                   }
                   setFollowLoading(true);

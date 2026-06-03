@@ -3,23 +3,15 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { type ReactNode } from 'react';
-import {
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 function ValueCard({
-  isDark,
   icon,
   iconColor,
   title,
   children,
 }: {
-  isDark: boolean;
   icon: React.ComponentProps<typeof MaterialIcons>['name'];
   iconColor: string;
   title: string;
@@ -39,25 +31,17 @@ function ValueCard({
     >
       <View style={styles.cardHeader}>
         <MaterialIcons name={icon} size={28} color={iconColor} />
-        <Text style={[styles.cardTitle, { color: theme.text }]}>
-          {title}
-        </Text>
+        <Text style={[styles.cardTitle, { color: theme.text }]}>{title}</Text>
       </View>
       {children}
     </View>
   );
 }
 
-function PlainBulletList({
-  color,
-  items,
-}: {
-  color: string;
-  items: string[];
-}) {
+function PlainBulletList({ color, items }: { color: string; items: string[] }) {
   return (
     <View style={styles.bulletList}>
-      {items.map((item) => (
+      {items.map(item => (
         <Text key={item} style={[styles.bulletPoint, { color }]}>
           {`• ${item}`}
         </Text>
@@ -89,11 +73,7 @@ export default function CoreValuesScreen() {
               onPress={() => void router.push('/dm-restrictions')}
               style={styles.headerButton}
             >
-              <MaterialIcons
-                name="settings"
-                size={24}
-                color={theme.text}
-              />
+              <MaterialIcons name="settings" size={24} color={theme.text} />
             </Pressable>
           ),
         }}
@@ -101,23 +81,16 @@ export default function CoreValuesScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Our Mission */}
-        <ValueCard
-          isDark={isDark}
-          icon="flag"
-          iconColor={isDark ? '#60A5FA' : '#3B82F6'}
-          title="Our Mission"
-        >
+        <ValueCard icon="flag" iconColor={isDark ? '#60A5FA' : '#3B82F6'} title="Our Mission">
           <Text style={[styles.cardBody, { color: bodyTextColor }]}>
-            VarsityHub is dedicated to bringing high school sports communities together
-            in a safe, positive, and inclusive environment. We empower athletes, parents,
-            coaches, and fans to connect, celebrate achievements, and support each other
-            through every season.
+            VarsityHub is dedicated to bringing high school sports communities together in a safe,
+            positive, and inclusive environment. We empower athletes, parents, coaches, and fans to
+            connect, celebrate achievements, and support each other through every season.
           </Text>
         </ValueCard>
 
         {/* Safety First */}
         <ValueCard
-          isDark={isDark}
           icon="verified-user"
           iconColor={isDark ? '#34D399' : '#10B981'}
           title="Safety First"
@@ -137,41 +110,35 @@ export default function CoreValuesScreen() {
         </ValueCard>
 
         {/* Age-Based Messaging */}
-        <ValueCard
-          isDark={isDark}
-          icon="group"
-          iconColor="#F59E0B"
-          title="Age-Based Messaging"
-        >
+        <ValueCard icon="group" iconColor="#F59E0B" title="Age-Based Messaging">
           <Text style={[styles.cardBody, { color: bodyTextColor }]}>
             To protect minors, our messaging system enforces age-based restrictions:
           </Text>
           <View style={styles.bulletList}>
             <Text style={[styles.bulletPoint, { color: bodyTextColor }]}>
-              <Text style={styles.bold}>Users 17 & under:</Text> Can only send direct messages
-              to other minors of similar age
+              <Text style={styles.bold}>Users 17 & under:</Text> Can only send direct messages to
+              other minors of similar age
             </Text>
             <Text style={[styles.bulletPoint, { color: bodyTextColor }]}>
-              <Text style={styles.bold}>Users 18+:</Text> Can only message other adults and
-              verified coaches/staff members
+              <Text style={styles.bold}>Users 18+:</Text> Can only message other adults and verified
+              coaches/staff members
             </Text>
             <Text style={[styles.bulletPoint, { color: bodyTextColor }]}>
-              <Text style={styles.bold}>Cross-age messaging:</Text> Blocked by default to
-              prevent inappropriate contact
+              <Text style={styles.bold}>Cross-age messaging:</Text> Blocked by default to prevent
+              inappropriate contact
             </Text>
           </View>
         </ValueCard>
 
         {/* Coach Exception */}
         <ValueCard
-          isDark={isDark}
           icon="check-circle"
           iconColor={isDark ? '#8B5CF6' : '#7C3AED'}
           title="Coach Exception"
         >
           <Text style={[styles.cardBody, { color: bodyTextColor }]}>
-            Verified coaches and staff members have special permissions to communicate with
-            their team members:
+            Verified coaches and staff members have special permissions to communicate with their
+            team members:
           </Text>
           <PlainBulletList
             color={bodyTextColor}

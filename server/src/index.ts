@@ -66,6 +66,12 @@ await initEmailService();
   }
 }
 
+// Log the current coach agreement version so every deploy makes the active value visible.
+{
+  const agreementVersion = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
+  console.log(`[startup] REQUIRED_COACH_AGREEMENT_VERSION: ${agreementVersion}`);
+}
+
 // v1.0.3: validate SendGrid template ID formats on boot to catch bad GUIDs early.
 {
   const templateVars = [

@@ -336,6 +336,7 @@ function mountApiRoutes(parent: any) {
   parent.use('/uploads', uploadsRouter);
   parent.use('/ads', adsRouter);
   parent.use('/payments', paymentsRouter);
+  parent.use('/admin/reports', noStore, adminReportsRouter);
   parent.use('/admin', noStore, adminRouter);
   parent.use('/geocoding', noStore, geocodingRouter);
   parent.use('/teams', teamsRouter);
@@ -346,7 +347,6 @@ function mountApiRoutes(parent: any) {
   parent.use('/rsvps', noStore, rsvpsRouter);
   parent.use('/follows', noStore, followsRouter);
   parent.use('/support', noStore, supportRouter);
-  parent.use('/admin/reports', noStore, adminReportsRouter);
   parent.use('/team-memberships', noStore, teamMembershipsRouter);
   parent.use('/team-invites', noStore, teamInvitesRouter);
   parent.use('/highlights', noStore, highlightsRouter);
@@ -360,13 +360,9 @@ const v1 = express.Router();
 mountApiRoutes(v1);
 app.use('/v1', v1);
 
-// Test endpoints (consider removing in production or adding auth)
-if (process.env.NODE_ENV !== 'production') {
-  app.use('/test-notifications', testNotificationsRouter);
-  app.use('/test-emails', testEmailsRouter);
-  debugLog('📱 Test notification endpoints available at /test-notifications/*');
-  debugLog('📧 Test email endpoints available at /test-emails/*');
-}
+// Test endpoints — admin-gated so they're safe in any environment
+app.use('/test-notifications', requireAuth as any, requireAdmin as any, testNotificationsRouter);
+app.use('/test-emails', requireAuth as any, requireAdmin as any, testEmailsRouter);
 
 app.use(publicRouteLimiter, publicAppHandoffRouter);
 app.use(publicRouteLimiter, publicSiteRouter);

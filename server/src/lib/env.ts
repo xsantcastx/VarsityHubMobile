@@ -82,6 +82,9 @@ const envSchema = z.object({
   ALLOW_APPLE_SIM_TOKENS: z.string().optional(),
   /** Set to '1' to disable rate limiting — dev/test only */
   DISABLE_RATE_LIMITING: z.string().optional(),
+  /** Current coach agreement version. Coaches must have accepted this version to access coach tools.
+   *  Bump this when the agreement text changes. All existing coaches will be prompted to re-accept. */
+  REQUIRED_COACH_AGREEMENT_VERSION: z.string().optional().default('1'),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -2926,8 +2926,15 @@ function verifyAppleSignedJws(token: string): any {
     (cert: string) => `-----BEGIN CERTIFICATE-----\n${cert}\n-----END CERTIFICATE-----`
   );
   const rootCert = new crypto.X509Certificate(x5cCerts[x5cCerts.length - 1]);
-  if (!rootCert.subject.includes('Apple Root CA') || !rootCert.issuer.includes('Apple Root CA')) {
-    throw new Error('Invalid Apple root certificate');
+  // SECURITY: Pin to exact CN=Apple Root CA - G3 + O=Apple Inc. to prevent any other
+  // Apple-signed cert (developer certs, intermediate CAs, etc.) from being accepted.
+  // This matches the stricter check already in place for S2S notifications.
+  if (
+    !rootCert.subject.includes('CN=Apple Root CA - G3') ||
+    !rootCert.subject.includes('O=Apple Inc.') ||
+    !rootCert.issuer.includes('Apple Root CA - G3')
+  ) {
+    throw new Error('Invalid Apple root certificate: must be CN=Apple Root CA - G3, O=Apple Inc.');
   }
   if (!rootCert.checkIssued(rootCert)) {
     throw new Error('Apple root certificate is not self-signed');
@@ -2949,14 +2956,27 @@ function verifyAppleSignedJws(token: string): any {
   }
 
   const bundleId = String(payload.bundleId || payload.appBundleId || payload.bid || '').trim();
-  if (expectedBundleId && bundleId && bundleId !== expectedBundleId) {
-    throw new Error(`Apple bundle mismatch: ${bundleId}`);
+  // SECURITY: Reject when bundleId is present but wrong, AND when it is absent in
+  // production — an omitted field must not silently bypass the check.
+  if (expectedBundleId) {
+    if (!bundleId) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('Apple JWS payload missing bundleId in production');
+      }
+    } else if (bundleId !== expectedBundleId) {
+      throw new Error(`Apple bundle mismatch: ${bundleId}`);
+    }
   }
 
   const environment = String(payload.environment || payload.environmentIOS || '').trim();
   if (environment && environment !== 'Sandbox' && environment !== 'Production') {
     throw new Error(`Unexpected Apple transaction environment: ${environment}`);
   }
+  // NOTE: Sandbox transactions are intentionally accepted in production to support
+  // TestFlight testers. This is a deliberate policy decision. Apple's own
+  // guidelines permit it for TestFlight, and blocking Sandbox in production would
+  // break all pre-release IAP testing. The environment value is logged and stored
+  // so any unexpected Sandbox activity in production is auditable.
 
   return payload;
 }
@@ -3440,14 +3460,34 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
     }
 
     // Verify inner JWS tokens using their own x5c certificate chains (Apple best practice).
+    // SECURITY: Verify the full cert chain of the inner JWS (not just the leaf cert) so a
+    // crafted token with a self-signed leaf cannot be accepted as a valid Apple inner token.
     const verifyInnerJWS = (token: string): any => {
       try {
         const innerHeader = jwt.decode(token, { complete: true })?.header as any;
-        if (innerHeader?.x5c?.length) {
-          const innerCertPem = `-----BEGIN CERTIFICATE-----\n${innerHeader.x5c[0]}\n-----END CERTIFICATE-----`;
-          const innerKey = crypto.createPublicKey(innerCertPem);
-          return jwt.verify(token, innerKey, { algorithms: ['ES256'] });
+        if (!innerHeader?.x5c?.length) return {};
+        const innerCerts = (innerHeader.x5c as string[]).map(
+          (c: string) => `-----BEGIN CERTIFICATE-----\n${c}\n-----END CERTIFICATE-----`
+        );
+        // Pin inner chain root to Apple Root CA - G3 as well
+        const innerRoot = new crypto.X509Certificate(innerCerts[innerCerts.length - 1]);
+        if (
+          !innerRoot.subject.includes('CN=Apple Root CA - G3') ||
+          !innerRoot.subject.includes('O=Apple Inc.')
+        ) {
+          console.warn('[apple-s2s] Inner JWS root cert is not Apple Root CA - G3 — skipping');
+          return {};
         }
+        for (let i = 0; i < innerCerts.length - 1; i++) {
+          const cert = new crypto.X509Certificate(innerCerts[i]);
+          const issuerCert = new crypto.X509Certificate(innerCerts[i + 1]);
+          if (!cert.checkIssued(issuerCert)) {
+            console.warn(`[apple-s2s] Inner JWS cert chain broken at index ${i} — skipping`);
+            return {};
+          }
+        }
+        const innerKey = crypto.createPublicKey(innerCerts[0]);
+        return jwt.verify(token, innerKey, { algorithms: ['ES256'] });
       } catch (innerErr) {
         console.warn('[apple-s2s] Failed to verify inner JWS token:', innerErr);
       }
@@ -3500,7 +3540,12 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
     }
 
     if (receiptState === 'missing_uuid') {
-      console.warn('[apple-s2s] Missing notificationUUID; continuing without dedup');
+      // Without a notificationUUID we cannot deduplicate — processing it risks
+      // applying the same lifecycle event multiple times on repeated delivery.
+      // Return 200 to acknowledge receipt; Apple will not retry a 200 response.
+      console.warn('[apple-s2s] Missing notificationUUID — acknowledging without processing to prevent duplicate application');
+      captureException(new Error('apple-s2s: missing notificationUUID'), { context: 'apple_s2s_missing_uuid', notificationType });
+      return res.sendStatus(200);
     }
 
     if (!originalTransactionId) {
@@ -3687,8 +3732,9 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
   } catch (err: any) {
     console.error('[apple-s2s] Error processing notification:', err);
     captureException(err, { context: 'apple-s2s-notification', provider: 'apple_iap' });
-    // Always return 200 so Apple doesn't retry indefinitely
-    return res.sendStatus(200);
+    // Return 500 so Apple retries DB/processing failures. Signature and
+    // validation errors are caught earlier and return 200/403 directly.
+    return res.sendStatus(500);
   }
 }));
 

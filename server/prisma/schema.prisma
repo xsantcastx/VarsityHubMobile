@@ -531,6 +531,9 @@ model Post {
   // takes per highlight call and 5+ findMany calls per request, that was
   // the dominant DB cost on feed mount.
   @@index([country_code, upvotes_count, created_at])
+  // Highlights feed: WHERE deleted_at IS NULL AND country_code = X AND media_url IS NOT NULL
+  // Partial index not supported in Prisma schema DSL; this covers the most selective columns.
+  @@index([country_code, deleted_at, upvotes_count, created_at])
   @@index([type, created_at])
 }
 

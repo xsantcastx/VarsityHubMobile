@@ -1,7 +1,7 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
-import { getAuthSnapshot, getFreshAuthSnapshot } from '@/utils/authState';
+import { getFreshAuthSnapshot } from '@/utils/authState';
 import { getCanonicalCoachRole } from '@/utils/roleChecks';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -313,8 +313,7 @@ export default function Step1Role() {
         const errMsg = String(error?.data?.error || error?.message || '').toLowerCase();
         const isRoleChangeBlocked = error?.status === 403 && errMsg.includes('cannot change role');
         if (isRoleChangeBlocked) {
-          const freshUser: any =
-            freshServerUser ?? (await checkAuth().catch(() => null)) ?? user;
+          const freshUser: any = freshServerUser ?? (await checkAuth().catch(() => null)) ?? user;
           const recoveryRoute = getPostAuthRouteDecision(freshUser).route;
           if (recoveryRoute && recoveryRoute !== '/onboarding/step-1-role') {
             const canonicalRole = getCanonicalCoachRole(freshUser);
@@ -438,12 +437,7 @@ export default function Step1Role() {
               size={24}
               color={confirmedCoachAge ? '#DAA520' : '#9CA3AF'}
             />
-            <Text
-              style={[
-                styles.coachAgeText,
-                { color: theme.text },
-              ]}
-            >
+            <Text style={[styles.coachAgeText, { color: theme.text }]}>
               I confirm I am at least 18 years old
             </Text>
           </TouchableOpacity>

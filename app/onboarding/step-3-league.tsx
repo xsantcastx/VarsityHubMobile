@@ -35,7 +35,6 @@ import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
-import { getFreshAuthSnapshot } from '@/utils/authState';
 import { getFreshPostAuthState } from '@/utils/postMutationAuth';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
@@ -51,7 +50,9 @@ const COACH_ORG_TYPES = [
 ] as const;
 
 function isCoachOrgType(value: unknown): value is (typeof COACH_ORG_TYPES)[number] {
-  return typeof value === 'string' && COACH_ORG_TYPES.includes(value as (typeof COACH_ORG_TYPES)[number]);
+  return (
+    typeof value === 'string' && COACH_ORG_TYPES.includes(value as (typeof COACH_ORG_TYPES)[number])
+  );
 }
 
 function normalizeDateString(value: unknown): string | undefined {
@@ -677,8 +678,9 @@ function Step3League() {
         ob.zip_code ||
         ob.zip,
       affiliation:
-        normalizeDateString((user?.preferences as Record<string, unknown> | undefined)?.affiliation) ||
-        ob.affiliation,
+        normalizeDateString(
+          (user?.preferences as Record<string, unknown> | undefined)?.affiliation
+        ) || ob.affiliation,
       organization_id: patch?.organizationId || undefined,
       organization_name: patch?.organizationName || undefined,
       join_request_pending: patch?.joinRequestPending,
@@ -1174,7 +1176,7 @@ function Step3League() {
                       style={[
                         styles.selectField,
                         {
-                      borderColor: theme.border,
+                          borderColor: theme.border,
                           backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
                           marginBottom: 8,
                         },
@@ -1283,7 +1285,10 @@ function Step3League() {
                   <View style={styles.modeToggleWrapper}>
                     <View style={styles.modeToggleBracket}>
                       <Pressable
-                        style={[styles.modeToggleOption, showSearch && styles.modeToggleOptionActive]}
+                        style={[
+                          styles.modeToggleOption,
+                          showSearch && styles.modeToggleOptionActive,
+                        ]}
                         onPress={() => {
                           setShowSearch(true);
                           setOB(prev => ({
@@ -1309,7 +1314,10 @@ function Step3League() {
                         </Text>
                       </Pressable>
                       <Pressable
-                        style={[styles.modeToggleOption, !showSearch && styles.modeToggleOptionActive]}
+                        style={[
+                          styles.modeToggleOption,
+                          !showSearch && styles.modeToggleOptionActive,
+                        ]}
                         onPress={() => {
                           setShowSearch(false);
                           clearOrganizations();
@@ -1330,7 +1338,10 @@ function Step3League() {
                           color={!showSearch ? '#fff' : isDark ? '#E2E8F0' : '#0F172A'}
                         />
                         <Text
-                          style={[styles.modeToggleText, !showSearch && styles.modeToggleTextActive]}
+                          style={[
+                            styles.modeToggleText,
+                            !showSearch && styles.modeToggleTextActive,
+                          ]}
                         >
                           Create New
                         </Text>

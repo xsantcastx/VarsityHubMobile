@@ -3,7 +3,6 @@ import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getOnboardingIndexRouteDecision } from '@/utils/appRouteDecisions';
-import { getFreshAuthSnapshot } from '@/utils/authState';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -17,7 +16,9 @@ function buildServerHydrationPatch(me: any): Record<string, unknown> {
     onboarding_completed: me?.onboarding_completed ?? prefs.onboarding_completed,
     organization_id:
       me?.organization_id ??
-      (Object.prototype.hasOwnProperty.call(prefs, 'organization_id') ? prefs.organization_id : null),
+      (Object.prototype.hasOwnProperty.call(prefs, 'organization_id')
+        ? prefs.organization_id
+        : null),
     join_request_pending: prefs.join_request_pending === true,
     zip_code:
       me?.zip_code ??
@@ -39,7 +40,16 @@ export default function OnboardingIndex() {
   const palette = Colors[colorScheme];
   const router = useRouter();
   const { user, checkAuth } = useAuth();
-  const { progress, state, isLoaded, setProgress, reducerState: _reducerState, dispatch, nextStep: _nextStep, hydrateFromServer } = useOnboarding();
+  const {
+    progress,
+    state,
+    isLoaded,
+    setProgress,
+    reducerState: _reducerState,
+    dispatch,
+    nextStep: _nextStep,
+    hydrateFromServer,
+  } = useOnboarding();
   const [hasNavigated, setHasNavigated] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
   const hydratedRef = useRef(false);
@@ -49,7 +59,10 @@ export default function OnboardingIndex() {
     if (!isLoaded) return;
 
     if (!user) {
-      if (__DEV__) console.warn('[Onboarding] Unauthenticated user trying to access onboarding - redirecting to sign-in');
+      if (__DEV__)
+        console.warn(
+          '[Onboarding] Unauthenticated user trying to access onboarding - redirecting to sign-in'
+        );
       router.replace('/sign-in');
       return;
     }
@@ -105,10 +118,17 @@ export default function OnboardingIndex() {
     // Exclude progress/setProgress/dispatch to avoid infinite re-render loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasNavigated, isLoaded, state, user, router, hasHydrated]);
-  
+
   // Show loading indicator while waiting for state to load
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: palette.background }}>
+    <View
+      style={{
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: palette.background,
+      }}
+    >
       <ActivityIndicator size="large" color={palette.tint} />
     </View>
   );

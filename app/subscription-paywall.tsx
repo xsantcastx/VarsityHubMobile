@@ -9,7 +9,7 @@
  */
 
 // @ts-ignore
-import { Payments, User } from '@/api/entities';
+import { Payments } from '@/api/entities';
 import { CoachTier, CoachTierBadge, CoachTierBenefits } from '@/components/CoachTierBadge';
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';

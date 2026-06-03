@@ -8,7 +8,6 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -141,8 +140,6 @@ function AdConfirmationScreen() {
   const purchasedHours = Number.isFinite(_parsedHours) ? _parsedHours : null;
   const _parsedDays = parseInt(params.purchasedDays ?? '', 10);
   const purchasedDays = Number.isFinite(_parsedDays) ? _parsedDays : null;
-  const bannerUrl = adDetails?.banner_url;
-
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
@@ -160,7 +157,9 @@ function AdConfirmationScreen() {
         <View style={styles.loadingContainer}>
           <View style={styles.stateInner}>
             <ActivityIndicator size="large" color="#10B981" />
-            <Text style={[styles.loadingText, { color: theme.mutedText }]}>Activating your ad...</Text>
+            <Text style={[styles.loadingText, { color: theme.mutedText }]}>
+              Activating your ad...
+            </Text>
           </View>
         </View>
       ) : pollError && !paymentVerified ? (
@@ -168,16 +167,11 @@ function AdConfirmationScreen() {
           <View style={styles.stateInner}>
             <MaterialIcons name="hourglass-top" size={48} color="#F59E0B" />
             <Text
-              style={[
-                styles.loadingText,
-                { color: theme.text, fontWeight: '700', marginTop: 12 },
-              ]}
+              style={[styles.loadingText, { color: theme.text, fontWeight: '700', marginTop: 12 }]}
             >
               Payment Processing
             </Text>
-            <Text
-              style={[styles.loadingText, { color: theme.mutedText, marginTop: 4 }]}
-            >
+            <Text style={[styles.loadingText, { color: theme.mutedText, marginTop: 4 }]}>
               Your payment is being processed. You'll receive an email confirmation once your ad is
               active.
             </Text>
@@ -198,9 +192,7 @@ function AdConfirmationScreen() {
               <Text style={{ color: '#fff', fontWeight: '600' }}>Try Again</Text>
             </Pressable>
             <Pressable onPress={() => setPollError(false)} style={{ marginTop: 12 }}>
-              <Text style={{ color: theme.tint, fontWeight: '600' }}>
-                Continue Anyway
-              </Text>
+              <Text style={{ color: theme.tint, fontWeight: '600' }}>Continue Anyway</Text>
             </Pressable>
           </View>
         </View>
@@ -227,7 +219,9 @@ function AdConfirmationScreen() {
               const isTrulyLive =
                 paymentVerified &&
                 (adDetails as any)?.status === 'active' &&
-                getAdScheduleBucket(Array.isArray((adDetails as any)?.dates) ? (adDetails as any).dates : []) === 'live';
+                getAdScheduleBucket(
+                  Array.isArray((adDetails as any)?.dates) ? (adDetails as any).dates : []
+                ) === 'live';
               return (
                 <View style={styles.messageContainer}>
                   <Text style={[styles.title, { color: theme.text }]}>
@@ -244,54 +238,54 @@ function AdConfirmationScreen() {
               );
             })()}
 
-          {/* Details Card */}
-          <LinearGradient
-            colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
-            style={[styles.detailsCard, { borderColor: Colors[colorScheme].border }]}
-          >
-            <ConfirmationDetailItem
-              icon="business"
-              label="Business Name"
-              value={businessName}
-              textColor={Colors[colorScheme].text}
-              mutedTextColor={Colors[colorScheme].mutedText}
-            />
+            {/* Details Card */}
+            <LinearGradient
+              colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
+              style={[styles.detailsCard, { borderColor: Colors[colorScheme].border }]}
+            >
+              <ConfirmationDetailItem
+                icon="business"
+                label="Business Name"
+                value={businessName}
+                textColor={Colors[colorScheme].text}
+                mutedTextColor={Colors[colorScheme].mutedText}
+              />
 
-            <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
+              <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
 
-            <ConfirmationDetailItem
-              icon="event"
-              label="Campaign Dates"
-              value={selectedDates}
-              textColor={Colors[colorScheme].text}
-              mutedTextColor={Colors[colorScheme].mutedText}
-            />
+              <ConfirmationDetailItem
+                icon="event"
+                label="Campaign Dates"
+                value={selectedDates}
+                textColor={Colors[colorScheme].text}
+                mutedTextColor={Colors[colorScheme].mutedText}
+              />
 
-            {purchasedHours !== null && (
-              <>
-                <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
-                <ConfirmationDetailItem
-                  icon="schedule"
-                  label="Total Exposure"
-                  value={`${purchasedHours} hours${
-                    purchasedDays !== null
-                      ? ` (${purchasedDays} day${purchasedDays === 1 ? '' : 's'})`
-                      : ''
-                  }`}
-                  textColor={Colors[colorScheme].text}
-                  mutedTextColor={Colors[colorScheme].mutedText}
-                />
-              </>
-            )}
+              {purchasedHours !== null && (
+                <>
+                  <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
+                  <ConfirmationDetailItem
+                    icon="schedule"
+                    label="Total Exposure"
+                    value={`${purchasedHours} hours${
+                      purchasedDays !== null
+                        ? ` (${purchasedDays} day${purchasedDays === 1 ? '' : 's'})`
+                        : ''
+                    }`}
+                    textColor={Colors[colorScheme].text}
+                    mutedTextColor={Colors[colorScheme].mutedText}
+                  />
+                </>
+              )}
 
-            <ConfirmationDetailItem
-              icon="payments"
-              label="Total Paid"
-              value={totalAmount}
-              textColor={Colors[colorScheme].text}
-              mutedTextColor={Colors[colorScheme].mutedText}
-            />
-          </LinearGradient>
+              <ConfirmationDetailItem
+                icon="payments"
+                label="Total Paid"
+                value={totalAmount}
+                textColor={Colors[colorScheme].text}
+                mutedTextColor={Colors[colorScheme].mutedText}
+              />
+            </LinearGradient>
 
             {/* Action Buttons */}
             <View style={styles.actions}>

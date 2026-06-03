@@ -243,7 +243,6 @@ export function useAdIAP() {
         pendingAdRef.current = null;
         setPurchasing(false);
 
-        pending.resolve({ ok: true });
         captureBreadcrumb('Ad receipt verification started', 'payments.ad', {
           ad_id: pending.adId,
           receipts_count: pending.receipts.length,
@@ -256,12 +255,18 @@ export function useAdIAP() {
             ad_id: pending.adId,
             receipts_count: pending.receipts.length,
           });
+          // Resolve success only after server has activated the ad booking.
+          pending.resolve({ ok: true });
         } catch (err: any) {
           captureBreadcrumb('Ad receipt verification deferred', 'payments.ad', {
             ad_id: pending.adId,
             error: err?.message || 'unknown_error',
           }, 'warning');
           void queueAdVerificationRecovery(verification, err);
+          // Consumable was already finished with StoreKit above; queue recovery
+          // will retry server activation. Resolve with an error so the caller
+          // can surface a "processing" state rather than a false success.
+          pending.resolve({ ok: false, error: 'Ad activation is being retried. You will not be charged again.' });
         }
       } else if (needWeekend && !hasWeekend) {
         // Set a 2-minute timeout to prevent UI getting stuck if Apple IAP stalls

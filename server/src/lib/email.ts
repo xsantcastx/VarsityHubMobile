@@ -53,10 +53,13 @@ export async function resolveMinorAuditMetadata(
 
 const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
 const isPlaywrightE2E = process.env.PLAYWRIGHT_E2E === '1';
+const wantsTestEmailProvider = String(process.env.EMAIL_PROVIDER || '')
+  .trim()
+  .toLowerCase() === 'test';
 
 let emailServicePromise: Promise<EmailService> | null = null;
 const getEmailService = async (): Promise<EmailService | null> => {
-  if (isTestEnv) return null;
+  if (isTestEnv && !wantsTestEmailProvider) return null;
   if (!emailServicePromise) {
     emailServicePromise = import('../services/email/service.js').then(mod => mod.getEmailService());
   }
@@ -439,7 +442,7 @@ function deriveSupportingDocumentPreviewUrl(supportingDocumentUrl?: string | nul
  * Initialize email service (now uses new EmailService)
  */
 export async function initEmailService() {
-  if (isTestEnv) {
+  if (isTestEnv && !wantsTestEmailProvider) {
     return { success: false, errors: ['Email service disabled in test environment'] };
   }
 

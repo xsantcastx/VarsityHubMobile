@@ -292,6 +292,8 @@ export async function approveOrganization(
             role: 'coach',
             organization_id: orgId,
             proceeding_as_fan: false,
+            coach_agreement_accepted_at: new Date(),
+            coach_agreement_version: Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1),
           }),
         },
       }),
@@ -538,6 +540,8 @@ export async function approveCoach(
           role: 'coach',
           organization_id: orgId ?? null,
           proceeding_as_fan: false,
+          coach_agreement_accepted_at: new Date(),
+          coach_agreement_version: Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1),
         }),
         ...buildBillingStateColumns({
           pending_plan: null,

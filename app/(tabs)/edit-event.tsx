@@ -2,11 +2,11 @@ import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import {
-    EditScreenHeader,
-    EditScreenLoading,
-    EditScreenSubmitButton,
-    EditTextField,
-    editScreenSharedStyles as sharedStyles,
+  EditScreenHeader,
+  EditScreenLoading,
+  EditScreenSubmitButton,
+  EditTextField,
+  editScreenSharedStyles as sharedStyles,
 } from '@/components/EditScreenShared';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
@@ -20,7 +20,18 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Event } from '@/api/entities';
@@ -76,7 +87,9 @@ export default function EditEventScreen() {
         if (!isNaN(d.getTime())) {
           // Format as YYYY-MM-DDTHH:MM for display
           const pad = (n: number) => String(n).padStart(2, '0');
-          setDateStr(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+          setDateStr(
+            `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+          );
         }
       }
     } catch (e: any) {
@@ -89,7 +102,7 @@ export default function EditEventScreen() {
     } finally {
       setLoading(false);
     }
-  }, [canAccessCoachTools, coachLoading, explicitFallback, id, router]);
+  }, [canAccessCoachTools, coachLoading, explicitFallback, id, router, user]);
 
   useEffect(() => {
     if (coachLoading || !canAccessCoachTools) return;
@@ -123,48 +136,60 @@ export default function EditEventScreen() {
     }
   }, []);
 
-  const handleBannerPickerResult = useCallback(async (result: ImagePicker.ImagePickerResult) => {
-    if (!result.canceled && result.assets[0]) {
-      try {
-        await uploadBannerFromUri(result.assets[0].uri);
-      } catch (error: any) {
-        Alert.alert('Upload Failed', error?.message || 'Failed to upload event photo. Please try again.');
+  const handleBannerPickerResult = useCallback(
+    async (result: ImagePicker.ImagePickerResult) => {
+      if (!result.canceled && result.assets[0]) {
+        try {
+          await uploadBannerFromUri(result.assets[0].uri);
+        } catch (error: any) {
+          Alert.alert(
+            'Upload Failed',
+            error?.message || 'Failed to upload event photo. Please try again.'
+          );
+        }
       }
-    }
-  }, [uploadBannerFromUri]);
+    },
+    [uploadBannerFromUri]
+  );
 
-  const selectBannerImage = useCallback(async ({
-    requestPermission,
-    permissionMessage,
-    launchPicker,
-  }: {
-    requestPermission: () => Promise<ImagePicker.CameraPermissionResponse | ImagePicker.MediaLibraryPermissionResponse>;
-    permissionMessage: string;
-    launchPicker: () => Promise<ImagePicker.ImagePickerResult>;
-  }) => {
-    const { status } = await requestPermission();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', permissionMessage, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: () => Linking.openSettings() },
-      ]);
-      return;
-    }
+  const selectBannerImage = useCallback(
+    async ({
+      requestPermission,
+      permissionMessage,
+      launchPicker,
+    }: {
+      requestPermission: () => Promise<
+        ImagePicker.CameraPermissionResponse | ImagePicker.MediaLibraryPermissionResponse
+      >;
+      permissionMessage: string;
+      launchPicker: () => Promise<ImagePicker.ImagePickerResult>;
+    }) => {
+      const { status } = await requestPermission();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', permissionMessage, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
+        return;
+      }
 
-    await handleBannerPickerResult(await launchPicker());
-  }, [handleBannerPickerResult]);
+      await handleBannerPickerResult(await launchPicker());
+    },
+    [handleBannerPickerResult]
+  );
 
   const pickBannerFromLibrary = useCallback(async () => {
     await selectBannerImage({
       requestPermission: ImagePicker.requestMediaLibraryPermissionsAsync,
       permissionMessage: 'Photo library permission is needed to upload an event photo.',
-      launchPicker: () => ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.9,
-        exif: false,
-      }),
+      launchPicker: () =>
+        ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [16, 9],
+          quality: 0.9,
+          exif: false,
+        }),
     });
   }, [selectBannerImage]);
 
@@ -172,32 +197,33 @@ export default function EditEventScreen() {
     await selectBannerImage({
       requestPermission: ImagePicker.requestCameraPermissionsAsync,
       permissionMessage: 'Camera permission is needed to take an event photo.',
-      launchPicker: () => ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.9,
-        exif: false,
-      }),
+      launchPicker: () =>
+        ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [16, 9],
+          quality: 0.9,
+          exif: false,
+        }),
     });
   }, [selectBannerImage]);
 
   const showBannerOptions = useCallback(() => {
-    Alert.alert(
-      'Event Photo',
-      'Choose how you want to update the event photo.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Photo Library', onPress: () => void pickBannerFromLibrary() },
-        { text: 'Take Photo', onPress: () => void takeBannerPhoto() },
-      ]
-    );
+    Alert.alert('Event Photo', 'Choose how you want to update the event photo.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Photo Library', onPress: () => void pickBannerFromLibrary() },
+      { text: 'Take Photo', onPress: () => void takeBannerPhoto() },
+    ]);
   }, [pickBannerFromLibrary, takeBannerPhoto]);
 
   if (coachLoading) {
     return (
       <SafeAreaView
-        style={[styles.container, sharedStyles.loadingContainer, { backgroundColor: Colors[colorScheme].background }]}
+        style={[
+          styles.container,
+          sharedStyles.loadingContainer,
+          { backgroundColor: Colors[colorScheme].background },
+        ]}
         edges={['top', 'bottom']}
       >
         <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
@@ -226,7 +252,10 @@ export default function EditEventScreen() {
     if (dateStr.trim()) {
       const d = new Date(dateStr.trim());
       if (isNaN(d.getTime())) {
-        Alert.alert('Invalid Date', 'Please enter a valid date in YYYY-MM-DDTHH:MM format (e.g. 2026-04-15T18:00).');
+        Alert.alert(
+          'Invalid Date',
+          'Please enter a valid date in YYYY-MM-DDTHH:MM format (e.g. 2026-04-15T18:00).'
+        );
         return;
       }
       parsedDate = d.toISOString();
@@ -276,150 +305,210 @@ export default function EditEventScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['bottom']}
+    >
       <Stack.Screen options={{ title: 'Edit Event', headerShown: false }} />
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 32 }}
-          automaticallyAdjustKeyboardInsets
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-        >
-          {/* Header */}
-          <EditScreenHeader
-            title="Edit Event"
-            textColor={Colors[colorScheme].text}
-            topPadding={12 + insets.top}
-            onBack={() => safeGoBack(router, explicitFallback)}
-          />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        automaticallyAdjustKeyboardInsets
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
+        {/* Header */}
+        <EditScreenHeader
+          title="Edit Event"
+          textColor={Colors[colorScheme].text}
+          topPadding={12 + insets.top}
+          onBack={() => safeGoBack(router, explicitFallback)}
+        />
 
-          {/* Form Fields */}
-          <View style={styles.formSection}>
-            <View style={sharedStyles.inputGroup}>
+        {/* Form Fields */}
+        <View style={styles.formSection}>
+          <View style={sharedStyles.inputGroup}>
+            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>
+              Title {isApprovedEvent ? '(locked — event is approved)' : '*'}
+            </Text>
+            <TextInput
+              style={[
+                sharedStyles.textInput,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                  color: isApprovedEvent ? Colors[colorScheme].mutedText : Colors[colorScheme].text,
+                  opacity: isApprovedEvent ? 0.6 : 1,
+                },
+              ]}
+              value={title}
+              onChangeText={isApprovedEvent ? undefined : setTitle}
+              editable={!isApprovedEvent}
+              placeholder="Event title"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+            />
+          </View>
+
+          <View style={sharedStyles.inputGroup}>
+            <View style={sharedStyles.labelRow}>
               <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>
-                Title {isApprovedEvent ? '(locked — event is approved)' : '*'}
+                Description
               </Text>
-              <TextInput
-                style={[sharedStyles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: isApprovedEvent ? Colors[colorScheme].mutedText : Colors[colorScheme].text, opacity: isApprovedEvent ? 0.6 : 1 }]}
-                value={title}
-                onChangeText={isApprovedEvent ? undefined : setTitle}
-                editable={!isApprovedEvent}
-                placeholder="Event title"
-                placeholderTextColor={Colors[colorScheme].mutedText}
-              />
-            </View>
-
-            <View style={sharedStyles.inputGroup}>
-              <View style={sharedStyles.labelRow}>
-                <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Description</Text>
-                <Text style={[sharedStyles.charCount, { color: description.length > 1000 ? '#DC2626' : Colors[colorScheme].mutedText }]}>
-                  {description.length}/1000
-                </Text>
-              </View>
-              <TextInput
-                style={[sharedStyles.textArea, styles.eventTextArea, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 1000 ? '#DC2626' : Colors[colorScheme].border, color: Colors[colorScheme].text }]}
-                value={description}
-                onChangeText={(text) => { if (text.length <= 1000) setDescription(text); }}
-                placeholder="Event description (optional)"
-                placeholderTextColor={Colors[colorScheme].mutedText}
-                multiline
-                numberOfLines={4}
-                maxLength={1000}
-              />
-            </View>
-
-            <View style={sharedStyles.inputGroup}>
-              <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Event Photo</Text>
-              <Text style={[sharedStyles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
-                Update the image used on the event card and background so edited events do not stay blank.
-              </Text>
-              <View
+              <Text
                 style={[
-                  styles.bannerCard,
-                  {
-                    backgroundColor: Colors[colorScheme].surface,
-                    borderColor: Colors[colorScheme].border,
-                  },
+                  sharedStyles.charCount,
+                  { color: description.length > 1000 ? '#DC2626' : Colors[colorScheme].mutedText },
                 ]}
               >
+                {description.length}/1000
+              </Text>
+            </View>
+            <TextInput
+              style={[
+                sharedStyles.textArea,
+                styles.eventTextArea,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: description.length > 1000 ? '#DC2626' : Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                },
+              ]}
+              value={description}
+              onChangeText={text => {
+                if (text.length <= 1000) setDescription(text);
+              }}
+              placeholder="Event description (optional)"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              multiline
+              numberOfLines={4}
+              maxLength={1000}
+            />
+          </View>
+
+          <View style={sharedStyles.inputGroup}>
+            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>
+              Event Photo
+            </Text>
+            <Text style={[sharedStyles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+              Update the image used on the event card and background so edited events do not stay
+              blank.
+            </Text>
+            <View
+              style={[
+                styles.bannerCard,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              {bannerUrl ? (
+                <Image
+                  source={{ uri: bannerUrl }}
+                  style={styles.bannerPreview}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.bannerEmptyState,
+                    { backgroundColor: Colors[colorScheme].background },
+                  ]}
+                >
+                  <MaterialIcons name="image" size={28} color={Colors[colorScheme].mutedText} />
+                  <Text style={[styles.bannerEmptyText, { color: Colors[colorScheme].mutedText }]}>
+                    No event photo uploaded yet
+                  </Text>
+                </View>
+              )}
+              <View style={styles.bannerActionRow}>
+                <Pressable
+                  style={[
+                    styles.bannerPrimaryButton,
+                    { backgroundColor: Colors[colorScheme].tint },
+                  ]}
+                  onPress={showBannerOptions}
+                  disabled={uploadingBanner}
+                >
+                  <MaterialIcons name="photo-camera" size={16} color="#FFFFFF" />
+                  <Text style={styles.bannerPrimaryButtonText}>
+                    {uploadingBanner ? 'Uploading...' : bannerUrl ? 'Change Photo' : 'Upload Photo'}
+                  </Text>
+                </Pressable>
                 {bannerUrl ? (
-                  <Image source={{ uri: bannerUrl }} style={styles.bannerPreview} resizeMode="cover" />
-                ) : (
-                  <View style={[styles.bannerEmptyState, { backgroundColor: Colors[colorScheme].background }]}>
-                    <MaterialIcons
-                      name="image"
-                      size={28}
-                      color={Colors[colorScheme].mutedText}
-                    />
-                    <Text style={[styles.bannerEmptyText, { color: Colors[colorScheme].mutedText }]}>
-                      No event photo uploaded yet
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.bannerActionRow}>
                   <Pressable
-                    style={[styles.bannerPrimaryButton, { backgroundColor: Colors[colorScheme].tint }]}
-                    onPress={showBannerOptions}
+                    style={[
+                      styles.bannerSecondaryButton,
+                      { borderColor: Colors[colorScheme].border },
+                    ]}
+                    onPress={() => setBannerUrl(null)}
                     disabled={uploadingBanner}
                   >
-                    <MaterialIcons name="photo-camera" size={16} color="#FFFFFF" />
-                    <Text style={styles.bannerPrimaryButtonText}>
-                      {uploadingBanner ? 'Uploading...' : bannerUrl ? 'Change Photo' : 'Upload Photo'}
+                    <MaterialIcons
+                      name="delete-outline"
+                      size={16}
+                      color={Colors[colorScheme].text}
+                    />
+                    <Text
+                      style={[
+                        styles.bannerSecondaryButtonText,
+                        { color: Colors[colorScheme].text },
+                      ]}
+                    >
+                      Remove
                     </Text>
                   </Pressable>
-                  {bannerUrl ? (
-                    <Pressable
-                      style={[styles.bannerSecondaryButton, { borderColor: Colors[colorScheme].border }]}
-                      onPress={() => setBannerUrl(null)}
-                      disabled={uploadingBanner}
-                    >
-                      <MaterialIcons name="delete-outline" size={16} color={Colors[colorScheme].text} />
-                      <Text style={[styles.bannerSecondaryButtonText, { color: Colors[colorScheme].text }]}>
-                        Remove
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
+                ) : null}
               </View>
-            </View>
-
-            <EditTextField
-              label="Location"
-              value={location}
-              onChangeText={setLocation}
-              placeholder="Event location (optional)"
-              textColor={Colors[colorScheme].text}
-              mutedTextColor={Colors[colorScheme].mutedText}
-              surfaceColor={Colors[colorScheme].surface}
-              borderColor={Colors[colorScheme].border}
-            />
-
-            <View style={sharedStyles.inputGroup}>
-              <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Date & Time</Text>
-              <TextInput
-                style={[sharedStyles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
-                value={dateStr}
-                onChangeText={setDateStr}
-                placeholder="YYYY-MM-DDTHH:MM (e.g. 2026-04-15T18:00)"
-                placeholderTextColor={Colors[colorScheme].mutedText}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <Text style={[sharedStyles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
-                Format: YYYY-MM-DDTHH:MM (24-hour time)
-              </Text>
             </View>
           </View>
 
-          <EditScreenSubmitButton
-            label="Update Event"
-            tintColor={Colors[colorScheme].tint}
-            disabled={submitting || uploadingBanner}
-            loading={submitting || uploadingBanner}
-            onPress={onSubmit}
+          <EditTextField
+            label="Location"
+            value={location}
+            onChangeText={setLocation}
+            placeholder="Event location (optional)"
+            textColor={Colors[colorScheme].text}
+            mutedTextColor={Colors[colorScheme].mutedText}
+            surfaceColor={Colors[colorScheme].surface}
+            borderColor={Colors[colorScheme].border}
           />
-        </ScrollView>
+
+          <View style={sharedStyles.inputGroup}>
+            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>
+              Date & Time
+            </Text>
+            <TextInput
+              style={[
+                sharedStyles.textInput,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                },
+              ]}
+              value={dateStr}
+              onChangeText={setDateStr}
+              placeholder="YYYY-MM-DDTHH:MM (e.g. 2026-04-15T18:00)"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Text style={[sharedStyles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+              Format: YYYY-MM-DDTHH:MM (24-hour time)
+            </Text>
+          </View>
+        </View>
+
+        <EditScreenSubmitButton
+          label="Update Event"
+          tintColor={Colors[colorScheme].tint}
+          disabled={submitting || uploadingBanner}
+          loading={submitting || uploadingBanner}
+          onPress={onSubmit}
+        />
+      </ScrollView>
     </SafeAreaView>
   );
 }

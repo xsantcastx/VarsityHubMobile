@@ -14,21 +14,21 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    KeyboardAvoidingView,
-    Linking,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    Share,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
@@ -182,10 +182,8 @@ const FeedCard = memo(
     colorScheme: 'light' | 'dark';
     meInfo?: { id?: string; display_name?: string | null; username?: string | null } | null;
   }) => {
-    const { user, checkAuth } = useAuth();
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
-    const [currentUser, setCurrentUser] = useState<any>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);
@@ -205,19 +203,6 @@ const FeedCard = memo(
         if (deleteTimer) clearTimeout(deleteTimer);
       };
     }, []);
-
-    // Load current user
-    useEffect(() => {
-      const loadUser = async () => {
-        try {
-          const currentUser = await getAuthSnapshot(checkAuth, user);
-          setCurrentUser(currentUser);
-        } catch (error) {
-          if (__DEV__) console.error('Failed to load user:', error);
-        }
-      };
-      void loadUser();
-    }, [checkAuth, user]);
 
     // Check if current user is the author of the post
     const isAuthor = Boolean(meInfo?.id && post.author?.id && meInfo.id === post.author.id);
@@ -1056,7 +1041,10 @@ function GameVerticalFeedScreen({
         const res: any = await Post.toggleUpvote(post.id);
         const upvotedNow = Boolean(res?.has_upvoted ?? res?.upvoted);
         if (upvotedNow) {
-          analytics.track(ANALYTICS_EVENTS.POST_UPVOTED, { post_id: post.id, source: 'game_vertical_feed' });
+          analytics.track(ANALYTICS_EVENTS.POST_UPVOTED, {
+            post_id: post.id,
+            source: 'game_vertical_feed',
+          });
         }
         updatePost(post.id, p => ({
           ...p,
@@ -1172,16 +1160,19 @@ function GameVerticalFeedScreen({
     }
   }, []);
 
-  const handleReportPost = useCallback((post: FeedPost) => {
-    Alert.alert('Report Post', 'Select a reason:', [
-      { text: 'Spam', onPress: () => submitReport(post, 'spam') },
-      { text: 'Harassment', onPress: () => submitReport(post, 'harassment') },
-      { text: 'Hate Speech', onPress: () => submitReport(post, 'hate_speech') },
-      { text: 'Violence', onPress: () => submitReport(post, 'violence') },
-      { text: 'False Information', onPress: () => submitReport(post, 'false_information') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }, [submitReport]);
+  const handleReportPost = useCallback(
+    (post: FeedPost) => {
+      Alert.alert('Report Post', 'Select a reason:', [
+        { text: 'Spam', onPress: () => submitReport(post, 'spam') },
+        { text: 'Harassment', onPress: () => submitReport(post, 'harassment') },
+        { text: 'Hate Speech', onPress: () => submitReport(post, 'hate_speech') },
+        { text: 'Violence', onPress: () => submitReport(post, 'violence') },
+        { text: 'False Information', onPress: () => submitReport(post, 'false_information') },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    },
+    [submitReport]
+  );
 
   const handleDeletePost = useCallback((post: FeedPost) => {
     // Remove the post from the current posts array
@@ -1508,7 +1499,10 @@ function GameVerticalFeedScreen({
               onEndReachedThreshold={0.4}
               ListFooterComponent={
                 commentsCursor ? (
-                  <ActivityIndicator color={Colors[colorScheme].tint} style={{ marginVertical: 12 }} />
+                  <ActivityIndicator
+                    color={Colors[colorScheme].tint}
+                    style={{ marginVertical: 12 }}
+                  />
                 ) : null
               }
             />

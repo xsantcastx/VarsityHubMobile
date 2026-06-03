@@ -2,7 +2,6 @@
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { prisma } from '../src/lib/prisma.js';
-import { app } from '../src/testApp.js';
 
 const PASSWORD = 'TestPassword123!';
 const NEW_PASSWORD = 'NewPassword456!';
@@ -15,6 +14,10 @@ function assertStatus(actual: number, expected: number, label: string) {
 }
 
 async function main() {
+  process.env.NODE_ENV = 'test';
+  process.env.EMAIL_PROVIDER = 'test';
+  const { app } = await import('../src/testApp.js');
+
   const email = `session-enforcement-${ts}@example.com`;
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
 

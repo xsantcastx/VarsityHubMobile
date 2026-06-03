@@ -32,7 +32,7 @@ import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getAuthSnapshot, getCanonicalRole } from '@/utils/authState';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { getCoachAccessState } from '@/utils/roleChecks';
+import { getCoachAccessState, getCoachRecoveryRoute } from '@/utils/roleChecks';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
@@ -542,7 +542,10 @@ function CommunityDiscoverScreen() {
       } else {
         Alert.alert('No Organization', 'You are not linked to any organization yet.');
       }
-    } catch {
+    } catch (err: any) {
+      captureException(err instanceof Error ? err : new Error(String(err?.message || err)), {
+        tags: { context: 'discover_manage_org' },
+      });
       Alert.alert('Error', 'Could not load your organization.');
     }
   }, [router]);
@@ -585,7 +588,10 @@ function CommunityDiscoverScreen() {
           { text: 'Close', style: 'cancel' },
         ]);
       }
-    } catch {
+    } catch (err: any) {
+      captureException(err instanceof Error ? err : new Error(String(err?.message || err)), {
+        tags: { context: 'discover_team_schedule' },
+      });
       Alert.alert('Error', 'Could not load teams. Please try again.');
     }
   }, [router]);
@@ -738,10 +744,10 @@ function CommunityDiscoverScreen() {
         }
       } catch (error: any) {
         if (__DEV__) console.error('Error adding quick game:', error);
-
-        if (handleCoachAccessError(router, error, 'creating games', user as any)) {
-          return;
-        } else {
+        if (!handleCoachAccessError(router, error, 'creating games', user as any)) {
+          captureException(error instanceof Error ? error : new Error(String(error?.message || error)), {
+            tags: { context: 'quick_game_save' },
+          });
           const errorMessage = error?.data?.error || error?.message || 'Failed to add event.';
           Alert.alert('Error', errorMessage);
         }
@@ -1768,6 +1774,31 @@ function CommunityDiscoverScreen() {
                 </Text>
               </Pressable>
             </>
+          ) : coachAccess.isApprovedCoach ? (
+            <Pressable
+              style={[
+                styles.coachActionCard,
+                {
+                  backgroundColor: Colors[colorScheme].tint + '18',
+                  borderColor: Colors[colorScheme].tint + '50',
+                  borderWidth: 1.5,
+                },
+              ]}
+              onPress={() => {
+                const route = getCoachRecoveryRoute(me as any);
+                if (route) router.push(route as any);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Complete coach setup"
+            >
+              <MaterialIcons name="check-circle" size={24} color={Colors[colorScheme].tint} />
+              <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>
+                Finish Setup
+              </Text>
+              <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>
+                Complete setup to unlock coach tools
+              </Text>
+            </Pressable>
           ) : (
             <>
               {/* Organizer-only card (shown before fan actions for organizer role) */}

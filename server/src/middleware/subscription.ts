@@ -2,27 +2,25 @@ import type { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
-import {
-  getEffectiveEntitledPlan,
-} from '../lib/userBillingState.js';
+import { getEffectiveEntitledPlan } from '../lib/userBillingState.js';
 
 // Canonical tiers stored in user.subscription_tier column (legacy): free | premium | pro
 // New onboarding-facing tiers (preferences.plan): rookie | veteran | legend
 // We maintain a synonym map to unify checks.
-const canonicalOrder = ['free','premium','pro'] as const;
-const onboardingOrder = ['rookie','veteran','legend'] as const;
+const canonicalOrder = ['free', 'premium', 'pro'] as const;
+const onboardingOrder = ['rookie', 'veteran', 'legend'] as const;
 
-const synonyms: Record<string,string> = {
+const synonyms: Record<string, string> = {
   rookie: 'free',
   veteran: 'premium',
   legend: 'pro',
   free: 'free',
   premium: 'premium',
-  pro: 'pro'
+  pro: 'pro',
 };
 
-export type CanonicalTier = typeof canonicalOrder[number];
-export type OnboardingTier = typeof onboardingOrder[number];
+export type CanonicalTier = (typeof canonicalOrder)[number];
+export type OnboardingTier = (typeof onboardingOrder)[number];
 export type AnyTier = CanonicalTier | OnboardingTier;
 type DbClient = Prisma.TransactionClient | typeof prisma;
 type PlanUserRow = {
@@ -67,16 +65,26 @@ function tierGte(a: AnyTier, b: AnyTier): boolean {
   return canonicalOrder.indexOf(ca) >= canonicalOrder.indexOf(cb);
 }
 
-function resolvePlanFromUserRecord(user: Omit<PlanUserRow, 'id' | 'paid_by_owner'> | null | undefined): AnyTier {
+function resolvePlanFromUserRecord(
+  user: Omit<PlanUserRow, 'id' | 'paid_by_owner'> | null | undefined
+): AnyTier {
   if (!user) return 'free';
-  const prefs = user.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
+  const prefs =
+    user.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
 
   const effectivePlan = getEffectiveEntitledPlan(user as any);
   if (effectivePlan === 'rookie') return 'free';
 
-  if (user.subscription_status === 'past_due' || user.subscription_status === 'unpaid') return 'free';
+  if (user.subscription_status === 'past_due' || user.subscription_status === 'unpaid')
+    return 'free';
 
-  const expiryRaw = prefs.subscription_end_date || prefs.plan_expiry_date;
+  // Check all known expiry fields, including Apple IAP's apple_expires_date.
+  // apple_expires_date is written by the initial IAP verify and updated on each
+  // S2S DID_RENEW. If the S2S EXPIRED notification is missed, this acts as a
+  // safety-net so the user is downgraded at the next plan-check rather than
+  // retaining access indefinitely.
+  const expiryRaw =
+    prefs.subscription_end_date || prefs.plan_expiry_date || prefs.apple_expires_date;
   if (expiryRaw) {
     const expiry = new Date(expiryRaw);
     if (!isNaN(expiry.getTime()) && expiry < new Date()) {
@@ -88,21 +96,26 @@ function resolvePlanFromUserRecord(user: Omit<PlanUserRow, 'id' | 'paid_by_owner
   return toCanonical(plan);
 }
 
-export async function getUserPlans(userIds: string[], db: DbClient = prisma): Promise<Map<string, AnyTier>> {
+export async function getUserPlans(
+  userIds: string[],
+  db: DbClient = prisma
+): Promise<Map<string, AnyTier>> {
   const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
   const result = new Map<string, AnyTier>();
   if (uniqueUserIds.length === 0) return result;
 
+  // audit-allow unbounded -- bounded by the explicit uniqueUserIds input set
   const users = await db.user.findMany({
     where: { id: { in: uniqueUserIds } },
     select: userPlanSelect,
   });
-  const usersById = new Map(users.map((user) => [user.id, user]));
+  const usersById = new Map(users.map(user => [user.id, user]));
 
-  const paidByOwnerUserIds = users.filter((user) => user.paid_by_owner).map((user) => user.id);
+  const paidByOwnerUserIds = users.filter(user => user.paid_by_owner).map(user => user.id);
   let ownerPlanByCoachId = new Map<string, AnyTier>();
 
   if (paidByOwnerUserIds.length > 0) {
+    // audit-allow unbounded -- bounded by the paidByOwnerUserIds input set; one coach may have multiple active memberships
     const ownerLinks = await db.organizationMembership.findMany({
       where: {
         user_id: { in: paidByOwnerUserIds },
@@ -128,12 +141,13 @@ export async function getUserPlans(userIds: string[], db: DbClient = prisma): Pr
 
     const ownerIds = [...new Set(ownerIdByCoachId.values())];
     const ownerRows = ownerIds.length
-      ? await db.user.findMany({
+      ? // audit-allow unbounded -- bounded by the explicit unique ownerIds set
+        await db.user.findMany({
           where: { id: { in: ownerIds } },
           select: userPlanSelect,
         })
       : [];
-    const ownerRowsById = new Map(ownerRows.map((owner) => [owner.id, owner]));
+    const ownerRowsById = new Map(ownerRows.map(owner => [owner.id, owner]));
 
     ownerPlanByCoachId = new Map(
       [...ownerIdByCoachId.entries()].map(([coachId, ownerId]) => [
@@ -167,12 +181,14 @@ export async function getUserPlan(userId: string, db: DbClient = prisma): Promis
 // Express middleware factory enforcing minimum plan
 // Usage: router.post('/some-route', requirePlan('veteran'), handler)
 export function requirePlan(minPlan: AnyTier) {
-  return async function(req: Request, res: Response, next: NextFunction) {
+  return async function (req: Request, res: Response, next: NextFunction) {
     try {
       const authReq = req as any; // AuthedRequest
       const authedUser = authReq.user;
       if (!authedUser?.id) {
-        return res.status(401).json({ error: 'AUTH_REQUIRED', message: 'Authentication required.' });
+        return res
+          .status(401)
+          .json({ error: 'AUTH_REQUIRED', message: 'Authentication required.' });
       }
       const currentPlan = await getUserPlan(authedUser.id);
       if (!tierGte(currentPlan, minPlan)) {
@@ -181,19 +197,21 @@ export function requirePlan(minPlan: AnyTier) {
           message: `This feature requires at least ${String(minPlan).toLowerCase()} plan. Current plan: ${String(currentPlan).toLowerCase()}.`,
           required: String(minPlan).toLowerCase(),
           current: String(currentPlan).toLowerCase(),
-          upgrade_url: '/settings/manage-subscription'
+          upgrade_url: '/settings/manage-subscription',
         });
       }
       // Attach canonical + raw for downstream use
       (req as any).plan = {
         raw: currentPlan,
         canonical: toCanonical(currentPlan),
-        minRequired: minPlan
+        minRequired: minPlan,
       };
       return next();
     } catch (err) {
       console.error('[requirePlan] Failed', err);
-      return res.status(500).json({ error: 'PLAN_CHECK_FAILED', message: 'Unable to verify subscription plan.' });
+      return res
+        .status(500)
+        .json({ error: 'PLAN_CHECK_FAILED', message: 'Unable to verify subscription plan.' });
     }
   };
 }

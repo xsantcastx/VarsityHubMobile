@@ -17,11 +17,9 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { BIO_MAX_LENGTH } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
-import Notifications from '@/utils/notifications';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import OnboardingLayout from './components/OnboardingLayout';
 
 // Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
@@ -47,7 +45,7 @@ function SportBallRow() {
       setActive(prev => (prev + 1) % SPORT_BALLS.length);
     }, 800);
     return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- opacities and scales are Animated.Values (ref-like), initial mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- opacities and scales are Animated.Values (ref-like), initial mount only
   }, []);
 
   useEffect(() => {
@@ -65,7 +63,7 @@ function SportBallRow() {
         }),
       ]).start();
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- opacities and scales are Animated.Values (ref-like), only active index should trigger
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- opacities and scales are Animated.Values (ref-like), only active index should trigger
   }, [active]);
 
   return (
@@ -103,6 +101,7 @@ export default function Step2Basic() {
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [headerImageUri, setHeaderImageUri] = useState<string | null>(null);
   const [bio, setBio] = useState('');
+  void registerPushToken;
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
@@ -128,9 +127,7 @@ export default function Step2Basic() {
 
     const userPrefs = ((user as any)?.preferences || {}) as Record<string, unknown>;
     const draftUsername =
-      typeof ob.username === 'string'
-        ? ob.username.trim().toLowerCase().replace(/\s+/g, '_')
-        : '';
+      typeof ob.username === 'string' ? ob.username.trim().toLowerCase().replace(/\s+/g, '_') : '';
     const existingUsername = typeof user?.username === 'string' ? user.username : '';
     const normalized = draftUsername || existingUsername.toLowerCase();
     const draftZip =
@@ -147,16 +144,12 @@ export default function Step2Basic() {
     const storedDob =
       (typeof ob.dob === 'string' && ob.dob) ||
       (typeof userPrefs.dob === 'string' && userPrefs.dob) ||
-      (typeof (user as any)?.date_of_birth === 'string' && String((user as any).date_of_birth).slice(0, 10)) ||
+      (typeof (user as any)?.date_of_birth === 'string' &&
+        String((user as any).date_of_birth).slice(0, 10)) ||
       '';
     const draftBio = typeof ob.bio === 'string' ? ob.bio : '';
     const hasBootstrapData =
-      !!user ||
-      !!normalized ||
-      !!storedZip ||
-      !!storedDob ||
-      !!draftBio ||
-      !!ob.affiliation;
+      !!user || !!normalized || !!storedZip || !!storedDob || !!draftBio || !!ob.affiliation;
 
     if (!hasBootstrapData) return;
 
@@ -299,12 +292,18 @@ export default function Step2Basic() {
           captureBreadcrumb('Onboarding background avatar upload started', 'onboarding.step2', {
             role: roleLabel,
           });
-          const uploaded = await uploadFile(getConfig().apiUrl, avatarUri, 'avatar.jpg', 'image/jpeg', {
-            formFields: {
-              onboarding: true,
-              upload_context: 'onboarding_avatar',
-            },
-          });
+          const uploaded = await uploadFile(
+            getConfig().apiUrl,
+            avatarUri,
+            'avatar.jpg',
+            'image/jpeg',
+            {
+              formFields: {
+                onboarding: true,
+                upload_context: 'onboarding_avatar',
+              },
+            }
+          );
           avatarUrl = uploaded?.url || uploaded?.secure_url;
         }
 
@@ -353,56 +352,35 @@ export default function Step2Basic() {
     [avatarUri, bio, headerImageUri]
   );
 
-  const requestPermissions = async () => {
-    captureBreadcrumb('Onboarding permission request started', 'onboarding.step2', {
-      role: ob.role || 'unknown',
-    });
-    // Push notifications — ask with explanation
-    try {
-      const { status: pushStatus } = await Notifications.getPermissionsAsync();
-      if (pushStatus !== 'granted') {
-        await Notifications.requestPermissionsAsync();
-      }
-    } catch (err) {
-      if (__DEV__) console.warn('[step-2] Push permission request failed:', err);
-      captureBreadcrumb('Push permission request failed', 'onboarding.step2', {}, 'warning');
-    }
-    // Location — ask with explanation
-    try {
-      const { status: locStatus } = await Location.getForegroundPermissionsAsync();
-      if (locStatus !== 'granted') {
-        await Location.requestForegroundPermissionsAsync();
-      }
-    } catch (err) {
-      if (__DEV__) console.warn('[step-2] Location permission request failed:', err);
-      captureBreadcrumb('Location permission request failed', 'onboarding.step2', {}, 'warning');
-    }
-  };
-
   // Parse YYYY-MM-DD as local midnight to avoid UTC off-by-one
   const parseDobLocal = (s: string): Date => {
     const [y, mo, day] = s.split('-').map(Number);
     return new Date(y, mo - 1, day);
   };
-  const dobError = dob && (parseDobLocal(dob).getFullYear() < 1920 || parseDobLocal(dob) > new Date());
-  const isUnder13 = dob && (() => {
-    const d = parseDobLocal(dob);
-    if (isNaN(d.getTime())) return false;
-    const now = new Date();
-    let age = now.getFullYear() - d.getFullYear();
-    const m = now.getMonth() - d.getMonth();
-    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
-    return age < 13;
-  })();
-  const isUnder18 = dob && (() => {
-    const d = parseDobLocal(dob);
-    if (isNaN(d.getTime())) return false;
-    const now = new Date();
-    let age = now.getFullYear() - d.getFullYear();
-    const m = now.getMonth() - d.getMonth();
-    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
-    return age < 18;
-  })();
+  const dobError =
+    dob && (parseDobLocal(dob).getFullYear() < 1920 || parseDobLocal(dob) > new Date());
+  const isUnder13 =
+    dob &&
+    (() => {
+      const d = parseDobLocal(dob);
+      if (isNaN(d.getTime())) return false;
+      const now = new Date();
+      let age = now.getFullYear() - d.getFullYear();
+      const m = now.getMonth() - d.getMonth();
+      if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+      return age < 13;
+    })();
+  const isUnder18 =
+    dob &&
+    (() => {
+      const d = parseDobLocal(dob);
+      if (isNaN(d.getTime())) return false;
+      const now = new Date();
+      let age = now.getFullYear() - d.getFullYear();
+      const m = now.getMonth() - d.getMonth();
+      if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+      return age < 18;
+    })();
   const usernameError = username.length > 0 && !usernameRe.test(username);
 
   // Validation rules:
@@ -411,7 +389,8 @@ export default function Step2Basic() {
   // - Affiliation: required ONLY for coaches (optional for fans)
   // - Zip code: required for coaches, optional for fans
   // - Coaches must be 18+
-  const canContinue = usernameRe.test(username) &&
+  const canContinue =
+    usernameRe.test(username) &&
     available === true &&
     dob &&
     !dobError &&
@@ -437,10 +416,7 @@ export default function Step2Basic() {
       Alert.alert(
         'Age Requirement',
         'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
-        [
-          { text: 'Go Back', onPress: () => safeGoBack(router) },
-          { text: 'OK' },
-        ]
+        [{ text: 'Go Back', onPress: () => safeGoBack(router) }, { text: 'OK' }]
       );
       return;
     }
@@ -450,7 +426,7 @@ export default function Step2Basic() {
       if (__DEV__) console.warn('[STEP-2] Navigation blocked - saving or already navigating');
       return;
     }
-    
+
     // Final normalization pass
     const finalUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
     setSaving(true);
@@ -462,7 +438,7 @@ export default function Step2Basic() {
       has_cover: !!headerImageUri,
       has_bio: !!bio.trim(),
     });
-    
+
     try {
       const updatedData = {
         username: finalUsername,
@@ -473,18 +449,22 @@ export default function Step2Basic() {
         step_2_visited: true,
       };
 
-      setOB((prev) => ({
+      setOB(prev => ({
         ...prev,
         ...updatedData,
       }));
-      
+
       // Save username (not display_name) - this is the single identifier
       try {
         await User.patchMe({ username: finalUsername });
       } catch (patchErr: any) {
         // Detect username conflict specifically
         const msg = patchErr?.message || patchErr?.data?.error || '';
-        if (msg.toLowerCase().includes('username') || msg.toLowerCase().includes('unique') || msg.toLowerCase().includes('taken')) {
+        if (
+          msg.toLowerCase().includes('username') ||
+          msg.toLowerCase().includes('unique') ||
+          msg.toLowerCase().includes('taken')
+        ) {
           setAvailable(false);
           throw new Error('That username was just taken. Please choose a different one.');
         }
@@ -501,7 +481,11 @@ export default function Step2Basic() {
         if (zip) prefsPayload.zip_code = zip;
         await User.updatePreferences(prefsPayload);
       } catch (prefsErr: any) {
-        if (__DEV__) console.error('[step-2-basic] Preferences save failed:', JSON.stringify(prefsErr?.data || prefsErr?.message));
+        if (__DEV__)
+          console.error(
+            '[step-2-basic] Preferences save failed:',
+            JSON.stringify(prefsErr?.data || prefsErr?.message)
+          );
         throw prefsErr;
       }
 
@@ -559,12 +543,12 @@ export default function Step2Basic() {
       // Surface Zod validation details if available
       const zodIssues = serverData?.issues || serverData?.details?.issues || null;
       if (zodIssues && Array.isArray(zodIssues)) {
-        const details = zodIssues.map((i: any) => `${i.path?.join?.('.') || i.path}: ${i.message}`).join('\n');
+        const details = zodIssues
+          .map((i: any) => `${i.path?.join?.('.') || i.path}: ${i.message}`)
+          .join('\n');
         if (details) errorMessage = details;
       }
-      Alert.alert('Failed to save', errorMessage, [
-        { text: 'OK', style: 'default' }
-      ]);
+      Alert.alert('Failed to save', errorMessage, [{ text: 'OK', style: 'default' }]);
     } finally {
       setSaving(false);
     }
@@ -581,7 +565,7 @@ export default function Step2Basic() {
       onVerifyEmail={() => void router.push('/verify')}
     >
       <Stack.Screen options={{ headerShown: false }} />
-      
+
       {/* Profile Picture (optional) */}
       <Pressable
         testID="onboarding-step2-avatar-picker"
@@ -590,7 +574,19 @@ export default function Step2Basic() {
         accessibilityLabel="Choose profile picture"
         accessibilityRole="button"
       >
-        <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: Colors[colorScheme].surface, borderWidth: 2, borderColor: Colors[colorScheme].border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <View
+          style={{
+            width: 90,
+            height: 90,
+            borderRadius: 45,
+            backgroundColor: Colors[colorScheme].surface,
+            borderWidth: 2,
+            borderColor: Colors[colorScheme].border,
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+          }}
+        >
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={{ width: 90, height: 90 }} />
           ) : (
@@ -640,12 +636,25 @@ export default function Step2Basic() {
         placeholder="username"
         style={{ marginBottom: 4, letterSpacing: 0 }}
         onEndEditing={async () => {
-        if (!usernameRe.test(username)) { setAvailable(null); return; }
-        setAvailabilityError(false);
-        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch (error) { if (__DEV__) console.warn('[onboarding] Username availability check failed:', error); setAvailable(null); setAvailabilityError(true); }
-      }} />
+          if (!usernameRe.test(username)) {
+            setAvailable(null);
+            return;
+          }
+          setAvailabilityError(false);
+          try {
+            const r: any = await User.usernameAvailable(username);
+            setAvailable(!!r?.available);
+          } catch (error) {
+            if (__DEV__) console.warn('[onboarding] Username availability check failed:', error);
+            setAvailable(null);
+            setAvailabilityError(true);
+          }
+        }}
+      />
       {usernameError ? (
-        <Text style={styles.error}>Use 3-20 lowercase letters, numbers, underscores, or periods.</Text>
+        <Text style={styles.error}>
+          Use 3-20 lowercase letters, numbers, underscores, or periods.
+        </Text>
       ) : checking ? (
         <Text style={styles.muted}>Checking availability…</Text>
       ) : availabilityError ? (
@@ -654,7 +663,15 @@ export default function Step2Basic() {
           onPress={async () => {
             setAvailabilityError(false);
             setChecking(true);
-            try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); setAvailabilityError(true); } finally { setChecking(false); }
+            try {
+              const r: any = await User.usernameAvailable(username);
+              setAvailable(!!r?.available);
+            } catch {
+              setAvailable(null);
+              setAvailabilityError(true);
+            } finally {
+              setChecking(false);
+            }
           }}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
           accessibilityRole="button"
@@ -673,7 +690,8 @@ export default function Step2Basic() {
         <>
           <Text style={styles.label}>Organization Type</Text>
           <Text style={[styles.hint, { color: Colors[colorScheme].mutedText }]}>
-            Select the type of organization you're affiliated with{ob.role !== 'coach' ? ' (optional)' : ''}
+            Select the type of organization you're affiliated with
+            {ob.role !== 'coach' ? ' (optional)' : ''}
           </Text>
           <View style={styles.affiliationGrid}>
             {[
@@ -683,13 +701,13 @@ export default function Step2Basic() {
               { value: 'high_school', label: 'High School', icon: '🏫' },
               { value: 'club', label: 'Club', icon: '⚽' },
               { value: 'youth', label: 'Youth Org', icon: '🏀' },
-            ].map((option) => (
+            ].map(option => (
               <Pressable
                 testID={`onboarding-step2-affiliation-${option.value}`}
                 key={option.value}
                 style={[
                   styles.affiliationButton,
-                  affiliation === option.value && styles.affiliationButtonSelected
+                  affiliation === option.value && styles.affiliationButtonSelected,
                 ]}
                 onPress={() => setAffiliation(option.value as Affiliation)}
                 accessibilityLabel={`${option.label} affiliation`}
@@ -697,10 +715,12 @@ export default function Step2Basic() {
                 accessibilityHint="Double tap to select"
               >
                 <Text style={styles.affiliationIcon}>{option.icon}</Text>
-                <Text style={[
-                  styles.affiliationLabel,
-                  affiliation === option.value && styles.affiliationLabelSelected
-                ]}>
+                <Text
+                  style={[
+                    styles.affiliationLabel,
+                    affiliation === option.value && styles.affiliationLabelSelected,
+                  ]}
+                >
                   {option.label}
                 </Text>
               </Pressable>
@@ -714,17 +734,22 @@ export default function Step2Basic() {
         value={dob}
         onChange={setDob}
       />
-      {dobError && (
-        <Text style={styles.error}>Please enter a valid date of birth</Text>
-      )}
+      {dobError && <Text style={styles.error}>Please enter a valid date of birth</Text>}
       {isUnder13 && !dobError && (
-        <Text style={styles.error}>VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.</Text>
+        <Text style={styles.error}>
+          VarsityHub is not available for users under 13. Please have a parent or guardian contact
+          support@varsityhub.app.
+        </Text>
       )}
       {!isUnder13 && isUnder18 && !dobError && ob.role === 'coach' && (
-        <Text style={styles.error}>Coach and organizer accounts require users to be at least 18 years old.</Text>
+        <Text style={styles.error}>
+          Coach and organizer accounts require users to be at least 18 years old.
+        </Text>
       )}
 
-      <Text style={styles.label}>Zip code {ob.role !== 'coach' && <Text style={styles.muted}>(optional)</Text>}</Text>
+      <Text style={styles.label}>
+        Zip code {ob.role !== 'coach' && <Text style={styles.muted}>(optional)</Text>}
+      </Text>
       <Input
         testID="onboarding-step2-zip-input"
         value={zip}
@@ -734,13 +759,20 @@ export default function Step2Basic() {
         keyboardType="numeric"
         maxLength={5}
       />
-      <ZipCodeMapPreview zipCode={zip} title="Your Area" subtitle="We'll use this to show you local content near ZIP {zip}" showCircle={false} />
+      <ZipCodeMapPreview
+        zipCode={zip}
+        title="Your Area"
+        subtitle="We'll use this to show you local content near ZIP {zip}"
+        showCircle={false}
+      />
 
-      <Text style={styles.label}>Bio <Text style={styles.muted}>(optional)</Text></Text>
+      <Text style={styles.label}>
+        Bio <Text style={styles.muted}>(optional)</Text>
+      </Text>
       <TextInput
         testID="onboarding-step2-bio-input"
         value={bio}
-        onChangeText={(t) => setBio(t.slice(0, BIO_MAX_LENGTH))}
+        onChangeText={t => setBio(t.slice(0, BIO_MAX_LENGTH))}
         placeholder="Fan trying to show the most school spirit"
         placeholderTextColor={Colors[colorScheme].mutedText}
         multiline
@@ -773,103 +805,104 @@ export default function Step2Basic() {
   );
 }
 
-const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors[colorScheme].background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors[colorScheme].border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors[colorScheme].text,
-  },
-  title: {
-    ...Type.h2,
-    color: Colors[colorScheme].text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    ...Type.body,
-    color: Colors[colorScheme].mutedText,
-    marginBottom: 12,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors[colorScheme].text,
-    marginTop: 12,
-    marginBottom: 6,
-  },
-  error: {
-    fontSize: 14,
-    color: colorScheme === 'dark' ? '#f87171' : '#ef4444',
-    marginTop: 4,
-  },
-  success: {
-    fontSize: 14,
-    color: colorScheme === 'dark' ? '#4ade80' : '#22c55e',
-    marginTop: 4,
-  },
-  muted: {
-    fontSize: 14,
-    color: Colors[colorScheme].mutedText,
-    marginTop: 4,
-  },
-  hint: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 8,
-  },
-  affiliationGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 6,
-    marginBottom: 12,
-  },
-  affiliationButton: {
-    width: '31%',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Colors[colorScheme].border,
-    backgroundColor: Colors[colorScheme].surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  affiliationButtonSelected: {
-    borderColor: Colors[colorScheme].tint,
-    backgroundColor: colorScheme === 'dark' ? 'rgba(56,189,248,0.1)' : '#EFF6FF',
-    borderWidth: 2,
-  },
-  affiliationIcon: {
-    fontSize: 20,
-    marginBottom: 2,
-  },
-  affiliationLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors[colorScheme].mutedText,
-    textAlign: 'center',
-  },
-  affiliationLabelSelected: {
-    color: Colors[colorScheme].tint,
-    fontWeight: '700',
-  },
-});
+const createStyles = (colorScheme: 'light' | 'dark') =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: Colors[colorScheme].background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: Colors[colorScheme].border,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    headerTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: Colors[colorScheme].text,
+    },
+    title: {
+      ...Type.h2,
+      color: Colors[colorScheme].text,
+      marginBottom: 8,
+    },
+    subtitle: {
+      ...Type.body,
+      color: Colors[colorScheme].mutedText,
+      marginBottom: 12,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: Colors[colorScheme].text,
+      marginTop: 12,
+      marginBottom: 6,
+    },
+    error: {
+      fontSize: 14,
+      color: colorScheme === 'dark' ? '#f87171' : '#ef4444',
+      marginTop: 4,
+    },
+    success: {
+      fontSize: 14,
+      color: colorScheme === 'dark' ? '#4ade80' : '#22c55e',
+      marginTop: 4,
+    },
+    muted: {
+      fontSize: 14,
+      color: Colors[colorScheme].mutedText,
+      marginTop: 4,
+    },
+    hint: {
+      fontSize: 13,
+      lineHeight: 18,
+      marginBottom: 8,
+    },
+    affiliationGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      gap: 6,
+      marginBottom: 12,
+    },
+    affiliationButton: {
+      width: '31%',
+      paddingVertical: 10,
+      paddingHorizontal: 8,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: Colors[colorScheme].border,
+      backgroundColor: Colors[colorScheme].surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    affiliationButtonSelected: {
+      borderColor: Colors[colorScheme].tint,
+      backgroundColor: colorScheme === 'dark' ? 'rgba(56,189,248,0.1)' : '#EFF6FF',
+      borderWidth: 2,
+    },
+    affiliationIcon: {
+      fontSize: 20,
+      marginBottom: 2,
+    },
+    affiliationLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: Colors[colorScheme].mutedText,
+      textAlign: 'center',
+    },
+    affiliationLabelSelected: {
+      color: Colors[colorScheme].tint,
+      fontWeight: '700',
+    },
+  });

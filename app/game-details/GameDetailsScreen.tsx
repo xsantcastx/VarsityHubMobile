@@ -4,9 +4,9 @@ import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import {
-    canShowGamePoll,
-    getEventPresentationPhase,
-    isEventPastEndOfDay,
+  canShowGamePoll,
+  getEventPresentationPhase,
+  isEventPastEndOfDay,
 } from '@/utils/eventPresentation';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
@@ -21,21 +21,21 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import {
-    AccessibilityInfo,
-    ActivityIndicator,
-    Alert,
-    Animated,
-    AppState,
-    Linking,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    useWindowDimensions,
-    View,
+  AccessibilityInfo,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  AppState,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../../api/http';
@@ -51,12 +51,12 @@ import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getAuthSnapshot } from '@/utils/authState';
 import {
-    applyClearVote,
-    applyVoteSelection,
-    buildVoteSummary,
-    parseVoteSummary,
-    type VoteOption,
-    type VoteSummary,
+  applyClearVote,
+  applyVoteSelection,
+  buildVoteSummary,
+  parseVoteSummary,
+  type VoteOption,
+  type VoteSummary,
 } from '@/utils/voteSummary';
 import GameVerticalFeedScreen, { mapHighlightToFeedPost } from './GameVerticalFeedScreen';
 
@@ -232,7 +232,8 @@ function StoriesViewer({
   const isVideo = item?.kind === 'video' || (item?.url && VIDEO_EXT.test(item.url));
 
   // Check if user can delete this story
-  const canDelete = resolvedCurrentUserId && item?.user_id && resolvedCurrentUserId === item.user_id;
+  const canDelete =
+    resolvedCurrentUserId && item?.user_id && resolvedCurrentUserId === item.user_id;
 
   const showDeleteButton = canDelete;
 
@@ -798,8 +799,7 @@ const GameDetailsScreen = () => {
   // Derive game phase from date and now
   const { phase: gamePhase, diffMs: startsInMs } = useMemo(() => {
     const iso = vm?.date;
-    if (!iso)
-      return { phase: 'final' as 'upcoming' | 'live' | 'active' | 'final', diffMs: 0 };
+    if (!iso) return { phase: 'final' as 'upcoming' | 'live' | 'active' | 'final', diffMs: 0 };
     const startMs = new Date(iso).getTime();
     if (!Number.isFinite(startMs)) return { phase: 'final' as const, diffMs: 0 };
     const diff = startMs - nowTs;
@@ -1248,16 +1248,18 @@ const GameDetailsScreen = () => {
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }
-      ).catch((err) => {
-        if (__DEV__) console.warn('[GameDetails] deferred posts fetch failed:', err?.message || err);
+      ).catch(err => {
+        if (__DEV__)
+          console.warn('[GameDetails] deferred posts fetch failed:', err?.message || err);
         return null;
       });
       deferredMediaPromise = retryWithBackoff(() => Game.media(gameIdValue), {
         maxRetries: 2,
         initialDelayMs: 800,
         maxDelayMs: 4000,
-      }).catch((err) => {
-        if (__DEV__) console.warn('[GameDetails] deferred media fetch failed:', err?.message || err);
+      }).catch(err => {
+        if (__DEV__)
+          console.warn('[GameDetails] deferred media fetch failed:', err?.message || err);
         return null;
       });
 
@@ -1673,6 +1675,7 @@ const GameDetailsScreen = () => {
       setStoryBusy(false);
     }
   }, [
+    hasEvent,
     loadGameById,
     storyBusy,
     vm?.description,

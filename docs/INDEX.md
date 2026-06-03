@@ -91,6 +91,8 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 ## Release
 
 - [Release Workflow](./release/RELEASE_WORKFLOW.md)
+- [Best Capability Checklist](./release/BEST_CAPABILITY_CHECKLIST.md)
+- [SendGrid Operator Snapshot (2026-06-02)](./release/SENDGRID_OPERATOR_SNAPSHOT_2026-06-02.md)
 - [PR Checklist](./PR_CHECKLIST.md)
 - [Release Checklist](./release/CHECKLIST.md)
 - [Production Readiness](./release/PRODUCTION_READINESS.md)

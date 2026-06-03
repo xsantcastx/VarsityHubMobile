@@ -1310,4 +1310,79 @@ describe('Coach Approval Workflow', () => {
       await prisma.user.delete({ where: { id: coach.id } });
     });
   });
+
+  describe('Agreement fields stamped at approval time', () => {
+    let approveCoach: any;
+    let approveOrganization: any;
+
+    beforeAll(async () => {
+      ({ approveCoach, approveOrganization } = await import('../lib/approvalService.js'));
+    });
+
+    it('approveCoach sets coach_agreement_accepted_at and coach_agreement_version', async () => {
+      const coach = await prisma.user.create({
+        data: {
+          email: `coach-agr-${Date.now()}@test.com`,
+          role: 'coach',
+          approval_status: 'PENDING',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: null,
+          coach_agreement_version: null,
+          preferences: { role: 'coach', onboarding_completed: true },
+        },
+      });
+
+      await approveCoach(coach.id, null, prisma);
+
+      const updated = await prisma.user.findUnique({
+        where: { id: coach.id },
+        select: { coach_agreement_accepted_at: true, coach_agreement_version: true, approval_status: true },
+      });
+
+      expect(updated?.approval_status).toBe('APPROVED');
+      expect(updated?.coach_agreement_accepted_at).not.toBeNull();
+      expect(updated?.coach_agreement_version).toBe(
+        Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1)
+      );
+
+      await prisma.user.delete({ where: { id: coach.id } });
+    });
+
+    it('approveOrganization sets coach_agreement fields on the org owner', async () => {
+      const owner = await prisma.user.create({
+        data: {
+          email: `org-owner-agr-${Date.now()}@test.com`,
+          role: 'coach',
+          approval_status: 'PENDING',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: null,
+          coach_agreement_version: null,
+          preferences: { role: 'coach', onboarding_completed: true },
+        },
+      });
+      const org = await prisma.organization.create({
+        data: { name: `AgrOrg${Date.now()}`, admin_approved: false, league_owner_id: owner.id },
+      });
+      await prisma.organizationMembership.create({
+        data: { organization_id: org.id, user_id: owner.id, role: 'owner' },
+      });
+
+      await approveOrganization(org.id, null, prisma);
+
+      const updated = await prisma.user.findUnique({
+        where: { id: owner.id },
+        select: { coach_agreement_accepted_at: true, coach_agreement_version: true, approval_status: true },
+      });
+
+      expect(updated?.approval_status).toBe('APPROVED');
+      expect(updated?.coach_agreement_accepted_at).not.toBeNull();
+      expect(updated?.coach_agreement_version).toBe(
+        Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1)
+      );
+
+      await prisma.organizationMembership.deleteMany({ where: { organization_id: org.id } });
+      await prisma.organization.delete({ where: { id: org.id } });
+      await prisma.user.delete({ where: { id: owner.id } });
+    });
+  });
 });

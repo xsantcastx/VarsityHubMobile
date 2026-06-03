@@ -6,7 +6,6 @@ import { User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { isProceedingAsFanSnapshot } from '@/utils/authState';
-import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import {
   fetchRejectionReason,
   getPendingApprovalAuthSnapshot,
@@ -62,7 +61,6 @@ function PendingApproval() {
         const canViewPendingApproval =
           role === 'coach' && ['PENDING', 'APPROVED', 'REJECTED'].includes(approvalStatus);
 
-
         if (!canViewPendingApproval) {
           redirectToOnboarding();
           return;
@@ -92,28 +90,30 @@ function PendingApproval() {
     stopPolling();
     router.replace('/onboarding');
   }, [router, stopPolling]);
-  const {
-    navigationTarget,
-    handleLogout,
-    handleProceedAsFan,
-    handleApprovedNavigation,
-  } = usePendingApprovalActions({
-    replaceRoute: route => router.replace(route),
-    signOut,
-    checkAuth,
-    stopPolling,
-    logPrefix: 'pending-approval',
-    proceedingAsFanRef,
-    persistProceedAsFan: async () => {
-      await User.updatePreferences({ proceeding_as_fan: true });
-    },
-  });
+  const { navigationTarget, handleLogout, handleProceedAsFan, handleApprovedNavigation } =
+    usePendingApprovalActions({
+      replaceRoute: route => router.replace(route),
+      signOut,
+      checkAuth,
+      stopPolling,
+      logPrefix: 'pending-approval',
+      proceedingAsFanRef,
+      persistProceedAsFan: async () => {
+        await User.updatePreferences({ proceeding_as_fan: true });
+      },
+    });
 
   return (
     <PendingApprovalScreenScaffold
       isDark={isDark}
       status={rejected ? 'rejected' : approved ? 'approved' : 'pending'}
-      heading={rejected ? 'Application Not Approved' : approved ? 'You\'re Approved!' : 'Application Submitted'}
+      heading={
+        rejected
+          ? 'Application Not Approved'
+          : approved
+            ? "You're Approved!"
+            : 'Application Submitted'
+      }
       subheading={
         rejected
           ? `Your request to join "${leagueName}" was not approved.${rejectionReason ? '' : ' You can continue as a fan or try joining a different league.'}`
@@ -122,65 +122,72 @@ function PendingApproval() {
             : `Your request to join "${leagueName}" has been sent to ${ownerName}. You'll receive a notification when approved — typically within a few hours. You can use the app as a fan while you wait.`
       }
     >
+      {rejected ? (
+        <ReasonCard
+          isDark={isDark}
+          body={
+            rejectionReason ||
+            'No reason provided. You can continue as a fan or try joining a different league.'
+          }
+        />
+      ) : null}
 
-          {rejected ? (
-            <ReasonCard
-              isDark={isDark}
-              body={
-                rejectionReason || 'No reason provided. You can continue as a fan or try joining a different league.'
-              }
-            />
-          ) : null}
+      {timedOut && !approved && !rejected && (
+        <>
+          <Text
+            style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 20 }]}
+          >
+            This is taking longer than usual. We'll email you when your application is reviewed. You
+            can continue as a fan in the meantime.
+          </Text>
+          <FanFallbackActions
+            isDark={isDark}
+            onProceedAsFan={handleProceedAsFan}
+            onLogout={handleLogout}
+          />
+        </>
+      )}
 
-          {timedOut && !approved && !rejected && (
-            <>
-              <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 20 }]}>
-                This is taking longer than usual. We'll email you when your application is reviewed. You can continue as a fan in the meantime.
-              </Text>
-              <FanFallbackActions isDark={isDark} onProceedAsFan={handleProceedAsFan} onLogout={handleLogout} />
-            </>
-          )}
-
-          {(!approved || rejected) && !timedOut && (
-            <>
-              {rejected && (
-                <PrimaryButton
-                  label="Try Again"
-                  onPress={() => {
-                    void reapplyCoachApplication({
-                      setChecking,
-                      setRejected,
-                      setRejectionReason,
-                      onSuccess: () => {
-                        router.replace('/onboarding/coach-application' as any);
-                      },
-                    });
-                  }}
-                  disabled={checking}
-                  style={{ marginBottom: 12, backgroundColor: '#1B3A6B' }}
-                />
-              )}
-              <FanFallbackActions
-                isDark={isDark}
-                onProceedAsFan={handleProceedAsFan}
-                onLogout={handleLogout}
-                checking={checking}
-              />
-            </>
-          )}
-
-          {approved && (
-            <CoachSetupActions
-              onContinueSetup={() => {
-                void handleApprovedNavigation('organization');
+      {(!approved || rejected) && !timedOut && (
+        <>
+          {rejected && (
+            <PrimaryButton
+              label="Try Again"
+              onPress={() => {
+                void reapplyCoachApplication({
+                  setChecking,
+                  setRejected,
+                  setRejectionReason,
+                  onSuccess: () => {
+                    router.replace('/onboarding/coach-application' as any);
+                  },
+                });
               }}
-              onCreateTeam={() => {
-                void handleApprovedNavigation('create-team');
-              }}
-              disabled={navigationTarget !== null}
-              primaryIcon={<MaterialIcons name="business" size={20} color="#fff" />}
+              disabled={checking}
+              style={{ marginBottom: 12, backgroundColor: '#1B3A6B' }}
             />
           )}
+          <FanFallbackActions
+            isDark={isDark}
+            onProceedAsFan={handleProceedAsFan}
+            onLogout={handleLogout}
+            checking={checking}
+          />
+        </>
+      )}
+
+      {approved && (
+        <CoachSetupActions
+          onContinueSetup={() => {
+            void handleApprovedNavigation('organization');
+          }}
+          onCreateTeam={() => {
+            void handleApprovedNavigation('create-team');
+          }}
+          disabled={navigationTarget !== null}
+          primaryIcon={<MaterialIcons name="business" size={20} color="#fff" />}
+        />
+      )}
     </PendingApprovalScreenScaffold>
   );
 }

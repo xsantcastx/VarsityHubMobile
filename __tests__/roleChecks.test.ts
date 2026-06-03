@@ -55,8 +55,10 @@ describe('getCoachAccessState — identity', () => {
 
 describe('getCoachAccessState — approval states', () => {
   const base = {
+    organization_id: 'org_123',
     preferences: {
       role: 'coach',
+      organization_id: 'org_123',
       coach_agreement_accepted_at: new Date().toISOString(),
       coach_agreement_version: 1,
       onboarding_completed: true,
@@ -89,7 +91,15 @@ describe('canAccessCreateTeamSurface', () => {
     expect(
       canAccessCreateTeamSurface({
         approval_status: 'APPROVED',
-        preferences: { role: 'coach', onboarding_completed: true },
+        organization_id: 'org_123',
+        required_coach_agreement_version: 1,
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          organization_id: 'org_123',
+          coach_agreement_accepted_at: new Date().toISOString(),
+          coach_agreement_version: 1,
+        },
       })
     ).toBe(true);
   });
@@ -131,22 +141,30 @@ describe('getCoachAccessState — coach agreement versioning (DISC-2)', () => {
     },
   });
 
-  it('approved coach with no agreement accepted still has tool access once approved', () => {
+  it('approved coach with no agreement accepted does not get tool access', () => {
     const s = getCoachAccessState(approvedCoach(0, 1, null));
     expect(s.hasAcceptedCoachAgreement).toBe(false);
     expect(s.hasCurrentCoachAgreement).toBe(false);
-    expect(s.canAccessCoachTools).toBe(true);
+    expect(s.canAccessCoachTools).toBe(false);
   });
 
-  it('approved coach with outdated version still has tool access once approved', () => {
+  it('approved coach with outdated version does not get tool access', () => {
     const s = getCoachAccessState(approvedCoach(1, 2, new Date().toISOString()));
     expect(s.hasAcceptedCoachAgreement).toBe(true);
     expect(s.hasCurrentCoachAgreement).toBe(false);
-    expect(s.canAccessCoachTools).toBe(true);
+    expect(s.canAccessCoachTools).toBe(false);
   });
 
   it('approved coach with current version → current, tools accessible', () => {
-    const s = getCoachAccessState(approvedCoach(2, 2, new Date().toISOString()));
+    const currentCoach = approvedCoach(2, 2, new Date().toISOString());
+    const s = getCoachAccessState({
+      ...currentCoach,
+      organization_id: 'org_123',
+      preferences: {
+        ...currentCoach.preferences,
+        organization_id: 'org_123',
+      },
+    });
     expect(s.hasCurrentCoachAgreement).toBe(true);
     expect(s.canAccessCoachTools).toBe(true);
   });
@@ -182,7 +200,11 @@ describe('getCoachAccessState — paid-tier checkout gate', () => {
 
   it('needsPaidPlanCheckout false when paid_by_owner=true', () => {
     const s = getCoachAccessState({
-      ...approvedPaidCoach({ pending_plan: 'veteran', payment_pending: true, payment_approved: true }),
+      ...approvedPaidCoach({
+        pending_plan: 'veteran',
+        payment_pending: true,
+        payment_approved: true,
+      }),
       paid_by_owner: true,
     });
     expect(s.needsPaidPlanCheckout).toBe(false);
@@ -300,9 +322,7 @@ describe('organization membership helpers', () => {
 
   it('isOrganizationOwner only returns true for active owner membership', () => {
     expect(
-      isOrganizationOwner(baseUser as any, [
-        { user_id: 'user-1', role: 'owner', status: 'active' },
-      ])
+      isOrganizationOwner(baseUser as any, [{ user_id: 'user-1', role: 'owner', status: 'active' }])
     ).toBe(true);
 
     expect(

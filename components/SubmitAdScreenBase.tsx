@@ -16,17 +16,7 @@ import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets, type Edge } from 'react-native-safe-area-context';
 
 type BannerFitValue = 'rotate' | 'fill' | 'stretch' | `rotate:${number}`;
@@ -202,7 +192,10 @@ export function SubmitAdScreenBase({
         }
       } catch (err) {
         if (__DEV__) {
-          console.warn('[submit-ad] Failed to cache draft locally:', (err as Error)?.message ?? err);
+          console.warn(
+            '[submit-ad] Failed to cache draft locally:',
+            (err as Error)?.message ?? err
+          );
         }
       }
 
@@ -221,13 +214,20 @@ export function SubmitAdScreenBase({
   const bottomPadding = useMemo(() => Math.max(insets.bottom + 16, 32), [insets.bottom]);
 
   return (
-    <SafeAreaView style={[sharedStyles.container, { backgroundColor: theme.background }]} edges={safeAreaEdges}>
+    <SafeAreaView
+      style={[sharedStyles.container, { backgroundColor: theme.background }]}
+      edges={safeAreaEdges}
+    >
       <Stack.Screen
         options={{
           title: 'Submit Ad',
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router)} style={{ padding: 8 }} accessibilityLabel="Go back">
+            <Pressable
+              onPress={() => safeGoBack(router)}
+              style={{ padding: 8 }}
+              accessibilityLabel="Go back"
+            >
               <MaterialIcons name="arrow-back" size={24} color={theme.text} />
             </Pressable>
           ),
@@ -235,7 +235,10 @@ export function SubmitAdScreenBase({
       />
       <ScrollView
         scrollEnabled={scrollEnabled}
-        contentContainerStyle={[sharedStyles.scrollContent, { paddingTop: topPadding, paddingBottom: bottomPadding }]}
+        contentContainerStyle={[
+          sharedStyles.scrollContent,
+          { paddingTop: topPadding, paddingBottom: bottomPadding },
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
@@ -248,13 +251,18 @@ export function SubmitAdScreenBase({
           mutedTextColor={theme.mutedText}
         />
 
-        <View style={[sharedStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View
+          style={[sharedStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        >
           <Text style={[sharedStyles.label, { color: theme.text }]}>Your Name *</Text>
           <TextInput
             value={name}
             onChangeText={setName}
             placeholder="Jane Doe"
-            style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            style={[
+              sharedStyles.input,
+              { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+            ]}
             placeholderTextColor={theme.mutedText}
             autoCapitalize="words"
             maxLength={200}
@@ -265,7 +273,10 @@ export function SubmitAdScreenBase({
             value={email}
             onChangeText={setEmail}
             placeholder="you@business.com"
-            style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            style={[
+              sharedStyles.input,
+              { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+            ]}
             placeholderTextColor={theme.mutedText}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -277,7 +288,10 @@ export function SubmitAdScreenBase({
             value={business}
             onChangeText={setBusiness}
             placeholder="Downtown Pizza & Grill"
-            style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            style={[
+              sharedStyles.input,
+              { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+            ]}
             placeholderTextColor={theme.mutedText}
           />
 
@@ -286,13 +300,18 @@ export function SubmitAdScreenBase({
             value={zip}
             onChangeText={setZip}
             placeholder="12345"
-            style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            style={[
+              sharedStyles.input,
+              { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+            ]}
             placeholderTextColor={theme.mutedText}
             keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
             maxLength={12}
           />
 
-          {showReachPreview ? <ReachMapPreview zipCode={zip} radiusKm={AD_GEOFENCE_RADIUS_KM} /> : null}
+          {showReachPreview ? (
+            <ReachMapPreview zipCode={zip} radiusKm={AD_GEOFENCE_RADIUS_KM} />
+          ) : null}
 
           <Text style={[sharedStyles.label, { color: theme.text }]}>Ad Banner *</Text>
           <BannerUpload
@@ -300,11 +319,13 @@ export function SubmitAdScreenBase({
             onChange={handleBannerChange}
             aspectRatio={16 / 9}
             required={true}
-            onScrollLock={showReachPreview ? (locked => setScrollEnabled(!locked)) : undefined}
+            onScrollLock={showReachPreview ? locked => setScrollEnabled(!locked) : undefined}
             uploadFormFields={{ purpose: 'ad_banner' }}
           />
           {!bannerUrl ? (
-            <Text style={[sharedStyles.muted, { color: theme.mutedText }]}>Banner image is required for your ad</Text>
+            <Text style={[sharedStyles.muted, { color: theme.mutedText }]}>
+              Banner image is required for your ad
+            </Text>
           ) : null}
 
           <Text style={[sharedStyles.label, { color: theme.text }]}>Website Link *</Text>
@@ -312,14 +333,19 @@ export function SubmitAdScreenBase({
             value={targetUrl}
             onChangeText={setTargetUrl}
             placeholder="https://yourwebsite.com"
-            style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            style={[
+              sharedStyles.input,
+              { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+            ]}
             placeholderTextColor={theme.mutedText}
             keyboardType="url"
             autoCapitalize="none"
             autoCorrect={false}
           />
           {targetUrl.trim() ? (
-            <Text style={[sharedStyles.helperText, { color: theme.mutedText }]}>🔗 Users can tap your ad to visit this website</Text>
+            <Text style={[sharedStyles.helperText, { color: theme.mutedText }]}>
+              🔗 Users can tap your ad to visit this website
+            </Text>
           ) : null}
 
           <Text style={[sharedStyles.label, { color: theme.text }]}>Description (Optional)</Text>
@@ -350,6 +376,3 @@ export function SubmitAdScreenBase({
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-});

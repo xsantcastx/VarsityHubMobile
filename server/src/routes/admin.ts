@@ -1,5 +1,6 @@
 import escapeHtml from 'escape-html';
 import express from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { approveCoach, rejectCoach } from '../lib/approvalService.js';
@@ -1104,49 +1105,55 @@ adminRouter.post(
         ? await prisma.user.findFirst({ where: { email: adminEmail } })
         : null;
       const keepIds = [demo?.id, admin?.id].filter(Boolean) as string[];
+      if (keepIds.length === 0) {
+        return res.status(500).json({
+          error: 'Wipe aborted: no preserved admin/demo account found',
+        });
+      }
 
-      // Use raw SQL to bypass FK constraints
-      await prisma.$executeRaw`DELETE FROM "Story"`;
-      await prisma.$executeRaw`DELETE FROM "GameVote"`;
-      await prisma.$executeRaw`DELETE FROM "EventRsvp"`;
-      await prisma.$executeRaw`DELETE FROM "AdReservation"`;
-      await prisma.$executeRaw`DELETE FROM "Ad"`;
-      await prisma.$executeRaw`DELETE FROM "PollVote"`;
-      await prisma.$executeRaw`DELETE FROM "PollOption"`;
-      await prisma.$executeRaw`DELETE FROM "Poll"`;
-      await prisma.$executeRaw`DELETE FROM "PostUpvote"`;
-      await prisma.$executeRaw`DELETE FROM "PostBookmark"`;
-      await prisma.$executeRaw`DELETE FROM "CategoryAssignment"`;
-      await prisma.$executeRaw`DELETE FROM "Comment"`;
-      await prisma.$executeRaw`DELETE FROM "Notification"`;
-      await prisma.$executeRaw`DELETE FROM "Message"`;
-      await prisma.$executeRaw`DELETE FROM "Follows"`;
-      await prisma.$executeRaw`DELETE FROM "TeamFollow"`;
-      await prisma.$executeRaw`DELETE FROM "OrganizationFollow"`;
-      await prisma.$executeRaw`DELETE FROM "CategoryFollow"`;
-      await prisma.$executeRaw`DELETE FROM "BlockedUser"`;
-      await prisma.$executeRaw`DELETE FROM "GroupChatMessage"`;
-      await prisma.$executeRaw`DELETE FROM "GroupChatMember"`;
-      await prisma.$executeRaw`DELETE FROM "GroupChat"`;
-      await prisma.$executeRaw`DELETE FROM "Post"`;
-      await prisma.$executeRaw`DELETE FROM "Event"`;
-      await prisma.$executeRaw`DELETE FROM "Game"`;
-      await prisma.$executeRaw`DELETE FROM "TeamMembership"`;
-      await prisma.$executeRaw`DELETE FROM "TeamInvite"`;
-      await prisma.$executeRaw`DELETE FROM "Team"`;
-      await prisma.$executeRaw`DELETE FROM "OrganizationMembership"`;
-      await prisma.$executeRaw`DELETE FROM "OrganizationJoinRequest"`;
-      await prisma.$executeRaw`DELETE FROM "Organization"`;
-      await prisma.$executeRaw`DELETE FROM "UserWarning"`;
-      await prisma.$executeRaw`DELETE FROM "AbuseReport"`;
-      await prisma.$executeRaw`DELETE FROM "AdminActivityLog"`;
-      const { Prisma } = await import('@prisma/client');
-      await prisma.$executeRaw(
-        Prisma.sql`DELETE FROM "RefreshToken" WHERE "user_id" NOT IN (${Prisma.join(keepIds)})`
-      );
-      await prisma.$executeRaw(
-        Prisma.sql`DELETE FROM "User" WHERE "id" NOT IN (${Prisma.join(keepIds)})`
-      );
+      await prisma.$transaction(async tx => {
+        // Use raw SQL to bypass FK constraints, but keep the whole wipe atomic.
+        await tx.$executeRaw`DELETE FROM "Story"`;
+        await tx.$executeRaw`DELETE FROM "GameVote"`;
+        await tx.$executeRaw`DELETE FROM "EventRsvp"`;
+        await tx.$executeRaw`DELETE FROM "AdReservation"`;
+        await tx.$executeRaw`DELETE FROM "Ad"`;
+        await tx.$executeRaw`DELETE FROM "PollVote"`;
+        await tx.$executeRaw`DELETE FROM "PollOption"`;
+        await tx.$executeRaw`DELETE FROM "Poll"`;
+        await tx.$executeRaw`DELETE FROM "PostUpvote"`;
+        await tx.$executeRaw`DELETE FROM "PostBookmark"`;
+        await tx.$executeRaw`DELETE FROM "CategoryAssignment"`;
+        await tx.$executeRaw`DELETE FROM "Comment"`;
+        await tx.$executeRaw`DELETE FROM "Notification"`;
+        await tx.$executeRaw`DELETE FROM "Message"`;
+        await tx.$executeRaw`DELETE FROM "Follows"`;
+        await tx.$executeRaw`DELETE FROM "TeamFollow"`;
+        await tx.$executeRaw`DELETE FROM "OrganizationFollow"`;
+        await tx.$executeRaw`DELETE FROM "CategoryFollow"`;
+        await tx.$executeRaw`DELETE FROM "BlockedUser"`;
+        await tx.$executeRaw`DELETE FROM "GroupChatMessage"`;
+        await tx.$executeRaw`DELETE FROM "GroupChatMember"`;
+        await tx.$executeRaw`DELETE FROM "GroupChat"`;
+        await tx.$executeRaw`DELETE FROM "Post"`;
+        await tx.$executeRaw`DELETE FROM "Event"`;
+        await tx.$executeRaw`DELETE FROM "Game"`;
+        await tx.$executeRaw`DELETE FROM "TeamMembership"`;
+        await tx.$executeRaw`DELETE FROM "TeamInvite"`;
+        await tx.$executeRaw`DELETE FROM "Team"`;
+        await tx.$executeRaw`DELETE FROM "OrganizationMembership"`;
+        await tx.$executeRaw`DELETE FROM "OrganizationJoinRequest"`;
+        await tx.$executeRaw`DELETE FROM "Organization"`;
+        await tx.$executeRaw`DELETE FROM "UserWarning"`;
+        await tx.$executeRaw`DELETE FROM "AbuseReport"`;
+        await tx.$executeRaw`DELETE FROM "AdminActivityLog"`;
+        await tx.$executeRaw(
+          Prisma.sql`DELETE FROM "RefreshToken" WHERE "user_id" NOT IN (${Prisma.join(keepIds)})`
+        );
+        await tx.$executeRaw(
+          Prisma.sql`DELETE FROM "User" WHERE "id" NOT IN (${Prisma.join(keepIds)})`
+        );
+      });
 
       const remaining = await prisma.user.count();
       return res.json({

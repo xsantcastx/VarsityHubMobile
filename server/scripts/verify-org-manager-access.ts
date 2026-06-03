@@ -18,7 +18,6 @@
 import type { Server } from 'node:http';
 import { writeFile } from 'node:fs/promises';
 import { PrismaClient } from '@prisma/client';
-import { app } from '../src/testApp.js';
 import {
   COACH_ROUTE_BATTERY_LOCAL_EMAIL,
   disconnectCoachUatAccountsPrisma,
@@ -148,6 +147,10 @@ async function ensureLocalServer() {
 
   const { hostname, port } = getBaseUrlAddress(BASE_URL);
   process.env.NODE_ENV = 'test';
+  // Keep the localhost verifier hermetic. This script exercises auth and org
+  // manager surfaces; it should not depend on live SendGrid credentials.
+  process.env.EMAIL_PROVIDER = 'test';
+  const { app } = await import('../src/testApp.js');
 
   await new Promise<void>((resolve, reject) => {
     const server = app.listen(port, hostname, () => {

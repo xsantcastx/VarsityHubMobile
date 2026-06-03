@@ -348,7 +348,12 @@ export function startAdGoLiveCheck() {
         debugLog(`[ad-lifecycle] Cleaned up ${deletedEvents.count} old Stripe event dedup records`);
       }
 
-      console.log('[ad-lifecycle] Daily check complete ✅');
+      console.log(
+        `[ad-lifecycle] Daily check complete ✅ ` +
+        `expired_archived=${expiredAds.length} stale_holds=${staleHolds.count} ` +
+        `stale_pending=${stalePendingApprovalAds.length} unpaid_archived=${unpaidAds.length} ` +
+        `stripe_dedup_cleaned=${deletedEvents.count}`
+      );
     } catch (error) {
       console.error('[ad-lifecycle] Check failed:', error);
       captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'ad_lifecycle_check' } });

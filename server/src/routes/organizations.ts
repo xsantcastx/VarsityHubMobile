@@ -2224,6 +2224,8 @@ organizationsRouter.post(
                 role: 'coach',
                 organization_id: joinRequest.organization_id,
                 proceeding_as_fan: false,
+                coach_agreement_accepted_at: new Date(),
+                coach_agreement_version: Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1),
               }),
               ...buildBillingStateColumns({
                 pending_plan: null,
@@ -2293,6 +2295,14 @@ organizationsRouter.post(
           actorId: req.user?.id || null,
         });
       }
+
+      await logAdminActivityFromReq(
+        req,
+        'APPROVE_JOIN_REQUEST',
+        'user',
+        joinRequest.user_id,
+        `Approved coach join request for org ${organization.name}`
+      );
 
       return res.json({ message: 'Join request approved' });
     } catch (err: any) {
@@ -2639,6 +2649,8 @@ async function _executeJoinRequestApprovalByToken(
               role: 'coach',
               organization_id: joinRequest.organization_id,
               proceeding_as_fan: false,
+              coach_agreement_accepted_at: new Date(),
+              coach_agreement_version: Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1),
             }),
             ...buildBillingStateColumns({
               pending_plan: null,
@@ -2703,6 +2715,15 @@ async function _executeJoinRequestApprovalByToken(
       actorId: reviewerUserId,
     });
   }
+
+  await logAdminActivity(
+    reviewerUserId,
+    'league-owner-email-action',
+    'APPROVE_JOIN_REQUEST',
+    'user',
+    joinRequest.user_id,
+    `Approved coach join request for org ${organization.name} (via email link)`
+  );
 
   return { ok: true };
 }

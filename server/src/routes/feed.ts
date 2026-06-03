@@ -335,8 +335,12 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
     _count: { select: { comments: true } },
   } as const;
 
-  const excludedIds = await getExcludedPrivateAuthorIds(req.user?.id ?? null);
-  const privacyWhere = excludedIds.length ? { author_id: { notIn: excludedIds } } : {};
+  const [excludedIds, blockedIds] = await Promise.all([
+    getExcludedPrivateAuthorIds(req.user?.id ?? null),
+    getBlockedUserIds(req.user?.id ?? null, getRequestBlockedCache(req)),
+  ]);
+  const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
+  const privacyWhere = allExcluded.length ? { author_id: { notIn: allExcluded } } : {};
 
   let nationalTop = await prisma.post.findMany({
     where: {

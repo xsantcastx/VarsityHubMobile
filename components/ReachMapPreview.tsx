@@ -1,10 +1,5 @@
 import { GeocodedMapPreview } from '@/components/GeocodedMapPreview';
 import { Colors } from '@/constants/Colors';
-import {
-  AD_GEOFENCE_RADIUS_KM,
-  AD_GEOFENCE_RADIUS_METERS,
-  getAdReachPreviewRegion,
-} from '@/constants/adGeofencing';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 interface ReachMapPreviewProps {

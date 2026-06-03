@@ -140,18 +140,11 @@ export function useVHubIAP() {
           product_id: purchase?.productId,
           error: err?.message || 'unknown_error',
         }, 'error');
-        try {
-          await finishTransaction({ purchase, isConsumable: false });
-          captureBreadcrumb('Subscription store transaction finished after error', 'payments.subscription', {
-            product_id: purchase?.productId,
-          }, 'warning');
-        } catch (finishErr) {
-          if (__DEV__) console.warn('[useVHubIAP] finishTransaction failed:', (finishErr as Error)?.message);
-          captureBreadcrumb('Subscription store transaction finish failed', 'payments.subscription', {
-            product_id: purchase?.productId,
-            error: (finishErr as Error)?.message || 'unknown_error',
-          }, 'error');
-        }
+        // Do NOT finish the transaction on server verification failure.
+        // Leaving it in the pending queue allows StoreKit to re-deliver it on
+        // next app launch and the Apple S2S DID_RENEW/SUBSCRIBED notification
+        // provides a second recovery path. Finishing here would strand the user
+        // as "paid but not entitled" with no automatic recovery mechanism.
         setPurchasing(false);
         setError(err?.message || 'Receipt validation failed');
         purchaseResolveRef.current?.(false);

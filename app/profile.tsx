@@ -720,7 +720,7 @@ export default function ProfileScreen() {
         // that breaks the contrast calculation. Fall back to #000000 on any
         // bad parse rather than rendering broken text on top of unknown bg.
         if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) {
-          return '#000000';
+          return '#000000'; // audit: intentional — contrast fallback, not a themed text color
         }
         hexColor = `#${[r, g, b]
           .map(x => {
@@ -739,7 +739,7 @@ export default function ProfileScreen() {
     if (whiteContrast && whiteContrast >= 3.0) {
       return '#FFFFFF';
     }
-    return '#000000';
+    return '#000000'; // audit: intentional — computed contrast color against dynamic background
   };
 
   // Get the first gradient color to determine text color
