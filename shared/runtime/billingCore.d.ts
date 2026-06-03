@@ -5,6 +5,9 @@ export type BillingPreferencesLike = {
   pending_plan?: string | null;
   payment_pending?: boolean | null;
   payment_approved?: boolean | null;
+  apple_expires_date?: string | null;
+  google_expires_date?: string | null;
+  grace_period_expires_at?: string | null;
 };
 
 export type BillingSourceLike = {
@@ -23,6 +26,10 @@ export function getCanonicalPendingPlan(
 ): CanonicalMembershipPlan | null;
 export function isPaymentPending(source: BillingSourceLike | null | undefined): boolean;
 export function isPaymentApproved(source: BillingSourceLike | null | undefined): boolean;
+export function isStoreEntitlementExpired(
+  source: BillingSourceLike | null | undefined,
+  now?: number,
+): boolean;
 export function getSelectedPlan(source: BillingSourceLike | null | undefined): CanonicalMembershipPlan;
 export function getEffectiveEntitledPlan(
   source: BillingSourceLike | null | undefined,

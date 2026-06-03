@@ -17,6 +17,29 @@ function asNullableBoolean(value) {
   return typeof value === 'boolean' ? value : null;
 }
 
+function parseTime(value) {
+  if (typeof value !== 'string' || value.trim().length === 0) return null;
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : null;
+}
+
+export function isStoreEntitlementExpired(source, now = Date.now()) {
+  const plan = getCanonicalPlan(source);
+  if (plan === 'rookie') return false;
+
+  const prefs = getPreferences(source);
+  const graceExpiresAt = parseTime(prefs.grace_period_expires_at);
+  if (graceExpiresAt !== null && graceExpiresAt > now) return false;
+
+  const appleExpiresAt = parseTime(prefs.apple_expires_date);
+  if (appleExpiresAt !== null && appleExpiresAt <= now) return true;
+
+  const googleExpiresAt = parseTime(prefs.google_expires_date);
+  if (googleExpiresAt !== null && googleExpiresAt <= now) return true;
+
+  return false;
+}
+
 export function normalizePlan(raw) {
   if (typeof raw !== 'string') return null;
   const value = raw.trim().toLowerCase();
@@ -57,6 +80,7 @@ export function getSelectedPlan(source) {
 
 export function getEffectiveEntitledPlan(source) {
   if (isPaymentPending(source)) return 'rookie';
+  if (isStoreEntitlementExpired(source)) return 'rookie';
   return getCanonicalPlan(source);
 }
 
@@ -72,6 +96,6 @@ export function getCanonicalBillingState(source) {
     payment_pending,
     payment_approved,
     selected_plan: pending_plan ?? plan,
-    effective_plan: payment_pending ? 'rookie' : plan,
+    effective_plan: payment_pending || isStoreEntitlementExpired(source) ? 'rookie' : plan,
   };
 }

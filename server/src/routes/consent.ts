@@ -349,13 +349,17 @@ export const handleConsentResend = [
       });
     }
     const rawToken = await issueConsentToken(u.id);
-    await sendParentalConsentRequestEmail({
+    const emailSent = await sendParentalConsentRequestEmail({
       to: u.parent_email,
       minorDisplayName: u.display_name || undefined,
       minorEmail: u.email,
       consentToken: rawToken,
       expiresInDays: 14,
     });
-    return res.json({ ok: true });
+    return res.json({
+      ok: true,
+      email_sent: emailSent,
+      ...(emailSent ? {} : { email_error: 'EMAIL_DELIVERY_FAILED' }),
+    });
   }),
 ];

@@ -273,18 +273,54 @@ const makeCreateStoryHandler =
 
       const isDemoMatchup =
         typeof game?.description === 'string' && game.description.includes('[DEMO_MATCHUP]');
+      if (!game) return res.status(404).json({ error: 'Game not found' });
 
       const isAdmin = await getIsAdmin(req as any);
       const teamIds = [game?.home_team_id, game?.away_team_id].filter(Boolean) as string[];
-      const isTeamMember =
+      const isTeamStaff =
         teamIds.length > 0
           ? !!(await p.teamMembership.findFirst({
-              where: { user_id: req.user.id, team_id: { in: teamIds }, status: 'active' },
+              where: {
+                user_id: req.user.id,
+                team_id: { in: teamIds },
+                role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+                status: 'active',
+              },
               select: { id: true },
             }))
           : false;
+      const organizationIds = teamIds.length
+        ? (
+            await p.team.findMany({
+              where: { id: { in: teamIds } },
+              select: { organization_id: true },
+              take: teamIds.length,
+            })
+          )
+            .map(team => team.organization_id)
+            .filter(Boolean)
+        : [];
+      const isOrgAdmin = organizationIds.length
+        ? !!(await p.organizationMembership.findFirst({
+            where: {
+              user_id: req.user.id,
+              organization_id: { in: organizationIds as string[] },
+              role: { in: ['owner', 'manager'] },
+              status: 'active',
+            },
+            select: { id: true },
+          }))
+        : false;
+      const canPostWithoutLocation = isDemoMatchup || isAdmin || isTeamStaff || isOrgAdmin;
 
-      if (!isDemoMatchup && !isAdmin && !isTeamMember && game?.events && game.events.length > 0) {
+      if (!canPostWithoutLocation && (!game.events || game.events.length === 0)) {
+        return res.status(403).json({
+          error: 'NO_EVENT_LOCATION',
+          message: 'This game has no event with location data. Only team staff can post stories.',
+        });
+      }
+
+      if (!canPostWithoutLocation && game.events && game.events.length > 0) {
         const event = game.events[0];
         const location = parsed.data.location;
         const hasDeviceOriginLocation =
@@ -2215,8 +2251,7 @@ gamesRouter.delete(
         console.error('[games] Failed to send game cancelled notifications:', notifErr);
       }
 
-      // Delete the game. Game-specific children cascade; historical posts/events
-      // keep their content and are detached by SetNull FKs.
+      // Delete the game. Game-specific children, posts, and linked events cascade.
       await prisma.game.delete({ where: { id } });
       await invalidateGamesListCache();
 

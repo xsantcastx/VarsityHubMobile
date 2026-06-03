@@ -11,6 +11,7 @@ import {
   sendCoachApprovedEmail,
   sendCoachJoinRequestEmail,
   sendCoachRejectedEmail,
+  sendInvitationDeclinedEmail,
   sendLeagueApprovalRequestEmail,
   sendOrganizationInviteEmail,
   sendStaffMemberJoinedEmail,
@@ -1668,6 +1669,32 @@ organizationsRouter.post(
         data: { status: 'declined' },
       });
       if (declined.count === 0) return res.status(409).json({ error: 'Invite already processed' });
+      const organization = await prisma.organization.findUnique({
+        where: { id: invite.organization_id },
+        select: { name: true },
+      });
+      const owners = await prisma.organizationMembership.findMany({
+        where: {
+          organization_id: invite.organization_id,
+          role: 'owner',
+          status: 'active',
+        },
+        select: { user: { select: { email: true, display_name: true } } },
+        take: 25,
+      });
+      await Promise.allSettled(
+        owners
+          .filter(owner => owner.user?.email)
+          .map(owner =>
+            sendInvitationDeclinedEmail({
+              to: owner.user!.email,
+              inviterName: owner.user!.display_name || 'Organizer',
+              decliner: user.display_name || user.email || 'Someone',
+              scope: 'organization',
+              scopeName: organization?.name || 'your organization',
+            })
+          )
+      );
       return res.json({ message: 'Invite declined' });
     } catch (err) {
       console.error('[organizations] POST /invites/:inviteId/decline error:', err);

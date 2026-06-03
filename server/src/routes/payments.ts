@@ -435,7 +435,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
   // v1.0.2 pass 8: handle Stripe-side refunds (admin or dispute) so the user's access
   // is correctly downgraded. Previously a refund issued via Stripe dashboard would not
   // affect the user's plan or ad — they kept access without paying.
-  if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
+  if (event.type === 'charge.refunded') {
     const charge = event.data.object as Stripe.Charge;
     const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
     const refundAmount = charge.amount_refunded || charge.amount;
@@ -448,6 +448,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
         console.error('[webhook] charge.refunded without matching transactionLog', { charge_id: charge.id, pi: piId });
         captureException(new Error('charge.refunded: no matching transaction'), { context: 'refund_no_tx', chargeId: charge.id });
       } else {
+        const isFullRefund = refundAmount >= charge.amount;
         const promoRollbackRefs = Array.from(
           new Set(
             [tx.stripe_payment_intent_id, tx.stripe_session_id]
@@ -456,7 +457,29 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
           )
         );
 
-        const { promoRollback } = await prisma.$transaction(async (db) => {
+        if (!isFullRefund) {
+          await prisma.transactionLog.update({
+            where: { id: tx.id },
+            data: {
+              status: 'NEEDS_REVIEW' as any,
+              metadata: {
+                ...(tx.metadata as any || {}),
+                refund_source: 'stripe_dashboard_partial',
+                refunded_amount_cents: refundAmount,
+                stripe_charge_id: charge.id,
+                partial_refund: true,
+                needs_review: true,
+                refunded_at: new Date().toISOString(),
+              },
+            },
+          });
+          console.warn('[webhook] Partial Stripe refund flagged for review without entitlement downgrade', {
+            transaction_id: tx.id,
+            refunded_amount_cents: refundAmount,
+            charge_amount_cents: charge.amount,
+          });
+        } else {
+          const { promoRollback } = await prisma.$transaction(async (db) => {
           const promoRollbackResult = await reversePromoRedemption(
             { orderReferences: promoRollbackRefs },
             db
@@ -468,7 +491,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
               status: 'REFUNDED' as any,
               metadata: {
                 ...(tx.metadata as any || {}),
-                refund_source: event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
+                refund_source: 'stripe_dashboard',
                 refunded_amount_cents: refundAmount,
                 stripe_charge_id: charge.id,
                 refunded_at: new Date().toISOString(),
@@ -520,24 +543,151 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
           return { promoRollback: promoRollbackResult };
         });
 
-        if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
-          await invalidateMeCacheForUser(tx.user_id);
-          console.warn('[webhook] User downgraded to rookie after Stripe refund', { user_id: tx.user_id });
-        } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
-          console.warn('[webhook] Ad refunded + reservations released', { ad_id: tx.order_id });
-        }
+          if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
+            await invalidateMeCacheForUser(tx.user_id);
+            console.warn('[webhook] User downgraded to rookie after Stripe refund', { user_id: tx.user_id });
+          } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
+            console.warn('[webhook] Ad refunded + reservations released', { ad_id: tx.order_id });
+          }
 
-        if (promoRollback.reversed) {
-          console.warn('[webhook] Promo redemption reversed after refund', {
-            transaction_id: tx.id,
-            refs: promoRollback.orderReferences,
-            count: promoRollback.count,
-          });
+          if (promoRollback.reversed) {
+            console.warn('[webhook] Promo redemption reversed after refund', {
+              transaction_id: tx.id,
+              refs: promoRollback.orderReferences,
+              count: promoRollback.count,
+            });
+          }
         }
       }
     } catch (refundErr: any) {
       console.error('[webhook] charge.refunded handler failed:', refundErr?.message);
       captureException(refundErr as Error, { context: 'webhook_charge_refunded' });
+      await markStripeEventFailed(event.id, refundErr);
+      return { status: 500, body: { error: 'Refund processing failed' } };
+    }
+  }
+
+  if (event.type === 'charge.dispute.created' || event.type === 'charge.dispute.closed') {
+    const dispute = event.data.object as Stripe.Dispute;
+    try {
+      let piId =
+        typeof (dispute as any).payment_intent === 'string'
+          ? (dispute as any).payment_intent
+          : (dispute as any).payment_intent?.id;
+      if (!piId && dispute.charge) {
+        const disputeCharge = await stripe.charges.retrieve(String(dispute.charge));
+        piId =
+          typeof disputeCharge.payment_intent === 'string'
+            ? disputeCharge.payment_intent
+            : disputeCharge.payment_intent?.id;
+      }
+
+      const tx = piId
+        ? await prisma.transactionLog.findFirst({
+            where: { stripe_payment_intent_id: piId },
+            orderBy: { created_at: 'desc' },
+          })
+        : null;
+      if (!tx) {
+        console.warn('[webhook] dispute event without matching transactionLog', {
+          dispute_id: dispute.id,
+          event_type: event.type,
+          pi: piId,
+        });
+      } else if (event.type === 'charge.dispute.created') {
+        await prisma.transactionLog.update({
+          where: { id: tx.id },
+          data: {
+            status: 'NEEDS_REVIEW' as any,
+            metadata: {
+              ...((tx.metadata as any) || {}),
+              dispute_id: dispute.id,
+              dispute_status: dispute.status,
+              dispute_amount_cents: dispute.amount,
+              dispute_created_at: new Date().toISOString(),
+              needs_review: true,
+            },
+          },
+        });
+      } else if (dispute.status === 'lost') {
+        await prisma.$transaction(async db => {
+          await db.transactionLog.update({
+            where: { id: tx.id },
+            data: {
+              status: 'REFUNDED' as any,
+              metadata: {
+                ...((tx.metadata as any) || {}),
+                refund_source: 'dispute_lost',
+                dispute_id: dispute.id,
+                dispute_status: dispute.status,
+                disputed_amount_cents: dispute.amount,
+                disputed_at: new Date().toISOString(),
+              },
+            },
+          });
+
+          if (
+            tx.user_id &&
+            (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' ||
+              tx.transaction_type === 'SUBSCRIPTION_RENEWAL')
+          ) {
+            const u = await db.user.findUnique({
+              where: { id: tx.user_id },
+              select: { preferences: true },
+            });
+            const prefs = (u?.preferences as any) || {};
+            const nextPrefs = mergeBillingStateIntoPreferences(
+              { ...prefs, subscription_id: null, subscription_period_end: null },
+              {
+                plan: 'rookie',
+                pending_plan: null,
+                payment_pending: false,
+                payment_approved: false,
+              }
+            );
+            await db.user.update({
+              where: { id: tx.user_id },
+              data: {
+                preferences: nextPrefs,
+                ...buildBillingStateColumns({
+                  plan: 'rookie',
+                  pending_plan: null,
+                  payment_pending: false,
+                  payment_approved: false,
+                }),
+                subscription_tier: 'free',
+                subscription_status: 'canceled',
+                max_teams: SERVER_ROOKIE_TEAM_LIMIT,
+              },
+            });
+          } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
+            await db.adReservation.deleteMany({ where: { ad_id: tx.order_id } });
+            await db.ad.updateMany({
+              where: { id: tx.order_id },
+              data: { status: 'draft', payment_status: 'refunded' },
+            });
+          }
+        });
+        if (tx.user_id) await invalidateMeCacheForUser(tx.user_id);
+      } else {
+        await prisma.transactionLog.update({
+          where: { id: tx.id },
+          data: {
+            status: 'NEEDS_REVIEW' as any,
+            metadata: {
+              ...((tx.metadata as any) || {}),
+              dispute_id: dispute.id,
+              dispute_status: dispute.status,
+              dispute_closed_at: new Date().toISOString(),
+            },
+          },
+        });
+      }
+    } catch (disputeErr: any) {
+      console.error('[webhook] dispute handler failed:', disputeErr?.message);
+      captureException(disputeErr as Error, { context: 'webhook_charge_dispute' });
+      await markStripeEventFailed(event.id, disputeErr);
+      return { status: 500, body: { error: 'Dispute processing failed' } };
     }
   }
 
@@ -3879,6 +4029,7 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerifie
 
     const packageForVerification = String(package_name || GOOGLE_ALLOWED_PACKAGES[0] || '').trim();
     let verifiedByStore = false;
+    let googleExpiresAt: string | null = null;
     let verificationMode: 'google_play_api' | 'client_fallback' = 'client_fallback';
     if (hasGooglePlayVerifierConfig()) {
       const verifyResult = await verifyGooglePurchaseWithPlayApi({
@@ -3893,6 +4044,7 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerifie
         });
       }
       verifiedByStore = true;
+      googleExpiresAt = verifyResult.expiresAt;
       verificationMode = 'google_play_api';
     } else if (GOOGLE_PLAY_STRICT_VERIFY || (process.env.NODE_ENV === 'production' && !GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK)) {
       return res.status(503).json({ error: 'Google Play verification not configured on server' });
@@ -3910,6 +4062,7 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerifie
         ...restPrefs,
         google_purchase_token: purchase_token,
         google_product_id: product_id,
+        ...(googleExpiresAt ? { google_expires_date: googleExpiresAt } : {}),
         subscription_platform: 'google',
       },
       {
