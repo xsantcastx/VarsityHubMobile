@@ -85,7 +85,7 @@ const storySchema = z.object({
           const parsed = new URL(url);
           if (parsed.protocol !== 'https:') return false;
           const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
-          return allowed.some(d => parsed.hostname.endsWith(d));
+          return allowed.some(d => parsed.hostname === d || parsed.hostname.endsWith(`.${d}`));
         } catch {
           return false;
         }
@@ -273,18 +273,54 @@ const makeCreateStoryHandler =
 
       const isDemoMatchup =
         typeof game?.description === 'string' && game.description.includes('[DEMO_MATCHUP]');
+      if (!game) return res.status(404).json({ error: 'Game not found' });
 
       const isAdmin = await getIsAdmin(req as any);
       const teamIds = [game?.home_team_id, game?.away_team_id].filter(Boolean) as string[];
-      const isTeamMember =
+      const isTeamStaff =
         teamIds.length > 0
           ? !!(await p.teamMembership.findFirst({
-              where: { user_id: req.user.id, team_id: { in: teamIds }, status: 'active' },
+              where: {
+                user_id: req.user.id,
+                team_id: { in: teamIds },
+                role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+                status: 'active',
+              },
               select: { id: true },
             }))
           : false;
+      const organizationIds = teamIds.length
+        ? (
+            await p.team.findMany({
+              where: { id: { in: teamIds } },
+              select: { organization_id: true },
+              take: teamIds.length,
+            })
+          )
+            .map(team => team.organization_id)
+            .filter(Boolean)
+        : [];
+      const isOrgAdmin = organizationIds.length
+        ? !!(await p.organizationMembership.findFirst({
+            where: {
+              user_id: req.user.id,
+              organization_id: { in: organizationIds as string[] },
+              role: { in: ['owner', 'manager'] },
+              status: 'active',
+            },
+            select: { id: true },
+          }))
+        : false;
+      const canPostWithoutLocation = isDemoMatchup || isAdmin || isTeamStaff || isOrgAdmin;
 
-      if (!isDemoMatchup && !isAdmin && !isTeamMember && game?.events && game.events.length > 0) {
+      if (!canPostWithoutLocation && (!game.events || game.events.length === 0)) {
+        return res.status(403).json({
+          error: 'NO_EVENT_LOCATION',
+          message: 'This game has no event with location data. Only team staff can post stories.',
+        });
+      }
+
+      if (!canPostWithoutLocation && game.events && game.events.length > 0) {
         const event = game.events[0];
         const location = parsed.data.location;
         const hasDeviceOriginLocation =
@@ -1583,7 +1619,7 @@ gamesRouter.post(
     });
     const isAdmin = isEmailAdmin(currentUser?.email);
 
-    // Verify caller manages at least one of the referenced teams (mirrors single POST auth check)
+    // Verify caller manages every referenced team (mirrors single POST auth check per game).
     if (!isAdmin) {
       const allTeamIds = [
         ...new Set(
@@ -1596,8 +1632,8 @@ gamesRouter.post(
         return sendError(res, 400, 'Each game must reference a home_team_id or away_team_id.');
       }
       const checks = await Promise.all(allTeamIds.map(id => canManageTeamScoped(userId, id)));
-      if (!checks.some(Boolean)) {
-        return sendError(res, 403, 'You do not manage any of the referenced teams.');
+      if (!checks.every(Boolean)) {
+        return sendError(res, 403, 'You must manage every referenced team.');
       }
     }
 
@@ -1633,7 +1669,6 @@ gamesRouter.post(
       console.error('[games/bulk] failed — rolled back:', err?.message || err);
       return res.status(500).json({
         error: 'Bulk game creation failed and was rolled back.',
-        detail: err?.message || 'unknown',
       });
     }
   })
@@ -2216,7 +2251,7 @@ gamesRouter.delete(
         console.error('[games] Failed to send game cancelled notifications:', notifErr);
       }
 
-      // Delete the game (cascade deletes will handle related records)
+      // Delete the game. Game-specific children, posts, and linked events cascade.
       await prisma.game.delete({ where: { id } });
       await invalidateGamesListCache();
 

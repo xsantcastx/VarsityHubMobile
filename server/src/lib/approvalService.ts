@@ -1015,14 +1015,27 @@ export async function approveEvent(
   if (event.approval_status === 'rejected') return { error: 'Event already rejected', status: 400 };
   if (event.approval_status !== 'pending') return { error: 'Invalid state', status: 400 };
 
-  const guard = await prisma.event.updateMany({
-    where: { id: eventId, approval_status: 'pending' },
-    data: {
-      approval_status: 'approved',
-      status: 'approved',
-      approved_by: adminId,
-      approved_at: new Date(),
-    },
+  const guard = await prisma.$transaction(async tx => {
+    const eventTransition = await tx.event.updateMany({
+      where: { id: eventId, approval_status: 'pending' },
+      data: {
+        approval_status: 'approved',
+        status: 'approved',
+        approved_by: adminId,
+        approved_at: new Date(),
+      },
+    });
+    if (eventTransition.count > 0 && event.game_id) {
+      await tx.game.updateMany({
+        where: { id: event.game_id, approval_status: 'pending' as any },
+        data: {
+          approval_status: 'approved' as any,
+          approved_by_id: adminId,
+          approved_at: new Date(),
+        },
+      });
+    }
+    return eventTransition;
   });
   if (guard.count === 0) {
     addBreadcrumb('Event approval lost race', 'approval.event', 'warning', {
@@ -1105,15 +1118,28 @@ export async function rejectEvent(
 
   const reason = opts?.reason;
 
-  const guard = await prisma.event.updateMany({
-    where: { id: eventId, approval_status: 'pending' },
-    data: {
-      approval_status: 'rejected',
-      status: 'rejected',
-      rejected_reason: reason,
-      approved_by: null,
-      approved_at: null,
-    },
+  const guard = await prisma.$transaction(async tx => {
+    const eventTransition = await tx.event.updateMany({
+      where: { id: eventId, approval_status: 'pending' },
+      data: {
+        approval_status: 'rejected',
+        status: 'rejected',
+        rejected_reason: reason,
+        approved_by: null,
+        approved_at: null,
+      },
+    });
+    if (eventTransition.count > 0 && event.game_id) {
+      await tx.game.updateMany({
+        where: { id: event.game_id, approval_status: 'pending' as any },
+        data: {
+          approval_status: 'rejected' as any,
+          approved_by_id: null,
+          approved_at: null,
+        },
+      });
+    }
+    return eventTransition;
   });
   if (guard.count === 0) {
     addBreadcrumb('Event rejection lost race', 'approval.event', 'warning', {

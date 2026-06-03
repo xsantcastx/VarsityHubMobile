@@ -241,9 +241,6 @@ export function useAdIAP() {
         };
 
         pendingAdRef.current = null;
-        setPurchasing(false);
-
-        pending.resolve({ ok: true });
         captureBreadcrumb('Ad receipt verification started', 'payments.ad', {
           ad_id: pending.adId,
           receipts_count: pending.receipts.length,
@@ -256,12 +253,17 @@ export function useAdIAP() {
             ad_id: pending.adId,
             receipts_count: pending.receipts.length,
           });
+          setPurchasing(false);
+          pending.resolve({ ok: true });
         } catch (err: any) {
+          const message = getVerificationErrorMessage(err);
           captureBreadcrumb('Ad receipt verification deferred', 'payments.ad', {
             ad_id: pending.adId,
-            error: err?.message || 'unknown_error',
+            error: message,
           }, 'warning');
-          void queueAdVerificationRecovery(verification, err);
+          await queueAdVerificationRecovery(verification, err);
+          setPurchasing(false);
+          pending.resolve({ ok: false, error: message });
         }
       } else if (needWeekend && !hasWeekend) {
         // Set a 2-minute timeout to prevent UI getting stuck if Apple IAP stalls

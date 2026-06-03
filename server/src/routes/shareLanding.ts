@@ -31,6 +31,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const APP_STORE_URL =
   process.env.IOS_APP_STORE_URL ||
@@ -369,11 +370,11 @@ function genericLandingHandler(req: Request, res: Response, next: NextFunction) 
 
 export const shareLandingRouter = Router();
 shareLandingRouter.use(shareLandingLimiter);
-shareLandingRouter.get('/posts/:id', postLanding);
-shareLandingRouter.get('/games/:id', gameLanding);
-shareLandingRouter.get('/teams/:id', teamLanding);
-shareLandingRouter.get('/users/:id', userLanding);
-shareLandingRouter.get('/events/:id', eventLanding);
+shareLandingRouter.get('/posts/:id', asyncHandler(postLanding));
+shareLandingRouter.get('/games/:id', asyncHandler(gameLanding));
+shareLandingRouter.get('/teams/:id', asyncHandler(teamLanding));
+shareLandingRouter.get('/users/:id', asyncHandler(userLanding));
+shareLandingRouter.get('/events/:id', asyncHandler(eventLanding));
 // Invite/share routes get the generic landing — no DB lookup needed since
 // they're transactional, not content surfaces.
 shareLandingRouter.get('/join/:code', genericLandingHandler);

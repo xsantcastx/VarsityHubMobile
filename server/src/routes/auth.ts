@@ -17,6 +17,7 @@ import {
 import {
     buildCoachApplicationReviewUrl,
     sendCoachApplicationAdminEmail,
+    sendPasswordChangedEmail,
     sendPasswordResetEmail,
     sendVerificationEmail,
 } from '../lib/email.js';
@@ -376,9 +377,9 @@ async function verifyGoogleIdentityToken(idToken: string) {
       msg.includes('Token used too late') ||
       msg.includes('Invalid token')
     ) {
+      console.warn('[auth/google] token verification failed:', msg);
       throw new AppError(401, 'Google authentication failed', {
         errorCode: 'GOOGLE_AUTH_FAILED',
-        metadata: { detail: msg },
       });
     }
     throw new AppError(401, 'Google authentication failed', {
@@ -470,9 +471,9 @@ async function verifyAppleIdentityToken(identityToken: string, appleClientId: st
     return { appleId, email };
   } catch (err: any) {
     if (err instanceof ValidationError) throw err;
+    console.warn('[auth/apple] token verification failed:', err?.message || err);
     throw new ValidationError('Failed to verify Apple token', {
       errorCode: 'APPLE_AUTH_FAILED',
-      metadata: { detail: err?.message },
     });
   }
 }
@@ -1854,7 +1855,9 @@ authRouter.post(
     });
     await revokeAllSessions(user.id);
 
-    // Security alert: password changed notification removed as part of email cleanup
+    sendPasswordChangedEmail(user.email, user.display_name || undefined).catch(err => {
+      console.warn('[auth] Password changed email failed after reset:', err?.message || err);
+    });
 
     return res.json({ ok: true });
   })
@@ -1899,7 +1902,9 @@ authRouter.post(
     });
     await revokeAllSessions(user.id);
 
-    // Password changed notification removed as part of email cleanup
+    sendPasswordChangedEmail(user.email, user.display_name || undefined).catch(err => {
+      console.warn('[auth] Password changed email failed after change:', err?.message || err);
+    });
 
     return res.json({ ok: true });
   })
@@ -2667,7 +2672,7 @@ const updateMeSchema = z.object({
             'platform-lookaside.fbsbx.com',
             'graph.facebook.com',
           ];
-          return allowedDomains.some(d => parsed.hostname.endsWith(d));
+          return allowedDomains.some(d => parsed.hostname === d || parsed.hostname.endsWith(`.${d}`));
         } catch (error) {
           console.warn('[auth] Invalid avatar URL format:', error);
           return false;
@@ -3313,7 +3318,7 @@ const completeOnboardingSchema = z.object({
             'platform-lookaside.fbsbx.com',
             'graph.facebook.com',
           ];
-          return allowedDomains.some(d => parsed.hostname.endsWith(d));
+          return allowedDomains.some(d => parsed.hostname === d || parsed.hostname.endsWith(`.${d}`));
         } catch {
           return false;
         }
@@ -3586,14 +3591,10 @@ authRouter.post(
     updateData.preferences = mergeAuthStateIntoPreferences(merged, onboardingAuthPatch);
     Object.assign(updateData, buildAuthStateColumns(onboardingAuthPatch));
 
-    // SECURITY: If completing onboarding as coach, ensure approval_status is PENDING
-    // This prevents a fan from completing onboarding with role='coach' and retaining APPROVED status
-    // v1.0.2: Also guard against overwriting an already-APPROVED status from a stale client call
-    if (
-      finalRole === 'coach' &&
-      currentAuthState.role !== 'coach' &&
-      current?.approval_status !== 'APPROVED'
-    ) {
+    // SECURITY: fan accounts default to APPROVED, but that is not coach approval.
+    // Any fan -> coach transition must enter the approval queue. Existing
+    // already-approved coaches keep their approved state on stale/retry calls.
+    if (finalRole === 'coach' && currentAuthState.role !== 'coach') {
       updateData.approval_status = 'PENDING';
     }
 

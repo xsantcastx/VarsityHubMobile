@@ -4,7 +4,11 @@ import { z } from 'zod';
 import { isOrganizationApproved } from '../lib/approvalService.js';
 import { debugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
-import { sendStaffMemberJoinedEmail, sendTeamInviteEmail } from '../lib/email.js';
+import {
+  sendInvitationDeclinedEmail,
+  sendStaffMemberJoinedEmail,
+  sendTeamInviteEmail,
+} from '../lib/email.js';
 import { sendError } from '../lib/http/sendError.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import { getOrganizationState } from '../lib/organizationState.js';
@@ -1718,7 +1722,7 @@ const TEAM_LOGO_URL_VALIDATOR = z
         const parsed = new URL(url);
         if (parsed.protocol !== 'https:') return false;
         const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
-        return allowed.some(d => parsed.hostname.endsWith(d));
+        return allowed.some(d => parsed.hostname === d || parsed.hostname.endsWith(`.${d}`));
       } catch {
         return false;
       }
@@ -2576,7 +2580,7 @@ teamsRouter.post(
             role: { in: ['owner', 'manager', 'coach'] },
             status: 'active',
           },
-          select: { user_id: true },
+          select: { user_id: true, user: { select: { email: true, display_name: true } } },
           take: 100,
         });
 
@@ -2598,6 +2602,19 @@ teamsRouter.post(
                 { type: 'team_invite_declined', team_id: invite.team_id, screen: 'team-page' }
               )
             )
+          );
+          await Promise.allSettled(
+            managers
+              .filter(mgr => mgr.user?.email)
+              .map(mgr =>
+                sendInvitationDeclinedEmail({
+                  to: mgr.user!.email,
+                  inviterName: mgr.user!.display_name || 'Coach',
+                  decliner: declinerName,
+                  scope: 'team',
+                  scopeName: teamName,
+                })
+              )
           );
         }
       } catch (notifErr) {

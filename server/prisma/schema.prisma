@@ -499,7 +499,7 @@ model Post {
   lng          Float?
 
   game_id String?
-  game    Game?   @relation(fields: [game_id], references: [id], onDelete: SetNull)
+  game    Game?   @relation(fields: [game_id], references: [id], onDelete: Cascade)
 
   team_id   String?
   team      Team?   @relation(fields: [team_id], references: [id], onDelete: SetNull)
@@ -596,7 +596,7 @@ model Event {
   team_id String?
   team    Team?   @relation(fields: [team_id], references: [id], onDelete: SetNull)
 
-  game    Game?       @relation(fields: [game_id], references: [id], onDelete: SetNull)
+  game    Game?       @relation(fields: [game_id], references: [id], onDelete: Cascade)
   creator User?       @relation(fields: [creator_id], references: [id], onDelete: SetNull)
   rsvps   EventRsvp[]
 
@@ -1344,8 +1344,8 @@ model TransactionLog {
   transaction_type         TransactionType
   status                   TransactionStatus @default(PENDING)
   stripe_session_id        String?           @unique
-  stripe_payment_intent_id String?
-  stripe_subscription_id   String?
+  stripe_payment_intent_id String?           @unique
+  stripe_subscription_id   String?           @unique
   // v1.0.2: Apple IAP transaction identifier. @unique closes the TOCTOU window in
   // server/src/routes/payments.ts where two rapid replays could both pass the findFirst check.
   // Old rows have NULL; new IAP writes populate this. Never set for Stripe flows.

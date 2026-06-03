@@ -11,6 +11,7 @@ import {
   sendCoachApprovedEmail,
   sendCoachJoinRequestEmail,
   sendCoachRejectedEmail,
+  sendInvitationDeclinedEmail,
   sendLeagueApprovalRequestEmail,
   sendOrganizationInviteEmail,
   sendStaffMemberJoinedEmail,
@@ -437,6 +438,7 @@ function buildApprovedCoachPreferences(params: {
 }): Record<string, any> {
   const next = mergeAuthStateIntoPreferences(getPreferencesObject(params.currentPrefs), {
     role: 'coach',
+    onboarding_completed: true,
     organization_id: params.organization.id,
     proceeding_as_fan: false,
   }) as Record<string, any>;
@@ -710,9 +712,7 @@ const updateOrgSchema = z.object({
       url => {
         try {
           const h = new URL(url).hostname;
-          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d =>
-            h.endsWith(d)
-          );
+          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d => h === d || h.endsWith(`.${d}`));
         } catch {
           return false;
         }
@@ -729,9 +729,7 @@ const updateOrgSchema = z.object({
       url => {
         try {
           const h = new URL(url).hostname;
-          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d =>
-            h.endsWith(d)
-          );
+          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d => h === d || h.endsWith(`.${d}`));
         } catch {
           return false;
         }
@@ -748,9 +746,7 @@ const updateOrgSchema = z.object({
       url => {
         try {
           const h = new URL(url).hostname;
-          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d =>
-            h.endsWith(d)
-          );
+          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d => h === d || h.endsWith(`.${d}`));
         } catch {
           return false;
         }
@@ -1674,6 +1670,32 @@ organizationsRouter.post(
         data: { status: 'declined' },
       });
       if (declined.count === 0) return res.status(409).json({ error: 'Invite already processed' });
+      const organization = await prisma.organization.findUnique({
+        where: { id: invite.organization_id },
+        select: { name: true },
+      });
+      const owners = await prisma.organizationMembership.findMany({
+        where: {
+          organization_id: invite.organization_id,
+          role: 'owner',
+          status: 'active',
+        },
+        select: { user: { select: { email: true, display_name: true } } },
+        take: 25,
+      });
+      await Promise.allSettled(
+        owners
+          .filter(owner => owner.user?.email)
+          .map(owner =>
+            sendInvitationDeclinedEmail({
+              to: owner.user!.email,
+              inviterName: owner.user!.display_name || 'Organizer',
+              decliner: user.display_name || user.email || 'Someone',
+              scope: 'organization',
+              scopeName: organization?.name || 'your organization',
+            })
+          )
+      );
       return res.json({ message: 'Invite declined' });
     } catch (err) {
       console.error('[organizations] POST /invites/:inviteId/decline error:', err);
@@ -2222,6 +2244,7 @@ organizationsRouter.post(
               }),
               ...buildAuthStateColumns({
                 role: 'coach',
+                onboarding_completed: true,
                 organization_id: joinRequest.organization_id,
                 proceeding_as_fan: false,
               }),
@@ -2637,6 +2660,7 @@ async function _executeJoinRequestApprovalByToken(
             }),
             ...buildAuthStateColumns({
               role: 'coach',
+              onboarding_completed: true,
               organization_id: joinRequest.organization_id,
               proceeding_as_fan: false,
             }),
