@@ -773,7 +773,9 @@ describe('Coach Approval Workflow', () => {
           email_verified: true,
           role: 'coach',
           onboarding_completed: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: false },
+          role: 'coach' as any,
+          onboarding_completed: false,
           approval_status: 'PENDING',
         },
       });
@@ -1290,11 +1292,18 @@ describe('Coach Approval Workflow', () => {
 
       const userAfter = await prisma.user.findUnique({
         where: { id: coach.id },
-        select: { approval_status: true, paid_by_owner: true, preferences: true },
+        select: {
+          approval_status: true,
+          paid_by_owner: true,
+          preferences: true,
+          onboarding_completed: true,
+        },
       });
       expect(userAfter?.approval_status).toBe('APPROVED');
       expect(userAfter?.paid_by_owner).toBe(true);
+      expect(userAfter?.onboarding_completed).toBe(true);
       expect((userAfter?.preferences as any)?.role).toBe('coach');
+      expect((userAfter?.preferences as any)?.onboarding_completed).toBe(true);
       expect((userAfter?.preferences as any)?.organization_id).toBe(orgId);
       expect((userAfter?.preferences as any)?.join_request_pending).toBe(false);
       expect((userAfter?.preferences as any)?.proceeding_as_fan).toBe(false);

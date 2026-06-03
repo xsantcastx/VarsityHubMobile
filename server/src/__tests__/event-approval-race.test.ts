@@ -40,7 +40,7 @@ describe('Event approval state-machine race guard', () => {
     //     where: { id: eventId, approval_status: 'pending' },
     //     data: { approval_status: 'approved', ... },
     //   });
-    expect(approveBody).toMatch(/prisma\.event\.updateMany/);
+    expect(approveBody).toMatch(/(?:prisma|tx)\.event\.updateMany/);
     expect(approveBody).toMatch(/approval_status:\s*['"]pending['"]/);
   });
 
@@ -52,7 +52,7 @@ describe('Event approval state-machine race guard', () => {
   });
 
   it('rejectEvent uses updateMany with approval_status in WHERE', () => {
-    expect(rejectBody).toMatch(/prisma\.event\.updateMany/);
+    expect(rejectBody).toMatch(/(?:prisma|tx)\.event\.updateMany/);
     expect(rejectBody).toMatch(/approval_status:\s*['"]pending['"]/);
   });
 
@@ -78,5 +78,15 @@ describe('Event approval state-machine race guard', () => {
       );
     expect(unguardedApprove).toBeNull();
     expect(unguardedReject).toBeNull();
+  });
+
+  it('syncs linked game approval state inside the same guarded transition', () => {
+    expect(approveBody).toMatch(/tx\.game\.updateMany/);
+    expect(approveBody).toMatch(/id:\s*event\.game_id/);
+    expect(approveBody).toMatch(/approval_status:\s*['"]approved['"]/);
+
+    expect(rejectBody).toMatch(/tx\.game\.updateMany/);
+    expect(rejectBody).toMatch(/id:\s*event\.game_id/);
+    expect(rejectBody).toMatch(/approval_status:\s*['"]rejected['"]/);
   });
 });

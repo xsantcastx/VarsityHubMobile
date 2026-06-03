@@ -438,6 +438,7 @@ function buildApprovedCoachPreferences(params: {
 }): Record<string, any> {
   const next = mergeAuthStateIntoPreferences(getPreferencesObject(params.currentPrefs), {
     role: 'coach',
+    onboarding_completed: true,
     organization_id: params.organization.id,
     proceeding_as_fan: false,
   }) as Record<string, any>;
@@ -2243,6 +2244,7 @@ organizationsRouter.post(
               }),
               ...buildAuthStateColumns({
                 role: 'coach',
+                onboarding_completed: true,
                 organization_id: joinRequest.organization_id,
                 proceeding_as_fan: false,
               }),
@@ -2658,6 +2660,7 @@ async function _executeJoinRequestApprovalByToken(
             }),
             ...buildAuthStateColumns({
               role: 'coach',
+              onboarding_completed: true,
               organization_id: joinRequest.organization_id,
               proceeding_as_fan: false,
             }),
