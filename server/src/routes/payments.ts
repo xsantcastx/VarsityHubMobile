@@ -42,7 +42,7 @@ import {
 import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo, reversePromoRedemption } from '../lib/promos.js';
-import { addBreadcrumb, captureException } from '../lib/sentry.js';
+import { addBreadcrumb, captureException, captureMessage } from '../lib/sentry.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import { getCanonicalUserRole } from '../lib/userAuthState.js';
@@ -2927,7 +2927,11 @@ function verifyAppleSignedJws(token: string): any {
     (cert: string) => `-----BEGIN CERTIFICATE-----\n${cert}\n-----END CERTIFICATE-----`
   );
   const rootCert = new crypto.X509Certificate(x5cCerts[x5cCerts.length - 1]);
-  if (!rootCert.subject.includes('Apple Root CA') || !rootCert.issuer.includes('Apple Root CA')) {
+  if (
+    !rootCert.subject.includes('CN=Apple Root CA - G3') ||
+    !rootCert.subject.includes('O=Apple Inc.') ||
+    !rootCert.issuer.includes('Apple Root CA - G3')
+  ) {
     throw new Error('Invalid Apple root certificate');
   }
   if (!rootCert.checkIssued(rootCert)) {
@@ -3503,7 +3507,16 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
     }
 
     if (receiptState === 'missing_uuid') {
-      console.warn('[apple-s2s] Missing notificationUUID; continuing without dedup');
+      console.warn('[apple-s2s] Missing notificationUUID; acknowledging without processing');
+      captureMessage('Apple S2S notification missing notificationUUID; skipped unsafe processing', 'warning', {
+        context: 'apple_s2s_missing_notification_uuid',
+        notificationType,
+        subtype,
+        originalTransactionId: redactIdentifier(originalTransactionId),
+        productId,
+        environment,
+      });
+      return res.sendStatus(200);
     }
 
     if (!originalTransactionId) {
@@ -3690,8 +3703,9 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
   } catch (err: any) {
     console.error('[apple-s2s] Error processing notification:', err);
     captureException(err, { context: 'apple-s2s-notification', provider: 'apple_iap' });
-    // Always return 200 so Apple doesn't retry indefinitely
-    return res.sendStatus(200);
+    // Signature/validation failures return earlier. Processing failures after
+    // verification should be retryable so Apple can redeliver transient DB errors.
+    return res.sendStatus(500);
   }
 }));
 
