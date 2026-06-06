@@ -1,21 +1,21 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import type { AuthedRequest } from '../middleware/auth.js';
-import { requireAuth } from '../middleware/requireAuth.js';
-import { requireVerified } from '../middleware/requireVerified.js';
-import { requireOnboarded } from '../middleware/requireOnboarded.js';
-import { prisma } from '../lib/prisma.js';
-import { inviteLimiter } from '../middleware/rateLimiters.js';
 import { sendTeamInviteEmail } from '../lib/email.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
+import { prisma } from '../lib/prisma.js';
 import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 import {
-  buildTeamPlanLockedError,
-  buildRosterLimitError,
-  getTeamEntitlementState,
-  isAuthorizedTeamRole,
-  TEAM_AUTHORIZED_ROLES,
+    buildRosterLimitError,
+    buildTeamPlanLockedError,
+    getTeamEntitlementState,
+    isAuthorizedTeamRole,
+    TEAM_AUTHORIZED_ROLES,
 } from '../lib/teamEntitlements.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import type { AuthedRequest } from '../middleware/auth.js';
+import { inviteLimiter } from '../middleware/rateLimiters.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 
 export const teamInvitesRouter = Router();
 
@@ -51,6 +51,23 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
       error: 'PERMISSION_DENIED',
       message: 'Only team staff or organization admins can invite members to teams.',
     });
+  }
+
+  // Only team owners (or org admins) may assign the manager role.
+  if (assignedRole === 'manager') {
+    const callerMembership = await prisma.teamMembership.findFirst({
+      where: { team_id: teamId, user_id: req.user.id, status: 'active' },
+      select: { role: true },
+    });
+    // callerMembership === null means they passed canManageTeam via org-admin fallback → allowed
+    const isTeamOwner = callerMembership?.role === 'owner';
+    const isOrgAdminPath = callerMembership === null;
+    if (!isTeamOwner && !isOrgAdminPath) {
+      return res.status(403).json({
+        error: 'INSUFFICIENT_ROLE',
+        message: 'Only team owners can invite at manager level.',
+      });
+    }
   }
 
   let invite;
