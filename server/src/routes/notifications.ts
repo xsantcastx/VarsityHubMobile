@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { Router } from 'express';
-import { prisma } from '../lib/prisma.js';
 import { sendError } from '../lib/http/sendError.js';
+import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -270,19 +270,12 @@ notificationsRouter.post(
   '/mark-read-all',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      const userId = req.user!.id;
-      await prisma.notification.updateMany({
-        where: { user_id: userId, read_at: null },
-        data: { read_at: new Date() },
-      });
-      return res.json({ ok: true });
-    } catch (error: any) {
-      console.error('[notifications] Error marking all notifications as read:', error);
-      return sendError(res, 500, 'NOTIFICATIONS_MARK_ALL_READ_FAILED', {
-        message: 'Failed to mark all notifications as read',
-      });
-    }
+    const userId = req.user!.id;
+    await prisma.notification.updateMany({
+      where: { user_id: userId, read_at: null },
+      data: { read_at: new Date() },
+    });
+    return res.json({ ok: true });
   })
 );
 
@@ -291,24 +284,17 @@ notificationsRouter.post(
   '/:id/read',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      const userId = req.user!.id;
-      const id = String(req.params.id);
-      const result = await prisma.notification.updateMany({
-        where: { id, user_id: userId },
-        data: { read_at: new Date() },
-      });
-      if (result.count === 0) {
-        return sendError(res, 404, 'NOT_FOUND', {
-          message: 'Notification not found',
-        });
-      }
-      return res.json({ ok: true, id });
-    } catch (error: any) {
-      console.error('[notifications] Error marking notification as read:', error);
-      return sendError(res, 500, 'NOTIFICATIONS_MARK_READ_FAILED', {
-        message: 'Failed to mark notification as read',
+    const userId = req.user!.id;
+    const id = String(req.params.id);
+    const result = await prisma.notification.updateMany({
+      where: { id, user_id: userId },
+      data: { read_at: new Date() },
+    });
+    if (result.count === 0) {
+      return sendError(res, 404, 'NOT_FOUND', {
+        message: 'Notification not found',
       });
     }
+    return res.json({ ok: true, id });
   })
 );
