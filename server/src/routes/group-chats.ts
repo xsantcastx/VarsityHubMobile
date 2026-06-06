@@ -18,10 +18,9 @@ groupChatsRouter.get(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-      const memberships = await prisma.groupChatMember.findMany({
+    const memberships = await prisma.groupChatMember.findMany({
         where: { user_id: req.user.id },
         take: 100,
         include: {
@@ -94,10 +93,6 @@ groupChatsRouter.get(
       }));
 
       return res.json(chats);
-    } catch (error: any) {
-      console.error('Error fetching group chats:', error);
-      return res.status(500).json({ error: 'Failed to fetch group chats' });
-    }
   })
 );
 
@@ -107,7 +102,6 @@ groupChatsRouter.get(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
       const { chatId } = req.params;
@@ -181,10 +175,6 @@ groupChatsRouter.get(
       });
 
       return res.json(messages);
-    } catch (error: any) {
-      console.error('Error fetching group chat messages:', error);
-      return res.status(500).json({ error: 'Failed to fetch messages' });
-    }
   })
 );
 
@@ -202,7 +192,6 @@ groupChatsRouter.post(
   requireVerified as any,
   groupMessageLimiter as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
       const { chatId } = req.params;
@@ -243,10 +232,6 @@ groupChatsRouter.post(
       });
 
       return res.status(201).json(message);
-    } catch (error: any) {
-      console.error('Error sending group chat message:', error);
-      return res.status(500).json({ error: 'Failed to send message' });
-    }
   })
 );
 
@@ -256,7 +241,6 @@ groupChatsRouter.post(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
       const { chatId } = req.params;
@@ -273,10 +257,6 @@ groupChatsRouter.post(
       });
 
       return res.json({ ok: true });
-    } catch (error: any) {
-      console.error('Error marking messages as read:', error);
-      return res.status(500).json({ error: 'Failed to mark as read' });
-    }
   })
 );
 
@@ -292,7 +272,6 @@ groupChatsRouter.post(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
       const parsed = createChatSchema.safeParse(req.body);
@@ -355,10 +334,6 @@ groupChatsRouter.post(
       });
 
       return res.status(201).json(chat);
-    } catch (error: any) {
-      console.error('Error creating group chat:', error);
-      return res.status(500).json({ error: 'Failed to create group chat' });
-    }
   })
 );
 
@@ -371,7 +346,6 @@ groupChatsRouter.post(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const chatId = String(req.params.chatId);
       const parsed = z.object({ user_id: z.string().min(1) }).safeParse(req.body);
@@ -427,10 +401,6 @@ groupChatsRouter.post(
         data: { chat_id: chatId, user_id: targetUserId },
       });
       return res.status(201).json({ ok: true, user_id: targetUserId });
-    } catch (error: any) {
-      console.error('[group-chats] POST /:chatId/members error:', error?.message);
-      return res.status(500).json({ error: 'Failed to add member to group chat' });
-    }
   })
 );
 
@@ -445,7 +415,6 @@ groupChatsRouter.delete(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const chatId = String(req.params.chatId);
       const targetUserId = String(req.params.userId);
@@ -506,10 +475,6 @@ groupChatsRouter.delete(
 
       await prisma.groupChatMember.delete({ where: { id: targetMembership.id } });
       return res.json({ ok: true, removed_user_id: targetUserId });
-    } catch (error: any) {
-      console.error('[group-chats] DELETE /:chatId/members/:userId error:', error?.message);
-      return res.status(500).json({ error: 'Failed to remove member from group chat' });
-    }
   })
 );
 
