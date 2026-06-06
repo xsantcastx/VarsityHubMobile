@@ -126,6 +126,17 @@ export async function getExcludedPrivateTeamIds(viewerId: string | null): Promis
  */
 export type BlockedCache = Map<string, Promise<string[]>>;
 
+// Short-lived cross-request cache for blocked-user lists. Block relationships
+// change rarely (explicit user action), so a 30s TTL is safe and eliminates
+// the repeated DB hit when the same user triggers multiple parallel feed slices.
+const _blockedIdsCache = new Map<string, { promise: Promise<string[]>; expires: number }>();
+const BLOCKED_IDS_CACHE_TTL = 30_000;
+
+/** Invalidate a specific user's blocked-ids cache entry (call on block/unblock). */
+export function invalidateBlockedIdsCache(viewerId: string): void {
+  _blockedIdsCache.delete(viewerId);
+}
+
 /**
  * Returns IDs of users the viewer has blocked or been blocked by (bidirectional).
  * Used to filter posts and comments from blocked users out of feeds.
@@ -139,9 +150,18 @@ export async function getBlockedUserIds(
 ): Promise<string[]> {
   if (!viewerId) return [];
 
+  // Per-request cache takes priority — already resolved for this request.
   if (cache) {
     const existing = cache.get(viewerId);
     if (existing) return existing;
+  }
+
+  // Cross-request cache: share the promise across concurrent requests for the
+  // same user (e.g. two parallel feed slices hitting the bundle endpoint).
+  const cached = _blockedIdsCache.get(viewerId);
+  if (cached && Date.now() < cached.expires) {
+    if (cache) cache.set(viewerId, cached.promise);
+    return cached.promise;
   }
 
   // v1.0.2 pass 12: bound the scan. A single user's bidirectional block set is tiny in
@@ -166,6 +186,7 @@ export async function getBlockedUserIds(
       return Array.from(ids);
     });
 
+  _blockedIdsCache.set(viewerId, { promise, expires: Date.now() + BLOCKED_IDS_CACHE_TTL });
   if (cache) cache.set(viewerId, promise);
   return promise;
 }

@@ -16,6 +16,7 @@ import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+import { invalidateBlockedIdsCache } from '../lib/privacyUtils.js';
 
 export const usersRouter = Router();
 registerIdValidation(usersRouter);
@@ -1399,6 +1400,8 @@ usersRouter.post('/:id/block', requireAuth as any, asyncHandler(async (req: Auth
     });
 
     await invalidateFollowCaches(blocker_id, blocked_id);
+    invalidateBlockedIdsCache(blocker_id);
+    invalidateBlockedIdsCache(blocked_id);
 
     return res.status(201).json({ success: true });
   } catch (error: any) {
@@ -1423,6 +1426,8 @@ usersRouter.delete('/:id/block', requireAuth as any, asyncHandler(async (req: Au
         blocked_id,
       },
     });
+    invalidateBlockedIdsCache(blocker_id);
+    invalidateBlockedIdsCache(blocked_id);
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Unblock user error:', error);

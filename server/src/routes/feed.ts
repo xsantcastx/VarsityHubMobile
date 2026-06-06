@@ -152,7 +152,7 @@ async function getFollowedPostsPage(
         ],
       },
       select: { id: true },
-      take: 10000,
+      take: 500,
     });
     const followedGameIds = followedGameRows.map(g => g.id);
 
@@ -557,8 +557,15 @@ feedRouter.get(
       );
       const adsLimit = Math.max(1, Math.min(Number(req.query.ads_limit || 2) || 2, 5));
 
-      const viewer = req.user?.id
-        ? await prisma.user.findUnique({
+      const todayISO = new Date().toISOString().slice(0, 10);
+      const POSTS_FALLBACK = { items: [], nextCursor: null };
+      const HIGHLIGHTS_FALLBACK = { nationalTop: [], ranked: [] };
+      const ADS_FALLBACK = { date: todayISO, ads: [] };
+
+      // Fetch viewer profile concurrently with feed slices — it's only needed
+      // by getAdsBundle (age gate) and unread counts, not by the post/highlights queries.
+      const viewerPromise = req.user?.id
+        ? prisma.user.findUnique({
             where: { id: req.user.id },
             select: {
               id: true,
@@ -569,17 +576,7 @@ feedRouter.get(
               preferences: true,
             },
           })
-        : null;
-      const verifiedViewer = await ensureOAuthUserVerified(viewer as any);
-
-      // Each slice has its own safe fallback so a single failure (e.g. ad
-      // service slowness, notification table lock) does not blank the whole
-      // feed. Failed slices are reported to Sentry but do not propagate as
-      // a 500 — the user gets the slices that succeeded.
-      const todayISO = new Date().toISOString().slice(0, 10);
-      const POSTS_FALLBACK = { items: [], nextCursor: null };
-      const HIGHLIGHTS_FALLBACK = { nationalTop: [], ranked: [] };
-      const ADS_FALLBACK = { date: todayISO, ads: [] };
+        : Promise.resolve(null);
 
       const settled = await Promise.allSettled([
         getFollowedPostsPage(
@@ -597,15 +594,19 @@ feedRouter.get(
             : null
         ),
         getHighlightsBundle(req, highlightsLimit),
-        getAdsBundle(viewer, req, adsLimit),
+        viewerPromise.then(async (v) => {
+          const verifiedV = await ensureOAuthUserVerified(v as any);
+          return getAdsBundle(verifiedV, req, adsLimit);
+        }),
         prisma.notification.count({
           where: { user_id: req.user!.id, read_at: null },
         }),
-        verifiedViewer?.email_verified
-          ? prisma.message.count({
-              where: { recipient_id: req.user!.id, read: false },
-            })
-          : Promise.resolve(0),
+        viewerPromise.then(async (v) => {
+          const verifiedV = await ensureOAuthUserVerified(v as any);
+          return verifiedV?.email_verified
+            ? prisma.message.count({ where: { recipient_id: req.user!.id, read: false } })
+            : 0;
+        }),
       ]);
 
       const sliceNames = [
