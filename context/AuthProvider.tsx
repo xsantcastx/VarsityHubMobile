@@ -14,29 +14,29 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { useRouter, useSegments } from 'expo-router';
-import { AppState, Platform } from 'react-native';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { AppState, Platform } from 'react-native';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
 import { User } from '@/api/entities';
-import { httpGet, abortAllInflight } from '@/api/http';
-import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
-import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
-import { captureException, setUserContext as setSentryUser } from '@/utils/sentry';
-import { analytics } from '@/utils/analytics';
-import { buildAuthRedirectFingerprint, navigateWithAuthRedirect } from '@/utils/authTelemetry';
-import {
-  getCanonicalOrganizationId,
-  getCanonicalRole,
-  hasAcceptedCoachAgreement,
-  isOnboardingCompleteSnapshot,
-  isProceedingAsFanSnapshot,
-} from '@/utils/authState';
-import { onSessionExpired, type SessionExpiredReason } from '@/utils/sessionEvents';
+import { abortAllInflight, httpGet } from '@/api/http';
 import { showWarningToast } from '@/components/ErrorToast';
-import Notifications from '@/utils/notifications';
+import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
+import { analytics } from '@/utils/analytics';
 import { getPostAuthRouteDecision, getRouteFamily } from '@/utils/appRouteDecisions';
+import {
+    getCanonicalOrganizationId,
+    getCanonicalRole,
+    hasAcceptedCoachAgreement,
+    isOnboardingCompleteSnapshot,
+    isProceedingAsFanSnapshot,
+} from '@/utils/authState';
+import { buildAuthRedirectFingerprint, navigateWithAuthRedirect } from '@/utils/authTelemetry';
+import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
+import Notifications from '@/utils/notifications';
 import { getCoachAccessState } from '@/utils/roleChecks';
+import { captureException, setUserContext as setSentryUser } from '@/utils/sentry';
+import { onSessionExpired, type SessionExpiredReason } from '@/utils/sessionEvents';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -153,7 +153,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
   const router = useRouter();
   const segments = useSegments();
-  const unauthenticatedEntryRoute = Platform.OS === 'web' ? '/sign-up' : '/sign-in';
+  const unauthenticatedEntryRoute = Platform.OS === 'web' ? '/sign-up' : '/(tabs)/feed';
   const currentPath =
     Array.isArray(segments) && segments.length
       ? segments.map(segment => String(segment)).join('/')
@@ -1161,7 +1161,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // connectivity problems via OfflineBanner there instead.
     if (!healthOk) {
       if (__DEV__) console.log('[AuthProvider] Backend unhealthy, limiting routing');
-      if (!user && !pendingVerificationEmail && !isPublic) {
+      if (!user && !pendingVerificationEmail && !isPublic && firstSegment !== '(tabs)') {
         if (lastRedirectRef.current !== unauthenticatedEntryRoute) {
           redirectWithTelemetry(unauthenticatedEntryRoute, 'unauthenticated_backend_unhealthy');
         }
@@ -1170,7 +1170,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     }
 
     // Unauthenticated routing
-    if (!user && !pendingVerificationEmail && !isPublic) {
+    // Guests may freely browse the main tab screens (feed, highlights, discover, profile).
+    // Only redirect when they land on a route that genuinely requires authentication.
+    if (!user && !pendingVerificationEmail && !isPublic && firstSegment !== '(tabs)') {
       if (lastRedirectRef.current !== unauthenticatedEntryRoute) {
         if (__DEV__)
           console.log(

@@ -15,7 +15,7 @@ function CreateScreen() {
   const loading = authLoading || createAccessLoading;
   const verified = !!me?.email_verified;
   const isAdmin = !!(me as any)?.is_admin;
-  const canCreatePost = Boolean(me);
+
   const go = (path: string) => {
     if (!verified) return router.replace('/verify-identity?method=email');
     router.replace(path as any);
@@ -43,6 +43,40 @@ function CreateScreen() {
     );
   }
 
+  // Guest (not logged in) — show Glaze-style Login Required prompt
+  if (!me) {
+    return (
+      <View style={styles.overlay}>
+        <Stack.Screen options={{ presentation: 'modal', title: 'Create' }} />
+        <Pressable style={styles.overlayDismiss} onPress={safeBack} />
+        <View style={[styles.sheet, styles.loginSheet, { backgroundColor: Colors[colorScheme].background }]}>
+          <Text style={[styles.loginTitle, { color: Colors[colorScheme].text }]}>
+            Login Required
+          </Text>
+          <Text style={[styles.loginBody, { color: Colors[colorScheme].mutedText }]}>
+            Log in to create and publish your moments.
+          </Text>
+          <Pressable
+            style={[styles.loginBtn, { backgroundColor: Colors[colorScheme].tint }]}
+            onPress={() => router.replace('/sign-in')}
+            accessibilityRole="button"
+            accessibilityLabel="Log in"
+          >
+            <Text style={styles.loginBtnText}>Login</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.cancelBtn, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }]}
+            onPress={safeBack}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+          >
+            <Text style={[styles.cancelBtnText, { color: Colors[colorScheme].text }]}>Cancel</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.overlay}>
       <Stack.Screen options={{ presentation: 'modal', title: 'Create' }} />
@@ -64,23 +98,13 @@ function CreateScreen() {
           </Text>
         ) : null}
         <Pressable
-          style={[
-            styles.item,
-            { borderColor: Colors[colorScheme].border, opacity: canCreatePost ? 1 : 0.4 },
-          ]}
-          onPress={() => (canCreatePost ? go('/create-post') : undefined)}
+          style={[styles.item, { borderColor: Colors[colorScheme].border }]}
+          onPress={() => go('/create-post')}
           accessibilityRole="button"
           accessibilityLabel="Create Post"
-          accessibilityHint={
-            canCreatePost ? 'Double tap to create a new post' : 'Sign in to create a post'
-          }
+          accessibilityHint="Double tap to create a new post"
         >
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Post</Text>
-          {!canCreatePost && (
-            <Text style={{ fontSize: 11, color: Colors[colorScheme].mutedText, marginTop: 2 }}>
-              Sign in to create a post
-            </Text>
-          )}
         </Pressable>
         {canAccessCreateTeam && (
           <Pressable
@@ -141,11 +165,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
+  overlayDismiss: {
+    flex: 1,
+  },
   sheet: {
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 16,
     gap: 8,
+  },
+  loginSheet: {
+    paddingVertical: 24,
+    gap: 12,
   },
   title: { fontSize: 18, fontWeight: '800', marginBottom: 4 },
   item: {
@@ -156,6 +187,37 @@ const styles = StyleSheet.create({
   },
   cancel: {},
   itemText: { fontWeight: '700' },
+  loginTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  loginBody: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  loginBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  loginBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  cancelBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  cancelBtnText: {
+    fontWeight: '700',
+    fontSize: 16,
+  },
 });
 
 export default CreateScreen;

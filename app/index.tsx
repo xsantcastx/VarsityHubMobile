@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
-import { useRouter } from 'expo-router';
-import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
-import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 
 /**
@@ -33,7 +33,7 @@ export default function Index() {
     }
 
     if (!user) {
-      router.replace((Platform.OS === 'web' ? '/sign-up' : '/sign-in') as any);
+      router.replace((Platform.OS === 'web' ? '/sign-up' : '/(tabs)/feed') as any);
       return;
     }
 
