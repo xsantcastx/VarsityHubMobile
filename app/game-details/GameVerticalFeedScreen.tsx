@@ -14,21 +14,21 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  Share,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    FlatList,
+    KeyboardAvoidingView,
+    Linking,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    Share,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
@@ -98,7 +98,7 @@ export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
     media_url: mediaUrl,
     media_type: mediaType,
     preview_url: typeof item?.preview_url === 'string' ? item.preview_url : null,
-    caption: item?.caption ?? sanitizeTitle(item?.title) ?? null,
+    caption: item?.caption ?? item?.content ?? sanitizeTitle(item?.title) ?? null,
     upvotes_count: typeof item?.upvotes_count === 'number' ? item.upvotes_count : 0,
     comments_count:
       typeof item?._count?.comments === 'number'
