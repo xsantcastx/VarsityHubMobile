@@ -374,7 +374,6 @@ const serializeEvent = (
 eventsRouter.get(
   '/',
   asyncHandler(async (req, res) => {
-    try {
       const status = String(req.query.status || '').trim();
       const includeCancelled = String(req.query.include_cancelled || '').toLowerCase() === 'true';
       const approvalStatus = String(req.query.approval_status || '').trim();
@@ -497,10 +496,6 @@ eventsRouter.get(
       }
 
       res.json(events.map(event => serializeEvent(event, { includeGame: true })));
-    } catch (err) {
-      console.error('[events] GET / error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -509,7 +504,6 @@ eventsRouter.get(
   '/my-rsvps',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const limit = Math.max(1, Math.min(Number.parseInt(String(req.query.limit ?? '50'), 10) || 50, 100));
       const cursorRaw = typeof req.query.cursor === 'string' ? req.query.cursor : null;
@@ -566,10 +560,6 @@ eventsRouter.get(
         event: r.event ? serializeEvent(r.event, { includeGame: true }) : null,
       }));
       return res.json(list);
-    } catch (err) {
-      console.error('[events] GET /my-rsvps error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -578,7 +568,6 @@ eventsRouter.get(
   '/my-events',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const limit = Math.max(1, Math.min(Number.parseInt(String(req.query.limit ?? '25'), 10) || 25, 100));
       const cursorRaw = typeof req.query.cursor === 'string' ? req.query.cursor : null;
       const cursor = cursorRaw ? parseEventRsvpCursor(cursorRaw) : null;
@@ -615,10 +604,6 @@ eventsRouter.get(
       }
       res.set('x-has-more', nextCursor ? '1' : '0');
       return res.json(page);
-    } catch (err) {
-      console.error('[events] GET /my-events error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -628,7 +613,6 @@ eventsRouter.get(
   requireAuth as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const userId = req.user!.id;
       const isAdmin = await getIsAdmin(req as any);
 
@@ -715,10 +699,6 @@ eventsRouter.get(
       return res.json(
         page.map(event => serializeEvent(event, { includeGame: true, includeCreator: true }))
       );
-    } catch (err) {
-      console.error('[events] GET /pending error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -1441,7 +1421,6 @@ eventsRouter.patch(
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const eventId = String(req.params.id);
       const userId = req.user!.id;
 
@@ -1646,10 +1625,6 @@ eventsRouter.patch(
         ...serializeEvent(updated),
         message: 'Event updated successfully.',
       });
-    } catch (err) {
-      console.error('[events] PATCH /:id error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -1660,7 +1635,6 @@ eventsRouter.patch(
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const eventId = String(req.params.id);
       const userId = req.user!.id;
 
@@ -1781,9 +1755,5 @@ eventsRouter.patch(
         ...serializeEvent(updated),
         message: 'Event cancelled successfully.',
       });
-    } catch (err) {
-      console.error('[events] PATCH /:id/cancel error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
