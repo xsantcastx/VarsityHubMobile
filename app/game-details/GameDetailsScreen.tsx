@@ -4,9 +4,9 @@ import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import {
-  canShowGamePoll,
-  getEventPresentationPhase,
-  isEventPastEndOfDay,
+    canShowGamePoll,
+    getEventPresentationPhase,
+    isEventPastEndOfDay,
 } from '@/utils/eventPresentation';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
@@ -21,21 +21,21 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import {
-  AccessibilityInfo,
-  ActivityIndicator,
-  Alert,
-  Animated,
-  AppState,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
+    AccessibilityInfo,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    AppState,
+    Linking,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    useWindowDimensions,
+    View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../../api/http';
@@ -51,12 +51,12 @@ import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getAuthSnapshot } from '@/utils/authState';
 import {
-  applyClearVote,
-  applyVoteSelection,
-  buildVoteSummary,
-  parseVoteSummary,
-  type VoteOption,
-  type VoteSummary,
+    applyClearVote,
+    applyVoteSelection,
+    buildVoteSummary,
+    parseVoteSummary,
+    type VoteOption,
+    type VoteSummary,
 } from '@/utils/voteSummary';
 import GameVerticalFeedScreen, { mapHighlightToFeedPost } from './GameVerticalFeedScreen';
 
@@ -601,6 +601,7 @@ const GameDetailsScreen = () => {
   const THRESHOLD = useMemo(() => Math.max(24, headerH * 0.6), [headerH]);
   const [showTopFab, setShowTopFab] = useState(false);
   const [vsModalOpen, setVsModalOpen] = useState(false);
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
   const [editResultModalOpen, setEditResultModalOpen] = useState(false);
   const [editResultHomeScore, setEditResultHomeScore] = useState('');
   const [editResultAwayScore, setEditResultAwayScore] = useState('');
@@ -2017,6 +2018,10 @@ const GameDetailsScreen = () => {
   const handleVote = useCallback(
     async (team: VoteOption) => {
       if (!isVoteOpen) return;
+      if (!authUser) {
+        setLoginPromptOpen(true);
+        return;
+      }
       let rollback: VoteSummary | null = null;
       setVoteSummary(prev => {
         rollback = prev ? { ...prev } : null;
@@ -2048,7 +2053,7 @@ const GameDetailsScreen = () => {
         if (rollback) setVoteSummary(rollback);
         else setVoteSummary(null);
         if (err?.status === 401) {
-          void router.replace('/sign-in');
+          setLoginPromptOpen(true);
         } else {
           if (__DEV__) console.error('Failed to submit vote', err);
           Alert.alert('Vote', 'Unable to update your vote right now. Please try again.');
@@ -2099,7 +2104,7 @@ const GameDetailsScreen = () => {
     } catch (err: any) {
       if (rollback) setVoteSummary(rollback);
       if (err?.status === 401) {
-        void router.replace('/sign-in');
+        setLoginPromptOpen(true);
       } else {
         if (__DEV__) console.error('Failed to clear vote', err);
         Alert.alert('Vote', 'Unable to update your vote right now. Please try again.');
@@ -3733,6 +3738,44 @@ const GameDetailsScreen = () => {
           <Text style={styles.fabText}>Top</Text>
         </Pressable>
       ) : null}
+      <Modal
+        visible={loginPromptOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLoginPromptOpen(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
+          onPress={() => setLoginPromptOpen(false)}
+        >
+          <Pressable onPress={e => e.stopPropagation()}>
+            <View style={[styles.loginPromptSheet, { backgroundColor: Colors[colorScheme].background }]}>
+              <Text style={[styles.loginPromptTitle, { color: Colors[colorScheme].text }]}>
+                Login Required
+              </Text>
+              <Text style={[styles.loginPromptBody, { color: Colors[colorScheme].mutedText }]}>
+                Sign in to vote and interact with games.
+              </Text>
+              <Pressable
+                style={[styles.loginPromptBtn, { backgroundColor: Colors[colorScheme].tint }]}
+                onPress={() => { setLoginPromptOpen(false); void router.push('/sign-in'); }}
+                accessibilityRole="button"
+                accessibilityLabel="Log in"
+              >
+                <Text style={styles.loginPromptBtnText}>Login</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.loginPromptCancel, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }]}
+                onPress={() => setLoginPromptOpen(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+              >
+                <Text style={[styles.loginPromptCancelText, { color: Colors[colorScheme].text }]}>Cancel</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -4879,5 +4922,45 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
       fontWeight: '600',
       color: Colors[colorScheme].text,
       marginRight: 8,
+    },
+    loginPromptSheet: {
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 24,
+      paddingBottom: 40,
+      gap: 12,
+    },
+    loginPromptTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      textAlign: 'center',
+      marginBottom: 4,
+    },
+    loginPromptBody: {
+      fontSize: 15,
+      textAlign: 'center',
+      marginBottom: 8,
+    },
+    loginPromptBtn: {
+      height: 50,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    loginPromptBtnText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    loginPromptCancel: {
+      height: 50,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+    },
+    loginPromptCancelText: {
+      fontSize: 16,
+      fontWeight: '600',
     },
   });

@@ -3,26 +3,26 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import {
-  Advertisement,
-  Event,
-  Feed,
-  Game,
-  Message,
-  Notification as NotificationApi,
+    Advertisement,
+    Event,
+    Feed,
+    Game,
+    Message,
+    Notification as NotificationApi,
 } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
@@ -41,10 +41,10 @@ import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import {
-  getNotificationHrefForUser,
-  getNotificationSubtitle,
-  getNotificationTitle,
-  isSystemNotification,
+    getNotificationHrefForUser,
+    getNotificationSubtitle,
+    getNotificationTitle,
+    isSystemNotification,
 } from '@/utils/notificationPresentation';
 import GameVerticalFeedScreen from '../../../game-details/GameVerticalFeedScreen';
 
@@ -96,6 +96,8 @@ const normalizeGamesPage = (gamesData: any): { games: GameItem[]; cursor: string
 // RSVP Badge Component
 const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any; onRSVPChange?: () => void }) => {
   const colorScheme = useColorScheme();
+  const router = useRouter();
+  const { user } = useAuth();
   const [isRsvped, setIsRsvped] = useState(false);
   const [rsvpCount, setRsvpCount] = useState((gameItem as any).rsvpCount || 0);
   const [isLoading, setIsLoading] = useState(false);
@@ -123,6 +125,10 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any; onRSVPChange?: (
 
   const handleRSVP = async () => {
     if (isLoading || !gameItem.event_id) return;
+    if (!user) {
+      void router.push('/sign-in');
+      return;
+    }
     if (isEventPast) {
       Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
       return;

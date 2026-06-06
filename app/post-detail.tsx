@@ -11,20 +11,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    FlatList,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -480,6 +480,10 @@ export default function PostDetailScreen() {
 
   const onUpvote = async () => {
     if (!currentPostId || voting) return;
+    if (!user) {
+      router.push('/sign-in');
+      return;
+    }
     setVoting(true);
     // Only the top-level vote fields change here, so a shallow snapshot is enough.
     const prevPost = post ? { ...post } : post;
@@ -531,6 +535,10 @@ export default function PostDetailScreen() {
 
   const onAddComment = async () => {
     if (!currentPostId || !comment.trim()) return;
+    if (!user) {
+      router.push('/sign-in');
+      return;
+    }
     setCommenting(true);
     const parentId = replyingToComment?.id;
     const commentText = sanitizeText(comment);

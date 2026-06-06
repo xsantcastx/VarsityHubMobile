@@ -2,12 +2,14 @@ import { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 export default function CenterTabButton(props: BottomTabBarButtonProps) {
   const { accessibilityState, accessibilityRole, accessibilityLabel = 'Create post', testID: _testID } = props;
   const selected = accessibilityState?.selected;
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
+  const isDark = colorScheme === 'dark';
 
   const handlePress = () => {
     if (Platform.OS === 'ios') {
@@ -27,7 +29,7 @@ export default function CenterTabButton(props: BottomTabBarButtonProps) {
       style={[styles.wrapper, props.style]}
     >
       <View style={styles.buttonContainer}>
-        <View style={[styles.button, selected && styles.buttonActive]}>
+        <View style={[styles.button, selected && styles.buttonActive, { backgroundColor: isDark ? '#1e40af' : '#111827' }]}>
           <Text style={styles.plus}>+</Text>
         </View>
       </View>
@@ -54,14 +56,13 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#111827',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     display: 'flex',
   },
   buttonActive: {
-    backgroundColor: '#0B1220',
+    opacity: 0.85,
   },
   plus: {
     color: 'white',

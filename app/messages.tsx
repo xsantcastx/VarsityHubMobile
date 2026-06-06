@@ -468,6 +468,39 @@ function MessagesScreen() {
     >
       <Stack.Screen options={{ headerShown: false }} />
 
+      {/* Guest guard — show sign-in CTA instead of messages */}
+      {!loading && !authUser && (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <MaterialIcons name="lock-outline" size={56} color={Colors[colorScheme].tabIconDefault} />
+          <Text style={{ fontSize: 22, fontWeight: '800', color: Colors[colorScheme].text, marginTop: 16, textAlign: 'center' }}>
+            Messages
+          </Text>
+          <Text style={{ fontSize: 15, color: Colors[colorScheme].mutedText, marginTop: 8, textAlign: 'center', lineHeight: 22 }}>
+            Sign in to send and receive messages.
+          </Text>
+          <Pressable
+            style={{ marginTop: 24, backgroundColor: Colors[colorScheme].tint, borderRadius: 12, height: 50, paddingHorizontal: 32, alignItems: 'center', justifyContent: 'center', width: '100%' }}
+            onPress={() => router.push('/sign-in')}
+            accessibilityRole="button"
+            accessibilityLabel="Sign in to view messages"
+          >
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Sign In</Text>
+          </Pressable>
+          <Pressable
+            style={{ marginTop: 12, borderRadius: 12, height: 50, paddingHorizontal: 32, alignItems: 'center', justifyContent: 'center', width: '100%', borderWidth: 1, borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }}
+            onPress={() => router.push('/sign-up')}
+            accessibilityRole="button"
+            accessibilityLabel="Create an account"
+          >
+            <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Create Account</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Authenticated messages UI */}
+      {(loading || authUser) && (
+        <>
+
       {/* Enhanced header with gradient and safe area */}
       <LinearGradient
         colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
@@ -763,6 +796,8 @@ function MessagesScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+        </>
+      )}
     </SafeAreaView>
   );
 }
