@@ -2164,12 +2164,7 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
       return res.status(403).json({ error: 'Subscription ownership mismatch' });
     }
 
-    try {
       await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
-    } catch (err) {
-      console.warn('Failed to cancel Stripe subscription:', (err as any)?.message || err);
-      return res.status(500).json({ error: 'Failed to cancel subscription with Stripe' });
-    }
 
     // Log the cancellation request
     await logTransaction({
@@ -2698,7 +2693,6 @@ paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as a
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
     const { session_id } = parsed.data;
     if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
-    try {
       const session = await stripe.checkout.sessions.retrieve(session_id);
 
       if (!session) return res.status(404).json({ error: 'Session not found' });
@@ -2738,10 +2732,6 @@ paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as a
       }
       const amountPaid = typeof session.amount_total === 'number' ? session.amount_total : 0;
       return res.json({ ok: true, ad: adDetails, amount_cents: amountPaid });
-    } catch (err) {
-      console.error('Failed to finalize session:', (err as any)?.message || err);
-      return res.status(500).json({ error: 'Failed to finalize session' });
-    }
   } catch (err) {
     console.error('Finalize-session error:', (err as any)?.message || err);
     return res.status(500).json({ error: 'Server error' });
