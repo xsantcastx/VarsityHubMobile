@@ -190,7 +190,69 @@ grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 
 # Direct sgMail usage outside providers
 rg -n "sgMail.send" server/src --glob "*.ts" -g '!server/src/services/email/providers/**'
+
+# Hardcoded dark text colors (dark mode violations)
+grep -rn "'#000\|'#111\|'#222\|'#333\|'#374151\|'#111827\|'#1a1a\|black" app/ --include="*.tsx" | grep -v backgroundColor
+
+# Validation drift — frontend vs backend length constraints
+# Manually verify: username (3-20), email format, password (8+ chars), team/org names
 ```
+
+## Security Audit Framework
+
+Apply this structure for any security or architecture audit. Classify every finding by **exploitability**, **blast radius**, and **recoverability** — not just severity labels.
+
+### Threat-Model Phase (run first)
+Check for: auth bypass, privilege escalation, payment spoofing, IDOR, webhook replay, stale cache abuse, deep-link parameter injection.
+
+### Trust Boundary Map
+| Boundary | Trust Level | Notes |
+|----------|-------------|-------|
+| Client → API | Untrusted | JWT-verified only; never trust body fields for user identity |
+| Webhooks (Stripe/Apple) | Trusted after sig-verify | Idempotency key required |
+| Third-party auth (Google/Apple) | Trusted token only | Verify server-side, not client claim |
+| Deep links | Untrusted | Validate params; use `buildRouteParams()` allowlist |
+| Admin actions | Privileged | Must emit audit log |
+
+### Source-of-Truth Rules
+- **Plan status** — server DB only (`getCanonicalPlan()`); never derived from client state
+- **Approval state** — server DB only (`AdminActivityLog`); never from component props
+- **Org membership** — server DB only; re-fetched on navigation to protected screens
+- **Payment status** — Stripe/Apple webhook confirmed; `payment-success` must verify via API
+
+### Audit Steps (per feature)
+1. Map all components: routes, schemas, DB models, frontend screens
+2. Trace data flow: client → API → DB → response → client state
+3. Identify every permission check point and verify it exists server-side
+4. Compare frontend validation vs backend Zod schema vs DB constraints for drift
+5. Check every async flow for idempotency (webhooks, retries, background jobs)
+6. Verify every `catch {}` block — no silent swallowing in auth/payment/critical paths
+
+### Engineering Commandments
+- **Thin routes, thick features** — `app/` is routing only; logic in `src/features/*`
+- **Backend validation is law** — frontend validation is UX only; never rely on it for security
+- **No client-controlled security-critical state** — payment, approval, role, plan are always server-authoritative
+- **One source of truth per domain object**
+- **Every protected action checks auth → role → plan → ownership on the server**
+- **Every async flow is idempotent**
+- **No silent failures in user or payment flows** — log with `[context]` prefix, show user-friendly message
+- **No duplicate validation logic** — single Zod schema per domain, shared across routes
+- **Every screen handles loading, error, success, and empty states**
+- **Every deep link fails gracefully and safely**
+- **Every admin action is auditable** — actor, target, action, timestamp
+- **Every release change is testable and reversible**
+
+### Release Gate (objective pass/fail)
+- [ ] `npx tsc --noEmit --project server/tsconfig.json` — 0 new errors
+- [ ] `npx tsc --noEmit` — 0 new errors
+- [ ] `npm run lint` — 0 errors (warnings acceptable with justification)
+- [ ] `npm run release:verify:local` — exits 0
+- [ ] No unbounded `findMany` without `take`
+- [ ] No `req.user` access without `requireAuth` middleware
+- [ ] No hardcoded dark text colors in tsx files
+- [ ] Frontend length/format constraints match backend Zod schemas
+- [ ] Prisma schema indexed columns have matching migration SQL
+
 
 ## Working Style
 

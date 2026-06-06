@@ -381,7 +381,8 @@ export default function Step2Basic() {
       if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
       return age < 18;
     })();
-  const usernameError = username.length > 0 && !usernameRe.test(username);
+  const usernameError =
+    username.length > 0 && (!usernameRe.test(username) || username.length < 3 || username.length > 20);
 
   // Validation rules:
   // - Username: required, valid format, available
@@ -391,6 +392,8 @@ export default function Step2Basic() {
   // - Coaches must be 18+
   const canContinue =
     usernameRe.test(username) &&
+    username.length >= 3 &&
+    username.length <= 20 &&
     available === true &&
     dob &&
     !dobError &&

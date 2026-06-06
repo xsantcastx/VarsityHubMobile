@@ -1098,7 +1098,9 @@ authRouter.post(
               where: { id: verifiedRow.user_id },
               data: { preferences: rest as any },
             });
-            await invalidateMeCacheForUser(verifiedRow.user_id).catch(() => {});
+            await invalidateMeCacheForUser(verifiedRow.user_id).catch((err: unknown) => {
+              console.warn('[auth] Cache invalidation failed (non-critical):', (err as Error)?.message);
+            });
           }
         } catch (err) {
           // Stale push tokens on logged-out devices are a privacy leak —
@@ -1208,7 +1210,9 @@ authRouter.post(
 
     const result = await softDeleteUserAccount(userId);
 
-    await invalidateMeCacheForUser(userId).catch(() => {});
+    await invalidateMeCacheForUser(userId).catch((err: unknown) => {
+      console.warn('[auth] Cache invalidation failed (non-critical):', (err as Error)?.message);
+    });
 
     console.warn(`[auth] Account soft-deleted and anonymized: ${userId}`);
 
@@ -3217,7 +3221,9 @@ authRouter.patch(
                 incomingUserId: req.user!.id,
               });
             });
-          await invalidateMeCacheForUser(other.id).catch(() => {});
+          await invalidateMeCacheForUser(other.id).catch((err: unknown) => {
+            console.warn('[auth] Cache invalidation failed (non-critical):', (err as Error)?.message);
+          });
         }
       } catch (err: any) {
         console.warn('[auth] push_token reassignment scan failed:', err?.message || err);

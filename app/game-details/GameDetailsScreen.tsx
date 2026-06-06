@@ -2062,7 +2062,7 @@ const GameDetailsScreen = () => {
         setVoteBusy(false);
       }
     },
-    [isVoteOpen, router, vm?.eventId, vm?.gameId]
+    [isVoteOpen, authUser, vm?.eventId, vm?.gameId]
   );
 
   const handleClearVote = useCallback(async () => {
@@ -2112,7 +2112,7 @@ const GameDetailsScreen = () => {
     } finally {
       setVoteBusy(false);
     }
-  }, [isVoteOpen, router, vm?.eventId, vm?.gameId]);
+  }, [isVoteOpen, vm?.eventId, vm?.gameId]);
 
   const renderStoriesCarousel = () => {
     const mediaItems = (vm?.media ?? []).map(m => ({
