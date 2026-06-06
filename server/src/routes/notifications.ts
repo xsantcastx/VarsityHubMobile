@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const notificationsRouter = Router();
@@ -269,6 +270,7 @@ notificationsRouter.get(
 notificationsRouter.post(
   '/mark-read-all',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const userId = req.user!.id;
     await prisma.notification.updateMany({
@@ -283,6 +285,7 @@ notificationsRouter.post(
 notificationsRouter.post(
   '/:id/read',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const userId = req.user!.id;
     const id = String(req.params.id);
