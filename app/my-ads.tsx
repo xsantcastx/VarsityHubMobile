@@ -318,14 +318,14 @@ function MyAdsScreen() {
                       { borderColor: Colors[colorScheme].border }
                     ]}
                   >
-                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextCompleted]}>
+                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextCompleted, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>
                       {formatDate(d)}
                     </Text>
                   </View>
                 ))}
                 {past.length > 5 && (
                   <View style={[styles.dateBadge, styles.dateBadgeCompleted, colorScheme === 'dark' && styles.dateBadgeCompletedDark]}>
-                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextCompleted]}>+{past.length - 5}</Text>
+                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextCompleted, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>+{past.length - 5}</Text>
                   </View>
                 )}
               </View>

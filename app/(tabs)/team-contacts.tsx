@@ -1351,7 +1351,7 @@ export default function TeamChatScreen() {
               <Text style={[
                 styles.messageText,
                 { color: isCurrentUser ? '#fff' : Colors[colorScheme].text },
-                isAnnouncement && { color: '#92400E' },
+                isAnnouncement && { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
                 item.image && styles.messageTextWithImage,
               ]}>
                 {item.content}

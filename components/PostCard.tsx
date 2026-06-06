@@ -343,7 +343,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   </View>
                   <Text style={styles.vsText}>vs</Text>
                   <View style={styles.teamPillAlt}>
-                    <Text style={styles.teamPillAltText}>{teamLabels.teamB}</Text>
+                    <Text style={[styles.teamPillAltText, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>{teamLabels.teamB}</Text>
                   </View>
                 </View>
               ) : null}
@@ -383,7 +383,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   </View>
                   <Text style={styles.vsText}>vs</Text>
                   <View style={styles.teamPillAlt}>
-                    <Text style={styles.teamPillAltText}>{teamLabels.teamB}</Text>
+                    <Text style={[styles.teamPillAltText, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>{teamLabels.teamB}</Text>
                   </View>
                 </View>
               ) : null}

@@ -705,7 +705,7 @@ function CreateFanEventScreen() {
         {eventLimitReached && (
           <View style={[styles.infoBox, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B', marginBottom: 16 }]}>
             <MaterialIcons name="warning" size={20} color="#B45309" />
-            <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: '#92400E' }}>
+            <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }}>
               You have {pendingEventCount} pending events (limit: 3). Wait for approval or{' '}
               <Text
                 style={{ fontWeight: '700' }}
@@ -818,7 +818,7 @@ function CreateFanEventScreen() {
             {!_teamsLoading && !teamsError && teams.length === 0 && (
               <View style={[styles.infoBox, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B', marginTop: 8, marginBottom: 0 }]}>
                 <MaterialIcons name="group-add" size={20} color="#B45309" />
-                <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: '#92400E' }}>
+                <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }}>
                   You don't follow any teams yet. Follow a team from the Explore tab to pitch an event.
                 </Text>
               </View>

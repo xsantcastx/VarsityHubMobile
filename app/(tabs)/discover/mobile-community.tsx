@@ -840,11 +840,11 @@ function CommunityDiscoverScreen() {
     <View>
       {showPrecisionBanner ? (
         <View
-          style={[styles.precisionBanner, { backgroundColor: '#FEF9C3', borderColor: '#FACC15' }]}
+          style={[styles.precisionBanner, { backgroundColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.12)' : '#FEF9C3', borderColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.35)' : '#FACC15' }]}
         >
           <MaterialIcons name="near-me" size={18} color="#B45309" />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.precisionBannerText, { color: '#92400E' }]}>
+            <Text style={[styles.precisionBannerText, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>
               Precise location is off. Nearby recommendations will be less accurate on Android.
             </Text>
             <View style={styles.precisionActions}>
@@ -853,7 +853,7 @@ function CommunityDiscoverScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Dismiss precision location banner"
               >
-                <Text style={[styles.precisionActionLink, { color: '#92400E' }]}>Dismiss</Text>
+                <Text style={[styles.precisionActionLink, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>Dismiss</Text>
               </Pressable>
               <Pressable
                 onPress={() => {
@@ -2246,7 +2246,7 @@ function CommunityDiscoverScreen() {
                     }
                   }}
                 >
-                  <Text style={[styles.suggestedFollowText, u.is_following && { color: '#555' }]}>
+                  <Text style={[styles.suggestedFollowText, u.is_following && { color: colorScheme === 'dark' ? '#9CA3AF' : '#555' }]}>
                     {suggestedFollowLoading === u.id
                       ? '...'
                       : u.is_following ? 'Following' : 'Follow'}

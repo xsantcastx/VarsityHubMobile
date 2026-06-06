@@ -2879,19 +2879,19 @@ const GameDetailsScreen = () => {
                 <View
                   style={[
                     styles.preciseBanner,
-                    { backgroundColor: '#FEF9C3', borderColor: '#FACC15' },
+                    { backgroundColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.12)' : '#FEF9C3', borderColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.35)' : '#FACC15' },
                   ]}
                 >
                   <Ionicons name="navigate" size={16} color="#B45309" />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.preciseBannerTitle}>Precise location is off</Text>
-                    <Text style={styles.preciseBannerText}>
+                    <Text style={[styles.preciseBannerTitle, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>Precise location is off</Text>
+                    <Text style={[styles.preciseBannerText, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>
                       Android is sharing an approximate location, so story pins may be less
                       accurate.
                     </Text>
                     <View style={styles.preciseBannerActions}>
                       <Pressable onPress={() => setPreciseBannerDismissed(true)}>
-                        <Text style={styles.preciseBannerLink}>Dismiss</Text>
+                        <Text style={[styles.preciseBannerLink, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>Dismiss</Text>
                       </Pressable>
                       <Pressable
                         onPress={() => {

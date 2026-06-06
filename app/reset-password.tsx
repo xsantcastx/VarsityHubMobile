@@ -139,7 +139,7 @@ export default function ResetPasswordScreen() {
               )}
             </>
           ) : null}
-          {info ? <Text style={[styles.info, { color: '#065F46' }]}>{info}</Text> : null}
+          {info ? <Text style={[styles.info, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>{info}</Text> : null}
 
           {resetSuccess ? (
             <Pressable
