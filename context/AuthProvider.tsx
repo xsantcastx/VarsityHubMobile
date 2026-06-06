@@ -677,9 +677,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     } finally {
       clearLocalAuthState();
       await clearUserScopedStorage();
-      redirectWithTelemetry('/sign-in', 'sign_out', userBeforeSignOut);
+      redirectWithTelemetry(unauthenticatedEntryRoute, 'sign_out', userBeforeSignOut);
     }
-  }, [clearLocalAuthState, clearUserScopedStorage, redirectWithTelemetry, user]);
+  }, [clearLocalAuthState, clearUserScopedStorage, redirectWithTelemetry, unauthenticatedEntryRoute, user]);
 
   const registerPushToken = useCallback(async () => {
     if (!user?.id) return false;
@@ -1185,11 +1185,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     }
 
     // Do not strand unauthenticated users on the passive root spinner when a
-    // single startup health check fails. Let them reach /sign-in and surface
-    // connectivity problems via OfflineBanner there instead.
+    // single startup health check fails. Route guests to feed where
+    // OfflineBanner surfaces connectivity issues instead.
     if (!healthOk) {
       if (__DEV__) console.log('[AuthProvider] Backend unhealthy, limiting routing');
-      if (!user && !pendingVerificationEmail && !isPublic && firstSegment !== '(tabs)') {
+      if (!user && !pendingVerificationEmail && !isPublic && firstSegment !== '(tabs)' && firstSegment !== '') {
         if (lastRedirectRef.current !== unauthenticatedEntryRoute) {
           redirectWithTelemetry(unauthenticatedEntryRoute, 'unauthenticated_backend_unhealthy');
         }
@@ -1200,7 +1200,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // Unauthenticated routing
     // Guests may freely browse the main tab screens (feed, highlights, discover, profile).
     // Only redirect when they land on a route that genuinely requires authentication.
-    if (!user && !pendingVerificationEmail && !isPublic && firstSegment !== '(tabs)') {
+    // Guard firstSegment !== '' to avoid firing before Expo Router restores nav state.
+    if (!user && !pendingVerificationEmail && !isPublic && firstSegment !== '(tabs)' && firstSegment !== '') {
       if (lastRedirectRef.current !== unauthenticatedEntryRoute) {
         if (__DEV__)
           console.log(
