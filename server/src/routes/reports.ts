@@ -61,8 +61,7 @@ reportsRouter.post(
   requireAuth as any,
   reportLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
       const parsed = createReportSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -361,10 +360,6 @@ reportsRouter.post(
         reportId: report.id,
         message: 'Report submitted successfully. Our team will review it.',
       });
-    } catch (error) {
-      console.error('[Reports] POST / error:', error);
-      return res.status(500).json({ error: 'Failed to submit report' });
-    }
   })
 );
 
