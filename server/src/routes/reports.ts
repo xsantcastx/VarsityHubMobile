@@ -370,6 +370,7 @@ reportsRouter.post(
  */
 reportsRouter.get(
   '/reasons',
+  requireAuth as any,
   asyncHandler(async (_req, res) => {
     const reasons = REPORT_REASONS.map(reason => ({
       value: reason,
