@@ -256,7 +256,6 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const [
         totalUsers,
         verifiedUsers,
@@ -429,10 +428,6 @@ adminRouter.get(
         recentActivity: recentActivity || [],
         eventsWithoutCoordinates: eventsWithoutCoordinates || 0,
       });
-    } catch (error) {
-      console.error('[admin] Error fetching dashboard data:', error);
-      return res.status(500).json({ error: 'Failed to fetch dashboard data' });
-    }
   })
 );
 
@@ -562,15 +557,10 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const daysParam = Number.parseInt(String(req.query.days || '7'), 10);
       const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 1), 30) : 7;
       const report = await getFounderMetricsReport(days);
       return res.json({ ok: true, report });
-    } catch (error) {
-      console.error('[admin] Error fetching metrics:', error);
-      return res.status(500).json({ error: 'Failed to fetch metrics' });
-    }
   })
 );
 
@@ -588,7 +578,6 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const { type, q, page = '1', limit = '50' } = req.query;
 
       const pageNum = parseInt(String(page), 10);
@@ -658,10 +647,6 @@ adminRouter.get(
           },
         });
       }
-    } catch (error) {
-      console.error('[admin] Error fetching activity log:', error);
-      return res.status(500).json({ error: 'Failed to fetch activity log' });
-    }
   })
 );
 
@@ -685,7 +670,6 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const { type, status, userId, startDate, endDate, limit = '50', offset = '0' } = req.query;
 
       const dateParam = z.string().optional().transform((value, ctx) => {
@@ -733,10 +717,6 @@ adminRouter.get(
         limit: parseInt(String(limit)),
         offset: parseInt(String(offset)),
       });
-    } catch (error) {
-      console.error('[admin] Error fetching transactions:', error);
-      return res.status(500).json({ error: 'Failed to fetch transactions' });
-    }
   })
 );
 
@@ -752,7 +732,6 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const { startDate, endDate } = req.query;
 
       const start = startDate ? new Date(String(startDate)) : undefined;
@@ -768,10 +747,6 @@ adminRouter.get(
           end: end?.toISOString(),
         },
       });
-    } catch (error) {
-      console.error('[admin] Error fetching transaction summary:', error);
-      return res.status(500).json({ error: 'Failed to fetch transaction summary' });
-    }
   })
 );
 
@@ -784,7 +759,6 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const { sessionId } = req.params;
 
       if (!sessionId) {
@@ -801,10 +775,6 @@ adminRouter.get(
         ok: true,
         transaction,
       });
-    } catch (error) {
-      console.error('[admin] Error fetching transaction:', error);
-      return res.status(500).json({ error: 'Failed to fetch transaction' });
-    }
   })
 );
 
@@ -821,13 +791,8 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (_req: AuthedRequest, res) => {
-    try {
       const spike = await checkReportSpike();
       return res.json(spike);
-    } catch (error) {
-      console.error('[admin] Error checking report spike:', error);
-      return res.status(500).json({ error: 'Failed to check report spike' });
-    }
   })
 );
 
@@ -840,13 +805,8 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const history = await getUserModerationHistory(req.params.id);
       return res.json(history);
-    } catch (error) {
-      console.error('[admin] Error fetching moderation history:', error);
-      return res.status(500).json({ error: 'Failed to fetch moderation history' });
-    }
   })
 );
 
@@ -864,7 +824,6 @@ adminRouter.post(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const parsed = warnSchema.safeParse(req.body);
       if (!parsed.success)
@@ -894,10 +853,6 @@ adminRouter.post(
       }
 
       return res.json({ ok: true, ...result });
-    } catch (error) {
-      console.error('[admin] Error issuing warning:', error);
-      return res.status(500).json({ error: 'Failed to issue warning' });
-    }
   })
 );
 
@@ -915,7 +870,6 @@ adminRouter.post(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const parsed = suspendSchema.safeParse(req.body);
       if (!parsed.success)
@@ -929,10 +883,6 @@ adminRouter.post(
         adminId: req.user.id,
       });
       return res.json({ ok: true, suspended_days: suspendDays });
-    } catch (error) {
-      console.error('[admin] Error suspending user:', error);
-      return res.status(500).json({ error: 'Failed to suspend user' });
-    }
   })
 );
 
@@ -949,7 +899,6 @@ adminRouter.post(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const parsed = banSchema.safeParse(req.body || {});
       if (!parsed.success)
@@ -1013,10 +962,6 @@ adminRouter.post(
       }
 
       return res.json({ ok: true, banned: true });
-    } catch (error) {
-      console.error('[admin] Error banning user:', error);
-      return res.status(500).json({ error: 'Failed to ban user' });
-    }
   })
 );
 
@@ -1029,7 +974,6 @@ adminRouter.post(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const unbannedUserId = req.params.id;
 
@@ -1072,10 +1016,6 @@ adminRouter.post(
       }
 
       return res.json({ ok: true, banned: false });
-    } catch (error) {
-      console.error('[admin] Error unbanning user:', error);
-      return res.status(500).json({ error: 'Failed to unban user' });
-    }
   })
 );
 
@@ -1088,7 +1028,6 @@ adminRouter.post(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (req.headers['x-confirm-wipe'] !== 'YES_WIPE_EVERYTHING') {
         return res
           .status(400)
@@ -1161,10 +1100,6 @@ adminRouter.post(
         message: `Wiped. Users remaining: ${remaining}`,
         demo_kept: !!demo,
       });
-    } catch (error) {
-      console.error('[admin] Wipe error:', error);
-      return res.status(500).json({ error: 'Wipe failed', details: (error as any)?.message });
-    }
   })
 );
 
