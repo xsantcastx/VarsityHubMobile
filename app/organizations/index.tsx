@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { ensureSeededOrganizations } from '@/data/seedOrganizations';
+import { captureException } from '@/utils/sentry';
 
 interface Organization {
   id: string;
@@ -36,7 +37,8 @@ function OrganizationsIndexScreen() {
             combined.find((o) => o.name.toLowerCase().includes('westhill')) || combined[0] || null;
           setFeatured(westhill);
         }
-      } catch {
+      } catch (e) {
+        captureException(e instanceof Error ? e : new Error(String(e)), { context: 'organizations-list-load' });
         if (!cancelled) {
           const fallback = ensureSeededOrganizations<Organization>([]);
           setOrgs(fallback);
