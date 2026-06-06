@@ -256,7 +256,6 @@ const trendingScore = (upvotes: number, createdAt: Date): number => {
 postsRouter.get(
   '/',
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const sort = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
       const limit = Math.max(1, Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 50));
       const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
@@ -701,27 +700,18 @@ postsRouter.get(
       if (followedFeedMeta) response.followed_feed_meta = followedFeedMeta;
       if (followedTeamsFeedMeta) response.followed_teams_feed_meta = followedTeamsFeedMeta;
       return res.json(response);
-    } catch (err) {
-      console.error('[posts] GET / error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
 postsRouter.get(
   '/trending',
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       // Set trending sort and reuse the main GET / handler
       req.query.sort = 'trending';
       // Re-dispatch through the router by calling the root handler directly
       // Express next() won't work across different paths, so we emit a synthetic request
       req.url = '/';
       (postsRouter as any).handle(req, res, () => res.status(404).json({ error: 'Not found' }));
-    } catch (err) {
-      console.error('[posts] GET /trending error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -1765,7 +1755,6 @@ postsRouter.post(
   requireVerified as any,
   interactionLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const postId = String(req.params.id);
       const userId = req.user!.id;
 
@@ -1794,10 +1783,6 @@ postsRouter.post(
       await prisma.postBookmark.create({ data: { post_id: postId, user_id: userId } });
       const bookmarks_count = await prisma.postBookmark.count({ where: { post_id: postId } });
       return res.json({ has_bookmarked: true, bookmarks_count, bookmarked: true });
-    } catch (err) {
-      console.error('[posts] bookmark error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -1810,7 +1795,6 @@ postsRouter.post(
   requireVerified as any,
   interactionLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const postId = String(req.params.id);
       const userId = req.user!.id;
 
@@ -1852,10 +1836,6 @@ postsRouter.post(
         }
       }
       return res.json({ shared: true });
-    } catch (err) {
-      console.error('[posts] share error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
