@@ -942,8 +942,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // the previous session. If the user was last on sign-in, segments are
     // restored to ['sign-in'] → isPublic=true → the unauthenticated redirect
     // check below never fires → guest is stuck on the sign-in screen.
-    // This one-time check redirects guests away from auth screens on cold start.
-    if (!startupSignInRestoreCheckedRef.current) {
+    // BUG FIX: Only mark as done once firstSegment is non-empty — if we mark it
+    // done while firstSegment==='' (nav not yet restored), the actual sign-in
+    // restoration fires after the flag is already set and gets skipped.
+    if (!startupSignInRestoreCheckedRef.current && firstSegment !== '') {
       startupSignInRestoreCheckedRef.current = true;
       if (
         !user &&
