@@ -1,23 +1,24 @@
+import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
+import { getCoachAgreementRouteDecision } from '@/utils/appRouteDecisions';
+import { getFreshAuthSnapshot } from '@/utils/authState';
+import { safeGoBack } from '@/utils/navigation';
+import type { CoachUserLike } from '@/utils/roleChecks';
+import { getCoachAccessState } from '@/utils/roleChecks';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
+    ActivityIndicator,
+    Alert,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    useColorScheme,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '@/constants/Colors';
-import { useAuth } from '@/context/AuthProvider';
-import { getCoachAgreementRouteDecision } from '@/utils/appRouteDecisions';
-import { safeGoBack } from '@/utils/navigation';
-import { getFreshAuthSnapshot } from '@/utils/authState';
-import type { CoachUserLike } from '@/utils/roleChecks';
 // @ts-ignore
 import { User } from '@/api/entities';
 
@@ -37,6 +38,8 @@ function CoachAgreementScreen() {
   const params = useLocalSearchParams<{ redirect?: string; reason?: string }>();
   const [accepting, setAccepting] = useState(false);
   const isOutdatedAgreement = params.reason === 'outdated';
+  const coachAccess = getCoachAccessState(user as CoachUserLike | null);
+  const canAccept = coachAccess.isApprovedCoach;
 
   const handleAccept = async () => {
     setAccepting(true);
@@ -103,17 +106,28 @@ function CoachAgreementScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { borderTopColor: C.border }]}>
-        <Pressable
-          style={[styles.acceptButton, { backgroundColor: C.tint }]}
-          onPress={handleAccept}
-          disabled={accepting}
-        >
-          {accepting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.acceptText}>I Accept</Text>
-          )}
-        </Pressable>
+        {canAccept ? (
+          <Pressable
+            style={[styles.acceptButton, { backgroundColor: C.tint }]}
+            onPress={handleAccept}
+            disabled={accepting}
+            accessibilityRole="button"
+            accessibilityLabel="Accept coach agreement"
+          >
+            {accepting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.acceptText}>I Accept</Text>
+            )}
+          </Pressable>
+        ) : (
+          <View style={[styles.pendingBanner, { backgroundColor: C.surface, borderColor: C.border }]}>
+            <MaterialIcons name="hourglass-empty" size={18} color={C.mutedText} />
+            <Text style={[styles.pendingText, { color: C.mutedText }]}>
+              Awaiting admin approval before you can accept the agreement.
+            </Text>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -157,6 +171,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 17,
     fontWeight: '700',
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+  },
+  pendingText: {
+    fontSize: 14,
+    lineHeight: 20,
+    flex: 1,
   },
 });
 

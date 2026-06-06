@@ -4,6 +4,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -36,6 +37,7 @@ export function UserConnectionListScreen({
 }: UserConnectionListScreenProps) {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const { user: currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadMoreError, setLoadMoreError] = useState(false);
@@ -97,6 +99,10 @@ export function UserConnectionListScreen({
 
   const handleFollow = async (targetUserId: string, isFollowing: boolean) => {
     if (followLoading) return;
+    if (!currentUser) {
+      void router.push('/sign-in');
+      return;
+    }
     setFollowLoading(targetUserId);
     try {
       if (isFollowing) {

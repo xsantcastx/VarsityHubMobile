@@ -43,6 +43,12 @@ const PUBLIC_DEEP_LINK_ROUTES = new Set([
   '/payment-success',
   '/payment-cancel',
   '/organizations/[id]',
+  // Content that guests can view — no auth required to read
+  '/post-detail',
+  '/game-detail',
+  '/team-page',
+  '/user-profile',
+  '/event-detail',
 ]);
 
 // Pending deep link URL — deferred until auth settles. Stored with a
