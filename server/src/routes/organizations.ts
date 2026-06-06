@@ -2077,6 +2077,11 @@ organizationsRouter.post(
         return res.status(404).json({ error: 'Join request not found' });
       }
 
+      // IDOR: prevent self-approval (defense-in-depth)
+      if (joinRequest.user_id === req.user!.id) {
+        return res.status(403).json({ error: 'You cannot approve your own join request.' });
+      }
+
       // Existing-org coach admission is decided by the league owner only.
       const membership = await getOrganizationMembership(req.user!.id, joinRequest.organization_id);
       if (!membership || membership.status !== 'active' || membership.role !== 'owner') {
