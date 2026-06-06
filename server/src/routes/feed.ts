@@ -1,19 +1,19 @@
 import { Router } from 'express';
 import { AD_GEOFENCE_RADIUS_MILES, getAdBoundingBoxDegrees } from '../lib/adGeofencing.js';
-import { prisma } from '../lib/prisma.js';
-import { sendError } from '../lib/http/sendError.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
+import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
-import {
-  getBlockedUserIds,
-  getExcludedPrivateAuthorIds,
-  getRequestBlockedCache,
-} from '../lib/privacyUtils.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
-import type { AuthedRequest } from '../middleware/auth.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
+import { prisma } from '../lib/prisma.js';
+import {
+    getBlockedUserIds,
+    getExcludedPrivateAuthorIds,
+    getRequestBlockedCache,
+} from '../lib/privacyUtils.js';
 import { captureException } from '../lib/sentry.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 export const feedRouter = Router();
@@ -176,19 +176,14 @@ async function getFollowedPostsPage(
     where.OR = buildFollowedPostsWhereClause(currentUserId, mode);
   }
 
-  const excludedIds = await getExcludedPrivateAuthorIds(currentUserId);
-  if (excludedIds.length) {
-    where.author_id = {
-      ...(typeof where.author_id === 'object' ? where.author_id : {}),
-      notIn: excludedIds,
-    };
-  }
-
-  const blockedIds = await getBlockedUserIds(currentUserId, getRequestBlockedCache(req));
-  if (blockedIds.length) {
+  const [excludedIds, blockedIds] = await Promise.all([
+    getExcludedPrivateAuthorIds(currentUserId),
+    getBlockedUserIds(currentUserId, getRequestBlockedCache(req)),
+  ]);
+  const allExcludedFollowed = [...new Set([...excludedIds, ...blockedIds])];
+  if (allExcludedFollowed.length) {
     const existing = typeof where.author_id === 'object' ? where.author_id : {};
-    const merged = [...(existing.notIn || []), ...blockedIds];
-    where.author_id = { ...existing, notIn: merged };
+    where.author_id = { ...existing, notIn: allExcludedFollowed };
   }
 
   const query: any = {
@@ -342,48 +337,48 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
   const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
   const privacyWhere = allExcluded.length ? { author_id: { notIn: allExcluded } } : {};
 
-  let nationalTop = await prisma.post.findMany({
-    where: {
-      country_code: country,
-      created_at: { gte: since },
-      media_url: { not: null },
-      deleted_at: null,
-      ...privacyWhere,
-    },
-    orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
-    take: 10,
-    select: baseSelect,
-  });
-
-  if (nationalTop.length < 10) {
-    const fill = await prisma.post.findMany({
+  // Run nationalTop and pool concurrently — dedup in JS after both resolve.
+  const [nationalTopRaw, poolRaw] = await Promise.all([
+    prisma.post.findMany({
       where: {
+        country_code: country,
         created_at: { gte: since },
-        id: { notIn: nationalTop.map((post: any) => post.id) },
         media_url: { not: null },
         deleted_at: null,
         ...privacyWhere,
       },
       orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
-      take: 10 - nationalTop.length,
+      take: 10,
       select: baseSelect,
-    });
-    nationalTop = nationalTop.concat(fill);
+    }),
+    prisma.post.findMany({
+      where: {
+        country_code: country,
+        created_at: { gte: since },
+        media_url: { not: null },
+        deleted_at: null,
+        ...privacyWhere,
+      },
+      orderBy: [{ created_at: 'desc' }],
+      take: 150,
+      select: baseSelect,
+    }),
+  ]);
+
+  let nationalTop: typeof nationalTopRaw = nationalTopRaw;
+
+  // Backfill nationalTop from pool if national posts are sparse
+  if (nationalTop.length < 10) {
+    const topIds = new Set(nationalTop.map((p: any) => p.id));
+    const globalFill = poolRaw
+      .filter((p: any) => !topIds.has(p.id))
+      .sort((a: any, b: any) => (b.upvotes_count || 0) - (a.upvotes_count || 0))
+      .slice(0, 10 - nationalTop.length);
+    nationalTop = nationalTop.concat(globalFill) as typeof nationalTopRaw;
   }
 
-  const pool = await prisma.post.findMany({
-    where: {
-      country_code: country,
-      created_at: { gte: since },
-      id: { notIn: nationalTop.map((post: any) => post.id) },
-      media_url: { not: null },
-      deleted_at: null,
-      ...privacyWhere,
-    },
-    orderBy: [{ created_at: 'desc' }],
-    take: 500,
-    select: baseSelect,
-  });
+  const topIds = new Set(nationalTop.map((p: any) => p.id));
+  const pool = poolRaw.filter((p: any) => !topIds.has(p.id));
 
   let isLocal: (post: any) => boolean = () => false;
   if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
