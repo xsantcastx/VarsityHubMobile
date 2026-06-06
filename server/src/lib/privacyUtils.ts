@@ -1,14 +1,20 @@
 import { MembershipStatus } from '@prisma/client';
 import { prisma } from './prisma.js';
 import { getTeamState } from './teamState.js';
+import { cacheGet, cacheSet, cacheDel } from './cache.js';
 
-// Cache private user IDs for 60s to avoid querying all users on every feed request
+// Cache TTLs (seconds for Redis, milliseconds for in-process fallback)
+const PRIVATE_IDS_CACHE_TTL_S = 60;
+const BLOCKED_IDS_CACHE_TTL_S = 30;
+const PRIVATE_IDS_CACHE_TTL_MS = PRIVATE_IDS_CACHE_TTL_S * 1000;
+
+// In-process fallback for when Redis is unavailable (single-instance dev/cold start)
 let _privateIdsCache: { ids: string[]; expires: number } | null = null;
-const PRIVATE_IDS_CACHE_TTL = 60_000;
 
 /** Invalidate the private-IDs cache (call when a user toggles profile_private). */
 export function invalidatePrivateIdsCache(): void {
   _privateIdsCache = null;
+  void cacheDel('privacy:private_ids');
 }
 
 /**
@@ -17,7 +23,13 @@ export function invalidatePrivateIdsCache(): void {
  */
 export async function getExcludedPrivateAuthorIds(viewerId: string | null): Promise<string[]> {
   let privateUsers: { id: string }[];
-  if (_privateIdsCache && Date.now() < _privateIdsCache.expires) {
+
+  // Try Redis first (distributed — works across multiple Railway instances)
+  const cached = await cacheGet<string[]>('privacy:private_ids');
+  if (cached) {
+    privateUsers = cached.map(id => ({ id }));
+  } else if (_privateIdsCache && Date.now() < _privateIdsCache.expires) {
+    // In-process fallback (Redis unavailable)
     privateUsers = _privateIdsCache.ids.map(id => ({ id }));
   } else {
     // v1.0.2 pass 12: bound the scan. 50k private-profile users is ~10x today's peak and
@@ -29,7 +41,8 @@ export async function getExcludedPrivateAuthorIds(viewerId: string | null): Prom
       select: { id: true },
       take: 50000,
     });
-    _privateIdsCache = { ids: privateUsers.map(u => u.id), expires: Date.now() + PRIVATE_IDS_CACHE_TTL };
+    _privateIdsCache = { ids: privateUsers.map(u => u.id), expires: Date.now() + PRIVATE_IDS_CACHE_TTL_MS };
+    void cacheSet('privacy:private_ids', _privateIdsCache.ids, PRIVATE_IDS_CACHE_TTL_S);
   }
 
   if (privateUsers.length === 0) return [];
@@ -126,15 +139,14 @@ export async function getExcludedPrivateTeamIds(viewerId: string | null): Promis
  */
 export type BlockedCache = Map<string, Promise<string[]>>;
 
-// Short-lived cross-request cache for blocked-user lists. Block relationships
-// change rarely (explicit user action), so a 30s TTL is safe and eliminates
-// the repeated DB hit when the same user triggers multiple parallel feed slices.
-const _blockedIdsCache = new Map<string, { promise: Promise<string[]>; expires: number }>();
-const BLOCKED_IDS_CACHE_TTL = 30_000;
+// Short-lived cross-request in-process fallback for blocked-user lists (used when Redis unavailable).
+// With Redis, invalidation is distributed across all Railway instances.
+const _blockedIdsFallback = new Map<string, { promise: Promise<string[]>; expires: number }>();
 
 /** Invalidate a specific user's blocked-ids cache entry (call on block/unblock). */
 export function invalidateBlockedIdsCache(viewerId: string): void {
-  _blockedIdsCache.delete(viewerId);
+  _blockedIdsFallback.delete(viewerId);
+  void cacheDel(`privacy:blocked:${viewerId}`);
 }
 
 /**
@@ -156,12 +168,20 @@ export async function getBlockedUserIds(
     if (existing) return existing;
   }
 
-  // Cross-request cache: share the promise across concurrent requests for the
-  // same user (e.g. two parallel feed slices hitting the bundle endpoint).
-  const cached = _blockedIdsCache.get(viewerId);
-  if (cached && Date.now() < cached.expires) {
-    if (cache) cache.set(viewerId, cached.promise);
-    return cached.promise;
+  // Cross-request in-process fallback (Redis unavailable)
+  const fallback = _blockedIdsFallback.get(viewerId);
+  if (fallback && Date.now() < fallback.expires) {
+    if (cache) cache.set(viewerId, fallback.promise);
+    return fallback.promise;
+  }
+
+  // Try Redis distributed cache — works across all Railway instances
+  const redisKey = `privacy:blocked:${viewerId}`;
+  const redisHit = await cacheGet<string[]>(redisKey);
+  if (redisHit) {
+    const resolved = Promise.resolve(redisHit);
+    if (cache) cache.set(viewerId, resolved);
+    return resolved;
   }
 
   // v1.0.2 pass 12: bound the scan. A single user's bidirectional block set is tiny in
@@ -186,7 +206,9 @@ export async function getBlockedUserIds(
       return Array.from(ids);
     });
 
-  _blockedIdsCache.set(viewerId, { promise, expires: Date.now() + BLOCKED_IDS_CACHE_TTL });
+  _blockedIdsFallback.set(viewerId, { promise, expires: Date.now() + BLOCKED_IDS_CACHE_TTL_S * 1000 });
+  // Also write to Redis for cross-instance sharing (fire-and-forget, non-blocking)
+  void promise.then(ids => cacheSet(redisKey, ids, BLOCKED_IDS_CACHE_TTL_S));
   if (cache) cache.set(viewerId, promise);
   return promise;
 }
