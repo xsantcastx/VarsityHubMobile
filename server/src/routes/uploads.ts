@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { CloudinaryUpstreamError, getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
+import { debugLog } from '../lib/debugLog.js';
 import { signMediaPath } from '../lib/mediaAccess.js';
 import { prisma } from '../lib/prisma.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
@@ -12,7 +13,6 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { uploadLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { debugLog } from '../lib/debugLog.js';
 
 // Magic byte signatures for file type validation (prevents MIME spoofing)
 const MAGIC_BYTES: Array<{ mime: string; bytes: number[]; offset?: number }> = [
@@ -323,9 +323,26 @@ uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, asyncHandle
   }
 }));
 
-// Original media upload endpoint (images/videos only).
+// Original media upload endpoint (images only — video must use direct Cloudinary path).
 uploadsRouter.post('/', requireAuth as any, requireVerifiedUnlessScopedAdBannerUpload as any, uploadLimiter as any, upload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  // Reject video uploads at the proxy: videos must use direct-to-Cloudinary
+  // (GET /uploads/cloudinary-signature + POST directly to Cloudinary CDN).
+  // Buffering a video in Railway RAM doubles network cost and puts memory pressure
+  // on the server — the signature direct-upload path is always faster.
+  if (req.file.mimetype.startsWith('video/')) {
+    console.warn(`[uploads] Video rejected at proxy — client should use direct Cloudinary path (${req.file.size} bytes, ${req.file.mimetype})`);
+    addBreadcrumb('Video upload rejected at proxy', 'uploads.media', 'warning', {
+      mime: req.file.mimetype,
+      size_bytes: req.file.size,
+    });
+    return res.status(415).json({
+      error: 'Video uploads must use the direct Cloudinary upload path. Fetch a signature from GET /uploads/cloudinary-signature and upload directly to Cloudinary.',
+      code: 'USE_DIRECT_UPLOAD',
+    });
+  }
+
   addBreadcrumb('Media upload started', 'uploads.media', 'info', {
     mime: req.file.mimetype,
     size_bytes: req.file.size,

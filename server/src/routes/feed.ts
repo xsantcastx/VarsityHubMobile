@@ -68,68 +68,6 @@ async function getZipCoordinatesWithFallback(
   return null;
 }
 
-const buildFollowedPostsWhereClause = (currentUserId: string, mode: FollowedFeedMode) => {
-  if (mode === 'followed') {
-    return [
-      {
-        author: {
-          followers: {
-            some: {
-              follower_id: currentUserId,
-              status: 'accepted',
-            },
-          },
-        },
-      },
-      { type: 'admin_broadcast' },
-    ];
-  }
-
-  return [
-    {
-      team: {
-        is: {
-          followers: {
-            some: {
-              user_id: currentUserId,
-            },
-          },
-        },
-      },
-    },
-    {
-      game: {
-        is: {
-          OR: [
-            {
-              homeTeam: {
-                is: {
-                  followers: {
-                    some: {
-                      user_id: currentUserId,
-                    },
-                  },
-                },
-              },
-            },
-            {
-              awayTeam: {
-                is: {
-                  followers: {
-                    some: {
-                      user_id: currentUserId,
-                    },
-                  },
-                },
-              },
-            },
-          ],
-        },
-      },
-    },
-    { type: 'admin_broadcast' },
-  ];
-};
 
 async function getFollowedPostsPage(
   req: AuthedRequest,
@@ -153,37 +91,85 @@ async function getFollowedPostsPage(
   let followedTeamsFeedMeta: { followed_teams_count: number } | undefined;
 
   if (mode === 'followed') {
-    const followingCount = await prisma.follows.count({
-      where: { follower_id: currentUserId, status: 'accepted' },
-    });
-    followedFeedMeta = { following_count: followingCount };
-    if (followingCount === 0) {
+    // Preload followed author IDs in one indexed query, then use IN — avoids
+    // Prisma's correlated EXISTS subquery which scans per post row.
+    const [followRows, excludedIds, blockedIds] = await Promise.all([
+      prisma.follows.findMany({
+        where: { follower_id: currentUserId, status: 'accepted' },
+        select: { following_id: true },
+        take: 5000,
+      }),
+      getExcludedPrivateAuthorIds(currentUserId),
+      getBlockedUserIds(currentUserId, getRequestBlockedCache(req)),
+    ]);
+
+    const followedAuthorIds = followRows.map(r => r.following_id);
+    followedFeedMeta = { following_count: followedAuthorIds.length };
+
+    if (followedAuthorIds.length === 0) {
       return { items: [], nextCursor: null, followed_feed_meta: followedFeedMeta };
     }
-    where.OR = buildFollowedPostsWhereClause(currentUserId, mode);
+
+    const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
+    const allowedAuthorIds = allExcluded.length
+      ? followedAuthorIds.filter(id => !allExcluded.includes(id))
+      : followedAuthorIds;
+
+    where.OR = [
+      { author_id: { in: allowedAuthorIds } },
+      { type: 'admin_broadcast' },
+    ];
   } else {
-    const followedTeamsCount = await prisma.teamFollow.count({
-      where: { user_id: currentUserId },
-    });
-    followedTeamsFeedMeta = { followed_teams_count: followedTeamsCount };
-    if (followedTeamsCount === 0) {
+    // Preload followed team IDs, then resolve game IDs for those teams — all
+    // indexed lookups. Replaces three layers of nested EXISTS subqueries.
+    const [teamFollowRows, excludedIds, blockedIds] = await Promise.all([
+      prisma.teamFollow.findMany({
+        where: { user_id: currentUserId },
+        select: { team_id: true },
+        take: 5000,
+      }),
+      getExcludedPrivateAuthorIds(currentUserId),
+      getBlockedUserIds(currentUserId, getRequestBlockedCache(req)),
+    ]);
+
+    const followedTeamIds = teamFollowRows.map(r => r.team_id);
+    followedTeamsFeedMeta = { followed_teams_count: followedTeamIds.length };
+
+    if (followedTeamIds.length === 0) {
       return {
         items: [],
         nextCursor: null,
         followed_teams_feed_meta: followedTeamsFeedMeta,
       };
     }
-    where.OR = buildFollowedPostsWhereClause(currentUserId, mode);
-  }
 
-  const [excludedIds, blockedIds] = await Promise.all([
-    getExcludedPrivateAuthorIds(currentUserId),
-    getBlockedUserIds(currentUserId, getRequestBlockedCache(req)),
-  ]);
-  const allExcludedFollowed = [...new Set([...excludedIds, ...blockedIds])];
-  if (allExcludedFollowed.length) {
-    const existing = typeof where.author_id === 'object' ? where.author_id : {};
-    where.author_id = { ...existing, notIn: allExcludedFollowed };
+    // Resolve game IDs where a followed team is home or away
+    const followedGameRows = await prisma.game.findMany({
+      where: {
+        OR: [
+          { home_team_id: { in: followedTeamIds } },
+          { away_team_id: { in: followedTeamIds } },
+        ],
+      },
+      select: { id: true },
+      take: 10000,
+    });
+    const followedGameIds = followedGameRows.map(g => g.id);
+
+    const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
+    const authorIdFilter = allExcluded.length ? { notIn: allExcluded } : undefined;
+
+    where.OR = [
+      ...(authorIdFilter
+        ? [{ team_id: { in: followedTeamIds }, author_id: authorIdFilter }]
+        : [{ team_id: { in: followedTeamIds } }]),
+      ...(followedGameIds.length
+        ? authorIdFilter
+          ? [{ game_id: { in: followedGameIds }, author_id: authorIdFilter }]
+          : [{ game_id: { in: followedGameIds } }]
+        : []),
+      { type: 'admin_broadcast' },
+    ];
   }
 
   const query: any = {

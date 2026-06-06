@@ -1,15 +1,15 @@
-import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import {
-  isEmailVerificationRequiredError,
-  openVerificationGate,
+    isEmailVerificationRequiredError,
+    openVerificationGate,
 } from '@/hooks/useVerificationGate';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { emitSessionExpired } from '@/utils/sessionEvents';
 import auth from './auth';
 import {
-  getAccessTokenForRequest,
-  getApiBaseUrl,
-  refreshAccessTokenWithCache,
-  type RefreshOutcome,
+    getAccessTokenForRequest,
+    getApiBaseUrl,
+    refreshAccessTokenWithCache,
+    type RefreshOutcome,
 } from './http';
 
 function computeBase(provided?: string | null) {
@@ -304,22 +304,19 @@ const SIG_CACHE_TTL_MS = 55_000;
 
 async function getCloudinarySignature(
   baseUrl: string,
-  options?: UploadOptions
+  options?: UploadOptions,
+  forceRefresh = false
 ): Promise<{
   cloudName: string;
   apiKey: string;
   signature: string;
   timestamp: number;
   folder: string;
-  // v1.0.3: the server signs these constraints into the signature so the
-  // client can't weaken them. The client MUST send them back unchanged in
-  // the upload form, otherwise Cloudinary computes the signature over a
-  // different param set and rejects with "Invalid Signature".
   allowed_formats?: string;
   max_bytes?: string;
 } | null> {
-  // Return cached signature if still fresh
-  if (_sigCache && Date.now() - _sigCache.fetchedAt < SIG_CACHE_TTL_MS) {
+  // Return cached signature if still fresh (skip when forceRefresh is set)
+  if (!forceRefresh && _sigCache && Date.now() - _sigCache.fetchedAt < SIG_CACHE_TTL_MS) {
     if (__DEV__) console.log('[upload] Using cached Cloudinary signature');
     return _sigCache.sig;
   }
@@ -482,33 +479,53 @@ export async function uploadFile(
     mimeType
   );
 
+  const isVideo = finalMimeType.startsWith('video/');
+
   // Non-media files (PDFs, docs) go straight to the general-file server endpoint.
-  // Don't try Cloudinary direct — the signature flow assumes resource_type=image|video.
   if (!isMedia) {
     if (__DEV__) console.log('[upload] Non-media upload via /uploads/files:', finalMimeType);
     return uploadRawViaServer(finalBase, finalUri, finalFilename, finalMimeType, options);
   }
 
-  // Try direct-to-Cloudinary first (faster — skips server proxy)
+  // Try direct-to-Cloudinary (always attempted for media)
+  let directErr: any = null;
   try {
     const sig = await getCloudinarySignature(finalBase, options);
     if (sig) {
       if (__DEV__) console.log('[upload] Using direct Cloudinary upload');
       return await uploadDirectToCloudinary(finalUri, finalFilename, finalMimeType, sig, options);
     }
-  } catch (directErr: any) {
+  } catch (err: any) {
+    directErr = err;
     if (__DEV__) {
-      console.warn(
-        '[upload] Direct upload failed, falling back to server proxy:',
-        directErr?.message
-      );
-      if (directErr?.status) console.warn('[upload] Error status:', directErr.status);
-      if (directErr?.response) console.warn('[upload] Response:', directErr.response);
+      console.warn('[upload] Direct upload failed:', err?.message);
+      if (err?.status) console.warn('[upload] Error status:', err.status);
     }
   }
 
-  // Fallback: proxy through server (works when Cloudinary signature endpoint unavailable)
-  if (__DEV__) console.log('[upload] Using server-proxy upload');
+  // For videos: retry direct once with a fresh signature before giving up.
+  // The server proxy rejects video (415) — retrying direct is the only recovery path.
+  if (isVideo) {
+    try {
+      if (__DEV__) console.log('[upload] Retrying direct Cloudinary upload for video (fresh sig)');
+      const sig = await getCloudinarySignature(finalBase, options, true);
+      if (sig) {
+        return await uploadDirectToCloudinary(finalUri, finalFilename, finalMimeType, sig, options);
+      }
+    } catch (retryErr: any) {
+      directErr = retryErr;
+      if (__DEV__) console.warn('[upload] Video direct upload retry also failed:', retryErr?.message);
+    }
+    const videoUploadErr: any = new Error(
+      'Video upload failed. Please check your connection and try again.'
+    );
+    videoUploadErr.code = 'VIDEO_DIRECT_UPLOAD_FAILED';
+    videoUploadErr.cause = directErr;
+    throw videoUploadErr;
+  }
+
+  // Images: fall back to server proxy
+  if (__DEV__) console.log('[upload] Falling back to server-proxy upload for image');
   return uploadViaServer(finalBase, finalUri, finalFilename, finalMimeType, options);
 }
 
@@ -537,7 +554,7 @@ async function uploadRawViaServer(
 }
 
 // -----------------------------------------------
-// XHR upload with progress (always uses server proxy)
+// XHR upload with progress — tries direct Cloudinary, falls back to server proxy for images only
 // -----------------------------------------------
 export async function uploadFileWithProgress(
   baseUrl: string | null | undefined,
@@ -553,23 +570,45 @@ export async function uploadFileWithProgress(
     mimeType
   );
 
-  // Try direct-to-Cloudinary (has XHR progress built in)
+  const isVideo = finalMimeType.startsWith('video/');
+
+  // Try direct-to-Cloudinary (XHR with progress built in)
+  let directErr: any = null;
   try {
     const sig = await getCloudinarySignature(finalBase, options);
     if (sig) {
       if (__DEV__) console.log('[upload] Using direct Cloudinary upload (with progress)');
       return await uploadDirectToCloudinary(finalUri, finalFilename, finalMimeType, sig, options);
     }
-  } catch (directErr: any) {
+  } catch (err: any) {
+    directErr = err;
     if (__DEV__) {
-      console.warn(
-        '[upload] Direct upload failed (with progress), falling back to server proxy:',
-        directErr?.message
-      );
-      if (directErr?.status) console.warn('[upload] Error status:', directErr.status);
+      console.warn('[upload] Direct upload failed (with progress):', err?.message);
+      if (err?.status) console.warn('[upload] Error status:', err.status);
     }
   }
 
+  // For videos: retry direct once with a fresh signature — server proxy rejects video (415).
+  if (isVideo) {
+    try {
+      if (__DEV__) console.log('[upload] Retrying direct Cloudinary upload for video (fresh sig)');
+      const sig = await getCloudinarySignature(finalBase, options, true);
+      if (sig) {
+        return await uploadDirectToCloudinary(finalUri, finalFilename, finalMimeType, sig, options);
+      }
+    } catch (retryErr: any) {
+      directErr = retryErr;
+      if (__DEV__) console.warn('[upload] Video direct upload retry also failed:', retryErr?.message);
+    }
+    const videoUploadErr: any = new Error(
+      'Video upload failed. Please check your connection and try again.'
+    );
+    videoUploadErr.code = 'VIDEO_DIRECT_UPLOAD_FAILED';
+    videoUploadErr.cause = directErr;
+    throw videoUploadErr;
+  }
+
+  // Images: fall back to server proxy via XHR (supports progress)
   const target = buildUploadUrl(`${finalBase}/uploads`, options?.formFields);
   const token = await getAccessTokenForRequest({ allowRefresh: true });
   if (!token) {
@@ -577,8 +616,7 @@ export async function uploadFileWithProgress(
     err.status = 401;
     throw err;
   }
-  const isVideo = finalMimeType.startsWith('video/');
-  const timeoutMs = options?.timeoutMs ?? (isVideo ? 300000 : 180000);
+  const timeoutMs = options?.timeoutMs ?? 180000;
   const onProgress = options?.onProgress;
 
   const form = new FormData();
