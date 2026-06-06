@@ -208,6 +208,19 @@ const ROUTE_PARAM_ALLOWLIST: Record<string, Set<string>> = {
   'payment-cancel':  new Set(['session_id', 'type']),
   'organization-invites': new Set(['token', 'orgId', 'email']),
   'team-invites':         new Set(['token', 'teamId', 'email']),
+  // Admin/management screens — no arbitrary params accepted from deep links
+  'admin-dashboard':           new Set(['coach_id', 'action']),
+  'admin-ads':                 new Set(),
+  'event-approvals':           new Set(['eventId']),
+  'approvals':                 new Set(),
+  'organization-join-requests': new Set(['orgId']),
+  'organization':              new Set(['orgId']),
+  'onboarding':                new Set(['step']),
+  'settings':                  new Set(),
+  'settings/manage-subscription': new Set(),
+  'create-fan-event':          new Set(),
+  'team-hub':                  new Set(),
+  'manage-subscription':       new Set(),
 };
 
 // Param keys accepted on all routes (resource ID + analytics)
