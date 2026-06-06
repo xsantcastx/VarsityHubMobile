@@ -383,7 +383,6 @@ teamsRouter.get(
   '/managed',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Authentication required' });
 
       const q = String((req.query as any).q || '')
@@ -526,10 +525,6 @@ teamsRouter.get(
       }
       res.set('x-has-more', hasMore ? '1' : '0');
       return res.json(list);
-    } catch (err) {
-      console.error('[teams] managed error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -538,7 +533,6 @@ teamsRouter.get(
   '/limits',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const user = await prisma.user.findUnique({
         where: { id: req.user!.id },
         select: {
@@ -605,10 +599,6 @@ teamsRouter.get(
         subscription_tier: subscriptionTier,
         upgrade_required: !canCreateMore,
       });
-    } catch (err) {
-      console.error('[teams] limits error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -616,7 +606,6 @@ teamsRouter.get(
   '/:id/admin-summary',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const teamId = String(req.params.id);
       const viewerId = req.user?.id || null;
       if (!viewerId) return res.status(401).json({ error: 'Authentication required' });
@@ -726,17 +715,12 @@ teamsRouter.get(
           date: game.date instanceof Date ? game.date.toISOString() : String(game.date),
         })),
       });
-    } catch (err) {
-      console.error('[teams] admin-summary error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
 teamsRouter.get(
   '/:id/screen-summary',
   asyncHandler(async (req, res) => {
-    try {
       const teamId = String(req.params.id);
       const viewerId = (req as AuthedRequest).user?.id ?? null;
       const access = await loadTeamViewerAccess(teamId, viewerId);
@@ -819,10 +803,6 @@ teamsRouter.get(
           date: game.date instanceof Date ? game.date.toISOString() : String(game.date),
         })),
       });
-    } catch (err) {
-      console.error('[teams] screen-summary error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -830,7 +810,6 @@ teamsRouter.get(
 teamsRouter.get(
   '/',
   asyncHandler(async (req, res) => {
-    try {
       const q = String((req.query as any).q || '')
         .trim()
         .toLowerCase();
@@ -947,10 +926,6 @@ teamsRouter.get(
         )
       );
       return res.json(list);
-    } catch (err) {
-      console.error('[teams] list error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -1046,7 +1021,6 @@ teamsRouter.delete(
 teamsRouter.get(
   '/:id',
   asyncHandler(async (req, res) => {
-    try {
       const id = String(req.params.id);
       const currentUserId = (req as AuthedRequest).user?.id ?? null;
       const t = await prisma.team.findUnique({
@@ -1117,10 +1091,6 @@ teamsRouter.get(
           }
         )
       );
-    } catch (err) {
-      console.error('[teams] get-by-id error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -1130,7 +1100,6 @@ teamsRouter.get(
   '/:id/members',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const id = String(req.params.id);
       const team = await prisma.team.findUnique({
         where: { id },
@@ -1204,10 +1173,6 @@ teamsRouter.get(
         };
       });
       return res.json(list);
-    } catch (err) {
-      console.error('[teams] get-members error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -1216,7 +1181,6 @@ teamsRouter.get(
   '/members/all',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const isAdmin = await getIsAdmin(req);
       if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
 
@@ -1276,10 +1240,6 @@ teamsRouter.get(
       }));
 
       return res.json(list);
-    } catch (err) {
-      console.error('[teams] members-all error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -2296,7 +2256,6 @@ teamsRouter.get(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const user = await prisma.user.findUnique({ where: { id: req.user.id } });
       if (!user?.email) return res.status(400).json({ error: 'User email not found' });
@@ -2313,10 +2272,6 @@ teamsRouter.get(
         team: { id: i.team_id, name: (i as any).team?.name || '' },
       }));
       return res.json(list);
-    } catch (err) {
-      console.error('[teams] invites-me error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -2325,7 +2280,6 @@ teamsRouter.post(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       const teamId = String(req.params.id);
       const inviteId = String(req.params.inviteId);
       const userId = req.user?.id || null;
@@ -2362,10 +2316,6 @@ teamsRouter.post(
           status: 'revoked',
         },
       });
-    } catch (err) {
-      console.error('[teams] cancel-invite error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -2375,7 +2325,6 @@ teamsRouter.post(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const inviteId = String(req.params.inviteId);
       const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
@@ -2533,10 +2482,6 @@ teamsRouter.post(
       }
 
       return res.json({ ok: true });
-    } catch (err) {
-      console.error('[teams] accept-invite error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -2546,7 +2491,6 @@ teamsRouter.post(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const inviteId = String(req.params.inviteId);
       const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
@@ -2605,10 +2549,6 @@ teamsRouter.post(
       }
 
       return res.json({ ok: true });
-    } catch (err) {
-      console.error('[teams] decline-invite error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
 
@@ -2621,7 +2561,6 @@ teamsRouter.post(
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const teamId = String(req.params.id);
       const transferSchema = z.object({ new_owner_id: z.string().min(1) });
@@ -2685,9 +2624,5 @@ teamsRouter.post(
       ]);
 
       return res.json({ ok: true, message: 'Ownership transferred successfully' });
-    } catch (err) {
-      console.error('[teams] transfer-ownership error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
   })
 );
