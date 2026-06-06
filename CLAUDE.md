@@ -93,6 +93,15 @@ Check env vars, Railway logs, and build configs — not just source code.
 - Any native module added after the current App Store binary MUST be dynamically imported with try-catch (see `OfflineBanner.tsx` pattern for `@react-native-community/netinfo`)
 - `fallbackToCacheTimeout: 0` means updates download in background, apply on next cold start — users need two app opens to see changes
 - Always verify the App Store binary's runtime version matches what `eas update` is publishing
+- **A code fix is NOT live until `eas update` is run.** Committing and pushing to main deploys the server (Railway auto-deploys) but does NOT update the client app. Every client-side fix requires an explicit `eas update --branch production` to reach users. Always remind the user to run this after any client fix.
+
+## Post-mapper Consistency Rule
+
+Two post mapper functions exist and MUST stay in sync:
+- `mapHighlightToFeedPost` in `app/game-details/GameVerticalFeedScreen.tsx` — used for highlights API data
+- `toFeedPost` in `app/profile.tsx` and `app/features/navigation/screens/ProfileScreen.tsx` — used for profile post data
+
+**When fixing a field mapping in one, always check and fix the other.** Caption/content/title fallback chains, `has_upvoted`, `has_bookmarked`, `author` shape — if they diverge, bugs appear in one context but not the other. The regression test at `app/game-details/__tests__/GameVerticalFeedScreen.caption.test.ts` guards the caption chain.
 
 ## Quick Checks
 

@@ -104,6 +104,15 @@
 - Don't change Railway env vars casually. Sensitive vars like `JWT_SECRET`, OAuth keys, and Apple signing keys have production blast radius; rotate/change them only when the task explicitly requires it and after understanding impact.
 - **Don't run `git stash apply` directly** — use `npm run stash:apply`. A bare stash apply leaves conflict markers silently; the script scans and reports them immediately.
 - **Don't `git add -A` when the working tree has unresolved conflicts** — always stage files explicitly by path after verifying each one.
+- **Don't assume a code fix is live.** Pushing to `main` deploys the server only (Railway). Client-side fixes require `eas update --branch production` to reach installed apps. Always remind the user to run this after any client fix.
+
+## Post-mapper Consistency Rule
+
+Two post mapper functions exist and MUST stay in sync:
+- `mapHighlightToFeedPost` in `app/game-details/GameVerticalFeedScreen.tsx` — used for highlights API data
+- `toFeedPost` in `app/profile.tsx` and `app/features/navigation/screens/ProfileScreen.tsx` — used for profile post data
+
+When fixing a field mapping in one, always check and fix the other. Caption/content/title fallback chains, `has_upvoted`, `has_bookmarked`, `author` shape — if they diverge, bugs appear in one context but not the other. Regression test: `app/game-details/__tests__/GameVerticalFeedScreen.caption.test.ts`.
 
 ## Git Workflow
 
