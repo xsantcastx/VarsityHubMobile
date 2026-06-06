@@ -163,6 +163,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const recentRedirectsRef = React.useRef<Array<{ family: string; to: string; ts: number }>>([]);
   const segmentsRef = React.useRef(segments);
   const bootstrapStartedRef = React.useRef(false);
+  // One-time flag: fires on the first routing check after bootstrap completes.
+  // If Expo Router restores navigation state to sign-in from a previous session,
+  // an unauthenticated guest would be stuck there. This catches that case and
+  // redirects to the open feed instead.
+  const startupSignInRestoreCheckedRef = React.useRef(false);
   // Guard against multiple in-flight coach-role restores triggered by repeated
   // effect runs. Cleared in the async block's finally.
   const restoringCoachRef = React.useRef(false);
@@ -932,6 +937,27 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       'payment-cancel',
     ]);
     const isPublic = publicRoutes.has(firstSegment);
+
+    // STARTUP RESTORATION FIX: Expo Router can restore navigation state from
+    // the previous session. If the user was last on sign-in, segments are
+    // restored to ['sign-in'] → isPublic=true → the unauthenticated redirect
+    // check below never fires → guest is stuck on the sign-in screen.
+    // This one-time check redirects guests away from auth screens on cold start.
+    if (!startupSignInRestoreCheckedRef.current) {
+      startupSignInRestoreCheckedRef.current = true;
+      if (
+        !user &&
+        !pendingVerificationEmail &&
+        (firstSegment === 'sign-in' || firstSegment === 'sign-up')
+      ) {
+        if (__DEV__)
+          console.log(
+            '[AuthProvider] Startup: nav restored to auth screen, redirecting guest to feed'
+          );
+        redirectWithTelemetry(unauthenticatedEntryRoute, 'startup_signin_restore');
+        return;
+      }
+    }
 
     if (__DEV__)
       console.log(
