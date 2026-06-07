@@ -60,6 +60,48 @@ import { wellKnownRouter } from './routes/well-known.js';
 
 const app = express();
 const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
+const EXPO_ROUTER_HYDRATION_INLINE_HASH = "'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8='";
+
+function getCspOrigin(rawValue: string | undefined, fallback: string): string {
+  const candidate = String(rawValue || '').trim() || fallback;
+  try {
+    return new URL(candidate).origin;
+  } catch {
+    return fallback;
+  }
+}
+
+function buildProductionCspDirectives() {
+  const apiOrigin = getCspOrigin(
+    process.env.EXPO_PUBLIC_API_URL,
+    'https://api-production-8ac3.up.railway.app'
+  );
+  const posthogOrigin = getCspOrigin(
+    process.env.EXPO_PUBLIC_POSTHOG_HOST,
+    'https://us.i.posthog.com'
+  );
+
+  return {
+    defaultSrc: ["'self'"],
+    imgSrc: [
+      "'self'",
+      'data:',
+      'https://res.cloudinary.com',
+      'https://*.googleapis.com',
+      'https://images.unsplash.com',
+    ],
+    scriptSrc: ["'self'", EXPO_ROUTER_HYDRATION_INLINE_HASH],
+    styleSrc: ["'self'", "'unsafe-inline'"],
+    connectSrc: [
+      "'self'",
+      apiOrigin,
+      'https://oauth2.googleapis.com',
+      'https://*.stripe.com',
+      'https://*.sentry.io',
+      posthogOrigin,
+    ],
+  };
+}
 
 // Initialize Sentry for error tracking (must be before other middleware)
 if (!isTest) {
@@ -85,13 +127,7 @@ app.use(
     contentSecurityPolicy:
       process.env.NODE_ENV === 'production'
         ? {
-            directives: {
-              defaultSrc: ["'self'"],
-              imgSrc: ["'self'", 'data:', 'https://res.cloudinary.com', 'https://*.googleapis.com'],
-              scriptSrc: ["'self'"],
-              styleSrc: ["'self'", "'unsafe-inline'"],
-              connectSrc: ["'self'", 'https://*.stripe.com', 'https://*.sentry.io'],
-            },
+            directives: buildProductionCspDirectives(),
           }
         : false,
   })
@@ -388,4 +424,4 @@ if (!isTest) {
   );
 }
 
-export { app };
+export { app, buildProductionCspDirectives };

@@ -22,6 +22,7 @@ function CreateScreen() {
   };
 
   const safeBack = () => safeGoBack(router);
+  const goToReserveAd = () => router.replace('/submit-ad');
 
   if (loading) {
     return (
@@ -43,19 +44,27 @@ function CreateScreen() {
     );
   }
 
-  // Guest (not logged in) — show Glaze-style Login Required prompt
+  // Guests can still reach ad reservation; auth is enforced when they submit.
   if (!me) {
     return (
       <View style={styles.overlay}>
         <Stack.Screen options={{ presentation: 'modal', title: 'Create' }} />
         <Pressable style={styles.overlayDismiss} onPress={safeBack} />
         <View style={[styles.sheet, styles.loginSheet, { backgroundColor: Colors[colorScheme].background }]}>
-          <Text style={[styles.loginTitle, { color: Colors[colorScheme].text }]}>
-            Login Required
-          </Text>
+          <Text style={[styles.loginTitle, { color: Colors[colorScheme].text }]}>Create</Text>
           <Text style={[styles.loginBody, { color: Colors[colorScheme].mutedText }]}>
-            Log in to create and publish your moments.
+            Log in to create and publish posts. Ad reservations stay available here.
           </Text>
+          <Pressable
+            style={[styles.reserveAdBtn, { borderColor: Colors[colorScheme].border }]}
+            onPress={goToReserveAd}
+            accessibilityRole="button"
+            accessibilityLabel="Reserve ad space"
+          >
+            <Text style={[styles.reserveAdBtnText, { color: Colors[colorScheme].text }]}>
+              Reserve Ad Space
+            </Text>
+          </Pressable>
           <Pressable
             style={[styles.loginBtn, { backgroundColor: Colors[colorScheme].tint }]}
             onPress={() => router.replace('/sign-in')}
@@ -202,6 +211,16 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  reserveAdBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  reserveAdBtnText: {
+    fontWeight: '700',
+    fontSize: 16,
   },
   loginBtnText: {
     color: '#fff',

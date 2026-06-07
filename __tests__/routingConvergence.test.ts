@@ -1,27 +1,16 @@
 import { describe, expect, it } from '@jest/globals';
 import { getOnboardingIndexRouteDecision } from '../utils/appRouteDecisions';
 import { resolveAuthRouting } from '../utils/authRouting';
+import { isPublicRouteSegment } from '../utils/publicRoutes';
 
 function getRoutingInput(route: string) {
-  const normalized = route.replace(/^\//, '');
+  const normalized = route.replace(/^\//, '').split('?')[0] || '';
   const firstSegment = normalized.split('/')[0] || '';
-  const publicRoutes = new Set([
-    'sign-in',
-    'sign-up',
-    'verify-email',
-    'verify',
-    'verify-identity',
-    'forgot-password',
-    'reset-password',
-    'reset',
-    'payment-success',
-    'payment-cancel',
-  ]);
 
   return {
     firstSegment,
     currentPath: normalized,
-    isPublic: publicRoutes.has(firstSegment),
+    isPublic: isPublicRouteSegment(firstSegment),
   };
 }
 
@@ -52,6 +41,24 @@ describe('routing convergence', () => {
   it('settles unauthenticated onboarding access onto sign-in in one redirect', () => {
     const resolution = expectStableAfterRedirect(null, '/onboarding/step-1-role');
     expect(resolution.postAuthDecision).toBeNull();
+  });
+
+  it('keeps guest-browseable content routes stable for anonymous users', () => {
+    for (const route of [
+      '/post-detail?id=post_123',
+      '/public-event?id=sample-warriors-cavaliers',
+      '/event-detail?id=evt_123',
+      '/game/123',
+      '/user-profile?id=user_123',
+      '/team-page?id=team_123',
+      '/organization?id=org_123',
+      '/organizations/org_123',
+      '/game-map',
+    ]) {
+      const authResolution = resolveForRoute(null, route);
+      expect(authResolution.redirectTo).toBeNull();
+      expect(authResolution.redirectReason).toBeNull();
+    }
   });
 
   it('settles unverified onboarding access onto verify in one redirect', () => {

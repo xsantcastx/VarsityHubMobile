@@ -40,6 +40,18 @@ export const normalizeMediaUrl = (value?: string | null): string | null => {
 
 const sanitizeForExtensionCheck = (url: string) => url.split('?')[0].split('#')[0].toLowerCase();
 
+export const getCloudinaryVideoPreviewUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  const normalized = normalizeMediaUrl(url);
+  if (!normalized || resolveMediaType(normalized, 'video') !== 'video') return null;
+  const match = normalized.match(
+    /^(https?:\/\/res\.cloudinary\.com\/[^/]+\/video\/upload\/)((?:[^v][^/]*\/)*)?(v\d+\/.+)$/
+  );
+  if (!match) return null;
+  const [, base, , rest] = match;
+  return `${base}f_webp,fl_awebp,du_3,so_0,w_480,q_60/${rest}`;
+};
+
 export const resolveMediaType = (
   mediaUrl?: string | null,
   explicitType?: string | null,
@@ -59,7 +71,8 @@ export const resolveMediaType = (
 
 export const resolvePostMedia = (item: MediaLike | null | undefined) => {
   const mediaUrl = normalizeMediaUrl(item?.media_url);
-  const previewUrl = normalizeMediaUrl(item?.preview_url);
+  const previewUrl =
+    normalizeMediaUrl(item?.preview_url) || getCloudinaryVideoPreviewUrl(mediaUrl);
   const mediaType = resolveMediaType(mediaUrl, item?.media_type);
   const isVideo = mediaType === 'video';
 

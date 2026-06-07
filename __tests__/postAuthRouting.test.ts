@@ -104,6 +104,19 @@ describe('getPostAuthLandingRoute', () => {
     ).toBe('/(tabs)');
   });
 
+  it('prefers top-level onboarding completion over stale preference flags after sign-in', () => {
+    expect(
+      getPostAuthLandingRoute({
+        email_verified: true,
+        onboarding_completed: true,
+        preferences: {
+          role: 'fan',
+          onboarding_completed: false,
+        },
+      })
+    ).toBe('/(tabs)');
+  });
+
   it('keeps onboarded admins out of coach pending traps', () => {
     expect(
       getPostAuthLandingRoute({

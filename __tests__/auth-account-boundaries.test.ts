@@ -184,6 +184,17 @@ describe('account boundary invariants', () => {
       expect(signUp).not.toMatch(/User\.me\(\{\s*force:\s*true\s*\}\)\.catch\(\(\)\s*=>\s*user\)/);
     });
 
+    it('existing-session continue forces a fresh auth snapshot before routing', () => {
+      expect(signIn).toMatch(/handleContinueExistingSession/);
+      expect(signUp).toMatch(/handleContinueExistingSession/);
+      expect(read('hooks/useExistingSessionActions.ts')).toMatch(
+        /checkAuth\(\{\s*skipSubscriptionRefresh:\s*true,\s*forceRefresh:\s*true,\s*\}\)/
+      );
+      expect(read('hooks/useExistingSessionActions.ts')).not.toMatch(
+        /const authUser = user \|\| \(await checkAuth\(\)\)/
+      );
+    });
+
     it('sign-up preserves host-specific transport errors from api/http', () => {
       expect(signUp).toMatch(
         /e\?\.isNetworkError === true \|\| errMsg\.startsWith\('Cannot connect to server'\)/

@@ -98,7 +98,7 @@ export function useGoogleAuth() {
         uri = window.location.origin;
       } else {
         // Fallback to production URL for SSR or missing window
-        uri = appConfig.webBaseUrl || 'https://www.varsityhub.app';
+        uri = appConfig.webBaseUrl || 'https://varsityhub.app';
       }
       return uri;
     }

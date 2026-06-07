@@ -1,4 +1,7 @@
 import { Post, Report } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
+import { promptForSignIn } from '@/utils/requireSignIn';
+import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useRef, useState } from 'react';
 import { Alert } from 'react-native';
@@ -31,6 +34,8 @@ export function usePostInteractions({
   initialBookmarksCount = 0,
   tag = 'Post',
 }: Options) {
+  const router = useRouter();
+  const { user } = useAuth();
   const [upvotesCount, setUpvotesCount] = useState(initialUpvotes);
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
   const [bookmarksCount, setBookmarksCount] = useState(initialBookmarksCount);
@@ -41,6 +46,17 @@ export function usePostInteractions({
 
   const onUpvote = async () => {
     if (upvoteInFlight.current) return;
+    if (!user) {
+      promptForSignIn(
+        () => {
+          void router.push('/sign-in');
+        },
+        {
+          message: 'Sign in to upvote posts.',
+        }
+      );
+      return;
+    }
     upvoteInFlight.current = true;
 
     // Optimistic update — increment immediately, reconcile with server response
@@ -63,13 +79,24 @@ export function usePostInteractions({
 
   const onBookmark = async () => {
     if (bookmarkInFlight.current) return;
+    if (!user) {
+      promptForSignIn(
+        () => {
+          void router.push('/sign-in');
+        },
+        {
+          message: 'Sign in to save posts.',
+        }
+      );
+      return;
+    }
     bookmarkInFlight.current = true;
 
     // Optimistic update — toggle immediately
     const prevBookmarked = bookmarked;
     const prevCount = bookmarksCount;
     setBookmarked(prev => !prev);
-    setBookmarksCount(prev => prevBookmarked ? Math.max(0, prev - 1) : prev + 1);
+    setBookmarksCount(prev => (prevBookmarked ? Math.max(0, prev - 1) : prev + 1));
     void Haptics.selectionAsync().catch(() => {});
 
     try {
@@ -89,6 +116,17 @@ export function usePostInteractions({
   };
 
   const submitReport = async (reason: string) => {
+    if (!user) {
+      promptForSignIn(
+        () => {
+          void router.push('/sign-in');
+        },
+        {
+          message: 'Sign in to report posts.',
+        }
+      );
+      return;
+    }
     setReportSubmitting(true);
     try {
       await Report.create({ target_type: 'post', target_id: String(postId), reason });

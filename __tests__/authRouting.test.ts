@@ -191,4 +191,27 @@ describe('resolveAuthRouting', () => {
     expect(result.redirectTo).toBe('/(tabs)');
     expect(result.redirectReason).toBe('public_route_authenticated');
   });
+
+  it('redirects already-onboarded users off onboarding routes even when preferences are stale', () => {
+    const result = resolveAuthRouting({
+      user: {
+        email_verified: true,
+        onboarding_completed: true,
+        preferences: {
+          role: 'fan',
+          onboarding_completed: false,
+        },
+      },
+      pendingVerificationEmail: null,
+      firstSegment: 'onboarding',
+      currentPath: 'onboarding/step-1-role',
+      isPublic: false,
+      healthOk: true,
+      unauthenticatedEntryRoute: '/sign-in',
+    });
+
+    expect(result.needsOnboarding).toBe(false);
+    expect(result.redirectTo).toBe('/(tabs)');
+    expect(result.redirectReason).toBe('onboarding_complete');
+  });
 });

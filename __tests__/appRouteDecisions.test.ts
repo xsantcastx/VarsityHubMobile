@@ -144,7 +144,7 @@ describe('getPostAuthRouteDecision', () => {
       kind: 'server_pending_approval_league_waiting',
     },
     {
-      label: 'routes approved coaches without agreement to coach-agreement even if onboarding is incomplete',
+      label: 'routes approved coaches with incomplete setup to the final recovery flow',
       user: {
         email_verified: true,
         approval_status: 'APPROVED',
@@ -157,8 +157,8 @@ describe('getPostAuthRouteDecision', () => {
           organization_id: 'org_123',
         },
       },
-      expected: '/onboarding/coach-agreement',
-      kind: 'coach_agreement_required',
+      expected: '/onboarding/league-pending-approval',
+      kind: 'approved_coach_finish_setup',
     },
     {
       label: 'routes approved coaches without agreement into the app once approved',
@@ -231,6 +231,22 @@ describe('getPostAuthRouteDecision', () => {
     expect(decision.kind).toBe('approved_coach_finish_setup');
     expect(decision.route).toBe('/onboarding/league-pending-approval');
   });
+
+  it('prefers top-level onboarding completion over stale preference flags for existing users', () => {
+    const decision = getPostAuthRouteDecision(
+      {
+        email_verified: true,
+        onboarding_completed: true,
+        preferences: {
+          onboarding_completed: false,
+          role: 'fan',
+        },
+      } as any
+    );
+
+    expect(decision.kind).toBe('app_home');
+    expect(decision.route).toBe('/(tabs)');
+  });
 });
 
 describe('getOnboardingIndexRouteDecision', () => {
@@ -248,7 +264,7 @@ describe('getOnboardingIndexRouteDecision', () => {
       }
     );
 
-    expect(decision.kind).toBe('draft_step_3');
+    expect(decision.kind).toBe('server_final_setup_required');
     expect(decision.route).toBe('/onboarding/step-3-league');
   });
 

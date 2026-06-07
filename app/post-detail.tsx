@@ -4,27 +4,29 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
+import { promptForSignIn } from '@/utils/requireSignIn';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -481,7 +483,14 @@ export default function PostDetailScreen() {
   const onUpvote = async () => {
     if (!currentPostId || voting) return;
     if (!user) {
-      router.push('/sign-in');
+      promptForSignIn(
+        () => {
+          void router.push('/sign-in');
+        },
+        {
+          message: 'Sign in to upvote posts.',
+        }
+      );
       return;
     }
     setVoting(true);
@@ -536,7 +545,14 @@ export default function PostDetailScreen() {
   const onAddComment = async () => {
     if (!currentPostId || !comment.trim()) return;
     if (!user) {
-      router.push('/sign-in');
+      promptForSignIn(
+        () => {
+          void router.push('/sign-in');
+        },
+        {
+          message: 'Sign in to comment on posts.',
+        }
+      );
       return;
     }
     setCommenting(true);
@@ -1064,9 +1080,18 @@ export default function PostDetailScreen() {
             <Pressable style={styles.mediaContainer} onPress={() => setFullscreenMedia(true)}>
               {isImage && (
                 <ExpoImage
-                  source={{ uri: media.mediaUrl! }}
+                  source={{
+                    uri:
+                      optimizeImageUrl(
+                        media.displayImageUrl || media.mediaUrl,
+                        Math.max(900, Math.round(SCREEN_WIDTH * 1.5))
+                      ) ||
+                      media.displayImageUrl ||
+                      media.mediaUrl!,
+                  }}
                   style={styles.heroImage}
                   contentFit="cover"
+                  cachePolicy="memory-disk"
                 />
               )}
               {isVideo && (
@@ -1210,8 +1235,14 @@ export default function PostDetailScreen() {
             >
               {postData.author?.avatar_url ? (
                 <ExpoImage
-                  source={{ uri: postData.author.avatar_url }}
+                  source={{
+                    uri:
+                      optimizeImageUrl(postData.author.avatar_url, 96) ||
+                      postData.author.avatar_url,
+                  }}
                   style={styles.authorAvatar}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
                 />
               ) : (
                 <View style={[styles.authorAvatar, styles.defaultAvatar]}>
@@ -1343,7 +1374,14 @@ export default function PostDetailScreen() {
               style={[styles.addCommentContainer, { backgroundColor: Colors[colorScheme].card }]}
             >
               {currentUser?.avatar_url ? (
-                <ExpoImage source={{ uri: currentUser.avatar_url }} style={styles.commentAvatar} />
+                <ExpoImage
+                  source={{
+                    uri: optimizeImageUrl(currentUser.avatar_url, 64) || currentUser.avatar_url,
+                  }}
+                  style={styles.commentAvatar}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                />
               ) : (
                 <View style={[styles.commentAvatar, styles.defaultAvatar]}>
                   <Ionicons name="person" size={16} color="#fff" />
@@ -1424,8 +1462,12 @@ export default function PostDetailScreen() {
                     >
                       {c.author?.avatar_url ? (
                         <ExpoImage
-                          source={{ uri: c.author.avatar_url }}
+                          source={{
+                            uri: optimizeImageUrl(c.author.avatar_url, 64) || c.author.avatar_url,
+                          }}
                           style={styles.commentAvatar}
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
                         />
                       ) : (
                         <View style={[styles.commentAvatar, styles.defaultAvatar]}>
@@ -1792,9 +1834,18 @@ export default function PostDetailScreen() {
               <GestureDetector gesture={pinchGesture}>
                 <Animated.View style={[styles.fullscreenImageWrapper, imageAnimatedStyle]}>
                   <ExpoImage
-                    source={{ uri: post.media_url }}
+                    source={{
+                      uri:
+                        optimizeImageUrl(
+                          currentMedia.displayImageUrl || post.media_url,
+                          Math.max(1400, Math.round(SCREEN_WIDTH * 2))
+                        ) ||
+                        currentMedia.displayImageUrl ||
+                        post.media_url,
+                    }}
                     style={styles.fullscreenImage}
                     contentFit="contain"
+                    cachePolicy="memory-disk"
                   />
                 </Animated.View>
               </GestureDetector>

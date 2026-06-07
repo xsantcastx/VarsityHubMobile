@@ -13,7 +13,7 @@ import { ActivityIndicator, Platform, View } from 'react-native';
  *
  * The _layout effect will:
  * 1. Check auth status via the centralized auth provider
- * 2. Route to sign-in (unauthenticated)
+ * 2. Route guests to the public feed
  * 3. Route to onboarding (needs onboarding)
  * 4. Route to tabs (authenticated)
  */
@@ -33,7 +33,7 @@ export default function Index() {
     }
 
     if (!user) {
-      router.replace((Platform.OS === 'web' ? '/sign-up' : '/(tabs)/feed') as any);
+      router.replace('/(tabs)/feed' as any);
       return;
     }
 
@@ -43,14 +43,20 @@ export default function Index() {
     router.replace(decision.route as any);
   }, [loading, pendingVerificationEmail, router, user]);
 
+  if (Platform.OS === 'web') {
+    return null;
+  }
+
   return (
-    <View style={{
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: Colors[colorScheme].background,
-      gap: 24,
-    }}>
+    <View
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: Colors[colorScheme].background,
+        gap: 24,
+      }}
+    >
       <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 4 }}>
         <Image
           source={require('../assets/images/logo.svg')}

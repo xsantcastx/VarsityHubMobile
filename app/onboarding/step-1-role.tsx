@@ -1,7 +1,8 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
-import { getFreshAuthSnapshot } from '@/utils/authState';
+import { getFreshAuthSnapshot, isOnboardingCompleteSnapshot } from '@/utils/authState';
+import { GUEST_HOME_ROUTE } from '@/utils/publicRoutes';
 import { getCanonicalCoachRole } from '@/utils/roleChecks';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -265,9 +266,7 @@ export default function Step1Role() {
             freshServerUser = await getFreshAuthSnapshot(checkAuth, user);
           }
           const serverRole = String(getCanonicalCoachRole(freshServerUser) || '').toLowerCase();
-          const onboardingCompleted =
-            freshServerUser?.preferences?.onboarding_completed === true ||
-            freshServerUser?.onboarding_completed === true;
+          const onboardingCompleted = isOnboardingCompleteSnapshot(freshServerUser);
 
           if (!onboardingCompleted) {
             return;
@@ -366,7 +365,7 @@ export default function Step1Role() {
           try {
             await signOut();
           } catch {
-            router.replace('/sign-in');
+            router.replace(GUEST_HOME_ROUTE);
           }
         },
       },

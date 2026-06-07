@@ -14,21 +14,21 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    KeyboardAvoidingView,
-    Linking,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    Share,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
@@ -39,8 +39,10 @@ import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getAuthSnapshot } from '@/utils/authState';
 import events from '@/utils/events';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { AppLinks } from '@/utils/links';
 import { resolveMediaType } from '@/utils/media';
+import { promptForSignIn } from '@/utils/requireSignIn';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 
@@ -49,6 +51,8 @@ const FastImage = ({ source, style, resizeMode }: any) => (
     source={source}
     style={style}
     contentFit={resizeMode === 'contain' ? 'contain' : 'cover'}
+    cachePolicy="memory-disk"
+    transition={120}
   />
 );
 
@@ -195,6 +199,29 @@ const FeedCard = memo(
     const videoSource = useMemo(
       () => (post.media_url ? { uri: post.media_url } : null),
       [post.media_url]
+    );
+    const imageSource = useMemo(
+      () =>
+        post.media_url
+          ? {
+              uri:
+                optimizeImageUrl(
+                  post.media_url,
+                  Math.max(900, Math.round(windowWidth * 1.5))
+                ) || post.media_url,
+            }
+          : null,
+      [post.media_url]
+    );
+    const authorAvatarSource = useMemo(
+      () =>
+        post.author?.avatar_url
+          ? {
+              uri:
+                optimizeImageUrl(post.author.avatar_url, 120) || post.author.avatar_url,
+            }
+          : null,
+      [post.author?.avatar_url]
     );
 
     useEffect(() => {
@@ -369,7 +396,9 @@ const FeedCard = memo(
               ) : null}
             </View>
           ) : post.media_url ? (
-            <FastImage source={{ uri: post.media_url }} style={styles.media} resizeMode="contain" />
+            imageSource ? (
+              <FastImage source={imageSource} style={styles.media} resizeMode="contain" />
+            ) : null
           ) : (
             <View style={[styles.media, styles.textOnlyCard]}>
               <LinearGradient
@@ -379,10 +408,9 @@ const FeedCard = memo(
               <View style={styles.textOnlyContent}>
                 <View style={styles.textOnlyHeader}>
                   {post.author?.avatar_url ? (
-                    <FastImage
-                      source={{ uri: post.author.avatar_url }}
-                      style={styles.textOnlyAvatar}
-                    />
+                    authorAvatarSource ? (
+                      <FastImage source={authorAvatarSource} style={styles.textOnlyAvatar} />
+                    ) : null
                   ) : (
                     <View style={[styles.textOnlyAvatar, styles.avatarFallback]}>
                       <Text style={styles.avatarFallbackText}>
@@ -447,10 +475,9 @@ const FeedCard = memo(
                 }
               >
                 {post.author?.avatar_url ? (
-                  <FastImage
-                    source={{ uri: post.author.avatar_url }}
-                    style={styles.railAvatarImg}
-                  />
+                  authorAvatarSource ? (
+                    <FastImage source={authorAvatarSource} style={styles.railAvatarImg} />
+                  ) : null
                 ) : (
                   <View style={[styles.railAvatarImg, styles.avatarFallback]}>
                     <Text style={styles.avatarFallbackText}>
@@ -1031,6 +1058,17 @@ function GameVerticalFeedScreen({
 
   const handleToggleUpvote = useCallback(
     async (post: FeedPost) => {
+      if (!user) {
+        promptForSignIn(
+          () => {
+            void router.push('/sign-in');
+          },
+          {
+            message: 'Sign in to upvote posts.',
+          }
+        );
+        return;
+      }
       const optimisticNext = !post.has_upvoted;
       updatePost(post.id, p => ({
         ...p,
@@ -1064,11 +1102,22 @@ function GameVerticalFeedScreen({
         }));
       }
     },
-    [updatePost]
+    [router, updatePost, user]
   );
 
   const handleToggleBookmark = useCallback(
     async (post: FeedPost) => {
+      if (!user) {
+        promptForSignIn(
+          () => {
+            void router.push('/sign-in');
+          },
+          {
+            message: 'Sign in to save posts.',
+          }
+        );
+        return;
+      }
       const optimisticNext = !post.has_bookmarked;
       updatePost(post.id, p => ({
         ...p,
@@ -1091,11 +1140,22 @@ function GameVerticalFeedScreen({
         }));
       }
     },
-    [updatePost]
+    [router, updatePost, user]
   );
 
   const handleToggleFollow = useCallback(
     async (post: FeedPost) => {
+      if (!user) {
+        promptForSignIn(
+          () => {
+            void router.push('/sign-in');
+          },
+          {
+            message: 'Sign in to follow creators.',
+          }
+        );
+        return;
+      }
       const authorId = post.author?.id;
       if (!authorId) return;
       const optimisticNext = !post.is_following_author;
@@ -1119,7 +1179,7 @@ function GameVerticalFeedScreen({
         }));
       }
     },
-    [optimisticUpdateAllFromAuthor]
+    [optimisticUpdateAllFromAuthor, router, user]
   );
 
   const handleOpenAuthorProfile = useCallback(
@@ -1242,6 +1302,17 @@ function GameVerticalFeedScreen({
 
   const handleSendComment = useCallback(async () => {
     if (!commentTarget || !commentInput.trim() || commentSending) return;
+    if (!user) {
+      promptForSignIn(
+        () => {
+          void router.push('/sign-in');
+        },
+        {
+          message: 'Sign in to comment on posts.',
+        }
+      );
+      return;
+    }
     const optimistic: CommentItem = {
       id: `pending-${Date.now()}`,
       content: commentInput,
@@ -1272,7 +1343,7 @@ function GameVerticalFeedScreen({
     } finally {
       setCommentSending(false);
     }
-  }, [commentInput, commentSending, commentTarget, updatePost, meInfo]);
+  }, [commentInput, commentSending, commentTarget, updatePost, meInfo, router, user]);
 
   const handleDoubleTap = useCallback(
     (post: FeedPost) => {

@@ -26,7 +26,7 @@ export function useExistingSessionActions({
   signOut,
   setSigningOut,
   setError,
-  user,
+  user: _user,
   checkAuth,
   routeCurrentUser,
   expiredMessage,
@@ -47,12 +47,15 @@ export function useExistingSessionActions({
     if (authBusy) return;
     setError(null);
     try {
-      const authUser = user || (await checkAuth());
+      const authUser = await checkAuth({
+        skipSubscriptionRefresh: true,
+        forceRefresh: true,
+      });
       if (authUser) {
         await routeCurrentUser(authUser);
         return;
       }
-      setError(expiredMessage);
+      setError(restoreFailedMessage);
     } catch (e: any) {
       const message = e?.message || '';
       if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
@@ -65,7 +68,7 @@ export function useExistingSessionActions({
       }
       setError(restoreFailedMessage);
     }
-  }, [authBusy, checkAuth, expiredMessage, restoreFailedMessage, routeCurrentUser, setError, user]);
+  }, [authBusy, checkAuth, expiredMessage, restoreFailedMessage, routeCurrentUser, setError]);
 
   return {
     handleSignOutToContinue,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { resolveMediaType, resolvePostMedia } from '../media';
+import { getCloudinaryVideoPreviewUrl, resolveMediaType, resolvePostMedia } from '../media';
 
 describe('resolveMediaType', () => {
   it('returns null when there is no media url', () => {
@@ -47,5 +47,24 @@ describe('resolvePostMedia', () => {
       isVideo: true,
       displayImageUrl: null,
     });
+  });
+
+  it('derives a Cloudinary preview when the API omits preview_url', () => {
+    expect(
+      resolvePostMedia({
+        media_url: 'https://res.cloudinary.com/demo/video/upload/v123/clip.mp4',
+        media_type: 'video',
+      }),
+    ).toMatchObject({
+      isVideo: true,
+      displayImageUrl:
+        'https://res.cloudinary.com/demo/video/upload/f_webp,fl_awebp,du_3,so_0,w_480,q_60/v123/clip.mp4',
+    });
+  });
+});
+
+describe('getCloudinaryVideoPreviewUrl', () => {
+  it('returns null for non-Cloudinary videos', () => {
+    expect(getCloudinaryVideoPreviewUrl('https://cdn.example.com/clip.mp4')).toBeNull();
   });
 });

@@ -9,17 +9,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
@@ -191,20 +191,23 @@ function CommunityDiscoverScreen() {
       });
   }, [reportDiscoverFailure]);
 
-  const saveRecentSearch = useCallback((term: string) => {
-    const trimmed = term.trim();
-    if (!trimmed || trimmed.length < 2) return;
-    setRecentSearches(prev => {
-      const updated = [
-        trimmed,
-        ...prev.filter(s => s.toLowerCase() !== trimmed.toLowerCase()),
-      ].slice(0, 5);
-      void AsyncStorage.setItem('vh_recent_searches', JSON.stringify(updated)).catch(error => {
-        reportDiscoverFailure('save_recent_searches', error);
+  const saveRecentSearch = useCallback(
+    (term: string) => {
+      const trimmed = term.trim();
+      if (!trimmed || trimmed.length < 2) return;
+      setRecentSearches(prev => {
+        const updated = [
+          trimmed,
+          ...prev.filter(s => s.toLowerCase() !== trimmed.toLowerCase()),
+        ].slice(0, 5);
+        void AsyncStorage.setItem('vh_recent_searches', JSON.stringify(updated)).catch(error => {
+          reportDiscoverFailure('save_recent_searches', error);
+        });
+        return updated;
       });
-      return updated;
-    });
-  }, [reportDiscoverFailure]);
+    },
+    [reportDiscoverFailure]
+  );
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -421,13 +424,19 @@ function CommunityDiscoverScreen() {
       const [items, people] = await Promise.all([fetchPosts(), fetchPeople()]);
 
       // Suggested users (fire-and-forget, non-blocking)
-      User.suggested(10).then((res: any) => {
-        const items = Array.isArray(res?.items) ? res.items : [];
-        setSuggestedPeople(items.filter((u: any) => {
-          const name = u?.display_name || u?.username;
-          return name && !isInternalId(name);
-        }));
-      }).catch(() => { /* non-fatal */ });
+      User.suggested(10)
+        .then((res: any) => {
+          const items = Array.isArray(res?.items) ? res.items : [];
+          setSuggestedPeople(
+            items.filter((u: any) => {
+              const name = u?.display_name || u?.username;
+              return name && !isInternalId(name);
+            })
+          );
+        })
+        .catch(() => {
+          /* non-fatal */
+        });
 
       const followingOnly = items.filter(
         (p: any) => p && (p.is_following_author || p.is_following)
@@ -745,9 +754,12 @@ function CommunityDiscoverScreen() {
       } catch (error: any) {
         if (__DEV__) console.error('Error adding quick game:', error);
         if (!handleCoachAccessError(router, error, 'creating games', user as any)) {
-          captureException(error instanceof Error ? error : new Error(String(error?.message || error)), {
-            tags: { context: 'quick_game_save' },
-          });
+          captureException(
+            error instanceof Error ? error : new Error(String(error?.message || error)),
+            {
+              tags: { context: 'quick_game_save' },
+            }
+          );
           const errorMessage = error?.data?.error || error?.message || 'Failed to add event.';
           Alert.alert('Error', errorMessage);
         }
@@ -840,11 +852,22 @@ function CommunityDiscoverScreen() {
     <View>
       {showPrecisionBanner ? (
         <View
-          style={[styles.precisionBanner, { backgroundColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.12)' : '#FEF9C3', borderColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.35)' : '#FACC15' }]}
+          style={[
+            styles.precisionBanner,
+            {
+              backgroundColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.12)' : '#FEF9C3',
+              borderColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.35)' : '#FACC15',
+            },
+          ]}
         >
           <MaterialIcons name="near-me" size={18} color="#B45309" />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.precisionBannerText, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>
+            <Text
+              style={[
+                styles.precisionBannerText,
+                { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
+              ]}
+            >
               Precise location is off. Nearby recommendations will be less accurate on Android.
             </Text>
             <View style={styles.precisionActions}>
@@ -853,7 +876,14 @@ function CommunityDiscoverScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Dismiss precision location banner"
               >
-                <Text style={[styles.precisionActionLink, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>Dismiss</Text>
+                <Text
+                  style={[
+                    styles.precisionActionLink,
+                    { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
+                  ]}
+                >
+                  Dismiss
+                </Text>
               </Pressable>
               <Pressable
                 onPress={() => {
@@ -1261,7 +1291,10 @@ function CommunityDiscoverScreen() {
                   onPress={() => {
                     setQuery('');
                     setUnifiedSearchResults(null);
-                        void router.push({ pathname: '/organizations/[id]', params: { id: String(o.id) } });
+                    void router.push({
+                      pathname: '/organizations/[id]',
+                      params: { id: String(o.id) },
+                    });
                   }}
                   accessibilityRole="button"
                   accessibilityLabel={`View organization ${o.name}`}
@@ -1394,7 +1427,10 @@ function CommunityDiscoverScreen() {
                         style={[styles.searchResultSub, { color: Colors[colorScheme].mutedText }]}
                         numberOfLines={1}
                       >
-                        {[game.location, game.date ? new Date(game.date).toLocaleDateString() : null]
+                        {[
+                          game.location,
+                          game.date ? new Date(game.date).toLocaleDateString() : null,
+                        ]
                           .filter(Boolean)
                           .join(' • ')}
                       </Text>
@@ -1419,7 +1455,10 @@ function CommunityDiscoverScreen() {
                   onPress={() => {
                     setQuery('');
                     setUnifiedSearchResults(null);
-                        void router.push({ pathname: '/event-detail', params: { id: String(event.id) } });
+                    void router.push({
+                      pathname: '/event-detail',
+                      params: { id: String(event.id) },
+                    });
                   }}
                   accessibilityRole="button"
                   accessibilityLabel={`View event ${event.title}`}
@@ -1448,7 +1487,10 @@ function CommunityDiscoverScreen() {
                         style={[styles.searchResultSub, { color: Colors[colorScheme].mutedText }]}
                         numberOfLines={1}
                       >
-                        {[event.location, event.date ? new Date(event.date).toLocaleDateString() : null]
+                        {[
+                          event.location,
+                          event.date ? new Date(event.date).toLocaleDateString() : null,
+                        ]
                           .filter(Boolean)
                           .join(' • ')}
                       </Text>
@@ -1829,7 +1871,9 @@ function CommunityDiscoverScreen() {
                     backgroundColor: Colors[colorScheme].tint + '10',
                     borderColor: Colors[colorScheme].tint + '30',
                     marginLeft:
-                      String(getCanonicalRole(me as any) || '').toLowerCase() === 'organizer' ? 12 : 0,
+                      String(getCanonicalRole(me as any) || '').toLowerCase() === 'organizer'
+                        ? 12
+                        : 0,
                   },
                 ]}
                 onPress={() => void router.push('/create-fan-event')}
@@ -1853,7 +1897,7 @@ function CommunityDiscoverScreen() {
                     marginLeft: 12,
                   },
                 ]}
-                onPress={() => void router.push('/create-post')}
+                onPress={() => void router.push('/create')}
                 accessibilityRole="button"
                 accessibilityLabel="Share a moment"
               >
@@ -2237,7 +2281,7 @@ function CommunityDiscoverScreen() {
                         await User.follow(u.id);
                       }
                       setSuggestedPeople(prev =>
-                        prev.map(p => p.id === u.id ? { ...p, is_following: !p.is_following } : p)
+                        prev.map(p => (p.id === u.id ? { ...p, is_following: !p.is_following } : p))
                       );
                     } catch {
                       // silent
@@ -2246,10 +2290,17 @@ function CommunityDiscoverScreen() {
                     }
                   }}
                 >
-                  <Text style={[styles.suggestedFollowText, u.is_following && { color: colorScheme === 'dark' ? '#9CA3AF' : '#555' }]}>
+                  <Text
+                    style={[
+                      styles.suggestedFollowText,
+                      u.is_following && { color: colorScheme === 'dark' ? '#9CA3AF' : '#555' },
+                    ]}
+                  >
                     {suggestedFollowLoading === u.id
                       ? '...'
-                      : u.is_following ? 'Following' : 'Follow'}
+                      : u.is_following
+                        ? 'Following'
+                        : 'Follow'}
                   </Text>
                 </Pressable>
               </View>

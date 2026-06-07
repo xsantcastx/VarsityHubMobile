@@ -6,24 +6,24 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    useColorScheme,
-    View,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useColorScheme,
+  View,
 } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import {
-    LEGEND_YEARLY_PRICE_LABEL,
-    ROOKIE_TEAM_LIMIT,
-    VETERAN_MONTHLY_TEAM_PRICE_LABEL,
+  LEGEND_YEARLY_PRICE_LABEL,
+  ROOKIE_TEAM_LIMIT,
+  VETERAN_MONTHLY_TEAM_PRICE_LABEL,
 } from '@/constants/plans';
 import { OBProvider, useOnboarding } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
@@ -72,30 +72,30 @@ function RoleOnboardingScreenInner() {
         const billing = getCanonicalBillingState(me);
         const resolvedCoachTier = billing.selected_plan as CoachTier;
 
-    if (userRole === 'fan') {
-      setAccountType('fan');
-      logTelemetry('prefill-fan', {
-        plan: billing.plan,
-        pendingPlan: billing.pending_plan,
-        subscriptionTier: me?.subscription_tier,
-      });
-    } else if (userRole === 'coach') {
-      setAccountType('coach');
-      setCoachTier(resolvedCoachTier);
-      logTelemetry('prefill-coach', {
-        plan: billing.plan,
-        pendingPlan: billing.pending_plan,
-        subscriptionTier: me?.subscription_tier,
-        resolvedCoachTier,
-      });
-    }
+        if (userRole === 'fan') {
+          setAccountType('fan');
+          logTelemetry('prefill-fan', {
+            plan: billing.plan,
+            pendingPlan: billing.pending_plan,
+            subscriptionTier: me?.subscription_tier,
+          });
+        } else if (userRole === 'coach') {
+          setAccountType('coach');
+          setCoachTier(resolvedCoachTier);
+          logTelemetry('prefill-coach', {
+            plan: billing.plan,
+            pendingPlan: billing.pending_plan,
+            subscriptionTier: me?.subscription_tier,
+            resolvedCoachTier,
+          });
+        }
 
-    const hasZip = me?.zip_code || me?.preferences?.zip_code;
-    if (hasZip) {
-      setZipCode(hasZip);
-      setZipCodeProvided(true);
-      logTelemetry('prefill-zip', { zip: hasZip });
-    }
+        const hasZip = me?.zip_code || me?.preferences?.zip_code;
+        if (hasZip) {
+          setZipCode(hasZip);
+          setZipCodeProvided(true);
+          logTelemetry('prefill-zip', { zip: hasZip });
+        }
 
         // If no account type, show selection screen
         if (!userRole) {
@@ -256,7 +256,7 @@ function RoleOnboardingScreenInner() {
       icon: 'chatbubble',
       title: 'Connect & Share',
       description: 'Post reviews, engage with other fans',
-      route: '/create-post',
+      route: '/create',
       gradient: ['#10b981', '#059669'],
     },
   ];

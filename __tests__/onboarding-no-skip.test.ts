@@ -85,6 +85,7 @@ describe('onboarding flow — no screens can be skipped', () => {
 
     it('step-1-role uses canonical auth state instead of refetching role bootstrap snapshots', () => {
       expect(step1).toMatch(/const \{ user, signOut, checkAuth \} = useAuth\(\)/);
+      expect(step1).toMatch(/isOnboardingCompleteSnapshot/);
       expect(step1).not.toMatch(/User\.me\(\)/);
       expect(step1).not.toMatch(/User\.refresh\(\)/);
       expect(step1).not.toMatch(/useFocusEffect/);

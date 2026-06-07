@@ -3,26 +3,26 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import {
-    Advertisement,
-    Event,
-    Feed,
-    Game,
-    Message,
-    Notification as NotificationApi,
+  Advertisement,
+  Event,
+  Feed,
+  Game,
+  Message,
+  Notification as NotificationApi,
 } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
@@ -39,12 +39,13 @@ import * as Location from 'expo-location';
 
 import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
+import { getDeterministicGameCardGradient } from '@/utils/feedGameCard';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import {
-    getNotificationHrefForUser,
-    getNotificationSubtitle,
-    getNotificationTitle,
-    isSystemNotification,
+  getNotificationHrefForUser,
+  getNotificationSubtitle,
+  getNotificationTitle,
+  isSystemNotification,
 } from '@/utils/notificationPresentation';
 import GameVerticalFeedScreen from '../../../game-details/GameVerticalFeedScreen';
 
@@ -275,6 +276,7 @@ export default function FeedScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [webHydrated, setWebHydrated] = useState(Platform.OS !== 'web');
   const [games, setGames] = useState<GameItem[]>([]);
   const [gamesCursor, setGamesCursor] = useState<string | null>(null);
   const [hasMoreGames, setHasMoreGames] = useState(true);
@@ -327,6 +329,11 @@ export default function FeedScreen() {
       loadRequestIdRef.current += 1;
       loadInFlightRef.current = false;
     };
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    setWebHydrated(true);
   }, []);
 
   const preloadVoteSummaries = useCallback(async (gameList: GameItem[]) => {
@@ -421,7 +428,7 @@ export default function FeedScreen() {
           if (err?.isNetworkError || err?.status === 0) {
             setError('Unable to connect to server. Please check your internet connection.');
           } else if (err?.status === 401 || err?.status === 403) {
-            setError('Please sign in to view games.');
+            setError('Unable to load games right now.');
           } else {
             setError('Unable to load games. Please try again.');
           }
@@ -568,7 +575,7 @@ export default function FeedScreen() {
         if (e?.isNetworkError || e?.status === 0) {
           setError('Unable to connect to server. Please check your internet connection.');
         } else if (e?.status === 401 || e?.status === 403) {
-          setError('Please sign in to view your feed.');
+          setError('Unable to load feed right now.');
         } else {
           setError('Unable to load feed. Please try again.');
         }
@@ -1118,8 +1125,7 @@ export default function FeedScreen() {
             : null;
       const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
       const hasBanner = typeof banner === 'string' && banner.length > 0;
-      const gradient: [string, string] =
-        Math.random() > 0.5 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+      const gradient = getDeterministicGameCardGradient(gameItem.id, gameItem.title);
       const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
       const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
       const locationText = gameItem.location
@@ -1776,6 +1782,10 @@ export default function FeedScreen() {
       setFollowedPosts,
     ]
   );
+
+  if (Platform.OS === 'web' && !webHydrated) {
+    return null;
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>

@@ -4,6 +4,7 @@ import { Alert, AppState } from 'react-native';
 // @ts-ignore
 import { Notification as NotificationApi, User } from '@/api/entities';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
+import { GUEST_HOME_ROUTE } from '@/utils/publicRoutes';
 
 export type ApprovalTrigger = 'initial' | 'interval' | 'focus' | 'foreground';
 
@@ -28,7 +29,7 @@ type UsePendingApprovalActionsOptions = {
 
 export async function getPendingApprovalAuthSnapshot(
   checkAuth: () => Promise<any>,
-  fallbackUser?: any | null,
+  fallbackUser?: any | null
 ) {
   const user = (await checkAuth().catch(() => null)) ?? fallbackUser ?? null;
   return {
@@ -86,13 +87,16 @@ export function usePendingApprovalPolling({
     intervalRef.current = setInterval(() => {
       void runCheck('interval');
     }, 30000);
-    timeoutRef.current = setTimeout(() => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      setTimedOut(true);
-    }, 30 * 60 * 1000);
+    timeoutRef.current = setTimeout(
+      () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        setTimedOut(true);
+      },
+      30 * 60 * 1000
+    );
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -134,7 +138,9 @@ export function usePendingApprovalActions({
   const mountedRef = useRef(true);
   const internalProceedingAsFanRef = useRef(false);
   const isNavigatingRef = useRef(false);
-  const [navigationTarget, setNavigationTarget] = useState<'organization' | 'create-team' | null>(null);
+  const [navigationTarget, setNavigationTarget] = useState<'organization' | 'create-team' | null>(
+    null
+  );
   const proceedingAsFanRef = externalProceedingAsFanRef ?? internalProceedingAsFanRef;
 
   useEffect(() => {
@@ -149,7 +155,7 @@ export function usePendingApprovalActions({
     } catch (err) {
       if (__DEV__) console.warn(`[${logPrefix}] Logout failed:`, (err as Error)?.message ?? err);
     }
-    replaceRoute('/sign-in');
+    replaceRoute(GUEST_HOME_ROUTE);
   }, [logPrefix, replaceRoute, signOut]);
 
   const handleProceedAsFan = useCallback(async () => {
@@ -168,7 +174,8 @@ export function usePendingApprovalActions({
         ? formatProceedAsFanError(err)
         : {
             title: 'Failed',
-            message: err?.data?.error || err?.message || 'Could not complete setup. Please try again.',
+            message:
+              err?.data?.error || err?.message || 'Could not complete setup. Please try again.',
           };
       Alert.alert(fallback.title, fallback.message);
     }
@@ -220,7 +227,9 @@ export async function fetchRejectionReason(types: string[]) {
   try {
     const page = await NotificationApi.listPage(null, 20, false);
     const rejectionNotif = Array.isArray(page?.items)
-      ? page.items.find((notification: any) => types.includes(notification.type) && notification.meta?.reason)
+      ? page.items.find(
+          (notification: any) => types.includes(notification.type) && notification.meta?.reason
+        )
       : null;
     return rejectionNotif?.meta?.reason ?? null;
   } catch {

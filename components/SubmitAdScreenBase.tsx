@@ -13,6 +13,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { sanitizeText } from '@/utils/formUtils';
 import { safeGoBack } from '@/utils/navigation';
+import { promptForSignIn } from '@/utils/requireSignIn';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -133,9 +134,23 @@ export function SubmitAdScreenBase({
         }
       } catch (err: any) {
         createError = err?.message || 'Could not create ad on server';
+        const status = Number(err?.status || 0);
+        const raw = String(err?.message || err?.data?.error || '').toLowerCase();
+        const code = String(err?.data?.code || err?.data?.error || '');
+        if (
+          status === 401 ||
+          code === 'AUTH_REQUIRED' ||
+          raw.includes('unauthorized') ||
+          raw.includes('authentication required') ||
+          raw.includes('auth_required')
+        ) {
+          promptForSignIn(() => router.push('/sign-in'), {
+            message: 'Sign in to reserve ad space.',
+          });
+          return;
+        }
         if (err?.status === 403) {
-          const msg = (err?.message || err?.data?.error || '').toLowerCase();
-          const code = err?.data?.code || '';
+          const msg = raw;
           if (msg.includes('verification') || msg.includes('verified')) {
             Alert.alert(
               'Email Verification Required',

@@ -3,18 +3,18 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    useColorScheme,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  useColorScheme,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
@@ -23,13 +23,14 @@ import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import {
-    getAuthSnapshot,
-    getFreshAuthSnapshot,
-    getLinkedProvidersSnapshot,
+  getAuthSnapshot,
+  getFreshAuthSnapshot,
+  getLinkedProvidersSnapshot,
 } from '@/utils/authState';
 import { getCanonicalBillingState } from '@/utils/billingState';
 import { getCoachUpgradeCta, type CoachUpgradeCta } from '@/utils/coachUpgradeCta';
 import { safeGoBack } from '@/utils/navigation';
+import { GUEST_HOME_ROUTE } from '@/utils/publicRoutes';
 import { getCanonicalCoachRole } from '@/utils/roleChecks';
 import { captureException } from '@/utils/sentry';
 
@@ -428,7 +429,7 @@ export default function SettingsScreen() {
       await signOut();
     } catch (error: any) {
       if (__DEV__) console.warn('[settings] Sign out via AuthProvider failed:', error);
-      router.replace('/sign-in');
+      router.replace(GUEST_HOME_ROUTE);
     }
   };
 
@@ -1012,7 +1013,10 @@ export default function SettingsScreen() {
                                 : '/onboarding/step-2-basic'
                             );
                           } catch (routeErr) {
-                            captureException(routeErr instanceof Error ? routeErr : new Error(String(routeErr)), { context: 'routeCoachOnboarding' });
+                            captureException(
+                              routeErr instanceof Error ? routeErr : new Error(String(routeErr)),
+                              { context: 'routeCoachOnboarding' }
+                            );
                             router.replace('/onboarding/step-2-basic');
                           }
                         };

@@ -18,15 +18,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
@@ -1243,7 +1243,7 @@ export default function ProfileScreen() {
         Share your first moment with the community!
       </Text>
       <Pressable
-        onPress={() => void router.push('/create-post')}
+        onPress={() => void router.push('/create')}
         style={({ pressed }) => [
           styles.createPostButton,
           {
@@ -1314,7 +1314,9 @@ export default function ProfileScreen() {
         edges={['top']}
       >
         <Stack.Screen options={{ title: 'Profile' }} />
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16 }}>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16 }}
+        >
           <View
             style={{
               width: 80,
@@ -1331,13 +1333,12 @@ export default function ProfileScreen() {
           <Text style={{ fontSize: 22, fontWeight: '800', color: theme.text, textAlign: 'center' }}>
             Your Profile
           </Text>
-          <Text style={{ fontSize: 15, color: theme.mutedText, textAlign: 'center', lineHeight: 22 }}>
+          <Text
+            style={{ fontSize: 15, color: theme.mutedText, textAlign: 'center', lineHeight: 22 }}
+          >
             Sign in to create your profile, post highlights, and connect with your community.
           </Text>
-          <Button
-            onPress={() => router.push('/sign-in')}
-            style={{ width: '100%', marginTop: 8 }}
-          >
+          <Button onPress={() => router.push('/sign-in')} style={{ width: '100%', marginTop: 8 }}>
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Sign In</Text>
           </Button>
           <Pressable

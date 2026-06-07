@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 
 export type CollageMedia = {
   url: string;
@@ -127,10 +128,17 @@ const CollageView: React.FC<Props> = memo(({ collage, style }) => {
               {!!f.media?.url && (
                 <View style={StyleSheet.absoluteFill}>
                   <Image
-                    source={{ uri: f.media.url }}
+                    source={{
+                      uri:
+                        optimizeImageUrl(
+                          f.media.url,
+                          Math.max(240, Math.round(width * 1.5))
+                        ) || f.media.url,
+                    }}
                     style={StyleSheet.absoluteFill}
                     contentFit="cover"
                     transition={120}
+                    cachePolicy="memory-disk"
                   />
                   <View
                     pointerEvents="none"

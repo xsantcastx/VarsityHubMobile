@@ -263,7 +263,7 @@ module.exports = ({ config }) => {
       EXPO_PUBLIC_USE_LOCAL_API: useLocalApi ? '1' : process.env.EXPO_PUBLIC_USE_LOCAL_API || '0',
       EXPO_PUBLIC_NODE_ENV: publicNodeEnv,
       EXPO_PUBLIC_APP_SCHEME: 'varsityhubmobile',
-      EXPO_PUBLIC_WEB_BASE_URL: 'https://www.varsityhub.app',
+      EXPO_PUBLIC_WEB_BASE_URL: 'https://varsityhub.app',
       APP_STORE_PRIVACY_POLICY_URL: 'https://varsityhub.app/privacy-policy',
 
       // Sensitive values — loaded from environment variables

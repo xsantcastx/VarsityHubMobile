@@ -73,10 +73,10 @@ describe('discover result screen contracts', () => {
     expect(eventDetailScreen).not.toContain("void router.push('/sign-in')");
   });
 
-  it('feed and game details replace into sign-in from error or 401 prompts instead of stacking auth', () => {
+  it('feed and game details keep explicit sign-in entry points for gated actions', () => {
     expect(feedScreen).toContain("router.replace('/sign-in')");
-    expect(feedScreen).not.toContain("router.push('/sign-in')");
-    expect(gameDetailsScreen).toContain("router.replace('/sign-in')");
-    expect(gameDetailsScreen).not.toContain("router.push('/sign-in')");
+    expect(feedScreen).toContain("void router.push('/sign-in')");
+    expect(gameDetailsScreen).toMatch(/promptForSignIn\(\s*\(\) => \{/);
+    expect(gameDetailsScreen).toContain("void router.push('/sign-in')");
   });
 });

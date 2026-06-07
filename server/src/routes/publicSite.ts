@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const publicSiteRouter = Router();
-const MARKETING_SITE_URL = 'https://www.varsityhub.app/';
-const FALLBACK_WEB_APP_ORIGIN = 'https://www.varsityhub.app';
-const FALLBACK_WEB_HOSTS = ['www.varsityhub.app'];
+const MARKETING_SITE_URL = 'https://varsityhub.app/';
+const FALLBACK_WEB_APP_ORIGIN = 'https://varsityhub.app';
+const FALLBACK_WEB_HOSTS = ['varsityhub.app', 'www.varsityhub.app'];
 const WEB_APP_REDIRECT_PATHS = new Set([
   '/sign-in',
   '/sign-up',
@@ -64,6 +64,19 @@ function normalizeHostname(hostname: string | undefined): string {
 
 function isWebHost(hostname: string | undefined): boolean {
   return getWebHosts().has(normalizeHostname(hostname));
+}
+
+function shouldRedirectToCanonicalWebHost(req: Request): boolean {
+  if (!isWebHost(req.hostname)) return false;
+  try {
+    return normalizeHostname(req.hostname) !== normalizeHostname(new URL(getWebAppOrigin()).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function redirectToCanonicalWebHost(req: Request, res: Response): void {
+  res.redirect(308, `${getWebAppOrigin()}${req.originalUrl}`);
 }
 
 function getWebDistDir(): string | null {
@@ -173,6 +186,9 @@ const serveWebAssets = (() => {
 
 publicSiteRouter.use((req, res, next) => {
   if (!isWebHost(req.hostname)) return next();
+  if (shouldRedirectToCanonicalWebHost(req)) {
+    return redirectToCanonicalWebHost(req, res);
+  }
   if (!canServeWebDist()) return next();
   return serveWebAssets(req, res, next);
 });
@@ -181,7 +197,7 @@ publicSiteRouter.get('/', (req, res) => {
   if (isWebHost(req.hostname)) {
     const indexHtmlPath = getResolvedIndexHtmlPath();
     if (indexHtmlPath) {
-      return res.sendFile(indexHtmlPath);
+      return res.redirect(307, '/feed');
     }
     res.setHeader('Content-Type', 'text/html');
     res.send(renderLandingPage());

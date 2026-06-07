@@ -17,18 +17,17 @@ describe('Public site routes', () => {
     const res = await request(buildApp()).get('/').set('Accept', 'text/html');
 
     expect(res.status).toBe(308);
-    expect(res.headers.location).toBe('https://www.varsityhub.app/');
+    expect(res.headers.location).toBe('https://varsityhub.app/');
   });
 
-  it('serves a landing page on the www host instead of redirecting to itself', async () => {
+  it('redirects the www host to the apex domain', async () => {
     const res = await request(buildApp())
       .get('/')
       .set('Host', 'www.varsityhub.app')
       .set('Accept', 'text/html');
 
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('VarsityHub');
-    expect(res.text).toContain('Support');
+    expect(res.status).toBe(308);
+    expect(res.headers.location).toBe('https://varsityhub.app/');
   });
 
   it('serves the exported web app when a web dist directory is available', async () => {
@@ -42,19 +41,27 @@ describe('Public site routes', () => {
     try {
       const root = await request(buildApp())
         .get('/')
-        .set('Host', 'www.varsityhub.app')
+        .set('Host', 'varsityhub.app')
         .set('Accept', 'text/html');
 
-      expect(root.status).toBe(200);
-      expect(root.text).toContain('real web app');
+      expect(root.status).toBe(307);
+      expect(root.headers.location).toBe('/feed');
 
       const signIn = await request(buildApp())
         .get('/sign-in')
-        .set('Host', 'www.varsityhub.app')
+        .set('Host', 'varsityhub.app')
         .set('Accept', 'text/html');
 
       expect(signIn.status).toBe(200);
       expect(signIn.text).toContain('sign in web app');
+
+      const wwwRoot = await request(buildApp())
+        .get('/')
+        .set('Host', 'www.varsityhub.app')
+        .set('Accept', 'text/html');
+
+      expect(wwwRoot.status).toBe(308);
+      expect(wwwRoot.headers.location).toBe('https://varsityhub.app/');
     } finally {
       process.env.WEB_DIST_DIR = previous;
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -81,23 +88,23 @@ describe('Public site routes', () => {
     expect(accountDeletion.text).toContain('Account Deletion');
   });
 
-  it('redirects browser app entry routes on apex to the dedicated web app host when no web bundle is deployed', async () => {
+  it('serves the landing page for app entry routes on apex when no web bundle is deployed', async () => {
     const res = await request(buildApp())
       .get('/sign-in?next=%2Fcreate-team')
       .set('Host', 'varsityhub.app')
       .set('Accept', 'text/html');
 
-    expect(res.status).toBe(307);
-    expect(res.headers.location).toBe('https://www.varsityhub.app/sign-in?next=%2Fcreate-team');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('VarsityHub');
   });
 
-  it('redirects organization routes on apex to the dedicated web app host when no web bundle is deployed', async () => {
+  it('serves the landing page for organization routes on apex when no web bundle is deployed', async () => {
     const res = await request(buildApp())
       .get('/organizations/test-org')
       .set('Host', 'varsityhub.app')
       .set('Accept', 'text/html');
 
-    expect(res.status).toBe(307);
-    expect(res.headers.location).toBe('https://www.varsityhub.app/organizations/test-org');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('VarsityHub');
   });
 });

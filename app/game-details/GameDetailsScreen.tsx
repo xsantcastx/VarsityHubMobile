@@ -4,12 +4,13 @@ import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import {
-    canShowGamePoll,
-    getEventPresentationPhase,
-    isEventPastEndOfDay,
+  canShowGamePoll,
+  getEventPresentationPhase,
+  isEventPastEndOfDay,
 } from '@/utils/eventPresentation';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
+import { promptForSignIn } from '@/utils/requireSignIn';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,21 +22,21 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import {
-    AccessibilityInfo,
-    ActivityIndicator,
-    Alert,
-    Animated,
-    AppState,
-    Linking,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    useWindowDimensions,
-    View,
+  AccessibilityInfo,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  AppState,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../../api/http';
@@ -51,12 +52,12 @@ import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getAuthSnapshot } from '@/utils/authState';
 import {
-    applyClearVote,
-    applyVoteSelection,
-    buildVoteSummary,
-    parseVoteSummary,
-    type VoteOption,
-    type VoteSummary,
+  applyClearVote,
+  applyVoteSelection,
+  buildVoteSummary,
+  parseVoteSummary,
+  type VoteOption,
+  type VoteSummary,
 } from '@/utils/voteSummary';
 import GameVerticalFeedScreen, { mapHighlightToFeedPost } from './GameVerticalFeedScreen';
 
@@ -2879,19 +2880,41 @@ const GameDetailsScreen = () => {
                 <View
                   style={[
                     styles.preciseBanner,
-                    { backgroundColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.12)' : '#FEF9C3', borderColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.35)' : '#FACC15' },
+                    {
+                      backgroundColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.12)' : '#FEF9C3',
+                      borderColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.35)' : '#FACC15',
+                    },
                   ]}
                 >
                   <Ionicons name="navigate" size={16} color="#B45309" />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.preciseBannerTitle, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>Precise location is off</Text>
-                    <Text style={[styles.preciseBannerText, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>
+                    <Text
+                      style={[
+                        styles.preciseBannerTitle,
+                        { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
+                      ]}
+                    >
+                      Precise location is off
+                    </Text>
+                    <Text
+                      style={[
+                        styles.preciseBannerText,
+                        { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
+                      ]}
+                    >
                       Android is sharing an approximate location, so story pins may be less
                       accurate.
                     </Text>
                     <View style={styles.preciseBannerActions}>
                       <Pressable onPress={() => setPreciseBannerDismissed(true)}>
-                        <Text style={[styles.preciseBannerLink, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>Dismiss</Text>
+                        <Text
+                          style={[
+                            styles.preciseBannerLink,
+                            { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
+                          ]}
+                        >
+                          Dismiss
+                        </Text>
                       </Pressable>
                       <Pressable
                         onPress={() => {
@@ -2949,6 +2972,17 @@ const GameDetailsScreen = () => {
                       const targetGameId = vm?.gameId || vm?.eventId;
                       if (!targetGameId) {
                         Alert.alert('Create Post', 'Reload this event before creating a post.');
+                        return;
+                      }
+                      if (!authUser) {
+                        promptForSignIn(
+                          () => {
+                            void router.push('/sign-in');
+                          },
+                          {
+                            message: 'Sign in to post to this event.',
+                          }
+                        );
                         return;
                       }
                       // Directly navigate to create-post with gameId - defaults to 'post' type
@@ -3749,7 +3783,9 @@ const GameDetailsScreen = () => {
           onPress={() => setLoginPromptOpen(false)}
         >
           <Pressable onPress={e => e.stopPropagation()}>
-            <View style={[styles.loginPromptSheet, { backgroundColor: Colors[colorScheme].background }]}>
+            <View
+              style={[styles.loginPromptSheet, { backgroundColor: Colors[colorScheme].background }]}
+            >
               <Text style={[styles.loginPromptTitle, { color: Colors[colorScheme].text }]}>
                 Login Required
               </Text>
@@ -3758,19 +3794,30 @@ const GameDetailsScreen = () => {
               </Text>
               <Pressable
                 style={[styles.loginPromptBtn, { backgroundColor: Colors[colorScheme].tint }]}
-                onPress={() => { setLoginPromptOpen(false); void router.push('/sign-in'); }}
+                onPress={() => {
+                  setLoginPromptOpen(false);
+                  void router.push('/sign-in');
+                }}
                 accessibilityRole="button"
                 accessibilityLabel="Log in"
               >
                 <Text style={styles.loginPromptBtnText}>Login</Text>
               </Pressable>
               <Pressable
-                style={[styles.loginPromptCancel, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }]}
+                style={[
+                  styles.loginPromptCancel,
+                  {
+                    borderColor: Colors[colorScheme].border,
+                    backgroundColor: Colors[colorScheme].surface,
+                  },
+                ]}
                 onPress={() => setLoginPromptOpen(false)}
                 accessibilityRole="button"
                 accessibilityLabel="Cancel"
               >
-                <Text style={[styles.loginPromptCancelText, { color: Colors[colorScheme].text }]}>Cancel</Text>
+                <Text style={[styles.loginPromptCancelText, { color: Colors[colorScheme].text }]}>
+                  Cancel
+                </Text>
               </Pressable>
             </View>
           </Pressable>

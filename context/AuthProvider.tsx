@@ -25,15 +25,16 @@ import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
 import { analytics } from '@/utils/analytics';
 import { getPostAuthRouteDecision, getRouteFamily } from '@/utils/appRouteDecisions';
 import {
-    getCanonicalOrganizationId,
-    getCanonicalRole,
-    hasAcceptedCoachAgreement,
-    isOnboardingCompleteSnapshot,
-    isProceedingAsFanSnapshot,
+  getCanonicalOrganizationId,
+  getCanonicalRole,
+  hasAcceptedCoachAgreement,
+  isOnboardingCompleteSnapshot,
+  isProceedingAsFanSnapshot,
 } from '@/utils/authState';
 import { buildAuthRedirectFingerprint, navigateWithAuthRedirect } from '@/utils/authTelemetry';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import Notifications from '@/utils/notifications';
+import { GUEST_HOME_ROUTE, isPublicRouteSegment } from '@/utils/publicRoutes';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { captureException, setUserContext as setSentryUser } from '@/utils/sentry';
 import { onSessionExpired, type SessionExpiredReason } from '@/utils/sessionEvents';
@@ -153,7 +154,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
   const router = useRouter();
   const segments = useSegments();
-  const unauthenticatedEntryRoute = Platform.OS === 'web' ? '/sign-up' : '/(tabs)/feed';
+  const unauthenticatedEntryRoute = GUEST_HOME_ROUTE;
   const currentPath =
     Array.isArray(segments) && segments.length
       ? segments.map(segment => String(segment)).join('/')
@@ -679,7 +680,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       await clearUserScopedStorage();
       redirectWithTelemetry(unauthenticatedEntryRoute, 'sign_out', userBeforeSignOut);
     }
-  }, [clearLocalAuthState, clearUserScopedStorage, redirectWithTelemetry, unauthenticatedEntryRoute, user]);
+  }, [
+    clearLocalAuthState,
+    clearUserScopedStorage,
+    redirectWithTelemetry,
+    unauthenticatedEntryRoute,
+    user,
+  ]);
 
   const registerPushToken = useCallback(async () => {
     if (!user?.id) return false;
@@ -691,8 +698,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
    * The tokens have already been cleared by api/http.ts or api/upload.ts,
    * so this path deliberately skips `auth.logout()` (which would hit the
    * server with the now-missing refresh token and fail). It just clears
-   * local state and routes to /sign-in — which replaces the old "please
-   * sign out and sign back in" alert that required the user to act.
+   * local state and routes to the guest entry route so dead sessions do
+   * not strand browse-mode users on sign-in.
    */
   const handleSessionExpired = useCallback(
     async (reason: SessionExpiredReason) => {
@@ -713,9 +720,19 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           showWarningToast('Your session expired. Please sign in again.');
         } catch {}
       }
-      redirectWithTelemetry('/sign-in', `session_expired:${reason}`, userBeforeExpiry);
+      redirectWithTelemetry(
+        unauthenticatedEntryRoute,
+        `session_expired:${reason}`,
+        userBeforeExpiry
+      );
     },
-    [clearLocalAuthState, clearUserScopedStorage, redirectWithTelemetry, user]
+    [
+      clearLocalAuthState,
+      clearUserScopedStorage,
+      redirectWithTelemetry,
+      unauthenticatedEntryRoute,
+      user,
+    ]
   );
 
   useEffect(() => {
@@ -924,19 +941,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       Array.isArray(segmentsRef.current) && segmentsRef.current.length
         ? String(segmentsRef.current[0])
         : '';
-    const publicRoutes = new Set([
-      'sign-in',
-      'sign-up',
-      'verify-email',
-      'verify',
-      'verify-identity',
-      'forgot-password',
-      'reset-password',
-      'reset',
-      'payment-success',
-      'payment-cancel',
-    ]);
-    const isPublic = publicRoutes.has(firstSegment);
+    const isPublic = isPublicRouteSegment(firstSegment);
 
     // STARTUP RESTORATION FIX: Expo Router can restore navigation state from
     // the previous session. If the user was last on sign-in, segments are
@@ -1189,7 +1194,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // OfflineBanner surfaces connectivity issues instead.
     if (!healthOk) {
       if (__DEV__) console.log('[AuthProvider] Backend unhealthy, limiting routing');
-      if (!user && !pendingVerificationEmail && !isPublic && firstSegment !== '(tabs)' && firstSegment !== '') {
+      if (
+        !user &&
+        !pendingVerificationEmail &&
+        !isPublic &&
+        firstSegment !== '(tabs)' &&
+        firstSegment !== ''
+      ) {
         if (lastRedirectRef.current !== unauthenticatedEntryRoute) {
           redirectWithTelemetry(unauthenticatedEntryRoute, 'unauthenticated_backend_unhealthy');
         }
@@ -1201,7 +1212,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // Guests may freely browse the main tab screens (feed, highlights, discover, profile).
     // Only redirect when they land on a route that genuinely requires authentication.
     // Guard firstSegment !== '' to avoid firing before Expo Router restores nav state.
-    if (!user && !pendingVerificationEmail && !isPublic && firstSegment !== '(tabs)' && firstSegment !== '') {
+    if (
+      !user &&
+      !pendingVerificationEmail &&
+      !isPublic &&
+      firstSegment !== '(tabs)' &&
+      firstSegment !== ''
+    ) {
       if (lastRedirectRef.current !== unauthenticatedEntryRoute) {
         if (__DEV__)
           console.log(

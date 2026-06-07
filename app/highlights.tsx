@@ -35,6 +35,8 @@ import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
+import { optimizeImageUrl } from '@/utils/imageUrl';
+import { getCloudinaryVideoPreviewUrl } from '@/utils/media';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
 type TabType = 'trending' | 'recent' | 'top';
@@ -169,6 +171,8 @@ const HighlightCard = ({
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
   const category = getSportCategory(item.sport, item.title, item.content);
   const hasMedia = !!item.media_url;
+  const previewUrl =
+    item.preview_url || getCloudinaryVideoPreviewUrl(item.media_url || null) || undefined;
   
   // Calculate ranking for this item
   const _ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
@@ -196,13 +200,23 @@ const HighlightCard = ({
           {hasMedia ? (
             <View style={styles.mediaContainer}>
               {isVideo ? (
-                item.preview_url ? (
-                  <ExpoImage source={{ uri: item.preview_url }} style={styles.mediaImage} contentFit="cover" />
+                previewUrl ? (
+                  <ExpoImage
+                    source={{ uri: optimizeImageUrl(previewUrl, 800) || previewUrl }}
+                    style={styles.mediaImage}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                  />
                 ) : (
                   <VideoThumbnailImage videoUrl={item.media_url!} style={styles.mediaImage} />
                 )
               ) : (
-                <ExpoImage source={{ uri: item.media_url }} style={styles.mediaImage} contentFit="cover" />
+                <ExpoImage
+                  source={{ uri: optimizeImageUrl(item.media_url, 800) || item.media_url }}
+                  style={styles.mediaImage}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                />
               )}
               {isVideo && (
                 <View style={styles.videoOverlay}>
@@ -258,7 +272,14 @@ const HighlightCard = ({
           >
             <View style={styles.authorInfo}>
               {item.author?.avatar_url ? (
-                <ExpoImage source={{ uri: item.author.avatar_url }} style={styles.authorAvatar} />
+                <ExpoImage
+                  source={{
+                    uri: optimizeImageUrl(item.author.avatar_url, 80) || item.author.avatar_url,
+                  }}
+                  style={styles.authorAvatar}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                />
               ) : (
                 <View style={[styles.authorAvatar, styles.defaultAvatar]}>
                   <Ionicons name="person" size={12} color="#fff" />

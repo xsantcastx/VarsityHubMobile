@@ -5,7 +5,12 @@ import { useRouter } from 'expo-router';
 import { Platform, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 export default function CenterTabButton(props: BottomTabBarButtonProps) {
-  const { accessibilityState, accessibilityRole, accessibilityLabel = 'Create post', testID: _testID } = props;
+  const {
+    accessibilityState,
+    accessibilityRole,
+    accessibilityLabel = 'Create post',
+    testID: _testID,
+  } = props;
   const selected = accessibilityState?.selected;
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
@@ -15,21 +20,27 @@ export default function CenterTabButton(props: BottomTabBarButtonProps) {
     if (Platform.OS === 'ios') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    void router.push('/create-post');
+    void router.push('/create');
   };
 
   return (
     <PlatformPressable
       {...props}
       onPress={handlePress}
-      onPressIn={(ev) => props.onPressIn?.(ev)}
+      onPressIn={ev => props.onPressIn?.(ev)}
       accessibilityRole={accessibilityRole ?? 'button'}
       accessibilityLabel={accessibilityLabel}
       accessibilityHint="Double tap to create a new post"
       style={[styles.wrapper, props.style]}
     >
       <View style={styles.buttonContainer}>
-        <View style={[styles.button, selected && styles.buttonActive, { backgroundColor: isDark ? '#1e40af' : '#111827' }]}>
+        <View
+          style={[
+            styles.button,
+            selected && styles.buttonActive,
+            { backgroundColor: isDark ? '#1e40af' : '#111827' },
+          ]}
+        >
           <Text style={styles.plus}>+</Text>
         </View>
       </View>

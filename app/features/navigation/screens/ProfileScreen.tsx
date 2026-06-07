@@ -24,17 +24,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from '../../../game-details/GameVerticalFeedScreen';
@@ -1030,8 +1030,7 @@ export default function ProfileScreen() {
                   style={[
                     styles.avatarPlaceholder,
                     {
-                      backgroundColor:
-                        colorScheme === 'dark' ? theme.surface : '#E5E7EB',
+                      backgroundColor: colorScheme === 'dark' ? theme.surface : '#E5E7EB',
                     },
                   ]}
                 >
@@ -1331,7 +1330,7 @@ export default function ProfileScreen() {
         Share your first moment with the community!
       </Text>
       <Pressable
-        onPress={() => void router.push('/create-post')}
+        onPress={() => void router.push('/create')}
         style={({ pressed }) => [
           styles.createPostButton,
           {
