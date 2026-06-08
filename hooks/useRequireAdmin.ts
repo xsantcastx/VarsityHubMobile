@@ -19,7 +19,7 @@ export function useRequireAdmin() {
 
     // If not logged in or not admin, redirect
     if (!user || !isAdmin) {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/feed');
     }
   }, [user, loading, isAdmin, router]);
 

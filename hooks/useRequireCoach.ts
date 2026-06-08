@@ -35,17 +35,17 @@ export function useRequireCoach() {
     // shipped in commit 7c875eb6 — this hook is the third routing path
     // and was missed in that pass. Send them back to /(tabs) instead.
     if (coachUser?.is_admin === true && (coachAccess.isPendingCoach || coachAccess.isRejectedCoach)) {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/feed');
       return;
     }
 
     if (!user || !isCoach) {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/feed');
       return;
     }
 
     if (coachAccess.isProceedingAsFan) {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/feed');
       return;
     }
 

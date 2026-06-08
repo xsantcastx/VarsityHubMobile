@@ -144,6 +144,8 @@ npm run check:conflicts         # no merge/stash markers
 npm run format:check            # all files prettier-clean
 npx tsc --noEmit --project server/tsconfig.json  # server TypeScript
 npm run verify:error-envelope   # no raw res.status().json()
+# Navigation dead ends — router.replace to bare tabs root drops history
+rg "router\.replace\([\"']/\(tabs\)[\"']" app components hooks utils
 ```
 
 ## Known Quirks
@@ -160,7 +162,7 @@ npm run verify:error-envelope   # no raw res.status().json()
 ## Code Rules
 
 - Text colors MUST use `useColorScheme()` or theme constants — never hardcode `#000`, `#111827`, `#374151`, `black`
-- Back navigation: use `safeGoBack` — never hardcoded routes
+- Back navigation: use `safeGoBack(router, fallback)` — never `router.replace('/(tabs)')` (drops navigation history and lands users on the tab root with no back stack)
 - Emails MUST go through `EmailService`/`sendTemplateEmail`; only provider implementations may call `sgMail.send()` directly
 - Database: ALL `findMany` MUST have a `take` limit — no unbounded queries
 - Auth: ALL routes accessing `req.user` MUST have `requireAuth` middleware
@@ -205,6 +207,9 @@ grep -rn "'#000\|'#111\|'#222\|'#333\|'#374151\|'#111827\|'#1a1a\|black" app/ --
 
 # Validation drift — frontend vs backend length constraints
 # Manually verify: username (3-20), email format, password (8+ chars), team/org names
+
+# Navigation dead ends — router.replace to bare tabs root drops history; use safeGoBack instead
+rg "router\.replace\([\"']/\(tabs\)[\"']" app components hooks utils
 ```
 
 ## Security Audit Framework

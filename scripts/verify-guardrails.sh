@@ -67,6 +67,11 @@ check_no_matches \
   --glob '!utils/userDisplay.ts' \
   --glob '!**/__tests__/**'
 
+check_no_matches \
+  "router.replace to bare tabs root — use safeGoBack(router, '/(tabs)/feed') instead" \
+  "router\.replace\([\"']/\(tabs\)[\"']" \
+  app components hooks utils
+
 if ! rg -n "getNotificationHref|getNotificationTitle" app/feed.tsx "app/(tabs)/notifications/index.tsx" >/dev/null 2>&1; then
   echo "Guardrail failed: feed and notifications screen must use utils/notificationPresentation.ts"
   exit 1
