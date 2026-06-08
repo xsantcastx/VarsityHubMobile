@@ -667,6 +667,8 @@ export const Organization = {
     httpPost(`/organizations/${encodeURIComponent(organizationId)}/approve`, { note }),
   rejectLeague: (organizationId: string, reason?: string) =>
     httpPost(`/organizations/${encodeURIComponent(organizationId)}/reject`, { reason }),
+  resendApprovalEmail: (organizationId: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/resend-approval-email`, {}),
 };
 
 export const Team = {

@@ -148,7 +148,7 @@ const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@va
 const PRIVACY_POLICY_URL = `${APP_BASE_URL}/privacy-policy`;
 const TERMS_URL = `${APP_BASE_URL}/terms`;
 const SUPPORT_URL = `${APP_BASE_URL}/support`;
-const REVIEW_LINK_TTL = '7d';
+const REVIEW_LINK_TTL = '30d';
 
 // Common template data (social links, privacy policy, etc.) added to all emails
 const getCommonTemplateData = () => ({

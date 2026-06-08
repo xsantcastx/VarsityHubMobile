@@ -1,8 +1,8 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Text, useColorScheme } from 'react-native';
-import { User } from '@/api/entities';
+import { Alert, Text, useColorScheme } from 'react-native';
+import { Organization, User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { isProceedingAsFanSnapshot } from '@/utils/authState';
@@ -38,9 +38,10 @@ function PendingApproval() {
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [rejectedAt, setRejectedAt] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
-  const [, setOrgId] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
   const [cooldownNowMs, setCooldownNowMs] = useState(() => Date.now());
+  const [resending, setResending] = useState(false);
   const redirectedRef = useRef(false);
   const proceedingAsFanRef = useRef(false);
   const reapplyCooldown = getCoachReapplyCooldownState(rejectedAt, cooldownNowMs);
@@ -94,6 +95,10 @@ function PendingApproval() {
           if (resolvedOrgId) setOrgId(resolvedOrgId);
           stopPolling();
           void registerPushToken().catch(() => {});
+        } else {
+          // Still pending — capture orgId for the resend button
+          const resolvedOrgId = me?.preferences?.organization_id || ob.organization_id || null;
+          if (resolvedOrgId) setOrgId(resolvedOrgId);
         }
       } catch {
         // ignore polling errors
@@ -118,6 +123,26 @@ function PendingApproval() {
         await User.updatePreferences({ proceeding_as_fan: true });
       },
     });
+
+  const handleResendApprovalEmail = async () => {
+    if (!orgId || resending) return;
+    setResending(true);
+    try {
+      await Organization.resendApprovalEmail(orgId);
+      Alert.alert('Email Sent', 'A new approval request has been sent to the admins.');
+    } catch (err: any) {
+      const code = err?.data?.code || err?.code;
+      if (code === 'RESEND_COOLDOWN') {
+        Alert.alert('Too Soon', 'An approval email was already sent recently. Please wait 24 hours before resending.');
+      } else if (code === 'ALREADY_APPROVED') {
+        Alert.alert('Already Approved', 'Your organization has already been approved.');
+      } else {
+        Alert.alert('Error', 'Could not resend the approval email. Please try again later.');
+      }
+    } finally {
+      setResending(false);
+    }
+  };
 
   return (
     <PendingApprovalScreenScaffold
@@ -167,6 +192,14 @@ function PendingApproval() {
             This is taking longer than usual. We'll email you when your application is reviewed. You
             can continue as a fan in the meantime.
           </Text>
+          {orgId ? (
+            <PrimaryButton
+              label={resending ? 'Sending…' : 'Resend Approval Email'}
+              onPress={() => void handleResendApprovalEmail()}
+              disabled={resending}
+              style={{ marginBottom: 12, backgroundColor: '#1B3A6B' }}
+            />
+          ) : null}
           <FanFallbackActions
             isDark={isDark}
             onProceedAsFan={handleProceedAsFan}

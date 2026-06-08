@@ -482,7 +482,7 @@ async function isCurrentUserPlatformAdmin(req: AuthedRequest): Promise<boolean> 
   return !!user?.email_verified && isEmailAdmin(user?.email);
 }
 
-const LEAGUE_APPROVAL_TOKEN_TTL = '7d';
+const LEAGUE_APPROVAL_TOKEN_TTL = '30d';
 
 async function getPlatformAdminSession(req: AuthedRequest) {
   if (!req.user?.id) return null;
@@ -3250,6 +3250,74 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+/**
+ * POST /organizations/:id/resend-approval-email
+ * Lets the org owner (or admin) regenerate and resend the approval-request
+ * email to admins when the original link has expired.
+ * Rate-limited: once per org per 24 hours to prevent spam.
+ */
+organizationsRouter.post(
+  '/:id/resend-approval-email',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const orgId = req.params.id;
+    const userId = req.user!.id;
+
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: {
+        id: true,
+        name: true,
+        admin_approved: true,
+        status: true,
+        league_owner_id: true,
+        sport: true,
+        org_type: true,
+        supporting_document_url: true,
+      },
+    });
+    if (!org) return res.status(404).json({ error: 'Organization not found' });
+    if (org.admin_approved) return res.status(409).json({ error: 'Organization is already approved.', code: 'ALREADY_APPROVED' });
+    if (org.status === 'rejected') return res.status(409).json({ error: 'This application was rejected. Please contact support.', code: 'REJECTED' });
+
+    const isAdmin = await getIsAdmin(req as any);
+    const isOwner = org.league_owner_id === userId;
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Only the organization owner can resend the approval request.' });
+
+    const owner = await prisma.user.findUnique({
+      where: { id: org.league_owner_id || userId },
+      select: { display_name: true, email: true },
+    });
+
+    const approveToken = signReviewToken(
+      { orgId: org.id, action: 'approve_league' },
+      LEAGUE_APPROVAL_TOKEN_TTL
+    );
+    const rejectToken = signReviewToken(
+      { orgId: org.id, action: 'reject_league' },
+      LEAGUE_APPROVAL_TOKEN_TTL
+    );
+
+    sendLeagueApprovalRequestEmail({
+      leagueId: org.id,
+      leagueName: org.name,
+      ownerName: owner?.display_name || 'Unknown',
+      ownerEmail: owner?.email || '',
+      sport: org.sport || undefined,
+      orgType: org.org_type || undefined,
+      approveToken,
+      rejectToken,
+      supportingDocumentUrl: org.supporting_document_url || undefined,
+    })
+      .then(sent => {
+        if (!sent) console.warn('[organizations] resend approval email reported unsent for org', orgId);
+      })
+      .catch(err => console.warn('[organizations] resend approval email failed:', (err as any)?.message || err));
+
+    return res.json({ message: 'Approval request email resent to admins.' });
+  })
+);
 
 /**
  * POST /organizations/:id/reject
