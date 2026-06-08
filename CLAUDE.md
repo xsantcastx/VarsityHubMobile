@@ -112,8 +112,8 @@ npx tsc --noEmit --project server/tsconfig.json 2>&1 | tail -20
 # Dark mode violations (text colors)
 grep -rn "'#000\|'#333\|'#374151\|'#111\|black" app/ --include="*.tsx" | grep -v backgroundColor
 
-# Unbounded queries
-grep -rn "findMany" server/src/ --include="*.ts" | grep -v "take"
+# Unbounded queries — Jest checks 50-line context windows; grep misses multi-line take: clauses
+cd server && npx jest --testPathPattern="unbounded-queries" --no-coverage 2>&1 | tail -5
 
 # Direct sgMail usage outside provider implementations
 rg -n "sgMail.send" server/src --glob "*.ts" -g '!server/src/services/email/providers/**'
@@ -191,8 +191,8 @@ npx tsc --noEmit --project server/tsconfig.json 2>&1 | tail -5
 # TypeScript errors (client)
 npx tsc --noEmit 2>&1 | tail -5
 
-# Unbounded queries
-grep -rn "findMany" server/src/ --include="*.ts" | grep -v "take"
+# Unbounded queries — Jest checks 50-line context windows; grep misses multi-line take: clauses
+cd server && npx jest --testPathPattern="unbounded-queries" --no-coverage 2>&1 | tail -5
 
 # Missing requireAuth on routes using req.user
 grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
