@@ -108,15 +108,16 @@ async function* iterateEventRsvps(
   }
 }
 
-function renderEventReviewPage(action: 'approve' | 'reject', eventTitle: string, token: string) {
+function renderEventReviewPage(action: 'approve' | 'reject', eventTitle: string, token?: string) {
   const title = action === 'approve' ? 'Approve Event' : 'Reject Event';
   const button = action === 'approve' ? 'Approve Event' : 'Reject Event';
   const color = action === 'approve' ? '#16A34A' : '#DC2626';
+  const formAction = token ? `?token=${encodeURIComponent(token)}` : '?';
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
 <h2>${title}?</h2>
 <p style="color:#374151;">Event: <strong>${escapeHtml(eventTitle || 'Unknown')}</strong></p>
-<form method="POST" action="?token=${encodeURIComponent(token)}">
+<form method="POST" action="${formAction}">
 <button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">${button}</button>
 </form>
 </body></html>`;
@@ -159,13 +160,20 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
     : null;
   const expectedAction = action === 'approve' ? 'approve_event' : 'reject_event';
 
-  if (
-    !token ||
-    !payload ||
-    payload.reviewId !== eventId ||
-    payload.reviewKind !== 'event' ||
-    payload.action !== expectedAction
-  ) {
+  const tokenValid =
+    !!token &&
+    !!payload &&
+    payload.reviewId === eventId &&
+    payload.reviewKind === 'event' &&
+    payload.action === expectedAction;
+
+  // Allow a signed-in platform admin to approve/reject without a valid token.
+  // This is the fallback when email links expire — admin can navigate directly.
+  const isSignedInAdmin = !tokenValid && req.user
+    ? await getIsAdmin(req as any)
+    : false;
+
+  if (!tokenValid && !isSignedInAdmin) {
     return res
       .status(401)
       .send(
@@ -204,7 +212,7 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
   }
 
   if (req.method === 'GET') {
-    return res.send(renderEventReviewPage(action, event.title || 'Unknown', token));
+    return res.send(renderEventReviewPage(action, event.title || 'Unknown', token ?? undefined));
   }
 
   const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : undefined;
@@ -227,13 +235,16 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
       .send(renderEventResultPage('Error', result.error, false));
   }
 
-  const consumeResult = await consumeReviewToken(token, payload);
-  if (consumeResult !== 'consumed') {
-    console.warn('[events] review token could not be marked consumed after success:', {
-      event_id: eventId,
-      action,
-      consumeResult,
-    });
+  // Only consume the token when it was used (admin session path has no token to consume)
+  if (tokenValid && token && payload) {
+    const consumeResult = await consumeReviewToken(token, payload);
+    if (consumeResult !== 'consumed') {
+      console.warn('[events] review token could not be marked consumed after success:', {
+        event_id: eventId,
+        action,
+        consumeResult,
+      });
+    }
   }
 
   return res.send(

@@ -33,6 +33,7 @@ import {
 } from '../lib/organizationWorkflowState.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
+import { cacheGet, cacheSet } from '../lib/cache.js';
 import { consumeReviewToken, signReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
@@ -3284,6 +3285,22 @@ organizationsRouter.post(
     const isAdmin = await getIsAdmin(req as any);
     const isOwner = org.league_owner_id === userId;
     if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Only the organization owner can resend the approval request.' });
+
+    // Rate-limit: one resend per org per 24 hours (non-admin). Uses cache (Redis/in-memory).
+    if (!isAdmin) {
+      const cooldownKey = `org-approval-resend:${orgId}`;
+      const lastSent = await cacheGet<number>(cooldownKey);
+      const cooldownMs = 24 * 60 * 60 * 1000;
+      if (lastSent && Date.now() - lastSent < cooldownMs) {
+        const nextAllowedAt = new Date(lastSent + cooldownMs).toISOString();
+        return res.status(429).json({
+          error: 'Approval email was already resent recently. Please wait 24 hours.',
+          code: 'RESEND_COOLDOWN',
+          next_allowed_at: nextAllowedAt,
+        });
+      }
+      await cacheSet(cooldownKey, Date.now(), 24 * 60 * 60);
+    }
 
     const owner = await prisma.user.findUnique({
       where: { id: org.league_owner_id || userId },

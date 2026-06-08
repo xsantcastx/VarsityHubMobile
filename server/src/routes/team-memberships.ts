@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { sendError } from '../lib/http/sendError.js';
+import { sendTeamJoinRequestEmail } from '../lib/email.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
@@ -378,7 +379,7 @@ teamMembershipsRouter.post(
       create: { team_id, user_id: userId, status: 'pending', message: message ?? null },
     });
 
-    // Notify all team owners/managers
+    // Notify all team owners/managers (push + in-app + email fallback)
     try {
       const staffMembers = await prisma.teamMembership.findMany({
         where: { team_id, role: { in: ['owner', 'manager'] }, status: 'active' },
@@ -387,11 +388,22 @@ teamMembershipsRouter.post(
       });
       const requesterName =
         (req.user as any).display_name || (req.user as any).username || 'Someone';
+      const requesterEmail = (req.user as any).email || '';
+
+      // Fetch staff user details once for emails
+      const staffUsers = await prisma.user.findMany({
+        where: { id: { in: staffMembers.filter(m => m.user_id !== userId).map(m => m.user_id) } },
+        select: { id: true, email: true, display_name: true, username: true },
+        take: 20,
+      });
+      const staffById = new Map(staffUsers.map(u => [u.id, u]));
+
       await Promise.all(
         staffMembers
           .filter(m => m.user_id !== userId)
-          .map(m =>
-            Promise.all([
+          .map(m => {
+            const staffUser = staffById.get(m.user_id);
+            return Promise.all([
               prisma.notification
                 .create({
                   data: {
@@ -413,8 +425,19 @@ teamMembershipsRouter.post(
                   screen: 'team-join-requests',
                 }
               ).catch(() => {}),
-            ])
-          )
+              // Email fallback — ensures staff see the request even with push disabled
+              staffUser?.email
+                ? sendTeamJoinRequestEmail({
+                    staffEmail: staffUser.email,
+                    staffName: staffUser.display_name || staffUser.username || 'Team Staff',
+                    requesterName,
+                    requesterEmail,
+                    teamName: team.name,
+                    teamId: team_id,
+                  }).catch(() => {})
+                : Promise.resolve(),
+            ]);
+          })
       );
     } catch (notifErr) {
       console.error('[team-memberships] join-request notification error:', notifErr);

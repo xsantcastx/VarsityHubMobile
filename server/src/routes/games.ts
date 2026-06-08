@@ -391,15 +391,16 @@ async function invalidateGamesListCache(): Promise<void> {
   await cacheDelPattern('games:*');
 }
 
-function renderGameReviewPage(action: 'approve' | 'reject', title: string, token: string) {
+function renderGameReviewPage(action: 'approve' | 'reject', title: string, token?: string) {
   const headline = action === 'approve' ? 'Approve Game' : 'Reject Game';
   const button = action === 'approve' ? 'Approve Game' : 'Reject Game';
   const color = action === 'approve' ? '#16A34A' : '#DC2626';
+  const formAction = token ? `?token=${encodeURIComponent(token)}` : '?';
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${headline}</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
 <h2>${headline}?</h2>
 <p style="color:#374151;">Game: <strong>${escapeHtml(title || 'Unknown')}</strong></p>
-<form method="POST" action="?token=${encodeURIComponent(token)}">
+<form method="POST" action="${formAction}">
 <button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">${button}</button>
 </form>
 </body></html>`;
@@ -591,13 +592,19 @@ async function handleGameTokenReview(
     : null;
   const expectedAction = action === 'approve' ? 'approve_game' : 'reject_game';
 
-  if (
-    !token ||
-    !payload ||
-    payload.reviewId !== id ||
-    payload.reviewKind !== 'game' ||
-    payload.action !== expectedAction
-  ) {
+  const tokenValid =
+    !!token &&
+    !!payload &&
+    payload.reviewId === id &&
+    payload.reviewKind === 'game' &&
+    payload.action === expectedAction;
+
+  // Allow a signed-in platform admin to approve/reject without a valid token.
+  const isSignedInAdmin = !tokenValid && req.user
+    ? await getIsAdmin(req as any)
+    : false;
+
+  if (!tokenValid && !isSignedInAdmin) {
     return res
       .status(401)
       .send(
@@ -636,7 +643,7 @@ async function handleGameTokenReview(
   }
 
   if (req.method === 'GET') {
-    return res.send(renderGameReviewPage(action, game.title || 'Unknown', token));
+    return res.send(renderGameReviewPage(action, game.title || 'Unknown', token ?? undefined));
   }
 
   const reason =
@@ -662,13 +669,15 @@ async function handleGameTokenReview(
     return res.status(result.status!).send(renderGameResultPage('Error', result.error!, false));
   }
 
-  const consumeResult = await consumeReviewToken(token, payload);
-  if (consumeResult !== 'consumed') {
-    console.warn('[games] review token could not be marked consumed after success:', {
-      game_id: id,
-      action,
-      consumeResult,
-    });
+  if (tokenValid && token && payload) {
+    const consumeResult = await consumeReviewToken(token, payload);
+    if (consumeResult !== 'consumed') {
+      console.warn('[games] review token could not be marked consumed after success:', {
+        game_id: id,
+        action,
+        consumeResult,
+      });
+    }
   }
 
   return res.send(
