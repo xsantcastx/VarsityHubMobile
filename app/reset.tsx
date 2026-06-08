@@ -19,7 +19,7 @@ export default function ResetScreen() {
         legacyCode = match[1];
       }
     }
-    router.replace({
+    router.replace({ // nav-safe: deep-link trampoline → reset-password auth flow
       pathname: '/reset-password',
       params: legacyCode ? { code: legacyCode } : undefined,
     });

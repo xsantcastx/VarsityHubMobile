@@ -55,6 +55,8 @@
     "test:build": "bash scripts/test-build-config.sh",
     "audit:app": "bash scripts/comprehensive-app-audit.sh",
     "audit:pre-release": "bash scripts/pre-release-audit.sh",
+    "audit:navigation": "bash scripts/audit-navigation.sh",
+    "audit:navigation:fail": "bash scripts/audit-navigation.sh --fail",
     "dev:rebuild": "bash scripts/ensure-latest-dev-client.sh",
     "verify:version": "bash scripts/verify-latest-version.sh",
     "submit:ios": "eas submit --platform ios --profile production",

@@ -528,7 +528,7 @@ function CreateTeamScreen() {
               router.push({ pathname: '/team-page', params: { id: teamId } } as never);
             } else {
               if (__DEV__) console.warn('[create-team] API returned no team.id — falling back to organization tools');
-              router.replace({
+              router.replace({ // nav-safe: recovery fallback when API returns no teamId
                 pathname: '/organization',
                 params: {
                   ...(selectedOrgId ? { id: selectedOrgId } : {}),

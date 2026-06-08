@@ -80,6 +80,17 @@ Check env vars, Railway logs, and build configs — not just source code.
 - `useEdgeSwipeBack` is disabled on screens with horizontal FlatLists
 - Every screen implements its own back button (`headerShown: false` globally)
 
+### Navigation Primitive Taxonomy
+
+| Primitive | When to use | Dead-end risk |
+|-----------|-------------|---------------|
+| `safeGoBack(router, fallback)` | **Default** for all back/dismiss/cancel actions. Returns the user to where they came from. | None — fallback is only used when there's no history |
+| `router.push(route)` | Forward navigation that the user should be able to back out of. | None |
+| `router.replace(route)` | **Auth gates** (unauthenticated redirect), **onboarding linear steps** (back would break the flow), **sequential purchase flows** (payment → confirmation). Stack is cleared intentionally. | High if misused — use `// nav-safe: <reason>` to document intent |
+| `router.replace('/(tabs)')` | **Banned.** Drops all history and lands on the tab root with no back stack. Use `safeGoBack(router, '/(tabs)/feed')` instead. | Always — pre-commit guardrail blocks this |
+
+**When in doubt:** use `safeGoBack`. If the destination must be deterministic regardless of history (auth gate, purchase confirmation), use `router.replace` with a `// nav-safe: <reason>` comment so `npm run audit:navigation` classifies it correctly.
+
 ## Plans (Billing)
 
 - Rookie: free, 3 teams, 50 roster, 6 authorized users/team
@@ -120,6 +131,9 @@ rg -n "sgMail.send" server/src --glob "*.ts" -g '!server/src/services/email/prov
 
 # Missing requireAuth on routes using req.user
 grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
+
+# Navigation dead ends — classify every router.replace; flag any REVIEW items
+npm run audit:navigation
 ```
 
 ## Release Workflow
@@ -144,8 +158,7 @@ npm run check:conflicts         # no merge/stash markers
 npm run format:check            # all files prettier-clean
 npx tsc --noEmit --project server/tsconfig.json  # server TypeScript
 npm run verify:error-envelope   # no raw res.status().json()
-# Navigation dead ends — router.replace to bare tabs root drops history
-rg "router\.replace\([\"']/\(tabs\)[\"']" app components hooks utils
+npm run audit:navigation        # classify all router.replace calls; flag REVIEW items
 ```
 
 ## Known Quirks
@@ -208,8 +221,8 @@ grep -rn "'#000\|'#111\|'#222\|'#333\|'#374151\|'#111827\|'#1a1a\|black" app/ --
 # Validation drift — frontend vs backend length constraints
 # Manually verify: username (3-20), email format, password (8+ chars), team/org names
 
-# Navigation dead ends — router.replace to bare tabs root drops history; use safeGoBack instead
-rg "router\.replace\([\"']/\(tabs\)[\"']" app components hooks utils
+# Navigation dead ends — classify all router.replace calls; must show 0 REVIEW items
+npm run audit:navigation
 ```
 
 ## Security Audit Framework

@@ -1007,7 +1007,7 @@ export default function SettingsScreen() {
                               router.replace(nextRoute as any);
                               return;
                             }
-                            router.replace(
+                            router.replace( // nav-safe: settings → resume coach onboarding flow
                               hasCompletedBasicStep
                                 ? ('/onboarding/coach-application' as any)
                                 : '/onboarding/step-2-basic'

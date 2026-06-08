@@ -316,7 +316,7 @@ export default function SignUpScreen() {
       if (__DEV__ && res?.dev_verification_code) {
         verifyParams.devCode = String(res.dev_verification_code);
       }
-      router.replace(
+      router.replace( // nav-safe: auth flow → email verification
         Object.keys(verifyParams).length > 0
           ? { pathname: '/verify', params: verifyParams }
           : '/verify'
