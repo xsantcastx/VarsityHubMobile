@@ -166,6 +166,22 @@ describeDb('Ad geofencing integration', () => {
     expect(businessNames).not.toContain(`Outside Radius ${ts}`);
   });
 
+  it('returns no ads when the viewer does not provide a location in /ads/for-feed', async () => {
+    const res = await request(app)
+      .get('/ads/for-feed')
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .query({
+        date: todayIso,
+        limit: 10,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      date: todayIso,
+      ads: [],
+    });
+  });
+
   it('returns only ads within the 9 km radius from the viewer in /feed/bundle', async () => {
     const res = await request(app)
       .get('/feed/bundle')

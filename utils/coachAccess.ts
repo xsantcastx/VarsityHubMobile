@@ -72,6 +72,22 @@ export function handleCoachAccessError(
     return true;
   }
 
+  if (code === 'ORG_NOT_APPROVED') {
+    const statusAction =
+      recoveryRoute
+        ? {
+            text: recoveryRoute === '/(tabs)' ? 'Go Home' : 'View Status',
+            onPress: () => router.replace(recoveryRoute),
+          }
+        : null;
+    Alert.alert(
+      'Organization Approval Required',
+      'Your organization must be approved before you can use this coach action.',
+      [{ text: 'OK' }, ...(statusAction ? [statusAction] : [])]
+    );
+    return true;
+  }
+
   if (code === 'PAYMENT_REQUIRED') {
     Alert.alert(
       'Checkout Required',

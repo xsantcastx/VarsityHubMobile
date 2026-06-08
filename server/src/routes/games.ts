@@ -275,16 +275,8 @@ const makeCreateStoryHandler =
         typeof game?.description === 'string' && game.description.includes('[DEMO_MATCHUP]');
 
       const isAdmin = await getIsAdmin(req as any);
-      const teamIds = [game?.home_team_id, game?.away_team_id].filter(Boolean) as string[];
-      const isTeamMember =
-        teamIds.length > 0
-          ? !!(await p.teamMembership.findFirst({
-              where: { user_id: req.user.id, team_id: { in: teamIds }, status: 'active' },
-              select: { id: true },
-            }))
-          : false;
 
-      if (!isDemoMatchup && !isAdmin && !isTeamMember && game?.events && game.events.length > 0) {
+      if (!isDemoMatchup && !isAdmin && game?.events && game.events.length > 0) {
         const event = game.events[0];
         const location = parsed.data.location;
         const hasDeviceOriginLocation =
@@ -1371,7 +1363,10 @@ gamesRouter.post(
             if (org && !org.admin_approved) {
               return res
                 .status(403)
-                .json({ error: 'Your organization must be approved before creating events.' });
+                .json({
+                  error: 'Your organization must be approved before creating games.',
+                  code: 'ORG_NOT_APPROVED',
+                });
             }
           }
         }

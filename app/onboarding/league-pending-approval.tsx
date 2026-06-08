@@ -13,6 +13,8 @@ import {
 } from '@/utils/authState';
 import {
   fetchRejectionReason,
+  formatCoachReapplyCooldown,
+  getCoachReapplyCooldownState,
   getPendingApprovalAuthSnapshot,
   reapplyCoachApplication,
   usePendingApprovalActions,
@@ -58,10 +60,21 @@ function LeaguePendingApproval() {
   const [approved, setApproved] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [rejectedAt, setRejectedAt] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  const [cooldownNowMs, setCooldownNowMs] = useState(() => Date.now());
   const redirectedRef = useRef(false);
   const proceedingAsFanRef = useRef(false);
+  const reapplyCooldown = getCoachReapplyCooldownState(rejectedAt, cooldownNowMs);
+
+  useEffect(() => {
+    if (!reapplyCooldown.isActive) return;
+    const interval = setInterval(() => {
+      setCooldownNowMs(Date.now());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [reapplyCooldown.isActive]);
 
   const { stopPolling } = usePendingApprovalPolling({
     setChecking,
@@ -91,6 +104,7 @@ function LeaguePendingApproval() {
         if (accountState === 'coach_application_rejected') {
           setIsApplicationFlow(true);
           setRejected(true);
+          setRejectedAt(typeof me?.rejected_at === 'string' ? me.rejected_at : null);
           stopPolling();
           setRejectionReason(await fetchRejectionReason(['COACH_REJECTED', 'ORG_REJECTED']));
           return;
@@ -102,6 +116,7 @@ function LeaguePendingApproval() {
         ) {
           setIsApplicationFlow(true);
           setApproved(true);
+          setRejectedAt(null);
           stopPolling();
           return;
         }
@@ -142,12 +157,14 @@ function LeaguePendingApproval() {
         const isRejected = org?.status === 'rejected' || me?.approval_status === 'REJECTED';
         if (isRejected) {
           setRejected(true);
+          setRejectedAt(typeof me?.rejected_at === 'string' ? me.rejected_at : null);
           stopPolling();
           setRejectionReason(await fetchRejectionReason(['COACH_REJECTED', 'ORG_REJECTED']));
           return;
         }
         if (org?.admin_approved === true || me?.approval_status === 'APPROVED') {
           setApproved(true);
+          setRejectedAt(null);
           stopPolling();
           void registerPushToken().catch(() => {});
         }
@@ -271,6 +288,17 @@ function LeaguePendingApproval() {
         />
       ) : null}
 
+      {rejected && isApplicationFlow && reapplyCooldown.isActive ? (
+        <Text
+          style={[
+            styles.supportText,
+            { color: isDark ? '#FCD34D' : '#92400E', marginTop: 12, marginBottom: 16 },
+          ]}
+        >
+          Try Again unlocks in {formatCoachReapplyCooldown(reapplyCooldown.remainingMs)}.
+        </Text>
+      ) : null}
+
       {!orgId && hydrating ? (
         <>
           <View style={{ marginTop: 12, alignItems: 'center' }}>
@@ -329,7 +357,7 @@ function LeaguePendingApproval() {
                 },
               });
             }}
-            disabled={checking}
+            disabled={checking || (isApplicationFlow && reapplyCooldown.isActive)}
             style={{ marginBottom: 12 }}
           />
           <FanFallbackActions

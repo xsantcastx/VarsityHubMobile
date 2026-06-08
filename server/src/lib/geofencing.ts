@@ -21,6 +21,7 @@ const REGULAR_POST_GRACE_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 export type PostingPermissionErrorCode =
   | 'EVENT_NOT_FOUND'
+  | 'NO_EVENT_LOCATION'
   | 'POSTING_WINDOW_CLOSED'
   | 'TOO_FAR_FROM_VENUE'
   | 'LOCATION_REQUIRED'
@@ -248,8 +249,12 @@ export async function verifyStoryPostingPermission(
 
   const { venueLat, venueLon } = await resolveVenueCoordinates(event);
   if (venueLat == null || venueLon == null) {
-    console.warn(`Event ${eventId} and game missing coordinates - allowing story without geofence`);
-    return { allowed: true };
+    console.warn(`Event ${eventId} and game missing coordinates - blocking story upload`);
+    return {
+      allowed: false,
+      code: 'NO_EVENT_LOCATION',
+      reason: 'This event has no venue coordinates, so story uploads are disabled until the location is configured.',
+    };
   }
 
   // Check if user provided their location
@@ -346,8 +351,12 @@ export async function verifyEventPostingPermission(
 
   const { venueLat, venueLon } = await resolveVenueCoordinates(event);
   if (venueLat == null || venueLon == null) {
-    console.warn(`Event ${eventId} and game missing coordinates - allowing post without geofence`);
-    return { allowed: true };
+    console.warn(`Event ${eventId} and game missing coordinates - blocking post upload`);
+    return {
+      allowed: false,
+      code: 'NO_EVENT_LOCATION',
+      reason: 'This event has no venue coordinates, so posting is disabled until the location is configured.',
+    };
   }
 
   // Check if user provided their location

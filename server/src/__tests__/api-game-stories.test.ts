@@ -231,6 +231,54 @@ describeDb('Game stories API geofencing', () => {
     await prisma.story.delete({ where: { id: res.body.id } }).catch(() => {});
   });
 
+  it('rejects story uploads when the linked event has no venue coordinates', async () => {
+    const missingCoordsGame = await prisma.game.create({
+      data: {
+        title: `Story no-coords game ${Date.now()}`,
+        date: new Date(),
+        location: 'Venue name only',
+        approval_status: 'approved',
+        home_team_id: homeTeamId,
+        away_team_id: awayTeamId,
+      },
+    });
+
+    const missingCoordsEvent = await prisma.event.create({
+      data: {
+        title: `Story no-coords event ${Date.now()}`,
+        date: new Date(),
+        location: 'Venue name only',
+        game_id: missingCoordsGame.id,
+        status: 'approved',
+        approval_status: 'approved',
+        creator_id: testUser.id,
+        creator_role: 'coach',
+      },
+    });
+
+    try {
+      const res = await request(app)
+        .post(`/games/${missingCoordsGame.id}/stories`)
+        .set('Authorization', `Bearer ${testUserToken}`)
+        .send({
+          media_url: 'https://res.cloudinary.com/demo/image/upload/story-no-coords.jpg',
+          caption: 'Story should fail without venue coordinates',
+          location: {
+            lat: 40.7128,
+            lng: -74.006,
+            source: 'device',
+          },
+        });
+
+      expect(res.statusCode).toBe(403);
+      expect(res.body.error).toBe('NO_EVENT_LOCATION');
+      expect(res.body.message).toMatch(/disabled until the location is configured/i);
+    } finally {
+      await prisma.event.delete({ where: { id: missingCoordsEvent.id } }).catch(() => {});
+      await prisma.game.delete({ where: { id: missingCoordsGame.id } }).catch(() => {});
+    }
+  });
+
   it('lets admins bypass story geofencing without device-origin location', async () => {
     const res = await request(app)
       .post(`/games/${gameId}/stories`)
@@ -249,7 +297,7 @@ describeDb('Game stories API geofencing', () => {
     await prisma.story.delete({ where: { id: res.body.id } }).catch(() => {});
   });
 
-  it('lets active team members bypass story geofencing without device-origin location', async () => {
+  it('rejects active team members without device-origin location', async () => {
     const res = await request(app)
       .post(`/games/${gameId}/stories`)
       .set('Authorization', `Bearer ${bypassMemberToken}`)
@@ -261,9 +309,7 @@ describeDb('Game stories API geofencing', () => {
         },
       });
 
-    expect(res.statusCode).toBe(201);
-    expect(res.body.id).toBeDefined();
-
-    await prisma.story.delete({ where: { id: res.body.id } }).catch(() => {});
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toBe('LOCATION_REQUIRED');
   });
 });

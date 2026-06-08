@@ -969,9 +969,9 @@ function CreatePostScreen() {
           } else if (code === 'NO_EVENT_LOCATION') {
             Alert.alert(
               'Cannot Verify Location',
-              'This game has no event with location data. Only team members can post to this game.'
+              'This game has no event location set yet, so posting is disabled until the venue is configured.'
             );
-            setError('Only team members can post to games without event location data.');
+            setError('Posting is disabled until this event has venue coordinates.');
           } else {
             setError(
               e?.data?.error ||

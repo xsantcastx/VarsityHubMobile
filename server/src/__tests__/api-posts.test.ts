@@ -506,6 +506,55 @@ describeDb('Posts API Endpoints', () => {
       }
     });
 
+    it('should reject game-linked event posts when venue coordinates are missing', async () => {
+      const game = await prisma.game.create({
+        data: {
+          title: `No-coords post game ${Date.now()}`,
+          date: new Date(Date.now() + 60 * 60 * 1000),
+          location: 'Venue name only',
+          approval_status: 'approved',
+          home_team_id: bypassHomeTeamId,
+          away_team_id: bypassAwayTeamId,
+        },
+      });
+
+      const event = await prisma.event.create({
+        data: {
+          title: `No-coords post event ${Date.now()}`,
+          date: new Date(Date.now() + 60 * 60 * 1000),
+          location: 'Venue name only',
+          game_id: game.id,
+          status: 'approved',
+          approval_status: 'approved',
+          creator_id: testUser.id,
+          creator_role: 'coach',
+        },
+      });
+
+      try {
+        const res = await request(app)
+          .post('/posts')
+          .set('Authorization', `Bearer ${testUserToken}`)
+          .send({
+            title: 'No-coords event page post',
+            content: 'Posting should fail when the venue lacks coordinates',
+            game_id: game.id,
+            location: {
+              lat: 40.7128,
+              lng: -74.006,
+              source: 'device',
+            },
+          });
+
+        expect(res.statusCode).toBe(403);
+        expect(res.body.error).toBe('NO_EVENT_LOCATION');
+        expect(res.body.message).toMatch(/disabled until the location is configured/i);
+      } finally {
+        await prisma.event.delete({ where: { id: event.id } }).catch(() => {});
+        await prisma.game.delete({ where: { id: game.id } }).catch(() => {});
+      }
+    });
+
     it('should let admins bypass geofencing without device-origin location', async () => {
       const res = await request(app)
         .post('/posts')
@@ -525,7 +574,7 @@ describeDb('Posts API Endpoints', () => {
       await prisma.post.delete({ where: { id: res.body.id } }).catch(() => {});
     });
 
-    it('should let active team members bypass geofencing without device-origin location', async () => {
+    it('should reject active team members without device-origin location', async () => {
       const res = await request(app)
         .post('/posts')
         .set('Authorization', `Bearer ${bypassCoachToken}`)
@@ -538,10 +587,8 @@ describeDb('Posts API Endpoints', () => {
           },
         });
 
-      expect(res.statusCode).toBe(201);
-      expect(res.body.id).toBeDefined();
-
-      await prisma.post.delete({ where: { id: res.body.id } }).catch(() => {});
+      expect(res.statusCode).toBe(403);
+      expect(res.body.error).toBe('LOCATION_REQUIRED');
     });
   });
 

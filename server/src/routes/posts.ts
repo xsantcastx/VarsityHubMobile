@@ -956,21 +956,14 @@ postsRouter.post(
         }
       }
 
-      // Admins and active members of either team bypass geofencing/time-window checks
+      // Admins retain a bypass for moderation/testing. Normal users, including
+      // team staff, must satisfy the event posting window and venue geofence.
       const isAdmin = await getIsAdmin(req as any);
-      const teamIds = [homeTeamId, awayTeamId].filter(Boolean) as string[];
-      const isTeamMember =
-        teamIds.length > 0
-          ? !!(await prisma.teamMembership.findFirst({
-              where: { user_id: req.user.id, team_id: { in: teamIds }, status: 'active' },
-              select: { id: true },
-            }))
-          : false;
 
       if (isDemoMatchup) {
         debugLog(`✅ [DEMO_MATCHUP] game ${gameId} — skipping geofencing`);
-      } else if (isAdmin || isTeamMember) {
-        debugLog(`✅ Geofencing bypassed (isAdmin=${isAdmin}, isTeamMember=${isTeamMember})`);
+      } else if (isAdmin) {
+        debugLog(`✅ Geofencing bypassed (isAdmin=${isAdmin})`);
       } else if (targetEventId) {
         if (!hasDeviceOriginLocation) {
           return res.status(403).json({
@@ -996,10 +989,10 @@ postsRouter.post(
         );
       } else if (gameId) {
         // Game exists but has no associated event — no location data to verify against.
-        // Block the post for non-team-members since geofencing can't be applied.
+        // Block normal posting when geofencing cannot be enforced.
         return res.status(403).json({
           error: 'NO_EVENT_LOCATION',
-          message: 'This game has no event with location data. Only team members can post.',
+          message: 'This game has no event with location data, so posting is disabled until the event location is set.',
         });
       }
     }

@@ -6,6 +6,8 @@ import { Notification as NotificationApi, User } from '@/api/entities';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { GUEST_HOME_ROUTE } from '@/utils/publicRoutes';
 
+const COACH_REAPPLY_COOLDOWN_MS = 48 * 60 * 60 * 1000;
+
 export type ApprovalTrigger = 'initial' | 'interval' | 'focus' | 'foreground';
 
 type UsePendingApprovalPollingOptions = {
@@ -235,6 +237,45 @@ export async function fetchRejectionReason(types: string[]) {
   } catch {
     return null;
   }
+}
+
+export function getCoachReapplyCooldownState(
+  rejectedAt: Date | string | null | undefined,
+  nowMs: number = Date.now()
+) {
+  const parsed =
+    rejectedAt instanceof Date
+      ? rejectedAt
+      : typeof rejectedAt === 'string' && rejectedAt.trim()
+        ? new Date(rejectedAt)
+        : null;
+
+  if (!parsed || Number.isNaN(parsed.getTime())) {
+    return {
+      isActive: false,
+      remainingMs: 0,
+      retryAt: null as Date | null,
+    };
+  }
+
+  const retryAtMs = parsed.getTime() + COACH_REAPPLY_COOLDOWN_MS;
+  const remainingMs = Math.max(0, retryAtMs - nowMs);
+
+  return {
+    isActive: remainingMs > 0,
+    remainingMs,
+    retryAt: new Date(retryAtMs),
+  };
+}
+
+export function formatCoachReapplyCooldown(remainingMs: number): string {
+  const totalMinutes = Math.max(0, Math.ceil(remainingMs / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${Math.max(1, minutes)}m`;
 }
 
 export async function reapplyCoachApplication({

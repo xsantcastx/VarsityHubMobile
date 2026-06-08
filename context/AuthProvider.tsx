@@ -57,6 +57,7 @@ interface AuthUser {
   onboarding_completed?: boolean;
   is_admin?: boolean;
   approval_status?: string;
+  rejected_at?: string | null;
   dob?: string | null;
   date_of_birth?: string | null;
   zip_code?: string | null;

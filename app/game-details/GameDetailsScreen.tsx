@@ -1667,7 +1667,7 @@ const GameDetailsScreen = () => {
       } else if (code === 'NO_EVENT_LOCATION') {
         Alert.alert(
           'Cannot Verify Location',
-          'This game has no event with location data. Only team members can post stories.'
+          'This game has no event location set yet, so story uploads are disabled until the venue is configured.'
         );
       } else {
         if (__DEV__) console.error('Story upload error:', err);
@@ -1775,7 +1775,7 @@ const GameDetailsScreen = () => {
       } else if (code === 'NO_EVENT_LOCATION') {
         Alert.alert(
           'Cannot Verify Location',
-          'This game has no event with location data. Only team members can post stories.'
+          'This game has no event location set yet, so story uploads are disabled until the venue is configured.'
         );
       } else {
         Alert.alert('Unable to add story', err?.message || 'Please try again.');

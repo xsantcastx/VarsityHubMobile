@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Text, useColorScheme } from 'react-native';
 import { User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
@@ -8,6 +8,8 @@ import { useOnboarding } from '@/context/OnboardingContext';
 import { isProceedingAsFanSnapshot } from '@/utils/authState';
 import {
   fetchRejectionReason,
+  formatCoachReapplyCooldown,
+  getCoachReapplyCooldownState,
   getPendingApprovalAuthSnapshot,
   reapplyCoachApplication,
   usePendingApprovalActions,
@@ -34,11 +36,23 @@ function PendingApproval() {
   const [approved, setApproved] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [rejectedAt, setRejectedAt] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [, setOrgId] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
+  const [cooldownNowMs, setCooldownNowMs] = useState(() => Date.now());
   const redirectedRef = useRef(false);
   const proceedingAsFanRef = useRef(false);
+  const reapplyCooldown = getCoachReapplyCooldownState(rejectedAt, cooldownNowMs);
+
+  useEffect(() => {
+    if (!reapplyCooldown.isActive) return;
+    const interval = setInterval(() => {
+      setCooldownNowMs(Date.now());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [reapplyCooldown.isActive]);
+
   const { stopPolling } = usePendingApprovalPolling({
     setChecking,
     setTimedOut,
@@ -68,12 +82,14 @@ function PendingApproval() {
 
         if (me?.approval_status === 'REJECTED') {
           setRejected(true);
+          setRejectedAt(typeof me?.rejected_at === 'string' ? me.rejected_at : null);
           stopPolling();
           setRejectionReason(await fetchRejectionReason(['COACH_REJECTED']));
           return;
         }
         if (me?.approval_status === 'APPROVED') {
           setApproved(true);
+          setRejectedAt(null);
           const resolvedOrgId = me?.preferences?.organization_id || ob.organization_id || null;
           if (resolvedOrgId) setOrgId(resolvedOrgId);
           stopPolling();
@@ -132,6 +148,17 @@ function PendingApproval() {
         />
       ) : null}
 
+      {rejected && reapplyCooldown.isActive ? (
+        <Text
+          style={[
+            styles.supportText,
+            { color: isDark ? '#FCD34D' : '#92400E', marginTop: 12, marginBottom: 16 },
+          ]}
+        >
+          Try Again unlocks in {formatCoachReapplyCooldown(reapplyCooldown.remainingMs)}.
+        </Text>
+      ) : null}
+
       {timedOut && !approved && !rejected && (
         <>
           <Text
@@ -154,6 +181,7 @@ function PendingApproval() {
             <PrimaryButton
               label="Try Again"
               onPress={() => {
+                if (reapplyCooldown.isActive) return;
                 void reapplyCoachApplication({
                   setChecking,
                   setRejected,
@@ -163,7 +191,7 @@ function PendingApproval() {
                   },
                 });
               }}
-              disabled={checking}
+              disabled={checking || reapplyCooldown.isActive}
               style={{ marginBottom: 12, backgroundColor: '#1B3A6B' }}
             />
           )}
