@@ -1,12 +1,14 @@
 # SendGrid Operator Snapshot 2026-06-02
 
+Historical snapshot only. This file reflects the verifier state from `2026-06-02` and is superseded by [CURRENT_RUNTIME_BLOCKERS.md](./CURRENT_RUNTIME_BLOCKERS.md) plus the latest `verify:email-go-live` run.
+
 Use this with:
 
 - [EMAIL_GO_LIVE_CHECKLIST.md](./EMAIL_GO_LIVE_CHECKLIST.md)
 - [CURRENT_RUNTIME_BLOCKERS.md](./CURRENT_RUNTIME_BLOCKERS.md)
 - [PENDING_OPERATOR_ACTIONS.md](./PENDING_OPERATOR_ACTIONS.md)
 
-This is the current repo-derived operator action list from the latest `npm --prefix server run verify:email-go-live` run.
+This is not the current operator action list anymore.
 
 ## Current Status
 

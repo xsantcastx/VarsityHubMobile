@@ -37,9 +37,9 @@ npx tsx server/scripts/email-delivery-test.ts
 5. Re-run `verify:email-go-live` and `verify:email` until both are clean.
 6. Send a controlled end-to-end delivery pass with `email-delivery-test.ts`.
 
-## Current known stale catalog IDs
+## Historical catalog suspects
 
-These were flagged by the repo export metadata and need a fresh published template in SendGrid before launch:
+These were flagged by older repo export metadata. Do not act on this list by itself. Only treat a template as blocked if the current `verify:email-go-live` output flags it again.
 
 - `SENDGRID_ACCOUNT_SUSPENSION_45_DAYS_TEMPLATE_ID`
 - `SENDGRID_EVENT_RSVP_CONFIRMED_TEMPLATE_ID`

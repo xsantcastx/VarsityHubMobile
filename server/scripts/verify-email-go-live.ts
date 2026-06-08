@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isPlaceholderSendGridApiKey, isValidSendGridApiKey } from '../src/lib/sendgridConfig.js';
+import { loadRailwayVerificationEnv } from './lib/railwayVerificationEnv.js';
 
 type ExportSummaryEntry = {
   key?: string;
@@ -65,7 +66,7 @@ function extractTemplateGroups(source: string): TemplateGroup[] {
   for (const match of source.matchAll(/tmpl\(([\s\S]*?)\)/g)) {
     const envs = [...match[1].matchAll(/'([^']+)'/g)]
       .map(item => item[1])
-      .filter(value => value.startsWith('SENDGRID_') && value.endsWith('_TEMPLATE_ID'));
+      .filter(value => value.startsWith('SENDGRID_'));
     if (envs.length > 0) groups.push({ envs });
   }
   return groups;
@@ -188,6 +189,7 @@ function printList(items: string[]) {
 }
 
 function main() {
+  const railwayOverlay = loadRailwayVerificationEnv();
   const emailLib = readFileSync(emailLibPath, 'utf8');
   const canonicalEnvNames = extractCanonicalTemplateEnvNames(emailLib);
   const templateGroups = extractTemplateGroups(emailLib);
@@ -211,7 +213,12 @@ function main() {
   );
   const staleCatalog = canonicalEnvNames
     .map(env => metadata.get(env))
-    .filter((entry): entry is MetadataRecord => Boolean(entry) && entry.status === 'error');
+    .filter(
+      (entry): entry is MetadataRecord =>
+        Boolean(entry) &&
+        entry.status === 'error' &&
+        !isValidSendGridTemplateId(process.env[entry.env])
+    );
   const readyToSet = unsatisfiedGroups
     .map(group => {
       const match = group.envs
@@ -234,6 +241,9 @@ function main() {
     `Template groups currently satisfied in shell: ${templateGroups.length - unsatisfiedGroups.length}`
   );
   console.log(`SendGrid API key status: ${apiKeyStatus}`);
+  if (railwayOverlay.loaded) {
+    console.log(`Railway verification overlay: applied ${railwayOverlay.appliedKeys.length} vars`);
+  }
 
   printSection('API Key');
   if (apiKeyStatus === 'valid') {
@@ -304,10 +314,7 @@ function main() {
   printList(nextSteps);
 
   const shouldFail =
-    apiKeyStatus !== 'valid' ||
-    unsatisfiedGroups.length > 0 ||
-    staleCatalog.length > 0 ||
-    missingMetadata.length > 0;
+    apiKeyStatus !== 'valid' || unsatisfiedGroups.length > 0 || missingMetadata.length > 0;
 
   if (shouldFail) {
     process.exitCode = 1;

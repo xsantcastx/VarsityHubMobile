@@ -1,26 +1,30 @@
 /**
  * Verify Email Configuration
  *
- * Quick script to verify email service is configured correctly
- * Run: npx ts-node server/scripts/verify-email-config.ts
+ * Quick script to verify email service is configured correctly.
+ * Uses linked Railway email envs as a verification overlay when local shell
+ * values are missing or placeholder so the check reflects the real runtime
+ * configuration instead of local dev defaults.
  */
 
-// Load server/.env BEFORE the email service module reads its env. Without
-// this, running `npm --prefix server run verify:email` from a fresh shell
-// reports every key as missing — even when server/.env has them set.
 import 'dotenv/config';
-import { getEmailService } from '../src/services/email/service.js';
-import {
-  CANONICAL_EMAIL_FROM,
-  isCanonicalEmailFrom,
-  resolveEmailFrom,
-} from '../src/lib/emailSender.js';
-import {
+import { loadRailwayVerificationEnv } from './lib/railwayVerificationEnv.js';
+
+const railwayOverlay = loadRailwayVerificationEnv();
+
+const [{ getEmailService }, emailLib, emailSender] = await Promise.all([
+  import('../src/services/email/service.js'),
+  import('../src/lib/email.js'),
+  import('../src/lib/emailSender.js'),
+]);
+
+const { CANONICAL_EMAIL_FROM, isCanonicalEmailFrom, resolveEmailFrom } = emailSender;
+const {
   getEmailBaseUrlDiagnostics,
   getMissingEmailTemplates,
   getMissingRecommendedTemplates,
   REQUIRED_TEMPLATE_KEYS,
-} from '../src/lib/email.js';
+} = emailLib;
 
 console.log('🔍 Verifying Email Configuration...\n');
 
@@ -38,25 +42,30 @@ console.log(`   Provider: ${service['config'].provider}`);
 console.log(`   Default From: ${service['config'].defaultFrom}`);
 console.log(`   Configured: ${service.isConfigured() ? '✅ Yes' : '❌ No'}`);
 console.log(`   Valid: ${validation.valid ? '✅ Yes' : '❌ No'}\n`);
-console.log(`   Canonical Sender: ${isCanonicalEmailFrom(resolvedFrom) ? '✅ Yes' : '❌ No'} (${resolvedFrom})\n`);
+console.log(
+  `   Canonical Sender: ${isCanonicalEmailFrom(resolvedFrom) ? '✅ Yes' : '❌ No'} (${resolvedFrom})\n`
+);
+if (railwayOverlay.loaded) {
+  console.log(
+    `   Railway overlay: ✅ ${railwayOverlay.appliedKeys.length} env vars loaded from linked production service\n`
+  );
+}
 
 if (!validation.valid) {
   console.log('⚠️  Configuration Issues:');
-  validation.errors.forEach((error) => {
+  validation.errors.forEach(error => {
     console.log(`   - ${error}`);
   });
   console.log('\n');
 }
 
-// Check environment variables
 console.log('🔐 Environment Variables:');
 const requiredVars = ['SENDGRID_API_KEY'];
 
-requiredVars.forEach((varName) => {
+requiredVars.forEach(varName => {
   const value = process.env[varName];
   if (value) {
-    // Mask sensitive values
-    const displayValue = varName.includes('KEY') 
+    const displayValue = varName.includes('KEY')
       ? `${value.substring(0, 5)}...${value.substring(value.length - 5)}`
       : value;
     console.log(`   ✅ ${varName}: ${displayValue}`);
@@ -104,12 +113,7 @@ if (missingRecommendedTemplates.length > 0) {
 }
 
 console.log('\n✨ Verification complete!');
-if (
-  validation.valid &&
-  service.isConfigured() &&
-  !hasCriticalTemplateFailures &&
-  !hasSenderDrift
-) {
+if (validation.valid && service.isConfigured() && !hasCriticalTemplateFailures && !hasSenderDrift) {
   console.log('✅ Email service is ready to use!');
 } else {
   console.log('⚠️  Please fix configuration issues above.');

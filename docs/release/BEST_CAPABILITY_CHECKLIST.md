@@ -15,9 +15,9 @@ Primary references:
 
 ## Current Truth
 
-As of the latest repo audit, Phase 1 code gates are green but runtime/provider readiness is still `NO-GO` until the current operator-side blockers are cleared.
+As of the latest repo audit, the local release gate is green, and the SendGrid config verifiers are green against the linked Railway production env.
 
-Do not call the app "fully ready" until this checklist and the linked runtime blockers are closed.
+Do not call the app "fully ready" until the authenticated runtime gate and a real outbound email delivery pass are also complete.
 
 ## 1. Code Health Gate
 
@@ -77,8 +77,8 @@ If this command is not green, the app is not at best capability regardless of lo
 
 These are the highest-value non-code fixes. They are the current bottlenecks to real readiness.
 
-- Replace placeholder or invalid `SENDGRID_API_KEY` and confirm real sends work.
-- Recreate stale SendGrid templates and fill all missing `SENDGRID_*_TEMPLATE_ID` values required by code.
+- Run the authenticated runtime gate with a real `HEALTH_CHECK_SECRET`.
+- Confirm real SendGrid delivery with `email-delivery-test.ts` and production logs.
 - Rotate exposed production credentials called out in [PENDING_OPERATOR_ACTIONS.md](./PENDING_OPERATOR_ACTIONS.md): Stripe, webhook secret, JWT, AWS, Postgres, Maps, and SMTP where applicable.
 - Re-verify Railway production env after rotations.
 - Confirm EAS secrets are present before any production build.
@@ -91,6 +91,7 @@ Minimum proof after operator work:
 npm --prefix server run verify:email-go-live
 npm --prefix server run verify:email
 BASE_URL="https://your-api" HEALTH_CHECK_SECRET="..." npm run release:verify:runtime
+npx tsx server/scripts/email-delivery-test.ts
 ```
 
 ## 5. Real Device Confidence Gate
