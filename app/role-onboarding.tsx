@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -720,7 +721,7 @@ function RoleOnboardingScreenInner() {
 
             <Pressable
               style={[styles.continueButton, { backgroundColor: Colors[colorScheme].tint }]}
-              onPress={() => void router.replace('/(tabs)/feed')}
+              onPress={() => safeGoBack(router, '/(tabs)/feed')}
             >
               <Text style={styles.continueButtonText}>Continue to Feed</Text>
               <Ionicons name="arrow-forward" size={20} color="#fff" />

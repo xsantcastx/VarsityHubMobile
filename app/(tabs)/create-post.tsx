@@ -908,7 +908,7 @@ function CreatePostScreen() {
         setContent('');
         setPicked(null);
         setError(null);
-        router.replace('/(tabs)');
+        safeGoBack(router, '/(tabs)/feed');
       }, 800);
     } catch (e: any) {
       if (__DEV__)
@@ -925,7 +925,7 @@ function CreatePostScreen() {
         // This handles double-tap and retry-after-timeout without showing
         // a confusing error to the user.
         setPostSuccess(true);
-        setTimeout(() => router.replace('/(tabs)' as any), 800);
+        setTimeout(() => safeGoBack(router, '/(tabs)/feed'), 800);
         return;
       } else if (issues.length) {
         setError(issues.map(i => i.message).join('\n'));

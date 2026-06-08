@@ -5,6 +5,7 @@ import Notifications from '@/utils/notifications';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { Stack, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
@@ -79,13 +80,13 @@ export default function FanPermissions() {
       registerPushToken().catch(() => {});
     } finally {
       setLoading(false);
-      router.replace('/(tabs)' as any);
+      safeGoBack(router, '/(tabs)/feed');
     }
   };
 
   const skip = () => {
     registerPushToken().catch(() => {});
-    router.replace('/(tabs)' as any);
+    safeGoBack(router, '/(tabs)/feed');
   };
 
   return (

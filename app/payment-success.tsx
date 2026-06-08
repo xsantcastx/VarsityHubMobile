@@ -392,7 +392,7 @@ function PaymentSuccessScreen() {
                 // support, where the operator can look up the session_id.
                 <Pressable
                   style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
-                  onPress={() => router.replace('/(tabs)' as any)}
+                  onPress={() => safeGoBack(router, '/(tabs)/feed')}
                 >
                   <Text style={styles.primaryBtnText}>Continue to App</Text>
                 </Pressable>

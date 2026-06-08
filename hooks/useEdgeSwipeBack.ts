@@ -35,10 +35,16 @@ export function useEdgeSwipeBack() {
 
   const edgeSwipeGesture = Gesture.Pan()
     .manualActivation(true)
-    .onTouchesDown((e) => {
+    .onTouchesDown((e, stateManager) => {
       'worklet';
       const touch = e.allTouches[0];
-      startedAtEdge.value = touch ? touch.x <= EDGE_WIDTH : false;
+      if (!touch || touch.x > EDGE_WIDTH) {
+        // Fail immediately for non-edge touches so Pressables respond on first tap
+        stateManager.fail();
+        startedAtEdge.value = false;
+      } else {
+        startedAtEdge.value = true;
+      }
     })
     .onTouchesMove((e, stateManager) => {
       'worklet';
