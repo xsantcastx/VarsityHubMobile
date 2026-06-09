@@ -161,7 +161,7 @@ export function NotificationTapHandler() {
           break;
 
         case 'coach_rejected':
-          pushRoute('/(tabs)');
+          pushRoute('/(tabs)/feed');
           break;
 
         case 'ad_approved': {
