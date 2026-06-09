@@ -25,6 +25,7 @@ import { NotificationTapHandler } from '@/components/NotificationTapHandler';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { VerificationRequiredModal } from '@/components/VerificationRequiredModal';
 import { WebThemeSync } from '@/components/WebThemeSync';
+import { WebThemeToggle } from '@/components/WebThemeToggle';
 import { getConfig } from '@/config/env';
 import { Colors } from '@/constants/Colors';
 import { MAX_CONTENT_WIDTH } from '@/constants/layout';
@@ -128,6 +129,7 @@ function AppShell() {
   return (
     <>
       <WebThemeSync />
+      <WebThemeToggle />
       <NotificationTapHandler />
       <VerificationGateHost />
       <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
