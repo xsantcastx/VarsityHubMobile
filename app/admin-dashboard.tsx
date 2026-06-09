@@ -776,6 +776,19 @@ function AdminDashboardScreen() {
                   Metrics
                 </Text>
               </Pressable>
+
+              <Pressable
+                style={[styles.actionButton, {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                }]}
+                onPress={() => void router.push('/manage-users' as any)}
+              >
+                <MaterialIcons name="manage-accounts" size={28} color="#0EA5E9" />
+                <Text style={[styles.actionText, { color: theme.text }]}>
+                  Manage Users
+                </Text>
+              </Pressable>
             </View>
           </View>
 

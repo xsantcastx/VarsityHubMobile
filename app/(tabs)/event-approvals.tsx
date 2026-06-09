@@ -1,6 +1,8 @@
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -107,6 +109,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function EventApprovalsScreen() {
   const { loading: authLoading } = useAuth();
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const params = useLocalSearchParams<{
     event_id?: string;
@@ -236,9 +239,9 @@ export default function EventApprovalsScreen() {
   }, [loadEvents, loadOrgRequests, loadTeamInvites]);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || coachLoading) return;
     void loadAll();
-  }, [authLoading, loadAll]);
+  }, [authLoading, coachLoading, loadAll]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -644,7 +647,7 @@ export default function EventApprovalsScreen() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  if (authLoading) {
+  if (authLoading || coachLoading) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: C.background }]}
@@ -653,6 +656,10 @@ export default function EventApprovalsScreen() {
         <ActivityIndicator style={{ marginTop: 40 }} color={C.tint} />
       </SafeAreaView>
     );
+  }
+
+  if (!canAccessCoachTools) {
+    return <CoachAccessRedirecting backgroundColor={C.background} spinnerColor={C.tint} />;
   }
 
   return (
