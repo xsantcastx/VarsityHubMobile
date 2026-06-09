@@ -22,8 +22,6 @@ function CreateScreen() {
   };
 
   const safeBack = () => safeGoBack(router);
-  const goToReserveAd = () => router.replace('/submit-ad');
-
   if (loading) {
     return (
       <View style={styles.overlay}>
@@ -44,27 +42,22 @@ function CreateScreen() {
     );
   }
 
-  // Guests can still reach ad reservation; auth is enforced when they submit.
   if (!me) {
     return (
       <View style={styles.overlay}>
         <Stack.Screen options={{ presentation: 'modal', title: 'Create' }} />
         <Pressable style={styles.overlayDismiss} onPress={safeBack} />
-        <View style={[styles.sheet, styles.loginSheet, { backgroundColor: Colors[colorScheme].background }]}>
+        <View
+          style={[
+            styles.sheet,
+            styles.loginSheet,
+            { backgroundColor: Colors[colorScheme].background },
+          ]}
+        >
           <Text style={[styles.loginTitle, { color: Colors[colorScheme].text }]}>Create</Text>
           <Text style={[styles.loginBody, { color: Colors[colorScheme].mutedText }]}>
-            Log in to create and publish posts. Ad reservations stay available here.
+            Log in to create and publish posts.
           </Text>
-          <Pressable
-            style={[styles.reserveAdBtn, { borderColor: Colors[colorScheme].border }]}
-            onPress={goToReserveAd}
-            accessibilityRole="button"
-            accessibilityLabel="Reserve ad space"
-          >
-            <Text style={[styles.reserveAdBtnText, { color: Colors[colorScheme].text }]}>
-              Reserve Ad Space
-            </Text>
-          </Pressable>
           <Pressable
             style={[styles.loginBtn, { backgroundColor: Colors[colorScheme].tint }]}
             onPress={() => router.replace('/sign-in')}
@@ -74,7 +67,13 @@ function CreateScreen() {
             <Text style={styles.loginBtnText}>Login</Text>
           </Pressable>
           <Pressable
-            style={[styles.cancelBtn, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }]}
+            style={[
+              styles.cancelBtn,
+              {
+                borderColor: Colors[colorScheme].border,
+                backgroundColor: Colors[colorScheme].surface,
+              },
+            ]}
             onPress={safeBack}
             accessibilityRole="button"
             accessibilityLabel="Cancel"
@@ -211,16 +210,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-  },
-  reserveAdBtn: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  reserveAdBtnText: {
-    fontWeight: '700',
-    fontSize: 16,
   },
   loginBtnText: {
     color: '#fff',

@@ -982,7 +982,7 @@ function TeamScreen() {
 
           {/* Organization Link Button */}
           <Pressable
-            style={[styles.orgButton, { borderColor: theme.border, backgroundColor: '#fff' }]}
+            style={[styles.orgButton, { borderColor: theme.border, backgroundColor: theme.card }]}
             onPress={() => {
               const orgId = team?.organization_id;
               if (orgId) {

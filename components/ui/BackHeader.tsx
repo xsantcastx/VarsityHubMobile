@@ -1,4 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,17 +16,22 @@ interface BackHeaderProps {
   showDivider?: boolean;
 }
 
-export function BackHeader({ 
-  title, 
-  onBack, 
-  rightElement, 
-  backgroundColor = '#ffffff',
-  textColor = '#1F2937',
-  borderColor = '#D1D5DB',
+export function BackHeader({
+  title,
+  onBack,
+  rightElement,
+  backgroundColor,
+  textColor,
+  borderColor,
   showDivider = true,
 }: BackHeaderProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
+  const resolvedBackgroundColor = backgroundColor ?? theme.background;
+  const resolvedTextColor = textColor ?? theme.text;
+  const resolvedBorderColor = borderColor ?? theme.border;
 
   const handleBack = () => {
     if (onBack) {
@@ -40,9 +47,9 @@ export function BackHeader({
         styles.container,
         {
           paddingTop: insets.top,
-          backgroundColor,
+          backgroundColor: resolvedBackgroundColor,
           borderBottomWidth: showDivider ? 1 : 0,
-          borderBottomColor: borderColor,
+          borderBottomColor: resolvedBorderColor,
         },
       ]}
     >
@@ -54,26 +61,23 @@ export function BackHeader({
           accessibilityLabel="Go back"
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <MaterialIcons name="chevron-left" size={24} color={textColor} />
+          <MaterialIcons name="chevron-left" size={24} color={resolvedTextColor} />
         </Pressable>
-        
+
         {title && (
-          <Text style={[styles.title, { color: textColor }]} numberOfLines={1}>
+          <Text style={[styles.title, { color: resolvedTextColor }]} numberOfLines={1}>
             {title}
           </Text>
         )}
-        
-        <View style={styles.rightContainer}>
-          {rightElement}
-        </View>
+
+        <View style={styles.rightContainer}>{rightElement}</View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-  },
+  container: {},
   content: {
     flexDirection: 'row',
     alignItems: 'center',

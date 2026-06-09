@@ -4,9 +4,9 @@ if (__DEV__ && process.env.EXPO_OS !== 'web') {
 }
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import {
-    DarkTheme,
-    DefaultTheme,
-    ThemeProvider as NavigationThemeProvider,
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider as NavigationThemeProvider,
 } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
@@ -24,6 +24,7 @@ import { ErrorToastContainer } from '@/components/ErrorToast';
 import { NotificationTapHandler } from '@/components/NotificationTapHandler';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { VerificationRequiredModal } from '@/components/VerificationRequiredModal';
+import { WebThemeSync } from '@/components/WebThemeSync';
 import { getConfig } from '@/config/env';
 import { Colors } from '@/constants/Colors';
 import { MAX_CONTENT_WIDTH } from '@/constants/layout';
@@ -35,9 +36,9 @@ import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { useVerificationGate } from '@/hooks/useVerificationGate';
 import { initAnalytics } from '@/utils/analytics';
 import {
-    handleDeepLinkAuthAware,
-    handleInitialDeepLink,
-    setupDeepLinkListener,
+  handleDeepLinkAuthAware,
+  handleInitialDeepLink,
+  setupDeepLinkListener,
 } from '@/utils/deepLinks';
 import { captureException, initSentry } from '@/utils/sentry';
 import { StripeProvider } from '@/utils/stripe';
@@ -125,7 +126,8 @@ function AppShell() {
   const colorScheme = useColorScheme();
 
   return (
-    <ThemeProvider>
+    <>
+      <WebThemeSync />
       <NotificationTapHandler />
       <VerificationGateHost />
       <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -152,7 +154,7 @@ function AppShell() {
         </View>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       </NavigationThemeProvider>
-    </ThemeProvider>
+    </>
   );
 }
 
@@ -183,7 +185,13 @@ function RootLayout() {
   }, [isUpdatePending]);
 
   const syncOtaUpdate = React.useCallback(async () => {
-    if (__DEV__ || Platform.OS === 'web' || isExpoGo || !Updates.isEnabled || updateCheckInFlight.current) {
+    if (
+      __DEV__ ||
+      Platform.OS === 'web' ||
+      isExpoGo ||
+      !Updates.isEnabled ||
+      updateCheckInFlight.current
+    ) {
       return;
     }
 
@@ -298,7 +306,9 @@ function RootLayout() {
             <PostCacheProvider>
               <NavigationHistoryProvider>
                 <AuthProvider navReady={navReady}>
-                  <AppShell />
+                  <ThemeProvider>
+                    <AppShell />
+                  </ThemeProvider>
                 </AuthProvider>
               </NavigationHistoryProvider>
             </PostCacheProvider>

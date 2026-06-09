@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
+import { useColorScheme, useThemePreference } from '@/hooks/useCustomColorScheme';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -13,7 +14,6 @@ import {
   Switch,
   Text,
   TextInput,
-  useColorScheme,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -194,6 +194,7 @@ function SwitchRow({
 export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
+  const { themePreference, setThemePreference } = useThemePreference();
   const { user, checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
@@ -610,6 +611,73 @@ export default function SettingsScreen() {
             />
           </SectionCard>
 
+          <SectionCard title="Appearance">
+            <View style={styles.themeOptions}>
+              {[
+                { value: 'system', label: 'System', subtitle: 'Follow browser or device setting' },
+                { value: 'light', label: 'Light', subtitle: 'Always use the light theme' },
+                { value: 'dark', label: 'Dark', subtitle: 'Always use the dark theme' },
+              ].map(option => {
+                const selected = themePreference === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() =>
+                      void setThemePreference(option.value as 'light' | 'dark' | 'system')
+                    }
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected }}
+                    style={[
+                      styles.themeOption,
+                      {
+                        borderColor: Colors[colorScheme ?? 'light'].border,
+                        backgroundColor: selected
+                          ? Colors[colorScheme ?? 'light'].surface
+                          : 'transparent',
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.themeOptionIndicator,
+                        { borderColor: Colors[colorScheme ?? 'light'].border },
+                        selected && [
+                          styles.themeOptionIndicatorSelected,
+                          {
+                            borderColor: Colors[colorScheme ?? 'light'].tint,
+                            backgroundColor: Colors[colorScheme ?? 'light'].tint,
+                          },
+                        ],
+                      ]}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.themeOptionText,
+                          { color: Colors[colorScheme ?? 'light'].text },
+                          selected && [
+                            styles.themeOptionTextSelected,
+                            { color: Colors[colorScheme ?? 'light'].tint },
+                          ],
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.themeOptionSubtext,
+                          { color: Colors[colorScheme ?? 'light'].mutedText, marginLeft: 0 },
+                        ]}
+                      >
+                        {option.subtitle}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </SectionCard>
+
           {/* Notifications */}
           <SectionCard title="Notifications" initiallyOpen>
             <SwitchRow
@@ -733,17 +801,28 @@ export default function SettingsScreen() {
               subtitle="Posts you've saved"
               onPress={() => void router.push('/settings/favorites')}
             />
-            <NavRow
-              title="Reserve Ad Space"
-              subtitle="Promote your program, fundraiser, or business"
-              onPress={() => void router.navigate('/submit-ad')}
-            />
-            <NavRow
-              title="My Ads"
-              subtitle="Manage your advertisements"
-              isLast
-              onPress={() => void router.navigate('/my-ads')}
-            />
+            {user?.email_verified ? (
+              <>
+                <NavRow
+                  title="Reserve Ad Space"
+                  subtitle="Promote your program, fundraiser, or business"
+                  onPress={() => void router.navigate('/submit-ad')}
+                />
+                <NavRow
+                  title="My Ads"
+                  subtitle="Manage your advertisements"
+                  isLast
+                  onPress={() => void router.navigate('/my-ads')}
+                />
+              </>
+            ) : (
+              <NavRow
+                title="My Ads"
+                subtitle="Verify your email to book and manage ads"
+                isLast
+                onPress={() => void router.navigate('/my-ads')}
+              />
+            )}
           </SectionCard>
 
           {/* Billing (coaches only) */}
@@ -1007,7 +1086,8 @@ export default function SettingsScreen() {
                               router.replace(nextRoute as any);
                               return;
                             }
-                            router.replace( // nav-safe: settings → resume coach onboarding flow
+                            router.replace(
+                              // nav-safe: settings → resume coach onboarding flow
                               hasCompletedBasicStep
                                 ? ('/onboarding/coach-application' as any)
                                 : '/onboarding/step-2-basic'
@@ -1335,6 +1415,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
+    borderWidth: 1,
     backgroundColor: 'transparent',
   },
   themeOptionSelected: {

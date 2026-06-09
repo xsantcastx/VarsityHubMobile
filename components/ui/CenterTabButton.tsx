@@ -1,8 +1,10 @@
 import { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { Platform, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 export default function CenterTabButton(props: BottomTabBarButtonProps) {
   const {
@@ -14,7 +16,7 @@ export default function CenterTabButton(props: BottomTabBarButtonProps) {
   const selected = accessibilityState?.selected;
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const isDark = colorScheme === 'dark';
+  const theme = Colors[colorScheme];
 
   const handlePress = () => {
     if (Platform.OS === 'ios') {
@@ -35,11 +37,7 @@ export default function CenterTabButton(props: BottomTabBarButtonProps) {
     >
       <View style={styles.buttonContainer}>
         <View
-          style={[
-            styles.button,
-            selected && styles.buttonActive,
-            { backgroundColor: isDark ? '#1e40af' : '#111827' },
-          ]}
+          style={[styles.button, selected && styles.buttonActive, { backgroundColor: theme.tint }]}
         >
           <Text style={styles.plus}>+</Text>
         </View>

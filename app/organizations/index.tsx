@@ -1,9 +1,10 @@
 import { Organization } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ensureSeededOrganizations } from '@/data/seedOrganizations';
 import { captureException } from '@/utils/sentry';
 
@@ -34,11 +35,13 @@ function OrganizationsIndexScreen() {
           const combined = ensureSeededOrganizations(orgList as Organization[]);
           setOrgs(combined);
           const westhill =
-            combined.find((o) => o.name.toLowerCase().includes('westhill')) || combined[0] || null;
+            combined.find(o => o.name.toLowerCase().includes('westhill')) || combined[0] || null;
           setFeatured(westhill);
         }
       } catch (e) {
-        captureException(e instanceof Error ? e : new Error(String(e)), { context: 'organizations-list-load' });
+        captureException(e instanceof Error ? e : new Error(String(e)), {
+          context: 'organizations-list-load',
+        });
         if (!cancelled) {
           const fallback = ensureSeededOrganizations<Organization>([]);
           setOrgs(fallback);
@@ -49,7 +52,9 @@ function OrganizationsIndexScreen() {
       }
     }
     void load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const styles = createStyles(colorScheme);
@@ -63,11 +68,11 @@ function OrganizationsIndexScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text accessibilityRole="header" style={styles.title}>Organizations</Text>
-      <Text style={styles.subtitle}>
-        Browse schools, clubs, and organizations on VarsityHub.
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+      <Text accessibilityRole="header" style={styles.title}>
+        Organizations
       </Text>
+      <Text style={styles.subtitle}>Browse schools, clubs, and organizations on VarsityHub.</Text>
 
       {featured && (
         <View style={styles.featuredCard}>
@@ -112,7 +117,7 @@ function OrganizationsIndexScreen() {
       {orgs.length === 0 ? (
         <Text style={styles.emptyText}>No organizations found.</Text>
       ) : (
-        orgs.map((org) => (
+        orgs.map(org => (
           <Pressable
             key={org.id}
             style={styles.orgCard}
@@ -124,9 +129,7 @@ function OrganizationsIndexScreen() {
               {org.formatted_address && (
                 <Text style={styles.orgCardLocation}>{org.formatted_address}</Text>
               )}
-              {org.org_type && (
-                <Text style={styles.orgCardType}>{org.org_type}</Text>
-              )}
+              {org.org_type && <Text style={styles.orgCardType}>{org.org_type}</Text>}
               {org._count && (
                 <Text style={styles.orgCardMeta}>
                   {org._count.teams || 0} teams • {org._count.memberships || 0} members
@@ -141,143 +144,151 @@ function OrganizationsIndexScreen() {
   );
 }
 
-const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
-  container: {
-    padding: 16,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors[colorScheme].text,
-    marginBottom: 6,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: Colors[colorScheme].mutedText,
-    marginBottom: 24,
-  },
-  featuredCard: {
-    backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#F9FAFB',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: Colors[colorScheme].tint,
-  },
-  featuredBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: Colors[colorScheme].tint,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    marginBottom: 12,
-    gap: 4,
-  },
-  featuredBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  featuredName: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors[colorScheme].text,
-    marginBottom: 8,
-  },
-  featuredLocationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 6,
-  },
-  featuredLocation: {
-    fontSize: 14,
-    color: Colors[colorScheme].mutedText,
-    flex: 1,
-  },
-  featuredDescription: {
-    fontSize: 14,
-    color: Colors[colorScheme].mutedText,
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  featuredMetaRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  featuredMeta: {
-    fontSize: 13,
-    color: Colors[colorScheme].mutedText,
-  },
-  featuredButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors[colorScheme].tint,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    gap: 8,
-  },
-  featuredButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors[colorScheme].text,
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 15,
-    color: Colors[colorScheme].mutedText,
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  orgCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : '#fff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : '#D1D5DB',
-  },
-  orgCardContent: {
-    flex: 1,
-  },
-  orgCardName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors[colorScheme].text,
-    marginBottom: 4,
-  },
-  orgCardLocation: {
-    fontSize: 13,
-    color: Colors[colorScheme].mutedText,
-    marginBottom: 2,
-  },
-  orgCardType: {
-    fontSize: 13,
-    color: Colors[colorScheme].mutedText,
-    marginBottom: 2,
-    textTransform: 'capitalize',
-  },
-  orgCardMeta: {
-    fontSize: 12,
-    color: Colors[colorScheme].mutedText,
-  },
-});
+const createStyles = (colorScheme: 'light' | 'dark') =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: Colors[colorScheme].background,
+    },
+    container: {
+      padding: 16,
+      backgroundColor: Colors[colorScheme].background,
+      flexGrow: 1,
+    },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: Colors[colorScheme].background,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: Colors[colorScheme].text,
+      marginBottom: 6,
+    },
+    subtitle: {
+      fontSize: 15,
+      color: Colors[colorScheme].mutedText,
+      marginBottom: 24,
+    },
+    featuredCard: {
+      backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#F9FAFB',
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 24,
+      borderWidth: 2,
+      borderColor: Colors[colorScheme].tint,
+    },
+    featuredBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      backgroundColor: Colors[colorScheme].tint,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+      borderRadius: 12,
+      marginBottom: 12,
+      gap: 4,
+    },
+    featuredBadgeText: {
+      color: '#fff',
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    featuredName: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: Colors[colorScheme].text,
+      marginBottom: 8,
+    },
+    featuredLocationRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+      gap: 6,
+    },
+    featuredLocation: {
+      fontSize: 14,
+      color: Colors[colorScheme].mutedText,
+      flex: 1,
+    },
+    featuredDescription: {
+      fontSize: 14,
+      color: Colors[colorScheme].mutedText,
+      marginBottom: 12,
+      lineHeight: 20,
+    },
+    featuredMetaRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 16,
+    },
+    featuredMeta: {
+      fontSize: 13,
+      color: Colors[colorScheme].mutedText,
+    },
+    featuredButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: Colors[colorScheme].tint,
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 10,
+      gap: 8,
+    },
+    featuredButtonText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    sectionTitle: {
+      fontSize: 20,
+      fontWeight: '600',
+      color: Colors[colorScheme].text,
+      marginBottom: 16,
+    },
+    emptyText: {
+      fontSize: 15,
+      color: Colors[colorScheme].mutedText,
+      textAlign: 'center',
+      marginTop: 20,
+    },
+    orgCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : '#fff',
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : '#D1D5DB',
+    },
+    orgCardContent: {
+      flex: 1,
+    },
+    orgCardName: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: Colors[colorScheme].text,
+      marginBottom: 4,
+    },
+    orgCardLocation: {
+      fontSize: 13,
+      color: Colors[colorScheme].mutedText,
+      marginBottom: 2,
+    },
+    orgCardType: {
+      fontSize: 13,
+      color: Colors[colorScheme].mutedText,
+      marginBottom: 2,
+      textTransform: 'capitalize',
+    },
+    orgCardMeta: {
+      fontSize: 12,
+      color: Colors[colorScheme].mutedText,
+    },
+  });
 
 export default OrganizationsIndexScreen;

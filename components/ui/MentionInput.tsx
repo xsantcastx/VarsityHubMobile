@@ -22,14 +22,14 @@ interface MentionInputProps {
   maxLength?: number;
 }
 
-export function MentionInput({ 
-  value, 
-  onChangeText, 
+export function MentionInput({
+  value,
+  onChangeText,
   placeholder,
   placeholderTextColor,
-  multiline, 
+  multiline,
   style,
-  maxLength
+  maxLength,
 }: MentionInputProps) {
   const [suggestions, setSuggestions] = useState<MentionUser[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -65,27 +65,27 @@ export function MentionInput({
 
   const handleTextChange = (text: string) => {
     onChangeText(text);
-    
+
     // Get cursor position (for simplicity, use end of text)
     const cursorPos = text.length;
     const textBeforeCursor = text.substring(0, cursorPos);
-    
+
     // Find the last @ symbol before cursor
     const lastAtIndex = textBeforeCursor.lastIndexOf('@');
-    
+
     if (lastAtIndex >= 0) {
       const textAfterAt = textBeforeCursor.substring(lastAtIndex + 1);
-      
+
       // Check if there's a space or newline in the mention text
       if (!/[\s\n]/.test(textAfterAt)) {
         setMentionStart(lastAtIndex);
         setCurrentMention(textAfterAt);
-        
+
         // Clear previous timeout
         if (searchTimeoutRef.current) {
           clearTimeout(searchTimeoutRef.current);
         }
-        
+
         // Debounce the search
         searchTimeoutRef.current = setTimeout(() => {
           void searchUsers(textAfterAt);
@@ -93,7 +93,7 @@ export function MentionInput({
         return;
       }
     }
-    
+
     // Not in a mention anymore
     setShowSuggestions(false);
     setSuggestions([]);
@@ -103,17 +103,17 @@ export function MentionInput({
 
   const insertMention = (user: MentionUser) => {
     if (mentionStart === -1) return;
-    
+
     const beforeMention = value.substring(0, mentionStart);
     const afterMention = value.substring(mentionStart + currentMention.length + 1);
     const newText = `${beforeMention}@${user.username || user.display_name || 'user'} ${afterMention}`;
-    
+
     onChangeText(newText);
     setShowSuggestions(false);
     setSuggestions([]);
     setCurrentMention('');
     setMentionStart(-1);
-    
+
     // Focus back on input
     setTimeout(() => {
       inputRef.current?.focus();
@@ -140,14 +140,22 @@ export function MentionInput({
         style={[styles.input, style]}
         maxLength={maxLength}
       />
-      
+
       {showSuggestions && suggestions.length > 0 && (
-        <View style={[styles.suggestionsContainer, { backgroundColor: theme.card }]}>
+        <View
+          style={[
+            styles.suggestionsContainer,
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+            },
+          ]}
+        >
           <View style={styles.suggestionsList}>
-            {suggestions.slice(0, 4).map((item) => (
-              <Pressable 
+            {suggestions.slice(0, 4).map(item => (
+              <Pressable
                 key={item.id}
-                style={[styles.suggestionItem, { borderBottomColor: theme.border }]} 
+                style={[styles.suggestionItem, { borderBottomColor: theme.border }]}
                 onPress={() => insertMention(item)}
               >
                 <View style={styles.avatarContainer}>
@@ -160,7 +168,9 @@ export function MentionInput({
                   )}
                 </View>
                 <View style={styles.userInfo}>
-                  <Text style={[styles.displayName, { color: theme.text }]}>@{item.username || item.display_name || 'user'}</Text>
+                  <Text style={[styles.displayName, { color: theme.text }]}>
+                    @{item.username || item.display_name || 'user'}
+                  </Text>
                 </View>
               </Pressable>
             ))}
@@ -183,8 +193,8 @@ const styles = StyleSheet.create({
     top: '100%',
     left: 0,
     right: 0,
-    backgroundColor: 'white',
     borderRadius: 8,
+    borderWidth: 1,
     ...(Platform.OS === 'web'
       ? { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)' }
       : {
@@ -205,7 +215,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
   },
   avatarContainer: {
     marginRight: 12,
@@ -219,7 +228,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
