@@ -43,6 +43,7 @@ phase_local() {
   run_step "App typecheck" npm run typecheck
   run_step "Server typecheck" npx tsc --noEmit --project server/tsconfig.json
   run_step "Guardrails" npm run verify:guardrails
+  run_step "Navigation audit" npm run audit:navigation:fail
   run_step "Pre-release drift audit" npm run audit:pre-release
   run_step "Release readiness audit" npm run verify:release
   run_step "Regression suites" npm run test:regressions

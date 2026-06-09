@@ -77,4 +77,15 @@ if ! rg -n "getNotificationHref|getNotificationTitle" app/feed.tsx "app/(tabs)/n
   exit 1
 fi
 
+# ── Navigation dead-end audit ─────────────────────────────────────────────────
+# Every router.replace must be classified as SAFE or annotated with nav-safe:.
+# Any REVIEW item means an unreviewed navigation pattern was introduced.
+if ! bash scripts/audit-navigation.sh --fail >/dev/null 2>&1; then
+  echo ""
+  echo "Guardrail failed: unclassified router.replace calls (navigation dead-end risk)"
+  echo "Run: npm run audit:navigation   for details."
+  echo "Add a '// nav-safe: <reason>' comment to each unclassified call, or fix it."
+  exit 1
+fi
+
 echo "Guardrails passed."
