@@ -22,7 +22,7 @@ export type AppRoute =
   | '/onboarding/coach-agreement'
   | '/settings/manage-subscription'
   | '/subscription-paywall'
-  | '/(tabs)'
+  | '/(tabs)/feed'
   | '/(tabs)/team-hub'
   | '/(tabs)/create-team'
   | '/organization';
@@ -73,12 +73,12 @@ const POST_AUTH_ROUTE_BY_KIND: Record<PostAuthRouteKind, AppRoute> = {
   server_basic_info_required: '/onboarding/step-2-basic',
   server_application_required: '/onboarding/coach-application',
   server_application_submitted_waiting: '/onboarding/league-pending-approval',
-  server_application_submitted_fan_mode: '/(tabs)',
+  server_application_submitted_fan_mode: '/(tabs)/feed',
   server_application_rejected_waiting: '/onboarding/league-pending-approval',
-  server_application_rejected_fan_mode: '/(tabs)',
+  server_application_rejected_fan_mode: '/(tabs)/feed',
   server_pending_approval_league_waiting: '/onboarding/league-pending-approval',
   server_pending_approval_waiting: '/onboarding/pending-approval',
-  server_pending_approval_fan_mode: '/(tabs)',
+  server_pending_approval_fan_mode: '/(tabs)/feed',
   server_coach_agreement_required: '/onboarding/coach-agreement',
   server_final_setup_required: '/onboarding/step-3-league',
   pending_coach_waiting: '/onboarding/pending-approval',
@@ -86,7 +86,7 @@ const POST_AUTH_ROUTE_BY_KIND: Record<PostAuthRouteKind, AppRoute> = {
   coach_checkout_required: '/subscription-paywall',
   coach_agreement_required: '/onboarding/coach-agreement',
   generic_onboarding_required: '/onboarding/step-1-role',
-  app_home: '/(tabs)',
+  app_home: '/(tabs)/feed',
 };
 
 export type OnboardingIndexRouteKind =
@@ -116,15 +116,15 @@ const ONBOARDING_INDEX_ROUTE_BY_KIND: Record<OnboardingIndexRouteKind, AppRoute>
   server_basic_info_required: '/onboarding/step-2-basic',
   server_application_required: '/onboarding/coach-application',
   server_application_submitted_waiting: '/onboarding/league-pending-approval',
-  server_application_submitted_fan_mode: '/(tabs)',
+  server_application_submitted_fan_mode: '/(tabs)/feed',
   server_application_rejected_waiting: '/onboarding/league-pending-approval',
-  server_application_rejected_fan_mode: '/(tabs)',
+  server_application_rejected_fan_mode: '/(tabs)/feed',
   server_pending_approval_league_waiting: '/onboarding/league-pending-approval',
   server_pending_approval_waiting: '/onboarding/pending-approval',
-  server_pending_approval_fan_mode: '/(tabs)',
+  server_pending_approval_fan_mode: '/(tabs)/feed',
   server_coach_agreement_required: '/onboarding/coach-agreement',
   server_final_setup_required: '/onboarding/step-3-league',
-  completed_tabs: '/(tabs)',
+  completed_tabs: '/(tabs)/feed',
   draft_step_1: '/onboarding/step-1-role',
   draft_step_2: '/onboarding/step-2-basic',
   draft_step_3: '/onboarding/step-3-league',

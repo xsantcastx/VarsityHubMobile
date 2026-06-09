@@ -31,7 +31,7 @@ describe('getPostAuthRouteDecision', () => {
         next_step: '/onboarding/league-pending-approval',
         preferences: { onboarding_completed: true, role: 'coach' },
       },
-      expected: '/(tabs)',
+      expected: '/(tabs)/feed',
       kind: 'app_home',
     },
     {
@@ -65,7 +65,7 @@ describe('getPostAuthRouteDecision', () => {
         proceeding_as_fan: true,
         preferences: { onboarding_completed: true, role: 'coach', proceeding_as_fan: false },
       },
-      expected: '/(tabs)',
+      expected: '/(tabs)/feed',
       kind: 'server_application_submitted_fan_mode',
     },
     {
@@ -77,7 +77,7 @@ describe('getPostAuthRouteDecision', () => {
         proceeding_as_fan: true,
         preferences: { onboarding_completed: true, role: 'coach', proceeding_as_fan: false },
       },
-      expected: '/(tabs)',
+      expected: '/(tabs)/feed',
       kind: 'server_application_rejected_fan_mode',
     },
     {
@@ -94,7 +94,7 @@ describe('getPostAuthRouteDecision', () => {
           proceeding_as_fan: false,
         },
       },
-      expected: '/(tabs)',
+      expected: '/(tabs)/feed',
       kind: 'server_pending_approval_fan_mode',
     },
     {
@@ -125,7 +125,7 @@ describe('getPostAuthRouteDecision', () => {
           proceeding_as_fan: false,
         },
       },
-      expected: '/(tabs)',
+      expected: '/(tabs)/feed',
       kind: 'app_home',
     },
     {
@@ -171,7 +171,7 @@ describe('getPostAuthRouteDecision', () => {
           role: 'coach',
         },
       },
-      expected: '/(tabs)',
+      expected: '/(tabs)/feed',
       kind: 'app_home',
     },
     {
@@ -184,7 +184,7 @@ describe('getPostAuthRouteDecision', () => {
           role: 'fan',
         },
       },
-      expected: '/(tabs)',
+      expected: '/(tabs)/feed',
       kind: 'app_home',
     },
   ] as const;
@@ -245,7 +245,7 @@ describe('getPostAuthRouteDecision', () => {
     );
 
     expect(decision.kind).toBe('app_home');
-    expect(decision.route).toBe('/(tabs)');
+    expect(decision.route).toBe('/(tabs)/feed');
   });
 });
 
@@ -326,7 +326,7 @@ describe('getOnboardingIndexRouteDecision', () => {
     );
 
     expect(decision.kind).toBe('server_application_submitted_fan_mode');
-    expect(decision.route).toBe('/(tabs)');
+    expect(decision.route).toBe('/(tabs)/feed');
   });
 
   it('keeps pending approved-waiting coaches in fan mode on tabs even when next_step is stale', () => {
@@ -351,7 +351,7 @@ describe('getOnboardingIndexRouteDecision', () => {
     );
 
     expect(decision.kind).toBe('server_pending_approval_fan_mode');
-    expect(decision.route).toBe('/(tabs)');
+    expect(decision.route).toBe('/(tabs)/feed');
   });
 
   it('treats top-level onboarding_completed=false as authoritative even when local draft org data exists', () => {
@@ -386,7 +386,7 @@ describe('getOnboardingIndexRouteDecision', () => {
     );
 
     expect(decision.kind).toBe('completed_tabs');
-    expect(decision.route).toBe('/(tabs)');
+    expect(decision.route).toBe('/(tabs)/feed');
   });
 
   it('routes ordinary incomplete users to the next draft step', () => {

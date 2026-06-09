@@ -289,7 +289,7 @@ describe('getCoachApprovalNotificationRoute', () => {
         approval_status: 'PENDING',
         preferences: { role: 'coach', proceeding_as_fan: true },
       })
-    ).toBe('/(tabs)');
+    ).toBe('/(tabs)/feed');
   });
 
   it('uses canonical proceeding_as_fan for notifications when preferences are stale', () => {
@@ -299,7 +299,7 @@ describe('getCoachApprovalNotificationRoute', () => {
         proceeding_as_fan: true,
         preferences: { role: 'coach', proceeding_as_fan: false },
       })
-    ).toBe('/(tabs)');
+    ).toBe('/(tabs)/feed');
   });
 
   it('sends coaches with an accepted agreement to organization instead of coach-agreement', () => {
@@ -422,7 +422,7 @@ describe('getCoachRecoveryRoute', () => {
         approval_status: 'PENDING',
         preferences: { role: 'coach', proceeding_as_fan: true },
       })
-    ).toBe('/(tabs)');
+    ).toBe('/(tabs)/feed');
   });
 
   it('prefers fan mode over a stale pending next_step', () => {
@@ -434,7 +434,7 @@ describe('getCoachRecoveryRoute', () => {
         proceeding_as_fan: true,
         preferences: { role: 'coach', proceeding_as_fan: false },
       })
-    ).toBe('/(tabs)');
+    ).toBe('/(tabs)/feed');
   });
 
   it('does not force approved coaches into recovery routes for agreement state', () => {

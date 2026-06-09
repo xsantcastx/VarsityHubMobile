@@ -45,7 +45,7 @@ describe('handleCoachAccessError', () => {
     const [, , buttons] = alertSpy.mock.calls[0];
     expect(buttons?.[1]?.text).toBe('Go Home');
     buttons?.[1]?.onPress?.();
-    expect(router.replace).toHaveBeenCalledWith('/(tabs)');
+    expect(router.replace).toHaveBeenCalledWith('/(tabs)/feed');
   });
 
   it('prefers top-level fan mode over stale preferences for approval-required recovery', () => {
@@ -67,7 +67,7 @@ describe('handleCoachAccessError', () => {
     const [, , buttons] = alertSpy.mock.calls[0];
     expect(buttons?.[1]?.text).toBe('Go Home');
     buttons?.[1]?.onPress?.();
-    expect(router.replace).toHaveBeenCalledWith('/(tabs)');
+    expect(router.replace).toHaveBeenCalledWith('/(tabs)/feed');
   });
 
   it('preserves the legacy generic pending route when no user context is provided', () => {

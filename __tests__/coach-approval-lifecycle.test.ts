@@ -45,12 +45,12 @@ describe('coach approval lifecycle', () => {
   };
 
   it('keeps a pending coach who chose fan mode on tabs while waiting', () => {
-    expect(getPostAuthRouteDecision(pendingFanModeUser as any).route).toBe('/(tabs)');
-    expect(getCoachRecoveryRoute(pendingFanModeUser as any)).toBe('/(tabs)');
+    expect(getPostAuthRouteDecision(pendingFanModeUser as any).route).toBe('/(tabs)/feed');
+    expect(getCoachRecoveryRoute(pendingFanModeUser as any)).toBe('/(tabs)/feed');
   });
 
   it('routes newly approved coaches into the app without reopening the pending screen', () => {
-    expect(getPostAuthRouteDecision(approvedAwaitingAgreementUser as any).route).toBe('/(tabs)');
+    expect(getPostAuthRouteDecision(approvedAwaitingAgreementUser as any).route).toBe('/(tabs)/feed');
     expect(getCoachRecoveryRoute(approvedAwaitingAgreementUser as any)).toBeNull();
   });
 

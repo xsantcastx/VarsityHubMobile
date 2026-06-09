@@ -44,7 +44,7 @@ export function handleCoachAccessError(
     const statusAction =
       recoveryRoute
         ? {
-            text: recoveryRoute === '/(tabs)' ? 'Go Home' : 'View Status',
+            text: recoveryRoute === '/(tabs)/feed' ? 'Go Home' : 'View Status',
             onPress: () => router.replace(recoveryRoute),
           }
         : null;
@@ -60,7 +60,7 @@ export function handleCoachAccessError(
     const statusAction =
       recoveryRoute
         ? {
-            text: recoveryRoute === '/(tabs)' ? 'Go Home' : 'View Status',
+            text: recoveryRoute === '/(tabs)/feed' ? 'Go Home' : 'View Status',
             onPress: () => router.replace(recoveryRoute),
           }
         : null;
@@ -76,7 +76,7 @@ export function handleCoachAccessError(
     const statusAction =
       recoveryRoute
         ? {
-            text: recoveryRoute === '/(tabs)' ? 'Go Home' : 'View Status',
+            text: recoveryRoute === '/(tabs)/feed' ? 'Go Home' : 'View Status',
             onPress: () => router.replace(recoveryRoute),
           }
         : null;

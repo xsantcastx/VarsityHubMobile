@@ -350,7 +350,7 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
 
   const coachAccess = getCoachAccessState(user);
   if (coachAccess.isProceedingAsFan) {
-    return '/(tabs)';
+    return '/(tabs)/feed';
   }
 
   const explicitNextStep =
@@ -416,12 +416,12 @@ export function getCoachApprovalNotificationRoute(user: CoachUserLike | null | u
   }
 
   if (user.is_admin === true) {
-    return '/(tabs)';
+    return '/(tabs)/feed';
   }
 
   const coachAccess = getCoachAccessState(user);
   if (coachAccess.isProceedingAsFan) {
-    return '/(tabs)';
+    return '/(tabs)/feed';
   }
 
   const explicitNextStep =
@@ -438,7 +438,7 @@ export function getCoachApprovalNotificationRoute(user: CoachUserLike | null | u
   }
 
   if (coachAccess.hasAcceptedCoachAgreement) {
-    return getCoachOrganizationId(user) ? '/organization' : '/(tabs)';
+    return getCoachOrganizationId(user) ? '/organization' : '/(tabs)/feed';
   }
 
   return '/onboarding/coach-agreement';
