@@ -32,7 +32,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js';
-import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
@@ -836,6 +836,7 @@ eventsRouter.post(
         date: true,
         team_id: true,
         creator_id: true,
+        creator: { select: { email: true } },
         game: { select: { id: true, home_team_id: true, away_team_id: true } },
       },
     });
@@ -864,7 +865,12 @@ eventsRouter.post(
       event.game?.away_team_id ?? null,
     ].filter((tid): tid is string => Boolean(tid));
 
-    if (linkedTeamIds.length > 0 && event.creator_id !== req.user.id) {
+    // Platform-admin-created events are open to all authenticated users — no
+    // affiliation required. Admins create public events (World Cup, pro games)
+    // where anyone should be able to RSVP.
+    const creatorIsAdmin = isEmailAdmin(event.creator?.email);
+
+    if (linkedTeamIds.length > 0 && event.creator_id !== req.user.id && !creatorIsAdmin) {
       const [teamMembership, teamFollow, orgAdminCheck, isAdminUser] = await Promise.all([
         prisma.teamMembership.findFirst({
           where: {

@@ -1,4 +1,5 @@
 import { Game, Post, Team, TeamMemberships } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
@@ -125,6 +126,7 @@ const toFeedPost = (item: any): FeedPost | null => {
 };
 
 function TeamScreen() {
+  const { user: currentUser } = useAuth();
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
@@ -720,6 +722,10 @@ function TeamScreen() {
                 disabled={followLoading}
                 onPress={async () => {
                   if (!team?.id || team.id.startsWith('temp-') || followLoading) {
+                    return;
+                  }
+                  if (!currentUser) {
+                    router.push('/sign-in' as any);
                     return;
                   }
                   setFollowLoading(true);
