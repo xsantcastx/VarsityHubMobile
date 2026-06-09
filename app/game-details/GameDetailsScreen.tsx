@@ -534,7 +534,7 @@ const GameDetailsScreen = () => {
     typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
   const { id, eventId } = useLocalSearchParams<{ id: string; teamId?: string; eventId?: string }>();
   const router = useRouter();
-  const { user: authUser } = useAuth();
+  const { user: authUser, isAdmin: isAdminUser } = useAuth();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const {
@@ -1449,7 +1449,7 @@ const GameDetailsScreen = () => {
     // them regardless of distance.
     const vmDescription = typeof vm.description === 'string' ? vm.description : '';
     const isDemoMatchup = vmDescription.includes(DEMO_MATCHUP_TAG);
-    if (!isSampleId(vm.gameId) && !isDemoMatchup && location?.latitude && location?.longitude) {
+    if (!isSampleId(vm.gameId) && !isDemoMatchup && !isAdminUser && location?.latitude && location?.longitude) {
       const venueLat = vm.venueLat;
       const venueLng = vm.venueLng;
       if (typeof venueLat === 'number' && typeof venueLng === 'number') {
@@ -1494,7 +1494,7 @@ const GameDetailsScreen = () => {
       if (!granted) {
         // If the game has a linked event and it's not a demo, location is REQUIRED by the server.
         // Block the upload early to avoid wasting a Cloudinary upload.
-        if (hasEvent && !isDemoMatchup) {
+        if (hasEvent && !isDemoMatchup && !isAdminUser) {
           Alert.alert(
             'Location Required',
             'Location access is required to post stories at live events. Enable it in Settings to continue.',
@@ -1678,6 +1678,7 @@ const GameDetailsScreen = () => {
     }
   }, [
     hasEvent,
+    isAdminUser,
     loadGameById,
     storyBusy,
     vm?.description,
