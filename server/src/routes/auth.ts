@@ -314,6 +314,7 @@ const GOOGLE_ALLOWED_AUDIENCES = (
 
 // Create a single OAuth2Client for token verification (uses Google's public keys, cached automatically)
 const googleOAuthClient = new OAuth2Client();
+const GOOGLE_VERIFY_TIMEOUT_MS = 10_000;
 
 // Enforce Google OAuth audience validation in production
 if (process.env.NODE_ENV === 'production' && GOOGLE_ALLOWED_AUDIENCES.length === 0) {
@@ -358,18 +359,31 @@ async function issueRefreshTokenForUser(userId: string, deviceInfo: string | nul
 async function verifyGoogleIdentityToken(idToken: string) {
   let ticket;
   try {
-    ticket = await googleOAuthClient.verifyIdToken({
-      idToken,
-      ...(GOOGLE_ALLOWED_AUDIENCES.length
-        ? {
-            audience:
-              GOOGLE_ALLOWED_AUDIENCES.length === 1
-                ? GOOGLE_ALLOWED_AUDIENCES[0]
-                : GOOGLE_ALLOWED_AUDIENCES,
-          }
-        : {}),
-    });
+    ticket = await Promise.race([
+      googleOAuthClient.verifyIdToken({
+        idToken,
+        ...(GOOGLE_ALLOWED_AUDIENCES.length
+          ? {
+              audience:
+                GOOGLE_ALLOWED_AUDIENCES.length === 1
+                  ? GOOGLE_ALLOWED_AUDIENCES[0]
+                  : GOOGLE_ALLOWED_AUDIENCES,
+            }
+          : {}),
+      }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(
+            new AppError(503, 'Google sign-in is temporarily unavailable', {
+              errorCode: 'GOOGLE_AUTH_TIMEOUT',
+              metadata: { timeout_ms: GOOGLE_VERIFY_TIMEOUT_MS },
+            })
+          );
+        }, GOOGLE_VERIFY_TIMEOUT_MS);
+      }),
+    ]);
   } catch (err: any) {
+    if (err instanceof AppError) throw err;
     const msg = String(err?.message || err);
     if (
       msg.includes('audience') ||

@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
-import { useColorScheme, useThemePreference } from '@/hooks/useCustomColorScheme';
+import { useCustomColorScheme, useThemePreference } from '@/hooks/useCustomColorScheme';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -98,7 +98,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(initiallyOpen);
-  const cs = useColorScheme();
+  const cs = useCustomColorScheme();
   const palette = Colors[cs ?? 'light'];
   return (
     <View style={[styles.card, { borderColor: palette.border, backgroundColor: palette.card }]}>
@@ -130,7 +130,7 @@ function NavRow({
   destructive?: boolean;
   isLast?: boolean;
 }) {
-  const cs = useColorScheme();
+  const cs = useCustomColorScheme();
   const palette = Colors[cs ?? 'light'];
   return (
     <Pressable
@@ -171,7 +171,7 @@ function SwitchRow({
   onValueChange: (v: boolean) => void;
   isLast?: boolean;
 }) {
-  const cs = useColorScheme();
+  const cs = useCustomColorScheme();
   const palette = Colors[cs ?? 'light'];
   return (
     <View
@@ -193,7 +193,7 @@ function SwitchRow({
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const colorScheme = useCustomColorScheme();
   const { themePreference, setThemePreference } = useThemePreference();
   const { user, checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();
   const obCtx = useOnboardingOptional();

@@ -111,6 +111,10 @@ export function useCustomColorScheme(): ActualColorScheme {
   return context.colorScheme;
 }
 
+// Backward-compatible alias for screens that still import `useColorScheme`
+// from this module after the hook was renamed.
+export const useColorScheme = useCustomColorScheme;
+
 export function useThemePreference() {
   const context = useContext(ThemeContext);
   if (context === undefined) {

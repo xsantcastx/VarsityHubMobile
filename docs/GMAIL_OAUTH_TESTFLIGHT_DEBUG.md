@@ -6,20 +6,20 @@ Gmail login fails in TestFlight builds but works in development. This is a commo
 ## Root Causes (Check These First)
 
 ### 1. iOS Bundle ID Mismatch
-**Current Bundle ID:** `com.xsantcastx.varsityhub` (from app.json)
+**Current Bundle ID:** `com.varsithub.varsityhub-ios` (from `app.json` / `app.config.js`)
 
 **Action Required:**
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Navigate to: APIs & Services → Credentials
 3. Find your OAuth 2.0 Client ID for iOS
-4. **VERIFY** the Bundle ID is EXACTLY: `com.xsantcastx.varsityhub`
+4. **VERIFY** the Bundle ID is EXACTLY: `com.varsithub.varsityhub-ios`
 5. Case-sensitive! Must match exactly.
 
 **Common Mistakes:**
-- ❌ Wrong bundle: `com.xsantcastx.VarsityHub` (capital V)
+- ❌ Wrong bundle: `com.varsithub.VarsityHub-ios` (capital V)
 - ❌ Wrong bundle: `com.example.varsityhub`
 - ❌ Missing iOS client ID entirely
-- ✅ Correct: `com.xsantcastx.varsityhub`
+- ✅ Correct: `com.varsithub.varsityhub-ios`
 
 ---
 
@@ -56,7 +56,8 @@ const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 **Required Redirect URIs for iOS:**
 ```
 varsityhubmobile://
-com.xsantcastx.varsityhub://
+com.varsithub.varsityhub-ios://
+com.googleusercontent.apps.514463516787-dm665i3u3a6un7eties8q73eik17vcs3:/oauthredirect
 ```
 
 **Where to Add:**
@@ -113,7 +114,8 @@ echo $GOOGLE_OAUTH_CLIENT_IDS
     <key>CFBundleURLSchemes</key>
     <array>
       <string>varsityhubmobile</string>
-      <string>com.xsantcastx.varsityhub</string>
+      <string>com.varsithub.varsityhub-ios</string>
+      <string>com.googleusercontent.apps.514463516787-dm665i3u3a6un7eties8q73eik17vcs3</string>
     </array>
   </dict>
 </array>
@@ -132,11 +134,12 @@ echo $GOOGLE_OAUTH_CLIENT_IDS
 ```bash
 # Checklist:
 ☐ iOS OAuth client exists
-☐ Bundle ID: com.xsanc tcastx.varsityhub (EXACT)
+☐ Bundle ID: com.varsithub.varsityhub-ios (EXACT)
 ☐ Client ID copied correctly
 ☐ Redirect URIs added:
   - varsityhubmobile://
-  - com.xsantcastx.varsityhub://
+  - com.varsithub.varsityhub-ios://
+  - com.googleusercontent.apps.514463516787-dm665i3u3a6un7eties8q73eik17vcs3:/oauthredirect
 ```
 
 ### Step 2: Update Environment Variables
