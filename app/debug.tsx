@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Redirect, Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -20,29 +21,64 @@ export default function DebugScreen() {
       <Stack.Screen options={{ title: 'Debug' }} />
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Quick Nav</Text>
       <View style={styles.row}>
-  <Button onPress={() => void router.push('/(tabs)')}><Text>Feed</Text></Button>
-  <Button onPress={() => void router.push('/(tabs)/discover')}><Text>Discover</Text></Button>
-  <Button onPress={() => void router.push('/profile')}><Text>Profile</Text></Button>
-  <Button onPress={() => void router.push('/messages')}><Text>Messages</Text></Button>
+        <Button onPress={() => void router.push('/(tabs)')}>
+          <Text>Feed</Text>
+        </Button>
+        <Button onPress={() => void router.push('/(tabs)/discover')}>
+          <Text>Discover</Text>
+        </Button>
+        <Button onPress={() => void router.push('/profile')}>
+          <Text>Profile</Text>
+        </Button>
+        <Button onPress={() => void router.push('/messages')}>
+          <Text>Messages</Text>
+        </Button>
       </View>
 
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Detail Deep Links</Text>
       <View style={styles.block}>
         <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Detail id</Text>
-        <Input placeholder="e.g. 123" value={eventId} onChangeText={setEventId} style={{ marginBottom: 8 }} />
-  <Button onPress={() => eventId && router.push(`/event-detail?id=${eventId}`)} disabled={!eventId}><Text>Open Event</Text></Button>
+        <Input
+          placeholder="e.g. 123"
+          value={eventId}
+          onChangeText={setEventId}
+          style={{ marginBottom: 8 }}
+        />
+        <Button
+          onPress={() => eventId && router.push(buildEventDetailRoute(eventId))}
+          disabled={!eventId}
+        >
+          <Text>Open Event</Text>
+        </Button>
       </View>
 
       <View style={styles.block}>
         <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Game Detail id</Text>
-        <Input placeholder="e.g. 456" value={gameId} onChangeText={setGameId} style={{ marginBottom: 8 }} />
-  <Button onPress={() => gameId && router.push({ pathname: '/game/[id]', params: { id: gameId } })} disabled={!gameId}><Text>Open Game</Text></Button>
+        <Input
+          placeholder="e.g. 456"
+          value={gameId}
+          onChangeText={setGameId}
+          style={{ marginBottom: 8 }}
+        />
+        <Button
+          onPress={() => gameId && router.push({ pathname: '/game/[id]', params: { id: gameId } })}
+          disabled={!gameId}
+        >
+          <Text>Open Game</Text>
+        </Button>
       </View>
 
       <View style={styles.block}>
         <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Ad Calendar adId</Text>
-        <Input placeholder="e.g. my-ad" value={adId} onChangeText={setAdId} style={{ marginBottom: 8 }} />
-  <Button onPress={() => void router.push(`/ad-calendar?adId=${encodeURIComponent(adId)}`)}><Text>Open Ad Calendar</Text></Button>
+        <Input
+          placeholder="e.g. my-ad"
+          value={adId}
+          onChangeText={setAdId}
+          style={{ marginBottom: 8 }}
+        />
+        <Button onPress={() => void router.push(`/ad-calendar?adId=${encodeURIComponent(adId)}`)}>
+          <Text>Open Ad Calendar</Text>
+        </Button>
       </View>
     </View>
   );

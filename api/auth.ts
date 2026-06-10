@@ -63,7 +63,10 @@ export async function clearStaleTokensOnFreshInstall(): Promise<FreshInstallClea
     clearAuthToken();
     invalidateMeCache();
     if (__DEV__) {
-      console.warn('[auth] Fresh install token cleanup failed; forcing signed-out bootstrap:', error);
+      console.warn(
+        '[auth] Fresh install token cleanup failed; forcing signed-out bootstrap:',
+        error
+      );
     }
     return { freshInstall: true, ok: false, error };
   }
@@ -243,9 +246,18 @@ export const auth = {
   },
   async register(email: string, password: string, display_name?: string) {
     invalidateMeCache();
-    // skipAuthRetry: auth-establishing endpoint — see login() for rationale.
+    // omitAuthToken: register must not inherit a stale bearer token from a
+    // previous session on the device. skipAuthRetry: auth-establishing
+    // endpoint — see login() for rationale.
     const res = parseAuthTokenResponse(
-      await httpPostLongTimeout('/auth/register', { email, password, display_name }, { skipAuthRetry: true })
+      await httpPostLongTimeout(
+        '/auth/register',
+        { email, password, display_name },
+        {
+          omitAuthToken: true,
+          skipAuthRetry: true,
+        }
+      )
     );
     if (res.access_token) await saveToken(res.access_token);
     if (res.refresh_token) await saveRefreshToken(res.refresh_token);
@@ -259,12 +271,21 @@ export const auth = {
     // future API contract drift) silently no-ops the token save and
     // returns whatever the response was, leaving the caller in a half-
     // signed-in state.
-    // skipAuthRetry: a stale access token in memory must NOT trigger the
-    // global 401-refresh path on a sign-in request. A wrong-password 401
-    // has to surface as itself, not get swallowed into refresh-token
-    // rotation when the device happens to be carrying a leftover token.
+    // omitAuthToken: /auth/login is establishing identity and must not send
+    // a stale bearer token from an earlier session. skipAuthRetry: a stale
+    // access token in memory must NOT trigger the global 401-refresh path on
+    // a sign-in request. A wrong-password 401 has to surface as itself, not
+    // get swallowed into refresh-token rotation when the device happens to be
+    // carrying a leftover token.
     const res = parseAuthTokenResponse(
-      await httpPost('/auth/login', { email, password }, { skipAuthRetry: true })
+      await httpPost(
+        '/auth/login',
+        { email, password },
+        {
+          omitAuthToken: true,
+          skipAuthRetry: true,
+        }
+      )
     );
     if (res.access_token) await saveToken(res.access_token);
     if (res.refresh_token) await saveRefreshToken(res.refresh_token);
@@ -272,11 +293,19 @@ export const auth = {
   },
   async loginWithGoogle(idToken: string) {
     invalidateMeCache();
-    // Google auth involves server-side token verification with Google — allow longer timeout.
-    // skipAuthRetry: same reason as login — auth-establishing endpoints must
-    // not be re-tried through the refresh machinery.
+    // Google auth involves server-side token verification with Google — allow
+    // longer timeout. omitAuthToken/skipAuthRetry: same reason as login —
+    // auth-establishing endpoints must not inherit stale bearer state or be
+    // re-tried through the refresh machinery.
     const res = parseAuthTokenResponse(
-      await httpPostLongTimeout('/auth/google', { id_token: idToken }, { skipAuthRetry: true })
+      await httpPostLongTimeout(
+        '/auth/google',
+        { id_token: idToken },
+        {
+          omitAuthToken: true,
+          skipAuthRetry: true,
+        }
+      )
     );
     if (res.access_token) await saveToken(res.access_token);
     if (res.refresh_token) await saveRefreshToken(res.refresh_token);
@@ -285,10 +314,18 @@ export const auth = {
   async loginWithApple(identityToken: string) {
     invalidateMeCache();
     // Apple auth can be slow on real devices; allow longer timeout.
-    // skipAuthRetry: same reason as login — auth-establishing endpoints must
-    // not be re-tried through the refresh machinery.
+    // omitAuthToken/skipAuthRetry: same reason as login — auth-establishing
+    // endpoints must not inherit stale bearer state or be re-tried through
+    // the refresh machinery.
     const res = parseAuthTokenResponse(
-      await httpPostLongTimeout('/auth/apple', { identity_token: identityToken }, { skipAuthRetry: true })
+      await httpPostLongTimeout(
+        '/auth/apple',
+        { identity_token: identityToken },
+        {
+          omitAuthToken: true,
+          skipAuthRetry: true,
+        }
+      )
     );
     if (res.access_token) await saveToken(res.access_token);
     if (res.refresh_token) await saveRefreshToken(res.refresh_token);
@@ -382,7 +419,14 @@ export const auth = {
 
     try {
       const response = parseAuthTokenResponse(
-        await httpPost('/auth/refresh', { refresh_token: stored }, { skipAuthRetry: true })
+        await httpPost(
+          '/auth/refresh',
+          { refresh_token: stored },
+          {
+            omitAuthToken: true,
+            skipAuthRetry: true,
+          }
+        )
       );
       const { access_token, refresh_token } = response;
       if (!access_token) {

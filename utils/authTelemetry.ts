@@ -1,4 +1,5 @@
 import { analytics } from '@/utils/analytics';
+import { markNextHistoryEntryAsRedirect } from '@/context/NavigationHistoryContext';
 import { captureBreadcrumb } from '@/utils/sentry';
 import type { Router } from 'expo-router';
 
@@ -57,5 +58,6 @@ export function logAuthRedirect(payload: AuthRedirectTelemetryPayload) {
 
 export function navigateWithAuthRedirect(router: Router, payload: AuthRedirectTelemetryPayload) {
   logAuthRedirect(payload);
+  markNextHistoryEntryAsRedirect();
   router.replace(payload.to as any);
 }

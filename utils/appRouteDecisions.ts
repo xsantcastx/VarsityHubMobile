@@ -2,14 +2,17 @@ import type { OnboardingState } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 import { isProceedingAsFanSnapshot } from './authState';
 import {
-    getCoachAccessState,
-    getCoachOrganizationId,
-    getPendingCoachRoute,
-    isCoachOnboardingComplete,
-    type CoachUserLike,
+  getCoachAccessState,
+  getCoachOrganizationId,
+  getPendingCoachRoute,
+  isCoachOnboardingComplete,
+  type CoachUserLike,
 } from './roleChecks';
 
 export type AppRoute =
+  // Server next_step sentinel for "onboarding done, go to app home". Routing
+  // code branches on it but never passes it to router.replace directly.
+  | '/(tabs)'
   | '/sign-in'
   | '/verify'
   | '/verify-email'
@@ -157,7 +160,9 @@ const COACH_AGREEMENT_ROUTE_BY_KIND: Record<CoachAgreementRouteKind, AppRoute> =
   team_hub: '/organization',
 };
 
-function resolveServerDirectedPostAuthKind(user: RoutingUserLike): ServerDirectedPostAuthRouteKind | null {
+function resolveServerDirectedPostAuthKind(
+  user: RoutingUserLike
+): ServerDirectedPostAuthRouteKind | null {
   const accountState = String(user.account_state || '').trim();
   const explicitNextStep =
     typeof user.next_step === 'string' && user.next_step.trim().startsWith('/')
@@ -195,7 +200,10 @@ function resolveServerDirectedPostAuthKind(user: RoutingUserLike): ServerDirecte
   }
 }
 
-function resolvePendingRouteKind(_route: string, baseKind: 'pending_coach_waiting' | 'approved_coach_finish_setup'): PostAuthRouteKind {
+function resolvePendingRouteKind(
+  _route: string,
+  baseKind: 'pending_coach_waiting' | 'approved_coach_finish_setup'
+): PostAuthRouteKind {
   return baseKind;
 }
 
@@ -239,7 +247,10 @@ export function getPostAuthRouteDecision(
   const coachAccess = getCoachAccessState(user);
   const needsOnboarding = !isCoachOnboardingComplete(user);
 
-  if ((coachAccess.isPendingCoach || coachAccess.isRejectedCoach) && !coachAccess.isProceedingAsFan) {
+  if (
+    (coachAccess.isPendingCoach || coachAccess.isRejectedCoach) &&
+    !coachAccess.isProceedingAsFan
+  ) {
     const route = getPendingCoachRoute(user) as AppRoute;
     return {
       kind: resolvePendingRouteKind(route, 'pending_coach_waiting'),
@@ -247,7 +258,10 @@ export function getPostAuthRouteDecision(
     };
   }
 
-  if ((coachAccess.isPendingCoach || coachAccess.isRejectedCoach) && coachAccess.isProceedingAsFan) {
+  if (
+    (coachAccess.isPendingCoach || coachAccess.isRejectedCoach) &&
+    coachAccess.isProceedingAsFan
+  ) {
     return { kind: 'app_home', route: POST_AUTH_ROUTE_BY_KIND.app_home };
   }
 
@@ -286,7 +300,10 @@ type OnboardingDraftSummary = {
   calculatedStepIndex: number;
 };
 
-function summarizeOnboardingDraft(user: RoutingUserLike, state: OnboardingState): OnboardingDraftSummary {
+function summarizeOnboardingDraft(
+  user: RoutingUserLike,
+  state: OnboardingState
+): OnboardingDraftSummary {
   const role = state?.role as 'fan' | 'coach' | undefined;
   const calculatedStepIndex = nextIncompleteStep(state, role);
   const serverComplete = isCoachOnboardingComplete(user);
@@ -346,9 +363,7 @@ export function getCoachAgreementRouteDecision(
   user: RoutingUserLike,
   redirect?: string | null
 ): CoachAgreementRouteDecision {
-  const organizationId = String(
-    getCoachOrganizationId(user) || ''
-  ).trim();
+  const organizationId = String(getCoachOrganizationId(user) || '').trim();
 
   if (!organizationId) {
     return {
@@ -374,7 +389,8 @@ export function getCoachAgreementRouteDecision(
 export function getRouteFamily(route: string): string {
   if (route.startsWith('/verify')) return 'verify';
   if (route.startsWith('/sign-')) return 'sign-in';
-  if (route.includes('manage-subscription') || route.includes('subscription-paywall')) return 'billing';
+  if (route.includes('manage-subscription') || route.includes('subscription-paywall'))
+    return 'billing';
   if (route.includes('coach-agreement')) return 'coach-agreement';
   if (route.includes('pending-approval')) return 'pending-approval';
   if (route.includes('coach-application')) return 'coach-application';

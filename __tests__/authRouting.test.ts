@@ -17,6 +17,21 @@ describe('resolveAuthRouting', () => {
     expect(result.redirectReason).toBe('unauthenticated_backend_unhealthy');
   });
 
+  it('redirects guests off the root splash to the guest home route', () => {
+    const result = resolveAuthRouting({
+      user: null,
+      pendingVerificationEmail: null,
+      firstSegment: '',
+      currentPath: '',
+      isPublic: false,
+      healthOk: true,
+      unauthenticatedEntryRoute: '/(tabs)/feed',
+    });
+
+    expect(result.redirectTo).toBe('/(tabs)/feed');
+    expect(result.redirectReason).toBe('root_index_guest');
+  });
+
   it('prefers the server next_step for pending application states', () => {
     const result = resolveAuthRouting({
       user: {
@@ -65,7 +80,7 @@ describe('resolveAuthRouting', () => {
 
     expect(result.redirectTo).toBeNull();
     expect(result.redirectReason).toBeNull();
-    expect(result.postAuthDecision?.route).toBe('/(tabs)');
+    expect(result.postAuthDecision?.route).toBe('/(tabs)/feed');
   });
 
   it('ignores stale rejected-application next_step when the user is proceeding as fan', () => {
@@ -92,7 +107,7 @@ describe('resolveAuthRouting', () => {
 
     expect(result.redirectTo).toBeNull();
     expect(result.redirectReason).toBeNull();
-    expect(result.postAuthDecision?.route).toBe('/(tabs)');
+    expect(result.postAuthDecision?.route).toBe('/(tabs)/feed');
   });
 
   it('ignores stale pending-approval next_step when an org-backed coach is proceeding as fan', () => {
@@ -120,7 +135,7 @@ describe('resolveAuthRouting', () => {
 
     expect(result.redirectTo).toBeNull();
     expect(result.redirectReason).toBeNull();
-    expect(result.postAuthDecision?.route).toBe('/(tabs)');
+    expect(result.postAuthDecision?.route).toBe('/(tabs)/feed');
   });
 
   it('flags approved coaches in fan mode for in-place restoration', () => {
@@ -170,7 +185,7 @@ describe('resolveAuthRouting', () => {
     expect(result.redirectTo).toBeNull();
   });
 
-  it('redirects authenticated users away from public auth screens to the app home route', () => {
+  it('redirects authenticated users away from auth entry screens to the app home route', () => {
     const result = resolveAuthRouting({
       user: {
         email_verified: true,
@@ -188,8 +203,52 @@ describe('resolveAuthRouting', () => {
       unauthenticatedEntryRoute: '/sign-in',
     });
 
-    expect(result.redirectTo).toBe('/(tabs)');
-    expect(result.redirectReason).toBe('public_route_authenticated');
+    expect(result.redirectTo).toBe('/(tabs)/feed');
+    expect(result.redirectReason).toBe('auth_entry_authenticated');
+  });
+
+  it('keeps authenticated users on guest-browseable event detail routes', () => {
+    const result = resolveAuthRouting({
+      user: {
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: {
+          role: 'fan',
+          onboarding_completed: true,
+        },
+      },
+      pendingVerificationEmail: null,
+      firstSegment: 'event-detail',
+      currentPath: 'event-detail',
+      isPublic: true,
+      healthOk: true,
+      unauthenticatedEntryRoute: '/sign-in',
+    });
+
+    expect(result.redirectTo).toBeNull();
+    expect(result.redirectReason).toBeNull();
+  });
+
+  it('redirects authenticated app-home users off the root splash to feed', () => {
+    const result = resolveAuthRouting({
+      user: {
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: {
+          role: 'fan',
+          onboarding_completed: true,
+        },
+      },
+      pendingVerificationEmail: null,
+      firstSegment: '',
+      currentPath: '',
+      isPublic: false,
+      healthOk: true,
+      unauthenticatedEntryRoute: '/sign-in',
+    });
+
+    expect(result.redirectTo).toBe('/(tabs)/feed');
+    expect(result.redirectReason).toBe('root_index_authenticated');
   });
 
   it('redirects already-onboarded users off onboarding routes even when preferences are stale', () => {
@@ -211,7 +270,7 @@ describe('resolveAuthRouting', () => {
     });
 
     expect(result.needsOnboarding).toBe(false);
-    expect(result.redirectTo).toBe('/(tabs)');
+    expect(result.redirectTo).toBe('/(tabs)/feed');
     expect(result.redirectReason).toBe('onboarding_complete');
   });
 });

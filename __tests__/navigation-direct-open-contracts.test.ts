@@ -23,12 +23,14 @@ describe('direct-open navigation contracts', () => {
     expect(teamContacts).toContain('`/team-contacts?id=${encodeURIComponent(String(id))}`');
   });
 
-  it('request-join-organization returns to the originating organization detail when opened from that page', () => {
+  it('request-join-organization (deep-link only — in-app entry buttons removed) falls back to the organization detail', () => {
     expect(requestJoinOrganization).toContain('fallback?: string');
-    expect(requestJoinOrganization).toContain("`/organizations/${encodeURIComponent(params.orgId)}`");
-    expect(requestJoinOrganization).toContain("safeGoBack(router, explicitFallback)");
-    expect(organizationDetail).toContain("pathname: '/request-join-organization'");
-    expect(organizationDetail).toContain("fallback: `/organizations/${encodeURIComponent(org.id)}`");
+    expect(requestJoinOrganization).toContain(
+      '`/organizations/${encodeURIComponent(params.orgId)}`'
+    );
+    expect(requestJoinOrganization).toContain('safeGoBack(router, explicitFallback)');
+    // Request to Join buttons were removed from team/org profile screens by design
+    expect(organizationDetail).not.toContain("pathname: '/request-join-organization'");
   });
 
   it('post-detail uses explicit fallback for direct highlights entry while still delegating to shared safe back', () => {

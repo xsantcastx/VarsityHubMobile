@@ -145,20 +145,20 @@ const ROUTE_MAP: Record<string, string> = {
   // Auth-related routes
   'reset-password': '/reset-password',
   'verify-email': '/verify',
-  'verify': '/verify',
+  verify: '/verify',
   // Onboarding continuation (after coach approval)
-  'onboarding': '/onboarding',
-  'approvals': '/organization',
+  onboarding: '/onboarding',
+  approvals: '/organization',
   'admin-dashboard': '/admin-dashboard',
   'admin-ads': '/admin-ads',
   'event-approvals': '/event-approvals',
-  'organization': '/organization',
+  organization: '/organization',
   'organization-join-requests': '/organization-join-requests',
   'organization-invites': '/organization-invites',
   'team-hub': '/organization',
   'create-fan-event': '/create-fan-event',
   'event-detail': '/event-detail',
-  'settings': '/settings',
+  settings: '/settings',
   'manage-subscription': '/settings/manage-subscription',
   // Multi-segment routes without a resource ID (e.g., billing emails link to /settings/manage-subscription directly)
   'settings/manage-subscription': '/settings/manage-subscription',
@@ -202,31 +202,50 @@ const DEFAULT_ROUTE_PARAMS: Record<string, Record<string, string>> = {
 // Generic resource routes (post, game, event, team, profile…) accept 'id' and UTM params by default.
 const ROUTE_PARAM_ALLOWLIST: Record<string, Set<string>> = {
   'reset-password': new Set(['email', 'code']),
-  'verify-email':   new Set(['token', 'email']),
-  'verify':         new Set(['token', 'email']),
+  'verify-email': new Set(['token', 'email']),
+  verify: new Set(['token', 'email']),
   'payment-success': new Set(['session_id', 'type', 'adId']),
-  'payment-cancel':  new Set(['session_id', 'type']),
+  'payment-cancel': new Set(['session_id', 'type']),
   'organization-invites': new Set(['token', 'orgId', 'email']),
-  'team-invites':         new Set(['token', 'teamId', 'email']),
-  // Admin/management screens — no arbitrary params accepted from deep links
-  'admin-dashboard':           new Set(['coach_id', 'action']),
-  'admin-ads':                 new Set(),
-  'event-approvals':           new Set(['eventId']),
-  'approvals':                 new Set(),
-  'organization-join-requests': new Set(['orgId']),
-  'organization':              new Set(['orgId']),
-  'onboarding':                new Set(['step']),
-  'settings':                  new Set(),
+  'team-invites': new Set(['token', 'teamId', 'email']),
+  // Admin/management screens — only the params their review flows consume.
+  // These keys arrive via approval emails (publicAppHandoff routes); dropping
+  // them breaks email-driven review, so keep in sync with each screen's
+  // useLocalSearchParams usage and __tests__/deepLinks.test.ts.
+  'admin-dashboard': new Set(['coach_id', 'action', 'review', 'league_id']),
+  'admin-ads': new Set(['ad_id', 'action']),
+  'event-approvals': new Set(['eventId', 'event_id', 'review_kind', 'action']),
+  approvals: new Set(),
+  'organization-join-requests': new Set([
+    'orgId',
+    'organization_id',
+    'organization_name',
+    'request_id',
+    'action',
+  ]),
+  organization: new Set(['orgId']),
+  onboarding: new Set(['step']),
+  settings: new Set(),
   'settings/manage-subscription': new Set(),
-  'create-fan-event':          new Set(),
-  'team-hub':                  new Set(),
-  'manage-subscription':       new Set(),
+  'create-fan-event': new Set(),
+  'team-hub': new Set(),
+  'manage-subscription': new Set(),
 };
 
 // Param keys accepted on all routes (resource ID + analytics)
-const UNIVERSAL_ALLOWED_PARAMS = new Set(['id', 'utm_source', 'utm_medium', 'utm_campaign', 'tab', 'ref']);
+const UNIVERSAL_ALLOWED_PARAMS = new Set([
+  'id',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'tab',
+  'ref',
+]);
 
-function buildRouteParams(type: string, queryParams: Record<string, unknown>): Record<string, string> {
+function buildRouteParams(
+  type: string,
+  queryParams: Record<string, unknown>
+): Record<string, string> {
   const params: Record<string, string> = {
     ...(DEFAULT_ROUTE_PARAMS[type] || {}),
   };
@@ -279,7 +298,7 @@ function getParsedDeepLinkHref(parsed: ParsedDeepLink): string {
 function resolveWholePathRoute(
   pathParts: string[],
   queryParams: Record<string, unknown>,
-  source: ParsedDeepLink['source'],
+  source: ParsedDeepLink['source']
 ): ParsedDeepLink | null {
   const wholePathKey = pathParts.join('/');
   const screen = ROUTE_MAP[wholePathKey];
@@ -302,7 +321,7 @@ function resolveResourceRoute(
     warnOnExactMatch?: boolean;
     warnOnUnknownType?: boolean;
     warnOnInvalidId?: boolean;
-  } = {},
+  } = {}
 ): ParsedDeepLink | null {
   let type: string;
   let id: string;
@@ -348,24 +367,24 @@ function resolveResourceRoute(
 export function parseDeepLink(url: string): ParsedDeepLink | null {
   try {
     const parsed = Linking.parse(url);
-    
+
     // Handle app scheme links (varsityhub://post/123)
     if (parsed.scheme === APP_SCHEME) {
       return parseSchemeLink(parsed);
     }
-    
+
     // Handle universal links (https://varsityhub.app/share?...)
     if (parsed.scheme === 'https' || parsed.scheme === 'http') {
       if (parsed.hostname && WEB_DOMAINS.includes(parsed.hostname)) {
         return parseUniversalLink(parsed);
       }
     }
-    
+
     // Try parsing as relative path
     if (parsed.path) {
       return parsePathLink(parsed);
     }
-    
+
     deepLinkWarn('[DeepLinks] Unable to parse URL:', url);
     return null;
   } catch (error) {
@@ -414,17 +433,17 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
  */
 function parseUniversalLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   const queryParams = parsed.queryParams || {};
-  
+
   // Handle /share endpoint
   if (parsed.path?.startsWith('/share')) {
     const type = queryParams.type as string;
     const id = queryParams.id as string;
-    
+
     if (!type || !id) {
       deepLinkWarn('[DeepLinks] Missing type or id in share link');
       return null;
     }
-    
+
     const screen = ROUTE_MAP[type];
     if (!screen) {
       deepLinkWarn('[DeepLinks] Unknown content type:', type);
@@ -434,7 +453,7 @@ function parseUniversalLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
       deepLinkWarn('[DeepLinks] Invalid ID format in share link:', type);
       return null;
     }
-    
+
     // Extract UTM parameters
     const utmParams: Record<string, string> = {};
     for (const [key, value] of Object.entries(queryParams)) {
@@ -442,7 +461,7 @@ function parseUniversalLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
         utmParams[key] = value;
       }
     }
-    
+
     return {
       screen,
       params: { id },
@@ -450,7 +469,7 @@ function parseUniversalLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
       utmParams: Object.keys(utmParams).length > 0 ? utmParams : undefined,
     };
   }
-  
+
   // Handle direct path links (/post/123, /game/456, etc.)
   const pathLink = parsePathLink(parsed);
   return pathLink ? { ...pathLink, source: 'universal' } : null;
@@ -482,7 +501,9 @@ function parsePathLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   }
 
   const source = parsed.scheme === 'https' || parsed.scheme === 'http' ? 'universal' : 'unknown';
-  return resolveWholePathRoute(pathParts, queryParams, source) || resolveResourceRoute(pathParts, source);
+  return (
+    resolveWholePathRoute(pathParts, queryParams, source) || resolveResourceRoute(pathParts, source)
+  );
 }
 
 /**
@@ -553,14 +574,14 @@ export function setupDeepLinkListener(
   const subscription = Linking.addEventListener('url', ({ url }) => {
     deepLinkLog('[DeepLinks] Received URL while app is open:', url);
     const parsed = parseDeepLink(url);
-    
+
     if (onLink) {
       onLink(url, parsed);
     } else {
       handleDeepLink(url);
     }
   });
-  
+
   return () => {
     subscription.remove();
   };
@@ -574,11 +595,11 @@ export async function handleInitialDeepLink(
 ): Promise<boolean> {
   try {
     const url = await Linking.getInitialURL();
-    
+
     if (url) {
       deepLinkLog('[DeepLinks] App launched with URL:', url);
       const parsed = parseDeepLink(url);
-      
+
       if (onLink) {
         onLink(url, parsed);
         return true;
@@ -586,7 +607,7 @@ export async function handleInitialDeepLink(
         return handleDeepLink(url);
       }
     }
-    
+
     return false;
   } catch (error) {
     deepLinkError('[DeepLinks] Error getting initial URL:', error);
@@ -608,17 +629,15 @@ export function isValidDeepLink(url: string): boolean {
 export function getContentTypeFromUrl(url: string): string | null {
   const parsed = parseDeepLink(url);
   if (!parsed) return null;
-  
+
   // Reverse lookup the type from the screen path
   for (const [type, screen] of Object.entries(ROUTE_MAP)) {
     if (screen === parsed.screen) {
       return type;
     }
   }
-  
+
   return null;
 }
 
-export {
-    APP_SCHEME, ROUTE_MAP, WEB_DOMAINS, type ParsedDeepLink
-};
+export { APP_SCHEME, ROUTE_MAP, WEB_DOMAINS, type ParsedDeepLink };

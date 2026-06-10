@@ -558,7 +558,7 @@ export default function SettingsScreen() {
           headerLeft: () => (
             <Pressable
               onPress={() => {
-                safeGoBack(router, '/(tabs)');
+                safeGoBack(router);
               }}
               hitSlop={12}
               style={{ marginRight: 8 }}
@@ -1083,15 +1083,14 @@ export default function SettingsScreen() {
                             }
                             setPlan((prefs.plan as string | null) ?? 'rookie');
                             if (nextRoute && nextRoute !== '/(tabs)') {
+                              // nav-safe: settings → resume server-directed onboarding step
                               router.replace(nextRoute as any);
                               return;
                             }
-                            router.replace(
-                              // nav-safe: settings → resume coach onboarding flow
-                              hasCompletedBasicStep
-                                ? ('/onboarding/coach-application' as any)
-                                : '/onboarding/step-2-basic'
-                            );
+                            const resumeRoute = hasCompletedBasicStep
+                              ? '/onboarding/coach-application'
+                              : '/onboarding/step-2-basic';
+                            router.replace(resumeRoute as any); // nav-safe: settings → resume coach onboarding flow
                           } catch (routeErr) {
                             captureException(
                               routeErr instanceof Error ? routeErr : new Error(String(routeErr)),

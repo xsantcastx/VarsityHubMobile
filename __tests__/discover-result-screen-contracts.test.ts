@@ -14,6 +14,9 @@ const eventDetailScreen = read('app/(tabs)/event-detail.tsx');
 
 describe('discover result screen contracts', () => {
   it('discover result taps route to the canonical user, team, organization, game, and event screens', () => {
+    expect(discoverScreen).toContain(
+      "import { buildEventDetailRoute } from '@/utils/eventRoutes';"
+    );
     expect(discoverScreen).toContain('void router.push(`/user-profile?id=${u.id}`);');
     expect(discoverScreen).toContain('void router.push(`/team-page?id=${t.id}`);');
     expect(discoverScreen).toMatch(
@@ -22,9 +25,7 @@ describe('discover result screen contracts', () => {
     expect(discoverScreen).toContain(
       "void router.push({ pathname: '/game/[id]', params: { id: String(game.id) } });"
     );
-    expect(discoverScreen).toMatch(
-      /void router\.push\(\{\s*pathname: '\/event-detail',\s*params: \{ id: String\(event\.id\) \},\s*\}\);/
-    );
+    expect(discoverScreen).toContain('void router.push(buildEventDetailRoute(event.id));');
   });
 
   it('profile screen fails closed with retryable error states instead of a permanent loading spinner', () => {

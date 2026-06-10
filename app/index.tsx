@@ -1,10 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 
 /**
@@ -18,30 +15,8 @@ import { ActivityIndicator, Platform, View } from 'react-native';
  * 4. Route to tabs (authenticated)
  */
 export default function Index() {
-  const router = useRouter();
-  const { user, pendingVerificationEmail, loading } = useAuth();
+  useAuth();
   const colorScheme = useColorScheme() ?? 'light';
-
-  // Root-screen failsafe: if the centralized AuthProvider redirect misses during
-  // a cold start, do not let users sit on the spinner forever.
-  useEffect(() => {
-    if (loading) return;
-
-    if (pendingVerificationEmail) {
-      router.replace('/verify' as any);
-      return;
-    }
-
-    if (!user) {
-      router.replace('/(tabs)/feed' as any);
-      return;
-    }
-
-    const decision = getPostAuthRouteDecision(user, {
-      pendingVerification: false,
-    });
-    router.replace(decision.route as any);
-  }, [loading, pendingVerificationEmail, router, user]);
 
   if (Platform.OS === 'web') {
     return null;

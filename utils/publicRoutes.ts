@@ -1,6 +1,6 @@
 export const GUEST_HOME_ROUTE = '/(tabs)/feed' as const;
 
-const AUTH_PUBLIC_ROUTE_SEGMENTS = [
+export const AUTH_PUBLIC_ROUTE_SEGMENTS = [
   'sign-in',
   'sign-up',
   'verify-email',
@@ -13,7 +13,15 @@ const AUTH_PUBLIC_ROUTE_SEGMENTS = [
   'payment-cancel',
 ] as const;
 
-const GUEST_BROWSE_ROUTE_SEGMENTS = [
+export const AUTH_ENTRY_ROUTE_SEGMENTS = [
+  'sign-in',
+  'sign-up',
+  'forgot-password',
+  'reset-password',
+  'reset',
+] as const;
+
+export const GUEST_BROWSE_ROUTE_SEGMENTS = [
   'create',
   'feed',
   'highlights',
@@ -36,7 +44,14 @@ export const PUBLIC_ROUTE_SEGMENTS = new Set<string>([
   ...GUEST_BROWSE_ROUTE_SEGMENTS,
 ]);
 
+const AUTH_ENTRY_ROUTE_SEGMENT_SET = new Set<string>(AUTH_ENTRY_ROUTE_SEGMENTS);
+
 export function isPublicRouteSegment(segment: string | null | undefined): boolean {
   if (!segment) return false;
   return PUBLIC_ROUTE_SEGMENTS.has(String(segment));
+}
+
+export function isAuthEntryRouteSegment(segment: string | null | undefined): boolean {
+  if (!segment) return false;
+  return AUTH_ENTRY_ROUTE_SEGMENT_SET.has(String(segment));
 }

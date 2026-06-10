@@ -8,11 +8,8 @@ import {
   type AppRoute,
   type PostAuthRouteDecision,
 } from './appRouteDecisions';
-import {
-  getCoachAccessState,
-  type CoachAccessState,
-  type CoachUserLike,
-} from './roleChecks';
+import { getCoachAccessState, type CoachAccessState, type CoachUserLike } from './roleChecks';
+import { isAuthEntryRouteSegment } from './publicRoutes';
 
 export type AuthRoutingUserLike = CoachUserLike & {
   email_verified?: boolean | null;
@@ -39,6 +36,7 @@ export function resolveAuthRouting(input: {
   unauthenticatedEntryRoute: string;
 }): AuthRoutingResolution {
   const defaultCoachAccess = getCoachAccessState(input.user);
+  const isRootIndex = input.currentPath === '';
   const defaultResolution: AuthRoutingResolution = {
     coachAccess: defaultCoachAccess,
     postAuthDecision: null,
@@ -55,6 +53,14 @@ export function resolveAuthRouting(input: {
         ...defaultResolution,
         redirectTo: input.unauthenticatedEntryRoute,
         redirectReason: 'unauthenticated_backend_unhealthy',
+      };
+    }
+
+    if (!input.pendingVerificationEmail && isRootIndex) {
+      return {
+        ...defaultResolution,
+        redirectTo: input.unauthenticatedEntryRoute,
+        redirectReason: 'root_index_guest',
       };
     }
 
@@ -150,7 +156,10 @@ export function resolveAuthRouting(input: {
     };
   }
 
-  if (postAuthDecision.kind === 'generic_onboarding_required' && input.firstSegment !== 'onboarding') {
+  if (
+    postAuthDecision.kind === 'generic_onboarding_required' &&
+    input.firstSegment !== 'onboarding'
+  ) {
     return {
       coachAccess,
       postAuthDecision,
@@ -180,17 +189,28 @@ export function resolveAuthRouting(input: {
     };
   }
 
+  if (isRootIndex && postAuthDecision.kind === 'app_home') {
+    return {
+      coachAccess,
+      postAuthDecision,
+      redirectTo: postAuthDecision.route,
+      redirectReason: 'root_index_authenticated',
+      shouldFlushDeferredDeepLink: false,
+      shouldRestoreApprovedCoachRole,
+      needsOnboarding,
+    };
+  }
+
   if (
-    input.isPublic &&
+    isAuthEntryRouteSegment(input.firstSegment) &&
     postAuthDecision.kind === 'app_home' &&
-    input.firstSegment !== 'verify-email' &&
     !isPaymentRedirectScreen
   ) {
     return {
       coachAccess,
       postAuthDecision,
       redirectTo: postAuthDecision.route,
-      redirectReason: 'public_route_authenticated',
+      redirectReason: 'auth_entry_authenticated',
       shouldFlushDeferredDeepLink: false,
       shouldRestoreApprovedCoachRole,
       needsOnboarding,

@@ -179,11 +179,11 @@ describe('coach/org navigation contracts', () => {
     expect(mobileCommunity).toContain("pathname: '/event-approvals'");
     expect(mobileCommunity).toContain("fallback: '/(tabs)/discover'");
     expect(editEvent).toContain('fallback');
-    expect(editEvent).toContain('`/event-detail?id=${encodeURIComponent(String(id))}`');
+    expect(editEvent).toContain("import { buildEventDetailHref } from '@/utils/eventRoutes';");
+    expect(editEvent).toContain('buildEventDetailHref(String(id))');
     expect(eventDetail).toContain("pathname: '/edit-event'");
-    expect(eventDetail).toContain(
-      'fallback: `/event-detail?id=${encodeURIComponent(String(event.id))}`'
-    );
+    expect(eventDetail).toContain("import { buildEventDetailHref } from '@/utils/eventRoutes';");
+    expect(eventDetail).toContain('fallback: buildEventDetailHref(String(event.id))');
   });
 
   it('organization members tooling exposes the authorized-user invite path and pending invite state', () => {

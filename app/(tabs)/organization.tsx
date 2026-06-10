@@ -5,7 +5,6 @@ import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { getCanonicalOrganizationId } from '@/utils/authState';
 import { goBackToTrackedRoute } from '@/utils/navigation';
-import { getCoachAccessState } from '@/utils/roleChecks';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
@@ -108,7 +107,6 @@ export default function OrganizationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [isOrgOwner, setIsOrgOwner] = useState(false);
-  const [isOrgMember, setIsOrgMember] = useState(false);
   const [canReviewCoachRequests, setCanReviewCoachRequests] = useState(false);
   const [pendingCoachCount, setPendingCoachCount] = useState(0);
   const [pendingCoachError, setPendingCoachError] = useState(false);
@@ -116,7 +114,6 @@ export default function OrganizationScreen() {
   const [pendingAuthorizedInvites, setPendingAuthorizedInvites] = useState<AuthorizedInvite[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
-  const [isRequestingJoin, setIsRequestingJoin] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
 
@@ -126,9 +123,6 @@ export default function OrganizationScreen() {
       mounted.current = false;
     };
   }, []);
-  const coachAccess = getCoachAccessState(user as any);
-  const canRequestToJoin =
-    coachAccess.isCoach && !coachAccess.isProceedingAsFan && user?.is_admin !== true;
 
   const loadOrganization = useCallback(async () => {
     if (!mounted.current || !user) return;
@@ -197,11 +191,9 @@ export default function OrganizationScreen() {
       const adminAccess = (orgData as any)?.can_manage === true || ownerAccess;
       const reviewCoachAccess =
         (orgData as any)?.can_review_coaches === true || (orgData as any)?.is_owner === true;
-      const memberAccess = adminAccess || (orgData as any)?.is_member === true;
       if (mounted.current) {
         setIsOrgAdmin(adminAccess);
         setIsOrgOwner(ownerAccess);
-        setIsOrgMember(memberAccess);
         setCanReviewCoachRequests(reviewCoachAccess);
       }
       if (adminAccess) {
@@ -624,47 +616,6 @@ export default function OrganizationScreen() {
                   {isFollowing ? 'Following' : 'Follow'}
                 </Text>
               </Pressable>
-
-              {!isOrgMember && canRequestToJoin && (
-                <Pressable
-                  style={[
-                    styles.actionBtn,
-                    {
-                      flex: 1,
-                      backgroundColor: 'transparent',
-                      borderColor: theme.border,
-                      borderWidth: 1,
-                    },
-                  ]}
-                  disabled={isRequestingJoin}
-                  onPress={async () => {
-                    if (!organization?.id) return;
-                    setIsRequestingJoin(true);
-                    try {
-                      await Organization.requestToJoin(organization.id);
-                      Alert.alert(
-                        'Request Sent',
-                        'Your request to join this organization has been submitted.'
-                      );
-                    } catch (err: any) {
-                      Alert.alert('Error', err?.message || 'Failed to send join request.');
-                    } finally {
-                      setIsRequestingJoin(false);
-                    }
-                  }}
-                >
-                  {isRequestingJoin ? (
-                    <ActivityIndicator size="small" color={theme.text} />
-                  ) : (
-                    <>
-                      <Ionicons name="person-add-outline" size={16} color={theme.text} />
-                      <Text style={[styles.actionBtnText, { color: theme.text }]}>
-                        Request to Join
-                      </Text>
-                    </>
-                  )}
-                </Pressable>
-              )}
             </>
           )}
         </View>

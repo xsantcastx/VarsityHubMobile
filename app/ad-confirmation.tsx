@@ -308,7 +308,7 @@ function AdConfirmationScreen() {
                   },
                 ]}
                 onPress={() => {
-                  safeGoBack(router, '/(tabs)');
+                  safeGoBack(router, '/(tabs)/feed');
                 }}
               >
                 <MaterialIcons name="home" size={20} color={theme.text} />

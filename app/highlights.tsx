@@ -12,29 +12,35 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Platform,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    Share,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Keyboard,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Share,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 let VideoThumbnails: any = null;
-try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
+try {
+  VideoThumbnails = require('expo-video-thumbnails');
+} catch {
+  /* native module not available */
+}
 // @ts-ignore legacy export shape
 import { Event, Highlights, Organization, Post, Team, User } from '@/api/entities';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
+import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { getCloudinaryVideoPreviewUrl } from '@/utils/media';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
@@ -57,15 +63,19 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
     upvotes_count: typeof input.upvotes_count === 'number' ? input.upvotes_count : undefined,
     created_at: typeof input.created_at === 'string' ? input.created_at : new Date().toISOString(),
     author_id: String(authorId),
-    author: input.author ? {
-      id: String(input.author.id || authorId),
-      username: input.author.username || undefined,
-      display_name: String(input.author.display_name || 'Anonymous'),
-      avatar_url: input.author.avatar_url || undefined,
-    } : undefined,
-    _count: input._count ? {
-      comments: typeof input._count.comments === 'number' ? input._count.comments : 0
-    } : undefined,
+    author: input.author
+      ? {
+          id: String(input.author.id || authorId),
+          username: input.author.username || undefined,
+          display_name: String(input.author.display_name || 'Anonymous'),
+          avatar_url: input.author.avatar_url || undefined,
+        }
+      : undefined,
+    _count: input._count
+      ? {
+          comments: typeof input._count.comments === 'number' ? input._count.comments : 0,
+        }
+      : undefined,
     lat: typeof input.lat === 'number' ? input.lat : undefined,
     lng: typeof input.lng === 'number' ? input.lng : undefined,
     country_code: typeof input.country_code === 'string' ? input.country_code : undefined,
@@ -74,20 +84,23 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
   };
 };
 
-
 const getSportCategory = (sport?: string, title?: string | null, content?: string | null) => {
   // First, check if sport is explicitly provided from backend
   if (sport) {
     const sportLower = sport.toLowerCase();
     if (sportLower.includes('football')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
-    if (sportLower.includes('basketball')) return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
+    if (sportLower.includes('basketball'))
+      return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
     if (sportLower.includes('baseball')) return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
     if (sportLower.includes('soccer')) return { name: 'Soccer', icon: '⚽', color: '#4169E1' };
     if (sportLower.includes('hockey')) return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
     if (sportLower.includes('tennis')) return { name: 'Tennis', icon: '🎾', color: '#228B22' };
-    if (sportLower.includes('volleyball')) return { name: 'Volleyball', icon: '🏐', color: '#FF1744' };
-    if (sportLower.includes('wrestling')) return { name: 'Wrestling', icon: '🤼', color: '#7B1FA2' };
-    if (sportLower.includes('track')) return { name: 'Track & Field', icon: '🏃', color: '#FF9800' };
+    if (sportLower.includes('volleyball'))
+      return { name: 'Volleyball', icon: '🏐', color: '#FF1744' };
+    if (sportLower.includes('wrestling'))
+      return { name: 'Wrestling', icon: '🤼', color: '#7B1FA2' };
+    if (sportLower.includes('track'))
+      return { name: 'Track & Field', icon: '🏃', color: '#FF9800' };
     if (sportLower.includes('swimming')) return { name: 'Swimming', icon: '🏊', color: '#0288D1' };
     if (sportLower.includes('golf')) return { name: 'Golf', icon: '⛳', color: '#558B2F' };
     if (sportLower.includes('lacrosse')) return { name: 'Lacrosse', icon: '🥍', color: '#D32F2F' };
@@ -97,11 +110,16 @@ const getSportCategory = (sport?: string, title?: string | null, content?: strin
 
   // Fallback: Parse from title/content
   const text = ((title || '') + ' ' + (content || '')).toLowerCase();
-  if (text.includes('football') || text.includes('nfl')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
-  if (text.includes('basketball') || text.includes('nba')) return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
-  if (text.includes('baseball') || text.includes('mlb')) return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
-  if (text.includes('soccer') || text.includes('fifa')) return { name: 'Soccer', icon: '⚽', color: '#4169E1' };
-  if (text.includes('hockey') || text.includes('nhl')) return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
+  if (text.includes('football') || text.includes('nfl'))
+    return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
+  if (text.includes('basketball') || text.includes('nba'))
+    return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
+  if (text.includes('baseball') || text.includes('mlb'))
+    return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
+  if (text.includes('soccer') || text.includes('fifa'))
+    return { name: 'Soccer', icon: '⚽', color: '#4169E1' };
+  if (text.includes('hockey') || text.includes('nhl'))
+    return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
   if (text.includes('tennis')) return { name: 'Tennis', icon: '🎾', color: '#228B22' };
   if (text.includes('volleyball')) return { name: 'Volleyball', icon: '🏐', color: '#FF1744' };
   if (text.includes('wrestling')) return { name: 'Wrestling', icon: '🤼', color: '#7B1FA2' };
@@ -126,9 +144,13 @@ const VideoThumbnailImage = ({ videoUrl, style }: { videoUrl: string; style: any
           if (!cancelled && result?.uri) setThumbUri(result.uri);
           else if (!cancelled) setFailed(true);
         })
-        .catch(() => { if (!cancelled) setFailed(true); });
+        .catch(() => {
+          if (!cancelled) setFailed(true);
+        });
     }
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [videoUrl, failed]);
 
   if (thumbUri) {
@@ -136,8 +158,20 @@ const VideoThumbnailImage = ({ videoUrl, style }: { videoUrl: string; style: any
   }
   // Fallback: dark gradient with prominent play icon — never a blank card
   return (
-    <LinearGradient colors={['#1e293b', '#0f172a']} style={[style, { alignItems: 'center', justifyContent: 'center' }]}>
-      <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
+    <LinearGradient
+      colors={['#1e293b', '#0f172a']}
+      style={[style, { alignItems: 'center', justifyContent: 'center' }]}
+    >
+      <View
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: 26,
+          backgroundColor: 'rgba(255,255,255,0.15)',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <Ionicons name="play" size={28} color="#fff" style={{ marginLeft: 3 }} />
       </View>
       <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 6, fontWeight: '600' }}>Video</Text>
@@ -145,8 +179,8 @@ const VideoThumbnailImage = ({ videoUrl, style }: { videoUrl: string; style: any
   );
 };
 
-const HighlightCard = ({ 
-  item, 
+const HighlightCard = ({
+  item,
   index = 0,
   currentTab = 'trending',
   nationalTop = [],
@@ -155,9 +189,9 @@ const HighlightCard = ({
   onPress,
   onAuthorPress,
   colorScheme,
-  onUpvote
-}: { 
-  item: HighlightItem; 
+  onUpvote,
+}: {
+  item: HighlightItem;
   index?: number;
   currentTab?: string;
   nationalTop?: HighlightItem[];
@@ -173,27 +207,43 @@ const HighlightCard = ({
   const hasMedia = !!item.media_url;
   const previewUrl =
     item.preview_url || getCloudinaryVideoPreviewUrl(item.media_url || null) || undefined;
-  
+
   // Calculate ranking for this item
   const _ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
-  
+
   // Show numbered ranking for Trending (top 3) and Top (1-10)
-  const showNumberedRank = (currentTab === 'trending' && index < 3) || (currentTab === 'top' && index < 10);
+  const showNumberedRank =
+    (currentTab === 'trending' && index < 3) || (currentTab === 'top' && index < 10);
   const rankNumber = index + 1;
-  
+
   return (
-    <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => onPress(item)}>
+    <Pressable
+      style={[
+        styles.card,
+        { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+      ]}
+      onPress={() => onPress(item)}
+    >
       <View style={styles.cardContainer}>
         {/* Media Section */}
         <View style={styles.mediaSection}>
           {/* Numbered Ranking Badge for Top 3 (Trending) or Top 10 - positioned relative to media */}
           {showNumberedRank && (
-            <View style={[
-              styles.numberBadge, 
-              { 
-                backgroundColor: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#2563EB'
-              }
-            ]}>
+            <View
+              style={[
+                styles.numberBadge,
+                {
+                  backgroundColor:
+                    index === 0
+                      ? '#FFD700'
+                      : index === 1
+                        ? '#C0C0C0'
+                        : index === 2
+                          ? '#CD7F32'
+                          : '#2563EB',
+                },
+              ]}
+            >
               <Text style={styles.numberBadgeText}>#{rankNumber}</Text>
             </View>
           )}
@@ -226,15 +276,17 @@ const HighlightCard = ({
                 </View>
               )}
               {/* "NEW" badge for very recent posts (< 10 minutes) — rank badge takes priority */}
-              {!showNumberedRank && item.created_at && new Date(item.created_at).getTime() > Date.now() - 600000 && (
-                <View style={[styles.liveBadge, { backgroundColor: '#3b82f6' }]}>
-                  <Text style={styles.liveText}>NEW</Text>
-                </View>
-              )}
+              {!showNumberedRank &&
+                item.created_at &&
+                new Date(item.created_at).getTime() > Date.now() - 600000 && (
+                  <View style={[styles.liveBadge, { backgroundColor: '#3b82f6' }]}>
+                    <Text style={styles.liveText}>NEW</Text>
+                  </View>
+                )}
             </View>
           ) : (
-            <LinearGradient 
-              colors={[category.color + '80', category.color + '40']} 
+            <LinearGradient
+              colors={[category.color + '80', category.color + '40']}
               style={styles.mediaContainer}
             >
               <View style={styles.noMediaContent}>
@@ -261,9 +313,9 @@ const HighlightCard = ({
           </Text>
 
           {/* Author & Time */}
-          <Pressable 
+          <Pressable
             style={styles.authorRow}
-            onPress={(e) => {
+            onPress={e => {
               e.stopPropagation();
               if (item.author_id && onAuthorPress) {
                 onAuthorPress(item.author_id);
@@ -285,49 +337,84 @@ const HighlightCard = ({
                   <Ionicons name="person" size={12} color="#fff" />
                 </View>
               )}
-              <Text style={[styles.authorName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                {item.author?.username ? `@${item.author.username}` : (item.author?.display_name || 'Anonymous')}
+              <Text
+                style={[styles.authorName, { color: Colors[colorScheme].text }]}
+                numberOfLines={1}
+              >
+                {item.author?.username
+                  ? `@${item.author.username}`
+                  : item.author?.display_name || 'Anonymous'}
               </Text>
-              <Ionicons name="chevron-forward" size={14} color={Colors[colorScheme].tabIconDefault} />
+              <Ionicons
+                name="chevron-forward"
+                size={14}
+                color={Colors[colorScheme].tabIconDefault}
+              />
             </View>
-            <Text style={[styles.timeText, { color: Colors[colorScheme].mutedText }]}>{timeAgo(item.created_at)}</Text>
+            <Text style={[styles.timeText, { color: Colors[colorScheme].mutedText }]}>
+              {timeAgo(item.created_at)}
+            </Text>
           </Pressable>
 
           {/* Stats Row */}
           <View style={styles.statsRow}>
             <Pressable
-              style={[styles.actionButton, item.has_upvoted && { backgroundColor: 'rgba(37, 99, 235, 0.2)' }]}
-              onPress={(e) => {
+              style={[
+                styles.actionButton,
+                item.has_upvoted && { backgroundColor: 'rgba(37, 99, 235, 0.2)' },
+              ]}
+              onPress={e => {
                 e.stopPropagation();
                 onUpvote?.(item);
               }}
             >
-              <Ionicons name={item.has_upvoted ? 'arrow-up' : 'arrow-up-outline'} size={18} color="#2563EB" />
-              <Text style={[styles.statText, { color: '#2563EB', fontWeight: '700' }]}>{formatCount(item.upvotes_count || 0)}</Text>
+              <Ionicons
+                name={item.has_upvoted ? 'arrow-up' : 'arrow-up-outline'}
+                size={18}
+                color="#2563EB"
+              />
+              <Text style={[styles.statText, { color: '#2563EB', fontWeight: '700' }]}>
+                {formatCount(item.upvotes_count || 0)}
+              </Text>
             </Pressable>
-            
-            <Pressable 
+
+            <Pressable
               style={styles.actionButton}
-              onPress={(e) => {
+              onPress={e => {
                 e.stopPropagation();
                 onPress(item); // Navigate to post detail to see comments
               }}
             >
               <Ionicons name="chatbubble" size={16} color={Colors[colorScheme].mutedText} />
-              <Text style={[styles.statText, { color: Colors[colorScheme].mutedText, fontWeight: '600' }]}>{formatCount(item._count?.comments || 0)}</Text>
+              <Text
+                style={[
+                  styles.statText,
+                  { color: Colors[colorScheme].mutedText, fontWeight: '600' },
+                ]}
+              >
+                {formatCount(item._count?.comments || 0)}
+              </Text>
             </Pressable>
-            
-            <Pressable 
+
+            <Pressable
               style={styles.actionButton}
-              onPress={async (e) => {
+              onPress={async e => {
                 e.stopPropagation();
                 try {
-                  const link = AppLinks.post(String(item.id), item.caption || (sanitizeTitle(item.title) ?? undefined));
-                  await Share.share({ message: link.shareMessage, url: link.webUrl, title: sanitizeTitle(item.title) || 'VarsityHub Highlight' });
+                  const link = AppLinks.post(
+                    String(item.id),
+                    item.caption || (sanitizeTitle(item.title) ?? undefined)
+                  );
+                  await Share.share({
+                    message: link.shareMessage,
+                    url: link.webUrl,
+                    title: sanitizeTitle(item.title) || 'VarsityHub Highlight',
+                  });
                 } catch {
                   try {
                     const mod = await import('expo-clipboard').catch(() => null);
-                    const setStringAsync = mod?.setStringAsync || (mod && (mod as any).default?.setStringAsync);
+                    const setStringAsync =
+                      mod?.setStringAsync || (mod && (mod as any).default?.setStringAsync);
                     if (typeof setStringAsync === 'function') {
                       const fallback = AppLinks.post(String(item.id), item.caption).webUrl;
                       await setStringAsync(fallback);
@@ -343,13 +430,22 @@ const HighlightCard = ({
               }}
             >
               <Ionicons name="share-outline" size={16} color="#10B981" />
-              <Text style={[styles.statText, { color: Colors[colorScheme].mutedText, fontWeight: '600' }]}>Share</Text>
+              <Text
+                style={[
+                  styles.statText,
+                  { color: Colors[colorScheme].mutedText, fontWeight: '600' },
+                ]}
+              >
+                Share
+              </Text>
             </Pressable>
-            
+
             {item._score && (
               <View style={[styles.actionButton, { opacity: 0.7 }]}>
                 <Ionicons name="trending-up" size={16} color="#10B981" />
-                <Text style={[styles.statText, { color: Colors[colorScheme].mutedText }]}>{Math.round(item._score)}</Text>
+                <Text style={[styles.statText, { color: Colors[colorScheme].mutedText }]}>
+                  {Math.round(item._score)}
+                </Text>
               </View>
             )}
           </View>
@@ -359,9 +455,34 @@ const HighlightCard = ({
   );
 };
 
-const TabButton = ({ title, active, onPress, colorScheme }: { title: string; active: boolean; onPress: () => void; colorScheme: 'light' | 'dark' }) => (
-  <Pressable style={[styles.tabButton, active && [styles.activeTab, { backgroundColor: Colors[colorScheme].tint }], !active && { backgroundColor: Colors[colorScheme].surface }]} onPress={onPress}>
-    <Text style={[styles.tabText, active && [styles.activeTabText, { color: Colors[colorScheme].background }], !active && { color: Colors[colorScheme].text, opacity: 0.7 }]}>{title}</Text>
+const TabButton = ({
+  title,
+  active,
+  onPress,
+  colorScheme,
+}: {
+  title: string;
+  active: boolean;
+  onPress: () => void;
+  colorScheme: 'light' | 'dark';
+}) => (
+  <Pressable
+    style={[
+      styles.tabButton,
+      active && [styles.activeTab, { backgroundColor: Colors[colorScheme].tint }],
+      !active && { backgroundColor: Colors[colorScheme].surface },
+    ]}
+    onPress={onPress}
+  >
+    <Text
+      style={[
+        styles.tabText,
+        active && [styles.activeTabText, { color: Colors[colorScheme].background }],
+        !active && { color: Colors[colorScheme].text, opacity: 0.7 },
+      ]}
+    >
+      {title}
+    </Text>
   </Pressable>
 );
 
@@ -399,57 +520,61 @@ function HighlightsScreen() {
         }
         return null;
       });
-      
+
       const country = (me?.preferences?.country_code || 'US').toUpperCase();
-      
+
       // Location preference lookup: coordinates live under me.preferences
       // Guard against undefined and ensure both lat/lng are valid numbers
-      const lat = typeof me?.preferences?.lat === 'number' ? me.preferences.lat : (typeof me?.lat === 'number' ? me.lat : undefined);
-      const lng = typeof me?.preferences?.lng === 'number' ? me.preferences.lng : (typeof me?.lng === 'number' ? me.lng : undefined);
-      
+      const lat =
+        typeof me?.preferences?.lat === 'number'
+          ? me.preferences.lat
+          : typeof me?.lat === 'number'
+            ? me.lat
+            : undefined;
+      const lng =
+        typeof me?.preferences?.lng === 'number'
+          ? me.preferences.lng
+          : typeof me?.lng === 'number'
+            ? me.lng
+            : undefined;
+
       // Store user location for ranking calculations only if both coordinates are valid
       if (typeof lat === 'number' && typeof lng === 'number' && lat !== 0 && lng !== 0) {
         setUserLocation({ lat, lng });
       }
-      
+
       // Request better data with more posts
-      const payload = await Highlights.fetch({ 
-        country, 
+      const payload = await Highlights.fetch({
+        country,
         limit: 50,
         lat,
-        lng
+        lng,
       });
-      
+
       // Store raw ranking data for badge calculations
       const rawNationalTop = Array.isArray(payload?.nationalTop) ? payload.nationalTop : [];
       const rawRanked = Array.isArray(payload?.ranked) ? payload.ranked : [];
-      
+
       // Cache all the raw posts for faster loading when navigating to post detail
       postCache.setBatch([...rawNationalTop, ...rawRanked]);
-      
+
       setNationalTop(rawNationalTop.map(mapHighlightItem).filter(Boolean) as HighlightItem[]);
       setRanked(rawRanked.map(mapHighlightItem).filter(Boolean) as HighlightItem[]);
-      
+
       // Merge all highlights from different buckets
-      const allHighlights = [
-        ...rawNationalTop,
-        ...rawRanked
-      ];
-      
-      const mapped = allHighlights
-        .map(mapHighlightItem)
-        .filter(Boolean) as HighlightItem[];
-      
+      const allHighlights = [...rawNationalTop, ...rawRanked];
+
+      const mapped = allHighlights.map(mapHighlightItem).filter(Boolean) as HighlightItem[];
+
       // Remove duplicates by ID
-      const uniqueHighlights = Array.from(
-        new Map(mapped.map(item => [item.id, item])).values()
-      );
-      
+      const uniqueHighlights = Array.from(new Map(mapped.map(item => [item.id, item])).values());
+
       setHighlights(uniqueHighlights);
     } catch (e: any) {
       if (__DEV__) {
         if (__DEV__) console.error('[Highlights] Load failed:', e);
-        if (__DEV__) console.error('[Highlights] Error details:', e?.response?.data || e?.message || e);
+        if (__DEV__)
+          console.error('[Highlights] Error details:', e?.response?.data || e?.message || e);
       }
       setError('Unable to load highlights.');
       setHighlights([]);
@@ -471,64 +596,76 @@ function HighlightsScreen() {
       if (!mounted) return;
     };
     void loadData();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [load]);
 
   // Global search function for teams, events, users, and posts
-  const performGlobalSearch = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
-      setSearching(false);
-      return;
-    }
-
-    setSearching(true);
-    try {
-      const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
-        Team.list(query, false, { limit: 5 }).catch((error: any) => {
-          if (__DEV__) console.warn('[Highlights] Team search failed:', error?.message || error);
-          return [];
-        }),
-        Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch((error: any) => {
-          if (__DEV__) console.warn('[Highlights] Event search failed:', error?.message || error);
-          return [];
-        }),
-        User.listAll(query, 5).catch((error: any) => {
-          if (__DEV__) console.warn('[Highlights] User search failed:', error?.message || error);
-          return [];
-        }),
-        Organization.list(query, 5).catch((error: any) => {
-          if (__DEV__) console.warn('[Highlights] Organization search failed:', error?.message || error);
-          return [];
-        }),
-      ]);
-
-      const teams = Array.isArray(teamsRes) ? teamsRes.slice(0, 5) : [];
-      const events = Array.isArray(eventsRes) ? eventsRes.slice(0, 5) : [];
-      const users = Array.isArray(usersRes) ? usersRes.slice(0, 5) : [];
-      const organizations = Array.isArray(orgsRes) ? orgsRes.slice(0, 5) : [];
-
-      // Filter posts
-      const posts = highlights.filter(item => {
-        const title = (item.title || '').toLowerCase();
-        const caption = (item.caption || '').toLowerCase();
-        const content = (item.content || '').toLowerCase();
-        const authorName = (item.author?.display_name || '').toLowerCase();
-        const queryLower = query.toLowerCase();
-        return title.includes(queryLower) || caption.includes(queryLower) || 
-               content.includes(queryLower) || authorName.includes(queryLower);
-      }).slice(0, 10);
-
-      setSearchResults({ teams, events, users, organizations, posts });
-    } catch (err: any) {
-      if (__DEV__) {
-        if (__DEV__) console.error('[Highlights] Search failed:', err?.message || err);
+  const performGlobalSearch = useCallback(
+    async (query: string) => {
+      if (!query.trim()) {
+        setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
+        setSearching(false);
+        return;
       }
-      setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
-    } finally {
-      setSearching(false);
-    }
-  }, [highlights]);
+
+      setSearching(true);
+      try {
+        const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
+          Team.list(query, false, { limit: 5 }).catch((error: any) => {
+            if (__DEV__) console.warn('[Highlights] Team search failed:', error?.message || error);
+            return [];
+          }),
+          Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch((error: any) => {
+            if (__DEV__) console.warn('[Highlights] Event search failed:', error?.message || error);
+            return [];
+          }),
+          User.listAll(query, 5).catch((error: any) => {
+            if (__DEV__) console.warn('[Highlights] User search failed:', error?.message || error);
+            return [];
+          }),
+          Organization.list(query, 5).catch((error: any) => {
+            if (__DEV__)
+              console.warn('[Highlights] Organization search failed:', error?.message || error);
+            return [];
+          }),
+        ]);
+
+        const teams = Array.isArray(teamsRes) ? teamsRes.slice(0, 5) : [];
+        const events = Array.isArray(eventsRes) ? eventsRes.slice(0, 5) : [];
+        const users = Array.isArray(usersRes) ? usersRes.slice(0, 5) : [];
+        const organizations = Array.isArray(orgsRes) ? orgsRes.slice(0, 5) : [];
+
+        // Filter posts
+        const posts = highlights
+          .filter(item => {
+            const title = (item.title || '').toLowerCase();
+            const caption = (item.caption || '').toLowerCase();
+            const content = (item.content || '').toLowerCase();
+            const authorName = (item.author?.display_name || '').toLowerCase();
+            const queryLower = query.toLowerCase();
+            return (
+              title.includes(queryLower) ||
+              caption.includes(queryLower) ||
+              content.includes(queryLower) ||
+              authorName.includes(queryLower)
+            );
+          })
+          .slice(0, 10);
+
+        setSearchResults({ teams, events, users, organizations, posts });
+      } catch (err: any) {
+        if (__DEV__) {
+          if (__DEV__) console.error('[Highlights] Search failed:', err?.message || err);
+        }
+        setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
+      } finally {
+        setSearching(false);
+      }
+    },
+    [highlights]
+  );
 
   // Debounced search
   useEffect(() => {
@@ -540,28 +677,28 @@ function HighlightsScreen() {
 
   const getFilteredHighlights = useCallback(() => {
     let filtered = [...highlights];
-    
+
     // Don't filter by search query here - that's handled by search results view
-    
+
     switch (activeTab) {
       case 'trending':
         // TRENDING: Top 3 posts first (numbered #1, #2, #3), then algorithm
         filtered.sort((a, b) => {
           // Calculate engagement score (upvotes + comments * 2)
-          const aEngagement = (a.upvotes_count || 0) + ((a._count?.comments || 0) * 2);
-          const bEngagement = (b.upvotes_count || 0) + ((b._count?.comments || 0) * 2);
-          
+          const aEngagement = (a.upvotes_count || 0) + (a._count?.comments || 0) * 2;
+          const bEngagement = (b.upvotes_count || 0) + (b._count?.comments || 0) * 2;
+
           // If scores exist, use them; otherwise use engagement
           const aScore = a._score || aEngagement;
           const bScore = b._score || bEngagement;
-          
+
           return bScore - aScore;
         });
-        
+
         // Top 3 are explicitly shown first
         const top3 = filtered.slice(0, 3);
         const rest = filtered.slice(3);
-        
+
         // Sort rest by trending algorithm (recency boost + engagement)
         rest.sort((a, b) => {
           const aRecency = new Date(a.created_at || 0).getTime() > Date.now() - 86400000 ? 5 : 0;
@@ -570,9 +707,9 @@ function HighlightsScreen() {
           const bTotal = (b._score || 0) + bRecency;
           return bTotal - aTotal;
         });
-        
+
         return [...top3, ...rest];
-        
+
       case 'recent':
         // RECENT: Most recent posts globally, pure chronological
         filtered.sort((a, b) => {
@@ -581,56 +718,67 @@ function HighlightsScreen() {
           return bTime - aTime; // Newest first
         });
         return filtered; // All posts, ordered by time
-        
+
       case 'top':
         // TOP: Top 10 posts with most engagement, numbered #1-#10
         filtered.sort((a, b) => {
-          const aInteraction = (a.upvotes_count || 0) + ((a._count?.comments || 0) * 1.5);
-          const bInteraction = (b.upvotes_count || 0) + ((b._count?.comments || 0) * 1.5);
+          const aInteraction = (a.upvotes_count || 0) + (a._count?.comments || 0) * 1.5;
+          const bInteraction = (b.upvotes_count || 0) + (b._count?.comments || 0) * 1.5;
           return bInteraction - aInteraction;
         });
         return filtered.slice(0, 10); // Limit to top 10 only
     }
-    
   }, [highlights, activeTab]);
 
-  const handleHighlightPress = useCallback((item: HighlightItem, index?: number, filtered?: HighlightItem[]) => {
-    const ids = filtered?.map((h) => h.id).filter(Boolean) ?? [item.id];
-    const postIds = ids.join(',');
-    if (postIds && ids.length > 1) {
-      router.push(`/post-detail?id=${item.id}&postIds=${encodeURIComponent(postIds)}&index=${index ?? 0}&from=highlights`);
-    } else {
-      router.push(`/post-detail?id=${item.id}&from=highlights`);
-    }
-  }, [router]);
+  const handleHighlightPress = useCallback(
+    (item: HighlightItem, index?: number, filtered?: HighlightItem[]) => {
+      const ids = filtered?.map(h => h.id).filter(Boolean) ?? [item.id];
+      const postIds = ids.join(',');
+      if (postIds && ids.length > 1) {
+        router.push(
+          `/post-detail?id=${item.id}&postIds=${encodeURIComponent(postIds)}&index=${index ?? 0}&from=highlights`
+        );
+      } else {
+        router.push(`/post-detail?id=${item.id}&from=highlights`);
+      }
+    },
+    [router]
+  );
 
-  const handleAuthorPress = useCallback((authorId: string) => {
-    // Navigate to user profile
-    router.push(`/user-profile?id=${authorId}`);
-  }, [router]);
+  const handleAuthorPress = useCallback(
+    (authorId: string) => {
+      // Navigate to user profile
+      router.push(`/user-profile?id=${authorId}`);
+    },
+    [router]
+  );
 
-  const handleEventPress = useCallback((event: any) => {
-    const gameId = event?.game_id || event?.gameId;
-    if (gameId) {
-      void router.push({ pathname: '/game/[id]', params: { id: String(gameId) } });
-      return;
-    }
+  const handleEventPress = useCallback(
+    (event: any) => {
+      Keyboard.dismiss();
+      const eventId = event?.id || event?.event_id;
+      if (eventId) {
+        void router.push(buildEventDetailRoute(eventId));
+        return;
+      }
 
-    const eventId = event?.id || event?.event_id;
-    if (eventId) {
-      void router.push({ pathname: '/game', params: { eventId: String(eventId) } } as any);
-      return;
-    }
+      const gameId = event?.game_id || event?.gameId;
+      if (gameId) {
+        void router.push({ pathname: '/game/[id]', params: { id: String(gameId) } });
+        return;
+      }
 
-    Alert.alert('Event unavailable', 'This event is missing an identifier and cannot be opened.');
-  }, [router]);
+      Alert.alert('Event unavailable', 'This event is missing an identifier and cannot be opened.');
+    },
+    [router]
+  );
 
   const handleUpvote = useCallback(async (item: HighlightItem) => {
     // Optimistic update: toggle immediately for responsiveness
     const optimisticNext = !item.has_upvoted;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    setHighlights((prev) =>
-      prev.map((h) =>
+    setHighlights(prev =>
+      prev.map(h =>
         h.id === item.id
           ? {
               ...h,
@@ -648,13 +796,19 @@ function HighlightsScreen() {
       }
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       // Reconcile with server values
-      setHighlights((prev) =>
-        prev.map((h) =>
+      setHighlights(prev =>
+        prev.map(h =>
           h.id === item.id
             ? {
                 ...h,
-                has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted),
-                upvotes_count: typeof r?.count === 'number' ? r.count : typeof r?.upvotes_count === 'number' ? r.upvotes_count : h.upvotes_count,
+                has_upvoted:
+                  typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted),
+                upvotes_count:
+                  typeof r?.count === 'number'
+                    ? r.count
+                    : typeof r?.upvotes_count === 'number'
+                      ? r.upvotes_count
+                      : h.upvotes_count,
               }
             : h
         )
@@ -662,8 +816,8 @@ function HighlightsScreen() {
     } catch (error) {
       // Revert optimistic update on failure
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-      setHighlights((prev) =>
-        prev.map((h) =>
+      setHighlights(prev =>
+        prev.map(h =>
           h.id === item.id
             ? {
                 ...h,
@@ -697,7 +851,10 @@ function HighlightsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
-        <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+        <StatusBar
+          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+          backgroundColor={Colors[colorScheme].background}
+        />
         <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2563EB" />
@@ -710,7 +867,10 @@ function HighlightsScreen() {
   if (error) {
     return (
       <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
-        <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+        <StatusBar
+          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+          backgroundColor={Colors[colorScheme].background}
+        />
         <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color="#DC2626" />
@@ -726,25 +886,56 @@ function HighlightsScreen() {
   const filteredHighlights = getFilteredHighlights();
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom', 'left', 'right']}>
-      <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['bottom', 'left', 'right']}
+    >
+      <StatusBar
+        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={Colors[colorScheme].background}
+      />
       <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
-      
+
       {/* Custom Header */}
-      <View style={[styles.header, { paddingTop: insets.top, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top,
+            backgroundColor: Colors[colorScheme].card,
+            borderBottomColor: Colors[colorScheme].border,
+          },
+        ]}
+      >
         {/* Back button and title */}
         <View style={styles.headerRow}>
           <View style={styles.headerSpacer} />
-          <Text style={[styles.headerTitleText, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+          <Text
+            style={[styles.headerTitleText, { color: Colors[colorScheme].text }]}
+            numberOfLines={1}
+          >
             Highlights
           </Text>
           <Pressable style={styles.headerSpacer} onPress={onRefresh} hitSlop={8}>
-            <Ionicons name="refresh" size={22} color={refreshing ? Colors[colorScheme].tint : Colors[colorScheme].text} style={{ opacity: refreshing ? 0.5 : 1 }} />
+            <Ionicons
+              name="refresh"
+              size={22}
+              color={refreshing ? Colors[colorScheme].tint : Colors[colorScheme].text}
+              style={{ opacity: refreshing ? 0.5 : 1 }}
+            />
           </Pressable>
         </View>
         {/* Search Bar */}
         <View style={{ zIndex: 10 }}>
-          <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}> 
+          <View
+            style={[
+              styles.searchContainer,
+              {
+                backgroundColor: Colors[colorScheme].background,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
+          >
             <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
             <TextInput
               style={[styles.searchInput, { color: Colors[colorScheme].text }]}
@@ -757,34 +948,44 @@ function HighlightsScreen() {
             />
             {searchQuery.length > 0 && (
               <Pressable onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
+                <Ionicons
+                  name="close-circle"
+                  size={20}
+                  color={Colors[colorScheme].tabIconDefault}
+                />
               </Pressable>
             )}
           </View>
           {/* Dropdown recommendations */}
           {searchQuery.length > 0 && !searching && (
-            <View style={{
-              position: 'absolute',
-              top: 48,
-              left: 0,
-              right: 0,
-              backgroundColor: Colors[colorScheme].background,
-              borderColor: Colors[colorScheme].border,
-              borderWidth: 1,
-              borderTopWidth: 0,
-              borderRadius: 8,
-              shadowColor: '#000',
-              shadowOpacity: 0.08,
-              shadowRadius: 8,
-              elevation: 2,
-              zIndex: 20,
-              maxHeight: 180,
-            }}>
+            <View
+              style={{
+                position: 'absolute',
+                top: 48,
+                left: 0,
+                right: 0,
+                backgroundColor: Colors[colorScheme].background,
+                borderColor: Colors[colorScheme].border,
+                borderWidth: 1,
+                borderTopWidth: 0,
+                borderRadius: 8,
+                shadowColor: '#000',
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 2,
+                zIndex: 20,
+                maxHeight: 180,
+              }}
+            >
               {/* Users */}
-              {searchResults.users.slice(0, 2).map((user) => (
+              {searchResults.users.slice(0, 2).map(user => (
                 <Pressable
                   key={user.id}
-                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border }}
+                  style={{
+                    padding: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: Colors[colorScheme].border,
+                  }}
                   onPress={() => setSearchQuery(user.display_name || user.username || user.email)}
                 >
                   <Text style={{ color: Colors[colorScheme].text }}>
@@ -793,62 +994,70 @@ function HighlightsScreen() {
                 </Pressable>
               ))}
               {/* Teams */}
-              {searchResults.teams.slice(0, 2).map((team) => (
+              {searchResults.teams.slice(0, 2).map(team => (
                 <Pressable
                   key={team.id}
-                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border }}
+                  style={{
+                    padding: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: Colors[colorScheme].border,
+                  }}
                   onPress={() => setSearchQuery(team.name)}
                 >
-                  <Text style={{ color: Colors[colorScheme].text }}>
-                    🏫 {team.name}
-                  </Text>
+                  <Text style={{ color: Colors[colorScheme].text }}>🏫 {team.name}</Text>
                 </Pressable>
               ))}
               {/* Organizations */}
-              {searchResults.organizations.slice(0, 2).map((org) => (
+              {searchResults.organizations.slice(0, 2).map(org => (
                 <Pressable
                   key={org.id}
-                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border }}
+                  style={{
+                    padding: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: Colors[colorScheme].border,
+                  }}
                   onPress={() => setSearchQuery(org.name)}
                 >
-                  <Text style={{ color: Colors[colorScheme].text }}>
-                    🏆 {org.name}
-                  </Text>
+                  <Text style={{ color: Colors[colorScheme].text }}>🏆 {org.name}</Text>
                 </Pressable>
               ))}
               {/* No recommendations */}
-              {searchResults.users.length === 0 && searchResults.teams.length === 0 && searchResults.organizations.length === 0 && (
-                <View style={{ padding: 12 }}>
-                  <Text style={{ color: Colors[colorScheme].tabIconDefault }}>No recommendations</Text>
-                </View>
-              )}
+              {searchResults.users.length === 0 &&
+                searchResults.teams.length === 0 &&
+                searchResults.organizations.length === 0 && (
+                  <View style={{ padding: 12 }}>
+                    <Text style={{ color: Colors[colorScheme].tabIconDefault }}>
+                      No recommendations
+                    </Text>
+                  </View>
+                )}
             </View>
           )}
         </View>
 
         {/* Tabs */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
           style={styles.tabsContainer}
           contentContainerStyle={styles.tabsContent}
         >
-          <TabButton 
-            title="🔥 Trending" 
-            active={activeTab === 'trending'} 
-            onPress={() => setActiveTab('trending')} 
+          <TabButton
+            title="🔥 Trending"
+            active={activeTab === 'trending'}
+            onPress={() => setActiveTab('trending')}
             colorScheme={colorScheme}
           />
-          <TabButton 
-            title="🕐 Recent" 
-            active={activeTab === 'recent'} 
-            onPress={() => setActiveTab('recent')} 
+          <TabButton
+            title="🕐 Recent"
+            active={activeTab === 'recent'}
+            onPress={() => setActiveTab('recent')}
             colorScheme={colorScheme}
           />
-          <TabButton 
-            title="👑 Top" 
-            active={activeTab === 'top'} 
-            onPress={() => setActiveTab('top')} 
+          <TabButton
+            title="👑 Top"
+            active={activeTab === 'top'}
+            onPress={() => setActiveTab('top')}
             colorScheme={colorScheme}
           />
         </ScrollView>
@@ -859,22 +1068,46 @@ function HighlightsScreen() {
         searching ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#2563EB" />
-            <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Searching...</Text>
+            <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>
+              Searching...
+            </Text>
           </View>
         ) : (
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.searchResultsContainer}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.searchResultsContainer}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+          >
             {/* Teams */}
             {searchResults.teams.length > 0 && (
               <View style={styles.searchSection}>
-                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>🏫 Teams</Text>
+                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>
+                  🏫 Teams
+                </Text>
                 {searchResults.teams.map((team: any) => (
                   <Pressable
                     key={team.id}
-                    style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => { void router.push(`/team-profile?id=${team.id}`); }}
+                    style={[
+                      styles.searchResultItem,
+                      {
+                        backgroundColor: Colors[colorScheme].card,
+                        borderColor: Colors[colorScheme].border,
+                      },
+                    ]}
+                    onPress={() => {
+                      void router.push(`/team-profile?id=${team.id}`);
+                    }}
                   >
-                    <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{team.name}</Text>
-                    <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
+                    <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>
+                      {team.name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.searchResultSubtitle,
+                        { color: Colors[colorScheme].tabIconDefault },
+                      ]}
+                    >
                       {team.school_name || team.city || 'Team'}
                     </Text>
                   </Pressable>
@@ -885,15 +1118,30 @@ function HighlightsScreen() {
             {/* Events */}
             {searchResults.events.length > 0 && (
               <View style={styles.searchSection}>
-                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>📅 Events</Text>
+                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>
+                  📅 Events
+                </Text>
                 {searchResults.events.map((event: any) => (
                   <Pressable
                     key={event.id}
-                    style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+                    style={[
+                      styles.searchResultItem,
+                      {
+                        backgroundColor: Colors[colorScheme].card,
+                        borderColor: Colors[colorScheme].border,
+                      },
+                    ]}
                     onPress={() => handleEventPress(event)}
                   >
-                    <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{event.title}</Text>
-                    <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
+                    <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>
+                      {event.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.searchResultSubtitle,
+                        { color: Colors[colorScheme].tabIconDefault },
+                      ]}
+                    >
                       {event.description || 'Event'}
                     </Text>
                   </Pressable>
@@ -904,15 +1152,32 @@ function HighlightsScreen() {
             {/* Users */}
             {searchResults.users.length > 0 && (
               <View style={styles.searchSection}>
-                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>👤 Users</Text>
+                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>
+                  👤 Users
+                </Text>
                 {searchResults.users.map((user: any) => (
                   <Pressable
                     key={user.id}
-                    style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => { void router.push(`/user-profile?id=${user.id}`); }}
+                    style={[
+                      styles.searchResultItem,
+                      {
+                        backgroundColor: Colors[colorScheme].card,
+                        borderColor: Colors[colorScheme].border,
+                      },
+                    ]}
+                    onPress={() => {
+                      void router.push(`/user-profile?id=${user.id}`);
+                    }}
                   >
-                    <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{user.display_name}</Text>
-                    <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
+                    <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>
+                      {user.display_name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.searchResultSubtitle,
+                        { color: Colors[colorScheme].tabIconDefault },
+                      ]}
+                    >
                       @{user.username || user.email}
                     </Text>
                   </Pressable>
@@ -923,15 +1188,32 @@ function HighlightsScreen() {
             {/* Organizations */}
             {searchResults.organizations.length > 0 && (
               <View style={styles.searchSection}>
-                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>🏆 Organizations</Text>
+                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>
+                  🏆 Organizations
+                </Text>
                 {searchResults.organizations.map((org: any) => (
                   <Pressable
                     key={org.id}
-                    style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => { void router.push(`/organization?id=${org.id}` as any); }}
+                    style={[
+                      styles.searchResultItem,
+                      {
+                        backgroundColor: Colors[colorScheme].card,
+                        borderColor: Colors[colorScheme].border,
+                      },
+                    ]}
+                    onPress={() => {
+                      void router.push(`/organization?id=${org.id}` as any);
+                    }}
                   >
-                    <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{org.name}</Text>
-                    <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
+                    <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>
+                      {org.name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.searchResultSubtitle,
+                        { color: Colors[colorScheme].tabIconDefault },
+                      ]}
+                    >
                       {org.sport || 'Organization'} {org.description ? `• ${org.description}` : ''}
                     </Text>
                   </Pressable>
@@ -942,17 +1224,19 @@ function HighlightsScreen() {
             {/* Posts */}
             {searchResults.posts.length > 0 && (
               <View style={styles.searchSection}>
-                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>📝 Posts</Text>
+                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>
+                  📝 Posts
+                </Text>
                 {searchResults.posts.map((post, idx) => (
-                  <HighlightCard 
+                  <HighlightCard
                     key={post.id}
-                    item={post} 
+                    item={post}
                     index={idx}
                     currentTab={activeTab}
                     nationalTop={nationalTop}
                     ranked={ranked}
                     userLocation={userLocation}
-                    onPress={(it) => handleHighlightPress(it, idx, searchResults.posts)}
+                    onPress={it => handleHighlightPress(it, idx, searchResults.posts)}
                     onAuthorPress={handleAuthorPress}
                     colorScheme={colorScheme}
                     onUpvote={handleUpvote}
@@ -962,42 +1246,55 @@ function HighlightsScreen() {
             )}
 
             {/* No results */}
-            {searchResults.teams.length === 0 && searchResults.events.length === 0 && 
-             searchResults.users.length === 0 && searchResults.organizations.length === 0 && 
-             searchResults.posts.length === 0 && (
-              <View style={styles.emptyContainer}>
-                <Ionicons name="search-outline" size={64} color={Colors[colorScheme].tabIconDefault} />
-                <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>No results found</Text>
-                <Text style={[styles.emptySubtext, { color: Colors[colorScheme].tabIconDefault }]}>
-                  Try a different search term
-                </Text>
-              </View>
-            )}
+            {searchResults.teams.length === 0 &&
+              searchResults.events.length === 0 &&
+              searchResults.users.length === 0 &&
+              searchResults.organizations.length === 0 &&
+              searchResults.posts.length === 0 && (
+                <View style={styles.emptyContainer}>
+                  <Ionicons
+                    name="search-outline"
+                    size={64}
+                    color={Colors[colorScheme].tabIconDefault}
+                  />
+                  <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>
+                    No results found
+                  </Text>
+                  <Text
+                    style={[styles.emptySubtext, { color: Colors[colorScheme].tabIconDefault }]}
+                  >
+                    Try a different search term
+                  </Text>
+                </View>
+              )}
           </ScrollView>
         )
       ) : filteredHighlights.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="trophy-outline" size={64} color={Colors[colorScheme].tabIconDefault} />
-          <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>No highlights available</Text>
-          <Text style={[styles.emptySubtext, { color: Colors[colorScheme].tabIconDefault }]}>Check back later for amazing sports moments</Text>
+          <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>
+            No highlights available
+          </Text>
+          <Text style={[styles.emptySubtext, { color: Colors[colorScheme].tabIconDefault }]}>
+            Check back later for amazing sports moments
+          </Text>
         </View>
       ) : (
         <FlatList
-            data={filteredHighlights}
-            renderItem={renderHighlight}
-            keyExtractor={(item) => item.id}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingVertical: 8 }}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={Colors[colorScheme].tint}
-              />
-            }
-          />
+          data={filteredHighlights}
+          renderItem={renderHighlight}
+          keyExtractor={item => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingVertical: 8 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors[colorScheme].tint}
+            />
+          }
+        />
       )}
-
     </SafeAreaView>
   );
 }

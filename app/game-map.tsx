@@ -4,6 +4,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Location from 'expo-location';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { safeGoBack } from '@/utils/navigation';
 import { shouldShowEventOnMap } from '@/utils/mapEventFilters';
 import { useCallback, useEffect, useState } from 'react';
@@ -17,7 +18,7 @@ function GameMapScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ lat?: string; lng?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
-  
+
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<EventMapData[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -48,18 +49,27 @@ function GameMapScreen() {
       }
       const [gamesResponse, eventsResponse] = await Promise.all([
         // v1.0.2: mapView restricts to games this week — past games drop off the map in real time.
-        Game.list('date', lat != null && lng != null ? { lat, lng, limit: 50, mapView: true } : { limit: 50, mapView: true }).catch((error: any) => {
+        Game.list(
+          'date',
+          lat != null && lng != null
+            ? { lat, lng, limit: 50, mapView: true }
+            : { limit: 50, mapView: true }
+        ).catch((error: any) => {
           if (__DEV__) console.error('[game-map] Failed to fetch games:', error);
           return { items: [] };
         }),
-        httpGet('/events?' + eventsQuery.toString()).catch((error) => {
+        httpGet('/events?' + eventsQuery.toString()).catch(error => {
           if (__DEV__) console.error('[game-map] Failed to fetch events:', error);
           return [];
         }),
       ]);
 
-      const gamesList = Array.isArray(gamesResponse) ? gamesResponse : (gamesResponse?.games || gamesResponse?.items || []);
-      const eventsList = Array.isArray(eventsResponse) ? eventsResponse : (eventsResponse?.items || []);
+      const gamesList = Array.isArray(gamesResponse)
+        ? gamesResponse
+        : gamesResponse?.games || gamesResponse?.items || [];
+      const eventsList = Array.isArray(eventsResponse)
+        ? eventsResponse
+        : eventsResponse?.items || [];
 
       // Helper: resolve the best available lat/lng for a game or event.
       // Games can store coordinates in multiple fields depending on how
@@ -69,11 +79,16 @@ function GameMapScreen() {
         const lat = item.latitude ?? item.venue_lat ?? item.watch_location_lat ?? null;
         const lng = item.longitude ?? item.venue_lng ?? item.watch_location_lng ?? null;
         if (
-          lat != null && lng != null &&
-          typeof lat === 'number' && typeof lng === 'number' &&
-          !isNaN(lat) && !isNaN(lng) &&
-          lat >= -90 && lat <= 90 &&
-          lng >= -180 && lng <= 180
+          lat != null &&
+          lng != null &&
+          typeof lat === 'number' &&
+          typeof lng === 'number' &&
+          !isNaN(lat) &&
+          !isNaN(lng) &&
+          lat >= -90 &&
+          lat <= 90 &&
+          lng >= -180 &&
+          lng <= 180
         ) {
           return { latitude: lat, longitude: lng };
         }
@@ -125,13 +140,19 @@ function GameMapScreen() {
       // Combine games and events
       const allMarkers = [...gameMarkers, ...eventMarkers];
       setEvents(allMarkers);
-      
+
       // Log for debugging
       const totalItems = gamesList.length + eventsList.length;
       if (allMarkers.length === 0 && totalItems > 0) {
-        if (__DEV__) console.warn(`[game-map] Loaded ${gamesList.length} games and ${eventsList.length} events, but none have valid coordinates`);
+        if (__DEV__)
+          console.warn(
+            `[game-map] Loaded ${gamesList.length} games and ${eventsList.length} events, but none have valid coordinates`
+          );
       } else {
-        if (__DEV__) console.warn(`[game-map] Loaded ${gameMarkers.length} games and ${eventMarkers.length} events with locations (${allMarkers.length} total pins)`);
+        if (__DEV__)
+          console.warn(
+            `[game-map] Loaded ${gameMarkers.length} games and ${eventMarkers.length} events with locations (${allMarkers.length} total pins)`
+          );
       }
     } catch (err) {
       if (__DEV__) console.error('Error loading games:', err);
@@ -147,8 +168,7 @@ function GameMapScreen() {
 
   const handleEventPress = (eventId: string, eventType?: 'game' | 'event' | 'post') => {
     if (eventType === 'event') {
-      // Navigate to event detail page for events (using query param format)
-      router.push(`/event-detail?id=${String(eventId)}`);
+      router.push(buildEventDetailRoute(eventId));
     } else {
       // Navigate to game detail page for games (or posts)
       router.push({ pathname: '/game/[id]', params: { id: String(eventId) } });
@@ -175,26 +195,62 @@ function GameMapScreen() {
       {loading ? (
         // Show map with loading indicator while fetching games
         <View style={styles.container}>
-          <EventMap events={[]} onEventPress={handleEventPress} showUserLocation={true} dataLoaded={false} />
+          <EventMap
+            events={[]}
+            onEventPress={handleEventPress}
+            showUserLocation={true}
+            dataLoaded={false}
+          />
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-            <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Loading nearby games...</Text>
+            <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>
+              Loading nearby games...
+            </Text>
           </View>
         </View>
       ) : error ? (
         <View style={styles.container}>
-          <EventMap events={[]} onEventPress={handleEventPress} showUserLocation={true} dataLoaded={false} />
+          <EventMap
+            events={[]}
+            onEventPress={handleEventPress}
+            showUserLocation={true}
+            dataLoaded={false}
+          />
           <View style={styles.loadingOverlay}>
             <MaterialIcons name="cloud-off" size={40} color={Colors[colorScheme].mutedText} />
-            <Text style={[styles.loadingText, { color: Colors[colorScheme].text, textAlign: 'center', marginTop: 8 }]}>{error}</Text>
-            <Pressable onPress={() => { setError(null); void loadGames(); }} style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors[colorScheme].tint }}>
+            <Text
+              style={[
+                styles.loadingText,
+                { color: Colors[colorScheme].text, textAlign: 'center', marginTop: 8 },
+              ]}
+            >
+              {error}
+            </Text>
+            <Pressable
+              onPress={() => {
+                setError(null);
+                void loadGames();
+              }}
+              style={{
+                marginTop: 12,
+                paddingHorizontal: 20,
+                paddingVertical: 8,
+                borderRadius: 8,
+                backgroundColor: Colors[colorScheme].tint,
+              }}
+            >
               <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Retry</Text>
             </Pressable>
           </View>
         </View>
       ) : (
         // Always show map, whether games exist or not
-        <EventMap events={events} onEventPress={handleEventPress} showUserLocation={true} dataLoaded={true} />
+        <EventMap
+          events={events}
+          onEventPress={handleEventPress}
+          showUserLocation={true}
+          dataLoaded={true}
+        />
       )}
     </View>
   );

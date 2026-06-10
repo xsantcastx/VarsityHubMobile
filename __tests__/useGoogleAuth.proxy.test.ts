@@ -43,15 +43,40 @@ jest.mock('expo-constants', () => ({
   default: mockConstantsData,
 }));
 
+jest.mock('@/config/env', () => {
+  const actual = jest.requireActual('@/config/env');
+  return {
+    ...actual,
+    getConfig: () => ({
+      apiUrl: 'https://api-production-8ac3.up.railway.app',
+      forceRemoteApi: true,
+      nodeEnv: 'production',
+      appScheme: 'varsityhubmobile',
+      webBaseUrl: 'https://varsityhub.app',
+      sentryDsn: '',
+      stripePublishableKey: '',
+      adminEmails: [],
+      expoProjectFullName: '@varsity-hub/varsityhub',
+      google: {
+        androidClientId: '814866365020-d7dk3k9gf49jodhnbraps8p7l9jrfs10.apps.googleusercontent.com',
+        iosClientId: '814866365020-ia09lnm6he2prvaivrp8sblh7oeh9ic0.apps.googleusercontent.com',
+        webClientId: '814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com',
+        expoClientId: '814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com',
+        forceProxy: false,
+      },
+      mapsKey: undefined,
+    }),
+  };
+});
+
 // ─── Auth session spies ──────────────────────────────────────────────────────
 
-const mockMakeRedirectUri = jest.fn((opts?: { native?: string; scheme?: string }) =>
-  opts?.native ?? opts?.scheme ?? 'varsityhubmobile://oauthredirect',
+const mockMakeRedirectUri = jest.fn(
+  (opts?: { native?: string; scheme?: string }) =>
+    opts?.native ?? opts?.scheme ?? 'varsityhubmobile://oauthredirect'
 );
 
-const mockGetRedirectUrl = jest.fn(
-  () => 'https://auth.expo.io/@varsity-hub/varsityhub',
-);
+const mockGetRedirectUrl = jest.fn(() => 'https://auth.expo.io/@varsity-hub/varsityhub');
 
 jest.mock('expo-auth-session', () => ({
   __esModule: true,
@@ -111,7 +136,7 @@ describe('useGoogleAuth — proxy detection', () => {
     expect(mockMakeRedirectUri).toHaveBeenCalledWith(
       expect.objectContaining({
         native: expect.stringContaining('com.googleusercontent.apps.'),
-      }),
+      })
     );
     // Proxy path must NOT be taken
     expect(mockGetRedirectUrl).not.toHaveBeenCalled();
@@ -138,7 +163,7 @@ describe('useGoogleAuth — proxy detection', () => {
     expect(mockMakeRedirectUri).not.toHaveBeenCalledWith(
       expect.objectContaining({
         native: expect.stringContaining('com.googleusercontent.apps.'),
-      }),
+      })
     );
   });
 
@@ -166,7 +191,7 @@ describe('useGoogleAuth — proxy detection', () => {
       expect.objectContaining({
         native:
           'com.googleusercontent.apps.814866365020-ia09lnm6he2prvaivrp8sblh7oeh9ic0:/oauthredirect',
-      }),
+      })
     );
   });
 

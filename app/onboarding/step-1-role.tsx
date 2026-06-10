@@ -344,7 +344,7 @@ export default function Step1Role() {
         data: { role },
       });
       setProgress(1);
-      router.replace('/onboarding/step-2-basic' as any);
+      router.push('/onboarding/step-2-basic' as any);
     } catch (error) {
       if (__DEV__) {
         if (__DEV__) console.error('[STEP-1] Error during continue:', error);

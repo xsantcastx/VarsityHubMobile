@@ -16,6 +16,7 @@
  */
 
 import { describe, it, expect } from '@jest/globals';
+import { buildEventDetailHref } from '../eventRoutes';
 import {
   getNotificationActorLabel,
   getNotificationHref,
@@ -25,7 +26,9 @@ import {
   isSystemNotification,
 } from '../notificationPresentation';
 
-const makeActor = (overrides: Partial<{ id: string; username: string; display_name: string }> = {}) => ({
+const makeActor = (
+  overrides: Partial<{ id: string; username: string; display_name: string }> = {}
+) => ({
   id: overrides.id ?? 'actor-1',
   username: overrides.username ?? 'jane',
   display_name: overrides.display_name ?? 'Jane Doe',
@@ -130,7 +133,7 @@ describe('getNotificationHref — routing per type', () => {
       type: 'GAME_REMINDER',
       event: { id: 'event-1' },
     });
-    expect(href).toBe('/event-detail?id=event-1');
+    expect(href).toBe(buildEventDetailHref('event-1'));
   });
 
   it('GAME_REMINDER → event detail falling back to meta.event_id', () => {
@@ -138,7 +141,7 @@ describe('getNotificationHref — routing per type', () => {
       type: 'GAME_REMINDER',
       meta: { event_id: 'event-7' },
     });
-    expect(href).toBe('/event-detail?id=event-7');
+    expect(href).toBe(buildEventDetailHref('event-7'));
   });
 
   it('AD_APPROVED → ad calendar', () => {
@@ -161,43 +164,34 @@ describe('getNotificationHref — routing per type', () => {
   });
 
   it('ORG_APPROVED sends coaches with an accepted agreement to organization', () => {
-    const href = getNotificationHrefForUser(
-      { type: 'ORG_APPROVED' },
-      {
-        approval_status: 'APPROVED',
+    const href = getNotificationHrefForUser({ type: 'ORG_APPROVED' }, {
+      approval_status: 'APPROVED',
+      organization_id: 'org-1',
+      preferences: {
+        role: 'coach',
         organization_id: 'org-1',
-        preferences: {
-          role: 'coach',
-          organization_id: 'org-1',
-          coach_agreement_accepted_at: '2026-01-01T00:00:00.000Z',
-        },
-      } as any
-    );
+        coach_agreement_accepted_at: '2026-01-01T00:00:00.000Z',
+      },
+    } as any);
     expect(href).toBe('/organization');
   });
 
   it('ORG_REJECTED sends proceeding-as-fan coaches to tabs instead of the rejection screen', () => {
-    const href = getNotificationHrefForUser(
-      { type: 'ORG_REJECTED' },
-      {
-        approval_status: 'REJECTED',
-        preferences: { role: 'coach', proceeding_as_fan: true },
-      } as any
-    );
+    const href = getNotificationHrefForUser({ type: 'ORG_REJECTED' }, {
+      approval_status: 'REJECTED',
+      preferences: { role: 'coach', proceeding_as_fan: true },
+    } as any);
     expect(href).toBe('/(tabs)');
   });
 
   it('ORG_REJECTED prefers top-level fan mode over stale preferences', () => {
-    const href = getNotificationHrefForUser(
-      { type: 'ORG_REJECTED' },
-      {
-        approval_status: 'REJECTED',
-        account_state: 'coach_application_rejected',
-        next_step: '/onboarding/league-pending-approval',
-        proceeding_as_fan: true,
-        preferences: { role: 'coach', proceeding_as_fan: false },
-      } as any
-    );
+    const href = getNotificationHrefForUser({ type: 'ORG_REJECTED' }, {
+      approval_status: 'REJECTED',
+      account_state: 'coach_application_rejected',
+      next_step: '/onboarding/league-pending-approval',
+      proceeding_as_fan: true,
+      preferences: { role: 'coach', proceeding_as_fan: false },
+    } as any);
     expect(href).toBe('/(tabs)');
   });
 
@@ -246,7 +240,7 @@ describe('getNotificationHref — routing per type', () => {
       type: 'EVENT_APPROVED',
       meta: { event_id: 'event-42' },
     });
-    expect(href).toBe('/event-detail?id=event-42');
+    expect(href).toBe(buildEventDetailHref('event-42'));
   });
 
   it('EVENT_REJECTED with event_id → event detail', () => {
@@ -254,7 +248,7 @@ describe('getNotificationHref — routing per type', () => {
       type: 'EVENT_REJECTED',
       meta: { event_id: 'event-42' },
     });
-    expect(href).toBe('/event-detail?id=event-42');
+    expect(href).toBe(buildEventDetailHref('event-42'));
   });
 
   it('unknown type with actor → falls back to actor profile', () => {
@@ -330,39 +324,51 @@ describe('getNotificationTitle — per type', () => {
 
 describe('notification presentation helpers', () => {
   it('prefers @username for actor labels', () => {
-    expect(getNotificationActorLabel({ actor: makeActor({ username: 'varsity' }) })).toBe('@varsity');
+    expect(getNotificationActorLabel({ actor: makeActor({ username: 'varsity' }) })).toBe(
+      '@varsity'
+    );
   });
 
   it('falls back to display_name for actor labels', () => {
-    expect(getNotificationActorLabel({ actor: { display_name: 'Varsity Coach' } })).toBe('Varsity Coach');
+    expect(getNotificationActorLabel({ actor: { display_name: 'Varsity Coach' } })).toBe(
+      'Varsity Coach'
+    );
   });
 
   it('returns post content as the shared subtitle when present', () => {
-    expect(getNotificationSubtitle({
-      type: 'COMMENT',
-      post: { id: 'post-1', content: 'Big win tonight at home.' },
-    })).toBe('Big win tonight at home.');
+    expect(
+      getNotificationSubtitle({
+        type: 'COMMENT',
+        post: { id: 'post-1', content: 'Big win tonight at home.' },
+      })
+    ).toBe('Big win tonight at home.');
   });
 
   it('falls back to message preview when post content is unavailable', () => {
-    expect(getNotificationSubtitle({
-      type: 'MESSAGE',
-      message: { conversation_id: 'conv-1', content: 'Meet by the gym at 6:30.' } as any,
-    })).toBe('Meet by the gym at 6:30.');
+    expect(
+      getNotificationSubtitle({
+        type: 'MESSAGE',
+        message: { conversation_id: 'conv-1', content: 'Meet by the gym at 6:30.' } as any,
+      })
+    ).toBe('Meet by the gym at 6:30.');
   });
 
   it('uses event title for reminder-style notifications', () => {
-    expect(getNotificationSubtitle({
-      type: 'GAME_REMINDER',
-      event: { id: 'event-1', title: 'Varsity vs Central' },
-    })).toBe('Varsity vs Central');
+    expect(
+      getNotificationSubtitle({
+        type: 'GAME_REMINDER',
+        event: { id: 'event-1', title: 'Varsity vs Central' },
+      })
+    ).toBe('Varsity vs Central');
   });
 
   it('uses organization metadata for approval notifications', () => {
-    expect(getNotificationSubtitle({
-      type: 'ORG_APPROVED',
-      meta: { organization_name: 'North Ridge League' },
-    })).toBe('North Ridge League');
+    expect(
+      getNotificationSubtitle({
+        type: 'ORG_APPROVED',
+        meta: { organization_name: 'North Ridge League' },
+      })
+    ).toBe('North Ridge League');
   });
 });
 
@@ -377,17 +383,14 @@ describe('isSystemNotification', () => {
     ['COACH_REJECTED'],
     ['JOIN_REQUEST_APPROVED'],
     ['JOIN_REQUEST_DENIED'],
-  ])('%s is a system notification', (type) => {
+  ])('%s is a system notification', type => {
     expect(isSystemNotification({ type })).toBe(true);
   });
 
-  it.each([
-    ['FOLLOW'],
-    ['UPVOTE'],
-    ['COMMENT'],
-    ['MESSAGE'],
-    ['TEAM_INVITE'],
-  ])('%s is NOT a system notification (actor-driven)', (type) => {
-    expect(isSystemNotification({ type })).toBe(false);
-  });
+  it.each([['FOLLOW'], ['UPVOTE'], ['COMMENT'], ['MESSAGE'], ['TEAM_INVITE']])(
+    '%s is NOT a system notification (actor-driven)',
+    type => {
+      expect(isSystemNotification({ type })).toBe(false);
+    }
+  );
 });

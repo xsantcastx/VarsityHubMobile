@@ -205,10 +205,8 @@ const FeedCard = memo(
         post.media_url
           ? {
               uri:
-                optimizeImageUrl(
-                  post.media_url,
-                  Math.max(900, Math.round(windowWidth * 1.5))
-                ) || post.media_url,
+                optimizeImageUrl(post.media_url, Math.max(900, Math.round(windowWidth * 1.5))) ||
+                post.media_url,
             }
           : null,
       [post.media_url]
@@ -217,8 +215,7 @@ const FeedCard = memo(
       () =>
         post.author?.avatar_url
           ? {
-              uri:
-                optimizeImageUrl(post.author.avatar_url, 120) || post.author.avatar_url,
+              uri: optimizeImageUrl(post.author.avatar_url, 120) || post.author.avatar_url,
             }
           : null,
       [post.author?.avatar_url]
@@ -700,7 +697,7 @@ function GameVerticalFeedScreen({
     if (onClose) {
       onClose();
     } else {
-      safeGoBack(router, '/(tabs)');
+      safeGoBack(router, '/(tabs)/highlights');
     }
   }, [onClose, router]);
 

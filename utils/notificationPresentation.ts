@@ -1,8 +1,9 @@
 import {
-    getCoachApprovalNotificationRoute,
-    getCoachRecoveryRoute,
-    type CoachUserLike,
+  getCoachApprovalNotificationRoute,
+  getCoachRecoveryRoute,
+  type CoachUserLike,
 } from './roleChecks';
+import { buildEventDetailHref } from './eventRoutes';
 
 type NotificationActor = {
   id?: string | null;
@@ -63,7 +64,8 @@ export function getNotificationTitle(item: NotificationItem) {
   const name = getNotificationActorLabel(item);
   const type = String(item.type || '');
 
-  if (type === 'FOLLOW' && item.meta?.follow_rejected) return `${name} declined your follow request`;
+  if (type === 'FOLLOW' && item.meta?.follow_rejected)
+    return `${name} declined your follow request`;
   if (type === 'FOLLOW') return `${name} followed you`;
   if (type === 'FOLLOW_REQUEST') return `${name} requested to follow you`;
   if (type === 'UPVOTE') return `${name} upvoted your post`;
@@ -80,7 +82,7 @@ export function getNotificationTitle(item: NotificationItem) {
   if (type === 'COMMENT_REPLY') return `${name} replied to your comment`;
   if (type === 'SHARE') return `${name} shared your post`;
   if (type === 'GAME_REMINDER') {
-    return `Game reminder: ${(item.event?.title || item.meta?.event_title) || 'Your game'}`;
+    return `Game reminder: ${item.event?.title || item.meta?.event_title || 'Your game'}`;
   }
   if (type === 'AD_APPROVED') {
     return `Your ad${item.meta?.business_name ? ` for "${item.meta.business_name}"` : ''} has been approved! Tap to complete payment.`;
@@ -130,17 +132,17 @@ export function getNotificationSubtitle(item: NotificationItem) {
     normalizePreview(item.post?.content) ||
     normalizePreview(item.comment?.content) ||
     normalizePreview((item.message as any)?.content) ||
-    ((type === 'GAME_REMINDER' || type === 'EVENT_APPROVED' || type === 'EVENT_REJECTED')
+    (type === 'GAME_REMINDER' || type === 'EVENT_APPROVED' || type === 'EVENT_REJECTED'
       ? normalizePreview(item.event?.title || (meta.event_title as string | null | undefined))
       : null) ||
-    ((type === 'AD_APPROVED' || type === 'AD_REJECTED')
+    (type === 'AD_APPROVED' || type === 'AD_REJECTED'
       ? normalizePreview(meta.business_name as string | null | undefined)
       : null) ||
-    ((type === 'ORG_APPROVED' ||
-      type === 'ORG_REJECTED' ||
-      type === 'JOIN_REQUEST_APPROVED' ||
-      type === 'JOIN_REQUEST_DENIED' ||
-      type === 'COACH_REJECTED')
+    (type === 'ORG_APPROVED' ||
+    type === 'ORG_REJECTED' ||
+    type === 'JOIN_REQUEST_APPROVED' ||
+    type === 'JOIN_REQUEST_DENIED' ||
+    type === 'COACH_REJECTED'
       ? normalizePreview(
           (meta.organization_name as string | null | undefined) ||
             (meta.reason as string | null | undefined)
@@ -154,14 +156,21 @@ export function getNotificationHref(item: NotificationItem): any | null {
   return getNotificationHrefForUser(item, null);
 }
 
-export function getNotificationHrefForUser(item: NotificationItem, user: CoachUserLike | null | undefined): any | null {
+export function getNotificationHrefForUser(
+  item: NotificationItem,
+  user: CoachUserLike | null | undefined
+): any | null {
   const type = String(item.type || '');
 
   if ((type === 'FOLLOW' || type === 'FOLLOW_REQUEST') && item.actor?.id) {
     return `/user-profile?id=${encodeURIComponent(item.actor.id)}`;
   }
   if (
-    (type === 'UPVOTE' || type === 'COMMENT' || type === 'MENTION' || type === 'COMMENT_REPLY' || type === 'SHARE') &&
+    (type === 'UPVOTE' ||
+      type === 'COMMENT' ||
+      type === 'MENTION' ||
+      type === 'COMMENT_REPLY' ||
+      type === 'SHARE') &&
     item.post?.id
   ) {
     const commentId =
@@ -186,7 +195,7 @@ export function getNotificationHrefForUser(item: NotificationItem, user: CoachUs
     (type === 'GAME_REMINDER' || type === 'EVENT_APPROVED' || type === 'EVENT_REJECTED') &&
     (item.event?.id || item.meta?.event_id)
   ) {
-    return `/event-detail?id=${encodeURIComponent(item.event?.id || item.meta?.event_id || '')}`;
+    return buildEventDetailHref(item.event?.id || item.meta?.event_id || '');
   }
   // Fallback: game has no linked event — route directly to the game detail screen.
   if (
@@ -205,9 +214,7 @@ export function getNotificationHrefForUser(item: NotificationItem, user: CoachUs
     return getCoachRecoveryRoute(user) || '/onboarding/league-pending-approval';
   }
   if (type === 'JOIN_REQUEST_APPROVED') {
-    return item.meta?.denied
-      ? '/(tabs)'
-      : getCoachApprovalNotificationRoute(user);
+    return item.meta?.denied ? '/(tabs)' : getCoachApprovalNotificationRoute(user);
   }
   if (type === 'JOIN_REQUEST_DENIED') {
     return '/(tabs)';

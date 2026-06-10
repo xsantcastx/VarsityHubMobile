@@ -31,6 +31,7 @@ import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getAuthSnapshot, getCanonicalRole } from '@/utils/authState';
 import { handleCoachAccessError } from '@/utils/coachAccess';
+import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { getCoachAccessState, getCoachRecoveryRoute } from '@/utils/roleChecks';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
@@ -1455,10 +1456,7 @@ function CommunityDiscoverScreen() {
                   onPress={() => {
                     setQuery('');
                     setUnifiedSearchResults(null);
-                    void router.push({
-                      pathname: '/event-detail',
-                      params: { id: String(event.id) },
-                    });
+                    void router.push(buildEventDetailRoute(event.id));
                   }}
                   accessibilityRole="button"
                   accessibilityLabel={`View event ${event.title}`}

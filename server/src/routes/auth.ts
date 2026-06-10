@@ -10,33 +10,33 @@ import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
 import { debugLog } from '../lib/debugLog.js';
 import {
-    getCoachFlowState,
-    getLatestCoachApplication,
-    serializeCoachApplication,
+  getCoachFlowState,
+  getLatestCoachApplication,
+  serializeCoachApplication,
 } from '../lib/coachApplications.js';
 import {
-    buildCoachApplicationReviewUrl,
-    sendCoachApplicationAdminEmail,
-    sendPasswordResetEmail,
-    sendVerificationEmail,
+  buildCoachApplicationReviewUrl,
+  sendCoachApplicationAdminEmail,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
 } from '../lib/email.js';
 import { AppError } from '../lib/errors/AppError.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
 import { sendError } from '../lib/http/sendError.js';
 import {
-    generateRefreshTokenV2,
-    hashRefreshToken,
-    hashRefreshTokenSecret,
-    parseRefreshToken,
-    REFRESH_TOKEN_EXPIRY_DAYS,
-    REFRESH_TOKEN_HASH_VERSION_V2,
-    signAccessTokenForSession,
-    verifyRefreshTokenHash,
+  generateRefreshTokenV2,
+  hashRefreshToken,
+  hashRefreshTokenSecret,
+  parseRefreshToken,
+  REFRESH_TOKEN_EXPIRY_DAYS,
+  REFRESH_TOKEN_HASH_VERSION_V2,
+  signAccessTokenForSession,
+  verifyRefreshTokenHash,
 } from '../lib/jwt.js';
 import {
-    buildOAuthExistingAccountConflict,
-    getLinkedProviders,
+  buildOAuthExistingAccountConflict,
+  getLinkedProviders,
 } from '../lib/oauthAccountLinking.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import { getOrganizationJoinRequestStateForUser } from '../lib/organizationWorkflowState.js';
@@ -47,42 +47,42 @@ import { stripHtml } from '../lib/sanitizeHtml.js';
 import { captureException } from '../lib/sentry.js';
 import { revokeAllSessions, startNewSession } from '../lib/session.js';
 import {
-    buildSessionFingerprint,
-    verifyStoredSessionFingerprint,
+  buildSessionFingerprint,
+  verifyStoredSessionFingerprint,
 } from '../lib/sessionFingerprint.js';
 import { mustSucceed } from '../lib/sideEffect.js';
 import {
-    evaluateDobUpdate,
-    formatDobYmd,
-    getCanonicalDob,
-    requiresParentalConsent,
+  evaluateDobUpdate,
+  formatDobYmd,
+  getCanonicalDob,
+  requiresParentalConsent,
 } from '../lib/userAge.js';
 import {
-    buildAuthStateColumns,
-    getCanonicalAuthState,
-    getCanonicalOrganizationId,
-    getCanonicalUserRole,
-    getPreferencesObject,
-    isProceedingAsFan,
-    isUserOnboardingComplete,
-    mergeAuthStateIntoPreferences,
+  buildAuthStateColumns,
+  getCanonicalAuthState,
+  getCanonicalOrganizationId,
+  getCanonicalUserRole,
+  getPreferencesObject,
+  isProceedingAsFan,
+  isUserOnboardingComplete,
+  mergeAuthStateIntoPreferences,
 } from '../lib/userAuthState.js';
 import {
-    buildBillingStateColumns,
-    getCanonicalBillingState,
-    getCanonicalPlan,
-    getSelectedPlan,
-    isPaymentPending,
-    mergeBillingStateIntoPreferences,
+  buildBillingStateColumns,
+  getCanonicalBillingState,
+  getCanonicalPlan,
+  getSelectedPlan,
+  isPaymentPending,
+  mergeBillingStateIntoPreferences,
 } from '../lib/userBillingState.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import {
-    authLimiter,
-    oauthLimiter,
-    passwordResetLimiter,
-    refreshTokenLimiter,
-    verificationConfirmLimiter,
+  authLimiter,
+  oauthLimiter,
+  passwordResetLimiter,
+  refreshTokenLimiter,
+  verificationConfirmLimiter,
 } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
@@ -336,6 +336,7 @@ if (process.env.NODE_ENV === 'production' && process.env.ALLOW_APPLE_SIM_TOKENS 
 
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 const APPLE_JWKS_TTL_MS = 6 * 60 * 60 * 1000;
+const APPLE_JWKS_TIMEOUT_MS = 10_000;
 const appleKeyCache = new Map<string, { key: KeyObject; expiresAt: number }>();
 
 async function issueRefreshTokenForUser(userId: string, deviceInfo: string | null | undefined) {
@@ -483,7 +484,7 @@ async function verifyAppleIdentityToken(identityToken: string, appleClientId: st
 
     return { appleId, email };
   } catch (err: any) {
-    if (err instanceof ValidationError) throw err;
+    if (err instanceof ValidationError || err instanceof AppError) throw err;
     throw new ValidationError('Failed to verify Apple token', {
       errorCode: 'APPLE_AUTH_FAILED',
       metadata: { detail: err?.message },
@@ -498,7 +499,24 @@ async function getApplePublicKey(kid: string): Promise<KeyObject> {
     return cached.key;
   }
 
-  const response = await fetch(APPLE_JWKS_URL);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), APPLE_JWKS_TIMEOUT_MS);
+
+  let response: globalThis.Response;
+  try {
+    response = await fetch(APPLE_JWKS_URL, { signal: controller.signal });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new AppError(503, 'Apple sign-in is temporarily unavailable', {
+        errorCode: 'APPLE_JWKS_TIMEOUT',
+        metadata: { timeout_ms: APPLE_JWKS_TIMEOUT_MS },
+      });
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   if (!response.ok) {
     throw new Error(`Failed to fetch Apple JWKS: ${response.status}`);
   }
@@ -790,7 +808,12 @@ authRouter.post(
       await recordLoginFailure(sanitizedEmail);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    if (user.banned) return res.status(403).json({ error: 'Account banned', ban_reason: user.ban_reason || null, banned_until: user.banned_until || null });
+    if (user.banned)
+      return res.status(403).json({
+        error: 'Account banned',
+        ban_reason: user.ban_reason || null,
+        banned_until: user.banned_until || null,
+      });
     if (!user.password_hash) {
       await recordLoginFailure(sanitizedEmail);
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -1113,7 +1136,10 @@ authRouter.post(
               data: { preferences: rest as any },
             });
             await invalidateMeCacheForUser(verifiedRow.user_id).catch((err: unknown) => {
-              console.warn('[auth] Cache invalidation failed (non-critical):', (err as Error)?.message);
+              console.warn(
+                '[auth] Cache invalidation failed (non-critical):',
+                (err as Error)?.message
+              );
             });
           }
         } catch (err) {
@@ -2457,55 +2483,58 @@ authRouter.post(
 
     // Coach application involves 3 sequential writes; increase timeout from 5s default
     // to 15s so connection pool pressure doesn't abort the transaction.
-    const result = await prisma.$transaction(async tx => {
-      await tx.coachApplication.updateMany({
-        where: {
-          user_id: user.id,
-          status: { in: ['submitted', 'rejected'] },
-        },
-        data: {
-          status: 'superseded',
-          reviewed_at: now,
-          review_note: 'Superseded by a newer coach application submission.',
-        },
-      });
+    const result = await prisma.$transaction(
+      async tx => {
+        await tx.coachApplication.updateMany({
+          where: {
+            user_id: user.id,
+            status: { in: ['submitted', 'rejected'] },
+          },
+          data: {
+            status: 'superseded',
+            reviewed_at: now,
+            review_note: 'Superseded by a newer coach application submission.',
+          },
+        });
 
-      const application = await tx.coachApplication.create({
-        data: {
-          user_id: user.id,
-          organization_name: data.organization_name,
-          org_type: data.org_type,
-          location: data.location,
-          zip_code: data.zip_code,
-          place_id: data.place_id,
-          supporting_document_url: data.supporting_document_url,
-          background_url: data.background_url,
-          payload: data,
-          submitted_at: now,
-        },
-      });
+        const application = await tx.coachApplication.create({
+          data: {
+            user_id: user.id,
+            organization_name: data.organization_name,
+            org_type: data.org_type,
+            location: data.location,
+            zip_code: data.zip_code,
+            place_id: data.place_id,
+            supporting_document_url: data.supporting_document_url,
+            background_url: data.background_url,
+            payload: data,
+            submitted_at: now,
+          },
+        });
 
-      const updatedUser = await tx.user.update({
-        where: { id: user.id },
-        data: {
-          preferences: mergeAuthStateIntoPreferences(nextPrefs, {
-            onboarding_completed: false,
-            organization_id: null,
-            proceeding_as_fan: false,
-          }),
-          ...buildAuthStateColumns({
-            onboarding_completed: false,
-            organization_id: null,
-            proceeding_as_fan: false,
-          }),
-          approval_status: 'PENDING',
-          rejected_at: null,
-          rejection_reason: null,
-        },
-      });
+        const updatedUser = await tx.user.update({
+          where: { id: user.id },
+          data: {
+            preferences: mergeAuthStateIntoPreferences(nextPrefs, {
+              onboarding_completed: false,
+              organization_id: null,
+              proceeding_as_fan: false,
+            }),
+            ...buildAuthStateColumns({
+              onboarding_completed: false,
+              organization_id: null,
+              proceeding_as_fan: false,
+            }),
+            approval_status: 'PENDING',
+            rejected_at: null,
+            rejection_reason: null,
+          },
+        });
 
-      return { application, updatedUser };
-    }, { timeout: 15000, maxWait: 5000 });
+        return { application, updatedUser };
+      },
+      { timeout: 15000, maxWait: 5000 }
+    );
 
     await invalidateMeCacheForUser(user.id);
 
@@ -2801,10 +2830,7 @@ async function handleUpdateMe(req: AuthedRequest, res: Response) {
         await prisma.$executeRaw(mentionRewriteSql('Post'));
         await prisma.$executeRaw(mentionRewriteSql('Comment'));
       } catch (err: any) {
-        console.error(
-          '[auth] mention rewrite after username change failed:',
-          err?.message || err
-        );
+        console.error('[auth] mention rewrite after username change failed:', err?.message || err);
       }
     })();
   }
@@ -3236,7 +3262,10 @@ authRouter.patch(
               });
             });
           await invalidateMeCacheForUser(other.id).catch((err: unknown) => {
-            console.warn('[auth] Cache invalidation failed (non-critical):', (err as Error)?.message);
+            console.warn(
+              '[auth] Cache invalidation failed (non-critical):',
+              (err as Error)?.message
+            );
           });
         }
       } catch (err: any) {

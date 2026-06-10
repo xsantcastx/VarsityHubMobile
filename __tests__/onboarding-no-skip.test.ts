@@ -241,11 +241,13 @@ describe('onboarding flow — no screens can be skipped', () => {
       );
     });
 
-    it('app/index.tsx has a root-screen failsafe redirect', () => {
-      expect(rootIndex).toMatch(/Root-screen failsafe/);
-      expect(rootIndex).toMatch(/router\.replace\('/);
-      expect(rootIndex).toMatch(/getPostAuthRouteDecision/);
-      expect(rootIndex).toMatch(/\/verify/);
+    it('app/index.tsx stays passive while AuthProvider owns the root-splash redirect', () => {
+      expect(rootIndex).toMatch(/Passive splash screen/);
+      expect(rootIndex).toMatch(/navigation is handled centrally by _layout\.tsx/);
+      expect(rootIndex).not.toMatch(/router\.replace\('/);
+      expect(rootIndex).not.toMatch(/getPostAuthRouteDecision/);
+      expect(authProvider).toMatch(/root_index_authenticated/);
+      expect(authProvider).toMatch(/root_index_guest/);
     });
 
     it('root layout does not hard-block auth bootstrap on navState.key', () => {

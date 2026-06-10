@@ -1,7 +1,18 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { ReactNode, useEffect, useState } from 'react';
-import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { screenHeaderSharedStyles } from '@/components/ScreenHeaderShared';
 import { Colors } from '@/constants/Colors';
@@ -82,7 +93,7 @@ export default function OnboardingLayout({
     } else if (onBack) {
       onBack();
     } else if (previousStepRoute[step]) {
-      router.replace(previousStepRoute[step] as any);
+      safeGoBack(router, previousStepRoute[step] as any);
     } else {
       safeGoBack(router);
     }
@@ -99,11 +110,16 @@ export default function OnboardingLayout({
   };
 
   return (
-    <SafeAreaView 
-      style={[styles.container, { backgroundColor: colors.background }]} 
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
       edges={['top', 'left', 'right']}
     >
-      <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: colors.headerBg, borderBottomColor: colors.border },
+        ]}
+      >
         {showBackButton ? (
           <Pressable
             onPress={handleBack}
@@ -118,13 +134,20 @@ export default function OnboardingLayout({
         ) : (
           <View style={styles.backButton} />
         )}
-        
+
         <Text style={[styles.stepIndicator, { color: colors.textMuted }]}>
           Step {step}/{effectiveTotalSteps}
         </Text>
-        
+
         {emailVerified === false && onVerifyEmail ? (
-          <Pressable onPress={onVerifyEmail} style={styles.verifyButton} hitSlop={8} accessibilityRole="button" accessibilityLabel="Verify email" accessibilityHint="Send verification email">
+          <Pressable
+            onPress={onVerifyEmail}
+            style={styles.verifyButton}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Verify email"
+            accessibilityHint="Send verification email"
+          >
             <MaterialIcons name="mail-outline" size={18} color="#EF4444" />
             <Text style={styles.verifyButtonText}>Verify</Text>
           </Pressable>
@@ -133,14 +156,16 @@ export default function OnboardingLayout({
         )}
       </View>
 
-      <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#374151' : '#F3F4F6' }]}>
+      <View
+        style={[styles.progressBarContainer, { backgroundColor: isDark ? '#374151' : '#F3F4F6' }]}
+      >
         <View
           style={[
             styles.progressBar,
             {
               width: `${(step / effectiveTotalSteps) * 100}%`,
-              backgroundColor: colors.primary
-            }
+              backgroundColor: colors.primary,
+            },
           ]}
         />
       </View>
@@ -177,7 +202,7 @@ export default function OnboardingLayout({
                   // Collapse the home-indicator safe-area padding while the keyboard
                   // is open — KeyboardAvoidingView already pushes the footer up to
                   // meet the keyboard, so the extra 34px would show as a white strip.
-                  paddingBottom: keyboardOpen ? 12 : (insets.bottom > 0 ? insets.bottom : 16),
+                  paddingBottom: keyboardOpen ? 12 : insets.bottom > 0 ? insets.bottom : 16,
                 },
               ]}
             >
@@ -186,7 +211,10 @@ export default function OnboardingLayout({
                 disabled={continueDisabled || loading}
                 style={[
                   styles.continueButton,
-                  { backgroundColor: (continueDisabled || loading) ? colors.primaryMuted : colors.primary },
+                  {
+                    backgroundColor:
+                      continueDisabled || loading ? colors.primaryMuted : colors.primary,
+                  },
                 ]}
                 accessibilityLabel="Continue"
                 accessibilityRole="button"

@@ -146,6 +146,24 @@ describe('account boundary invariants', () => {
       );
     });
 
+    it('auth-establishing endpoints explicitly omit stale Authorization headers', () => {
+      expect(authApi).toMatch(
+        /httpPostLongTimeout\(\s*'\/auth\/register',[\s\S]{0,120}omitAuthToken:\s*true[\s\S]{0,120}skipAuthRetry:\s*true/
+      );
+      expect(authApi).toMatch(
+        /httpPost\(\s*'\/auth\/login',[\s\S]{0,120}omitAuthToken:\s*true[\s\S]{0,120}skipAuthRetry:\s*true/
+      );
+      expect(authApi).toMatch(
+        /httpPostLongTimeout\(\s*'\/auth\/google',[\s\S]{0,120}omitAuthToken:\s*true[\s\S]{0,120}skipAuthRetry:\s*true/
+      );
+      expect(authApi).toMatch(
+        /httpPostLongTimeout\(\s*'\/auth\/apple',[\s\S]{0,120}omitAuthToken:\s*true[\s\S]{0,120}skipAuthRetry:\s*true/
+      );
+      expect(authApi).toMatch(
+        /httpPost\(\s*'\/auth\/refresh',[\s\S]{0,120}omitAuthToken:\s*true[\s\S]{0,120}skipAuthRetry:\s*true/
+      );
+    });
+
     it('sign-up uses replaceSession when completing OAuth account creation', () => {
       expect(signUp).toMatch(/checkAuth\(\{\s*replaceSession:\s*true\s*\}\)/);
     });

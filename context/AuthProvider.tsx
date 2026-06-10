@@ -34,7 +34,11 @@ import {
 import { buildAuthRedirectFingerprint, navigateWithAuthRedirect } from '@/utils/authTelemetry';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import Notifications from '@/utils/notifications';
-import { GUEST_HOME_ROUTE, isPublicRouteSegment } from '@/utils/publicRoutes';
+import {
+  GUEST_HOME_ROUTE,
+  isAuthEntryRouteSegment,
+  isPublicRouteSegment,
+} from '@/utils/publicRoutes';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { captureException, setUserContext as setSentryUser } from '@/utils/sentry';
 import { onSessionExpired, type SessionExpiredReason } from '@/utils/sessionEvents';
@@ -942,6 +946,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       Array.isArray(segmentsRef.current) && segmentsRef.current.length
         ? String(segmentsRef.current[0])
         : '';
+    const isRootIndex = currentPath === '';
     const isPublic = isPublicRouteSegment(firstSegment);
 
     // STARTUP RESTORATION FIX: Expo Router can restore navigation state from
@@ -1152,6 +1157,16 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
+      // Root index is a splash trampoline only. Once auth/bootstrap is ready,
+      // authenticated app-home users must be pushed onto a concrete screen.
+      if (isRootIndex && postAuthDecision.kind === 'app_home') {
+        const landingRoute = postAuthDecision.route;
+        if (lastRedirectRef.current !== landingRoute) {
+          redirectWithTelemetry(landingRoute, 'root_index_authenticated');
+        }
+        return;
+      }
+
       // Payment redirect screens must stay mounted long enough to reconcile
       // webhook/finalize-session state. Redirecting an authenticated user away
       // from /payment-success or /payment-cancel causes a bounce back into
@@ -1165,14 +1180,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // destination instead of leaving the user on an auth screen that appears
       // to "loop".
       if (
-        isPublic &&
+        isAuthEntryRouteSegment(firstSegment) &&
         postAuthDecision.kind === 'app_home' &&
-        firstSegment !== 'verify-email' &&
         !isPaymentRedirectScreen
       ) {
         const landingRoute = postAuthDecision.route;
         if (lastRedirectRef.current !== landingRoute) {
-          redirectWithTelemetry(landingRoute, 'public_route_authenticated');
+          redirectWithTelemetry(landingRoute, 'auth_entry_authenticated');
         }
         return;
       }
@@ -1188,6 +1202,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           return;
         }
       }
+    }
+
+    // Root index is never a destination for guests; it is only the passive
+    // splash while bootstrap decides where to go next.
+    if (!user && !pendingVerificationEmail && isRootIndex) {
+      if (lastRedirectRef.current !== unauthenticatedEntryRoute) {
+        redirectWithTelemetry(unauthenticatedEntryRoute, 'root_index_guest');
+      }
+      return;
     }
 
     // Do not strand unauthenticated users on the passive root spinner when a

@@ -2,6 +2,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Pressable, Text, TextInput } from 'react-native';
 
 const mockRouterReplace = jest.fn();
+const mockRouterPush = jest.fn();
 const mockMarkOnboardingCompleteLocally = jest.fn(async () => undefined);
 const mockRegisterPushToken = jest.fn(async () => undefined);
 const mockSetOB = jest.fn();
@@ -27,7 +28,7 @@ const mockCheckAuth = jest.fn(async () => mockAuthUser);
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
-    push: jest.fn(),
+    push: mockRouterPush,
     replace: mockRouterReplace,
     back: jest.fn(),
     canGoBack: () => true,
@@ -57,7 +58,9 @@ jest.mock('@/components/ui/PrimaryButton', () => (props: any) => (
   </Pressable>
 ));
 
-jest.mock('../app/onboarding/components/OnboardingLayout', () => (props: any) => <>{props.children}</>);
+jest.mock('../app/onboarding/components/OnboardingLayout', () => (props: any) => (
+  <>{props.children}</>
+));
 jest.mock('@/components/ZipCodeMapPreview', () => ({ ZipCodeMapPreview: () => null }));
 jest.mock('@/hooks/useColorScheme', () => ({ useColorScheme: () => 'light' }));
 jest.mock('@/utils/navigation', () => ({ safeGoBack: jest.fn() }));
@@ -174,7 +177,8 @@ describe('Step2Basic optional media persistence', () => {
       );
     });
 
-    expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding/fan-permissions');
+    // Forward onboarding navigation uses push (fan-permissions handles its own completion)
+    expect(mockRouterPush).toHaveBeenCalledWith('/onboarding/fan-permissions');
 
     await waitFor(() => {
       expect(mockUploadFile).toHaveBeenCalledTimes(2);

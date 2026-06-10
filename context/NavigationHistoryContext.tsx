@@ -16,6 +16,7 @@ const MAX_HISTORY = 50;
 let globalGetFallback: (() => string) | null = null;
 let globalGetCurrentHref: (() => string | null) | null = null;
 let globalSafeBack: ((explicitFallback?: Href | string) => boolean) | null = null;
+let globalMarkNextHistoryEntryAsRedirect: (() => void) | null = null;
 export function setNavigationFallbackGetter(fn: (() => string) | null) {
   globalGetFallback = fn;
 }
@@ -28,11 +29,19 @@ export function setCurrentHrefGetter(fn: (() => string | null) | null) {
 export function getCurrentHref(): string | null {
   return globalGetCurrentHref?.() ?? null;
 }
-export function setNavigationSafeBackHandler(fn: ((explicitFallback?: Href | string) => boolean) | null) {
+export function setNavigationSafeBackHandler(
+  fn: ((explicitFallback?: Href | string) => boolean) | null
+) {
   globalSafeBack = fn;
 }
 export function performTrackedSafeBack(explicitFallback?: Href | string): boolean {
   return globalSafeBack?.(explicitFallback) ?? false;
+}
+export function setMarkNextHistoryEntryAsRedirect(fn: (() => void) | null) {
+  globalMarkNextHistoryEntryAsRedirect = fn;
+}
+export function markNextHistoryEntryAsRedirect() {
+  globalMarkNextHistoryEntryAsRedirect?.();
 }
 
 type TabRoute = (typeof TAB_ROUTES)[number];
@@ -50,13 +59,14 @@ function segmentsToRoute(segments: string[]): string {
   return DEFAULT_FALLBACK;
 }
 
-
 interface NavigationHistoryContextType {
   safeGoBack: (explicitFallback?: Href | string) => void;
   getFallbackRoute: () => string;
 }
 
-export const NavigationHistoryContext = createContext<NavigationHistoryContextType | undefined>(undefined);
+export const NavigationHistoryContext = createContext<NavigationHistoryContextType | undefined>(
+  undefined
+);
 
 export function useNavigationHistory() {
   const context = useContext(NavigationHistoryContext);
@@ -102,9 +112,11 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
   const historyRef = useRef<string[]>([]);
   const prevHrefRef = useRef<string | null>(null);
   const isNavigatingBackRef = useRef(false);
+  const skipNextHistoryEntryRef = useRef(false);
 
   // Use full href (path + params) so back preserves query params
-  const currentHref = typeof href === 'string' ? href : `/${segments.map((s) => String(s)).join('/')}`;
+  const currentHref =
+    typeof href === 'string' ? href : `/${segments.map(s => String(s)).join('/')}`;
 
   // On every route change: push previous href to history (unless we just navigated back)
   useEffect(() => {
@@ -115,6 +127,10 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
       isNavigatingBackRef.current = false;
       return;
     }
+    if (skipNextHistoryEntryRef.current) {
+      skipNextHistoryEntryRef.current = false;
+      return;
+    }
     if (prev != null && prev !== currentHref) {
       historyRef.current = [...historyRef.current.slice(-(MAX_HISTORY - 1)), prev];
     }
@@ -122,7 +138,7 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
 
   // Update last-visited tab when on a tab root
   useEffect(() => {
-    const segStrings = segments.map((s) => String(s));
+    const segStrings = segments.map(s => String(s));
     if (segStrings.length >= 2 && isTabRoute(segStrings[1])) {
       lastTabRouteRef.current = segmentsToRoute(segStrings);
     }
@@ -134,23 +150,26 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
     return lastTabRouteRef.current;
   }, []);
 
-  const safeGoBack = useCallback((explicitFallback?: Href | string) => {
-    if (router.canGoBack()) {
-      router.back();
-      return true;
-    }
-    const hist = historyRef.current;
-    if (hist.length > 0) {
-      const target = hist[hist.length - 1];
-      historyRef.current = hist.slice(0, -1);
-      isNavigatingBackRef.current = true;
-      router.replace(target as any);
-      return true;
-    } else {
-      router.replace((explicitFallback ?? lastTabRouteRef.current) as any);
-      return true;
-    }
-  }, [router]);
+  const safeGoBack = useCallback(
+    (explicitFallback?: Href | string) => {
+      if (router.canGoBack()) {
+        router.back();
+        return true;
+      }
+      const hist = historyRef.current;
+      if (hist.length > 0) {
+        const target = hist[hist.length - 1];
+        historyRef.current = hist.slice(0, -1);
+        isNavigatingBackRef.current = true;
+        router.replace(target as any);
+        return true;
+      } else {
+        router.replace((explicitFallback ?? lastTabRouteRef.current) as any);
+        return true;
+      }
+    },
+    [router]
+  );
 
   const value = React.useMemo(
     () => ({ safeGoBack, getFallbackRoute }),
@@ -160,9 +179,13 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
   React.useEffect(() => {
     setNavigationFallbackGetter(getFallbackRoute);
     setNavigationSafeBackHandler(safeGoBack);
+    setMarkNextHistoryEntryAsRedirect(() => {
+      skipNextHistoryEntryRef.current = true;
+    });
     return () => {
       setNavigationFallbackGetter(null);
       setNavigationSafeBackHandler(null);
+      setMarkNextHistoryEntryAsRedirect(null);
     };
   }, [getFallbackRoute, safeGoBack]);
 
@@ -172,8 +195,6 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
   }, [currentHref]);
 
   return (
-    <NavigationHistoryContext.Provider value={value}>
-      {children}
-    </NavigationHistoryContext.Provider>
+    <NavigationHistoryContext.Provider value={value}>{children}</NavigationHistoryContext.Provider>
   );
 }

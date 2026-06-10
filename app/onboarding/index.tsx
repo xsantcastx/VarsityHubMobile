@@ -57,15 +57,7 @@ export default function OnboardingIndex() {
   // CRITICAL: User must be authenticated to access onboarding
   useEffect(() => {
     if (!isLoaded) return;
-
-    if (!user) {
-      if (__DEV__)
-        console.warn(
-          '[Onboarding] Unauthenticated user trying to access onboarding - redirecting to sign-in'
-        );
-      router.replace('/sign-in');
-      return;
-    }
+    if (!user) return;
 
     // Sync server preferences into local state — DB wins over stale AsyncStorage on conflict.
     // Navigation effect waits on hasHydrated so the routing decision sees the
@@ -81,7 +73,7 @@ export default function OnboardingIndex() {
       }
       setHasHydrated(true);
     }
-  }, [checkAuth, user, isLoaded, router, hydrateFromServer]);
+  }, [checkAuth, user, isLoaded, hydrateFromServer]);
 
   useEffect(() => {
     // Don't navigate until AsyncStorage has loaded, user is authenticated, AND

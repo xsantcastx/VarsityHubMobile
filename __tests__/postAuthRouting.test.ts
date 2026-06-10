@@ -57,7 +57,7 @@ describe('getPostAuthLandingRoute', () => {
           onboarding_completed: true,
         },
       })
-    ).toBe('/(tabs)');
+    ).toBe('/(tabs)/feed');
   });
 
   it('prefers canonical next_step for pending coach entry', () => {
@@ -101,7 +101,7 @@ describe('getPostAuthLandingRoute', () => {
           onboarding_completed: true,
         },
       })
-    ).toBe('/(tabs)');
+    ).toBe('/(tabs)/feed');
   });
 
   it('prefers top-level onboarding completion over stale preference flags after sign-in', () => {
@@ -114,7 +114,7 @@ describe('getPostAuthLandingRoute', () => {
           onboarding_completed: false,
         },
       })
-    ).toBe('/(tabs)');
+    ).toBe('/(tabs)/feed');
   });
 
   it('keeps onboarded admins out of coach pending traps', () => {
@@ -130,7 +130,7 @@ describe('getPostAuthLandingRoute', () => {
           onboarding_completed: true,
         },
       })
-    ).toBe('/(tabs)');
+    ).toBe('/(tabs)/feed');
   });
 
   it('still sends admins without onboarding through generic onboarding', () => {

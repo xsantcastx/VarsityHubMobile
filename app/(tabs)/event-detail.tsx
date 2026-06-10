@@ -1,20 +1,21 @@
 import { BackHeader } from '@/components/ui/BackHeader';
 import { useAuth } from '@/context/AuthProvider';
 import { getAuthSnapshot } from '@/utils/authState';
+import { buildEventDetailHref } from '@/utils/eventRoutes';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Linking,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-    useColorScheme,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
@@ -463,7 +464,7 @@ export default function EventDetailScreen() {
                         pathname: '/edit-event',
                         params: {
                           id: String(event.id),
-                          fallback: `/event-detail?id=${encodeURIComponent(String(event.id))}`,
+                          fallback: buildEventDetailHref(String(event.id)),
                         },
                       })
                     }

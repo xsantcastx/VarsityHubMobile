@@ -382,7 +382,8 @@ export default function Step2Basic() {
       return age < 18;
     })();
   const usernameError =
-    username.length > 0 && (!usernameRe.test(username) || username.length < 3 || username.length > 20);
+    username.length > 0 &&
+    (!usernameRe.test(username) || username.length < 3 || username.length > 20);
 
   // Validation rules:
   // - Username: required, valid format, available
@@ -402,13 +403,10 @@ export default function Step2Basic() {
     (ob.role === 'fan' || (affiliation && zip.trim().length >= 5)); // Coaches need affiliation + zip
 
   const onBack = () => {
-    // v1.0.3: step-1-role navigates to step-2 via router.replace(), so history
-    // is empty at step-2 and safeGoBack falls back to the tabs feed — trapping
-    // the user. Use router.replace() back to step-1-role explicitly so the user
-    // can change their role choice (fan ↔ coach) without getting kicked out of
-    // onboarding. Onboarding state is preserved in OnboardingContext.
+    // Prefer natural stack back when step-1 pushed us here, but still fall back
+    // to the explicit previous step if the screen was opened directly.
     setProgress(0);
-    router.replace('/onboarding/step-1-role' as any);
+    safeGoBack(router, '/onboarding/step-1-role');
   };
 
   const onContinue = async () => {
@@ -503,7 +501,7 @@ export default function Step2Basic() {
         });
         dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
         setProgress(2);
-        router.replace('/onboarding/coach-application' as any);
+        router.push('/onboarding/coach-application' as any);
         void persistOptionalProfileMedia('coach');
       } else {
         // Fans are DONE — complete onboarding first (fast), then upload profile media in background
@@ -523,7 +521,7 @@ export default function Step2Basic() {
           next: 'fan-permissions',
         });
         dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
-        router.replace('/onboarding/fan-permissions' as any);
+        router.push('/onboarding/fan-permissions' as any);
 
         void persistOptionalProfileMedia('fan');
         markOnboardingCompleteLocally().catch(() => {});

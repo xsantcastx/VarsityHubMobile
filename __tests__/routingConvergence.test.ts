@@ -43,6 +43,11 @@ describe('routing convergence', () => {
     expect(resolution.postAuthDecision).toBeNull();
   });
 
+  it('settles unauthenticated users from the root splash onto guest home in one redirect', () => {
+    const resolution = expectStableAfterRedirect(null, '/');
+    expect(resolution.postAuthDecision).toBeNull();
+  });
+
   it('keeps guest-browseable content routes stable for anonymous users', () => {
     for (const route of [
       '/post-detail?id=post_123',
@@ -121,7 +126,7 @@ describe('routing convergence', () => {
     };
 
     const decision = getOnboardingIndexRouteDecision(user as any, {} as any);
-    expect(decision.route).toBe('/(tabs)');
+    expect(decision.route).toBe('/(tabs)/feed');
 
     const authResolution = resolveForRoute(user, decision.route);
     expect(authResolution.redirectTo).toBeNull();
@@ -135,6 +140,34 @@ describe('routing convergence', () => {
     };
 
     expectStableAfterRedirect(user, '/sign-in');
+  });
+
+  it('keeps authenticated users stable on guest-browseable detail routes', () => {
+    const user = {
+      email_verified: true,
+      preferences: { role: 'fan', onboarding_completed: true },
+    };
+
+    for (const route of [
+      '/event-detail?id=evt_123',
+      '/post-detail?id=post_123',
+      '/game/123',
+      '/organization?id=org_123',
+    ]) {
+      const resolution = resolveForRoute(user, route);
+      expect(resolution.redirectTo).toBeNull();
+      expect(resolution.redirectReason).toBeNull();
+    }
+  });
+
+  it('settles authenticated app-home users from the root splash in one redirect', () => {
+    const user = {
+      email_verified: true,
+      preferences: { role: 'fan', onboarding_completed: true },
+    };
+
+    const resolution = expectStableAfterRedirect(user, '/');
+    expect(resolution.postAuthDecision?.route).toBe('/(tabs)/feed');
   });
 
   it('keeps approved coaches on coach agreement without bouncing away before acceptance', () => {
@@ -165,7 +198,7 @@ describe('routing convergence', () => {
     };
 
     const resolution = expectStableAfterRedirect(user, '/onboarding/coach-agreement');
-    expect(resolution.postAuthDecision?.route).toBe('/(tabs)');
+    expect(resolution.postAuthDecision?.route).toBe('/(tabs)/feed');
   });
 
   it('settles approved onboarding users off draft steps in one redirect', () => {

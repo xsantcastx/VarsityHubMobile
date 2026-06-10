@@ -13,6 +13,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { handleCoachAccessError } from '@/utils/coachAccess';
+import { buildEventDetailHref } from '@/utils/eventRoutes';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -47,7 +48,7 @@ export default function EditEventScreen() {
     typeof fallback === 'string' && fallback.trim().startsWith('/')
       ? fallback.trim()
       : id
-        ? `/event-detail?id=${encodeURIComponent(String(id))}`
+        ? buildEventDetailHref(String(id))
         : '/(tabs)/discover';
 
   const [loading, setLoading] = useState(true);

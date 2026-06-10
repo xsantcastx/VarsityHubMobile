@@ -7,7 +7,8 @@
  *   2. Rate limiters applied to payment / upload / auth endpoints
  *   3. DISABLE_RATE_LIMITING fatally exits in production
  *   4. ALLOW_APPLE_SIM_TOKENS fatally exits in production
- *   5. Admin-mutating endpoints have requireAdmin
+ *   5. Apple JWKS fetch fails fast with a timeout
+ *   6. Admin-mutating endpoints have requireAdmin
  */
 
 import { describe, expect, it } from '@jest/globals';
@@ -94,6 +95,13 @@ describe('gateway audit invariants', () => {
       expect(auth).toMatch(
         /NODE_ENV\s*===\s*['"]production['"][\s\S]{0,200}ALLOW_APPLE_SIM_TOKENS[\s\S]{0,500}process\.exit\(1\)/
       );
+    });
+
+    it('Apple JWKS fetch uses an abort timeout instead of a bare fetch', () => {
+      expect(auth).toMatch(/APPLE_JWKS_TIMEOUT_MS\s*=\s*10_000/);
+      expect(auth).toMatch(/new AppError\(503,\s*'Apple sign-in is temporarily unavailable'/);
+      expect(auth).toMatch(/fetch\(APPLE_JWKS_URL,\s*\{\s*signal:\s*controller\.signal\s*\}\)/);
+      expect(auth).toMatch(/controller\.abort\(\)/);
     });
 
     it('STRIPE_WEBHOOK_SECRET exits with process.exit(1) in production (regression of existing guard)', () => {

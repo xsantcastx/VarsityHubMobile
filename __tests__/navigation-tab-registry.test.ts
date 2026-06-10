@@ -59,22 +59,16 @@ function listTabsScreenFiles(): string[] {
 
 function extractHiddenTabScreenNames(layoutSource: string): string[] {
   // Match the hiddenTabScreenNames array contents
-  const arrayMatch = layoutSource.match(
-    /hiddenTabScreenNames\s*=\s*\[([\s\S]*?)\]\s*as\s*const/
-  );
+  const arrayMatch = layoutSource.match(/hiddenTabScreenNames\s*=\s*\[([\s\S]*?)\]\s*as\s*const/);
   if (!arrayMatch) return [];
 
-  return Array.from(arrayMatch[1].matchAll(/['"]([^'"]+)['"]/g)).map(
-    (m) => m[1]
-  );
+  return Array.from(arrayMatch[1].matchAll(/['"]([^'"]+)['"]/g)).map(m => m[1]);
 }
 
 function extractVisibleTabNames(layoutSource: string): string[] {
   // Match Tabs.Screen name= entries that are NOT in the hidden map
   const visible: string[] = [];
-  for (const m of layoutSource.matchAll(
-    /<Tabs\.Screen\s+name="([^"]+)"/g
-  )) {
+  for (const m of layoutSource.matchAll(/<Tabs\.Screen\s+name="([^"]+)"/g)) {
     visible.push(m[1]);
   }
   return visible;
@@ -86,7 +80,7 @@ const visibleTabNames = extractVisibleTabNames(layoutSource);
 const allTabFiles = listTabsScreenFiles();
 
 // Visible tab base names (strip /index suffix)
-const visibleBases = visibleTabNames.map((n) =>
+const visibleBases = visibleTabNames.map(n =>
   n.endsWith('/index') ? n.slice(0, -'/index'.length) : n
 );
 
@@ -101,7 +95,7 @@ describe('(tabs) navigator registry', () => {
     for (const file of allTabFiles) {
       // Skip visible tab screens
       const isVisible = visibleBases.some(
-        (v) => file === v || file === `${v}/index` || file.startsWith(`${v}/`)
+        v => file === v || file === `${v}/index` || file.startsWith(`${v}/`)
       );
       if (isVisible) continue;
 
@@ -116,7 +110,7 @@ describe('(tabs) navigator registry', () => {
         'These (tabs) screens are missing from hiddenTabScreenNames in app/(tabs)/_layout.tsx.',
         'Without registration, Expo Router renders them as visible phantom tabs with no icon.',
         'Add each to the hiddenTabScreenNames array:',
-        ...phantom.map((s) => `  '${s}'`),
+        ...phantom.map(s => `  '${s}'`),
       ].join('\n');
       throw new Error(msg);
     }
@@ -134,7 +128,7 @@ describe('(tabs) navigator registry', () => {
     if (stale.length > 0) {
       const msg = [
         'These hiddenTabScreenNames entries have no matching file in app/(tabs)/:',
-        ...stale.map((s) => `  '${s}'`),
+        ...stale.map(s => `  '${s}'`),
         'Either create the file or remove the stale entry.',
       ].join('\n');
       throw new Error(msg);
@@ -142,14 +136,37 @@ describe('(tabs) navigator registry', () => {
   });
 
   it('no safeGoBack call uses the banned /(tabs) bare root fallback', () => {
-    const files = [
-      'utils/navigation.ts',
-      'context/NavigationHistoryContext.tsx',
-      'hooks/useEdgeSwipeBack.ts',
-    ];
-    for (const f of files) {
-      const src = readFile(f);
-      expect(src).not.toMatch(/getNavigationFallback[^}]*\(\s*\)\s*[^)]*['"]\/\(tabs\)['"]/);
+    const dirsToCheck = ['app', 'components', 'hooks', 'utils', 'context'];
+    const found: string[] = [];
+
+    function scan(dir: string) {
+      for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+        const rel = `${dir}/${entry.name}`;
+        if (entry.isDirectory() && !entry.name.startsWith('.')) {
+          scan(rel);
+        } else if (entry.isFile() && /\.(tsx?|jsx?)$/.test(entry.name)) {
+          const src = readFile(rel);
+          const lines = src.split('\n');
+          lines.forEach((line, i) => {
+            if (/safeGoBack\([^)]*['"]\/\(tabs\)['"]/.test(line)) {
+              found.push(`${rel}:${i + 1}: ${line.trim()}`);
+            }
+          });
+        }
+      }
+    }
+
+    for (const d of dirsToCheck) {
+      scan(d);
+    }
+
+    if (found.length > 0) {
+      throw new Error(
+        [
+          'safeGoBack with bare /(tabs) fallback found — use a specific tab route or tracked history instead:',
+          ...found,
+        ].join('\n')
+      );
     }
   });
 
@@ -182,7 +199,7 @@ describe('(tabs) navigator registry', () => {
     if (found.length > 0) {
       throw new Error(
         [
-          'router.replace to bare /(tabs) root found — use safeGoBack(router, \'/(tabs)/feed\') instead:',
+          "router.replace to bare /(tabs) root found — use safeGoBack(router, '/(tabs)/feed') instead:",
           ...found,
         ].join('\n')
       );

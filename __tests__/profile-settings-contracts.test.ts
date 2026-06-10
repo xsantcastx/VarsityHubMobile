@@ -44,7 +44,9 @@ describe('profile/settings note contracts', () => {
 
   it('settings delete-account flow only requires a password when the linked providers snapshot says one exists', () => {
     expect(settingsScreen).toContain('const computeDeleteRequiresPassword = useCallback(');
-    expect(settingsScreen).toContain('(p: typeof initialLinkedProviders) => p.password && !p.google && !p.apple,');
+    expect(settingsScreen).toContain(
+      '(p: typeof initialLinkedProviders) => p.password && !p.google && !p.apple,'
+    );
     expect(settingsScreen).toContain(
       'setDeleteRequiresPassword(computeDeleteRequiresPassword(linkedProviders));'
     );
@@ -74,9 +76,7 @@ describe('profile/settings note contracts', () => {
       "import { getCanonicalBillingState } from '@/utils/billingState';"
     );
     expect(settingsScreen).toContain('const billingState = getCanonicalBillingState(me as any);');
-    expect(settingsScreen).toContain(
-      "billingState.selected_plan !== 'rookie'"
-    );
+    expect(settingsScreen).toContain("billingState.selected_plan !== 'rookie'");
     expect(settingsScreen).toContain('!!nextCoachUpgradeCta');
   });
 
@@ -84,7 +84,8 @@ describe('profile/settings note contracts', () => {
     expect(settingsScreen).toContain('router.replace(coachUpgradeCta.route as any);');
     expect(settingsScreen).toContain('router.replace(preferredRoute as any);');
     expect(settingsScreen).toContain('router.replace(');
-    expect(settingsScreen).toContain("('/onboarding/coach-application' as any)");
+    expect(settingsScreen).toContain('router.replace(resumeRoute as any);');
+    expect(settingsScreen).toContain("'/onboarding/coach-application'");
     expect(settingsScreen).toContain("'/onboarding/step-2-basic'");
     expect(settingsScreen).not.toContain('router.push(coachUpgradeCta.route as any);');
     expect(settingsScreen).not.toContain('router.push(preferredRoute as any);');
@@ -93,7 +94,7 @@ describe('profile/settings note contracts', () => {
   });
 
   it('settings account transitions route from the canonical checkAuth snapshot instead of refetching refresh state', () => {
-    expect(settingsScreen).toContain("getSettingsSnapshot({ forceRefresh: true })");
+    expect(settingsScreen).toContain('getSettingsSnapshot({ forceRefresh: true })');
     expect(settingsScreen).toContain('getFreshAuthSnapshot(checkAuth, fallback)');
     expect(settingsScreen).not.toContain('User.refresh().catch(() => null)');
   });
