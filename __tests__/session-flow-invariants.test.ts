@@ -44,7 +44,6 @@ const onboardingStep1 = read('app/onboarding/step-1-role.tsx');
 const onboardingStep2 = read('app/onboarding/step-2-basic.tsx');
 const onboardingStep3 = read('app/onboarding/step-3-league.tsx');
 const verifyIdentity = read('app/verify-identity.tsx');
-const roleOnboarding = read('app/role-onboarding.tsx');
 const settingsIndex = read('app/settings/index.tsx');
 
 describe('session-expired event bus — client wiring invariants', () => {
@@ -254,11 +253,9 @@ describe('session-expired event bus — client wiring invariants', () => {
       expect(onboardingStep3).not.toMatch(/User\.refresh\(/);
     });
 
-    it('verify-identity and role-onboarding reuse AuthProvider refresh state', () => {
+    it('verify-identity reuses AuthProvider refresh state', () => {
       expect(verifyIdentity).toMatch(/getFreshAuthSnapshot/);
       expect(verifyIdentity).not.toMatch(/User\.me\(/);
-      expect(roleOnboarding).toMatch(/getFreshAuthSnapshot/);
-      expect(roleOnboarding).not.toMatch(/User\.refresh\(/);
     });
 
     it('settings account-management actions reuse AuthProvider refresh state after mutations', () => {

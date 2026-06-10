@@ -1,3 +1,10 @@
+/**
+ * EXTERNAL ENTRY POINT — no in-app navigation targets this route by design.
+ * It is the stable anonymous web/deep-link landing for shared event URLs
+ * (varsityhub.app/public-event?id=...). Pinned as a guest-browseable public
+ * route by web-auth-gate, routingConvergence, and guest-create-entry
+ * contract tests. Do not delete as "dead code".
+ */
 import MasonryGrid from '@/components/MasonryGrid';
 import MasonryPostCard from '@/components/MasonryPostCard';
 import { Colors } from '@/constants/Colors';

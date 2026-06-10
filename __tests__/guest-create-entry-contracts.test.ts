@@ -10,7 +10,6 @@ const createPost = read('app/(tabs)/create-post.tsx');
 const profile = read('app/profile.tsx');
 const navProfile = read('app/features/navigation/screens/ProfileScreen.tsx');
 const discover = read('app/(tabs)/discover/mobile-community.tsx');
-const roleOnboarding = read('app/role-onboarding.tsx');
 const publicEvent = read('app/public-event.tsx');
 const gameDetails = read('app/game-details/GameDetailsScreen.tsx');
 const signIn = read('app/sign-in.tsx');
@@ -24,7 +23,6 @@ describe('guest create-entry contracts', () => {
     expect(profile).toContain("onPress={() => void router.push('/create')}");
     expect(navProfile).toContain("onPress={() => void router.push('/create')}");
     expect(discover).toContain("onPress={() => void router.push('/create')}");
-    expect(roleOnboarding).toContain("route: '/create'");
   });
 
   it('keeps the composer self-guarded so direct navigation cannot bypass auth', () => {
