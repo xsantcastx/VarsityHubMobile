@@ -79,7 +79,7 @@ echo ""
 echo -e "${BLUE}Step 4: Coach Onboarding Implementation...${NC}"
 if [ -f "app/onboarding/index.tsx" ] && [ -f "app/onboarding/step-1-role.tsx" ]; then
     echo -e "${GREEN}✅ Onboarding screens present${NC}"
-    if grep -q "role.*coach" "app/onboarding/step-1-role.tsx" || grep -q "upgradeToCoach" "app/role-onboarding.tsx"; then
+    if grep -q "role.*coach" "app/onboarding/step-1-role.tsx"; then
         echo -e "${GREEN}✅ Coach role handling present${NC}"
     else
         echo -e "${YELLOW}⚠️  Coach role handling check${NC}"

@@ -97,9 +97,9 @@ classify_line() {
   fi
 
   # ── SAFE: startup route decisions ────────────────────────────────────────
-  # app/index.tsx and role-onboarding decide the initial route at app start.
+  # app/index.tsx decides the initial route at app start.
   # create-post.tsx auth gate also replaces to /create (the hub).
-  if echo "$file" | grep -qE "app/index\.tsx|app/role-onboarding\.tsx|app/create\.tsx"; then
+  if echo "$file" | grep -qE "app/index\.tsx|app/create\.tsx"; then
     echo -e "${GREEN}[SAFE      ]${RESET} $file:$lineno  ← startup/role decision"
     return
   fi

@@ -74,8 +74,9 @@ Check env vars, Railway logs, and build configs — not just source code.
 
 ## Navigation Architecture
 
-- Root `_layout.tsx` uses Stack — ALL sub-screens registered there
-- `safeGoBack` is the standard back helper (~199 uses across 75 files)
+- Root `_layout.tsx` uses a single `<Stack>` with Expo Router file-based auto-registration — only `+not-found` is declared explicitly; every file under `app/` becomes a route automatically
+- Screens shared between root Stack and `(tabs)` use one-line bridge re-exports (one real implementation, the other side re-exports it; direction varies)
+- `safeGoBack` is the standard back helper (~180 uses)
 - All three goBack implementations (`safeGoBack`, `NavigationHistoryContext.safeGoBack`, `useEdgeSwipeBack`) now use `getNavigationFallback()` from context — no more hardcoded `/(tabs)/feed` fallbacks
 - `useEdgeSwipeBack` is disabled on screens with horizontal FlatLists
 - Every screen implements its own back button (`headerShown: false` globally)
