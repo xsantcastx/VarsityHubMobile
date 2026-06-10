@@ -1445,11 +1445,17 @@ const GameDetailsScreen = () => {
 
     // Proactive distance check — warn user before they capture media.
     // Seeded [DEMO_MATCHUP] games (Duke v UNC, Cavs v Warriors) bypass the
-    // 1km check here because the server's story carve-out already accepts
+    // 3km check here because the server's story carve-out already accepts
     // them regardless of distance.
     const vmDescription = typeof vm.description === 'string' ? vm.description : '';
     const isDemoMatchup = vmDescription.includes(DEMO_MATCHUP_TAG);
-    if (!isSampleId(vm.gameId) && !isDemoMatchup && !isAdminUser && location?.latitude && location?.longitude) {
+    if (
+      !isSampleId(vm.gameId) &&
+      !isDemoMatchup &&
+      !isAdminUser &&
+      location?.latitude &&
+      location?.longitude
+    ) {
       const venueLat = vm.venueLat;
       const venueLng = vm.venueLng;
       if (typeof venueLat === 'number' && typeof venueLng === 'number') {
@@ -1460,11 +1466,11 @@ const GameDetailsScreen = () => {
           Math.sin(dLat / 2) ** 2 +
           Math.cos(toRad(location.latitude)) * Math.cos(toRad(venueLat)) * Math.sin(dLon / 2) ** 2;
         const distKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        if (distKm > 1) {
+        if (distKm > 3) {
           const distMi = (distKm * 0.621371).toFixed(1);
           Alert.alert(
             'Too Far From Venue',
-            `You're ${distMi} mi away. Stories require you to be within 1 km of the venue.`,
+            `You're ${distMi} mi away. Stories require you to be within 3 km of the venue.`,
             [{ text: 'OK' }]
           );
           return;
@@ -1657,7 +1663,7 @@ const GameDetailsScreen = () => {
         Alert.alert(
           'Too Far',
           serverMsg ||
-            `You need to be within 1 km of the venue.${dist ? ` You're ${dist.toFixed(1)} km away.` : ''}`
+            `You need to be within 3 km of the venue.${dist ? ` You're ${dist.toFixed(1)} km away.` : ''}`
         );
       } else if (code === 'LOCATION_REQUIRED') {
         Alert.alert('Location Required', 'Enable location access to post stories at this event.', [
@@ -1766,7 +1772,7 @@ const GameDetailsScreen = () => {
         Alert.alert(
           'Too Far',
           serverMsg ||
-            `You need to be within 1 km of the venue.${dist ? ` You're ${dist.toFixed(1)} km away.` : ''}`
+            `You need to be within 3 km of the venue.${dist ? ` You're ${dist.toFixed(1)} km away.` : ''}`
         );
       } else if (code === 'LOCATION_REQUIRED') {
         Alert.alert('Location Required', 'Enable location access to post stories at this event.', [

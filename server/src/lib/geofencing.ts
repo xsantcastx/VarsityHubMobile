@@ -1,13 +1,13 @@
 /**
  * Geofencing utilities for location-based event posting
- * 
+ *
  * BUSINESS RULES:
- * - Story Posts: open on game day and stay open until +48h, within 1km of venue
+ * - Story Posts: open on game day and stay open until +48h, within 3km of venue
  * - Regular Posts: open 2 days before event start, stay live through the event,
  *   then remain open until +48h only for users who already posted to that same
  *   event while it was live, within 3km of venue
  * - Sample events/games (IDs starting with "sample-") bypass all geofencing checks
- * 
+ *
  * This maintains authenticity and prevents users from different states from trolling games.
  */
 
@@ -74,17 +74,16 @@ export function calculateDistance(
   unit: 'km' | 'miles' = 'miles'
 ): number {
   const toRad = (deg: number) => (deg * Math.PI) / 180;
-  
+
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
-  
+
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  
+
   const radius = unit === 'km' ? EARTH_RADIUS_KM : EARTH_RADIUS_MILES;
   return radius * c;
 }
@@ -188,7 +187,7 @@ async function resolveVenueCoordinates(event: PostingEvent) {
 
 /**
  * Verify user can post a story to an event based on location and time
- * Stories: event day through +48h, 1km radius
+ * Stories: event day through +48h, 3km radius
  * @returns { allowed: boolean; reason?: string; distance?: number }
  */
 // v1.0.2 pass 9: server-side anti-spoof for client-supplied geofence coords. We can't fully
@@ -196,25 +195,44 @@ async function resolveVenueCoordinates(event: PostingEvent) {
 // a coarse IP-geo cross-check. If client coords differ from IP region by >250 miles, reject.
 // Won't stop a determined attacker with VPN at the venue's region, but raises the bar for
 // trivial spoofing.
-async function verifyClientCoordsVsIp(userLat: number, userLon: number, ipAddress: string | null): Promise<{ ok: boolean; reason?: string }> {
+async function verifyClientCoordsVsIp(
+  userLat: number,
+  userLon: number,
+  ipAddress: string | null
+): Promise<{ ok: boolean; reason?: string }> {
   // v1.0.2 pass 10: ops escape hatch. If ipapi.co rate-limits or has an outage, set
   // DISABLE_GEOFENCE_IP_CHECK=1 in Railway env to skip the cross-check and let stories through.
-  if (process.env.DISABLE_GEOFENCE_IP_CHECK === '1' || process.env.DISABLE_GEOFENCE_IP_CHECK === 'true') {
+  if (
+    process.env.DISABLE_GEOFENCE_IP_CHECK === '1' ||
+    process.env.DISABLE_GEOFENCE_IP_CHECK === 'true'
+  ) {
     return { ok: true };
   }
-  if (!ipAddress || ipAddress === '::1' || ipAddress === '127.0.0.1' || ipAddress.startsWith('10.') || ipAddress.startsWith('192.168.')) {
+  if (
+    !ipAddress ||
+    ipAddress === '::1' ||
+    ipAddress === '127.0.0.1' ||
+    ipAddress.startsWith('10.') ||
+    ipAddress.startsWith('192.168.')
+  ) {
     // Local/private IP — skip check (dev / VPN through corporate net are common false positives)
     return { ok: true };
   }
   try {
     // ipapi.co is free for ~1k req/day; fall through silently if it fails so we don't break the feature
-    const resp = await fetch(`https://ipapi.co/${ipAddress}/json/`, { signal: AbortSignal.timeout(2000) });
+    const resp = await fetch(`https://ipapi.co/${ipAddress}/json/`, {
+      signal: AbortSignal.timeout(2000),
+    });
     if (!resp.ok) return { ok: true };
     const data: any = await resp.json();
-    if (typeof data?.latitude !== 'number' || typeof data?.longitude !== 'number') return { ok: true };
+    if (typeof data?.latitude !== 'number' || typeof data?.longitude !== 'number')
+      return { ok: true };
     const distMi = calculateDistance(userLat, userLon, data.latitude, data.longitude, 'miles');
     if (distMi > 250) {
-      return { ok: false, reason: `Reported location is ${Math.round(distMi)}mi from your network location. If you're using a VPN, please disable it.` };
+      return {
+        ok: false,
+        reason: `Reported location is ${Math.round(distMi)}mi from your network location. If you're using a VPN, please disable it.`,
+      };
     }
     return { ok: true };
   } catch {
@@ -228,7 +246,7 @@ export async function verifyStoryPostingPermission(
   userId: string,
   userLat: number | null,
   userLon: number | null,
-  ipAddress?: string | null,
+  ipAddress?: string | null
 ): Promise<PostingPermissionResult> {
   const event = await loadPostingEvent(eventId);
 
@@ -238,7 +256,11 @@ export async function verifyStoryPostingPermission(
 
   // Check if story posting window is open (event day through +48h)
   if (!isStoryPostingWindowOpen(event.date)) {
-    const gameDay = new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    const gameDay = new Date(event.date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    });
     const windowEnd = new Date(event.date.getTime() + 48 * 60 * 60 * 1000);
     return {
       allowed: false,
@@ -253,7 +275,8 @@ export async function verifyStoryPostingPermission(
     return {
       allowed: false,
       code: 'NO_EVENT_LOCATION',
-      reason: 'This event has no venue coordinates, so story uploads are disabled until the location is configured.',
+      reason:
+        'This event has no venue coordinates, so story uploads are disabled until the location is configured.',
     };
   }
 
@@ -266,15 +289,15 @@ export async function verifyStoryPostingPermission(
     };
   }
 
-  // Check if user is within 1km geofence (using resolved venue coords)
+  // Check if user is within 3km geofence (using resolved venue coords)
   const distance = calculateDistance(userLat, userLon, venueLat!, venueLon!, 'km');
-  const isWithin = isWithinGeofence(userLat, userLon, venueLat!, venueLon!, 1.0); // 1km for stories
+  const isWithin = isWithinGeofence(userLat, userLon, venueLat!, venueLon!, 3.0); // 3km for stories
 
   if (!isWithin) {
     return {
       allowed: false,
       code: 'TOO_FAR_FROM_VENUE',
-      reason: 'You must be within 1 km of the venue to post a story.',
+      reason: 'You must be within 3 km of the venue to post a story.',
       distance,
     };
   }
@@ -355,7 +378,8 @@ export async function verifyEventPostingPermission(
     return {
       allowed: false,
       code: 'NO_EVENT_LOCATION',
-      reason: 'This event has no venue coordinates, so posting is disabled until the location is configured.',
+      reason:
+        'This event has no venue coordinates, so posting is disabled until the location is configured.',
     };
   }
 

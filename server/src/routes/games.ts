@@ -5,11 +5,11 @@ import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
 import { debugLog } from '../lib/debugLog.js';
 import {
-    sendEventApprovedEmail,
-    sendEventCanceledEmail,
-    sendEventDeniedEmail,
-    sendEventSubmissionReceivedEmail,
-    sendEventUpdatedEmail,
+  sendEventApprovedEmail,
+  sendEventCanceledEmail,
+  sendEventDeniedEmail,
+  sendEventSubmissionReceivedEmail,
+  sendEventUpdatedEmail,
 } from '../lib/email.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
 import { sendError } from '../lib/http/sendError.js';
@@ -19,12 +19,16 @@ import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import {
-    canManageAnyTeam,
-    canManageTeam as canManageTeamScoped,
+  canManageAnyTeam,
+  canManageTeam as canManageTeamScoped,
 } from '../lib/teamAuthorization.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authMiddleware, type AuthedRequest } from '../middleware/auth.js';
-import { gameCreationLimiter, storyCreationLimiter, voteLimiter } from '../middleware/rateLimiters.js';
+import {
+  gameCreationLimiter,
+  storyCreationLimiter,
+  voteLimiter,
+} from '../middleware/rateLimiters.js';
 import { verifyStoryPostingPermission } from '../lib/geofencing.js';
 import { getIsAdmin, isEmailAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -158,8 +162,7 @@ async function canViewGameMedia(
   return { allowed: !!orgMembership, exists: true };
 }
 
-const makeListMediaHandler =
-  ({ prisma: p }: StoryDeps) =>
+const makeListMediaHandler = ({ prisma: p }: StoryDeps) =>
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
     try {
@@ -178,9 +181,8 @@ const makeListMediaHandler =
 
           await p.story.deleteMany({ where: { id: { in: expired.map(s => s.id) } } });
 
-          const { extractCloudinaryPublicId, destroyCloudinaryAsset } = await import(
-            '../lib/cloudinary.js'
-          );
+          const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
+            await import('../lib/cloudinary.js');
           for (const story of expired) {
             if (!story.media_url) continue;
             const parsed = extractCloudinaryPublicId(story.media_url);
@@ -245,8 +247,7 @@ const makeListMediaHandler =
     }
   });
 
-const makeCreateStoryHandler =
-  ({ prisma: p }: StoryDeps) =>
+const makeCreateStoryHandler = ({ prisma: p }: StoryDeps) =>
   asyncHandler(async (req: AuthedRequest, res: Response) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const id = String(req.params.id);
@@ -287,7 +288,7 @@ const makeCreateStoryHandler =
         if (!hasDeviceOriginLocation) {
           return res.status(403).json({
             error: 'LOCATION_REQUIRED',
-            message: 'Stories require current device location within 1 km of the venue.',
+            message: 'Stories require current device location within 3 km of the venue.',
           });
         }
         const lat = location.lat ?? null;
@@ -373,7 +374,7 @@ const makeCreateStoryHandler =
           `New story on ${game.title}`,
           `${posterName} added a story to your game`,
           { type: 'game_story_added', game_id: id, screen: 'game-detail' }
-        ).catch((pushErr) => {
+        ).catch(pushErr => {
           console.warn('[stories] Failed to send game story push:', pushErr);
         });
       }
@@ -600,9 +601,7 @@ async function handleGameTokenReview(
     payload.action === expectedAction;
 
   // Allow a signed-in platform admin to approve/reject without a valid token.
-  const isSignedInAdmin = !tokenValid && req.user
-    ? await getIsAdmin(req as any)
-    : false;
+  const isSignedInAdmin = !tokenValid && req.user ? await getIsAdmin(req as any) : false;
 
   if (!tokenValid && !isSignedInAdmin) {
     return res
@@ -731,7 +730,9 @@ export async function runGamesStartupBackfill(): Promise<void> {
         );
       }
     }
-    debugLog(`[games] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`);
+    debugLog(
+      `[games] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`
+    );
   } catch (err) {
     console.warn('[games] backfill failed:', err);
   }
@@ -1370,12 +1371,10 @@ gamesRouter.post(
               select: { admin_approved: true },
             });
             if (org && !org.admin_approved) {
-              return res
-                .status(403)
-                .json({
-                  error: 'Your organization must be approved before creating games.',
-                  code: 'ORG_NOT_APPROVED',
-                });
+              return res.status(403).json({
+                error: 'Your organization must be approved before creating games.',
+                code: 'ORG_NOT_APPROVED',
+              });
             }
           }
         }
@@ -2199,7 +2198,7 @@ gamesRouter.delete(
         const notificationUserIds = [...rsvpUserIds];
         if (notificationUserIds.length > 0) {
           await prisma.notification.createMany({
-            data: notificationUserIds.map((uid) => ({
+            data: notificationUserIds.map(uid => ({
               user_id: uid,
               actor_id: req.user!.id,
               type: 'GAME_CANCELLED',
@@ -2207,7 +2206,7 @@ gamesRouter.delete(
             })),
           });
           await Promise.allSettled(
-            notificationUserIds.map((uid) =>
+            notificationUserIds.map(uid =>
               sendPushNotification(uid, `Game cancelled`, `${gameTitle} has been cancelled`, {
                 type: 'game_cancelled',
                 game_id: id,
