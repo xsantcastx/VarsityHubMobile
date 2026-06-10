@@ -64,6 +64,48 @@ export interface OneOffEventDef {
 }
 
 export const EVENTS: OneOffEventDef[] = [
+  // ── NBA Finals 2026 — Game 5 in San Antonio (created 2026-06-10) ──────────
+  {
+    title: 'San Antonio Spurs vs New York Knicks — NBA Finals Game 5',
+    description:
+      '2026 NBA Finals, Game 5. The series returns to San Antonio at the Frost Bank Center. Tip-off: 7:30 PM CDT / 8:30 PM EDT on ABC.',
+    eventType: 'game',
+    dateUtc: '2026-06-14T00:30:00.000Z', // Sat Jun 13, 7:30 PM CDT
+    location: 'Frost Bank Center, San Antonio, TX',
+    lat: 29.427,
+    lng: -98.4375,
+    bannerUrl:
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/Texasdd.JPG/1280px-Texasdd.JPG',
+    linkedLeague: 'NBA',
+    game: {
+      homeTeam: 'San Antonio Spurs',
+      awayTeam: 'New York Knicks',
+      expectedAttendance: 18418,
+      isNeutral: false,
+      teamOrgName: 'LIME PRODUCTIONS',
+    },
+  },
+  // ── NBA Finals 2026 — Game 6, if necessary (created 2026-06-10) ───────────
+  {
+    title: 'New York Knicks vs San Antonio Spurs — NBA Finals Game 6',
+    description:
+      '2026 NBA Finals, Game 6 (if necessary) at Madison Square Garden. Tip-off: 8:30 PM EDT on ABC.',
+    eventType: 'game',
+    dateUtc: '2026-06-17T00:30:00.000Z', // Tue Jun 16, 8:30 PM EDT
+    location: 'Madison Square Garden, New York, NY',
+    lat: 40.7505,
+    lng: -73.9934,
+    bannerUrl:
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg/1280px-Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg',
+    linkedLeague: 'NBA',
+    game: {
+      homeTeam: 'New York Knicks',
+      awayTeam: 'San Antonio Spurs',
+      expectedAttendance: 19812,
+      isNeutral: false,
+      teamOrgName: 'LIME PRODUCTIONS',
+    },
+  },
   // ── NBA Finals 2026 — Game 4 (real event, created 2026-06-09) ─────────────
   {
     title: 'New York Knicks vs San Antonio Spurs — NBA Finals Game 4',
