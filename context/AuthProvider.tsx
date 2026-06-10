@@ -184,6 +184,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // component cycle resets refs).
   const restoreCoachFailedThisSessionRef = React.useRef(false);
 
+  // Bumped when a redirect appears to have been dropped, to force the routing
+  // effect to re-evaluate and retry.
+  const [redirectRetryTick, setRedirectRetryTick] = useState(0);
+
   // Track the concrete route path. Redirect suppression must reset when the
   // router actually moves; otherwise one dropped replace() can suppress every
   // future retry and strand the user on the passive root spinner.
@@ -197,7 +201,27 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       (currentPath !== '' && currentPath !== normalizedTarget)
     ) {
       lastRedirectRef.current = null;
+      return;
     }
+
+    // currentPath is still '' — the replace() was likely dropped before the
+    // router was actually ready (the routingReady 2s fallback fires whether or
+    // not navigation is mounted). Neither reset branch above can fire in that
+    // state, so without this retry the suppression ref pins the user on the
+    // passive root spinner forever. Clear it after a grace period and bump the
+    // tick so the routing effect re-runs and re-issues the redirect.
+    const retry = setTimeout(() => {
+      if (lastRedirectRef.current) {
+        if (__DEV__) {
+          console.warn('[AuthProvider] Redirect appears dropped, retrying:', {
+            target: lastRedirectRef.current,
+          });
+        }
+        lastRedirectRef.current = null;
+        setRedirectRetryTick(tick => tick + 1);
+      }
+    }, 1200);
+    return () => clearTimeout(retry);
   }, [currentPath, segments]);
 
   // Expo Router readiness can lag or fail to surface a stable key on some cold
@@ -1262,6 +1286,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     unauthenticatedEntryRoute,
     hasCompletedOnboarding,
     redirectWithTelemetry,
+    redirectRetryTick,
   ]);
 
   const value = useMemo<AuthContextType>(

@@ -1,7 +1,10 @@
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { GUEST_HOME_ROUTE } from '@/utils/publicRoutes';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 
 /**
@@ -17,6 +20,21 @@ import { ActivityIndicator, Platform, View } from 'react-native';
 export default function Index() {
   useAuth();
   const colorScheme = useColorScheme() ?? 'light';
+  const router = useRouter();
+
+  // FAILSAFE: if the centralized routing never moves us off the splash (e.g. a
+  // dropped replace() during a slow cold start strands the redirect logic),
+  // escape to the feed rather than spinning forever. AuthProvider keeps
+  // running and will correct the destination (verify/onboarding/etc.) once the
+  // router has actually moved. Timer clears on unmount, so a normal redirect
+  // never triggers this.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const failsafe = setTimeout(() => {
+      router.replace(GUEST_HOME_ROUTE); // nav-safe: splash failsafe escape after stalled startup routing
+    }, 8000);
+    return () => clearTimeout(failsafe);
+  }, [router]);
 
   if (Platform.OS === 'web') {
     return null;

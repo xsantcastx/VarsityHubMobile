@@ -20,9 +20,10 @@ describe('web auth gate', () => {
     expect(authProvider).toMatch(
       /redirectWithTelemetry\(\s*unauthenticatedEntryRoute,\s*'unauthenticated'/
     );
-    // Root index is a passive splash — AuthProvider/_layout own guest routing,
-    // so index must not race them with its own replace call.
-    expect(rootIndex).not.toMatch(/router\.replace\(/);
+    // Root index is a passive splash — AuthProvider/_layout own guest routing.
+    // Its only replace call is the stalled-startup failsafe, which must be
+    // timer-gated (never an immediate replace racing the central routing).
+    expect(rootIndex).toMatch(/setTimeout\(\(\) => \{\s*router\.replace\(GUEST_HOME_ROUTE\)/);
   });
 
   it('keeps guest-browseable detail routes public and only gates mutations', () => {
