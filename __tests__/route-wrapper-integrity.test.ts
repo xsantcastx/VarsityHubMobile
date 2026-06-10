@@ -1,8 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const read = (...parts: string[]) =>
-  fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
+const read = (...parts: string[]) => fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
 
 describe('route wrapper integrity', () => {
   it('ships feed through the canonical feature screen', () => {
@@ -17,14 +16,17 @@ describe('route wrapper integrity', () => {
     expect(featureFile).not.toContain('const userPromise = User.me()');
   });
 
-  it('ships profile through the canonical feature screen', () => {
+  it('keeps the dual profile implementations aligned (documented in CLAUDE.md)', () => {
     const routeFile = read('app', 'profile.tsx');
     const aliasFile = read('app', 'user-profile.tsx');
     const featureFile = read('app', 'features', 'navigation', 'screens', 'ProfileScreen.tsx');
 
-    expect(routeFile.trim()).toBe(
-      "export { default } from './features/navigation/screens/ProfileScreen';"
-    );
+    // app/profile.tsx is a full implementation (not a thin wrapper) and
+    // ProfileScreen.tsx is its feature-screen sibling. CLAUDE.md's
+    // post-mapper rule requires the two to stay in sync — pin the shared
+    // mapper so a one-sided removal fails loudly.
+    expect(routeFile).toContain('toFeedPost');
+    expect(featureFile).toContain('toFeedPost');
     expect(aliasFile.trim()).toBe("export { default } from './profile';");
     expect(featureFile).toContain('goBackToTrackedRoute');
     expect(featureFile).toContain('handleAvatarPress');

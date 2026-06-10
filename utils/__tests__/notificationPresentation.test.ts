@@ -181,7 +181,7 @@ describe('getNotificationHref — routing per type', () => {
       approval_status: 'REJECTED',
       preferences: { role: 'coach', proceeding_as_fan: true },
     } as any);
-    expect(href).toBe('/(tabs)');
+    expect(href).toBe('/(tabs)/feed');
   });
 
   it('ORG_REJECTED prefers top-level fan mode over stale preferences', () => {
@@ -192,7 +192,7 @@ describe('getNotificationHref — routing per type', () => {
       proceeding_as_fan: true,
       preferences: { role: 'coach', proceeding_as_fan: false },
     } as any);
-    expect(href).toBe('/(tabs)');
+    expect(href).toBe('/(tabs)/feed');
   });
 
   it('JOIN_REQUEST_APPROVED → coach-agreement continuation', () => {
@@ -222,17 +222,17 @@ describe('getNotificationHref — routing per type', () => {
       type: 'JOIN_REQUEST_APPROVED',
       meta: { denied: true },
     });
-    expect(href).toBe('/(tabs)');
+    expect(href).toBe('/(tabs)/feed');
   });
 
   it('JOIN_REQUEST_DENIED → tabs', () => {
     const href = getNotificationHref({ type: 'JOIN_REQUEST_DENIED' });
-    expect(href).toBe('/(tabs)');
+    expect(href).toBe('/(tabs)/feed');
   });
 
   it('COACH_REJECTED → tabs', () => {
     const href = getNotificationHref({ type: 'COACH_REJECTED' });
-    expect(href).toBe('/(tabs)');
+    expect(href).toBe('/(tabs)/feed');
   });
 
   it('EVENT_APPROVED with event_id → event detail', () => {

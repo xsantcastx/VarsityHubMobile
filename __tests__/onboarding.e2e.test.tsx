@@ -6,13 +6,15 @@ const mockRouterReplace = jest.fn();
 const mockRouterPush = jest.fn();
 const mockMarkOnboardingCompleteLocally = jest.fn(async () => undefined);
 const mockRegisterPushToken = jest.fn(async () => undefined);
-const mockCheckAuth = jest.fn(async (): Promise<any> => ({
-  id: 'fan-1',
-  email_verified: true,
-  role: 'fan',
-  onboarding_completed: true,
-  preferences: { role: 'fan', onboarding_completed: true },
-}));
+const mockCheckAuth = jest.fn(
+  async (): Promise<any> => ({
+    id: 'fan-1',
+    email_verified: true,
+    role: 'fan',
+    onboarding_completed: true,
+    preferences: { role: 'fan', onboarding_completed: true },
+  })
+);
 const mockSetOB = jest.fn();
 const mockSetProgress = jest.fn();
 const mockDispatch = jest.fn();
@@ -22,6 +24,9 @@ const mockCompleteOnboarding = jest.fn();
 const mockUsernameAvailable = jest.fn(async () => ({ available: true }));
 
 let mockOnboardingState: any = {};
+// Screen prefills from useAuth().user (auth snapshot), not from checkAuth —
+// tests set this alongside mockCheckAuth's resolved value.
+let mockAuthUser: any = null;
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
@@ -55,7 +60,9 @@ jest.mock('@/components/ui/PrimaryButton', () => (props: any) => (
   </Pressable>
 ));
 
-jest.mock('../app/onboarding/components/OnboardingLayout', () => (props: any) => <>{props.children}</>);
+jest.mock('../app/onboarding/components/OnboardingLayout', () => (props: any) => (
+  <>{props.children}</>
+));
 jest.mock('@/components/ZipCodeMapPreview', () => ({ ZipCodeMapPreview: () => null }));
 jest.mock('@/hooks/useColorScheme', () => ({ useColorScheme: () => 'light' }));
 jest.mock('@/utils/navigation', () => ({ safeGoBack: jest.fn() }));
@@ -88,6 +95,7 @@ jest.mock('@/utils/materializeICloudAsset', () => ({
 }));
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({
+    user: mockAuthUser,
     checkAuth: mockCheckAuth,
     markOnboardingCompleteLocally: mockMarkOnboardingCompleteLocally,
     registerPushToken: mockRegisterPushToken,
@@ -116,6 +124,7 @@ import Step2Basic from '../app/onboarding/step-2-basic';
 describe('Onboarding Flow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockAuthUser = null;
     mockPatchMe.mockResolvedValue({ ok: true });
     mockUpdatePreferences.mockResolvedValue({ ok: true });
     mockCompleteOnboarding.mockResolvedValue({ ok: true });
@@ -130,6 +139,14 @@ describe('Onboarding Flow', () => {
 
   it('routes coaches from step-2 to coach-application after saving canonical coach fields', async () => {
     mockOnboardingState = { role: 'coach', affiliation: undefined, dob: '' };
+    mockAuthUser = {
+      id: 'coach-1',
+      email_verified: true,
+      role: 'coach',
+      onboarding_completed: false,
+      username: 'coachuser',
+      preferences: { role: 'coach', onboarding_completed: false },
+    };
     mockCheckAuth.mockResolvedValue({
       id: 'coach-1',
       email_verified: true,
@@ -162,12 +179,20 @@ describe('Onboarding Flow', () => {
       });
       expect(mockCompleteOnboarding).not.toHaveBeenCalled();
       expect(mockSetProgress).toHaveBeenCalledWith(2);
-      expect(mockRouterReplace).toHaveBeenCalledWith('/onboarding/coach-application');
+      expect(mockRouterPush).toHaveBeenCalledWith('/onboarding/coach-application');
     });
   });
 
   it('completes fan onboarding and routes to tabs from step-2', async () => {
     mockOnboardingState = { role: 'fan', affiliation: undefined, dob: '' };
+    mockAuthUser = {
+      id: 'fan-1',
+      email_verified: true,
+      role: 'fan',
+      onboarding_completed: true,
+      username: 'fanuser',
+      preferences: { role: 'fan', onboarding_completed: true },
+    };
     mockCheckAuth.mockResolvedValue({
       id: 'fan-1',
       email_verified: true,
@@ -202,10 +227,10 @@ describe('Onboarding Flow', () => {
         username: 'fanuser',
         zip_code: undefined,
       });
-      expect(mockCheckAuth).toHaveBeenCalled();
-      expect(mockRouterReplace).toHaveBeenCalledWith('/(tabs)');
+      // Fans now route through the permissions screen (push), which handles
+      // completion + push-token registration itself.
+      expect(mockRouterPush).toHaveBeenCalledWith('/onboarding/fan-permissions');
       expect(mockMarkOnboardingCompleteLocally).toHaveBeenCalled();
-      expect(mockRegisterPushToken).toHaveBeenCalled();
     });
   });
 });

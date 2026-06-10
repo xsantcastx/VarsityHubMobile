@@ -30,9 +30,10 @@ describe('useUser', () => {
     expect(checkAuth).not.toHaveBeenCalled();
   });
 
-  it('refresh delegates to AuthProvider.checkAuth with skipSubscriptionRefresh', async () => {
-    const refreshedUser = { id: 'user-2', username: 'fresh' };
-    const checkAuth: any = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(refreshedUser);
+  it('refresh reuses the AuthProvider snapshot when one exists', async () => {
+    // useUser now delegates to getAuthSnapshot: an existing snapshot is
+    // returned as-is; AuthProvider owns actual refresh policy.
+    const checkAuth: any = jest.fn<(...args: any[]) => Promise<any>>();
     mockUseAuth.mockReturnValue({
       user: { id: 'stale-user' },
       loading: false,
@@ -45,13 +46,15 @@ describe('useUser', () => {
     await act(async () => {
       refreshed = await result.current.refresh();
     });
-    expect(refreshed).toEqual(refreshedUser);
-    expect(checkAuth).toHaveBeenCalledWith({ skipSubscriptionRefresh: true });
+    expect(refreshed).toEqual({ id: 'stale-user' });
+    expect(checkAuth).not.toHaveBeenCalled();
   });
 
   it('auto-loads through AuthProvider when no user snapshot exists', async () => {
     const refreshedUser = { id: 'user-3' };
-    const checkAuth: any = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(refreshedUser);
+    const checkAuth: any = jest
+      .fn<(...args: any[]) => Promise<any>>()
+      .mockResolvedValue(refreshedUser);
     mockUseAuth.mockReturnValue({
       user: null,
       loading: false,
@@ -61,7 +64,7 @@ describe('useUser', () => {
     renderHook(() => useUser(true));
 
     await waitFor(() => {
-      expect(checkAuth).toHaveBeenCalledWith({ skipSubscriptionRefresh: true });
+      expect(checkAuth).toHaveBeenCalledWith();
     });
   });
 });

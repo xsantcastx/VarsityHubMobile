@@ -14,14 +14,17 @@ const highlightsScreen = read('app/highlights.tsx');
 describe('auth snapshot helper contracts', () => {
   it('centralizes current-user resolution in utils/authState', () => {
     expect(authState).toContain('export async function getAuthSnapshot<T>(');
-    expect(authState).toContain('const fresh = checkAuth ? await checkAuth().catch(() => null) : null;');
-    expect(authState).toContain('return (fresh ?? fallbackUser ?? null) as T | null;');
+    // Reuse local snapshot first; only hit checkAuth when absent.
+    expect(authState).toContain('if (currentUser != null) {');
+    expect(authState).toContain('return (await checkAuth()) ?? null;');
   });
 
   it('messages/favorites/my-ads/highlights use the shared auth snapshot helper instead of User.me', () => {
     for (const screen of [messagesScreen, favoritesScreen, myAdsScreen, highlightsScreen]) {
       expect(screen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
-      expect(screen).toContain('await getAuthSnapshot(checkAuth, user)');
+      // Binding name varies by screen (user vs authUser); the helper call is
+      // what the contract pins.
+      expect(screen).toMatch(/await getAuthSnapshot\(checkAuth, (user|authUser)\)/);
       expect(screen).not.toContain('await User.me()');
     }
   });

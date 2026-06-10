@@ -97,22 +97,17 @@ export function getCoachAccessState(user: CoachUserLike | null | undefined): Coa
   const role = getCanonicalCoachRole(user);
   const approvalStatus = normalizeString(user?.approval_status);
   const accountState = normalizeString(user?.account_state);
-  const acceptedCoachAgreementVersion = normalizeNumber(
-    preferences?.coach_agreement_version,
-    1
-  );
-  const requiredCoachAgreementVersion = normalizeNumber(
-    user?.required_coach_agreement_version,
-    1
-  );
-  const pendingPlan = normalizeString(preferences?.pending_plan ?? preferences?.plan)?.toLowerCase();
+  const acceptedCoachAgreementVersion = normalizeNumber(preferences?.coach_agreement_version, 1);
+  const requiredCoachAgreementVersion = normalizeNumber(user?.required_coach_agreement_version, 1);
+  const pendingPlan = normalizeString(
+    preferences?.pending_plan ?? preferences?.plan
+  )?.toLowerCase();
   const organizationId = getCoachOrganizationId(user);
   const isCoach = role === 'coach';
   const isApprovedCoach = isCoach && approvalStatus === 'APPROVED';
   const isPendingCoach = isCoach && approvalStatus === 'PENDING';
   const isRejectedCoach = isCoach && approvalStatus === 'REJECTED';
-  const isProceedingAsFan =
-    isProceedingAsFanSnapshot(user as any) && approvalStatus !== 'APPROVED';
+  const isProceedingAsFan = isProceedingAsFanSnapshot(user as any) && approvalStatus !== 'APPROVED';
   const onboardingCompleted = isCoachOnboardingComplete(user);
   const hasAcceptedCoachAgreement = hasAcceptedCoachAgreementSnapshot(user as any);
   const hasCurrentCoachAgreement =
@@ -176,18 +171,20 @@ type TeamMembershipLike = {
 
 export const TEAM_STAFF_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
 
-function getMatchingMembership<T extends {
-  status?: string | null;
-  user_id?: string | null;
-  user?: { id?: string | null } | null;
-}>(
+function getMatchingMembership<
+  T extends {
+    status?: string | null;
+    user_id?: string | null;
+    user?: { id?: string | null } | null;
+  },
+>(
   user: (CoachUserLike & { id?: string | null }) | null | undefined,
-  memberships: T[] | null | undefined,
+  memberships: T[] | null | undefined
 ): T | null {
   if (!user?.id || !Array.isArray(memberships)) return null;
 
   return (
-    memberships.find((m) => {
+    memberships.find(m => {
       const memberUserId = m?.user?.id || m?.user_id;
       if (!memberUserId || memberUserId !== user.id) return false;
       const status = String(m?.status || 'active').toLowerCase();
@@ -198,21 +195,21 @@ function getMatchingMembership<T extends {
 
 function getMatchingOrgMembership(
   user: (CoachUserLike & { id?: string | null }) | null | undefined,
-  memberships: OrgMembershipLike[] | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined
 ): OrgMembershipLike | null {
   return getMatchingMembership(user, memberships);
 }
 
 function getMatchingTeamMembership(
   user: (CoachUserLike & { id?: string | null }) | null | undefined,
-  memberships: TeamMembershipLike[] | null | undefined,
+  memberships: TeamMembershipLike[] | null | undefined
 ): TeamMembershipLike | null {
   return getMatchingMembership(user, memberships);
 }
 
 export function getOrganizationAccess(
   user: (CoachUserLike & { id?: string | null }) | null | undefined,
-  memberships: OrgMembershipLike[] | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined
 ) {
   if (user?.is_admin === true) {
     return {
@@ -242,7 +239,7 @@ export function getOrganizationAccess(
 export function getTeamManagementAccess(
   user: (CoachUserLike & { id?: string | null }) | null | undefined,
   teamMemberships: TeamMembershipLike[] | null | undefined,
-  orgMemberships: OrgMembershipLike[] | null | undefined,
+  orgMemberships: OrgMembershipLike[] | null | undefined
 ) {
   if (user?.is_admin === true) {
     return {
@@ -273,14 +270,14 @@ export function getTeamManagementAccess(
 
 export function isOrganizationOwner(
   user: (CoachUserLike & { id?: string | null }) | null | undefined,
-  memberships: OrgMembershipLike[] | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined
 ): boolean {
   return getOrganizationAccess(user, memberships).isOwner;
 }
 
 export function isOrganizationAdminMember(
   user: (CoachUserLike & { id?: string | null }) | null | undefined,
-  memberships: OrgMembershipLike[] | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined
 ): boolean {
   return getOrganizationAccess(user, memberships).isAdmin;
 }
@@ -302,7 +299,7 @@ export function isOrganizationAdminMember(
  */
 export function canManageOrgAsCoach(
   user: (CoachUserLike & { id?: string | null }) | null | undefined,
-  memberships: OrgMembershipLike[] | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined
 ): boolean {
   if (!user) return false;
   if (user.is_admin === true) return true;
@@ -315,7 +312,7 @@ export function canManageOrgAsCoach(
 
 export function canReviewCoachRequests(
   user: (CoachUserLike & { id?: string | null }) | null | undefined,
-  memberships: OrgMembershipLike[] | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined
 ): boolean {
   if (!user) return false;
 
@@ -403,10 +400,16 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
     return '/settings/manage-subscription';
   }
 
-  if ((coachAccess.isPendingCoach || coachAccess.isRejectedCoach) && !coachAccess.isProceedingAsFan) {
+  if (
+    (coachAccess.isPendingCoach || coachAccess.isRejectedCoach) &&
+    !coachAccess.isProceedingAsFan
+  ) {
     return getPendingCoachRoute(user);
   }
 
+  // Approved coaches are never forced into recovery routes here (see
+  // roleChecks.test.ts) — callers like useRequireCoach decide their own
+  // agreement/landing fallbacks.
   return null;
 }
 

@@ -11,8 +11,8 @@ const manageTeamsScreen = read('app/(tabs)/manage-teams.tsx');
 describe('team auth snapshot contracts', () => {
   it('create-team resolves coach state through the shared auth snapshot helper', () => {
     expect(createTeamScreen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
-    expect(createTeamScreen).toContain('const { user, checkAuth } = useAuth();');
-    expect(createTeamScreen).toContain('await getAuthSnapshot(checkAuth, user)');
+    expect(createTeamScreen).toContain('const { user: authUser, checkAuth } = useAuth();');
+    expect(createTeamScreen).toContain('await getAuthSnapshot(checkAuth, authUser)');
     expect(createTeamScreen).not.toContain('await User.me()');
   });
 

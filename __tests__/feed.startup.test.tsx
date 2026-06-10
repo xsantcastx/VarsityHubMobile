@@ -233,6 +233,15 @@ describe('Feed startup performance', () => {
       expect(screen.getByTestId('feed-game-card-game-1')).toBeTruthy();
     });
 
+    // Simulate the initial focus: real navigation fires useFocusEffect on
+    // first focus, and the screen's hasFocusedOnce gate skips the duplicate
+    // load there. Only the SECOND focus (below) should silently refresh.
+    await act(async () => {
+      const initialFocusCleanup = capturedFocusEffect?.();
+      if (typeof initialFocusCleanup === 'function') initialFocusCleanup();
+      await Promise.resolve();
+    });
+
     jest.useFakeTimers();
     now += 31_000;
     const secondGamesDeferred = createDeferred<any>();

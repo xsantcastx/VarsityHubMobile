@@ -116,11 +116,8 @@ describe('pending-approval — admin-approves-during-pending race', () => {
   beforeAll(() => {
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
       const format = typeof args[0] === 'string' ? args[0] : '';
-      const mentionsPendingApproval = args.some((arg) => String(arg).includes('PendingApproval'));
-      if (
-        format.includes('not wrapped in act') &&
-        mentionsPendingApproval
-      ) {
+      const mentionsPendingApproval = args.some(arg => String(arg).includes('PendingApproval'));
+      if (format.includes('not wrapped in act') && mentionsPendingApproval) {
         return;
       }
 
@@ -196,11 +193,8 @@ describe('pending-approval — admin-approves-during-pending race', () => {
       const lastCall = mockReplace.mock.calls[mockReplace.mock.calls.length - 1]?.[0];
       // router.replace can be called with either a string or a {pathname,params}
       // shape. Accept both.
-      const target =
-        typeof lastCall === 'string'
-          ? lastCall
-          : (lastCall as any)?.pathname;
-      expect(target).toBe('/(tabs)');
+      const target = typeof lastCall === 'string' ? lastCall : (lastCall as any)?.pathname;
+      expect(target).toBe('/(tabs)/feed');
     });
   });
 });

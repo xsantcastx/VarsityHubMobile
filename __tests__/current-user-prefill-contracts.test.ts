@@ -11,13 +11,15 @@ const postDetailScreen = read('app/post-detail.tsx');
 describe('current user prefill contracts', () => {
   it('report-abuse prefills reporter identity from auth state instead of refetching /me', () => {
     expect(reportAbuseScreen).toContain('const { user, checkAuth } = useAuth();');
-    expect(reportAbuseScreen).toContain('const me: any = ((await checkAuth().catch(() => null)) ?? user) as any;');
+    expect(reportAbuseScreen).toContain('const me: any = await getAuthSnapshot(checkAuth, user);');
     expect(reportAbuseScreen).not.toContain('const me: any = await User.me();');
   });
 
   it('post-detail loads the current viewer from auth state instead of refetching /me', () => {
     expect(postDetailScreen).toContain('const { user, checkAuth } = useAuth();');
-    expect(postDetailScreen).toContain('const currentUser = ((await checkAuth().catch(() => null)) ?? user) as any;');
+    expect(postDetailScreen).toContain(
+      'const currentUser = (await getAuthSnapshot(checkAuth, user)) as any;'
+    );
     expect(postDetailScreen).not.toContain('const user = await User.me();');
   });
 });

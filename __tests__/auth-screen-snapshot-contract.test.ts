@@ -2,8 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 
-const read = (...parts: string[]) =>
-  fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
+const read = (...parts: string[]) => fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
 
 describe('auth screen snapshot contract', () => {
   it('keeps inbox and thread screens on the AuthProvider snapshot path', () => {
@@ -62,16 +61,17 @@ describe('auth screen snapshot contract', () => {
     const adminAds = read('app', 'admin-ads.tsx');
     const adminMessages = read('app', 'admin-messages.tsx');
 
-    expect(joinRequests).toMatch(/getFreshAuthSnapshot/);
+    expect(joinRequests).toMatch(/getAuthSnapshot\(checkAuth, user\)/);
     expect(joinRequests).not.toContain('User.me()');
 
-    expect(createFanEvent).toMatch(/getFreshAuthSnapshot/);
+    expect(createFanEvent).toMatch(/getAuthSnapshot\(checkAuth, user\)/);
     expect(createFanEvent).not.toContain('User.me()');
 
     expect(highlights).toContain("import { getAuthSnapshot } from '@/utils/authState';");
     expect(highlights).not.toContain('User.me()');
 
-    expect(create).toContain("import { getAuthSnapshot } from '@/utils/authState';");
+    // create.tsx is now a thin hub driven by useCreateTeamAccess — no direct
+    // user fetching at all.
     expect(create).not.toContain('User.me()');
 
     expect(favorites).toContain("import { getAuthSnapshot } from '@/utils/authState';");
@@ -80,7 +80,7 @@ describe('auth screen snapshot contract', () => {
     expect(reportAbuse).toContain("import { getAuthSnapshot } from '@/utils/authState';");
     expect(reportAbuse).not.toContain('User.me()');
 
-    expect(dmRestrictions).toMatch(/getFreshAuthSnapshot/);
+    expect(dmRestrictions).toMatch(/getAuthSnapshot\(checkAuth, user\)/);
     expect(dmRestrictions).not.toContain('await User.me()');
 
     expect(createPost).toContain("import { getAuthSnapshot } from '@/utils/authState';");
@@ -106,17 +106,13 @@ describe('auth screen snapshot contract', () => {
   });
 
   it('limits direct User.me calls in app/hooks/context to the explicit force-refresh allowlist', () => {
-    const output = execSync(
-      "rg -l 'User\\.me\\(' app hooks context -g '*.{ts,tsx}'",
-      { cwd: process.cwd(), encoding: 'utf8' }
-    ).trim();
+    const output = execSync("rg -l 'User\\.me\\(' app hooks context -g '*.{ts,tsx}'", {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    }).trim();
 
     const matches = output ? output.split('\n').sort() : [];
 
-    expect(matches).toEqual([
-      'app/(tabs)/edit-profile.tsx',
-      'app/payment-success.tsx',
-      'context/AuthProvider.tsx',
-    ]);
+    expect(matches).toEqual(['app/(tabs)/edit-profile.tsx', 'context/AuthProvider.tsx']);
   });
 });

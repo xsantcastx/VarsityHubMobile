@@ -9,11 +9,7 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
-import {
-  getCoachAccessState,
-  getCoachRecoveryRoute,
-  type CoachUserLike,
-} from '@/utils/roleChecks';
+import { getCoachAccessState, getCoachRecoveryRoute, type CoachUserLike } from '@/utils/roleChecks';
 
 export function useRequireCoach() {
   const { user, loading } = useAuth();
@@ -34,7 +30,10 @@ export function useRequireCoach() {
     // utils/appRouteDecisions.ts and utils/roleChecks.ts:getCoachRecoveryRoute
     // shipped in commit 7c875eb6 — this hook is the third routing path
     // and was missed in that pass. Send them back to /(tabs) instead.
-    if (coachUser?.is_admin === true && (coachAccess.isPendingCoach || coachAccess.isRejectedCoach)) {
+    if (
+      coachUser?.is_admin === true &&
+      (coachAccess.isPendingCoach || coachAccess.isRejectedCoach)
+    ) {
       router.replace('/(tabs)/feed');
       return;
     }
@@ -51,10 +50,28 @@ export function useRequireCoach() {
 
     if (!canAccessCoachTools) {
       const recoveryRoute = getCoachRecoveryRoute(coachUser);
-      router.replace((recoveryRoute || '/onboarding/pending-approval') as never);
+      // getCoachRecoveryRoute intentionally returns null for approved coaches.
+      // They must never land on pending-approval (their approval is done):
+      // missing agreement → agreement screen; otherwise (e.g. no org yet) let
+      // them into the app.
+      const fallback = isApprovedCoach
+        ? coachAccess.hasCurrentCoachAgreement
+          ? '/(tabs)/feed'
+          : '/onboarding/coach-agreement'
+        : '/onboarding/pending-approval';
+      router.replace((recoveryRoute || fallback) as never);
       return;
     }
-  }, [canAccessCoachTools, coachAccess, coachUser, isCoach, loading, router, user]);
+  }, [
+    canAccessCoachTools,
+    coachAccess,
+    coachUser,
+    isApprovedCoach,
+    isCoach,
+    loading,
+    router,
+    user,
+  ]);
 
   return { isCoach, isApprovedCoach, canAccessCoachTools, loading };
 }

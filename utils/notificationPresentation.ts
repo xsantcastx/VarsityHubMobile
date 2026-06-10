@@ -214,13 +214,13 @@ export function getNotificationHrefForUser(
     return getCoachRecoveryRoute(user) || '/onboarding/league-pending-approval';
   }
   if (type === 'JOIN_REQUEST_APPROVED') {
-    return item.meta?.denied ? '/(tabs)' : getCoachApprovalNotificationRoute(user);
+    return item.meta?.denied ? '/(tabs)/feed' : getCoachApprovalNotificationRoute(user);
   }
   if (type === 'JOIN_REQUEST_DENIED') {
-    return '/(tabs)';
+    return '/(tabs)/feed';
   }
   if (type === 'COACH_REJECTED') {
-    return '/(tabs)';
+    return '/(tabs)/feed';
   }
 
   return item.actor?.id ? `/user-profile?id=${encodeURIComponent(item.actor.id)}` : null;

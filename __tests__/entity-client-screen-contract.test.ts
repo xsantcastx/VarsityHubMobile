@@ -41,7 +41,7 @@ describe('entity client screen contract', () => {
     expect(entities).toContain('followed: (): Promise<any> =>');
     expect(entities).toContain("httpGet('/follows/teams?user_id=me').then(data =>");
 
-    expect(followedTeams).toContain('const rows = (await Team.followed()) as FollowedTeam[];');
+    expect(followedTeams).toContain('const rows = await Team.followed() as FollowedTeam[];');
     expect(followedTeams).not.toContain("httpGet('/follows/teams?user_id=me')");
 
     expect(createFanEvent).toContain('Event.mine()');

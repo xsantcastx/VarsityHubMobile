@@ -27,7 +27,7 @@ describe('Coach approval flow', () => {
       },
     } as any);
 
-    expect(decision.route).toBe('/(tabs)');
+    expect(decision.route).toBe('/(tabs)/feed');
   });
 
   it('routes approved coaches who were previously proceeding as fan into the app', () => {
@@ -41,7 +41,7 @@ describe('Coach approval flow', () => {
       },
     } as any);
 
-    expect(decision.route).toBe('/(tabs)');
+    expect(decision.route).toBe('/(tabs)/feed');
   });
 
   it('keeps approval notifications on coach-agreement only while agreement acceptance is still missing', () => {
@@ -101,6 +101,6 @@ describe('Coach approval flow', () => {
         proceeding_as_fan: false,
       },
     } as any);
-    expect(freshDecision.route).toBe('/(tabs)');
+    expect(freshDecision.route).toBe('/(tabs)/feed');
   });
 });

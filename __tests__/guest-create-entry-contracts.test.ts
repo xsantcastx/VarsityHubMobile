@@ -15,6 +15,7 @@ const publicEvent = read('app/public-event.tsx');
 const gameDetails = read('app/game-details/GameDetailsScreen.tsx');
 const signIn = read('app/sign-in.tsx');
 const create = read('app/create.tsx');
+const feedScreen = read('app/features/navigation/screens/FeedScreen.tsx');
 const submitAd = read('components/SubmitAdScreenBase.tsx');
 
 describe('guest create-entry contracts', () => {
@@ -44,8 +45,10 @@ describe('guest create-entry contracts', () => {
   });
 
   it('keeps ad reservation reachable for guests and prompts sign-in only when submission needs auth', () => {
-    expect(create).toContain("const goToReserveAd = () => router.replace('/submit-ad');");
-    expect(create).toContain('Reserve Ad Space');
+    // Ad reservation entry moved from the create hub to the guest-visible
+    // feed promo card.
+    expect(feedScreen).toContain("router.push('/submit-ad')");
+    expect(feedScreen).toContain('Reserve Your Ad Space Now');
     expect(submitAd).toContain("promptForSignIn(() => router.push('/sign-in'), {");
     expect(submitAd).toContain("message: 'Sign in to reserve ad space.'");
   });

@@ -192,7 +192,7 @@ describe('NotificationTapHandler', () => {
     listener?.(makeResponse('org_rejected', { organization_id: 'org_123' }));
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/(tabs)');
+      expect(mockPush).toHaveBeenCalledWith('/(tabs)/feed');
     });
   });
 
@@ -216,7 +216,7 @@ describe('NotificationTapHandler', () => {
     listener?.(makeResponse('org_rejected', { organization_id: 'org_123' }));
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/(tabs)');
+      expect(mockPush).toHaveBeenCalledWith('/(tabs)/feed');
     });
   });
 });

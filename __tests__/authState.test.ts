@@ -34,7 +34,7 @@ describe('authState helpers', () => {
     const checkAuth = jest.fn<() => Promise<any>>().mockResolvedValue(serverUser);
 
     await expect(getFreshAuthSnapshot(checkAuth as any, localUser)).resolves.toEqual(serverUser);
-    expect(checkAuth).toHaveBeenCalledWith({ skipSubscriptionRefresh: true });
+    expect(checkAuth).toHaveBeenCalledWith({ skipSubscriptionRefresh: true, forceRefresh: true });
   });
 
   it('getFreshAuthSnapshot falls back to current user when refresh returns null', async () => {

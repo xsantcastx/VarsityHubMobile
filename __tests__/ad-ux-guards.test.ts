@@ -8,6 +8,7 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 const adCalendar = read('app/ad-calendar.tsx');
 const myAds = read('app/my-ads.tsx');
 const submitAd = read('app/submit-ad.tsx');
+const submitAdRoute = read('components/SubmitAdRouteScreen.tsx');
 const submitAdWeb = read('app/submit-ad.web.tsx');
 const leaguePendingApproval = read('app/onboarding/league-pending-approval.tsx');
 
@@ -17,35 +18,38 @@ describe('ad and coach UX guards', () => {
       expect(adCalendar).toMatch(/router\.replace\(`\/submit-ad\?zip=\$\{alt\.zip\}`\)/);
     });
 
-    it('native submit-ad hydrates zip from route params', () => {
-      expect(submitAd).toMatch(/useLocalSearchParams/);
-      expect(submitAd).toMatch(/const params = useLocalSearchParams<\{ zip\?: string \}>/);
-      expect(submitAd).toMatch(/setZip\(nextZip\.trim\(\)\)/);
-    });
-
-    it('web submit-ad hydrates zip from route params', () => {
-      expect(submitAdWeb).toMatch(/useLocalSearchParams/);
-      expect(submitAdWeb).toMatch(/const params = useLocalSearchParams<\{ zip\?: string \}>/);
-      expect(submitAdWeb).toMatch(/setZip\(nextZip\.trim\(\)\)/);
+    it('native and web submit-ad routes share the param-hydrating screen', () => {
+      // Both platform routes are thin wrappers; zip hydration lives once in
+      // SubmitAdRouteScreen.
+      expect(submitAd).toContain('SubmitAdRouteScreen');
+      expect(submitAdWeb).toContain('SubmitAdRouteScreen');
+      expect(submitAdRoute).toMatch(/const params = useLocalSearchParams<\{ zip\?: string \}>/);
+      expect(submitAdRoute).toMatch(/setZip\(nextZip\.trim\(\)\)/);
     });
   });
 
   describe('non-runnable ad states', () => {
     it('my-ads sends rejected ads to edit flow instead of scheduling flow', () => {
       expect(myAds).toMatch(/requiresEditBeforeScheduling = item\.status === 'rejected'/);
-      expect(myAds).toMatch(/router\.push\(\{ pathname: '\/edit-ad', params: \{ id: item\.id \} \}\)/);
+      expect(myAds).toMatch(
+        /router\.push\(\{ pathname: '\/edit-ad', params: \{ id: item\.id \} \}\)/
+      );
     });
 
     it('my-ads lets archived ads be booked again without forcing edit flow', () => {
       expect(myAds).toMatch(/\? 'Run Again'/);
-      expect(myAds).not.toMatch(/requiresEditBeforeScheduling = item\.status === 'rejected' \|\| item\.status === 'archived'/);
+      expect(myAds).not.toMatch(
+        /requiresEditBeforeScheduling = item\.status === 'rejected' \|\| item\.status === 'archived'/
+      );
     });
 
     it('ad-calendar only preselects still-bookable approved dates and blocks stale past dates before checkout', () => {
       expect(adCalendar).toMatch(/function getCurrentBookableDates\(datesISO: Iterable<string>\)/);
       expect(adCalendar).toMatch(/const bookableDates = getCurrentBookableDates\(dates\)/);
       expect(adCalendar).toMatch(/const invalidDates = getDatesOutsideBookingWindow\(selected\)/);
-      expect(adCalendar).toMatch(/Alert\.alert\('Date Unavailable', 'Ad dates must be today or in the future\.'\)/);
+      expect(adCalendar).toMatch(
+        /Alert\.alert\('Date Unavailable', 'Ad dates must be today or in the future\.'\)/
+      );
     });
 
     it('ad-calendar blocks rejected ads from date selection', () => {
@@ -68,8 +72,10 @@ describe('ad and coach UX guards', () => {
 
   describe('league rejection recovery', () => {
     it('league pending approval screen offers a real retry or setup path on rejection', () => {
-      expect(leaguePendingApproval).toMatch(/isApplicationFlow \? 'Try Again' : 'Back to Organization Setup'/);
-      expect(leaguePendingApproval).toMatch(/await User\.reapplyCoach\(\)/);
+      expect(leaguePendingApproval).toMatch(
+        /isApplicationFlow \? 'Try Again' : 'Back to Organization Setup'/
+      );
+      expect(leaguePendingApproval).toMatch(/void reapplyCoachApplication\(\{/);
       expect(leaguePendingApproval).toMatch(/router\.replace\('\/onboarding\/coach-application'/);
     });
   });

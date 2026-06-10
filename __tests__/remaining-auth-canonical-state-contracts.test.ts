@@ -20,10 +20,16 @@ describe('remaining auth canonical state contracts', () => {
   });
 
   it('organization join requests gates owner access through the shared auth snapshot helper', () => {
-    expect(organizationJoinRequestsScreen).toContain("import { useAuth } from '@/context/AuthProvider';");
-    expect(organizationJoinRequestsScreen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
+    expect(organizationJoinRequestsScreen).toContain(
+      "import { useAuth } from '@/context/AuthProvider';"
+    );
+    expect(organizationJoinRequestsScreen).toContain(
+      "import { getAuthSnapshot } from '@/utils/authState';"
+    );
     expect(organizationJoinRequestsScreen).toContain('const { user, checkAuth } = useAuth();');
-    expect(organizationJoinRequestsScreen).toContain('getAuthSnapshot(checkAuth, user).catch(() => null)');
+    expect(organizationJoinRequestsScreen).toContain(
+      'getAuthSnapshot(checkAuth, user).catch(() => null)'
+    );
     expect(organizationJoinRequestsScreen).not.toContain('User.me().catch(() => null)');
   });
 
@@ -34,18 +40,24 @@ describe('remaining auth canonical state contracts', () => {
     expect(paymentSuccessScreen).not.toContain('User.me({ force: true })');
 
     expect(createPostScreen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
-    expect(createPostScreen).toContain('const { user, checkAuth } = useAuth();');
-    expect(createPostScreen).toContain('const me = await getAuthSnapshot(checkAuth, user).catch(() => null);');
+    expect(createPostScreen).toContain(
+      'const { user, checkAuth, loading: authLoading } = useAuth();'
+    );
+    expect(createPostScreen).toContain(
+      'const me = await getAuthSnapshot(checkAuth, user).catch(() => null);'
+    );
     expect(createPostScreen).not.toContain('const me = await User.me().catch(() => null);');
 
-    expect(discoverScreen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
+    expect(discoverScreen).toContain(
+      "import { getAuthSnapshot, getCanonicalRole } from '@/utils/authState';"
+    );
     expect(discoverScreen).toContain('const { user, checkAuth } = useAuth();');
     expect(discoverScreen).toContain('currentUser = await getAuthSnapshot(checkAuth, user);');
     expect(discoverScreen).not.toContain('user = await User.me();');
 
-    expect(editProfileScreen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
-    expect(editProfileScreen).toContain('const { user, checkAuth } = useAuth();');
-    expect(editProfileScreen).toContain('const me: any = await getAuthSnapshot(checkAuth, user);');
-    expect(editProfileScreen).not.toContain('await User.me({ force: true })');
+    // edit-profile is the one allowlisted force-refresh screen (see
+    // auth-screen-snapshot-contract): editing requires a guaranteed-fresh
+    // server copy, not a cached snapshot.
+    expect(editProfileScreen).toContain('const me: any = await User.me({ force: true });');
   });
 });

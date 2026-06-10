@@ -129,11 +129,14 @@ describe('session-expired event bus — client wiring invariants', () => {
       expect(authProvider).toMatch(/onSessionExpired\s*\(\s*[a-zA-Z_][\w]*\s*=>/);
     });
 
-    it('redirects to /sign-in on session-expired event', () => {
-      // Authoritative: search the handleSessionExpired function body. The
-      // redirect must reference /sign-in and be tagged with session_expired.
+    it('routes to the guest feed on session-expired event', () => {
+      // Authoritative: search the handleSessionExpired function body. Expired
+      // sessions land on the guest feed (guest-first entry), tagged with
+      // session_expired, after local auth state is cleared.
       const handlerMatch = authProvider.match(/handleSessionExpired[\s\S]{0,2500}/)?.[0] || '';
-      expect(handlerMatch).toContain("redirectWithTelemetry('/sign-in'");
+      expect(handlerMatch).toContain('redirectWithTelemetry(');
+      expect(handlerMatch).toContain('unauthenticatedEntryRoute');
+      expect(handlerMatch).toContain('clearLocalAuthState()');
       expect(handlerMatch).toContain('session_expired:');
     });
 

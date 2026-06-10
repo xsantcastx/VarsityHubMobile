@@ -10,8 +10,10 @@ const createFanEventScreen = read('app/create-fan-event.tsx');
 const eventDetailScreen = read('app/(tabs)/event-detail.tsx');
 
 describe('event auth snapshot contracts', () => {
-  it('create and create-fan-event derive current user from the shared auth snapshot helper', () => {
-    for (const screen of [createScreen, createFanEventScreen]) {
+  it('create-fan-event derives current user from the shared auth snapshot helper', () => {
+    // create.tsx is now a thin hub (useCreateTeamAccess) with no user fetch.
+    expect(createScreen).not.toContain('User.me()');
+    for (const screen of [createFanEventScreen]) {
       expect(screen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
       expect(screen).toContain('const { user, checkAuth } = useAuth();');
       expect(screen).toContain('getAuthSnapshot(checkAuth, user)');

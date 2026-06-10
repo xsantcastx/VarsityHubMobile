@@ -24,11 +24,16 @@ describe('ad geofence UI', () => {
   });
 
   it('keeps the map preview copy tied to the entered zip code', () => {
-    expect(reachPreview).toMatch(/Booking stays tied to this ZIP code/);
+    // Copy moved: the preview subtitle interpolates the zip; the booking
+    // promise now lives on the ad-calendar confirmation copy.
+    expect(reachPreview).toMatch(/of ZIP \$\{zipCode\}/);
+    expect(adCalendar).toContain('Booking remains reserved for this exact zip code');
   });
 
-  it('uses a computed preview region instead of the old wide default deltas', () => {
-    expect(reachPreview).toMatch(/getAdReachPreviewRegion/);
+  it('passes a bounded preview region to the shared map component', () => {
+    // ReachMapPreview is now a thin wrapper over GeocodedMapPreview with
+    // explicit bounded deltas (the old wide-default object literal is gone).
+    expect(reachPreview).toContain('latitudeDelta={0.6}');
     expect(reachPreview).not.toContain('latitudeDelta: 0.6');
   });
 });

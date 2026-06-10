@@ -49,7 +49,7 @@ describe('useRequireCoach — admin override (commit follow-up to 7c875eb6)', ()
     renderHook(() => useRequireCoach());
 
     expect(mockReplace).toHaveBeenCalledTimes(1);
-    expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockReplace).toHaveBeenCalledWith('/(tabs)/feed');
   });
 
   it('admin with PENDING coach state routes to /(tabs), not pending-approval', () => {
@@ -67,7 +67,7 @@ describe('useRequireCoach — admin override (commit follow-up to 7c875eb6)', ()
     renderHook(() => useRequireCoach());
 
     expect(mockReplace).toHaveBeenCalledTimes(1);
-    expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockReplace).toHaveBeenCalledWith('/(tabs)/feed');
   });
 
   it('non-admin REJECTED coach still routes to pending-approval (behavior preserved)', () => {
@@ -103,7 +103,7 @@ describe('useRequireCoach — admin override (commit follow-up to 7c875eb6)', ()
     renderHook(() => useRequireCoach());
 
     expect(mockReplace).toHaveBeenCalledTimes(1);
-    expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockReplace).toHaveBeenCalledWith('/(tabs)/feed');
   });
 
   it('non-admin PENDING coach still routes to pending-approval (behavior preserved)', () => {
@@ -139,7 +139,7 @@ describe('useRequireCoach — admin override (commit follow-up to 7c875eb6)', ()
     renderHook(() => useRequireCoach());
 
     expect(mockReplace).toHaveBeenCalledTimes(1);
-    expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockReplace).toHaveBeenCalledWith('/(tabs)/feed');
   });
 
   it('pending coach with stale pending next_step but fan mode still routes to /(tabs)', () => {
@@ -160,10 +160,10 @@ describe('useRequireCoach — admin override (commit follow-up to 7c875eb6)', ()
     renderHook(() => useRequireCoach());
 
     expect(mockReplace).toHaveBeenCalledTimes(1);
-    expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+    expect(mockReplace).toHaveBeenCalledWith('/(tabs)/feed');
   });
 
-  it('approved coach is not redirected after approval even without an agreement', () => {
+  it('approved coach without an accepted agreement is routed to coach-agreement', () => {
     mockUseAuth.mockReturnValue({
       loading: false,
       user: {
@@ -179,7 +179,9 @@ describe('useRequireCoach — admin override (commit follow-up to 7c875eb6)', ()
 
     renderHook(() => useRequireCoach());
 
-    expect(mockReplace).not.toHaveBeenCalled();
+    // Agreement acceptance is now enforced before coach tools unlock —
+    // getCoachRecoveryRoute falls through to the agreement screen.
+    expect(mockReplace).toHaveBeenCalledWith('/onboarding/coach-agreement');
   });
 
   it('approved coach with a paid plan pending checkout routes to billing', () => {

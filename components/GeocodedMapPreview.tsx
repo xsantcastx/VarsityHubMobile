@@ -115,7 +115,10 @@ export function GeocodedMapPreview({
           return;
         }
         if (attempt + 1 < maxAttempts) {
-          const retryTimer = setTimeout(() => geocodeZip(attempt + 1), Math.min(2000, (attempt + 1) * 700));
+          const retryTimer = setTimeout(
+            () => geocodeZip(attempt + 1),
+            Math.min(2000, (attempt + 1) * 700)
+          );
           timers.push(retryTimer);
           return;
         }
@@ -151,24 +154,32 @@ export function GeocodedMapPreview({
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
-          <Text style={[styles.headerSubtitle, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text>
+          <Text style={[styles.headerSubtitle, { color: Colors[colorScheme].mutedText }]}>
+            {subtitle}
+          </Text>
         </View>
       </View>
 
-      <View style={styles.mapWrapper}>
+      <View style={[styles.mapWrapper, { backgroundColor: Colors[colorScheme].surface }]}>
         {loading ? (
           <View style={[styles.overlay, { backgroundColor: Colors[colorScheme].background }]}>
             <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-            <Text style={[styles.overlayText, { color: Colors[colorScheme].mutedText }]}>{loadingText}</Text>
+            <Text style={[styles.overlayText, { color: Colors[colorScheme].mutedText }]}>
+              {loadingText}
+            </Text>
           </View>
         ) : null}
 
         {error && !loading ? (
           <View style={[styles.overlay, { backgroundColor: Colors[colorScheme].background }]}>
             <MaterialIcons name="error" size={40} color={Colors[colorScheme].destructive} />
-            <Text style={[styles.overlayText, { color: Colors[colorScheme].mutedText }]}>{error}</Text>
+            <Text style={[styles.overlayText, { color: Colors[colorScheme].mutedText }]}>
+              {error}
+            </Text>
             {errorHint ? (
-              <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>{errorHint}</Text>
+              <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>
+                {errorHint}
+              </Text>
             ) : null}
           </View>
         ) : null}
@@ -210,7 +221,9 @@ export function GeocodedMapPreview({
         {!location && !loading && !error ? (
           <View style={[styles.overlay, { backgroundColor: Colors[colorScheme].background }]}>
             <MaterialIcons name="map" size={40} color={Colors[colorScheme].mutedText} />
-            <Text style={[styles.overlayText, { color: Colors[colorScheme].mutedText }]}>{emptyText}</Text>
+            <Text style={[styles.overlayText, { color: Colors[colorScheme].mutedText }]}>
+              {emptyText}
+            </Text>
           </View>
         ) : null}
       </View>
@@ -220,7 +233,9 @@ export function GeocodedMapPreview({
           {legendItems.map(item => (
             <View key={item.label} style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-              <Text style={[styles.legendText, { color: Colors[colorScheme].mutedText }]}>{item.label}</Text>
+              <Text style={[styles.legendText, { color: Colors[colorScheme].mutedText }]}>
+                {item.label}
+              </Text>
             </View>
           ))}
         </View>
@@ -261,7 +276,6 @@ const styles = StyleSheet.create({
   mapWrapper: {
     height: 220,
     position: 'relative',
-    backgroundColor: '#F5F5F5',
   },
   map: {
     flex: 1,
