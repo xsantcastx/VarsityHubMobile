@@ -36,6 +36,18 @@ export function errorHandler(
     return next(err);
   }
 
+  // Malformed request URL — e.g. bot probes like /%c0%2eenv with invalid
+  // percent-encoding. Express's router throws a URIError from
+  // decodeURIComponent while matching the path (before any handler runs), so
+  // this never reached app logic and served nothing. It's a client error, not
+  // a server fault: respond 400 and do NOT report to Sentry. Without this,
+  // every internet scanner hitting the public site produced a bogus 500 +
+  // Sentry alert tagged `unknown_error`.
+  if (err instanceof URIError) {
+    sendError(res, 400, 'Malformed request URL', { code: 'BAD_REQUEST' });
+    return;
+  }
+
   // Handle AppError instances
   if (err instanceof AppError) {
     const logDetails = err.getLogDetails();

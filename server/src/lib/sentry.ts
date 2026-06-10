@@ -1,7 +1,5 @@
 import * as Sentry from '@sentry/node';
-import {
-    normalizeSentryBreadcrumbData
-} from '@varsityhub/shared/runtime/sentrySanitization';
+import { normalizeSentryBreadcrumbData } from '@varsityhub/shared/runtime/sentrySanitization';
 import type { Express, Request } from 'express';
 import crypto from 'node:crypto';
 import { debugLog } from './debugLog.js';
@@ -19,7 +17,7 @@ function normalizeRoutePath(path: string): string {
   if (!path || path === '/') return path;
   return path
     .split('/')
-    .map((seg) => (ID_LIKE_SEGMENT_RE.test(seg) ? ':id' : seg))
+    .map(seg => (ID_LIKE_SEGMENT_RE.test(seg) ? ':id' : seg))
     .join('/');
 }
 
@@ -71,10 +69,24 @@ export function initSentry(app: Express) {
     tracesSampleRate: environment === 'production' ? 0.1 : 1.0,
     maxBreadcrumbs: 50,
     attachStacktrace: true,
+    // Drop malformed-URL decode errors from internet scanners (e.g. bots
+    // probing /%c0%2eenv with invalid percent-encoding). These are client
+    // errors handled as 400 by errorHandler; this is defense-in-depth so they
+    // never reach Sentry even if captured elsewhere.
+    ignoreErrors: [/Failed to decode param/, 'URIError'],
     beforeSend(event: any) {
       // Filter out health checks and non-error requests
       if (event.request?.url?.includes('/health')) {
         return null;
+      }
+      // Belt-and-suspenders: drop any malformed-URL decode error by message.
+      const values = event.exception?.values;
+      if (Array.isArray(values)) {
+        for (const v of values) {
+          if (v?.type === 'URIError' || /Failed to decode param/.test(String(v?.value || ''))) {
+            return null;
+          }
+        }
       }
       return event;
     },
@@ -87,7 +99,7 @@ export function initSentry(app: Express) {
   app.use(Sentry.Handlers.tracingHandler());
 
   app.use((req, _res, next) => {
-    Sentry.configureScope((scope) => {
+    Sentry.configureScope(scope => {
       scope.setTag('service', SERVER_SERVICE_TAG);
       scope.setTag('route', getSentryRouteTag(req));
       scope.setTag('method', req.method);
@@ -95,7 +107,7 @@ export function initSentry(app: Express) {
     next();
   });
 
-  Sentry.configureScope((scope) => {
+  Sentry.configureScope(scope => {
     scope.setTag('service', SERVER_SERVICE_TAG);
   });
 
@@ -113,7 +125,7 @@ export function addSentryErrorHandler(app: Express) {
  * Manually capture exception
  */
 export function captureException(error: Error | string, context?: Record<string, any>) {
-  Sentry.withScope((scope) => {
+  Sentry.withScope(scope => {
     scope.setTag('service', SERVER_SERVICE_TAG);
     if (context) {
       applyScopeTags(scope, context);
@@ -135,7 +147,7 @@ export function captureMessage(
   level: 'fatal' | 'error' | 'warning' | 'info' | 'debug' = 'info',
   context?: Record<string, any>
 ) {
-  Sentry.withScope((scope) => {
+  Sentry.withScope(scope => {
     scope.setTag('service', SERVER_SERVICE_TAG);
     if (context) {
       applyScopeTags(scope, context);
@@ -256,7 +268,12 @@ function inferProviderTag(context: Record<string, any>, contextTag?: string | nu
 /**
  * Add breadcrumb for debugging
  */
-export function addBreadcrumb(message: string, category: string = 'custom', level: 'fatal' | 'error' | 'warning' | 'info' | 'debug' = 'info', data?: Record<string, any>) {
+export function addBreadcrumb(
+  message: string,
+  category: string = 'custom',
+  level: 'fatal' | 'error' | 'warning' | 'info' | 'debug' = 'info',
+  data?: Record<string, any>
+) {
   Sentry.addBreadcrumb({
     message,
     category,
