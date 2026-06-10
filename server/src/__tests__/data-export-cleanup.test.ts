@@ -30,6 +30,7 @@ jest.unstable_mockModule('../jobs/queues.js', () => ({
 
 jest.unstable_mockModule('../lib/sentry.js', () => ({
   captureException: jest.fn(),
+  captureMessage: jest.fn(),
 }));
 
 jest.unstable_mockModule('../lib/accountDeletion.js', () => ({

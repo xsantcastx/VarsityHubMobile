@@ -139,13 +139,19 @@ describe('coach approval UI guards', () => {
     }
   );
 
-  it('event approvals keeps roster invites and org request status available outside the old coach-only guard', () => {
+  it('event approvals is coach-gated through useRequireCoach with a redirecting fallback', () => {
     expect(eventApprovalsScreen).toContain(
       'const loaders: Promise<void>[] = [loadEvents(), loadTeamInvites(), loadOrgRequests()];'
     );
     expect(eventApprovalsScreen).toContain('useAuth');
-    expect(eventApprovalsScreen).not.toContain('CoachAccessRedirecting');
-    expect(eventApprovalsScreen).not.toMatch(/if \(!canAccessCoachTools\) \{/);
+    // The screen is the coach review hub: useRequireCoach owns the redirect
+    // (approved-but-blocked coaches go to coach-agreement, never a pending
+    // screen) and CoachAccessRedirecting renders while it happens. Roster
+    // invites for non-coaches live on app/team-invites.tsx.
+    expect(eventApprovalsScreen).toContain(
+      'const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();'
+    );
+    expect(eventApprovalsScreen).toContain('return <CoachAccessRedirecting');
   });
 
   it('onboarding index trusts canonical onboarding completion before falling back to preferences', () => {

@@ -68,7 +68,7 @@ describe('Public app handoff routes', () => {
     expect(appSrc).toContain(
       "import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';"
     );
-    expect(appSrc).toContain('app.use(publicAppHandoffRouter);');
+    expect(appSrc).toContain('app.use(publicRouteLimiter, publicAppHandoffRouter);');
     expect(testAppSrc).toContain(
       "import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';"
     );

@@ -20,11 +20,23 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
   },
 }));
 
-const { getBlockedUserIds, getRequestBlockedCache } = await import('../lib/privacyUtils.js');
+// Keep the unit pure: no real Redis — distributed cache always misses.
+jest.unstable_mockModule('../lib/cache.js', () => ({
+  cacheGet: jest.fn(async () => null),
+  cacheSet: jest.fn(async () => undefined),
+  cacheDel: jest.fn(async () => undefined),
+}));
+
+const { getBlockedUserIds, getRequestBlockedCache, invalidateBlockedIdsCache } =
+  await import('../lib/privacyUtils.js');
 
 describe('getBlockedUserIds — request-scoped cache', () => {
   beforeEach(() => {
     findManyMock.mockClear();
+    // Cross-request in-process fallback persists at module scope — reset
+    // between tests so each test observes its own DB hit pattern.
+    invalidateBlockedIdsCache('viewer-1');
+    invalidateBlockedIdsCache('viewer-2');
   });
 
   it('hits the DB once per request when called multiple times for the same viewer', async () => {
@@ -56,18 +68,22 @@ describe('getBlockedUserIds — request-scoped cache', () => {
     expect(b).toEqual(c);
   });
 
-  it('separate requests do NOT share cache', async () => {
+  it('separate requests share the cross-request fallback within its TTL', async () => {
+    // Since the cross-request blocked-ids cache (perf: 0d544514), a second
+    // request for the same viewer inside the TTL reuses the in-process
+    // fallback instead of re-querying.
     const req1 = {} as { _blockedCache?: Map<string, Promise<string[]>> };
     const req2 = {} as { _blockedCache?: Map<string, Promise<string[]>> };
 
     await getBlockedUserIds('viewer-1', getRequestBlockedCache(req1));
     await getBlockedUserIds('viewer-1', getRequestBlockedCache(req2));
 
-    expect(findManyMock).toHaveBeenCalledTimes(2);
+    expect(findManyMock).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to DB on every call when no cache is passed (backward compat)', async () => {
+  it('invalidation forces the next lookup back to the DB', async () => {
     await getBlockedUserIds('viewer-1');
+    invalidateBlockedIdsCache('viewer-1');
     await getBlockedUserIds('viewer-1');
 
     expect(findManyMock).toHaveBeenCalledTimes(2);

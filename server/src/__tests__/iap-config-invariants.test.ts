@@ -62,10 +62,10 @@ describe('IAP product configuration invariants', () => {
   it('mobile ad checkout uses Apple IAP on iOS and Stripe PaymentSheet elsewhere', () => {
     expect(adCalendarScreen).toMatch(/if \(Platform\.OS === 'ios'\)/);
     expect(adCalendarScreen).toMatch(
-      /const result = await purchaseAd\(\{\s*adId: String\(adId\),\s*dates,\s*weekdayBlocks,\s*weekendBlocks,\s*\}\)/
+      /const result = await purchaseAd\(\{\s*adId: String\(adId\),\s*dates,\s*weekdayBlocks,\s*weekendBlocks,?\s*\}\)/
     );
     expect(adCalendarScreen).toMatch(
-      /httpPost\('\/payments\/create-payment-sheet', \{\s*ad_id: String\(adId\),\s*dates,\s*promo_code: promo \|\| undefined,\s*\}\)/
+      /httpPost\('\/payments\/create-payment-sheet', \{\s*ad_id: String\(adId\),\s*dates,\s*promo_code: promo \|\| undefined,?\s*\}\)/
     );
     expect(adCalendarScreen).toMatch(/const \{ error \} = await presentPaymentSheet\(\)/);
   });

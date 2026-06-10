@@ -118,7 +118,7 @@ describe('payments & subscriptions — structural invariants', () => {
     it('inner Apple JWS payloads are verified instead of falling back to unverified decode', () => {
       const block =
         payments.match(
-          /const verifyInnerJWS = \(token: string\): any => \{[\s\S]{0,1200}?\n\s*\};/
+          /const verifyInnerJWS = \(token: string\): any => \{[\s\S]{0,2600}?\n\s*\};/
         )?.[0] || '';
       expect(block).toMatch(/jwt\.verify\(token, innerKey, \{ algorithms: \['ES256'\] \}\)/);
       expect(block).not.toMatch(/return jwt\.decode\(token\)/);
@@ -188,9 +188,10 @@ describe('payments & subscriptions — structural invariants', () => {
     });
 
     it('web checkout success URLs include the session id and payment type for app handoff', () => {
-      const block =
-        payments.match(/function getCheckoutReturnUrls[\s\S]{0,1200}/)?.[0] || '';
-      expect(block).toMatch(/payment-success\?session_id=\{CHECKOUT_SESSION_ID\}&type=\$\{params\.type\}/);
+      const block = payments.match(/function getCheckoutReturnUrls[\s\S]{0,1200}/)?.[0] || '';
+      expect(block).toMatch(
+        /payment-success\?session_id=\{CHECKOUT_SESSION_ID\}&type=\$\{params\.type\}/
+      );
       expect(block).toMatch(/payment-cancel/);
     });
   });
@@ -221,23 +222,37 @@ describe('payments & subscriptions — structural invariants', () => {
 
   describe('payment success recovery flow', () => {
     it('re-verifies after account recovery by including the active auth identity in the attempt key', () => {
-      expect(paymentSuccessScreen).toMatch(/const authAttemptOwner = user\?\.id \? String\(user\.id\) : 'anonymous';/);
-      expect(paymentSuccessScreen).toMatch(/const attemptKey = `\$\{paymentType \|\| 'unknown'\}:\$\{rawSessionId\}:\$\{verificationAttempt\}:\$\{authAttemptOwner\}`;/);
+      expect(paymentSuccessScreen).toMatch(
+        /const authAttemptOwner = user\?\.id \? String\(user\.id\) : 'anonymous';/
+      );
+      expect(paymentSuccessScreen).toMatch(
+        /const attemptKey = `\$\{paymentType \|\| 'unknown'\}:\$\{rawSessionId\}:\$\{verificationAttempt\}:\$\{authAttemptOwner\}`;/
+      );
     });
 
     it('fails closed when the payment deep link is missing a supported type', () => {
-      expect(paymentSuccessScreen).toMatch(/const paymentType = params\.type === 'ad' \|\| params\.type === 'subscription' \? params\.type : null;/);
+      expect(paymentSuccessScreen).toMatch(
+        /const paymentType = params\.type === 'ad' \|\| params\.type === 'subscription' \? params\.type : null;/
+      );
       expect(paymentSuccessScreen).toMatch(/if \(!paymentType\) \{/);
       expect(paymentSuccessScreen).toMatch(/This payment link is invalid or incomplete/);
     });
 
     it('prompts account recovery for both ad and subscription confirmations when the current session cannot finalize the owner-bound payment', () => {
       expect(paymentSuccessScreen).toMatch(/if \(!user\) \{/);
-      expect(paymentSuccessScreen).toMatch(/Sign in with the account that purchased this ad to confirm the booking and load its details\./);
-      expect(paymentSuccessScreen).toMatch(/Sign in with the account that started this purchase to confirm your subscription and unlock premium features\./);
+      expect(paymentSuccessScreen).toMatch(
+        /Sign in with the account that purchased this ad to confirm the booking and load its details\./
+      );
+      expect(paymentSuccessScreen).toMatch(
+        /Sign in with the account that started this purchase to confirm your subscription and unlock premium features\./
+      );
       expect(paymentSuccessScreen).toMatch(/if \(isAuthError\(err\)\) \{/);
-      expect(paymentSuccessScreen).toMatch(/We could not verify this ad payment on your current session\./);
-      expect(paymentSuccessScreen).toMatch(/We could not verify this subscription on your current session\./);
+      expect(paymentSuccessScreen).toMatch(
+        /We could not verify this ad payment on your current session\./
+      );
+      expect(paymentSuccessScreen).toMatch(
+        /We could not verify this subscription on your current session\./
+      );
       expect(paymentSuccessScreen).toMatch(/router\.replace\('\/sign-in'\)/);
     });
   });
@@ -245,37 +260,49 @@ describe('payments & subscriptions — structural invariants', () => {
   describe('payment sheet subscription confirmation flow', () => {
     it('exposes a dedicated finalize-subscription endpoint for Stripe subscription ids', () => {
       const block =
-        payments.match(/paymentsRouter\.post\(\s*'\/finalize-subscription'[\s\S]{0,2200}/)?.[0] || '';
+        payments.match(/paymentsRouter\.post\(\s*'\/finalize-subscription'[\s\S]{0,2200}/)?.[0] ||
+        '';
       expect(block).toMatch(/subscription_id:\s*z\.string\(\)\.min\(1\)/);
       expect(block).toMatch(/subscription_id\.startsWith\('sub_'\)/);
       expect(block).toMatch(/stripe\.subscriptions\.retrieve\(subscription_id\)/);
-      expect(block).toMatch(/syncStripeSubscriptionState\(subscription,\s*'subscription\.finalize'\)/);
+      expect(block).toMatch(
+        /syncStripeSubscriptionState\(subscription,\s*'subscription\.finalize'\)/
+      );
     });
 
     it('manage-subscription confirms payment sheet subscriptions with finalizeSubscription, not finalizeSession', () => {
-      expect(manageSubscriptionScreen).toMatch(/Subscriptions\.finalizeSubscription\(subscriptionId\)/);
-      expect(manageSubscriptionScreen).not.toMatch(/Subscriptions\.finalizeSession\(subscriptionId\)/);
+      expect(manageSubscriptionScreen).toMatch(
+        /Subscriptions\.finalizeSubscription\(subscriptionId\)/
+      );
+      expect(manageSubscriptionScreen).not.toMatch(
+        /Subscriptions\.finalizeSession\(subscriptionId\)/
+      );
     });
 
     it('customer.subscription.updated uses the shared subscription sync helper', () => {
       const block =
-        payments.match(/if \(event\.type === 'customer\.subscription\.updated'\) \{[\s\S]{0,1500}/)?.[0] || '';
-      expect(block).toMatch(/syncStripeSubscriptionState\(subscription,\s*'subscription\.updated'\)/);
+        payments.match(
+          /if \(event\.type === 'customer\.subscription\.updated'\) \{[\s\S]{0,1500}/
+        )?.[0] || '';
+      expect(block).toMatch(
+        /syncStripeSubscriptionState\(subscription,\s*'subscription\.updated'\)/
+      );
       expect(block).not.toMatch(/updateTransactionStatus\(subscription\.id,\s*'COMPLETED'/);
     });
   });
 
   describe('Google Play purchase identity', () => {
     it('hashes purchase tokens for order_id instead of truncating them', () => {
-      const block =
-        payments.match(/function getGooglePurchaseOrderId[\s\S]{0,400}/)?.[0] || '';
+      const block = payments.match(/function getGooglePurchaseOrderId[\s\S]{0,400}/)?.[0] || '';
       expect(block).toMatch(/crypto\.createHash\('sha256'\)/);
       expect(block).toMatch(/google_purchase:/);
     });
 
     it('google purchase dedupe accepts hashed ids and legacy truncated ids during migration', () => {
       const block =
-        payments.match(/const orderId = getGooglePurchaseOrderId\(purchase_token\);[\s\S]{0,500}/)?.[0] || '';
+        payments.match(
+          /const orderId = getGooglePurchaseOrderId\(purchase_token\);[\s\S]{0,500}/
+        )?.[0] || '';
       expect(block).toMatch(/const legacyOrderId = String\(purchase_token\)\.substring\(0, 40\);/);
       expect(block).toMatch(/order_id:\s*\{\s*in:\s*\[orderId,\s*legacyOrderId\]\s*\}/);
     });

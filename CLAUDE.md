@@ -120,6 +120,11 @@ Two post mapper functions exist and MUST stay in sync:
 # TypeScript errors (server)
 npx tsc --noEmit --project server/tsconfig.json 2>&1 | tail -20
 
+# Server test suite — MUST run via npm test (wraps jest with
+# node --experimental-vm-modules for ESM). Bare `npx jest` on the full suite
+# fails ~100 suites with "Cannot use 'import.meta' outside a module".
+cd server && npm test
+
 # Dark mode violations (text colors)
 grep -rn "'#000\|'#333\|'#374151\|'#111\|black" app/ --include="*.tsx" | grep -v backgroundColor
 
