@@ -79,6 +79,13 @@ type FeedItem =
 
 const LIVE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours — must match GameDetailsScreen
 
+// Feed fetch window: ascending by date starting a few days back, so page one
+// always contains the NEAREST games (recent past for the Past Events section,
+// live + soonest upcoming on top). Fetching '-date' (latest first) breaks once
+// more than a page of future games exist — the nearest games never arrive.
+const FEED_RECENT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000; // 3 days back
+const feedDateFrom = () => new Date(Date.now() - FEED_RECENT_WINDOW_MS).toISOString();
+
 const normalizeGamesPage = (gamesData: any): { games: GameItem[]; cursor: string | null } => {
   if (gamesData && typeof gamesData === 'object' && !Array.isArray(gamesData)) {
     const list = gamesData.games || gamesData.items || [];
@@ -421,7 +428,7 @@ export default function FeedScreen() {
         // Load games with better error handling
         let gamesData: any = null;
         try {
-          gamesData = await Game.list('-date', { limit: 30 });
+          gamesData = await Game.list('date', { limit: 30, dateFrom: feedDateFrom() });
         } catch (err: any) {
           if (__DEV__) console.error('[Feed] Failed to load games:', err);
           // If it's a network error, show a more helpful message
@@ -443,7 +450,9 @@ export default function FeedScreen() {
             const { httpPost } = await import('@/api/http');
             await httpPost('/games/seed-samples', {});
             // Re-fetch games now that seeds exist
-            const seeded = await Game.list('-date', { limit: 30 }).catch(() => ({ games: [] }));
+            const seeded = await Game.list('date', { limit: 30, dateFrom: feedDateFrom() }).catch(
+              () => ({ games: [] })
+            );
             const seededPage = normalizeGamesPage(seeded);
             if (seededPage.games.length > 0) {
               normalizedGames = seededPage.games;
@@ -602,7 +611,11 @@ export default function FeedScreen() {
 
     setLoadingMore(true);
     try {
-      const nextData = await Game.list('-date', { cursor: gamesCursor, limit: 30 });
+      const nextData = await Game.list('date', {
+        cursor: gamesCursor,
+        limit: 30,
+        dateFrom: feedDateFrom(),
+      });
 
       // Handle cursor-based response or legacy array
       let normalizedGames: any[] = [];
@@ -768,6 +781,13 @@ export default function FeedScreen() {
       if (aLive && !bLive) return -1;
       if (!aLive && bLive) return 1;
       return aMs - bMs;
+    });
+
+    // Past Events: most recent first going down
+    past.sort((a, b) => {
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
     return { upcomingEvents: upcoming, pastEvents: past };
