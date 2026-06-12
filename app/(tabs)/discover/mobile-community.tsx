@@ -520,7 +520,7 @@ function CommunityDiscoverScreen() {
       } finally {
         if (mounted) setUnifiedSearchLoading(false);
       }
-    }, 300);
+    }, 200);
     return () => {
       mounted = false;
       clearTimeout(t);
