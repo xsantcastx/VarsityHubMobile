@@ -713,6 +713,46 @@ eventsRouter.get(
   })
 );
 
+// Batched RSVP status: one request for all visible events instead of one per
+// event (mirrors /games/votes-summary). Must register before '/:id'.
+eventsRouter.get(
+  '/rsvp-summary',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const idsParam = String(req.query.ids || '').trim();
+    if (!idsParam) return res.status(400).json({ error: 'ids required (comma-separated event IDs)' });
+    const ids = idsParam
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (ids.length === 0) return res.json({});
+    if (ids.length > 50) return res.status(400).json({ error: 'Max 50 ids per request' });
+    const userId = req.user?.id ?? null;
+
+    const [counts, mine] = await Promise.all([
+      prisma.eventRsvp.groupBy({
+        by: ['event_id'],
+        _count: { _all: true },
+        where: { event_id: { in: ids } },
+      }),
+      userId
+        ? prisma.eventRsvp.findMany({
+            where: { event_id: { in: ids }, user_id: userId },
+            select: { event_id: true },
+            take: ids.length,
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const countMap = new Map(counts.map(c => [c.event_id, c._count._all]));
+    const mineSet = new Set(mine.map(m => m.event_id));
+    const out: Record<string, { going: boolean; count: number }> = {};
+    for (const id of ids) {
+      out[id] = { going: mineSet.has(id), count: countMap.get(id) ?? 0 };
+    }
+    return res.json(out);
+  })
+);
+
 // Get single event with RSVP count (optionally includes can_cancel when authenticated)
 eventsRouter.get(
   '/:id',

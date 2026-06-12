@@ -102,7 +102,15 @@ const normalizeGamesPage = (gamesData: any): { games: GameItem[]; cursor: string
 };
 
 // RSVP Badge Component
-const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any; onRSVPChange?: () => void }) => {
+const RSVPBadge = ({
+  gameItem,
+  initialRsvp,
+  onRSVPChange,
+}: {
+  gameItem: any;
+  initialRsvp?: { going: boolean; count: number };
+  onRSVPChange?: () => void;
+}) => {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const { user } = useAuth();
@@ -117,19 +125,14 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any; onRSVPChange?: (
     return date.getTime() < Date.now();
   }, [gameItem?.date]);
 
-  // Check initial RSVP status when component mounts
+  // Status comes from the parent's batched /events/rsvp-summary fetch — one
+  // request for the whole list instead of one per badge.
   useEffect(() => {
-    if (gameItem.event_id && !isEventPast) {
-      Event.rsvpStatus(gameItem.event_id)
-        .then((status: any) => {
-          setIsRsvped(status.going || status.attending || false);
-          setRsvpCount(status.count || 0);
-        })
-        .catch(error => {
-          if (__DEV__) console.warn('[feed] RSVP status preload failed:', error);
-        });
+    if (initialRsvp) {
+      setIsRsvped(initialRsvp.going);
+      setRsvpCount(initialRsvp.count);
     }
-  }, [gameItem.event_id, isEventPast]);
+  }, [initialRsvp]);
 
   const handleRSVP = async () => {
     if (isLoading || !gameItem.event_id) return;
@@ -310,6 +313,10 @@ export default function FeedScreen() {
   >(undefined);
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
+  const rsvpSummariesRef = useRef<Record<string, { going: boolean; count: number }>>({});
+  const [rsvpSummaries, setRsvpSummaries] = useState<
+    Record<string, { going: boolean; count: number }>
+  >({});
   const [showSeedBanner, setShowSeedBanner] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
@@ -369,6 +376,32 @@ export default function FeedScreen() {
       }
     } catch (err) {
       if (__DEV__) console.warn('Vote summary batch failed', err);
+    }
+  }, []);
+
+  const preloadRsvpSummaries = useCallback(async (gameList: GameItem[]) => {
+    const now = Date.now();
+    const ids = gameList
+      .map(game => String((game as any).event_id || ''))
+      .filter(id => id && !rsvpSummariesRef.current[id])
+      .filter((id, i, arr) => arr.indexOf(id) === i)
+      .slice(0, 50);
+    // Past events never show a live badge state, so don't fetch for them
+    const upcoming = gameList.filter(g => {
+      const id = String((g as any).event_id || '');
+      if (!ids.includes(id)) return false;
+      const d = new Date((g as any).date || 0).getTime();
+      return !Number.isFinite(d) || d >= now;
+    });
+    const wanted = upcoming.map(g => String((g as any).event_id));
+    if (!wanted.length) return;
+    try {
+      const batch = await Event.rsvpSummaryBatch(wanted);
+      const next = { ...rsvpSummariesRef.current, ...(batch || {}) };
+      rsvpSummariesRef.current = next;
+      setRsvpSummaries(next);
+    } catch (err) {
+      if (__DEV__) console.warn('[feed] RSVP summary batch failed:', err);
     }
   }, []);
 
@@ -647,7 +680,8 @@ export default function FeedScreen() {
   useEffect(() => {
     if (!games.length) return;
     void preloadVoteSummaries(games.slice(0, 12));
-  }, [games, preloadVoteSummaries]);
+    void preloadRsvpSummaries(games);
+  }, [games, preloadVoteSummaries, preloadRsvpSummaries]);
 
   // Refresh feed data + unread counts on focus, then poll every 60s while visible.
   // Single hook replaces two separate useFocusEffects that both fetched unread counts.
@@ -1277,11 +1311,15 @@ export default function FeedScreen() {
               </Text>
             ) : null}
           </View>
-          <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} />
+          <RSVPBadge
+            gameItem={gameItem}
+            initialRsvp={rsvpSummaries[String((gameItem as any).event_id || '')]}
+            onRSVPChange={onRefresh}
+          />
         </Pressable>
       );
     },
-    [colorScheme, voteSummaries, router, onRefresh]
+    [colorScheme, voteSummaries, rsvpSummaries, router, onRefresh]
   );
 
   const renderFeedItem = useCallback(

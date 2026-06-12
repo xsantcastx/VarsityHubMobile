@@ -533,6 +533,11 @@ export const Event = {
     httpPut(`/events/${encodeURIComponent(id)}/reject`, reason ? { reason } : {}),
   cancel: (id: string) => httpPatch('/events/' + encodeURIComponent(id) + '/cancel'),
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
+  rsvpSummaryBatch: (ids: string[]): Promise<Record<string, { going: boolean; count: number }>> => {
+    if (ids.length === 0) return Promise.resolve({});
+    const qs = '?ids=' + ids.map(id => encodeURIComponent(id)).join(',');
+    return httpGet('/events/rsvp-summary' + qs);
+  },
   rsvp: (id: string, going?: boolean) =>
     httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof going === 'boolean' ? { going } : {}),
   myRsvps: () =>
