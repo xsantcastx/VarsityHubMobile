@@ -43,7 +43,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -99.1506,
     capacity: 87523,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Vista_a%C3%A9rea_del_Estadio_Azteca_-_2026_-_02.jpg/1280px-Vista_a%C3%A9rea_del_Estadio_Azteca_-_2026_-_02.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Vista_a%C3%A9rea_del_Estadio_Azteca_-_2026_-_02.jpg/960px-Vista_a%C3%A9rea_del_Estadio_Azteca_-_2026_-_02.jpg',
   },
   akron: {
     name: 'Estadio Akron, Zapopan, Guadalajara, Mexico',
@@ -52,7 +52,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -103.4667,
     capacity: 46732,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Estadio_Akron_02-07-2022_cabecera_sur_lado_derecho_%283%29.jpg/1280px-Estadio_Akron_02-07-2022_cabecera_sur_lado_derecho_%283%29.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Estadio_Akron_02-07-2022_cabecera_sur_lado_derecho_%283%29.jpg/960px-Estadio_Akron_02-07-2022_cabecera_sur_lado_derecho_%283%29.jpg',
   },
   bbva: {
     name: 'Estadio BBVA, Guadalupe, Monterrey, Mexico',
@@ -61,7 +61,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -100.2447,
     capacity: 53500,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Mexico_Guadalupe_Monterrey_Estadio_BBVA_Bancomer_fifa_world_cup_2026_6.JPG/1280px-Mexico_Guadalupe_Monterrey_Estadio_BBVA_Bancomer_fifa_world_cup_2026_6.JPG',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Mexico_Guadalupe_Monterrey_Estadio_BBVA_Bancomer_fifa_world_cup_2026_6.JPG/960px-Mexico_Guadalupe_Monterrey_Estadio_BBVA_Bancomer_fifa_world_cup_2026_6.JPG',
   },
   bmoField: {
     name: 'BMO Field, Toronto, Canada',
@@ -70,7 +70,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -79.4186,
     capacity: 45736,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Toronto_BMO_Field_in_2024.jpg/1280px-Toronto_BMO_Field_in_2024.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Toronto_BMO_Field_in_2024.jpg/960px-Toronto_BMO_Field_in_2024.jpg',
   },
   bcPlace: {
     name: 'BC Place, Vancouver, Canada',
@@ -79,7 +79,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -123.1119,
     capacity: 54500,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/BC_Place_2015_Women%27s_FIFA_World_Cup.jpg/1280px-BC_Place_2015_Women%27s_FIFA_World_Cup.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/BC_Place_2015_Women%27s_FIFA_World_Cup.jpg/960px-BC_Place_2015_Women%27s_FIFA_World_Cup.jpg',
   },
   lumen: {
     name: 'Lumen Field, Seattle, Washington, USA',
@@ -88,7 +88,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -122.3316,
     capacity: 68740,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/2025_FIFA_Club_World_Cup_-_Seattle_Sounders_FC_vs._Atl%C3%A9tico_Madrid_-_05.jpg/1280px-2025_FIFA_Club_World_Cup_-_Seattle_Sounders_FC_vs._Atl%C3%A9tico_Madrid_-_05.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/2025_FIFA_Club_World_Cup_-_Seattle_Sounders_FC_vs._Atl%C3%A9tico_Madrid_-_05.jpg/960px-2025_FIFA_Club_World_Cup_-_Seattle_Sounders_FC_vs._Atl%C3%A9tico_Madrid_-_05.jpg',
   },
   levis: {
     name: "Levi's Stadium, Santa Clara, California, USA",
@@ -97,7 +97,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -121.97,
     capacity: 68500,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Levi%27s_Stadium_in_February_2016_prior_to_Super_Bowl_50_%2824398261729%29.jpg/1280px-Levi%27s_Stadium_in_February_2016_prior_to_Super_Bowl_50_%2824398261729%29.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Levi%27s_Stadium_in_February_2016_prior_to_Super_Bowl_50_%2824398261729%29.jpg/960px-Levi%27s_Stadium_in_February_2016_prior_to_Super_Bowl_50_%2824398261729%29.jpg',
   },
   sofi: {
     name: 'SoFi Stadium, Inglewood, California, USA',
@@ -106,7 +106,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -118.3392,
     capacity: 70240,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/SoFi_Stadium_2023.jpg/1280px-SoFi_Stadium_2023.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/SoFi_Stadium_2023.jpg/960px-SoFi_Stadium_2023.jpg',
   },
   att: {
     name: 'AT&T Stadium, Arlington, Texas, USA',
@@ -115,7 +115,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -97.0945,
     capacity: 80000,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Arlington_June_2020_4_%28AT%26T_Stadium%29.jpg/1280px-Arlington_June_2020_4_%28AT%26T_Stadium%29.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Arlington_June_2020_4_%28AT%26T_Stadium%29.jpg/960px-Arlington_June_2020_4_%28AT%26T_Stadium%29.jpg',
   },
   nrg: {
     name: 'NRG Stadium, Houston, Texas, USA',
@@ -124,7 +124,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -95.4107,
     capacity: 72220,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Nrg_stadium.jpg/1280px-Nrg_stadium.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Nrg_stadium.jpg/960px-Nrg_stadium.jpg',
   },
   arrowhead: {
     name: 'Arrowhead Stadium, Kansas City, Missouri, USA',
@@ -133,7 +133,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -94.4839,
     capacity: 76416,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Aerial_view_of_Arrowhead_Stadium_08-31-2013.jpg/1280px-Aerial_view_of_Arrowhead_Stadium_08-31-2013.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Aerial_view_of_Arrowhead_Stadium_08-31-2013.jpg/960px-Aerial_view_of_Arrowhead_Stadium_08-31-2013.jpg',
   },
   mercedesBenz: {
     name: 'Mercedes-Benz Stadium, Atlanta, Georgia, USA',
@@ -142,7 +142,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -84.401,
     capacity: 71000,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Mercedes_Benz_Stadium_time_lapse_capture_2017-08-13.jpg/1280px-Mercedes_Benz_Stadium_time_lapse_capture_2017-08-13.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Mercedes_Benz_Stadium_time_lapse_capture_2017-08-13.jpg/960px-Mercedes_Benz_Stadium_time_lapse_capture_2017-08-13.jpg',
   },
   hardRock: {
     name: 'Hard Rock Stadium, Miami Gardens, Florida, USA',
@@ -151,7 +151,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -80.2389,
     capacity: 64767,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/Hard_Rock_Stadium_for_Super_Bowl_LIV_%2849606710103%29.jpg/1280px-Hard_Rock_Stadium_for_Super_Bowl_LIV_%2849606710103%29.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/Hard_Rock_Stadium_for_Super_Bowl_LIV_%2849606710103%29.jpg/960px-Hard_Rock_Stadium_for_Super_Bowl_LIV_%2849606710103%29.jpg',
   },
   gillette: {
     name: 'Gillette Stadium, Foxborough, Massachusetts, USA',
@@ -160,7 +160,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -71.2643,
     capacity: 64628,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Gillette_Stadium_%28Top_View%29.jpg/1280px-Gillette_Stadium_%28Top_View%29.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Gillette_Stadium_%28Top_View%29.jpg/960px-Gillette_Stadium_%28Top_View%29.jpg',
   },
   lincoln: {
     name: 'Lincoln Financial Field, Philadelphia, Pennsylvania, USA',
@@ -169,7 +169,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -75.1675,
     capacity: 69596,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Lincoln_Financial_Field_%28Aerial_view%29.jpg/1280px-Lincoln_Financial_Field_%28Aerial_view%29.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Lincoln_Financial_Field_%28Aerial_view%29.jpg/960px-Lincoln_Financial_Field_%28Aerial_view%29.jpg',
   },
   metlife: {
     name: 'MetLife Stadium, East Rutherford, New Jersey, USA',
@@ -178,7 +178,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -74.0745,
     capacity: 82500,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Metlife_stadium_%28Aerial_view%29.jpg/1280px-Metlife_stadium_%28Aerial_view%29.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Metlife_stadium_%28Aerial_view%29.jpg/960px-Metlife_stadium_%28Aerial_view%29.jpg',
   },
 };
 
@@ -196,336 +196,336 @@ export const TEAMS: Record<string, TeamDef> = {
     city: 'Algiers',
     state: 'Algeria',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Flag_of_Algeria.svg/960px-Flag_of_Algeria.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Flag_of_Algeria.svg/250px-Flag_of_Algeria.svg.png',
   },
   Argentina: {
     name: 'Argentina',
     city: 'Buenos Aires',
     state: 'Argentina',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Flag_of_Argentina.svg/960px-Flag_of_Argentina.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Flag_of_Argentina.svg/250px-Flag_of_Argentina.svg.png',
   },
   Australia: {
     name: 'Australia',
     city: 'Canberra',
     state: 'Australia',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Flag_of_Australia_%28converted%29.svg/960px-Flag_of_Australia_%28converted%29.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Flag_of_Australia_%28converted%29.svg/250px-Flag_of_Australia_%28converted%29.svg.png',
   },
   Austria: {
     name: 'Austria',
     city: 'Vienna',
     state: 'Austria',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Flag_of_Austria.svg/960px-Flag_of_Austria.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Flag_of_Austria.svg/250px-Flag_of_Austria.svg.png',
   },
   Belgium: {
     name: 'Belgium',
     city: 'Brussels',
     state: 'Belgium',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Flag_of_Belgium.svg/960px-Flag_of_Belgium.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Flag_of_Belgium.svg/250px-Flag_of_Belgium.svg.png',
   },
   'Bosnia and Herzegovina': {
     name: 'Bosnia and Herzegovina',
     city: 'Sarajevo',
     state: 'Bosnia and Herzegovina',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/Flag_of_Bosnia_and_Herzegovina.svg/960px-Flag_of_Bosnia_and_Herzegovina.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/Flag_of_Bosnia_and_Herzegovina.svg/250px-Flag_of_Bosnia_and_Herzegovina.svg.png',
   },
   Brazil: {
     name: 'Brazil',
     city: 'Brasília',
     state: 'Brazil',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Flag_of_Brazil.svg/960px-Flag_of_Brazil.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Flag_of_Brazil.svg/250px-Flag_of_Brazil.svg.png',
   },
   'Cabo Verde': {
     name: 'Cabo Verde',
     city: 'Praia',
     state: 'Cabo Verde',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Flag_of_Cape_Verde.svg/960px-Flag_of_Cape_Verde.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Flag_of_Cape_Verde.svg/250px-Flag_of_Cape_Verde.svg.png',
   },
   Canada: {
     name: 'Canada',
     city: 'Toronto',
     state: 'Canada',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Flag_of_Canada_%28Pantone%29.svg/960px-Flag_of_Canada_%28Pantone%29.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Flag_of_Canada_%28Pantone%29.svg/250px-Flag_of_Canada_%28Pantone%29.svg.png',
   },
   Colombia: {
     name: 'Colombia',
     city: 'Bogotá',
     state: 'Colombia',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Flag_of_Colombia.svg/960px-Flag_of_Colombia.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Flag_of_Colombia.svg/250px-Flag_of_Colombia.svg.png',
   },
   'Congo DR': {
     name: 'Congo DR',
     city: 'Kinshasa',
     state: 'DR Congo',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Flag_of_the_Democratic_Republic_of_the_Congo.svg/960px-Flag_of_the_Democratic_Republic_of_the_Congo.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Flag_of_the_Democratic_Republic_of_the_Congo.svg/250px-Flag_of_the_Democratic_Republic_of_the_Congo.svg.png',
   },
   Croatia: {
     name: 'Croatia',
     city: 'Zagreb',
     state: 'Croatia',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Flag_of_Croatia.svg/960px-Flag_of_Croatia.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Flag_of_Croatia.svg/250px-Flag_of_Croatia.svg.png',
   },
   Curaçao: {
     name: 'Curaçao',
     city: 'Willemstad',
     state: 'Curaçao',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Flag_of_Cura%C3%A7ao.svg/960px-Flag_of_Cura%C3%A7ao.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Flag_of_Cura%C3%A7ao.svg/250px-Flag_of_Cura%C3%A7ao.svg.png',
   },
   Czechia: {
     name: 'Czechia',
     city: 'Prague',
     state: 'Czech Republic',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Flag_of_the_Czech_Republic.svg/960px-Flag_of_the_Czech_Republic.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Flag_of_the_Czech_Republic.svg/250px-Flag_of_the_Czech_Republic.svg.png',
   },
   "Côte d'Ivoire": {
     name: "Côte d'Ivoire",
     city: 'Abidjan',
     state: "Côte d'Ivoire",
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Flag_of_C%C3%B4te_d%27Ivoire.svg/960px-Flag_of_C%C3%B4te_d%27Ivoire.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Flag_of_C%C3%B4te_d%27Ivoire.svg/250px-Flag_of_C%C3%B4te_d%27Ivoire.svg.png',
   },
   Ecuador: {
     name: 'Ecuador',
     city: 'Quito',
     state: 'Ecuador',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Flag_of_Ecuador.svg/960px-Flag_of_Ecuador.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Flag_of_Ecuador.svg/250px-Flag_of_Ecuador.svg.png',
   },
   Egypt: {
     name: 'Egypt',
     city: 'Cairo',
     state: 'Egypt',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Flag_of_Egypt.svg/960px-Flag_of_Egypt.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Flag_of_Egypt.svg/250px-Flag_of_Egypt.svg.png',
   },
   England: {
     name: 'England',
     city: 'London',
     state: 'England',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Flag_of_England.svg/960px-Flag_of_England.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Flag_of_England.svg/250px-Flag_of_England.svg.png',
   },
   France: {
     name: 'France',
     city: 'Paris',
     state: 'France',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Flag_of_France.svg/960px-Flag_of_France.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Flag_of_France.svg/250px-Flag_of_France.svg.png',
   },
   Germany: {
     name: 'Germany',
     city: 'Berlin',
     state: 'Germany',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Flag_of_Germany.svg/960px-Flag_of_Germany.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Flag_of_Germany.svg/250px-Flag_of_Germany.svg.png',
   },
   Ghana: {
     name: 'Ghana',
     city: 'Accra',
     state: 'Ghana',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Flag_of_Ghana.svg/960px-Flag_of_Ghana.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Flag_of_Ghana.svg/250px-Flag_of_Ghana.svg.png',
   },
   Haiti: {
     name: 'Haiti',
     city: 'Port-au-Prince',
     state: 'Haiti',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Flag_of_Haiti.svg/960px-Flag_of_Haiti.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Flag_of_Haiti.svg/250px-Flag_of_Haiti.svg.png',
   },
   'IR Iran': {
     name: 'IR Iran',
     city: 'Tehran',
     state: 'Iran',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Flag_of_Iran.svg/960px-Flag_of_Iran.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Flag_of_Iran.svg/250px-Flag_of_Iran.svg.png',
   },
   Iraq: {
     name: 'Iraq',
     city: 'Baghdad',
     state: 'Iraq',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/Flag_of_Iraq.svg/960px-Flag_of_Iraq.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/Flag_of_Iraq.svg/250px-Flag_of_Iraq.svg.png',
   },
   Japan: {
     name: 'Japan',
     city: 'Tokyo',
     state: 'Japan',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Flag_of_Japan.svg/960px-Flag_of_Japan.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Flag_of_Japan.svg/250px-Flag_of_Japan.svg.png',
   },
   Jordan: {
     name: 'Jordan',
     city: 'Amman',
     state: 'Jordan',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Flag_of_Jordan.svg/960px-Flag_of_Jordan.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Flag_of_Jordan.svg/250px-Flag_of_Jordan.svg.png',
   },
   Mexico: {
     name: 'Mexico',
     city: 'Mexico City',
     state: 'Mexico',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/Flag_of_Mexico.svg/960px-Flag_of_Mexico.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/Flag_of_Mexico.svg/250px-Flag_of_Mexico.svg.png',
   },
   Morocco: {
     name: 'Morocco',
     city: 'Rabat',
     state: 'Morocco',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Flag_of_Morocco.svg/960px-Flag_of_Morocco.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Flag_of_Morocco.svg/250px-Flag_of_Morocco.svg.png',
   },
   Netherlands: {
     name: 'Netherlands',
     city: 'Amsterdam',
     state: 'Netherlands',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Flag_of_the_Netherlands.svg/960px-Flag_of_the_Netherlands.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Flag_of_the_Netherlands.svg/250px-Flag_of_the_Netherlands.svg.png',
   },
   'New Zealand': {
     name: 'New Zealand',
     city: 'Wellington',
     state: 'New Zealand',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Flag_of_New_Zealand.svg/960px-Flag_of_New_Zealand.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Flag_of_New_Zealand.svg/250px-Flag_of_New_Zealand.svg.png',
   },
   Norway: {
     name: 'Norway',
     city: 'Oslo',
     state: 'Norway',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Flag_of_Norway.svg/960px-Flag_of_Norway.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Flag_of_Norway.svg/250px-Flag_of_Norway.svg.png',
   },
   Panama: {
     name: 'Panama',
     city: 'Panama City',
     state: 'Panama',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Flag_of_Panama.svg/960px-Flag_of_Panama.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Flag_of_Panama.svg/250px-Flag_of_Panama.svg.png',
   },
   Paraguay: {
     name: 'Paraguay',
     city: 'Asunción',
     state: 'Paraguay',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Flag_of_Paraguay.svg/960px-Flag_of_Paraguay.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Flag_of_Paraguay.svg/250px-Flag_of_Paraguay.svg.png',
   },
   Portugal: {
     name: 'Portugal',
     city: 'Lisbon',
     state: 'Portugal',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Flag_of_Portugal.svg/960px-Flag_of_Portugal.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Flag_of_Portugal.svg/250px-Flag_of_Portugal.svg.png',
   },
   Qatar: {
     name: 'Qatar',
     city: 'Doha',
     state: 'Qatar',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Flag_of_Qatar.svg/960px-Flag_of_Qatar.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Flag_of_Qatar.svg/250px-Flag_of_Qatar.svg.png',
   },
   'Saudi Arabia': {
     name: 'Saudi Arabia',
     city: 'Riyadh',
     state: 'Saudi Arabia',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/Flag_of_Saudi_Arabia.svg/960px-Flag_of_Saudi_Arabia.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/Flag_of_Saudi_Arabia.svg/250px-Flag_of_Saudi_Arabia.svg.png',
   },
   Scotland: {
     name: 'Scotland',
     city: 'Edinburgh',
     state: 'Scotland',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Flag_of_Scotland.svg/960px-Flag_of_Scotland.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Flag_of_Scotland.svg/250px-Flag_of_Scotland.svg.png',
   },
   Senegal: {
     name: 'Senegal',
     city: 'Dakar',
     state: 'Senegal',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/Flag_of_Senegal.svg/960px-Flag_of_Senegal.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/Flag_of_Senegal.svg/250px-Flag_of_Senegal.svg.png',
   },
   'South Africa': {
     name: 'South Africa',
     city: 'Johannesburg',
     state: 'South Africa',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Flag_of_South_Africa.svg/960px-Flag_of_South_Africa.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Flag_of_South_Africa.svg/250px-Flag_of_South_Africa.svg.png',
   },
   'South Korea': {
     name: 'South Korea',
     city: 'Seoul',
     state: 'South Korea',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/Flag_of_South_Korea.svg/960px-Flag_of_South_Korea.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/Flag_of_South_Korea.svg/250px-Flag_of_South_Korea.svg.png',
   },
   Spain: {
     name: 'Spain',
     city: 'Madrid',
     state: 'Spain',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Flag_of_Spain.svg/960px-Flag_of_Spain.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Flag_of_Spain.svg/250px-Flag_of_Spain.svg.png',
   },
   Sweden: {
     name: 'Sweden',
     city: 'Stockholm',
     state: 'Sweden',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Flag_of_Sweden.svg/960px-Flag_of_Sweden.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Flag_of_Sweden.svg/250px-Flag_of_Sweden.svg.png',
   },
   Switzerland: {
     name: 'Switzerland',
     city: 'Bern',
     state: 'Switzerland',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Flag_of_Switzerland.svg/960px-Flag_of_Switzerland.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Flag_of_Switzerland.svg/250px-Flag_of_Switzerland.svg.png',
   },
   Tunisia: {
     name: 'Tunisia',
     city: 'Tunis',
     state: 'Tunisia',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/Flag_of_Tunisia.svg/960px-Flag_of_Tunisia.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/Flag_of_Tunisia.svg/250px-Flag_of_Tunisia.svg.png',
   },
   Türkiye: {
     name: 'Türkiye',
     city: 'Ankara',
     state: 'Türkiye',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Flag_of_Turkey.svg/960px-Flag_of_Turkey.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Flag_of_Turkey.svg/250px-Flag_of_Turkey.svg.png',
   },
   USA: {
     name: 'USA',
     city: 'Washington',
     state: 'USA',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Flag_of_the_United_States.svg/960px-Flag_of_the_United_States.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Flag_of_the_United_States.svg/250px-Flag_of_the_United_States.svg.png',
   },
   Uruguay: {
     name: 'Uruguay',
     city: 'Montevideo',
     state: 'Uruguay',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Flag_of_Uruguay.svg/960px-Flag_of_Uruguay.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Flag_of_Uruguay.svg/250px-Flag_of_Uruguay.svg.png',
   },
   Uzbekistan: {
     name: 'Uzbekistan',
     city: 'Tashkent',
     state: 'Uzbekistan',
     logoUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Flag_of_Uzbekistan.svg/960px-Flag_of_Uzbekistan.svg.png',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Flag_of_Uzbekistan.svg/250px-Flag_of_Uzbekistan.svg.png',
   },
 };
 

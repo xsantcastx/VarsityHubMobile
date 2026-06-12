@@ -75,7 +75,7 @@ export const EVENTS: OneOffEventDef[] = [
     lat: 29.427,
     lng: -98.4375,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/Texasdd.JPG/1280px-Texasdd.JPG',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/Texasdd.JPG/960px-Texasdd.JPG',
     linkedLeague: 'NBA',
     game: {
       homeTeam: 'San Antonio Spurs',
@@ -96,7 +96,7 @@ export const EVENTS: OneOffEventDef[] = [
     lat: 40.7505,
     lng: -73.9934,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg/1280px-Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg/960px-Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg',
     linkedLeague: 'NBA',
     game: {
       homeTeam: 'New York Knicks',
@@ -117,7 +117,7 @@ export const EVENTS: OneOffEventDef[] = [
     lat: 40.7505,
     lng: -73.9934,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg/1280px-Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg/960px-Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg',
     linkedLeague: 'NBA',
     game: {
       homeTeam: 'New York Knicks',
@@ -142,7 +142,7 @@ export const EVENTS: OneOffEventDef[] = [
     lng: -73.6282,
     // Example venue photo — replace with a picture of YOUR venue
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Toronto_BMO_Field_in_2024.jpg/1280px-Toronto_BMO_Field_in_2024.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Toronto_BMO_Field_in_2024.jpg/960px-Toronto_BMO_Field_in_2024.jpg',
     maxAttendees: 150,
     contactInfo: 'events@varsityhub.app',
   },
@@ -158,7 +158,7 @@ export const EVENTS: OneOffEventDef[] = [
     lng: -73.5387,
     // Example venue photo — replace with a picture of YOUR venue
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/SoFi_Stadium_2023.jpg/1280px-SoFi_Stadium_2023.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/SoFi_Stadium_2023.jpg/960px-SoFi_Stadium_2023.jpg',
     game: {
       homeTeam: 'Northside Eagles',
       awayTeam: 'Southpoint Wolves',
