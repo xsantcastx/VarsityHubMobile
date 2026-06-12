@@ -142,5 +142,7 @@ dist-verify/
 
 # Claude Code internal — agent worktrees, never push
 .claude/worktrees/
+# Claude Code preview-server config (local dev tooling)
+.claude/launch.json
 .jscpd/
 uploads/
