@@ -252,7 +252,10 @@ describe('onboarding flow — no screens can be skipped', () => {
 
     it('root layout does not hard-block auth bootstrap on navState.key', () => {
       expect(rootLayout).toMatch(/const navReady = Boolean\(navState\?\.key\)/);
-      expect(rootLayout).toMatch(/<AuthProvider navReady=\{navReady\}>/);
+      // navReady flows into AuthProvider through the memoized wrapper so the
+      // provider tree no longer re-renders on every navigation state change.
+      expect(rootLayout).toMatch(/<MemoizedAuthProvider navReady=\{navReady\}>/);
+      expect(rootLayout).toMatch(/React\.memo\(AuthProvider\)/);
     });
 
     it('AuthProvider bootstraps auth independently of nav readiness', () => {

@@ -100,7 +100,7 @@ describe('auth screen snapshot contract', () => {
 
     expect(themeHook).toContain("import { useAuth } from '@/context/AuthProvider';");
     expect(themeHook).not.toContain('User.me()');
-    expect(rootLayout).toContain('<AuthProvider navReady={navReady}>');
+    expect(rootLayout).toContain('<MemoizedAuthProvider navReady={navReady}>');
     expect(rootLayout).toContain('<AppShell />');
     expect(rootLayout).toContain('<ThemeProvider>');
   });

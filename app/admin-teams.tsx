@@ -205,7 +205,7 @@ function AdminTeamsScreen() {
                 if (bulkMode) {
                   toggleTeamSelection(String(item.id));
                 } else {
-                  router.push({ pathname: '/team-profile', params: { id: item.id } } as any);
+                  router.push({ pathname: '/team-page', params: { id: item.id } } as any);
                 }
               }}
             >

@@ -27,6 +27,7 @@ import {
   Alert,
   Animated,
   AppState,
+  InteractionManager,
   Linking,
   Modal,
   Platform,
@@ -1874,8 +1875,13 @@ const GameDetailsScreen = () => {
   );
 
   useEffect(() => {
-    void load();
+    // Defer the initial fetch until the push animation finishes so the
+    // transition isn't competing with network parsing and state updates.
+    const task = InteractionManager.runAfterInteractions(() => {
+      void load();
+    });
     analytics.track(ANALYTICS_EVENTS.EVENT_PAGE_VIEWED, { gameId: id, eventId });
+    return () => task.cancel();
   }, [eventId, id, load]);
 
   // Reset per-event UI state immediately when navigating to a different event
@@ -2279,7 +2285,7 @@ const GameDetailsScreen = () => {
   const handleTeamPress = useCallback(
     async (teamObj: { id: string } | undefined, teamName: string | null) => {
       if (teamObj?.id) {
-        void router.push(`/team-profile?id=${teamObj.id}`);
+        void router.push(`/team-page?id=${teamObj.id}`);
         return;
       }
       if (!teamName?.trim()) return;
@@ -2291,7 +2297,7 @@ const GameDetailsScreen = () => {
           (t: any) =>
             (t?.name || '').toLowerCase() === lower || (t?.name || '').toLowerCase().includes(lower)
         );
-        if (match?.id) void router.push(`/team-profile?id=${match.id}`);
+        if (match?.id) void router.push(`/team-page?id=${match.id}`);
       } catch {
         // Team search failed; no navigation
       }

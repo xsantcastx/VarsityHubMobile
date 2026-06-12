@@ -2170,6 +2170,22 @@ function CommunityDiscoverScreen() {
         </View>
       )}
 
+      <Pressable
+        style={[
+          styles.browseOrgsRow,
+          { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border },
+        ]}
+        onPress={() => void router.push('/organizations')}
+        accessibilityRole="button"
+        accessibilityLabel="Browse organizations"
+      >
+        <MaterialIcons name="account-balance" size={20} color={Colors[colorScheme].tint} />
+        <Text style={[styles.browseOrgsText, { color: Colors[colorScheme].text }]}>
+          Browse organizations
+        </Text>
+        <MaterialIcons name="chevron-right" size={20} color={Colors[colorScheme].mutedText} />
+      </Pressable>
+
       {nearbyPeople.length > 0 ? (
         <View style={{ marginBottom: 16 }}>
           <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
@@ -2594,6 +2610,17 @@ const styles = StyleSheet.create({
   mutedSmall: { marginBottom: 10, fontSize: 12 },
   noticeText: { fontSize: 13, marginBottom: 4 },
   sectionTitle: { fontWeight: '800', marginTop: 8 },
+  browseOrgsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  browseOrgsText: { flex: 1, fontWeight: '600', fontSize: 15 },
   error: { marginBottom: 8 },
   calendarSection: {
     marginBottom: 16,

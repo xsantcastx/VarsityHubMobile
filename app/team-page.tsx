@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  InteractionManager,
   Modal,
   Pressable,
   StyleSheet,
@@ -192,79 +193,24 @@ function TeamScreen() {
     };
   }, []);
 
-  const refreshPosts = useCallback(
-    async (_teamId: string) => {
-      if (postsRequestInFlight.current || !mounted.current) return;
-      postsRequestInFlight.current = true;
-      if (mounted.current) setPostsLoading(true);
-      try {
-        // Fetch posts for team games
-        const teamNameLower = (team?.name || '').toLowerCase();
-        const allGamesData = await Game.list('-date');
-        if (!mounted.current) return;
-        const allGames = Array.isArray(allGamesData)
-          ? allGamesData
-          : allGamesData?.games || allGamesData?.items || [];
-
-        const teamGames = allGames.filter((g: GameItem) => {
-          const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
-          const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
-          return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
-        });
-
-        const gameIds = teamGames.map((g: GameItem) => g.id);
-        if (!mounted.current) return;
-
-        if (gameIds.length === 0) {
-          if (mounted.current) {
-            setPosts([]);
-            setPostsHasMore(false);
-          }
-          return;
-        }
-
-        // Fetch posts for all team games (aggregate from all games)
-        const postPromises = gameIds
-          .slice(0, 10)
-          .map((gameId: string) =>
-            Post.filter({ game_id: gameId }, '-created_at', 20).catch(() => [])
-          );
-        const postBatches = await Promise.all(postPromises);
-        if (!mounted.current) return;
-
-        // Aggregate and deduplicate posts
-        const allPosts: PostItem[] = [];
-        const seenIds = new Set<string>();
-
-        postBatches.forEach(batch => {
-          if (Array.isArray(batch)) {
-            batch.forEach((post: PostItem) => {
-              if (post?.id && !seenIds.has(String(post.id))) {
-                seenIds.add(String(post.id));
-                allPosts.push(post);
-              }
-            });
-          }
-        });
-
-        // Sort by creation date (newest first)
-        allPosts.sort((a: PostItem, b: PostItem) => {
-          const dateA = new Date(a.created_at || a.created_date || 0).getTime();
-          const dateB = new Date(b.created_at || b.created_date || 0).getTime();
-          return dateB - dateA;
-        });
-
-        if (mounted.current) {
-          setPosts(allPosts);
-          setPostsHasMore(false); // Simplified pagination
-        }
-      } finally {
-        postsRequestInFlight.current = false;
-        if (mounted.current) setPostsLoading(false);
-      }
-    },
-    [team?.name]
-  );
+  const refreshPosts = useCallback(async (teamId: string) => {
+    if (postsRequestInFlight.current || !mounted.current) return;
+    postsRequestInFlight.current = true;
+    if (mounted.current) setPostsLoading(true);
+    try {
+      // Single server-side query: posts attached to the team directly or to
+      // any of its games (matched by team ID, not name substring).
+      const teamPosts = await Post.filter({ team_id: teamId }, '-created_at', 20);
+      if (!mounted.current) return;
+      setPosts(Array.isArray(teamPosts) ? teamPosts : []);
+      setPostsHasMore(false); // Simplified pagination
+    } catch (err) {
+      if (__DEV__) console.warn('[team-page] Failed to load team posts:', err);
+    } finally {
+      postsRequestInFlight.current = false;
+      if (mounted.current) setPostsLoading(false);
+    }
+  }, []);
 
   const refreshReplies = useCallback(async (_teamId: string) => {
     if (repliesRequestInFlight.current || !mounted.current) return;
@@ -461,7 +407,12 @@ function TeamScreen() {
   );
 
   useEffect(() => {
-    void loadTeam();
+    // Defer the initial fetch until the push animation finishes so the
+    // transition isn't competing with network parsing and state updates.
+    const task = InteractionManager.runAfterInteractions(() => {
+      void loadTeam();
+    });
+    return () => task.cancel();
   }, [loadTeam]);
 
   // Re-fetch team data when screen regains focus (e.g., after editing team name)

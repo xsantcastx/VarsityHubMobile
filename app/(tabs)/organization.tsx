@@ -305,7 +305,7 @@ export default function OrganizationScreen() {
   }, [loadOrganization]);
 
   const handleTeamPress = (team: TeamItem) => {
-    router.push({ pathname: '/team-profile', params: { id: team.id, name: team.name } });
+    router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } });
   };
 
   const handleGamePress = (game: GameItem) => {

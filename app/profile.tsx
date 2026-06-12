@@ -22,6 +22,7 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  InteractionManager,
   Modal,
   Pressable,
   StyleSheet,
@@ -458,11 +459,15 @@ export default function ProfileScreen() {
     ]
   );
 
-  // Initial load on mount - only once
+  // Initial load on mount - only once. Deferred until the push animation
+  // finishes so the transition isn't competing with network parsing.
   useEffect(() => {
-    if (isInitialMount.current) {
-      void loadProfile();
-    }
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (isInitialMount.current) {
+        void loadProfile();
+      }
+    });
+    return () => task.cancel();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
 
@@ -481,14 +486,18 @@ export default function ProfileScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userFromAuth?.username]);
 
-  // Silent refresh on focus - NEVER show skeleton after first load
+  // Silent refresh on focus - NEVER show skeleton after first load.
+  // Deferred so the return transition isn't competing with the refetch.
   useFocusEffect(
     useCallback(() => {
-      if (hasLoadedOnce.current) {
-        void loadProfile({ silent: true });
-      } else if (isInitialMount.current && !profileRequestInFlight.current) {
-        void loadProfile();
-      }
+      const task = InteractionManager.runAfterInteractions(() => {
+        if (hasLoadedOnce.current) {
+          void loadProfile({ silent: true });
+        } else if (isInitialMount.current && !profileRequestInFlight.current) {
+          void loadProfile();
+        }
+      });
+      return () => task.cancel();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loadProfile])
   );

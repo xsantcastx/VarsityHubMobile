@@ -13,7 +13,7 @@ import VideoTrimmer from '@/components/VideoTrimmer';
 import * as MediaLibrary from 'expo-media-library';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Clipboard, FlatList, Image, InteractionManager, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '@/utils/uploadUtils';
 import { safeGoBack } from '@/utils/navigation';
@@ -331,7 +331,10 @@ export default function TeamChatScreen() {
 
   useEffect(() => {
     let mounted = true;
-    void (async () => {
+    // Defer the initial fetch until the push animation finishes so the
+    // transition isn't competing with network parsing and state updates.
+    const task = InteractionManager.runAfterInteractions(() => void (async () => {
+      if (!mounted) return;
       if (!id) { setError('Missing team id'); setLoading(false); return; }
       setLoading(true); setError(null);
       try {
@@ -369,13 +372,16 @@ export default function TeamChatScreen() {
         // Initialize with empty files list - files will be added as they're uploaded
         
       } catch {
-        if (!mounted) return; 
+        if (!mounted) return;
         setError('Failed to load team chat');
-      } finally { 
-        if (mounted) setLoading(false); 
+      } finally {
+        if (mounted) setLoading(false);
       }
-    })();
-    return () => { mounted = false; };
+    })());
+    return () => {
+      mounted = false;
+      task.cancel();
+    };
   }, [id, loadFiles, loadMessages, welcomeMessages, saveMessages]);
 
   // Start/stop typing animations based on typing users

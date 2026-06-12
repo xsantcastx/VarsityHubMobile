@@ -350,7 +350,7 @@ export const Post = {
   },
   create: (data: CreatePostPayload) => httpPostLongTimeout('/posts', data),
   filter: async (
-    where: { game_id?: string; type?: string; user_id?: string } = {},
+    where: { game_id?: string; team_id?: string; type?: string; user_id?: string } = {},
     sort?: string,
     limit: number = 20
   ) => {
@@ -358,6 +358,7 @@ export const Post = {
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
     if (where.game_id) q.push('game_id=' + encodeURIComponent(where.game_id));
+    if (where.team_id) q.push('team_id=' + encodeURIComponent(where.team_id));
     if (where.type) q.push('type=' + encodeURIComponent(where.type));
     if (where.user_id) q.push('user_id=' + encodeURIComponent(where.user_id));
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
@@ -380,6 +381,7 @@ export const Post = {
   filterPage: async (
     where: {
       game_id?: string;
+      team_id?: string;
       type?: string;
       user_id?: string;
       followed_only?: boolean;
@@ -394,6 +396,7 @@ export const Post = {
     if (limit) q.push('limit=' + String(limit));
     if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
     if (where.game_id) q.push('game_id=' + encodeURIComponent(where.game_id));
+    if (where.team_id) q.push('team_id=' + encodeURIComponent(where.team_id));
     if (where.type) q.push('type=' + encodeURIComponent(where.type));
     if (where.user_id) q.push('user_id=' + encodeURIComponent(where.user_id));
     if (where.followed_only) q.push('followed_only=true');

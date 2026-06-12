@@ -1203,7 +1203,7 @@ export default function PostDetailScreen() {
               onPress={() => {
                 const teamId = postData.team_id || postData.team?.id;
                 if (teamId) {
-                  void router.push(`/team-profile?id=${teamId}`);
+                  void router.push(`/team-page?id=${teamId}`);
                 }
               }}
             >

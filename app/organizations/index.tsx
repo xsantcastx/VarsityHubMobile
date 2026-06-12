@@ -3,7 +3,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ensureSeededOrganizations } from '@/data/seedOrganizations';
 import { captureException } from '@/utils/sentry';
@@ -32,11 +32,15 @@ function OrganizationsIndexScreen() {
         const data = await Organization.list(undefined, 20);
         if (!cancelled) {
           const orgList = Array.isArray(data) ? data : data.items || [];
-          const combined = ensureSeededOrganizations(orgList as Organization[]);
+          // Seeded demo orgs are an empty-state fallback only — never mix
+          // them into real results (search can't return them, so browse and
+          // search would disagree about which orgs exist).
+          const combined =
+            orgList.length > 0
+              ? (orgList as Organization[])
+              : ensureSeededOrganizations<Organization>([]);
           setOrgs(combined);
-          const westhill =
-            combined.find(o => o.name.toLowerCase().includes('westhill')) || combined[0] || null;
-          setFeatured(westhill);
+          setFeatured(combined[0] || null);
         }
       } catch (e) {
         captureException(e instanceof Error ? e : new Error(String(e)), {
@@ -57,7 +61,7 @@ function OrganizationsIndexScreen() {
     };
   }, []);
 
-  const styles = createStyles(colorScheme);
+  const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
   if (loading) {
     return (

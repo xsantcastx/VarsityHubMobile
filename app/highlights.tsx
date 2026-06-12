@@ -1096,7 +1096,7 @@ function HighlightsScreen() {
                       },
                     ]}
                     onPress={() => {
-                      void router.push(`/team-profile?id=${team.id}`);
+                      void router.push(`/team-page?id=${team.id}`);
                     }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>

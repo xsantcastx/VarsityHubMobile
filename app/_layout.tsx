@@ -18,6 +18,7 @@ import React, { useEffect } from 'react';
 import { ActivityIndicator, AppState, LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
+import { enableFreeze } from 'react-native-screens';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorToastContainer } from '@/components/ErrorToast';
@@ -64,6 +65,11 @@ const devLog = (...args: unknown[]) => {
 // Initialize Sentry and PostHog before app renders
 initSentry();
 initAnalytics();
+
+// Suspend rendering of screens that are not visible (react-freeze). Inactive
+// stack screens stay mounted but stop re-rendering, freeing the JS thread
+// during transitions.
+enableFreeze(true);
 
 // Initialize testing monitor on web (only in development)
 if (Platform.OS === 'web' && __DEV__) {
@@ -160,6 +166,18 @@ function AppShell() {
   );
 }
 
+// useRootNavigationState re-renders its caller on EVERY navigation state
+// change. Keep that subscription in this leaf wrapper so the rest of the
+// provider tree doesn't re-render per navigation: AuthProvider is memoized,
+// so it only re-renders when navReady actually flips (false -> true, once).
+const MemoizedAuthProvider = React.memo(AuthProvider);
+
+function NavReadyAuthProvider({ children }: { children: React.ReactNode }) {
+  const navState = useRootNavigationState();
+  const navReady = Boolean(navState?.key);
+  return <MemoizedAuthProvider navReady={navReady}>{children}</MemoizedAuthProvider>;
+}
+
 function RootLayout() {
   const fallbackColorScheme = useColorScheme();
   const _router = useRouter();
@@ -170,8 +188,6 @@ function RootLayout() {
     ...MaterialIcons.font,
     ...Ionicons.font,
   });
-  const navState = useRootNavigationState();
-  const navReady = Boolean(navState?.key);
   const updateCheckInFlight = React.useRef(false);
   const activeAppState = React.useRef(AppState.currentState);
 
@@ -307,11 +323,11 @@ function RootLayout() {
           <StripeProvider publishableKey={getConfig().stripePublishableKey}>
             <PostCacheProvider>
               <NavigationHistoryProvider>
-                <AuthProvider navReady={navReady}>
+                <NavReadyAuthProvider>
                   <ThemeProvider>
                     <AppShell />
                   </ThemeProvider>
-                </AuthProvider>
+                </NavReadyAuthProvider>
               </NavigationHistoryProvider>
             </PostCacheProvider>
           </StripeProvider>
