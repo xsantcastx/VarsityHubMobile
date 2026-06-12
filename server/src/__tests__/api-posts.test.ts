@@ -226,6 +226,31 @@ describeDb('Posts API Endpoints', () => {
       expect(res.statusCode).toEqual(200);
       expect(Array.isArray(res.body.items)).toBe(true);
     });
+
+    it("team_id filter includes posts attached to the team's games", async () => {
+      const [teamPost, gamePost] = await Promise.all([
+        prisma.post.create({
+          data: { author_id: testUser.id, content: 'direct team post', team_id: bypassHomeTeamId },
+        }),
+        prisma.post.create({
+          data: { author_id: testUser.id, content: 'game-linked post', game_id: bypassGameId },
+        }),
+      ]);
+      try {
+        const res = await request(app)
+          .get('/posts')
+          .query({ team_id: bypassHomeTeamId, limit: '50' });
+
+        expect(res.statusCode).toEqual(200);
+        const ids = res.body.items.map((p: any) => p.id);
+        expect(ids).toContain(teamPost.id);
+        expect(ids).toContain(gamePost.id);
+      } finally {
+        await prisma.post
+          .deleteMany({ where: { id: { in: [teamPost.id, gamePost.id] } } })
+          .catch(() => {});
+      }
+    });
   });
 
   describe('POST /posts', () => {

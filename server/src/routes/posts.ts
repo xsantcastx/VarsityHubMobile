@@ -325,7 +325,18 @@ postsRouter.get(
         }
       }
       if (req.query.team_id) {
-        where.team_id = String(req.query.team_id);
+        const teamId = String(req.query.team_id);
+        // A team's posts are those attached to the team directly plus those
+        // attached to any of its games (home or away side).
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : []),
+          {
+            OR: [
+              { team_id: teamId },
+              { game: { OR: [{ home_team_id: teamId }, { away_team_id: teamId }] } },
+            ],
+          },
+        ];
       }
       if (req.query.event_id) {
         const event = await prisma.event.findUnique({
