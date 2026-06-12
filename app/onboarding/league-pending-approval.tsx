@@ -391,7 +391,7 @@ function LeaguePendingApproval() {
               styles.infoCard,
               {
                 backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
-                borderColor: isDark ? '#374151' : '#D1D5DB',
+                borderColor: isDark ? '#374151' : '#D1D5DB', // audit: intentional border color, theme-conditional, not text
               },
             ]}
           >

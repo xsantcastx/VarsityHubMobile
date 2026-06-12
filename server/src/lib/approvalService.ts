@@ -760,6 +760,10 @@ export async function approveAd(
   const ad = await prisma.ad.findUnique({ where: { id: adId } });
   if (!ad) return { error: 'Ad not found', status: 404 };
   if (ad.status !== 'pending') return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
+  // IDOR guard: an admin must not approve an ad they personally own.
+  if (adminId && ad.user_id === adminId) {
+    return { error: 'You cannot approve your own ad', status: 403 as const };
+  }
 
   // Banner moderation gate. A flagged banner requires an explicit override +
   // reason so a flagged image can never silently reach production. Moderation
@@ -870,6 +874,10 @@ export async function rejectAd(
   const ad = await prisma.ad.findUnique({ where: { id: adId } });
   if (!ad) return { error: 'Ad not found', status: 404 };
   if (ad.status !== 'pending') return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
+  // IDOR guard: an admin must not reject an ad they personally own.
+  if (adminId && ad.user_id === adminId) {
+    return { error: 'You cannot reject your own ad', status: 403 as const };
+  }
 
   const guard = await prisma.$transaction(async (tx) => {
     const transition = await tx.ad.updateMany({
