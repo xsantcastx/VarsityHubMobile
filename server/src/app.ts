@@ -86,6 +86,10 @@ function buildProductionCspDirectives() {
     imgSrc: [
       "'self'",
       'data:',
+      // Shared landing pages render event/post/user media from trusted remote
+      // hosts. Allow HTTPS image origins so public web pages do not blank out
+      // externally hosted banners like seeded venue photos.
+      'https:',
       'https://res.cloudinary.com',
       'https://*.googleapis.com',
       'https://images.unsplash.com',
