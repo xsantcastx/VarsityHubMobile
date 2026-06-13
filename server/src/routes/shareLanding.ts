@@ -34,8 +34,7 @@ import { prisma } from '../lib/prisma.js';
 
 const APP_STORE_URL =
   process.env.IOS_APP_STORE_URL ||
-  // Fallback: search by name. Replace with real `id<NNN>` once published.
-  'https://apps.apple.com/us/app/varsityhub/';
+  'https://apps.apple.com/app/varsityhub/id6504893881';
 const PLAY_STORE_URL =
   process.env.ANDROID_PLAY_STORE_URL ||
   'https://play.google.com/store/apps/details?id=com.xsantcastx.varsityhub';

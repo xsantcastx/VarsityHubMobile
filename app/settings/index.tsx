@@ -91,28 +91,40 @@ type LinkedProviders = {
 function SectionCard({
   title,
   initiallyOpen = false,
+  open,
+  onOpenChange,
   children,
 }: {
   title: string;
   initiallyOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (nextOpen: boolean) => void;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(initiallyOpen);
+  const [internalOpen, setInternalOpen] = useState(initiallyOpen);
   const cs = useCustomColorScheme();
   const palette = Colors[cs ?? 'light'];
+  const isControlled = typeof open === 'boolean';
+  const isOpen = isControlled ? open : internalOpen;
+  const setOpen = (nextOpen: boolean) => {
+    if (!isControlled) {
+      setInternalOpen(nextOpen);
+    }
+    onOpenChange?.(nextOpen);
+  };
   return (
     <View style={[styles.card, { borderColor: palette.border, backgroundColor: palette.card }]}>
       <Pressable
         style={styles.cardHeader}
-        onPress={() => setOpen(!open)}
+        onPress={() => setOpen(!isOpen)}
         accessibilityRole="button"
         accessibilityLabel={`${title} section`}
-        accessibilityState={{ expanded: open }}
+        accessibilityState={{ expanded: isOpen }}
       >
         <Text style={[styles.cardTitle, { color: palette.text }]}>{title}</Text>
-        <Text style={[styles.chev, { color: palette.icon }, open && styles.chevOpen]}>›</Text>
+        <Text style={[styles.chev, { color: palette.icon }, isOpen && styles.chevOpen]}>›</Text>
       </Pressable>
-      {open && <View style={styles.cardBody}>{children}</View>}
+      {isOpen && <View style={styles.cardBody}>{children}</View>}
     </View>
   );
 }
@@ -236,6 +248,7 @@ export default function SettingsScreen() {
   const [deleteRequiresPassword, setDeleteRequiresPassword] = useState(
     computeDeleteRequiresPassword(initialLinkedProviders)
   );
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [linkedProviders, setLinkedProviders] = useState<LinkedProviders>(initialLinkedProviders);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [upgradingToCoach, setUpgradingToCoach] = useState(false);
@@ -611,7 +624,7 @@ export default function SettingsScreen() {
             />
           </SectionCard>
 
-          <SectionCard title="Appearance">
+          <SectionCard title="Appearance" open={appearanceOpen} onOpenChange={setAppearanceOpen}>
             <View style={styles.themeOptions}>
               {[
                 { value: 'system', label: 'System', subtitle: 'Follow browser or device setting' },
@@ -622,9 +635,10 @@ export default function SettingsScreen() {
                 return (
                   <Pressable
                     key={option.value}
-                    onPress={() =>
-                      void setThemePreference(option.value as 'light' | 'dark' | 'system')
-                    }
+                    onPress={() => {
+                      void setThemePreference(option.value as 'light' | 'dark' | 'system');
+                      setAppearanceOpen(false);
+                    }}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: selected }}
                     style={[

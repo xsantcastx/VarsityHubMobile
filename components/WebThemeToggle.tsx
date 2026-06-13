@@ -3,6 +3,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useThemePreference } from '@/hooks/useCustomColorScheme';
 import type { ComponentProps } from 'react';
+import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 type ThemeOption = 'light' | 'dark';
@@ -15,6 +16,7 @@ const OPTIONS: Array<{ value: ThemeOption; label: string; icon: ComponentProps<t
 export function WebThemeToggle() {
   const colorScheme = useColorScheme() ?? 'light';
   const { themePreference, setThemePreference } = useThemePreference();
+  const [expanded, setExpanded] = useState(false);
 
   if (Platform.OS !== 'web') return null;
 
@@ -32,51 +34,86 @@ export function WebThemeToggle() {
       ]}
       pointerEvents="box-none"
     >
-      <Text style={[styles.label, { color: palette.mutedText }]}>Theme</Text>
-      <View
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={expanded ? 'Collapse theme controls' : 'Expand theme controls'}
+        onPress={() => setExpanded(current => !current)}
         style={[
-          styles.segmented,
+          styles.trigger,
           {
             backgroundColor: colorScheme === 'dark' ? '#0B1120' : '#F3F4F6',
             borderColor: palette.border,
           },
         ]}
       >
-        {OPTIONS.map(option => {
-          const selected = selectedTheme === option.value;
+        <View style={styles.triggerContent}>
+          <MaterialIcons
+            name={selectedTheme === 'dark' ? 'dark-mode' : 'light-mode'}
+            size={16}
+            color={palette.text}
+          />
+          <Text style={[styles.triggerText, { color: palette.text }]}>
+            {selectedTheme === 'dark' ? 'Dark' : 'Light'}
+          </Text>
+        </View>
+        <MaterialIcons
+          name={expanded ? 'expand-less' : 'expand-more'}
+          size={18}
+          color={palette.mutedText}
+        />
+      </Pressable>
+      {expanded && (
+        <>
+          <Text style={[styles.label, { color: palette.mutedText }]}>Theme</Text>
+          <View
+            style={[
+              styles.segmented,
+              {
+                backgroundColor: colorScheme === 'dark' ? '#0B1120' : '#F3F4F6',
+                borderColor: palette.border,
+              },
+            ]}
+          >
+            {OPTIONS.map(option => {
+              const selected = selectedTheme === option.value;
 
-          return (
-            <Pressable
-              key={option.value}
-              onPress={() => void setThemePreference(option.value)}
-              accessibilityRole="radio"
-              accessibilityLabel={`Switch to ${option.label.toLowerCase()} mode`}
-              accessibilityState={{ checked: selected }}
-              style={[
-                styles.option,
-                selected && {
-                  backgroundColor: palette.background,
-                  borderColor: palette.border,
-                },
-              ]}
-            >
-              <MaterialIcons
-                name={option.icon}
-                size={16}
-                color={selected ? palette.text : palette.mutedText}
-              />
-              <Text
-                style={[
-                  styles.optionText,
-                  { color: selected ? palette.text : palette.mutedText },
-                ]}
-              >
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+              return (
+                <Pressable
+                  key={option.value}
+                  onPress={() => {
+                    void setThemePreference(option.value);
+                    setExpanded(false);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`Switch to ${option.label.toLowerCase()} mode`}
+                  accessibilityState={{ checked: selected }}
+                  style={[
+                    styles.option,
+                    selected && {
+                      backgroundColor: palette.background,
+                      borderColor: palette.border,
+                    },
+                  ]}
+                >
+                  <MaterialIcons
+                    name={option.icon}
+                    size={16}
+                    color={selected ? palette.text : palette.mutedText}
+                  />
+                  <Text
+                    style={[
+                      styles.optionText,
+                      { color: selected ? palette.text : palette.mutedText },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -92,6 +129,26 @@ const styles = StyleSheet.create({
     padding: 8,
     gap: 6,
     boxShadow: '0px 12px 28px rgba(15, 23, 42, 0.18)',
+  },
+  trigger: {
+    minWidth: 122,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  triggerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  triggerText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   label: {
     fontSize: 11,

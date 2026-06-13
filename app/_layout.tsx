@@ -25,6 +25,7 @@ import { ErrorToastContainer } from '@/components/ErrorToast';
 import { NotificationTapHandler } from '@/components/NotificationTapHandler';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { VerificationRequiredModal } from '@/components/VerificationRequiredModal';
+import { WebInstallCta } from '@/components/WebInstallCta';
 import { WebThemeSync } from '@/components/WebThemeSync';
 import { WebThemeToggle } from '@/components/WebThemeToggle';
 import { getConfig } from '@/config/env';
@@ -136,6 +137,7 @@ function AppShell() {
     <>
       <WebThemeSync />
       <WebThemeToggle />
+      <WebInstallCta />
       <NotificationTapHandler />
       <VerificationGateHost />
       <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
