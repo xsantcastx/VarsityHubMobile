@@ -3,10 +3,11 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useThemePreference } from '@/hooks/useCustomColorScheme';
 import type { ComponentProps } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 type ThemeOption = 'light' | 'dark';
+const DISMISS_KEY = 'vh:web-theme-toggle:dismissed';
 
 const OPTIONS: Array<{ value: ThemeOption; label: string; icon: ComponentProps<typeof MaterialIcons>['name'] }> = [
   { value: 'light', label: 'Light', icon: 'light-mode' },
@@ -17,8 +18,16 @@ export function WebThemeToggle() {
   const colorScheme = useColorScheme() ?? 'light';
   const { themePreference, setThemePreference } = useThemePreference();
   const [expanded, setExpanded] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    setDismissed(window.localStorage.getItem(DISMISS_KEY) === 'true');
+  }, []);
 
   if (Platform.OS !== 'web') return null;
+
+  if (dismissed) return null;
 
   const palette = Colors[colorScheme];
   const selectedTheme = themePreference === 'system' ? colorScheme : themePreference;
@@ -34,6 +43,23 @@ export function WebThemeToggle() {
       ]}
       pointerEvents="box-none"
     >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Hide theme controls"
+        onPress={() => {
+          window.localStorage.setItem(DISMISS_KEY, 'true');
+          setDismissed(true);
+        }}
+        style={[
+          styles.dismissButton,
+          {
+            backgroundColor: colorScheme === 'dark' ? '#0B1120' : '#F8FAFC',
+            borderColor: palette.border,
+          },
+        ]}
+      >
+        <MaterialIcons name="close" size={14} color={palette.mutedText} />
+      </Pressable>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={expanded ? 'Collapse theme controls' : 'Expand theme controls'}
@@ -129,6 +155,18 @@ const styles = StyleSheet.create({
     padding: 8,
     gap: 6,
     boxShadow: '0px 12px 28px rgba(15, 23, 42, 0.18)',
+  },
+  dismissButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
   },
   trigger: {
     minWidth: 122,
