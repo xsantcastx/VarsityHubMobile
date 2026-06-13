@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image as RNImage,
   Modal,
   Platform,
   Pressable,
@@ -50,6 +51,14 @@ import {
 import GameVerticalFeedScreen from '../../../game-details/GameVerticalFeedScreen';
 
 const VARSITYHUB_LOGO = require('../../../../assets/images/logo.png');
+
+function FullBleedCardImage({ uri }: { uri: string }) {
+  if (Platform.OS === 'web') {
+    return <RNImage source={{ uri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />;
+  }
+
+  return <Image source={{ uri }} style={StyleSheet.absoluteFillObject} contentFit="cover" />;
+}
 
 type GameItem = {
   id: string;
@@ -1230,13 +1239,7 @@ export default function FeedScreen() {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           />
-          {hasBanner && (
-            <Image
-              source={{ uri: optimizeImageUrl(banner!, 400) }}
-              style={StyleSheet.absoluteFillObject}
-              contentFit="cover"
-            />
-          )}
+          {hasBanner && <FullBleedCardImage uri={optimizeImageUrl(banner!, 400) || banner!} />}
           <LinearGradient
             colors={
               colorScheme === 'dark'
@@ -1677,11 +1680,7 @@ export default function FeedScreen() {
                   end={{ x: 1, y: 1 }}
                 />
                 {mediaUrl && (
-                  <Image
-                    source={{ uri: optimizeImageUrl(mediaUrl, 400) }}
-                    style={StyleSheet.absoluteFillObject}
-                    contentFit="cover"
-                  />
+                  <FullBleedCardImage uri={optimizeImageUrl(mediaUrl, 400) || mediaUrl} />
                 )}
                 <LinearGradient
                   colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']}
@@ -1768,11 +1767,25 @@ export default function FeedScreen() {
                   accessibilityLabel="Open highlights reel"
                 >
                   {verticalFeedPreviewImage ? (
-                    <Image
-                      source={{ uri: optimizeImageUrl(verticalFeedPreviewImage, 800) }}
-                      style={styles.verticalFeedImage}
-                      contentFit="cover"
-                    />
+                    Platform.OS === 'web' ? (
+                      <View style={styles.verticalFeedImage}>
+                        <RNImage
+                          source={{
+                            uri:
+                              optimizeImageUrl(verticalFeedPreviewImage, 800) ||
+                              verticalFeedPreviewImage,
+                          }}
+                          style={StyleSheet.absoluteFillObject}
+                          resizeMode="cover"
+                        />
+                      </View>
+                    ) : (
+                      <Image
+                        source={{ uri: optimizeImageUrl(verticalFeedPreviewImage, 800) }}
+                        style={styles.verticalFeedImage}
+                        contentFit="cover"
+                      />
+                    )
                   ) : (
                     <LinearGradient
                       colors={
@@ -1844,6 +1857,172 @@ export default function FeedScreen() {
   if (Platform.OS === 'web' && !webHydrated) {
     return null;
   }
+
+  const showEmptyState = !loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error;
+  const listHeader = (
+    <>
+      {error && (
+        <View style={{ marginVertical: 24, paddingHorizontal: 24, alignItems: 'center' }}>
+          <MaterialIcons
+            name="cloud-off"
+            size={48}
+            color={Colors[colorScheme].mutedText}
+            style={{ marginBottom: 12 }}
+          />
+          <Text
+            style={{
+              color: Colors[colorScheme].text,
+              fontSize: 16,
+              fontWeight: '600',
+              textAlign: 'center',
+              marginBottom: 6,
+            }}
+          >
+            {error}
+          </Text>
+          <Pressable
+            testID="feed-retry-button"
+            onPress={() => void load()}
+            style={{
+              marginTop: 12,
+              paddingVertical: 10,
+              paddingHorizontal: 24,
+              borderRadius: 8,
+              backgroundColor: Colors[colorScheme].tint,
+            }}
+            accessibilityLabel="Retry loading feed"
+            accessibilityRole="button"
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Retry</Text>
+          </Pressable>
+          {(error.includes('sign in') || error.includes('Sign in')) && (
+            <Pressable
+              testID="feed-signin-button"
+              onPress={() => void router.replace('/sign-in')}
+              style={{ marginTop: 10, paddingVertical: 8 }}
+              accessibilityLabel="Sign in"
+              accessibilityRole="button"
+            >
+              <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>Sign In</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      <View
+        style={[styles.mapsButton, { backgroundColor: '#0A84FF' }]}
+        onStartShouldSetResponder={() => true}
+        onResponderRelease={async () => {
+          try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === 'granted') {
+              const location = await Location.getCurrentPositionAsync({});
+              router.push({
+                pathname: '/game-map',
+                params: {
+                  lat: location.coords.latitude.toString(),
+                  lng: location.coords.longitude.toString(),
+                },
+              });
+            } else {
+              router.push('/game-map');
+            }
+          } catch (error) {
+            if (__DEV__) console.error('Error getting location:', error);
+            router.push('/game-map');
+          }
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="View nearby games on map"
+        accessibilityHint="Double tap to open map"
+        accessible
+      >
+        <MaterialIcons name="map" size={24} color="#FFFFFF" />
+        <Text style={styles.mapsButtonText}>View Nearby Games on Map</Text>
+        <MaterialIcons name="chevron-right" size={20} color="#FFFFFF" />
+      </View>
+
+      <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>
+        Showing upcoming and recent games in your area.
+      </Text>
+
+      {loading && (
+        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          <PostCardSkeleton />
+          <PostCardSkeleton />
+          <PostCardSkeleton />
+        </View>
+      )}
+      {showEmptyState && (
+        <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 }}>
+          <MaterialIcons name="dynamic-feed" size={56} color={Colors[colorScheme].mutedText} />
+          <Text
+            style={{
+              color: Colors[colorScheme].text,
+              fontSize: 18,
+              fontWeight: '700',
+              marginTop: 14,
+              marginBottom: 6,
+            }}
+          >
+            No posts yet
+          </Text>
+          <Text
+            style={[
+              styles.muted,
+              {
+                color: Colors[colorScheme].mutedText,
+                textAlign: 'center',
+                lineHeight: 20,
+                marginBottom: 20,
+              },
+            ]}
+          >
+            Follow teams and coaches to see their content here.
+          </Text>
+          <Pressable
+            testID="feed-discover-games-button"
+            onPress={() => router.push('/(tabs)/discover')}
+            style={{
+              backgroundColor: Colors[colorScheme].tint,
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 10,
+              marginBottom: 10,
+              width: '100%',
+              alignItems: 'center',
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Discover nearby games"
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
+              Discover Nearby Games
+            </Text>
+          </Pressable>
+          <Pressable
+            testID="feed-browse-teams-button"
+            onPress={() => router.push('/(tabs)/discover')}
+            style={{
+              backgroundColor: 'transparent',
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: Colors[colorScheme].border,
+              width: '100%',
+              alignItems: 'center',
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Browse teams to follow"
+          >
+            <Text style={{ color: Colors[colorScheme].text, fontSize: 15, fontWeight: '600' }}>
+              Browse Teams
+            </Text>
+          </Pressable>
+        </View>
+      )}
+    </>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -1940,176 +2119,15 @@ export default function FeedScreen() {
       </LinearGradient>
 
       <View style={styles.contentContainer}>
-        {error && (
-          <View style={{ marginVertical: 24, paddingHorizontal: 24, alignItems: 'center' }}>
-            <MaterialIcons
-              name="cloud-off"
-              size={48}
-              color={Colors[colorScheme].mutedText}
-              style={{ marginBottom: 12 }}
-            />
-            <Text
-              style={{
-                color: Colors[colorScheme].text,
-                fontSize: 16,
-                fontWeight: '600',
-                textAlign: 'center',
-                marginBottom: 6,
-              }}
-            >
-              {error}
-            </Text>
-            <Pressable
-              testID="feed-retry-button"
-              onPress={() => void load()}
-              style={{
-                marginTop: 12,
-                paddingVertical: 10,
-                paddingHorizontal: 24,
-                borderRadius: 8,
-                backgroundColor: Colors[colorScheme].tint,
-              }}
-              accessibilityLabel="Retry loading feed"
-              accessibilityRole="button"
-            >
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Retry</Text>
-            </Pressable>
-            {(error.includes('sign in') || error.includes('Sign in')) && (
-              <Pressable
-                testID="feed-signin-button"
-                onPress={() => void router.replace('/sign-in')}
-                style={{ marginTop: 10, paddingVertical: 8 }}
-                accessibilityLabel="Sign in"
-                accessibilityRole="button"
-              >
-                <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>Sign In</Text>
-              </Pressable>
-            )}
-          </View>
-        )}
-        {/* Maps Button - Navigate to nearby games/teams/events */}
-        <View
-          style={[styles.mapsButton, { backgroundColor: '#0A84FF' }]}
-          onStartShouldSetResponder={() => true}
-          onResponderRelease={async () => {
-            try {
-              const { status } = await Location.requestForegroundPermissionsAsync();
-              if (status === 'granted') {
-                const location = await Location.getCurrentPositionAsync({});
-                router.push({
-                  pathname: '/game-map',
-                  params: {
-                    lat: location.coords.latitude.toString(),
-                    lng: location.coords.longitude.toString(),
-                  },
-                });
-              } else {
-                router.push('/game-map');
-              }
-            } catch (error) {
-              if (__DEV__) console.error('Error getting location:', error);
-              router.push('/game-map');
-            }
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="View nearby games on map"
-          accessibilityHint="Double tap to open map"
-          accessible
-        >
-          <MaterialIcons name="map" size={24} color="#FFFFFF" />
-          <Text style={styles.mapsButtonText}>View Nearby Games on Map</Text>
-          <MaterialIcons name="chevron-right" size={20} color="#FFFFFF" />
-        </View>
-
-        <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>
-          Showing upcoming and recent games in your area.
-        </Text>
-
-        {loading && (
-          <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-            <PostCardSkeleton />
-            <PostCardSkeleton />
-            <PostCardSkeleton />
-          </View>
-        )}
-        {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && (
-          <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 }}>
-            <MaterialIcons name="dynamic-feed" size={56} color={Colors[colorScheme].mutedText} />
-            <Text
-              style={{
-                color: Colors[colorScheme].text,
-                fontSize: 18,
-                fontWeight: '700',
-                marginTop: 14,
-                marginBottom: 6,
-              }}
-            >
-              No posts yet
-            </Text>
-            <Text
-              style={[
-                styles.muted,
-                {
-                  color: Colors[colorScheme].mutedText,
-                  textAlign: 'center',
-                  lineHeight: 20,
-                  marginBottom: 20,
-                },
-              ]}
-            >
-              Follow teams and coaches to see their content here.
-            </Text>
-            <Pressable
-              testID="feed-discover-games-button"
-              onPress={() => router.push('/(tabs)/discover')}
-              style={{
-                backgroundColor: Colors[colorScheme].tint,
-                paddingHorizontal: 24,
-                paddingVertical: 12,
-                borderRadius: 10,
-                marginBottom: 10,
-                width: '100%',
-                alignItems: 'center',
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Discover nearby games"
-            >
-              <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
-                Discover Nearby Games
-              </Text>
-            </Pressable>
-            <Pressable
-              testID="feed-browse-teams-button"
-              onPress={() => router.push('/(tabs)/discover')}
-              style={{
-                backgroundColor: 'transparent',
-                paddingHorizontal: 24,
-                paddingVertical: 12,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: Colors[colorScheme].border,
-                width: '100%',
-                alignItems: 'center',
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Browse teams to follow"
-            >
-              <Text style={{ color: Colors[colorScheme].text, fontSize: 15, fontWeight: '600' }}>
-                Browse Teams
-              </Text>
-            </Pressable>
-          </View>
-        )}
-
         <FlatList
           data={feedItems}
           renderItem={renderFeedItem}
           keyExtractor={keyExtractor}
-          style={{ flex: 1, overflow: 'hidden' }}
+          style={styles.feedList}
+          ListHeaderComponent={listHeader}
           contentContainerStyle={{
             paddingVertical: 12,
             paddingBottom: Math.max(tabBarHeight + 16, insets.bottom + 80),
-            overflow: 'hidden',
           }}
           refreshControl={
             <RefreshControl
@@ -2124,7 +2142,7 @@ export default function FeedScreen() {
           initialNumToRender={8}
           maxToRenderPerBatch={6}
           windowSize={7}
-          removeClippedSubviews={true}
+          removeClippedSubviews={Platform.OS !== 'web'}
         />
       </View>
 
@@ -2299,7 +2317,7 @@ export default function FeedScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, overflow: 'hidden' },
+  container: { flex: 1, minHeight: 0 },
   headerGradient: {
     paddingHorizontal: 16,
     paddingBottom: 2,
@@ -2307,7 +2325,11 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(0,0,0,0.05)',
     overflow: 'hidden',
   },
-  contentContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 0, overflow: 'hidden' },
+  contentContainer: { flex: 1, minHeight: 0, paddingHorizontal: 16, paddingTop: 0 },
+  feedList: {
+    flex: 1,
+    minHeight: 0,
+  },
   logoImage: { width: 36, height: 36, borderRadius: 8 },
   headerActions: {
     flex: 1,
