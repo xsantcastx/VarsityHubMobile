@@ -56,6 +56,32 @@ Then in Vercel → Project Settings → Domains, add `www.varsityhub.app`. Verce
 
 Push to `main` → Vercel auto-builds and deploys. Watch the build log; the first build typically takes 3–5 minutes (`npm ci` + `npx expo export --platform web`).
 
+## Static-only production deploy
+
+This repo has a top-level `api/` source folder for the client app. On Vercel Hobby, a repo-root deploy can misclassify those files as Serverless Functions and fail with:
+
+```text
+No more than 12 Serverless Functions can be added to a Deployment on the Hobby plan.
+```
+
+When that happens, deploy the exported web bundle instead of the repo root:
+
+```bash
+npm run web:deploy:prod
+```
+
+That script:
+
+- runs `npx expo export --platform web`
+- copies only `dist/` plus the linked Vercel project metadata into a temp deploy directory
+- deploys that static bundle to the existing `varsityhub-web` project
+
+If you need to force a specific Vercel scope, use:
+
+```bash
+VERCEL_SCOPE=emilmancero-devs-projects npm run web:deploy:prod
+```
+
 ## Verification after first deploy
 
 ```bash
