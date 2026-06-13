@@ -1,43 +1,20 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 
 const IOS_APP_STORE_URL = 'https://apps.apple.com/app/varsityhub/id6504893881';
 
-function shouldShowIosDownloadCta() {
-  if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof navigator === 'undefined') {
-    return false;
-  }
-
-  const ua = navigator.userAgent || '';
-  const isIosDevice =
-    /iPad|iPhone|iPod/.test(ua) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const isStandalone =
-    window.matchMedia?.('(display-mode: standalone)').matches ||
-    Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
-
-  return isIosDevice && !isStandalone;
-}
-
 export function WebInstallCta() {
   const colorScheme = useColorScheme() ?? 'light';
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    setVisible(shouldShowIosDownloadCta());
-  }, []);
-
-  if (Platform.OS !== 'web' || !visible) return null;
+  if (Platform.OS !== 'web') return null;
 
   const palette = Colors[colorScheme];
 
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel="Download VarsityHub on iOS"
+      accessibilityLabel="Download VarsityHub on the App Store"
       onPress={() => {
         window.location.href = IOS_APP_STORE_URL;
       }}
@@ -50,7 +27,7 @@ export function WebInstallCta() {
       ]}
     >
       <MaterialIcons name="download" size={16} color="#FFFFFF" />
-      <Text style={styles.text}>Download on iOS</Text>
+      <Text style={styles.text}>Download on the App Store</Text>
     </Pressable>
   );
 }
