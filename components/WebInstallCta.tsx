@@ -3,7 +3,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 
-const IOS_APP_STORE_URL = 'https://apps.apple.com/app/varsityhub/id6504893881';
+const IOS_APP_STORE_URL = 'https://apps.apple.com/us/app/varsityhub/id6758405187';
 
 export function WebInstallCta() {
   const colorScheme = useColorScheme() ?? 'light';
