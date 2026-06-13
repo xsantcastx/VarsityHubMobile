@@ -21,6 +21,7 @@ require_cmd() {
 require_cmd npx
 require_cmd cp
 require_cmd mkdir
+require_cmd perl
 
 if [[ ! -f "$ROOT_DIR/.vercel/project.json" ]]; then
   echo "Missing .vercel/project.json. Run 'npx vercel link' first." >&2
@@ -38,6 +39,20 @@ cp -R "$ROOT_DIR/dist/." "$DEPLOY_DIR/"
 cp "$ROOT_DIR/.vercel/project.json" "$DEPLOY_DIR/.vercel/project.json"
 if [[ -f "$ROOT_DIR/.vercel/README.txt" ]]; then
   cp "$ROOT_DIR/.vercel/README.txt" "$DEPLOY_DIR/.vercel/README.txt"
+fi
+
+# Vercel ignores uploaded files nested under a `node_modules` path, but Expo's
+# web export writes several runtime assets there (icon fonts, router images,
+# calendar arrows). Move them under a neutral path and rewrite references in the
+# exported bundle before deploying.
+if [[ -d "$DEPLOY_DIR/assets/node_modules" ]]; then
+  mkdir -p "$DEPLOY_DIR/assets/vendor"
+  cp -R "$DEPLOY_DIR/assets/node_modules/." "$DEPLOY_DIR/assets/vendor/"
+  rm -rf "$DEPLOY_DIR/assets/node_modules"
+
+  while IFS= read -r -d '' file; do
+    perl -0pi -e 's#/assets/node_modules/#/assets/vendor/#g' "$file"
+  done < <(find "$DEPLOY_DIR" -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.map' \) -print0)
 fi
 
 cat > "$DEPLOY_DIR/vercel.json" <<'EOF'
