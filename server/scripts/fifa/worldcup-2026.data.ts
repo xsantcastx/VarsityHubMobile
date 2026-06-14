@@ -289,10 +289,10 @@ export const TEAMS: Record<string, TeamDef> = {
     logoUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Flag_of_the_Czech_Republic.svg/250px-Flag_of_the_Czech_Republic.svg.png',
   },
-  "Côte d'Ivoire": {
-    name: "Côte d'Ivoire",
+  'Ivory Coast': {
+    name: 'Ivory Coast',
     city: 'Abidjan',
-    state: "Côte d'Ivoire",
+    state: 'Ivory Coast',
     logoUrl:
       'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Flag_of_C%C3%B4te_d%27Ivoire.svg/250px-Flag_of_C%C3%B4te_d%27Ivoire.svg.png',
   },
@@ -635,7 +635,7 @@ export const MATCHES: MatchDef[] = [
   },
   // ── June 14 ────────────────────────────────────────────────────────────────
   {
-    home: "Côte d'Ivoire",
+    home: 'Ivory Coast',
     away: 'Ecuador',
     venue: 'lincoln',
     kickoffUtc: '2026-06-14T23:00:00.000Z',
@@ -882,7 +882,7 @@ export const MATCHES: MatchDef[] = [
   // ── June 20 ────────────────────────────────────────────────────────────────
   {
     home: 'Germany',
-    away: "Côte d'Ivoire",
+    away: 'Ivory Coast',
     venue: 'bmoField',
     kickoffUtc: '2026-06-20T20:00:00.000Z',
     group: 'Group E',
@@ -1107,7 +1107,7 @@ export const MATCHES: MatchDef[] = [
   // ── June 25 ────────────────────────────────────────────────────────────────
   {
     home: 'Curaçao',
-    away: "Côte d'Ivoire",
+    away: 'Ivory Coast',
     venue: 'lincoln',
     kickoffUtc: '2026-06-25T20:00:00.000Z',
     group: 'Group E',
