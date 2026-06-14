@@ -14,7 +14,10 @@
 - State: React Context — `AuthProvider`, `PostCacheContext`, `OnboardingContext`, `NavigationHistoryContext`
 - API: `api/entities.ts` re-exports from domain modules (`api/teams.ts`, `api/organizations.ts`, etc.)
 - EAS Build for iOS/Android. OTA updates via Expo Updates.
-- Payments: Apple IAP (iOS only) + Stripe PaymentSheet (Android only)
+- Payments (two distinct flows — do not conflate):
+  - **Subscriptions**: Apple IAP (iOS), Google Play Billing via `react-native-iap` (Android, server-verified at `POST /payments/google/verify-purchase`), Stripe PaymentSheet (web fallback only)
+  - **Ads**: Apple IAP (iOS), Stripe PaymentSheet (Android + web)
+  - No Stripe links/redirects on any iOS path (Apple guideline). Android subscription checkout MUST stay on Play Billing — never route it to Stripe (Play policy).
 - Uploads: Direct-to-Cloudinary (signed) with server-proxy fallback
 - Push notifications: Expo Server SDK (`sendPushNotification` in `server/src/lib/notifications.ts`)
 - Error tracking: Sentry with source maps

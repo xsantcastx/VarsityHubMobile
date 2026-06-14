@@ -43,6 +43,14 @@ Use this after `npm run verify:play-store`.
   - `FRI_SUN`
 - Confirm `/.well-known/assetlinks.json` is live on each production host used by your app links.
 
+## Server & Build Credentials (runtime prerequisites)
+
+These live outside the repo (Railway / EAS / Firebase) and are NOT covered by `npm run verify:play-store`. Each is a real blocker for the corresponding Android feature even when the build itself succeeds.
+
+- **Android subscription verification (Railway)** — set `GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY`. Without them, `POST /payments/google/verify-purchase` returns **503 in production** and Android users cannot subscribe at all (`server/src/routes/payments.ts`). Optional: `GOOGLE_PLAY_PACKAGE_NAMES` (defaults to `com.xsantcastx.varsityhub`).
+- **Android push (EAS / Firebase)** — the repo has no `google-services.json` or FCM config. Upload FCM V1 credentials (Firebase service-account key) to EAS via `eas credentials` (Android → push). Without it, `expo-notifications` registers but Android devices receive no push.
+- **Google Maps key (EAS secret)** — `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` is intentionally NOT inlined in `eas.json` (an empty value there would shadow the secret). Confirm it is set as an EAS secret and that the Android key is restricted to the **Play app-signing SHA-1**, or maps render blank on Android (`android/app/build.gradle` injects it via `manifestPlaceholders`).
+
 ## Final Manual Checks
 
 - Install the release build from an internal track on a physical Android device.

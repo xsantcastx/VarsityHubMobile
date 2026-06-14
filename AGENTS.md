@@ -84,7 +84,9 @@
 
 ### Payment changes
 - iOS: Apple IAP only — never add Stripe links on iOS paths
-- Android: Stripe PaymentSheet only
+- Android subscriptions: Google Play Billing via `react-native-iap`, server-verified at `POST /payments/google/verify-purchase` — never route Android subscription checkout to Stripe (Play policy)
+- Android ads: Stripe PaymentSheet (ads use Stripe on Android + web; only subscriptions use Play Billing)
+- Web: Stripe PaymentSheet for both subscriptions and ads
 - Server enforces plan limits inside `$transaction` — race-condition safe
 - Ad booking horizon is 56 days max — enforced server-side
 
