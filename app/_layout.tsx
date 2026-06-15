@@ -34,6 +34,8 @@ import { MAX_CONTENT_WIDTH } from '@/constants/layout';
 import { AuthProvider, useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryProvider } from '@/context/NavigationHistoryContext';
 import { PostCacheProvider } from '@/context/PostCacheContext';
+import { queryClient } from '@/lib/queryClient';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { useVerificationGate } from '@/hooks/useVerificationGate';
@@ -323,15 +325,17 @@ function RootLayout() {
       <ErrorBoundary>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <StripeProvider publishableKey={getConfig().stripePublishableKey}>
-            <PostCacheProvider>
-              <NavigationHistoryProvider>
-                <NavReadyAuthProvider>
-                  <ThemeProvider>
-                    <AppShell />
-                  </ThemeProvider>
-                </NavReadyAuthProvider>
-              </NavigationHistoryProvider>
-            </PostCacheProvider>
+            <QueryClientProvider client={queryClient}>
+              <PostCacheProvider>
+                <NavigationHistoryProvider>
+                  <NavReadyAuthProvider>
+                    <ThemeProvider>
+                      <AppShell />
+                    </ThemeProvider>
+                  </NavReadyAuthProvider>
+                </NavigationHistoryProvider>
+              </PostCacheProvider>
+            </QueryClientProvider>
           </StripeProvider>
         </GestureHandlerRootView>
       </ErrorBoundary>
