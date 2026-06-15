@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FlashList } from '@shopify/flash-list';
 // @ts-ignore JS exports
 import {
   Advertisement,
@@ -2148,11 +2149,13 @@ export default function FeedScreen() {
       </LinearGradient>
 
       <View style={styles.contentContainer}>
-        <FlatList
+        <FlashList
           data={feedItems}
           renderItem={renderFeedItem}
           keyExtractor={keyExtractor}
-          style={styles.feedList}
+          // Heterogeneous feed (game/post/ad/section_header/etc.) — recycle
+          // views per item type so cells aren't torn down across types.
+          getItemType={item => item._t}
           ListHeaderComponent={listHeader}
           contentContainerStyle={{
             paddingVertical: 12,
@@ -2168,10 +2171,6 @@ export default function FeedScreen() {
           showsVerticalScrollIndicator={false}
           onEndReached={_loadMore}
           onEndReachedThreshold={0.3}
-          initialNumToRender={8}
-          maxToRenderPerBatch={6}
-          windowSize={7}
-          removeClippedSubviews={Platform.OS !== 'web'}
         />
       </View>
 
@@ -2355,10 +2354,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   contentContainer: { flex: 1, minHeight: 0, paddingHorizontal: 16, paddingTop: 0 },
-  feedList: {
-    flex: 1,
-    minHeight: 0,
-  },
   logoImage: { width: 36, height: 36, borderRadius: 8 },
   headerActions: {
     flex: 1,
