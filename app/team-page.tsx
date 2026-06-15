@@ -1285,11 +1285,20 @@ function TeamScreen() {
             const opponent = g.opponent_name || g.away_team || g.awayTeam || 'TBD';
             const gameType = g.game_type || 'Game';
             const hasScore = g.home_score != null || g.away_score != null;
+            const gameId = g.id ? String(g.id) : null;
             return (
-              <View
-                style={[
+              <Pressable
+                disabled={!gameId}
+                onPress={() =>
+                  gameId &&
+                  router.push({ pathname: '/game/[id]', params: { id: gameId } } as any)
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`Open event vs ${opponent} on ${dateStr}`}
+                style={({ pressed }) => [
                   styles.eventRow,
                   { backgroundColor: theme.card, borderColor: theme.border },
+                  pressed && gameId ? { opacity: 0.6 } : null,
                 ]}
               >
                 <View style={[styles.eventDateBadge, { backgroundColor: theme.tint + '22' }]}>
@@ -1306,7 +1315,7 @@ function TeamScreen() {
                     {g.home_score ?? '-'} - {g.away_score ?? '-'}
                   </Text>
                 )}
-              </View>
+              </Pressable>
             );
           }}
         />
