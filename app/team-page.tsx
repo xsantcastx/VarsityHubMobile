@@ -364,24 +364,16 @@ function TeamScreen() {
           summaryGames.length || summaryMembers.length
             ? [summaryGames, summaryMembers]
             : await Promise.all([
-                Game.list('-date')
+                // Scope server-side by team ID (matches home_team_id OR away_team_id).
+                // Replaces fragile client-side name-substring matching, which both
+                // mismatched similarly-named teams and pulled the entire games table.
+                Game.list('-date', { teamId: teamData!.id, limit: 100 })
                   .then(allGamesData => {
                     if (!mounted.current) return [];
                     const allGames = Array.isArray(allGamesData)
                       ? allGamesData
                       : allGamesData?.games || allGamesData?.items || [];
-                    const teamNameLower = (teamData!.name || '').toLowerCase();
-                    return allGames
-                      .filter((g: GameItem) => {
-                        const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
-                        const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
-                        return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
-                      })
-                      .sort((a: GameItem, b: GameItem) => {
-                        const dateA = new Date(a.date || a.created_at || 0).getTime();
-                        const dateB = new Date(b.date || b.created_at || 0).getTime();
-                        return dateA - dateB;
-                      });
+                    return allGames as GameItem[];
                   })
                   .catch((err: any) => {
                     if (__DEV__) console.error('[team-page] Failed to load games:', err);
