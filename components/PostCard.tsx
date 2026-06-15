@@ -13,6 +13,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import { prefetchUserProfile } from '@/utils/prefetch';
 import ExpandableText from './ExpandableText';
 import RankingBadge from './RankingBadge';
 
@@ -226,6 +227,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
               <Pressable
                 testID={`post-card-author-${post.id}`}
                 style={styles.authorInfo}
+                onPressIn={() => prefetchUserProfile(author?.id ? String(author.id) : null)}
                 onPress={() => {
                   if (!author?.id) return;
                   void router.push({

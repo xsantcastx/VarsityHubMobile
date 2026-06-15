@@ -3,6 +3,7 @@ import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import { prefetchUserProfile } from '@/utils/prefetch';
 import { REPORT_REASONS, usePostInteractions } from '@/hooks/usePostInteractions';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
@@ -107,6 +108,7 @@ function MasonryPostCard({
         <View style={styles.authorRow}>
           <Pressable
             style={styles.authorInfo}
+            onPressIn={() => prefetchUserProfile(author?.id ? String(author.id) : null)}
             onPress={() => {
               if (!author?.id) return;
               router.push({
