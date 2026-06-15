@@ -40,6 +40,7 @@ import * as Location from 'expo-location';
 
 import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
+import { queryClient } from '@/lib/queryClient';
 import { getDeterministicGameCardGradient } from '@/utils/feedGameCard';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import {
@@ -467,10 +468,17 @@ export default function FeedScreen() {
             return null;
           });
 
-        // Load games with better error handling
+        // Load games with better error handling. Route through the shared
+        // react-query cache so the games list is deduped across screens and a
+        // cold remount of the feed renders instantly from cache (the 30s
+        // staleTime mirrors this screen's own LOAD_COOLDOWN_MS).
+        const gamesDateFrom = feedDateFrom();
         let gamesData: any = null;
         try {
-          gamesData = await Game.list('date', { limit: 30, dateFrom: feedDateFrom() });
+          gamesData = await queryClient.fetchQuery({
+            queryKey: ['feed-games', gamesDateFrom],
+            queryFn: () => Game.list('date', { limit: 30, dateFrom: gamesDateFrom }),
+          });
         } catch (err: any) {
           if (__DEV__) console.error('[Feed] Failed to load games:', err);
           // If it's a network error, show a more helpful message
