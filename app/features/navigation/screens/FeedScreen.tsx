@@ -1,7 +1,7 @@
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -287,6 +287,147 @@ const buildVotePreviewEntry = (
     teamBLabelShort: shortenLabel(fullLabelB),
   };
 };
+
+type FeedGameCardProps = {
+  gameItem: GameItem;
+  isLive: boolean;
+  testIDPrefix: string;
+  voteSummary: VotePreviewEntry | null;
+  rsvp: { going: boolean; count: number } | undefined;
+  colorScheme: 'light' | 'dark';
+  onPress: (id: string) => void;
+  onRSVPChange: () => void;
+};
+
+// Memoized so a card only re-renders when ITS OWN data changes. Previously the
+// card was inline JSX that read the whole voteSummaries/rsvpSummaries maps, so
+// any single game's summary loading (or any of the screen's ~34 state updates)
+// re-rendered every visible card. The maps are built with {...prev}, so an
+// unchanged game keeps the same voteSummary/rsvp reference and memo skips it.
+const FeedGameCard = memo(function FeedGameCard({
+  gameItem,
+  isLive,
+  testIDPrefix,
+  voteSummary,
+  rsvp,
+  colorScheme,
+  onPress,
+  onRSVPChange,
+}: FeedGameCardProps) {
+  const raw = gameItem as any;
+  const firstMediaUrl =
+    Array.isArray(raw?.media) && raw.media.length > 0
+      ? raw.media[0]?.thumbnail_url || raw.media[0]?.url || null
+      : Array.isArray(raw?.posts) && raw.posts.length > 0
+        ? raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null
+        : null;
+  const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
+  const hasBanner = typeof banner === 'string' && banner.length > 0;
+  const gradient = getDeterministicGameCardGradient(gameItem.id, gameItem.title);
+  const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
+  const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
+  const locationText = gameItem.location ? String(gameItem.location).split(',')[0] : 'Location TBD';
+  const reviewsCount =
+    typeof raw?.reviews_count === 'number'
+      ? raw.reviews_count
+      : Array.isArray(raw?.reviews)
+        ? raw.reviews.length
+        : raw?._count && typeof raw._count.reviews === 'number'
+          ? raw._count.reviews
+          : 0;
+  const mediaCount =
+    typeof raw?.media_count === 'number'
+      ? raw.media_count
+      : Array.isArray(raw?.media)
+        ? raw.media.length
+        : 0;
+  const voteText = voteSummary
+    ? `${voteSummary.teamALabelShort} ${voteSummary.pctA}% | ${voteSummary.teamBLabelShort} ${voteSummary.pctB}%`
+    : null;
+  const scoreText =
+    typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
+      ? `${raw.home_score} - ${raw.away_score}`
+      : null;
+
+  return (
+    <Pressable
+      testID={`${testIDPrefix}-game-card-${gameItem.id}`}
+      style={[styles.singleEventCard, isLive ? { borderWidth: 2, borderColor: '#EF4444' } : null]}
+      onPress={() => onPress(String(gameItem.id))}
+      accessibilityRole="button"
+      accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}${isLive ? ' — LIVE NOW' : ''}`}
+    >
+      <LinearGradient
+        colors={gradient}
+        style={StyleSheet.absoluteFillObject}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+      {hasBanner && <FullBleedCardImage uri={optimizeImageUrl(banner!, 400) || banner!} />}
+      <LinearGradient
+        colors={
+          colorScheme === 'dark'
+            ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']
+            : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']
+        }
+        style={styles.gridShade}
+        pointerEvents="none"
+      />
+      <View style={styles.gridContent}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={styles.gridDateChip}>
+            <MaterialIcons name="event" size={12} color="#FFFFFF" />
+            <Text style={styles.gridDateText}>{eventDate}</Text>
+          </View>
+          {isLive ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#EF4444',
+                borderRadius: 4,
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+                gap: 4,
+              }}
+            >
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' }} />
+              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
+                LIVE
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={styles.gridTitle} numberOfLines={2}>
+          {gameItem.title ? String(gameItem.title) : 'Game'}
+        </Text>
+        <Text style={styles.gridMeta} numberOfLines={1}>
+          {scoreText
+            ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}`
+            : eventTime
+              ? `${eventTime} • ${locationText}`
+              : locationText}
+        </Text>
+        <View style={styles.gridStatsRow}>
+          <View style={styles.gridStat}>
+            <MaterialIcons name="chat-bubble-outline" size={12} color="#F9FAFB" />
+            <Text style={styles.gridStatText}>{reviewsCount}</Text>
+          </View>
+          <View style={styles.gridStat}>
+            <MaterialIcons name="image" size={12} color="#F9FAFB" />
+            <Text style={styles.gridStatText}>{mediaCount}</Text>
+          </View>
+        </View>
+        {voteText ? (
+          <Text style={styles.gridVoteText} numberOfLines={1}>
+            {voteText}
+          </Text>
+        ) : null}
+      </View>
+      <RSVPBadge gameItem={gameItem} initialRsvp={rsvp} onRSVPChange={onRSVPChange} />
+    </Pressable>
+  );
+});
 
 export default function FeedScreen() {
   const router = useRouter();
@@ -778,6 +919,14 @@ export default function FeedScreen() {
     }
   }, [load]);
 
+  // Stable handler so memoized FeedGameCard props don't change every render.
+  const handleGamePress = useCallback(
+    (id: string) => {
+      void router.push({ pathname: '/game/[id]', params: { id } });
+    },
+    [router]
+  );
+
   const filtered = useMemo(() => {
     if (!query) return games;
     const q = query.toLowerCase().trim();
@@ -1187,150 +1336,20 @@ export default function FeedScreen() {
   const renderGameCard = useCallback(
     (gameItem: GameItem, isLive: boolean, testIDPrefix: string) => {
       if (!gameItem.id) return null;
-      const raw = gameItem as any;
-      const firstMediaUrl =
-        Array.isArray(raw?.media) && raw.media.length > 0
-          ? raw.media[0]?.thumbnail_url || raw.media[0]?.url || null
-          : Array.isArray(raw?.posts) && raw.posts.length > 0
-            ? raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null
-            : null;
-      const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
-      const hasBanner = typeof banner === 'string' && banner.length > 0;
-      const gradient = getDeterministicGameCardGradient(gameItem.id, gameItem.title);
-      const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
-      const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
-      const locationText = gameItem.location
-        ? String(gameItem.location).split(',')[0]
-        : 'Location TBD';
-      const reviewsCount =
-        typeof raw?.reviews_count === 'number'
-          ? raw.reviews_count
-          : Array.isArray(raw?.reviews)
-            ? raw.reviews.length
-            : raw?._count && typeof raw._count.reviews === 'number'
-              ? raw._count.reviews
-              : 0;
-      const mediaCount =
-        typeof raw?.media_count === 'number'
-          ? raw.media_count
-          : Array.isArray(raw?.media)
-            ? raw.media.length
-            : 0;
-      const summary = voteSummaries[String(gameItem.id)] || null;
-      const voteText = summary
-        ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
-        : null;
-      const scoreText =
-        typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
-          ? `${raw.home_score} - ${raw.away_score}`
-          : null;
-
       return (
-        <Pressable
-          testID={`${testIDPrefix}-game-card-${gameItem.id}`}
-          style={[
-            styles.singleEventCard,
-            isLive ? { borderWidth: 2, borderColor: '#EF4444' } : null,
-          ]}
-          onPress={() =>
-            void router.push({
-              pathname: '/game/[id]',
-              params: { id: String(gameItem.id) },
-            })
-          }
-          accessibilityRole="button"
-          accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}${isLive ? ' — LIVE NOW' : ''}`}
-        >
-          <LinearGradient
-            colors={gradient}
-            style={StyleSheet.absoluteFillObject}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
-          {hasBanner && <FullBleedCardImage uri={optimizeImageUrl(banner!, 400) || banner!} />}
-          <LinearGradient
-            colors={
-              colorScheme === 'dark'
-                ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']
-                : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']
-            }
-            style={styles.gridShade}
-            pointerEvents="none"
-          />
-          <View style={styles.gridContent}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <View style={styles.gridDateChip}>
-                <MaterialIcons name="event" size={12} color="#FFFFFF" />
-                <Text style={styles.gridDateText}>{eventDate}</Text>
-              </View>
-              {isLive ? (
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    backgroundColor: '#EF4444',
-                    borderRadius: 4,
-                    paddingHorizontal: 6,
-                    paddingVertical: 2,
-                    gap: 4,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: 3,
-                      backgroundColor: '#fff',
-                    }}
-                  />
-                  <Text
-                    style={{
-                      color: '#fff',
-                      fontSize: 10,
-                      fontWeight: '800',
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    LIVE
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-            <Text style={styles.gridTitle} numberOfLines={2}>
-              {gameItem.title ? String(gameItem.title) : 'Game'}
-            </Text>
-            <Text style={styles.gridMeta} numberOfLines={1}>
-              {scoreText
-                ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}`
-                : eventTime
-                  ? `${eventTime} • ${locationText}`
-                  : locationText}
-            </Text>
-            <View style={styles.gridStatsRow}>
-              <View style={styles.gridStat}>
-                <MaterialIcons name="chat-bubble-outline" size={12} color="#F9FAFB" />
-                <Text style={styles.gridStatText}>{reviewsCount}</Text>
-              </View>
-              <View style={styles.gridStat}>
-                <MaterialIcons name="image" size={12} color="#F9FAFB" />
-                <Text style={styles.gridStatText}>{mediaCount}</Text>
-              </View>
-            </View>
-            {voteText ? (
-              <Text style={styles.gridVoteText} numberOfLines={1}>
-                {voteText}
-              </Text>
-            ) : null}
-          </View>
-          <RSVPBadge
-            gameItem={gameItem}
-            initialRsvp={rsvpSummaries[String((gameItem as any).event_id || '')]}
-            onRSVPChange={onRefresh}
-          />
-        </Pressable>
+        <FeedGameCard
+          gameItem={gameItem}
+          isLive={isLive}
+          testIDPrefix={testIDPrefix}
+          voteSummary={voteSummaries[String(gameItem.id)] || null}
+          rsvp={rsvpSummaries[String((gameItem as any).event_id || '')]}
+          colorScheme={colorScheme}
+          onPress={handleGamePress}
+          onRSVPChange={onRefresh}
+        />
       );
     },
-    [colorScheme, voteSummaries, rsvpSummaries, router, onRefresh]
+    [colorScheme, voteSummaries, rsvpSummaries, handleGamePress, onRefresh]
   );
 
   const renderFeedItem = useCallback(
