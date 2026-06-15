@@ -146,3 +146,7 @@ dist-verify/
 .claude/launch.json
 .jscpd/
 uploads/
+
+# Ad-hoc debug screenshots / scratch artifacts (never commit)
+tmp-*.png
+tmp-*.jpg
