@@ -242,6 +242,8 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                       source={{ uri: optimizeImageUrl(String(author.avatar_url), 80) }}
                       style={styles.authorAvatar}
                       contentFit="cover"
+                      cachePolicy="memory-disk"
+                      recyclingKey={String(author?.id ?? author?.username ?? post.id)}
                     />
                   ) : (
                     <View
@@ -299,6 +301,9 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   source={{ uri: optimizeImageUrl(mediaUrl, 600) }}
                   style={styles.media}
                   contentFit="cover"
+                  cachePolicy="memory-disk"
+                  recyclingKey={String(post.id)}
+                  transition={150}
                   onError={() => setMediaError(true)}
                 />
               ) : isImage && mediaUrl && mediaError ? (
@@ -320,6 +325,8 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   source={{ uri: optimizeImageUrl(previewUrl, 600) }}
                   style={styles.media}
                   contentFit="cover"
+                  cachePolicy="memory-disk"
+                  recyclingKey={String(post.id)}
                 />
               ) : isVideo && mediaUrl ? (
                 <View
