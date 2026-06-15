@@ -43,6 +43,7 @@ import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
 import { queryClient } from '@/lib/queryClient';
 import { getDeterministicGameCardGradient } from '@/utils/feedGameCard';
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import { prefetchGameSummary } from '@/utils/prefetch';
 import {
   getNotificationHrefForUser,
   getNotificationSubtitle,
@@ -353,6 +354,7 @@ const FeedGameCard = memo(function FeedGameCard({
     <Pressable
       testID={`${testIDPrefix}-game-card-${gameItem.id}`}
       style={[styles.singleEventCard, isLive ? { borderWidth: 2, borderColor: '#EF4444' } : null]}
+      onPressIn={() => prefetchGameSummary(String(gameItem.id))}
       onPress={() => onPress(String(gameItem.id))}
       accessibilityRole="button"
       accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}${isLive ? ' — LIVE NOW' : ''}`}

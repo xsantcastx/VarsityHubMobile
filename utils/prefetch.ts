@@ -1,4 +1,4 @@
-import { User } from '@/api/entities';
+import { Game, User } from '@/api/entities';
 import { queryClient } from '@/lib/queryClient';
 
 /**
@@ -19,5 +19,19 @@ export function prefetchUserProfile(id?: string | null): void {
   void queryClient.prefetchQuery({
     queryKey: ['public-user', String(id)],
     queryFn: () => User.getPublic(String(id)),
+  });
+}
+
+/**
+ * Warms `['game-summary', id]` — the primary fetch read by the game-detail
+ * screen (app/game-details/GameDetailsScreen.tsx). retry:0 matches that
+ * screen's single-attempt intent.
+ */
+export function prefetchGameSummary(id?: string | null): void {
+  if (!id) return;
+  void queryClient.prefetchQuery({
+    queryKey: ['game-summary', String(id)],
+    queryFn: () => Game.summary(String(id)),
+    retry: 0,
   });
 }
