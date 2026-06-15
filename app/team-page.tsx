@@ -7,6 +7,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -15,7 +16,6 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  InteractionManager,
   Modal,
   Pressable,
   StyleSheet,
@@ -125,6 +125,107 @@ const toFeedPost = (item: any): FeedPost | null => {
   };
 };
 
+type TeamPageData = {
+  team: LeagueTeam;
+  members: TeamMember[];
+  games: GameItem[];
+  canManageTeam: boolean;
+};
+
+// Pure server fetch for the team page, driven by react-query so revisiting the
+// screen serves the cached result instantly and revalidates in the background
+// (instead of blocking on a fresh spinner every navigation). Throws on failure
+// so react-query surfaces it as `isError`.
+async function fetchTeamData(teamId?: string, teamName?: string): Promise<TeamPageData> {
+  let teamData: LeagueTeam | null = null;
+  let summaryMembers: TeamMember[] = [];
+  let summaryGames: GameItem[] = [];
+  let canManageTeam = false;
+
+  try {
+    // Prefer the scoped summary endpoint so team page navigation and access
+    // stay aligned with the canonical team tools contracts.
+    if (teamId) {
+      try {
+        const summary: any = await Team.screenSummary(teamId);
+        if (summary?.team) {
+          teamData = summary.team as LeagueTeam;
+          summaryMembers = Array.isArray(summary.members)
+            ? (summary.members as TeamMember[])
+            : [];
+          summaryGames = Array.isArray(summary.games) ? (summary.games as GameItem[]) : [];
+          canManageTeam =
+            summary?.permissions?.can_manage === true ||
+            summary?.team?.can_manage_team === true;
+        } else {
+          const fullTeamData = await Team.get(teamId);
+          if (fullTeamData) {
+            teamData = fullTeamData as LeagueTeam;
+            canManageTeam = (fullTeamData as any)?.can_manage_team === true;
+          }
+        }
+      } catch (getErr: any) {
+        if (__DEV__) console.warn('[team-page] Failed to get team by ID, trying list:', getErr);
+      }
+    }
+
+    // Fallback to list if get() didn't work or we only have teamName
+    if (!teamData) {
+      const allTeams = await Team.list(undefined, undefined, { limit: 100 });
+      const teamsList = Array.isArray(allTeams) ? allTeams : [];
+      if (teamId) {
+        teamData = teamsList.find((t: LeagueTeam) => t.id === teamId) || null;
+      }
+      if (!teamData && teamName) {
+        teamData =
+          teamsList.find((t: LeagueTeam) => t.name?.toLowerCase() === teamName.toLowerCase()) ||
+          null;
+      }
+    }
+  } catch (apiErr: any) {
+    if (__DEV__) console.error('[team-page] Failed to fetch teams from API:', apiErr);
+    // Continue to try fallback logic
+  }
+
+  if (!teamData && teamName) {
+    teamData = { id: teamId || `temp-${teamName}`, name: teamName, logo_url: undefined };
+  }
+  if (!teamData) {
+    throw new Error(`Could not load team (ID: ${teamId}, Name: ${teamName})`);
+  }
+
+  // Extract organization_id (could be direct or nested in organization object)
+  const orgId = (teamData as any)?.organization_id || (teamData as any)?.organization?.id;
+  if (orgId) {
+    teamData = { ...teamData, organization_id: String(orgId) } as LeagueTeam;
+  }
+
+  let games: GameItem[];
+  let members: TeamMember[];
+  if (summaryGames.length || summaryMembers.length) {
+    games = summaryGames;
+    members = summaryMembers;
+  } else {
+    // Scope server-side by team ID (matches home_team_id OR away_team_id).
+    // Replaces fragile client-side name-substring matching, which both
+    // mismatched similarly-named teams and pulled the entire games table.
+    games = await Game.list('-date', { teamId: teamData.id, limit: 100 })
+      .then(allGamesData => {
+        const allGames = Array.isArray(allGamesData)
+          ? allGamesData
+          : allGamesData?.games || allGamesData?.items || [];
+        return allGames as GameItem[];
+      })
+      .catch((err: any) => {
+        if (__DEV__) console.error('[team-page] Failed to load games:', err);
+        return [] as GameItem[];
+      });
+    members = [];
+  }
+
+  return { team: teamData, members, games, canManageTeam };
+}
+
 function TeamScreen() {
   const { user: currentUser } = useAuth();
   const colorScheme = useCustomColorScheme();
@@ -139,11 +240,9 @@ function TeamScreen() {
   }>();
   const { from, gameId } = params;
 
-  const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<LeagueTeam | null>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [games, setGames] = useState<GameItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes' | 'events'>('events');
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
@@ -175,7 +274,6 @@ function TeamScreen() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
-  const hasLoadedTeamOnceRef = useRef(false);
 
   const handleBack = useCallback(() => {
     if (from === 'game-details' && gameId) {
@@ -246,184 +344,64 @@ function TeamScreen() {
     }
   }, []);
 
-  const loadTeam = useCallback(
-    async (options?: { silent?: boolean }) => {
-      if (!mounted.current) return;
-      if (!options?.silent || !hasLoadedTeamOnceRef.current) {
-        setLoading(true);
-      }
-      setError(null);
-      try {
-        // Validate and sanitize route params
-        const teamId = params.id?.trim();
-        const teamName = params.name?.trim();
+  // Validate/sanitize route params before they drive the query key.
+  const rawTeamId = params.id?.trim();
+  const paramTeamName = params.name?.trim();
+  // ID format: alphanumeric, dash, underscore only.
+  const teamIdValid = !rawTeamId || /^[a-zA-Z0-9_-]+$/.test(rawTeamId);
+  const teamId = teamIdValid ? rawTeamId : undefined;
+  const hasIdentifier = !!(teamId || paramTeamName);
 
-        // Validate ID format (alphanumeric, dash, underscore only)
-        if (teamId && !/^[a-zA-Z0-9_-]+$/.test(teamId)) {
-          if (mounted.current) {
-            setError('Invalid team ID format');
-            setLoading(false);
-          }
-          return;
-        }
+  // react-query owns the server fetch: revisiting the screen serves the cached
+  // result instantly (no spinner) and revalidates in the background. The spinner
+  // is gated on `isPending` (no cached data yet), never on background refetches.
+  const teamQuery = useQuery({
+    queryKey: ['team-page', teamId ?? paramTeamName ?? ''],
+    queryFn: () => fetchTeamData(teamId, paramTeamName),
+    enabled: hasIdentifier && teamIdValid,
+  });
 
-        if (!teamId && !teamName) {
-          if (mounted.current) {
-            setError('No team ID or name provided');
-            setLoading(false);
-          }
-          return;
-        }
-
-        let teamData: LeagueTeam | null = null;
-        let summaryMembers: TeamMember[] = [];
-        let summaryGames: GameItem[] = [];
-        let canManageTeam = false;
-
-        try {
-          // Prefer the scoped summary endpoint so team page navigation and access
-          // stay aligned with the canonical team tools contracts.
-          if (teamId) {
-            try {
-              const summary: any = await Team.screenSummary(teamId);
-              if (summary?.team) {
-                teamData = summary.team as LeagueTeam;
-                summaryMembers = Array.isArray(summary.members)
-                  ? (summary.members as TeamMember[])
-                  : [];
-                summaryGames = Array.isArray(summary.games) ? (summary.games as GameItem[]) : [];
-                canManageTeam =
-                  summary?.permissions?.can_manage === true ||
-                  summary?.team?.can_manage_team === true;
-              } else {
-                const fullTeamData = await Team.get(teamId);
-                if (fullTeamData) {
-                  teamData = fullTeamData as LeagueTeam;
-                  canManageTeam = (fullTeamData as any)?.can_manage_team === true;
-                }
-              }
-            } catch (getErr: any) {
-              if (__DEV__)
-                console.warn('[team-page] Failed to get team by ID, trying list:', getErr);
-            }
-          }
-
-          // Fallback to list if get() didn't work or we only have teamName
-          if (!teamData) {
-            const allTeams = await Team.list(undefined, undefined, { limit: 100 });
-            const teamsList = Array.isArray(allTeams) ? allTeams : [];
-
-            if (teamId && !teamData) {
-              teamData = teamsList.find((t: LeagueTeam) => t.id === teamId) || null;
-            }
-
-            if (!teamData && teamName) {
-              teamData =
-                teamsList.find(
-                  (t: LeagueTeam) => t.name?.toLowerCase() === teamName.toLowerCase()
-                ) || null;
-            }
-          }
-        } catch (apiErr: any) {
-          if (__DEV__) console.error('[team-page] Failed to fetch teams from API:', apiErr);
-          // Continue to try fallback logic
-        }
-
-        if (!teamData && teamName) {
-          teamData = {
-            id: teamId || `temp-${teamName}`,
-            name: teamName,
-            logo_url: undefined,
-          };
-        }
-
-        if (!teamData) {
-          throw new Error(`Could not load team (ID: ${teamId}, Name: ${teamName})`);
-        }
-
-        if (!mounted.current) return;
-
-        // Extract organization_id from team data (could be direct or nested in organization object)
-        const orgId = (teamData as any)?.organization_id || (teamData as any)?.organization?.id;
-        if (orgId) {
-          teamData = { ...teamData, organization_id: String(orgId) } as LeagueTeam;
-        }
-
-        setTeam(teamData);
-        setIsFollowing(!!(teamData as any).is_following);
-
-        if (mounted.current) {
-          setIsTeamAdmin(canManageTeam);
-        }
-
-        // Use default theme color (teams don't have preferences field yet)
-        if (mounted.current) setTeamThemeColor('#3B82F6');
-
-        // Fetch games, posts, and members
-        const [gamesResult, membersResult] =
-          summaryGames.length || summaryMembers.length
-            ? [summaryGames, summaryMembers]
-            : await Promise.all([
-                // Scope server-side by team ID (matches home_team_id OR away_team_id).
-                // Replaces fragile client-side name-substring matching, which both
-                // mismatched similarly-named teams and pulled the entire games table.
-                Game.list('-date', { teamId: teamData!.id, limit: 100 })
-                  .then(allGamesData => {
-                    if (!mounted.current) return [];
-                    const allGames = Array.isArray(allGamesData)
-                      ? allGamesData
-                      : allGamesData?.games || allGamesData?.items || [];
-                    return allGames as GameItem[];
-                  })
-                  .catch((err: any) => {
-                    if (__DEV__) console.error('[team-page] Failed to load games:', err);
-                    return [];
-                  }),
-                Promise.resolve([] as TeamMember[]),
-              ]);
-
-        if (!mounted.current) return;
-        setGames(gamesResult);
-        setMembers(membersResult);
-        hasLoadedTeamOnceRef.current = true;
-      } catch (err: any) {
-        if (!mounted.current) return;
-        if (__DEV__) console.error('[team-page] Failed to load team:', err);
-        const errorMessage = err?.message || 'Failed to load team data';
-        setError(errorMessage);
-      } finally {
-        if (mounted.current) setLoading(false);
-      }
-    },
-    [params.id, params.name]
-  );
-
+  // Mirror server data into local state so the existing render and the
+  // optimistic follow handler (which mutates `team`/`isFollowing`) keep working.
   useEffect(() => {
-    // Defer the initial fetch until the push animation finishes so the
-    // transition isn't competing with network parsing and state updates.
-    const task = InteractionManager.runAfterInteractions(() => {
-      void loadTeam();
-    });
-    return () => task.cancel();
-  }, [loadTeam]);
+    const data = teamQuery.data;
+    if (!data) return;
+    setTeam(data.team);
+    setMembers(data.members);
+    setGames(data.games);
+    setIsTeamAdmin(data.canManageTeam);
+    setIsFollowing(!!(data.team as any).is_following);
+    setTeamThemeColor('#3B82F6');
+  }, [teamQuery.data]);
 
-  // Re-fetch team data when screen regains focus (e.g., after editing team name)
+  // Pick up server-side edits (e.g. renamed team) when the screen regains focus.
+  // Respects staleTime, so it won't refetch on rapid tab switches.
   const hasLoadedOnce = useRef(false);
   useFocusEffect(
     useCallback(() => {
-      // Skip the initial focus — useEffect above already handles that
       if (!hasLoadedOnce.current) {
         hasLoadedOnce.current = true;
         return;
       }
-      void loadTeam({ silent: true });
-    }, [loadTeam])
+      if (hasIdentifier && teamIdValid) void teamQuery.refetch();
+    }, [hasIdentifier, teamIdValid, teamQuery])
   );
+
+  const error = !teamIdValid
+    ? 'Invalid team ID format'
+    : !hasIdentifier
+      ? 'No team ID or name provided'
+      : teamQuery.isError
+        ? (teamQuery.error as any)?.message || 'Failed to load team data'
+        : null;
+  // Spinner only while there's no data to show; the brief `data && !team` window
+  // covers the one frame before the sync effect mirrors the cache into state.
+  const loading =
+    hasIdentifier && teamIdValid && (teamQuery.isPending || (!!teamQuery.data && !team));
 
   // Refresh when switching tabs
   useEffect(() => {
     if (!team?.id) return;
-    setError(null);
     if (activeTab === 'posts') {
       void refreshPosts(String(team.id));
     } else if (activeTab === 'replies') {
@@ -955,7 +933,7 @@ function TeamScreen() {
         <Stack.Screen options={{ title: 'Team' }} />
         <View style={styles.center}>
           <Text style={[styles.error, { color: theme.text }]}>{error}</Text>
-          <Pressable onPress={() => void loadTeam()} style={styles.retryButton}>
+          <Pressable onPress={() => void teamQuery.refetch()} style={styles.retryButton}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>
         </View>
