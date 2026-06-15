@@ -11,6 +11,7 @@ import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { getGradientForColor } from '@/utils/theme';
+import { queryClient } from '@/lib/queryClient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
@@ -238,6 +239,9 @@ export default function ProfileScreen() {
       try {
         const refreshed = await User.getPublic(viewingUserId);
         if (refreshed) {
+          // Keep the cached profile in sync so a later revisit shows the
+          // updated follower count without a refetch.
+          queryClient.setQueryData(['public-user', viewingUserId], refreshed);
           setMe(prev =>
             prev
               ? {
@@ -263,6 +267,7 @@ export default function ProfileScreen() {
           try {
             const u = await User.getPublic(viewingUserId);
             if (u) {
+              queryClient.setQueryData(['public-user', viewingUserId], u);
               setMe(u);
               setIsFollowing(!!u.is_following);
             }
@@ -371,7 +376,13 @@ export default function ProfileScreen() {
         let u: any;
         // If viewing another user's profile
         if (viewingUserId && viewingUserId !== currentUser?.id) {
-          const raw = await User.getPublic(viewingUserId);
+          // Route through the react-query cache so revisiting a recently-viewed
+          // profile resolves instantly (no wheel) instead of re-fetching. The
+          // 30s staleTime default still revalidates after the window.
+          const raw = await queryClient.fetchQuery({
+            queryKey: ['public-user', viewingUserId],
+            queryFn: () => User.getPublic(viewingUserId),
+          });
           // Normalize flat followers_count / following_count → _count shape
           if (raw && !raw._count && (raw.followers_count != null || raw.following_count != null)) {
             raw._count = {
