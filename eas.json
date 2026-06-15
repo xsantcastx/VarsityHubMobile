@@ -71,7 +71,7 @@
     "production": {
       "node": "20.19.4",
       "distribution": "store",
-      "autoIncrement": true,
+      "autoIncrement": false,
       "channel": "production",
       "env": {
         "NODE_ENV": "production",

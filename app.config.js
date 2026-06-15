@@ -130,7 +130,7 @@ module.exports = ({ config }) => {
       },
       softwareKeyboardLayoutMode: 'pan',
       edgeToEdgeEnabled: true,
-      versionCode: 3,
+      versionCode: 37,
       package: 'com.xsantcastx.varsityhub',
       intentFilters: [
         {
