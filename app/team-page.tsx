@@ -923,9 +923,9 @@ function TeamScreen() {
 
   const renderEmptyEvents = () => (
     <View style={styles.emptyContainer}>
-      <Text style={[styles.emptyTitle, { color: theme.text }]}>No past events</Text>
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>No events yet</Text>
       <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>
-        Past games and events will appear here
+        This team's games and events will appear here
       </Text>
     </View>
   );
@@ -1289,9 +1289,13 @@ function TeamScreen() {
         />
       ) : (
         <FlatList
-          data={games.filter(g => {
-            const d = (g as any).scheduled_date || g.date;
-            return d && new Date(d as string) < new Date();
+          data={[...games].sort((a, b) => {
+            // Always show every event (past + upcoming); dateless games sink to the bottom.
+            const da = (a as any).scheduled_date || a.date;
+            const db = (b as any).scheduled_date || b.date;
+            const ta = da ? new Date(da as string).getTime() : -Infinity;
+            const tb = db ? new Date(db as string).getTime() : -Infinity;
+            return tb - ta; // most recent first
           })}
           key={`${activeTab}-list`}
           keyExtractor={item => item.id}
