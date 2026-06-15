@@ -22,6 +22,7 @@ import { User } from '@/api/entities';
 import { abortAllInflight, httpGet } from '@/api/http';
 import { showWarningToast } from '@/components/ErrorToast';
 import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
+import { clearPersistedQueryCache } from '@/lib/queryClient';
 import { analytics } from '@/utils/analytics';
 import { getPostAuthRouteDecision, getRouteFamily } from '@/utils/appRouteDecisions';
 import {
@@ -707,6 +708,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     } finally {
       clearLocalAuthState();
       await clearUserScopedStorage();
+      // Wipe the persisted react-query cache so one account's feed/profile
+      // data can never rehydrate into the next session on a shared device.
+      await clearPersistedQueryCache();
       redirectWithTelemetry(unauthenticatedEntryRoute, 'sign_out', userBeforeSignOut);
     }
   }, [
@@ -741,6 +745,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         currentPath.startsWith('sign-up/');
       clearLocalAuthState();
       await clearUserScopedStorage();
+      await clearPersistedQueryCache();
       // Only surface a message if the user was actually signed in — a
       // missing refresh token during a background bootstrap doesn't need
       // a toast ("you were never really signed in").

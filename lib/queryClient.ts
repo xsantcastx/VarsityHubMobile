@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { QueryClient } from '@tanstack/react-query';
 
 /**
@@ -35,3 +37,35 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * AsyncStorage-backed persister. On cold start the cache rehydrates from disk
+ * so the app opens to the user's last-seen feed/profile/team data instantly,
+ * then revalidates in the background (per the 30s staleTime).
+ *
+ * AsyncStorage is already a native dependency in the shipped binary, and the
+ * persist packages are pure-JS, so this ships safely via `eas update`.
+ *
+ * `CACHE_BUSTER` must be bumped whenever a persisted query's shape changes so
+ * stale-shaped entries are dropped instead of rehydrated.
+ */
+export const CACHE_BUSTER = 'vh-rq-1';
+
+export const asyncStoragePersister = createAsyncStoragePersister({
+  storage: AsyncStorage,
+  key: 'VH_REACT_QUERY_CACHE',
+});
+
+/**
+ * Wipe both the in-memory cache and the persisted copy. MUST be called on
+ * sign-out so one account's cached data can never rehydrate into the next
+ * session on a shared device.
+ */
+export async function clearPersistedQueryCache(): Promise<void> {
+  queryClient.clear();
+  try {
+    await asyncStoragePersister.removeClient();
+  } catch {
+    // Best-effort: a failed disk wipe must not block sign-out.
+  }
+}
