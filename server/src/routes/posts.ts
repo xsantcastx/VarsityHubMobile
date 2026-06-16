@@ -976,17 +976,18 @@ postsRouter.post(
       } else if (isAdmin) {
         debugLog(`✅ Geofencing bypassed (isAdmin=${isAdmin})`);
       } else if (targetEventId) {
-        if (!hasDeviceOriginLocation) {
-          return res.status(403).json({
-            error: 'LOCATION_REQUIRED',
-            message: 'Live event posts require current device location within 3 km of the venue.',
-          });
-        }
+        // Only device-origin GPS may satisfy the venue geofence (anti-spoof:
+        // zip-derived coords must never count). Pass null otherwise and let
+        // verifyEventPostingPermission decide: it still requires real location
+        // for LIVE posts, but allows post-event grace recaps from anywhere for
+        // users who already posted while the event was live.
+        const deviceLat = hasDeviceOriginLocation ? loc.lat : null;
+        const deviceLng = hasDeviceOriginLocation ? loc.lng : null;
         const verification = await verifyEventPostingPermission(
           targetEventId,
           req.user.id,
-          loc.lat,
-          loc.lng
+          deviceLat,
+          deviceLng
         );
         if (!verification.allowed) {
           return res.status(403).json({
