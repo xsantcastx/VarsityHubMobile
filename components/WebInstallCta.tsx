@@ -72,7 +72,10 @@ export function WebInstallCta() {
 
 const styles = StyleSheet.create({
   container: {
-    position: 'fixed',
+    // react-native's ViewStyle type omits 'fixed'; it is valid on web via
+    // react-native-web, and this component renders only on web. Cast keeps the
+    // runtime value 'fixed' while satisfying the stock RN type in clean CI.
+    position: 'fixed' as any,
     top: 88,
     right: 16,
     zIndex: 9999,
