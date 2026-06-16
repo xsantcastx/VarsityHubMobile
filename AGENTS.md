@@ -145,3 +145,13 @@ npm run verify:error-envelope
 - **Apple IAP cert chain pins to `CN=Apple Root CA - G3`** exactly
 - **Org invite role escalation** — only owners can invite at `manager` role
 - **Payment-success non-auth errors surface on final retry** — no silent swallowing
+
+## Security & Architecture Audit Standard
+
+> Canonical full version lives in `CLAUDE.md` (`## Security & Architecture Audit Standard`), including the per-rule `Verify:` clauses. This section mirrors it for Codex; keep the two aligned when either changes.
+
+Every audit rule is one of four types — **[AUDIT]** what a reviewer checks, **[ENG]** how code must be structured, **[BIZ]** VarsityHub-specific logic, **[GATE]** objective pass/fail. Every rule must be testable (state how we know it passed). Classify findings by **exploitability × blast radius × recoverability**, not bare severity. Every finding ships with proof (files, repro, expected vs actual, fix); every fix ships with verification (typecheck, test, before/after repro, release risk).
+
+**Commandments:** Thin routes, thick features · Backend validation is law, frontend is guidance · No client-controlled security-critical state · One source of truth per domain object · Every protected action checks auth/role/plan/ownership server-side · Every async flow is idempotent · No silent failures in user or payment flows · No duplicate logic across routes/features · Every screen handles loading/error/success/empty · Every deep link fails gracefully and safely · Every admin action is auditable · Every release change is testable and reversible.
+
+**PR gate (must all pass):** client + server `tsc` 0 new errors · no unbounded `findMany` · no `req.user` without `requireAuth` · no `sgMail.send` outside providers · no hardcoded dark text colors · screens don't call `fetch` directly · `npm run audit:navigation` shows 0 REVIEW · validation parity frontend↔Zod (or `// intent:` note) · four UI states on async screens · no silent `catch {}` in auth/payment flows · webhooks/jobs idempotent · admin actions emit `AdminActivityLog` · security fix has before/after repro · schema change has migration status + rollback note.
