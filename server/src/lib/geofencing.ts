@@ -370,6 +370,12 @@ export async function verifyEventPostingPermission(
         reason: `Post-event uploads stay open until ${formatWindowDateTime(windowEnd)}, but only if you already posted to this event while it was live.`,
       };
     }
+
+    // The qualifying live post already proved this user was at the venue (the
+    // live window enforces the 3km geofence). During the post-event grace
+    // window they can keep posting recaps/highlights from anywhere — skip the
+    // venue geofence below. Live posting still requires it.
+    return { allowed: true };
   }
 
   const { venueLat, venueLon } = await resolveVenueCoordinates(event);
@@ -388,7 +394,7 @@ export async function verifyEventPostingPermission(
     return {
       allowed: false,
       code: 'LOCATION_REQUIRED',
-      reason: 'Location access required. You must be at the game venue to post.',
+      reason: 'Live event posts require current device location within 3 km of the venue.',
     };
   }
 
