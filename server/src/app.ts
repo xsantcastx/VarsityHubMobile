@@ -50,6 +50,7 @@ import { searchRouter } from './routes/search.js';
 import { shareLandingRouter } from './routes/shareLanding.js';
 import { supportRouter } from './routes/support.js';
 import { teamInvitesRouter } from './routes/team-invites.js';
+import { sendgridWebhookRouter } from './routes/sendgrid-webhook.js';
 import { teamMembershipsRouter } from './routes/team-memberships.js';
 import { teamsRouter } from './routes/teams.js';
 import { testEmailsRouter } from './routes/test-emails.js';
@@ -229,9 +230,9 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
-// Stripe webhook must be registered before body parsing so we can verify signatures
-// Special raw body parser for Stripe webhooks
-const rawBodyPaths = ['/payments/webhook'];
+// Stripe + SendGrid webhooks must be registered before body parsing so we can
+// verify signatures over the exact raw bytes.
+const rawBodyPaths = ['/payments/webhook', '/webhooks/sendgrid'];
 rawBodyPaths.forEach(path => {
   app.use(path, express.raw({ type: 'application/json', limit: '5mb' }));
 });
@@ -376,6 +377,7 @@ function mountApiRoutes(parent: any) {
   parent.use('/uploads', uploadsRouter);
   parent.use('/ads', adsRouter);
   parent.use('/payments', paymentsRouter);
+  parent.use('/webhooks/sendgrid', sendgridWebhookRouter);
   parent.use('/admin/reports', noStore, adminReportsRouter);
   parent.use('/admin', noStore, adminRouter);
   parent.use('/geocoding', noStore, geocodingRouter);
