@@ -229,45 +229,11 @@ export async function queueNotification(job: NotificationJob): Promise<string | 
   }
 }
 
-/**
- * Add an email job to the queue
- */
-export async function queueEmail(job: EmailJob): Promise<string | null> {
-  if (!queuesInitialized) await initializeQueues();
-  
-  if (emailQueue) {
-    const added = await emailQueue.add('send', job);
-    return added.id || null;
-  }
-  
-  // Fallback: process immediately using EmailService
-  console.log('[Jobs] Fallback: Processing email immediately');
-  try {
-    const { getEmailService } = await import('../services/email/service.js');
-    const emailService = getEmailService();
-    const result = job.template && job.templateData
-      ? await emailService.send({
-          to: job.to,
-          subject: job.subject || '',
-          templateId: job.template,
-          templateData: job.templateData,
-        })
-      : await emailService.send({
-          to: job.to,
-          subject: job.subject || '',
-          text: job.text,
-          html: job.html,
-        });
-    if (!result.success) {
-      console.error('[Jobs] Fallback email failed:', result.error);
-      return null;
-    }
-    return 'immediate';
-  } catch (error) {
-    console.error('[Jobs] Fallback email failed:', error);
-    return null;
-  }
-}
+// NOTE: There is intentionally no `queueEmail()` enqueue path. Emails are sent
+// synchronously via `sendTemplateEmail` → EmailService → SendGridProvider
+// (direct send with inline retry). The `emailQueue` below has no consumer
+// worker, so enqueueing here would silently strand jobs in Redis. It is kept
+// only so the overnight health-check can report on it; do not add producers.
 
 /**
  * Add an analytics event to the queue
