@@ -1047,11 +1047,13 @@ function CommunityDiscoverScreen() {
           <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
         </View>
       ) : unifiedSearchResults ? (
-        <View
+        <ScrollView
           style={[
             styles.unifiedSearchResults,
             { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
           ]}
+          nestedScrollEnabled
+          keyboardShouldPersistTaps="handled"
         >
           {unifiedSearchResults.users.length > 0 ? (
             <View style={styles.searchSection}>
@@ -1527,7 +1529,7 @@ function CommunityDiscoverScreen() {
               </Text>
             </View>
           ) : null}
-        </View>
+        </ScrollView>
       ) : null}
 
       {/* Calendar - Right below search */}

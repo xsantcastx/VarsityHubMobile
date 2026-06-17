@@ -44,15 +44,16 @@ describe('coach flow structural invariants', () => {
       expect(/customerservice@varsityhub\.app/.test(adminEmails)).toBe(true);
     });
 
-    it('league approval request notification uses getAllAdminEmails', () => {
+    it('league approval request notification fans out to all admin recipients (incl. super admin)', () => {
       // email.ts::sendLeagueApprovalRequestEmail must iterate all admin recipients.
-      // Slice a generous chunk after the declaration and assert the helper is
-      // referenced there; don't try to regex-match a closing brace across ~40
-      // lines of nested code.
+      // It now uses getApprovalNotificationEmails (a superset of getAllAdminEmails
+      // that always includes the super admin) so new-org approvals can't be
+      // diverted away from customer service. Slice a generous chunk after the
+      // declaration and assert the helper is referenced there.
       const startIdx = email.indexOf('export async function sendLeagueApprovalRequestEmail');
       expect(startIdx).toBeGreaterThanOrEqual(0);
       const fnBody = email.slice(startIdx, startIdx + 2000);
-      expect(/getAllAdminEmails/.test(fnBody)).toBe(true);
+      expect(/getApprovalNotificationEmails/.test(fnBody)).toBe(true);
     });
 
     it('coach approval/rejection admin confirmations use getAllAdminEmails', () => {

@@ -304,8 +304,8 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
     }
 
     if (!bypassApproval) {
-      const { getAllAdminEmails } = await import('../lib/adminEmails.js');
-      const adminEmails = getAllAdminEmails();
+      const { getApprovalNotificationEmails } = await import('../lib/adminEmails.js');
+      const adminEmails = getApprovalNotificationEmails();
       void Promise.all(
         adminEmails.map(to =>
           sendAdPendingReviewEmail({
@@ -750,8 +750,8 @@ adsRouter.put(
 
     // Notify admin when content changes require another moderation pass.
     if (requiresReapproval) {
-      const { getAllAdminEmails } = await import('../lib/adminEmails.js');
-      const adminEmails = getAllAdminEmails();
+      const { getApprovalNotificationEmails } = await import('../lib/adminEmails.js');
+      const adminEmails = getApprovalNotificationEmails();
       void Promise.all(
         adminEmails.map(to =>
           sendAdPendingReviewEmail({
@@ -1218,8 +1218,10 @@ async function approveAd(
   });
 }
 
-async function rejectAd(id: string, reason?: string | null) {
-  return rejectAdService(id, null, prisma, { reason: reason || undefined });
+async function rejectAd(id: string, reason?: string | null, adminId?: string | null) {
+  // Thread the acting admin through so the service's self-reject IDOR guard is
+  // live and the actor is recorded on refunds/notifications (was hardcoded null).
+  return rejectAdService(id, adminId || null, prisma, { reason: reason || undefined });
 }
 
 /** Coerce a loose "true-ish" value into a boolean. Form checkboxes, JSON booleans,
@@ -1747,7 +1749,11 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
       if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
-    const result = await rejectAd(id, req.body?.reason || (req.query?.reason as string) || null);
+    const result = await rejectAd(
+      id,
+      req.body?.reason || (req.query?.reason as string) || null,
+      req.user?.id || null
+    );
     if (result.error) {
       const summary = await loadAdModerationSummary(id);
       if (summary) {
@@ -1851,7 +1857,7 @@ adsRouter.post(
       }
       return res.json(result.ad);
     } else {
-      const result = await rejectAd(id, note);
+      const result = await rejectAd(id, note, req.user?.id || null);
       if (result.error) return res.status(result.status!).json({ error: result.error });
       return res.json(result.ad);
     }

@@ -18,6 +18,8 @@ export interface HighlightItem {
     avatar_url?: string;
   };
   has_upvoted?: boolean;
+  has_bookmarked?: boolean;
+  bookmarks_count?: number;
   lat?: number;
   lng?: number;
   country_code?: string;
