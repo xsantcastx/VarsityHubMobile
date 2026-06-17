@@ -34,6 +34,13 @@ VarsityHubMobile/
 └── scripts/                # Build and deployment scripts
 ```
 
+> **How the layers fit together:** see **[ARCHITECTURE.md](./ARCHITECTURE.md)** —
+> the verified system architecture (modular monolith on PostgreSQL + Redis +
+> Railway), the present/substituted/correctly-absent technology audit, and the
+> canonical integration patterns (one circuit breaker, one react-query client,
+> one socket.io server, `runClusterOnce` for startup-once work, RLS posture).
+> New cross-cutting code must follow those patterns rather than add a parallel one.
+
 ---
 
 ## Root Directory
