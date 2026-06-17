@@ -4,7 +4,8 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { safeGoBack } from '@/utils/navigation';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,7 +21,6 @@ import {
   isSystemNotification,
 } from '@/utils/notificationPresentation';
 import { clearNotificationBadge, syncNotificationBadge } from '@/utils/pushNotifications';
-import { retryWithBackoff } from '@/utils/retryWithBackoff';
 
 const VARSITYHUB_LOGO = require('../../../assets/images/logo.png');
 
@@ -43,47 +43,55 @@ function NotificationsScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme];
   const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<Notif[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
 
-  const load = useCallback(async (cursor?: string | null, append = false) => {
-    setLoading(!append && !refreshing);
-    setError(null);
-    try {
-      const page = await retryWithBackoff(
-        () => Notification.listPage(cursor, 20, false),
-        { maxRetries: 2 }
-      );
-      setItems((prev) => (append ? [...prev, ...page.items] : page.items));
-      setNextCursor(page.nextCursor);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load notifications');
-      if (__DEV__) console.error('Notifications load failed:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [refreshing]);
+  // react-query owns the paginated fetch: revisiting the tab serves the cached
+  // first page instantly (no spinner) and revalidates in the background. This
+  // is what kills the "loading wheel on every navigation" feel here.
+  const {
+    data,
+    isPending,
+    isError,
+    error: queryError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['notifications', user?.id ?? ''],
+    queryFn: ({ pageParam }) => Notification.listPage(pageParam, 20, false),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage: any) => lastPage?.nextCursor ?? undefined,
+    enabled: !!user,
+  });
+
+  // Mirror server pages into local state so the existing optimistic handlers
+  // (mark-read, mark-all-read, follow accept/reject) keep mutating `items`
+  // directly. A background revalidation re-flattens and reconciles from server.
+  useEffect(() => {
+    if (!data) return;
+    setItems(data.pages.flatMap((p: any) => p.items as Notif[]));
+  }, [data]);
+
+  const loading = isPending; // no cached data yet — never gate on background fetch
+  const error = isError ? ((queryError as any)?.message || 'Failed to load notifications') : null;
 
   useEffect(() => {
-    void load(null, false).catch(() => {});
     // Sync the app icon badge with server state on screen mount so the
     // count reflects reality when the user opens this tab. Best-effort;
     // failures are swallowed inside the helper.
     void syncNotificationBadge();
-  }, [load]);
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
-    void load(null, false).catch(() => {});
+    void refetch().finally(() => setRefreshing(false));
   };
   const onEndReached = () => {
-    if (nextCursor) {
-      void load(nextCursor, true).catch(() => {});
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage().catch(() => {});
     }
   };
 
@@ -216,7 +224,7 @@ function NotificationsScreen() {
           <Text style={{ color: theme.destructive, marginBottom: 12 }}>{error}</Text>
           <Pressable
             style={[S.retryButton, { backgroundColor: theme.tint }]}
-            onPress={() => void load(null, false).catch(() => {})}
+            onPress={() => void refetch()}
             accessibilityRole="button"
             accessibilityLabel="Retry loading notifications"
           >

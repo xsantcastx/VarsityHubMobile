@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { withDistributedLock } from '../lib/distributedLock.js';
+import { withDistributedLock, runClusterOnce } from '../lib/distributedLock.js';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -80,5 +80,24 @@ describe('withDistributedLock (local fallback)', () => {
 
     expect(result).toBe('ok');
     expect(attempts).toBe(2);
+  });
+});
+
+describe('runClusterOnce (no Redis = single instance)', () => {
+  it('runs the task and reports it ran when there is no Redis', async () => {
+    let ran = false;
+    const result = await runClusterOnce('backfill-x', async () => {
+      ran = true;
+    });
+    expect(ran).toBe(true);
+    expect(result).toBe(true);
+  });
+
+  it('propagates errors thrown by the task (does not swallow them as skips)', async () => {
+    await expect(
+      runClusterOnce('failing-task', async () => {
+        throw new Error('task blew up');
+      })
+    ).rejects.toThrow('task blew up');
   });
 });

@@ -13,6 +13,7 @@ import type {
 } from '../types.js';
 import { EmailErrorCode } from '../types.js';
 import { isPlaceholderSendGridApiKey, isValidSendGridApiKey } from '../../../lib/sendgridConfig.js';
+import { runWithBreaker } from '../../../lib/circuitBreaker.js';
 
 export class SendGridProvider implements EmailProvider {
   name = 'sendgrid';
@@ -108,24 +109,31 @@ export class SendGridProvider implements EmailProvider {
   }
 
   private async sendMailData(mailData: MailDataRequired): Promise<EmailResult> {
-    const sendPromise = sgMail.send(mailData);
-    const timeoutPromise = new Promise<EmailResult>(resolve => {
-      setTimeout(
-        () =>
-          resolve({
-            success: false,
-            error: 'SendGrid request timed out locally; delivery status is unknown',
-            errorCode: EmailErrorCode.DELIVERY_STATUS_UNKNOWN,
-            provider: this.name,
-          }),
-        this.timeout
-      );
-    });
-
-    const result = await Promise.race([sendPromise, timeoutPromise]);
-
-    if ('success' in result) {
-      return result;
+    // Send behind the SendGrid circuit breaker. The breaker's timeout replaces
+    // the previous manual Promise.race timeout, so a hung request both fails
+    // fast AND counts toward tripping the circuit. 4xx errors (bad recipient/
+    // template/config) are filtered out via errorFilter so they don't open the
+    // circuit — only infra failures (timeouts, 5xx, network) should.
+    let result: Awaited<ReturnType<typeof sgMail.send>>;
+    try {
+      result = await runWithBreaker('sendgrid', () => sgMail.send(mailData), {
+        timeout: this.timeout,
+        errorFilter: (err: any) => {
+          const code = err?.code ?? err?.response?.statusCode;
+          return typeof code === 'number' && code >= 400 && code < 500;
+        },
+      });
+    } catch (error: any) {
+      // Preserve the prior "timed out locally, delivery unknown" semantics.
+      if (error?.code === 'ETIMEDOUT') {
+        return {
+          success: false,
+          error: 'SendGrid request timed out locally; delivery status is unknown',
+          errorCode: EmailErrorCode.DELIVERY_STATUS_UNKNOWN,
+          provider: this.name,
+        };
+      }
+      throw error;
     }
 
     const messageId = Array.isArray(result)

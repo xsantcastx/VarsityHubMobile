@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { runWithBreaker } from './circuitBreaker.js';
 
 // Placeholder values from .env.example — treat as "not configured" so local dev fails fast
 // instead of silently failing uploads. Use real Cloudinary credentials in server/.env
@@ -169,10 +170,19 @@ export async function uploadBufferToCloudinary(
   form.set('api_key', apiKey);
   form.set('signature', signature);
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
-    method: 'POST',
-    body: form,
-  });
+  // Behind the Cloudinary upload breaker: only network-level failures reject
+  // here (HTTP 4xx/5xx are handled below via response.ok), so a thrown error
+  // means real upstream trouble and should count toward tripping. Generous
+  // timeout to accommodate large stadium video uploads.
+  const response = await runWithBreaker(
+    'cloudinary-upload',
+    () =>
+      fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
+        method: 'POST',
+        body: form,
+      }),
+    { timeout: 120000 }
+  );
 
   if (!response.ok) {
     const errorPayload = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
@@ -280,13 +290,14 @@ export async function destroyCloudinaryAsset(
     api_key: apiKey,
     signature,
   });
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/destroy`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-    }
+  const response = await runWithBreaker(
+    'cloudinary-destroy',
+    () =>
+      fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/destroy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      })
   );
   if (!response.ok) {
     const err = (await response.json().catch(() => ({}))) as { error?: { message?: string } };

@@ -2,3 +2,25 @@
 builder = "dockerfile"
 dockerfilePath = "server/Dockerfile"
 buildContext = "."
+
+[deploy]
+# Horizontal scaling for bursty stadium traffic (kickoff/halftime/final whistle).
+# The app is stateless-friendly: rate limiting, BullMQ, distributed locks, and
+# socket.io (Redis adapter) all coordinate via Redis, so replicas don't share
+# in-process state. Startup-once work (scheduler reconfig, backfills) is guarded
+# by runClusterOnce so it runs on a single replica only.
+#
+# NOTE: numReplicas increases cost and only takes effect after Railway redeploys
+# this service. Requires REDIS_URL set (for cross-replica socket fanout + locks).
+numReplicas = 2
+
+# Railway routes health probes here; an unhealthy replica is pulled from the LB.
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+
+# Keep the old replica serving until the new one is healthy (zero-downtime).
+overlapSeconds = 30
+
+# Restart a crashed replica rather than leaving capacity down.
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

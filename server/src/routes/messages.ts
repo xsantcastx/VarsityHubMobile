@@ -4,6 +4,7 @@ import { stripHtml } from '../lib/sanitizeHtml.js';
 import { sendError } from '../lib/http/sendError.js';
 import { captureException } from '../lib/sentry.js';
 import { notifyNewMessage } from '../lib/notifications.js';
+import { emitToConversation } from '../realtime/socketServer.js';
 import { prisma } from '../lib/prisma.js';
 import { getUserAge } from '../lib/userAge.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -359,6 +360,14 @@ messagesRouter.post(
           extra: { message_id: created.id, recipient_id: toId, sender_id: meId },
         });
       }
+    }
+
+    // Push the new message to anyone watching this conversation in real time.
+    // Best-effort and additive — the client also polls as a fallback.
+    try {
+      emitToConversation(convId!, 'message:new', created);
+    } catch (e) {
+      console.error('[realtime] failed to emit message:new', e);
     }
 
     return res.status(201).json(created);

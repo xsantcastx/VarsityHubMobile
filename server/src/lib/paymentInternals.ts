@@ -53,6 +53,8 @@ async function getStripe(): Promise<Stripe> {
     stripePromise = import('stripe').then(({ default: StripeCtor }) =>
       new StripeCtor(process.env.STRIPE_SECRET_KEY || 'sk_test_not_configured', {
         apiVersion: '2024-06-20',
+        timeout: 20000,
+        maxNetworkRetries: 2,
       })
     );
   }

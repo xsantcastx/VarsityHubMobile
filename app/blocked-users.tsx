@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
@@ -28,26 +29,28 @@ function BlockedUsersScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
-  const [loading, setLoading] = useState(true);
-  const [list, setList] = useState<BlockedUser[]>([]);
+  const [busy, setBusy] = useState(false);
   const [username, setUsername] = useState('');
 
-  const loadBlocked = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = (await User.blockedUsers()) as BlockedUser[];
-      setList(Array.isArray(res) ? res : []);
-    } catch (err) {
-      if (__DEV__) console.error('Failed to load blocked users', err);
-      Alert.alert('Error', 'Unable to load blocked users right now.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // react-query owns the list fetch (cached + revalidated on revisit). `busy`
+  // covers the block/unblock mutations; `loading` preserves the prior shared-
+  // spinner UX across both.
+  const {
+    data,
+    isPending,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ['blocked-users'],
+    queryFn: () => User.blockedUsers() as Promise<BlockedUser[]>,
+  });
+  const list = Array.isArray(data) ? data : [];
+  const loading = isPending || busy;
 
+  // Preserve the prior user-facing load-error alert.
   useEffect(() => {
-    void loadBlocked();
-  }, [loadBlocked]);
+    if (isError) Alert.alert('Error', 'Unable to load blocked users right now.');
+  }, [isError]);
 
   const add = useCallback(async () => {
     const trimmed = username.trim().toLowerCase();
@@ -56,39 +59,39 @@ function BlockedUsersScreen() {
       return;
     }
     try {
-      setLoading(true);
+      setBusy(true);
       const match = await User.lookupByUsername(trimmed);
       if (!match?.id) {
         Alert.alert('User not found', 'No account matches that username.');
-        setLoading(false);
+        setBusy(false);
         return;
       }
       await User.block(match.id);
       setUsername('');
-      await loadBlocked();
+      await refetch();
       Alert.alert('Blocked', `${match.display_name || trimmed} cannot message you.`);
     } catch (err: any) {
       const message = err?.response?.data?.error || err?.message || 'Unable to block user.';
       Alert.alert('Error', message);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
-  }, [username, loadBlocked]);
+  }, [username, refetch]);
 
   const remove = useCallback(
     async (userId: string) => {
       try {
-        setLoading(true);
+        setBusy(true);
         await User.unblock(userId);
-        await loadBlocked();
+        await refetch();
       } catch (err: any) {
         const message = err?.response?.data?.error || err?.message || 'Unable to unblock user.';
         Alert.alert('Error', message);
       } finally {
-        setLoading(false);
+        setBusy(false);
       }
     },
-    [loadBlocked]
+    [refetch]
   );
 
   return (
