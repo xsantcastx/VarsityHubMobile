@@ -2,7 +2,8 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   ActivityIndicator,
   FlatList,
@@ -27,29 +28,17 @@ type Item = {
 function RsvpHistoryScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [items, setItems] = useState<Item[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  const loadRsvps = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const list = (await EventApi.myRsvps()) as Item[];
-      setItems(Array.isArray(list) ? list : []);
-    } catch (error) {
-      if (__DEV__) console.error('[rsvp-history] Failed to load RSVPs:', error);
-      setError('Failed to load RSVP history. Pull down to refresh.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadRsvps();
-  }, [loadRsvps]);
+  // react-query owns the fetch: cached RSVPs render instantly on revisit.
+  const { data, isPending, isError, refetch } = useQuery({
+    queryKey: ['my-rsvps'],
+    queryFn: () => EventApi.myRsvps() as Promise<Item[]>,
+  });
+  const items: Item[] = Array.isArray(data) ? data : [];
+  const loading = isPending;
+  const error = isError ? 'Failed to load RSVP history. Pull down to refresh.' : null;
 
   // Filter items by search query and date
   const filteredItems = useMemo(() => {
@@ -200,10 +189,7 @@ function RsvpHistoryScreen() {
             {error}
           </Text>
           <TouchableOpacity
-            onPress={() => {
-              setError(null);
-              void loadRsvps();
-            }}
+            onPress={() => void refetch()}
             style={{
               backgroundColor: Colors[colorScheme].tint,
               paddingHorizontal: 24,

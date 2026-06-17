@@ -9,7 +9,8 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
 import { Organization } from '@/api/entities';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 
 type Invite = {
@@ -26,33 +27,23 @@ function OrganizationInvitesScreen() {
     typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
       ? params.fallback.trim()
       : '/(tabs)/notifications/index';
-  const [invites, setInvites] = useState<Invite[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const list = await Organization.myInvites();
-      const normalized = Array.isArray(list) ? (list as Invite[]) : [];
-      const prioritized = params.id
-        ? [...normalized].sort((a, b) => (a.id === params.id ? -1 : b.id === params.id ? 1 : 0))
-        : normalized;
-      setInvites(prioritized);
-      setError(null);
-    } catch (err: any) {
-      setError(err?.message || 'Unable to load invites');
-      setInvites([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [params.id]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  // react-query owns the fetch; the params.id prioritization is a view concern
+  // applied via useMemo so the cache key stays param-independent.
+  const { data, isPending, isError, error: queryError, refetch } = useQuery({
+    queryKey: ['org-invites'],
+    queryFn: () => Organization.myInvites() as Promise<Invite[]>,
+  });
+  const invites = useMemo(() => {
+    const normalized = Array.isArray(data) ? data : [];
+    return params.id
+      ? [...normalized].sort((a, b) => (a.id === params.id ? -1 : b.id === params.id ? 1 : 0))
+      : normalized;
+  }, [data, params.id]);
+  const loading = isPending;
+  const error = isError ? ((queryError as any)?.message || 'Unable to load invites') : null;
 
   const highlightedInviteName = useMemo(
     () => invites.find(invite => invite.id === params.id)?.organization?.name,
@@ -64,7 +55,7 @@ function OrganizationInvitesScreen() {
     setProcessingId(id);
     try {
       await Organization.acceptInvite(id);
-      await refresh();
+      await refetch();
       setModal({
         title: 'Invite Accepted',
         message: 'You are now a member of the organization.',
@@ -86,7 +77,7 @@ function OrganizationInvitesScreen() {
     setProcessingId(id);
     try {
       await Organization.declineInvite(id);
-      await refresh();
+      await refetch();
     } catch (err) {
       setModal({
         title: 'Error',

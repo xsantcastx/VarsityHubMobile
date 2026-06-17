@@ -3,7 +3,7 @@
 import { Subscriptions } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   ActivityIndicator,
   FlatList,
@@ -56,30 +56,19 @@ export default function BillingHistory() {
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
   const router = useRouter();
-  const [rows, setRows] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const res: any = await Subscriptions.history(100);
-      setRows(Array.isArray(res?.transactions) ? res.transactions : []);
-    } catch (e: any) {
-      setError(e?.data?.error || e?.message || 'Failed to load billing history.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    void load();
-  }, [load]);
+  // react-query owns the fetch: cached rows render instantly on revisit and
+  // revalidate in the background. Spinner gated on isPending (no cached data).
+  const { data, isPending, isError, error: queryError, refetch, isRefetching } = useQuery({
+    queryKey: ['billing-history'],
+    queryFn: () => Subscriptions.history(100) as Promise<{ transactions?: Transaction[] }>,
+  });
+  const rows: Transaction[] = Array.isArray(data?.transactions) ? data!.transactions! : [];
+  const loading = isPending;
+  const error = isError
+    ? ((queryError as any)?.data?.error || (queryError as any)?.message || 'Failed to load billing history.')
+    : null;
+  const refreshing = isRefetching;
+  const onRefresh = () => void refetch();
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -101,7 +90,7 @@ export default function BillingHistory() {
       ) : error ? (
         <View style={styles.center}>
           <Text style={[styles.errorText, { color: isDark ? '#F87171' : '#DC2626' }]}>{error}</Text>
-          <Pressable onPress={load} style={[styles.retryBtn, { backgroundColor: Colors[colorScheme].tint }]}>
+          <Pressable onPress={() => void refetch()} style={[styles.retryBtn, { backgroundColor: Colors[colorScheme].tint }]}>
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>
         </View>
