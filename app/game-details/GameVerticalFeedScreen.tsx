@@ -1,6 +1,7 @@
 import CollageView, { type CollageData } from '@/components/CollageView';
 import ExpandableText from '@/components/ExpandableText';
 import { Colors } from '@/constants/Colors';
+import { useScreenLoadTime } from '@/utils/perfMonitor';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { safeGoBack } from '@/utils/navigation';
@@ -704,6 +705,7 @@ function GameVerticalFeedScreen({
   const [game, setGame] = useState<GameSummary | null>(null);
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
+  useScreenLoadTime('GameVerticalFeed', loading); // dev-only perf instrumentation (no-op in prod)
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);

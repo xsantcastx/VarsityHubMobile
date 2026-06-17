@@ -3,6 +3,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useScreenLoadTime } from '@/utils/perfMonitor';
 import {
   canShowGamePoll,
   getEventPresentationPhase,
@@ -552,6 +553,9 @@ const GameDetailsScreen = () => {
 
   const [vm, setVm] = useState<GameVM | null>(null);
   const [loading, setLoading] = useState(true);
+  // Dev-only perf instrumentation (no-op in prod): logs mount->interactive ms
+  // and render count to prove this screen's waterfall cost before optimizing.
+  useScreenLoadTime('GameDetails', loading);
   const [error, setError] = useState<string | null>(null);
   const [teams, setTeams] = useState<TeamInfo[]>([]);
   const [refreshing, setRefreshing] = useState(false);

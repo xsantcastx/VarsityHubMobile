@@ -4,6 +4,7 @@ import ExpandableText from '@/components/ExpandableText';
 import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
+import { useScreenLoadTime } from '@/utils/perfMonitor';
 import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -140,6 +141,7 @@ export default function ProfileScreen() {
   const { user: userFromHook, refresh: refreshUserFromHook } = useUser(false); // Get user from hook but don't auto-load
   const { user: userFromAuth, checkAuth } = useAuth(); // Get user from AuthProvider
   const [loading, setLoading] = useState(false); // Start as false - only show loading when actually loading
+  useScreenLoadTime('Profile', loading); // dev-only perf instrumentation (no-op in prod)
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);

@@ -2,6 +2,7 @@ import { Organization, Team, User } from '@/api/entities';
 import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
+import { useScreenLoadTime } from '@/utils/perfMonitor';
 import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { calculateContrastRatio } from '@/utils/accessibility';
@@ -124,6 +125,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user: userFromAuth, checkAuth } = useAuth();
   const [loading, setLoading] = useState(false); // Start as false - only show loading when actually loading
+  useScreenLoadTime('ProfileRoot', loading); // dev-only perf instrumentation (no-op in prod)
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
   const hasLoadedOnce = useRef(false);

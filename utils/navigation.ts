@@ -6,6 +6,7 @@ import {
   NavigationHistoryContext,
   performTrackedSafeBack,
 } from '@/context/NavigationHistoryContext';
+import { markNavStart } from '@/utils/perfMonitor';
 
 /**
  * Standalone safe back for imperative use — pass the router from useRouter().
@@ -15,6 +16,7 @@ export function safeGoBack(
   router: ReturnType<typeof useRouter>,
   explicitFallback?: Href | string
 ) {
+  markNavStart(); // dev-only: time the back transition (no-op in prod)
   if (router.canGoBack()) {
     router.back();
     return;

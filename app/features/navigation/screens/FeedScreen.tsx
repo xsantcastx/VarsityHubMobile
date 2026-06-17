@@ -27,6 +27,7 @@ import {
 } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
+import { useScreenLoadTime } from '@/utils/perfMonitor';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAuthSnapshot } from '@/utils/authState';
@@ -436,6 +437,7 @@ export default function FeedScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
+  useScreenLoadTime('Feed', loading); // dev-only perf instrumentation (no-op in prod)
   const [error, setError] = useState<string | null>(null);
   const [webHydrated, setWebHydrated] = useState(Platform.OS !== 'web');
   const [games, setGames] = useState<GameItem[]>([]);
