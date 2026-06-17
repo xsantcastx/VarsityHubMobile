@@ -1,0 +1,83 @@
+# VarsityHub — System Architecture (verified)
+
+Canonical reference for how the system is actually built and how its layers fit
+together. Verified by reading the codebase and running the full suite (2026-06).
+`CLAUDE.md` and `AGENTS.md` point here; keep this the single source of truth.
+
+**One-line:** a modular monolith on **PostgreSQL + Redis + Railway**, with
+**Cloudinary** for media and **Sentry** for observability. Not microservices,
+not Kubernetes — and that is the correct choice at this scale.
+
+## What each layer actually is
+
+| Layer | Reality |
+|-------|---------|
+| Frontend | Expo SDK 54 / React Native, Expo Router (~90 file-based routes) |
+| API / backend | Express + Prisma, domain-split routes (`server/src/routes/*`) |
+| Database & storage | PostgreSQL via Prisma (47 models, ~178 indexes, `$transaction` for race-safety). Media in Cloudinary, not the DB |
+| Auth & permissions | JWT + `session_epoch` single-session (`server/src/middleware/auth.ts`), bcrypt, server-side role/plan/ownership |
+| Hosting / deploy | Railway, single Dockerfile service; `start.sh` runs `prisma migrate deploy` on **every** deploy |
+| Cloud & compute | Railway-managed; `railway.toml` `numReplicas=2` |
+| CI/CD | GitHub Actions (18 workflows) + Railway auto-deploy from `main`; EAS for binaries/OTA |
+| Security & RLS | Helmet/TLS/JWT; Postgres RLS **enabled-not-forced** (dormant defense-in-depth) |
+| Rate limiting | Redis-backed, fails closed in prod (`redisRateLimit.ts`) |
+| Caching & CDN | Redis cache (`cache.ts`, DB 2) + react-query (client) + Cloudinary CDN + Expo OTA |
+| Load balancing / scaling | Railway edge LB; multi-replica safe via `runClusterOnce` |
+| Error tracking / logs | Sentry + pino-http |
+| Availability / recovery | Health checks, retries, distributed locks, DB backup sync, circuit breaker |
+
+## Buzzword audit (what's present vs. correctly absent)
+
+- **Present:** ACID (Postgres tx), encryption (bcrypt/JWT/TLS/helmet), CI/CD,
+  database design (pg_trgm trigram search — *not* Elasticsearch), error logging
+  (Sentry/pino), caching (Redis + react-query), CDN (Cloudinary + OTA),
+  **message queues = BullMQ on Redis** (this is the SQS/Kafka/RabbitMQ role),
+  polling, S3 (GDPR data-export archives only).
+- **Substituted / platform-managed:** SQS/Kafka/RabbitMQ → BullMQ; load
+  balancer/reverse proxy/firewall → Railway edge; circuit breaker → `circuitBreaker.ts`;
+  websockets → `realtime/socketServer.ts` (pilot; polling is the fallback).
+- **Correctly ABSENT — do not add (resume-driven complexity at this scale):**
+  Kubernetes, Kafka, RabbitMQ, DynamoDB, Elasticsearch, sharding, partitioning,
+  microservices, sidecar, SFTP. "cherry-picking" is a git term, not architecture;
+  "throughput" is a metric (the real bottleneck was data-fetch latency, not structure).
+
+## Canonical integration patterns — one way to do each thing
+
+These exist so features compose *together* instead of stacking redundant
+mechanisms on top of each other. New code MUST follow the established pattern,
+not introduce a parallel one.
+
+1. **Outbound third-party calls → one circuit breaker.** Wrap network calls to
+   SendGrid / Cloudinary / Google Play / Apple in `runWithBreaker(name, fn)`
+   (`server/src/lib/circuitBreaker.ts`). Stripe is the one exception: it uses the
+   SDK's own `timeout` + `maxNetworkRetries` (all 5 client constructions), not a
+   breaker — do not also wrap Stripe calls. Don't add ad-hoc retry loops around
+   external calls; extend the breaker. *(Candidate not yet wrapped: `geocoding.ts`.)*
+2. **Screen data fetching → react-query, one client.** Use the shared
+   `lib/queryClient.ts`; gate the full-screen spinner on `isPending` (never
+   `isFetching`). Do NOT add a second QueryClient or a parallel fetch cache.
+   `PostCacheContext` is a *different* concern (cross-screen sharing of already-
+   loaded post objects), not a fetch cache — don't duplicate its role in react-query
+   or vice-versa.
+3. **Realtime → one socket.io server.** `realtime/socketServer.ts` (JWT handshake,
+   per-conversation room auth, Redis adapter for cross-replica fanout,
+   websocket-only transport). Polling is retained as a **fallback**, not removed —
+   new realtime surfaces add a socket channel and keep their poll as backstop.
+4. **Startup-once work → `runClusterOnce`.** Anything that must run on exactly one
+   replica (scheduler repeatable-job reconfig, data backfills) goes through
+   `runClusterOnce` (`distributedLock.ts`), which reuses the existing Redis lock —
+   do not invent a new leader-election mechanism. The scheduler *worker* still runs
+   on every replica.
+5. **Postgres RLS → enabled-not-forced.** Policies key on
+   `current_setting('app.current_user_id', true)`. The app connects as the owner
+   and bypasses them (dormant). NEVER `FORCE ROW LEVEL SECURITY` without first
+   adding a non-owner DB role + per-transaction `SET LOCAL app.current_user_id`
+   middleware — and remember `start.sh` auto-applies migrations to prod on deploy.
+
+## Shared coordination substrate
+
+Everything that must work across replicas coordinates through **Redis**, never
+in-process state: rate limiting (DB 1), BullMQ queues (DB 0), cache (DB 2),
+distributed locks, and the socket.io adapter. This is what makes `numReplicas>1`
+safe. If you add stateful behavior, route it through Redis or it will break under
+multiple replicas.

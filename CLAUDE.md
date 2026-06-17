@@ -22,6 +22,22 @@
 - Push notifications: Expo Server SDK (`sendPushNotification` in `server/src/lib/notifications.ts`)
 - Error tracking: Sentry with source maps
 
+## System Architecture — one way to do each thing
+
+Full verified reference: **`docs/ARCHITECTURE.md`** (keep it in sync if these change).
+This is a **modular monolith on PostgreSQL + Redis + Railway** — NOT microservices/
+Kubernetes, by design. Do not add K8s, Kafka, RabbitMQ, DynamoDB, Elasticsearch,
+sharding, partitioning, sidecars, or SFTP — they are correctly absent at this scale.
+
+Features must compose with these single patterns, never stack a parallel mechanism:
+
+- **Outbound third-party calls → `runWithBreaker(name, fn)`** (`server/src/lib/circuitBreaker.ts`) for SendGrid / Cloudinary / Google Play / Apple. Stripe is the lone exception: SDK `timeout` + `maxNetworkRetries` (all 5 client constructions) — do not also breaker-wrap Stripe. No ad-hoc retry loops around external calls.
+- **Screen data → react-query, the single `lib/queryClient.ts`.** Gate spinners on `isPending`, never `isFetching`. Never add a second QueryClient or parallel fetch cache. `PostCacheContext` is cross-screen post sharing, NOT a fetch cache — don't duplicate roles.
+- **Realtime → the single `server/src/realtime/socketServer.ts`** (JWT handshake, per-conversation room auth, Redis adapter, websocket-only). Polling stays as the fallback, not removed.
+- **Startup-once work → `runClusterOnce`** (`distributedLock.ts`) so it runs on one replica only; the scheduler worker still runs on all. Don't invent new leader election.
+- **Everything cross-replica coordinates via Redis** (rate limit DB 1, BullMQ DB 0, cache DB 2, locks, socket adapter). No in-process shared state — it breaks under `numReplicas>1` (`railway.toml`).
+- **RLS is enabled-not-forced** (dormant defense-in-depth). NEVER `FORCE` without a non-owner DB role + `SET LOCAL app.current_user_id` middleware — and remember `start.sh` runs `prisma migrate deploy` on every deploy, so any committed migration auto-applies to prod.
+
 ## Quick Start
 
 ```bash
