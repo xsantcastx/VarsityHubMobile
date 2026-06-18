@@ -2,6 +2,34 @@
 
 Use this after `npm run verify:play-store`.
 
+## ⚠️ Current blocker (as of this writing)
+
+`npm run verify:play-store` fails **one** real check:
+
+> `PERMISSION_DENIED` — `expo-eas-submit@just-stock-479818-g0.iam.gserviceaccount.com`
+> cannot access Android Publisher for `com.xsantcastx.varsityhub`.
+
+This is **not code** — it's that the app isn't established in a Play Console the
+service account can reach. Resolve via the **Play Console Tasks** below. Note the
+prerequisite: VarsityHub requires a Google Play **organization** developer account
+(a personal account gets rejected for this app's category/feature declarations);
+the app + service-account grant must live under that org account.
+
+*(The `ANDROID_HOME`/Gradle dry-run line is a local-SDK warning, not a blocker —
+EAS cloud builds provide the SDK.)*
+
+## Build prerequisites (native modules)
+
+The production AAB **must** be a fresh `eas build` that includes the native video
+modules — OTA (`eas update`) cannot add native code:
+
+- `react-native-compressor` — compresses video under the 50 MB Cloudinary cap.
+- `react-native-video-trim` — in-app trimming.
+
+A binary built before these were added will silently disable trim/compress for
+Android users (and uploads of large clips will fail). After building, smoke-test
+trim + video upload on a real Android device.
+
 ## Repo-Verified
 
 - Android build profile ships an AAB with remote EAS credentials.
