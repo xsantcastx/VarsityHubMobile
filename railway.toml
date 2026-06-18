@@ -12,7 +12,10 @@ buildContext = "."
 #
 # NOTE: numReplicas increases cost and only takes effect after Railway redeploys
 # this service. Requires REDIS_URL set (for cross-replica socket fanout + locks).
-numReplicas = 2
+# The app is multi-replica-safe (Redis-coordinated sockets/locks, runClusterOnce
+# for startup-once work). Kept at 1 to avoid doubling spend until load needs it;
+# bump to 2 (or higher) when throughput requires horizontal scale.
+numReplicas = 1
 
 # Railway routes health probes here; an unhealthy replica is pulled from the LB.
 healthcheckPath = "/health"

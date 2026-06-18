@@ -46,14 +46,17 @@ describe('discover result screen contracts', () => {
   });
 
   it('team screen rejects invalid or missing params and exits loading in all cases', () => {
-    expect(teamScreen).toContain("setError('Invalid team ID format');");
-    expect(teamScreen).toContain("setError('No team ID or name provided');");
-    expect(teamScreen).toContain('if (mounted.current) setLoading(false);');
+    // team-page reads through react-query: the error is derived from the param
+    // guards (not imperative setError) and loading is gated on isPending, so the
+    // screen always exits the spinner for invalid/missing IDs.
+    expect(teamScreen).toContain("? 'Invalid team ID format'");
+    expect(teamScreen).toContain("? 'No team ID or name provided'");
+    expect(teamScreen).toContain('teamQuery.isPending');
     expect(teamScreen).toContain(
       '<Text style={[styles.error, { color: theme.text }]}>Team not found</Text>'
     );
     expect(teamScreen).toContain(
-      '<Pressable onPress={() => void loadTeam()} style={styles.retryButton}>'
+      '<Pressable onPress={() => void teamQuery.refetch()} style={styles.retryButton}>'
     );
   });
 
