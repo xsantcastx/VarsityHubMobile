@@ -12,6 +12,7 @@ import {
     sendEventUpdatedEmail,
 } from '../lib/email.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
+import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { debugLog } from '../lib/debugLog.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
@@ -245,6 +246,19 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
         consumeResult,
       });
     }
+  }
+
+  // Audit trail — record the reviewer for the email-token / signed-in-admin path.
+  const auditAction = action === 'approve' ? 'event_approved' : 'event_rejected';
+  const auditDesc = `Event ${action === 'approve' ? 'approved' : 'rejected'} (review link)`;
+  if (reviewerUserId) {
+    await logAdminActivityFromReq(req, auditAction, 'event', eventId, auditDesc, {
+      via: tokenValid ? 'token' : 'session',
+    });
+  } else {
+    await logAdminActivity('email-token', 'email-token', auditAction, 'event', eventId, auditDesc, {
+      via: 'token',
+    });
   }
 
   return res.send(
@@ -1358,6 +1372,12 @@ eventsRouter.put(
       return res.status(result.status || 400).json({ error: msg, code: result.error });
     }
 
+    // Audit trail — record who approved (coach or admin) the event.
+    await logAdminActivityFromReq(req, 'event_approved', 'event', eventId, 'Event approved', {
+      via: 'session',
+      is_admin: isAdmin,
+    });
+
     return res.json({
       ...serializeEvent(result.event!),
       message: 'Event approved successfully!',
@@ -1418,6 +1438,12 @@ eventsRouter.put(
             : 'Can only reject pending events.';
       return res.status(result.status || 400).json({ error: msg, code: result.error });
     }
+
+    // Audit trail — record who rejected (coach or admin) the event.
+    await logAdminActivityFromReq(req, 'event_rejected', 'event', eventId, 'Event rejected', {
+      via: 'session',
+      is_admin: isAdmin,
+    });
 
     return res.json({
       ...serializeEvent(result.event!),

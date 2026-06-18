@@ -67,7 +67,9 @@ async function handleCoachReview(
 ) {
   const { id } = req.params;
   const token = typeof req.query?.token === 'string' ? req.query.token : undefined;
-  const payload = token ? verifyReviewToken<{ coachId: string; action: string }>(token) : null;
+  const payload = token
+    ? verifyReviewToken<{ coachId: string; action: string; reviewerEmail?: string }>(token)
+    : null;
   const expectedAction = action === 'approve' ? 'approve_coach' : 'reject_coach';
   const tokenValid = !!(
     token &&
@@ -146,10 +148,13 @@ async function handleCoachReview(
   if (signedInAdminSession?.email) {
     reviewerEmail = signedInAdminSession.email;
   }
+  // The token is bound to the recipient admin's email; pass it so the self-
+  // approval guard fires even on the pure email-token path (no session id).
+  const tokenReviewerEmail = payload?.reviewerEmail ?? null;
   const result =
     action === 'approve'
-      ? await approveCoach(id, reviewerUserId, prisma, { note })
-      : await rejectCoach(id, reviewerUserId, prisma, { reason: note });
+      ? await approveCoach(id, reviewerUserId, prisma, { note, reviewerEmail: tokenReviewerEmail })
+      : await rejectCoach(id, reviewerUserId, prisma, { reason: note, reviewerEmail: tokenReviewerEmail });
   if (result.error) {
     if (signedInAdmin) return res.status(result.status || 500).json({ error: result.error });
     return res

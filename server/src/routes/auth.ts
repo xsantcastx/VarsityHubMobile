@@ -2555,10 +2555,12 @@ authRouter.post(
         approveUrl: buildCoachApplicationReviewUrl({
           coachId: result.updatedUser.id,
           action: 'approve',
+          reviewerEmail: adminEmail,
         }),
         rejectUrl: buildCoachApplicationReviewUrl({
           coachId: result.updatedUser.id,
           action: 'reject',
+          reviewerEmail: adminEmail,
         }),
         supportingDocumentUrl: data.supporting_document_url,
       })
@@ -3726,10 +3728,12 @@ authRouter.post(
           approveUrl: buildCoachApplicationReviewUrl({
             coachId: updated.id,
             action: 'approve',
+            reviewerEmail: adminEmail,
           }),
           rejectUrl: buildCoachApplicationReviewUrl({
             coachId: updated.id,
             action: 'reject',
+            reviewerEmail: adminEmail,
           }),
           supportingDocumentUrl:
             typeof (updateData as any)?.supporting_document_url === 'string'

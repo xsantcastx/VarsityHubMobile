@@ -259,6 +259,10 @@ export async function approveOrganization(
   if (!org) return { error: 'Organization not found', status: 404 };
   if (org.status === 'rejected') return { error: 'Organization already rejected', status: 409 as const, finalState: 'rejected' as const };
   if (org.admin_approved) return { already: true };
+  // IDOR: an admin must not approve their own league/organization.
+  if (adminId && adminId === org.league_owner_id) {
+    return { error: 'You cannot approve your own organization', status: 403 as const };
+  }
   const owner = await resolveOrganizationOwner(prisma, orgId, org.leagueOwner);
 
   // Atomic approval: org + owner approval_status
@@ -380,6 +384,10 @@ export async function rejectOrganization(
   if (!org) return { error: 'Organization not found', status: 404 };
   if (org.status === 'rejected') return { already: true };
   if (org.admin_approved) return { error: 'Organization already approved', status: 409 as const, finalState: 'approved' as const };
+  // IDOR: an admin must not action (approve/reject) their own organization.
+  if (adminId && adminId === org.league_owner_id) {
+    return { error: 'You cannot reject your own organization', status: 403 as const };
+  }
   const owner = await resolveOrganizationOwner(prisma, orgId, org.leagueOwner);
 
   const reason = opts?.reason || null;
@@ -501,7 +509,7 @@ export async function approveCoach(
   userId: string,
   adminId: string | null,
   prisma: PrismaClient,
-  opts?: { note?: string },
+  opts?: { note?: string; reviewerEmail?: string | null },
 ) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -509,6 +517,15 @@ export async function approveCoach(
   });
   if (!user) return { error: 'User not found', status: 404 };
   if (user.approval_status !== 'PENDING') return { error: 'User is not pending approval', status: 400 };
+  // IDOR: an admin must not approve their own coach application. adminId covers
+  // the signed-in path; reviewerEmail covers the pure email-token path (no
+  // session), where the token is bound to the recipient admin's email.
+  if (
+    (adminId && adminId === userId) ||
+    (opts?.reviewerEmail && user.email && opts.reviewerEmail.toLowerCase() === user.email.toLowerCase())
+  ) {
+    return { error: 'You cannot approve your own coach application', status: 403 as const };
+  }
 
   // Check org prerequisite: if coach has an org, it must be admin_approved
   const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
@@ -650,7 +667,7 @@ export async function rejectCoach(
   userId: string,
   adminId: string | null,
   prisma: PrismaClient,
-  opts?: { reason?: string },
+  opts?: { reason?: string; reviewerEmail?: string | null },
 ) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -658,6 +675,14 @@ export async function rejectCoach(
   });
   if (!user) return { error: 'User not found', status: 404 };
   if (user.approval_status !== 'PENDING') return { error: 'User is not pending approval', status: 400 };
+  // IDOR: an admin must not action (approve/reject) their own coach application.
+  // adminId covers the session path; reviewerEmail covers the pure email-token path.
+  if (
+    (adminId && adminId === userId) ||
+    (opts?.reviewerEmail && user.email && opts.reviewerEmail.toLowerCase() === user.email.toLowerCase())
+  ) {
+    return { error: 'You cannot reject your own coach application', status: 403 as const };
+  }
 
   const reason = opts?.reason;
   const rejectedAt = new Date();
@@ -1028,6 +1053,10 @@ export async function approveEvent(
   if (event.approval_status === 'approved') return { error: 'Event already approved', status: 400 };
   if (event.approval_status === 'rejected') return { error: 'Event already rejected', status: 400 };
   if (event.approval_status !== 'pending') return { error: 'Invalid state', status: 400 };
+  // IDOR: an admin must not approve their own event submission.
+  if (adminId && adminId === event.creator_id) {
+    return { error: 'You cannot approve your own event', status: 403 as const };
+  }
 
   const guard = await prisma.event.updateMany({
     where: { id: eventId, approval_status: 'pending' },
@@ -1116,6 +1145,10 @@ export async function rejectEvent(
   if (event.approval_status === 'approved') return { error: 'Event already approved', status: 400 };
   if (event.approval_status === 'rejected') return { error: 'Event already rejected', status: 400 };
   if (event.approval_status !== 'pending') return { error: 'Invalid state', status: 400 };
+  // IDOR: an admin must not action (approve/reject) their own event submission.
+  if (adminId && adminId === event.creator_id) {
+    return { error: 'You cannot reject your own event', status: 403 as const };
+  }
 
   const reason = opts?.reason;
 

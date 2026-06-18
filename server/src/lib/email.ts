@@ -2110,6 +2110,7 @@ export function buildCoachApplicationReviewUrl(params: {
   coachId: string;
   action?: 'approve' | 'reject';
   token?: string;
+  reviewerEmail?: string;
 }): string {
   const action = params.action === 'reject' ? 'reject' : 'approve';
   const token =
@@ -2118,6 +2119,9 @@ export function buildCoachApplicationReviewUrl(params: {
       {
         coachId: params.coachId,
         action: action === 'reject' ? 'reject_coach' : 'approve_coach',
+        // Bind the token to the recipient admin so the self-approval guard can
+        // fire even on the pure email-token path (no session identity).
+        ...(params.reviewerEmail ? { reviewerEmail: params.reviewerEmail } : {}),
       },
       REVIEW_LINK_TTL
     );
