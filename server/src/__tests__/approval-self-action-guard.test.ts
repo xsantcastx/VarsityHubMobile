@@ -84,6 +84,23 @@ describe('approval self-action guard (coach)', () => {
     expect(result.error).toBeTruthy();
     expect(result.status).toBe(403);
   });
+
+  it('blocks the pure email-token path when the token recipient is the applicant (case-insensitive)', async () => {
+    // No session adminId; the self-guard must fire on the token-bound reviewerEmail.
+    const ownUser = { id: 'user-1', email: 'Coach@X.com', approval_status: 'PENDING', preferences: {} };
+    const result: any = await approveCoach('user-1', null, guardOnlyPrisma('user', ownUser), {
+      reviewerEmail: 'coach@x.com',
+    });
+    expect(result.status).toBe(403);
+  });
+
+  it('blocks rejection via the email-token path too when recipient is the applicant', async () => {
+    const ownUser = { id: 'user-1', email: 'coach@x.com', approval_status: 'PENDING', preferences: {} };
+    const result: any = await rejectCoach('user-1', null, guardOnlyPrisma('user', ownUser), {
+      reviewerEmail: 'coach@x.com',
+    });
+    expect(result.status).toBe(403);
+  });
 });
 
 describe('approval self-action guard (event)', () => {
