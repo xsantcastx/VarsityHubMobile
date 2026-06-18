@@ -121,6 +121,20 @@ export default function EventDetailScreen() {
     void load();
   }, [load]);
 
+  // Game-linked events (parades, finals games, etc.) own a Game record and
+  // belong on the rich /game/[id] template — hero, geofenced Add Story, polls,
+  // highlights. The minimal event-detail screen is only for standalone events
+  // with no Game. Forward as soon as we know the event has a game_id.
+  useEffect(() => {
+    const gameId = (event as any)?.game_id;
+    if (event && gameId) {
+      router.replace({ // nav-safe: canonical redirect to the game template (event-detail is the game-less fallback)
+        pathname: '/game/[id]',
+        params: { id: String(gameId), eventId: String((event as any).id ?? '') },
+      });
+    }
+  }, [event, router]);
+
   const attendeeCount = useMemo(() => attendeesCount, [attendeesCount]);
   const eventHasPassed = useMemo(() => {
     const iso = event?.date;
