@@ -12,7 +12,7 @@ import {
     sendEventUpdatedEmail,
 } from '../lib/email.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
-import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
+import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { debugLog } from '../lib/debugLog.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
@@ -246,6 +246,19 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
         consumeResult,
       });
     }
+  }
+
+  // Audit trail — record the reviewer for the email-token / signed-in-admin path.
+  const auditAction = action === 'approve' ? 'event_approved' : 'event_rejected';
+  const auditDesc = `Event ${action === 'approve' ? 'approved' : 'rejected'} (review link)`;
+  if (reviewerUserId) {
+    await logAdminActivityFromReq(req, auditAction, 'event', eventId, auditDesc, {
+      via: tokenValid ? 'token' : 'session',
+    });
+  } else {
+    await logAdminActivity('email-token', 'email-token', auditAction, 'event', eventId, auditDesc, {
+      via: 'token',
+    });
   }
 
   return res.send(

@@ -37,4 +37,9 @@ describe('approval actions emit AdminActivityLog (financial/admin traceability)'
   it('event rejection logs an event_rejected admin activity', () => {
     expect(events).toMatch(/logAdminActivityFromReq\([\s\S]*?['"]event_rejected['"]/);
   });
+
+  it('event email-token review path also emits an audit row', () => {
+    // The token path has no req.user, so it logs via logAdminActivity('email-token', ...).
+    expect(/logAdminActivity\(\s*['"]email-token['"]/.test(events)).toBe(true);
+  });
 });

@@ -5,6 +5,9 @@ import {
   approveOrganization,
   approveCoach,
   approveEvent,
+  rejectOrganization,
+  rejectCoach,
+  rejectEvent,
 } from '../lib/approvalService.js';
 
 // IDOR guard: an admin must not approve/reject an ad they personally own.
@@ -88,6 +91,35 @@ describe('approval self-action guard (event)', () => {
     const ownEvent = { id: 'ev1', approval_status: 'pending', creator_id: 'admin-1' };
     const result: any = await approveEvent('ev1', 'admin-1', guardOnlyPrisma('event', ownEvent));
     expect(result.error).toBeTruthy();
+    expect(result.status).toBe(403);
+  });
+});
+
+// Parity: the same guard must also block self-REJECTION (matches the ad guard,
+// which covers both approve and reject).
+describe('approval self-action guard — reject parity', () => {
+  it('blocks an admin from rejecting their own organization', async () => {
+    const ownOrg = {
+      id: 'org1',
+      name: 'My League',
+      status: 'pending',
+      admin_approved: false,
+      league_owner_id: 'admin-1',
+      leagueOwner: { id: 'admin-1' },
+    };
+    const result: any = await rejectOrganization('org1', 'admin-1', guardOnlyPrisma('organization', ownOrg));
+    expect(result.status).toBe(403);
+  });
+
+  it('blocks an admin from rejecting their own coach application', async () => {
+    const ownUser = { id: 'user-1', approval_status: 'PENDING', preferences: {} };
+    const result: any = await rejectCoach('user-1', 'user-1', guardOnlyPrisma('user', ownUser));
+    expect(result.status).toBe(403);
+  });
+
+  it('blocks an admin from rejecting their own event', async () => {
+    const ownEvent = { id: 'ev1', approval_status: 'pending', creator_id: 'admin-1' };
+    const result: any = await rejectEvent('ev1', 'admin-1', guardOnlyPrisma('event', ownEvent));
     expect(result.status).toBe(403);
   });
 });

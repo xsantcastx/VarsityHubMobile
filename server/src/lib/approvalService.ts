@@ -384,6 +384,10 @@ export async function rejectOrganization(
   if (!org) return { error: 'Organization not found', status: 404 };
   if (org.status === 'rejected') return { already: true };
   if (org.admin_approved) return { error: 'Organization already approved', status: 409 as const, finalState: 'approved' as const };
+  // IDOR: an admin must not action (approve/reject) their own organization.
+  if (adminId && adminId === org.league_owner_id) {
+    return { error: 'You cannot reject your own organization', status: 403 as const };
+  }
   const owner = await resolveOrganizationOwner(prisma, orgId, org.leagueOwner);
 
   const reason = opts?.reason || null;
@@ -666,6 +670,10 @@ export async function rejectCoach(
   });
   if (!user) return { error: 'User not found', status: 404 };
   if (user.approval_status !== 'PENDING') return { error: 'User is not pending approval', status: 400 };
+  // IDOR: an admin must not action (approve/reject) their own coach application.
+  if (adminId && adminId === userId) {
+    return { error: 'You cannot reject your own coach application', status: 403 as const };
+  }
 
   const reason = opts?.reason;
   const rejectedAt = new Date();
@@ -1128,6 +1136,10 @@ export async function rejectEvent(
   if (event.approval_status === 'approved') return { error: 'Event already approved', status: 400 };
   if (event.approval_status === 'rejected') return { error: 'Event already rejected', status: 400 };
   if (event.approval_status !== 'pending') return { error: 'Invalid state', status: 400 };
+  // IDOR: an admin must not action (approve/reject) their own event submission.
+  if (adminId && adminId === event.creator_id) {
+    return { error: 'You cannot reject your own event', status: 403 as const };
+  }
 
   const reason = opts?.reason;
 
