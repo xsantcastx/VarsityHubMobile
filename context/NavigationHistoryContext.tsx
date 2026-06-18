@@ -59,6 +59,47 @@ function segmentsToRoute(segments: string[]): string {
   return DEFAULT_FALLBACK;
 }
 
+/**
+ * Infer the most useful back-destination for a route that has no recorded
+ * history (deep links, cold starts). Maps known sub-screens to their logical
+ * parent so "back" lands somewhere meaningful instead of the feed:
+ *   - coach team-workspace routes  → that org's "teams" tab
+ *   - coach review routes          → that org's "requests" tab
+ *   - nested settings routes       → the settings index
+ *   - message detail              → the messages list
+ * Falls through to the last visited tab when provided, else DEFAULT_FALLBACK.
+ */
+export function inferContextualFallback(
+  href: string | null | undefined,
+  lastTab?: string | null
+): string {
+  if (!href) return lastTab ?? DEFAULT_FALLBACK;
+
+  const [path, queryString = ''] = href.split('?');
+  const params = new URLSearchParams(queryString);
+
+  // Coach team-workspace routes → org "teams" tab
+  if (path === '/create-team' || path === '/team-admin') {
+    const orgId = params.get('orgId');
+    if (orgId) return `/organization?id=${orgId}&tab=teams`;
+  }
+
+  // Coach review routes → org "requests" tab
+  if (path === '/organization-join-requests') {
+    const orgId = params.get('organization_id');
+    if (orgId) return `/organization?id=${orgId}&tab=requests`;
+  }
+
+  // Nested settings routes → settings index
+  if (path.startsWith('/settings/')) return '/settings';
+
+  // Message detail → messages list
+  if (path === '/message-thread') return '/messages';
+
+  // No smarter mapping → last visited tab, else the default fallback
+  return lastTab ?? DEFAULT_FALLBACK;
+}
+
 interface NavigationHistoryContextType {
   safeGoBack: (explicitFallback?: Href | string) => void;
   getFallbackRoute: () => string;
