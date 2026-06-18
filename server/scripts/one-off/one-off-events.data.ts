@@ -64,6 +64,27 @@ export interface OneOffEventDef {
 }
 
 export const EVENTS: OneOffEventDef[] = [
+  // ── Knicks Championship Parade — Canyon of Heroes (created 2026-06-17) ─────
+  // Route fits well inside the 3km story/post geofence from this single mid-route
+  // pin (Battery Park → City Hall is ~1mi; furthest end ~0.7km from the pin).
+  {
+    title: 'Knicks Championship Parade — Canyon of Heroes',
+    description:
+      "The New York Knicks' 2026 NBA Championship ticker-tape parade up the Canyon of Heroes. " +
+      'The procession heads north on Broadway from Battery Park to City Hall, where the team is ' +
+      'honored with a Key to the City. The Knicks beat the San Antonio Spurs in the Finals for ' +
+      'their third title and first since 1973. Kickoff: 10:00 AM ET.',
+    eventType: 'other',
+    dateUtc: '2026-06-18T14:00:00.000Z', // Thu Jun 18, 2026 — 10:00 AM EDT
+    location: 'Broadway & Wall St, New York, NY 10005',
+    lat: 40.7079,
+    lng: -74.0113,
+    // Banner: upload your "2026 NBA Champions" graphic in-app after creating the
+    // event (event → edit → photo). Pro-league championship art is trademarked,
+    // so it is intentionally NOT hotlinked here; the in-app upload routes your
+    // image to your own Cloudinary.
+    contactInfo: 'events@varsityhub.app',
+  },
   // ── NBA Finals 2026 — Game 5 in San Antonio (created 2026-06-10) ──────────
   {
     title: 'San Antonio Spurs vs New York Knicks — NBA Finals Game 5',
