@@ -165,12 +165,17 @@ jest.mock('date-fns', () => ({
 }));
 
 import FeedScreen from '../app/feed';
+import { queryClient } from '@/lib/queryClient';
 
 describe('Feed startup performance', () => {
   let now = new Date('2026-04-25T12:00:00.000Z').getTime();
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // FeedScreen reads games through the shared singleton queryClient; clear it
+    // so each test starts with an empty cache and the 30s staleTime math isn't
+    // polluted by the prior test's cached ['feed-games'] entry.
+    queryClient.clear();
     capturedFocusEffect = null;
     authDeferred = createDeferred<any>();
     firstGameDeferred = createDeferred<any>();
