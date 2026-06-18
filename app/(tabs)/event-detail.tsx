@@ -23,6 +23,7 @@ import { Event } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useShareLink } from '@/hooks/useShareLink';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import MatchBanner from '../components/MatchBanner';
 import RsvpSheet from '../components/RsvpSheet';
 
@@ -338,8 +339,12 @@ export default function EventDetailScreen() {
         )}
         {event && !loading && (
           <View style={{ gap: 8 }}>
-            {/* Use the event's uploaded/generated banner if present; fall back to
-                the team-logo MatchBanner for legacy events without a stored image. */}
+            {/* Banner priority:
+                1. The event's uploaded/generated image (the standard event banner).
+                2. Real game events (with team data) → team-logo MatchBanner scoreboard.
+                3. Everything else (parades, watch parties, fan events, etc.) → a clean
+                   event hero. Previously these fell through to an EMPTY MatchBanner,
+                   rendering a team-vs-team scoreboard with no teams — which looked broken. */}
             {(event as any).banner_url || (event as any).cover_image_url ? (
               <Image
                 source={{
@@ -349,7 +354,11 @@ export default function EventDetailScreen() {
                 contentFit="cover"
                 accessibilityLabel={`Banner for ${event.title || 'event'}`}
               />
-            ) : (
+            ) : (event as any)?.game ||
+              (event as any)?.homeName ||
+              (event as any)?.awayName ||
+              (event as any)?.homeLogo ||
+              (event as any)?.awayLogo ? (
               <MatchBanner
                 leftImage={(event as any)?.homeLogo ?? null}
                 rightImage={(event as any)?.awayLogo ?? null}
@@ -363,6 +372,28 @@ export default function EventDetailScreen() {
                 goingCount={attendeeCount}
                 onGoingPress={eventHasPassed ? undefined : () => setRsvpSheetVisible(true)}
               />
+            ) : (
+              <LinearGradient
+                colors={['#1D4ED8', '#7C3AED']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.eventHero}
+              >
+                <MaterialIcons name="celebration" size={52} color="rgba(255,255,255,0.95)" />
+                <Text numberOfLines={2} style={styles.eventHeroTitle}>
+                  {event.title || 'Event'}
+                </Text>
+                {!eventHasPassed && (
+                  <Pressable
+                    onPress={() => setRsvpSheetVisible(true)}
+                    style={styles.eventHeroGoingPill}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${attendeeCount} going`}
+                  >
+                    <Text style={styles.eventHeroGoingText}>{attendeeCount} going</Text>
+                  </Pressable>
+                )}
+              </LinearGradient>
             )}
 
             <Text style={[styles.title, { color: theme.text }]}>{event.title || 'Event'}</Text>
@@ -511,6 +542,32 @@ export default function EventDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  eventHero: {
+    width: '100%',
+    height: 220,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    overflow: 'hidden',
+  },
+  eventHeroTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  eventHeroGoingPill: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  eventHeroGoingText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   title: { fontSize: 22, fontWeight: '800' },
   meta: {},
   error: { color: '#b91c1c' },
