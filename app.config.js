@@ -105,7 +105,7 @@ module.exports = ({ config }) => {
           'VarsityHub uses your photo library so you can select existing photos and videos to share in team posts or set as your profile picture.',
         NSLocationWhenInUseUsageDescription:
           'VarsityHub uses your location to display nearby games, tournaments, and team events on the map.',
-        NSPrivacyPolicyURL: 'https://varsityhub.app/privacy-policy',
+        NSPrivacyPolicyURL: 'https://limeprod.com/VarsityHubPrivacy',
         CFBundleURLTypes: [
           {
             CFBundleURLSchemes: [
@@ -264,7 +264,7 @@ module.exports = ({ config }) => {
       EXPO_PUBLIC_NODE_ENV: publicNodeEnv,
       EXPO_PUBLIC_APP_SCHEME: 'varsityhubmobile',
       EXPO_PUBLIC_WEB_BASE_URL: 'https://varsityhub.app',
-      APP_STORE_PRIVACY_POLICY_URL: 'https://varsityhub.app/privacy-policy',
+      APP_STORE_PRIVACY_POLICY_URL: 'https://limeprod.com/VarsityHubPrivacy',
 
       // Sensitive values — loaded from environment variables
       EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN || '',
