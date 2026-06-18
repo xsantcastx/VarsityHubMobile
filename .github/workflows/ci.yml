@@ -87,6 +87,9 @@ jobs:
           GIT_BASE_SHA="$BASE_SHA" GIT_HEAD_SHA="HEAD" npm run verify:async-handlers
           GIT_BASE_SHA="$BASE_SHA" GIT_HEAD_SHA="HEAD" npm run verify:error-envelope
 
+      - name: Check for phantom dependencies (imported but not installed)
+        run: npm run check:deps
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
