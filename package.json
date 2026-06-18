@@ -57,6 +57,7 @@
     "audit:app": "bash scripts/comprehensive-app-audit.sh",
     "audit:pre-release": "bash scripts/pre-release-audit.sh",
     "audit:navigation": "bash scripts/audit-navigation.sh",
+    "check:deps": "node scripts/check-phantom-deps.cjs",
     "audit:navigation:fail": "bash scripts/audit-navigation.sh --fail",
     "dev:rebuild": "bash scripts/ensure-latest-dev-client.sh",
     "verify:version": "bash scripts/verify-latest-version.sh",
@@ -123,6 +124,7 @@
     "expo-dev-client": "~6.0.21",
     "expo-device": "~8.0.9",
     "expo-document-picker": "~14.0.7",
+    "expo-file-system": "~19.0.23",
     "expo-font": "~14.0.12",
     "expo-haptics": "~15.0.7",
     "expo-image": "~3.0.8",
@@ -150,6 +152,7 @@
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-calendars": "^1.1313.0",
+    "react-native-compressor": "^1.16.0",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-google-places-autocomplete": "^2.6.4",
     "react-native-iap": "^14.7.14",
@@ -167,6 +170,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@jest/globals": "^29.7.0",
     "@playwright/test": "^1.40.1",
     "@react-native-community/cli": "^14.0.1",
     "@testing-library/jest-native": "^5.4.3",

@@ -173,6 +173,10 @@ module.exports = ({ config }) => {
     },
     plugins: [
       'expo-router',
+      // Native video compressor — required so videos are downscaled below the
+      // 50 MB Cloudinary cap before upload. Needs a new native build to take
+      // effect (OTA cannot add native modules).
+      'react-native-compressor',
       [
         'expo-splash-screen',
         {
