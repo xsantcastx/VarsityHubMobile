@@ -78,9 +78,11 @@ function getBreaker(name: string, options?: BreakerOptions): CircuitBreaker<[() 
   });
   breaker.on('halfOpen', () => {
     console.warn(`[circuitBreaker] "${name}" HALF-OPEN — sending trial request`);
+    captureMessage(`Circuit breaker half-open: ${name}`, 'info', { circuit: name });
   });
   breaker.on('close', () => {
     console.info(`[circuitBreaker] "${name}" CLOSED — upstream recovered`);
+    captureMessage(`Circuit breaker recovered (closed): ${name}`, 'info', { circuit: name });
   });
 
   breakers.set(name, breaker);
