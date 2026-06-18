@@ -35,12 +35,7 @@ function BlockedUsersScreen() {
   // react-query owns the list fetch (cached + revalidated on revisit). `busy`
   // covers the block/unblock mutations; `loading` preserves the prior shared-
   // spinner UX across both.
-  const {
-    data,
-    isPending,
-    isError,
-    refetch,
-  } = useQuery({
+  const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['blocked-users'],
     queryFn: () => User.blockedUsers() as Promise<BlockedUser[]>,
   });

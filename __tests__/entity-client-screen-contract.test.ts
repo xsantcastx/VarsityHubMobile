@@ -41,7 +41,9 @@ describe('entity client screen contract', () => {
     expect(entities).toContain('followed: (): Promise<any> =>');
     expect(entities).toContain("httpGet('/follows/teams?user_id=me').then(data =>");
 
-    expect(followedTeams).toContain('const rows = await Team.followed() as FollowedTeam[];');
+    // followed-teams now reads via react-query; the shared Team.followed() helper
+    // is still the source (no raw httpGet), which is what this contract guards.
+    expect(followedTeams).toContain('Team.followed() as Promise<FollowedTeam[]>');
     expect(followedTeams).not.toContain("httpGet('/follows/teams?user_id=me')");
 
     expect(createFanEvent).toContain('Event.mine()');

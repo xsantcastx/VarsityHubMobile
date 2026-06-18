@@ -1,15 +1,15 @@
 import {
-    isEmailVerificationRequiredError,
-    openVerificationGate,
+  isEmailVerificationRequiredError,
+  openVerificationGate,
 } from '@/hooks/useVerificationGate';
 import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { emitSessionExpired } from '@/utils/sessionEvents';
 import auth from './auth';
 import {
-    getAccessTokenForRequest,
-    getApiBaseUrl,
-    refreshAccessTokenWithCache,
-    type RefreshOutcome,
+  getAccessTokenForRequest,
+  getApiBaseUrl,
+  refreshAccessTokenWithCache,
+  type RefreshOutcome,
 } from './http';
 
 function computeBase(provided?: string | null) {
@@ -528,7 +528,8 @@ export async function uploadFile(
       }
     } catch (retryErr: any) {
       directErr = retryErr;
-      if (__DEV__) console.warn('[upload] Video direct upload retry also failed:', retryErr?.message);
+      if (__DEV__)
+        console.warn('[upload] Video direct upload retry also failed:', retryErr?.message);
     }
     const videoUploadErr: any = new Error(
       'Video upload failed. Please check your connection and try again.'
@@ -612,7 +613,8 @@ export async function uploadFileWithProgress(
       }
     } catch (retryErr: any) {
       directErr = retryErr;
-      if (__DEV__) console.warn('[upload] Video direct upload retry also failed:', retryErr?.message);
+      if (__DEV__)
+        console.warn('[upload] Video direct upload retry also failed:', retryErr?.message);
     }
     const videoUploadErr: any = new Error(
       'Video upload failed. Please check your connection and try again.'

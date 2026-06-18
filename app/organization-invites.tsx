@@ -28,11 +28,19 @@ function OrganizationInvitesScreen() {
       ? params.fallback.trim()
       : '/(tabs)/notifications/index';
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
+  const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(
+    null
+  );
 
   // react-query owns the fetch; the params.id prioritization is a view concern
   // applied via useMemo so the cache key stays param-independent.
-  const { data, isPending, isError, error: queryError, refetch } = useQuery({
+  const {
+    data,
+    isPending,
+    isError,
+    error: queryError,
+    refetch,
+  } = useQuery({
     queryKey: ['org-invites'],
     queryFn: () => Organization.myInvites() as Promise<Invite[]>,
   });
@@ -43,7 +51,7 @@ function OrganizationInvitesScreen() {
       : normalized;
   }, [data, params.id]);
   const loading = isPending;
-  const error = isError ? ((queryError as any)?.message || 'Unable to load invites') : null;
+  const error = isError ? (queryError as any)?.message || 'Unable to load invites' : null;
 
   const highlightedInviteName = useMemo(
     () => invites.find(invite => invite.id === params.id)?.organization?.name,
@@ -97,28 +105,37 @@ function OrganizationInvitesScreen() {
       onBack={() => {
         safeGoBack(router, explicitFallback);
       }}
-      subtitle={highlightedInviteName ? (
-        <Text style={[sharedStyles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-          Invitation for {highlightedInviteName}
-        </Text>
-      ) : null}
+      subtitle={
+        highlightedInviteName ? (
+          <Text style={[sharedStyles.subtitle, { color: Colors[colorScheme].mutedText }]}>
+            Invitation for {highlightedInviteName}
+          </Text>
+        ) : null
+      }
     >
-      {loading ? <View style={sharedStyles.loading}><ActivityIndicator /></View> : null}
+      {loading ? (
+        <View style={sharedStyles.loading}>
+          <ActivityIndicator />
+        </View>
+      ) : null}
       {error && !loading ? <Text style={sharedStyles.error}>{error}</Text> : null}
       {!loading && invites.length === 0 ? (
-        <Text style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText }]}>No pending invites.</Text>
+        <Text style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText }]}>
+          No pending invites.
+        </Text>
       ) : null}
       {!loading && invites.length > 0 ? (
         <FlatList
           data={invites}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           renderItem={({ item }) => (
             <View
               style={[
                 sharedStyles.card,
                 {
                   backgroundColor: Colors[colorScheme].card,
-                  borderColor: item.id === params.id ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                  borderColor:
+                    item.id === params.id ? Colors[colorScheme].tint : Colors[colorScheme].border,
                 },
               ]}
             >
@@ -134,7 +151,12 @@ function OrganizationInvitesScreen() {
                 <Button size="sm" onPress={() => accept(item.id)} disabled={!!processingId}>
                   <Text>Accept</Text>
                 </Button>
-                <Button size="sm" variant="outline" onPress={() => decline(item.id)} disabled={!!processingId}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onPress={() => decline(item.id)}
+                  disabled={!!processingId}
+                >
                   <Text>Decline</Text>
                 </Button>
               </View>

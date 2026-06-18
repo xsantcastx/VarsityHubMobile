@@ -7,7 +7,15 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { safeGoBack } from '@/utils/navigation';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Notification, User } from '@/api/entities';
@@ -29,7 +37,12 @@ type Notif = {
   type: 'FOLLOW' | 'UPVOTE' | 'COMMENT' | string;
   created_at?: string;
   read_at?: string | null;
-  actor?: { id: string; username?: string | null; display_name?: string | null; avatar_url?: string | null } | null;
+  actor?: {
+    id: string;
+    username?: string | null;
+    display_name?: string | null;
+    avatar_url?: string | null;
+  } | null;
   post?: { id: string; content?: string | null; media_url?: string | null } | null;
   comment?: { id: string; content?: string | null; post_id?: string | null } | null;
   message?: { id: string; content?: string | null; conversation_id?: string | null } | null;
@@ -76,7 +89,7 @@ function NotificationsScreen() {
   }, [data]);
 
   const loading = isPending; // no cached data yet — never gate on background fetch
-  const error = isError ? ((queryError as any)?.message || 'Failed to load notifications') : null;
+  const error = isError ? (queryError as any)?.message || 'Failed to load notifications' : null;
 
   useEffect(() => {
     // Sync the app icon badge with server state on screen mount so the
@@ -95,13 +108,13 @@ function NotificationsScreen() {
     }
   };
 
-  const hasUnread = items.some((n) => !n.read_at);
+  const hasUnread = items.some(n => !n.read_at);
   const onMarkAllRead = async () => {
     if (!hasUnread || markingAll) return;
     setMarkingAll(true);
     const now = new Date().toISOString();
     const previousItems = items;
-    const updatedItems = items.map((n) => (n.read_at ? n : { ...n, read_at: now }));
+    const updatedItems = items.map(n => (n.read_at ? n : { ...n, read_at: now }));
     setItems(updatedItems);
     try {
       await Notification.markAllRead();
@@ -117,10 +130,14 @@ function NotificationsScreen() {
     }
   };
 
-  const handleFollowRequest = async (actorId: string, action: 'accept' | 'reject', notifId: string) => {
+  const handleFollowRequest = async (
+    actorId: string,
+    action: 'accept' | 'reject',
+    notifId: string
+  ) => {
     const previousItems = items;
     // Optimistically remove the notification
-    setItems((prev) => prev.filter((n) => n.id !== notifId));
+    setItems(prev => prev.filter(n => n.id !== notifId));
     try {
       if (action === 'accept') {
         await User.acceptFollow(actorId);
@@ -146,9 +163,9 @@ function NotificationsScreen() {
       if (!item.read_at) {
         const previousItems = items;
         const now = new Date().toISOString();
-        const updated = items.map((n) => (n.id === item.id ? { ...n, read_at: now } : n));
+        const updated = items.map(n => (n.id === item.id ? { ...n, read_at: now } : n));
         setItems(updated);
-        Notification.markRead(item.id).catch((err) => {
+        Notification.markRead(item.id).catch(err => {
           if (__DEV__) console.error('Failed to mark notification as read', err);
           setItems(previousItems);
         });
@@ -174,25 +191,47 @@ function NotificationsScreen() {
             <MaterialIcons name="person" size={20} color={theme.mutedText} />
           </View>
           {/* System notifications (no sender) show VarsityHub logo */}
-          {(isSystemNotification(item) || !item.actor) ? (
-            <Image source={VARSITYHUB_LOGO} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel="VarsityHub" />
+          {isSystemNotification(item) || !item.actor ? (
+            <Image
+              source={VARSITYHUB_LOGO}
+              style={[S.avatar, S.avatarOverlay]}
+              contentFit="cover"
+              accessibilityLabel="VarsityHub"
+            />
           ) : item.actor?.avatar_url ? (
-            <Image source={{ uri: item.actor.avatar_url }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel={`${actorName} avatar`} />
+            <Image
+              source={{ uri: item.actor.avatar_url }}
+              style={[S.avatar, S.avatarOverlay]}
+              contentFit="cover"
+              accessibilityLabel={`${actorName} avatar`}
+            />
           ) : null}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[S.title, { color: Colors[colorScheme].text }]}>{title}</Text>
           {item.type === 'FOLLOW_REQUEST' && item.actor?.id ? (
             <View style={S.followRequestActions}>
-              <Pressable style={[S.followBtn, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => handleFollowRequest(item.actor!.id, 'accept', item.id)} accessibilityRole="button" accessibilityLabel="Accept follow request">
+              <Pressable
+                style={[S.followBtn, { backgroundColor: Colors[colorScheme].tint }]}
+                onPress={() => handleFollowRequest(item.actor!.id, 'accept', item.id)}
+                accessibilityRole="button"
+                accessibilityLabel="Accept follow request"
+              >
                 <Text style={S.followBtnText}>Accept</Text>
               </Pressable>
-              <Pressable style={[S.followBtn, { backgroundColor: theme.border }]} onPress={() => handleFollowRequest(item.actor!.id, 'reject', item.id)} accessibilityRole="button" accessibilityLabel="Decline follow request">
+              <Pressable
+                style={[S.followBtn, { backgroundColor: theme.border }]}
+                onPress={() => handleFollowRequest(item.actor!.id, 'reject', item.id)}
+                accessibilityRole="button"
+                accessibilityLabel="Decline follow request"
+              >
                 <Text style={[S.followBtnText, { color: Colors[colorScheme].text }]}>Decline</Text>
               </Pressable>
             </View>
           ) : subtitle ? (
-            <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text>
+            <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>
+              {subtitle}
+            </Text>
           ) : null}
         </View>
       </Pressable>
@@ -203,11 +242,18 @@ function NotificationsScreen() {
     <View style={[S.container, { backgroundColor: theme.background }]}>
       {/* Enhanced header with gradient and safe area */}
       <LinearGradient
-        colors={colorScheme === 'dark' ? [theme.card, theme.background] : [theme.card, theme.surface]}
+        colors={
+          colorScheme === 'dark' ? [theme.card, theme.background] : [theme.card, theme.surface]
+        }
         style={[S.headerGradient, { paddingTop: insets.top + 12, borderBottomColor: theme.border }]}
       >
         <View style={S.headerRow}>
-          <Pressable onPress={() => safeGoBack(router)} style={S.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+          <Pressable
+            onPress={() => safeGoBack(router)}
+            style={S.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
             <MaterialIcons name="chevron-left" size={24} color={theme.text} />
           </Pressable>
           <Text style={[S.topTitle, { color: theme.text }]}>Notifications</Text>
@@ -216,62 +262,65 @@ function NotificationsScreen() {
       </LinearGradient>
 
       <View style={{ flex: 1 }}>
-
-      {loading && !refreshing && items.length === 0 ? (
-        <View style={S.center}><ActivityIndicator color={theme.tint} /></View>
-      ) : error && items.length === 0 ? (
-        <View style={S.center}>
-          <Text style={{ color: theme.destructive, marginBottom: 12 }}>{error}</Text>
-          <Pressable
-            style={[S.retryButton, { backgroundColor: theme.tint }]}
-            onPress={() => void refetch()}
-            accessibilityRole="button"
-            accessibilityLabel="Retry loading notifications"
-          >
-            <Text style={S.retryText}>Retry</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(it) => it.id}
-          renderItem={renderItem}
-          ListHeaderComponent={hasUnread ? (
-            <View style={S.headerRow}>
-              <Pressable
-                style={[
-                  S.markAllBtn,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border,
-                  },
-                ]}
-                onPress={onMarkAllRead}
-                disabled={markingAll}
-                accessibilityRole="button"
-                accessibilityLabel={markingAll ? 'Marking all as read' : 'Mark all as read'}
-              >
-                <Text style={[S.markAllText, { color: theme.text }]}>
-                  {markingAll ? 'Marking…' : 'Mark all as read'}
+        {loading && !refreshing && items.length === 0 ? (
+          <View style={S.center}>
+            <ActivityIndicator color={theme.tint} />
+          </View>
+        ) : error && items.length === 0 ? (
+          <View style={S.center}>
+            <Text style={{ color: theme.destructive, marginBottom: 12 }}>{error}</Text>
+            <Pressable
+              style={[S.retryButton, { backgroundColor: theme.tint }]}
+              onPress={() => void refetch()}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading notifications"
+            >
+              <Text style={S.retryText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <FlatList
+            data={items}
+            keyExtractor={it => it.id}
+            renderItem={renderItem}
+            ListHeaderComponent={
+              hasUnread ? (
+                <View style={S.headerRow}>
+                  <Pressable
+                    style={[
+                      S.markAllBtn,
+                      {
+                        backgroundColor: theme.surface,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                    onPress={onMarkAllRead}
+                    disabled={markingAll}
+                    accessibilityRole="button"
+                    accessibilityLabel={markingAll ? 'Marking all as read' : 'Mark all as read'}
+                  >
+                    <Text style={[S.markAllText, { color: theme.text }]}>
+                      {markingAll ? 'Marking…' : 'Mark all as read'}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null
+            }
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            onEndReachedThreshold={0.6}
+            onEndReached={onEndReached}
+            ListEmptyComponent={
+              <View style={S.emptyContainer}>
+                <MaterialIcons name="notifications-none" size={56} color={theme.mutedText} />
+                <Text style={[S.emptyTitle, { color: theme.text }]}>All caught up!</Text>
+                <Text style={[S.emptySubtitle, { color: theme.mutedText }]}>
+                  You'll see notifications for follows, upvotes, and comments here.
                 </Text>
-              </Pressable>
-            </View>
-          ) : null}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          onEndReachedThreshold={0.6}
-          onEndReached={onEndReached}
-          ListEmptyComponent={
-            <View style={S.emptyContainer}>
-              <MaterialIcons name="notifications-none" size={56} color={theme.mutedText} />
-              <Text style={[S.emptyTitle, { color: theme.text }]}>All caught up!</Text>
-              <Text style={[S.emptySubtitle, { color: theme.mutedText }]}>
-                You'll see notifications for follows, upvotes, and comments here.
-              </Text>
-            </View>
-          }
-          contentContainerStyle={{ paddingVertical: 8 }}
-        />
-      )}
+              </View>
+            }
+            contentContainerStyle={{ paddingVertical: 8 }}
+          />
+        )}
       </View>
     </View>
   );
@@ -284,16 +333,34 @@ const S = StyleSheet.create({
   backButton: inboxHeaderSharedStyles.backButton,
   topTitle: { fontSize: 20, fontWeight: '800', flex: 1, textAlign: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
   avatarWrap: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' },
   avatar: { width: 40, height: 40, borderRadius: 20 },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
   avatarOverlay: { position: 'absolute', top: 0, left: 0 },
   title: { fontWeight: '700', color: 'transparent' }, // Will be overridden with Colors[colorScheme].text
   subtitle: { color: 'transparent', marginTop: 2 }, // Will be overridden with Colors[colorScheme].mutedText
-  markAllBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#D1D5DB' },
+  markAllBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
   markAllText: { color: 'transparent', fontWeight: '700' }, // Will be overridden with Colors[colorScheme].text
-  retryButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#3B82F6' },
+  retryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#3B82F6',
+  },
   retryText: { color: '#FFFFFF', fontWeight: '600' },
   emptyContainer: {
     alignItems: 'center',

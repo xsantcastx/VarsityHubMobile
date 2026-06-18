@@ -33,14 +33,20 @@ type Transaction = {
 function formatMoney(cents: number, currency: string): string {
   const dollars = cents / 100;
   try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: (currency || 'usd').toUpperCase() }).format(dollars);
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: (currency || 'usd').toUpperCase(),
+    }).format(dollars);
   } catch {
     return `$${dollars.toFixed(2)}`;
   }
 }
 
 function formatType(t: string): string {
-  return t.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  return t
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function statusColor(status: string, isDark: boolean): string {
@@ -58,14 +64,23 @@ export default function BillingHistory() {
   const router = useRouter();
   // react-query owns the fetch: cached rows render instantly on revisit and
   // revalidate in the background. Spinner gated on isPending (no cached data).
-  const { data, isPending, isError, error: queryError, refetch, isRefetching } = useQuery({
+  const {
+    data,
+    isPending,
+    isError,
+    error: queryError,
+    refetch,
+    isRefetching,
+  } = useQuery({
     queryKey: ['billing-history'],
     queryFn: () => Subscriptions.history(100) as Promise<{ transactions?: Transaction[] }>,
   });
   const rows: Transaction[] = Array.isArray(data?.transactions) ? data!.transactions! : [];
   const loading = isPending;
   const error = isError
-    ? ((queryError as any)?.data?.error || (queryError as any)?.message || 'Failed to load billing history.')
+    ? (queryError as any)?.data?.error ||
+      (queryError as any)?.message ||
+      'Failed to load billing history.'
     : null;
   const refreshing = isRefetching;
   const onRefresh = () => void refetch();
@@ -75,7 +90,12 @@ export default function BillingHistory() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { borderBottomColor: isDark ? '#1F2937' : '#E5E7EB' }]}>
         <View style={[styles.headerInner, isLargeScreen ? styles.headerInnerLarge : null]}>
-          <Pressable onPress={() => safeGoBack(router)} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back">
+          <Pressable
+            onPress={() => safeGoBack(router)}
+            style={styles.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
             <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Billing History</Text>
@@ -90,14 +110,19 @@ export default function BillingHistory() {
       ) : error ? (
         <View style={styles.center}>
           <Text style={[styles.errorText, { color: isDark ? '#F87171' : '#DC2626' }]}>{error}</Text>
-          <Pressable onPress={() => void refetch()} style={[styles.retryBtn, { backgroundColor: Colors[colorScheme].tint }]}>
+          <Pressable
+            onPress={() => void refetch()}
+            style={[styles.retryBtn, { backgroundColor: Colors[colorScheme].tint }]}
+          >
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>
         </View>
       ) : rows.length === 0 ? (
         <View style={styles.center}>
           <MaterialIcons name="receipt-long" size={56} color={Colors[colorScheme].mutedText} />
-          <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No transactions yet</Text>
+          <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
+            No transactions yet
+          </Text>
           <Text style={[styles.emptySub, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
             Subscription and ad-booking receipts will appear here.
           </Text>
@@ -105,8 +130,14 @@ export default function BillingHistory() {
       ) : (
         <FlatList
           data={rows}
-          keyExtractor={(r) => r.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors[colorScheme].tint} />}
+          keyExtractor={r => r.id}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors[colorScheme].tint}
+            />
+          }
           contentContainerStyle={[
             styles.listContent,
             isLargeScreen ? styles.listContentLarge : null,
@@ -114,13 +145,20 @@ export default function BillingHistory() {
           renderItem={({ item }) => (
             <View style={[styles.row, { borderBottomColor: isDark ? '#1F2937' : '#F3F4F6' }]}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.rowType, { color: Colors[colorScheme].text }]}>{formatType(item.type)}</Text>
+                <Text style={[styles.rowType, { color: Colors[colorScheme].text }]}>
+                  {formatType(item.type)}
+                </Text>
                 <Text style={[styles.rowDate, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
-                  {new Date(item.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                  {new Date(item.created_at).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
                 </Text>
                 {item.promo_code ? (
                   <Text style={[styles.rowPromo, { color: isDark ? '#60A5FA' : '#2563EB' }]}>
-                    Promo: {item.promo_code} (-{formatMoney(item.promo_discount_cents, item.currency)})
+                    Promo: {item.promo_code} (-
+                    {formatMoney(item.promo_discount_cents, item.currency)})
                   </Text>
                 ) : null}
               </View>
@@ -128,7 +166,9 @@ export default function BillingHistory() {
                 <Text style={[styles.rowAmount, { color: Colors[colorScheme].text }]}>
                   {formatMoney(item.amount_cents, item.currency)}
                 </Text>
-                <Text style={[styles.rowStatus, { color: statusColor(item.status, isDark) }]}>{item.status}</Text>
+                <Text style={[styles.rowStatus, { color: statusColor(item.status, isDark) }]}>
+                  {item.status}
+                </Text>
               </View>
             </View>
           )}

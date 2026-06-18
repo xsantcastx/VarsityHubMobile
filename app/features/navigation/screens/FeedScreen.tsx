@@ -1897,7 +1897,8 @@ export default function FeedScreen() {
     return null;
   }
 
-  const showEmptyState = !loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error;
+  const showEmptyState =
+    !loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error;
   const listHeader = (
     <>
       {error && (

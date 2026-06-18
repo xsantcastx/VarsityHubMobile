@@ -80,8 +80,7 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
     // upvote arrow / saved state instead of reverting to false.
     has_upvoted: typeof input.has_upvoted === 'boolean' ? input.has_upvoted : false,
     has_bookmarked: typeof input.has_bookmarked === 'boolean' ? input.has_bookmarked : false,
-    bookmarks_count:
-      typeof input.bookmarks_count === 'number' ? input.bookmarks_count : undefined,
+    bookmarks_count: typeof input.bookmarks_count === 'number' ? input.bookmarks_count : undefined,
     lat: typeof input.lat === 'number' ? input.lat : undefined,
     lng: typeof input.lng === 'number' ? input.lng : undefined,
     country_code: typeof input.country_code === 'string' ? input.country_code : undefined,

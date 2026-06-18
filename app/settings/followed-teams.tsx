@@ -22,28 +22,58 @@ function FollowedTeamsScreen() {
   });
   const items = Array.isArray(data) ? data : [];
   const loading = isPending;
-  const errorMessage = isError ? ((error as any)?.message || 'Failed to load') : null;
+  const errorMessage = isError ? (error as any)?.message || 'Failed to load' : null;
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Followed Teams', headerBackTitle: 'Back', headerShown: true }} />
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}
+      edges={['bottom']}
+    >
+      <Stack.Screen
+        options={{ title: 'Followed Teams', headerBackTitle: 'Back', headerShown: true }}
+      />
       <View style={styles.content}>
-        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Followed Teams</Text>
-        {errorMessage ? <Text style={[styles.error, { color: Colors[colorScheme ?? 'light'].destructive }]}>{errorMessage}</Text> : null}
-        {loading ? <Text style={[styles.muted, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Loading…</Text> : (
+        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>
+          Followed Teams
+        </Text>
+        {errorMessage ? (
+          <Text style={[styles.error, { color: Colors[colorScheme ?? 'light'].destructive }]}>
+            {errorMessage}
+          </Text>
+        ) : null}
+        {loading ? (
+          <Text style={[styles.muted, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+            Loading…
+          </Text>
+        ) : (
           <FlatList
             data={items}
-            keyExtractor={(it) => String(it.id)}
+            keyExtractor={it => String(it.id)}
             renderItem={({ item }) => (
-              <View style={[styles.row, { 
-                backgroundColor: Colors[colorScheme ?? 'light'].card,
-                borderColor: Colors[colorScheme ?? 'light'].border
-              }]}>
-                <Text style={[styles.rowTitle, { color: Colors[colorScheme ?? 'light'].text }]}>{item.name}</Text>
-                <Text style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}>{item.description || ''}</Text>
+              <View
+                style={[
+                  styles.row,
+                  {
+                    backgroundColor: Colors[colorScheme ?? 'light'].card,
+                    borderColor: Colors[colorScheme ?? 'light'].border,
+                  },
+                ]}
+              >
+                <Text style={[styles.rowTitle, { color: Colors[colorScheme ?? 'light'].text }]}>
+                  {item.name}
+                </Text>
+                <Text
+                  style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}
+                >
+                  {item.description || ''}
+                </Text>
               </View>
             )}
             ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-            ListEmptyComponent={<Text style={[styles.muted, { color: Colors[colorScheme ?? 'light'].mutedText }]}>No followed teams yet.</Text>}
+            ListEmptyComponent={
+              <Text style={[styles.muted, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+                No followed teams yet.
+              </Text>
+            }
           />
         )}
       </View>
@@ -61,6 +91,5 @@ const styles = StyleSheet.create({
   row: { padding: 12, borderRadius: 12, borderWidth: 1 },
   rowTitle: { fontWeight: '600' },
 });
-
 
 export default FollowedTeamsScreen;
