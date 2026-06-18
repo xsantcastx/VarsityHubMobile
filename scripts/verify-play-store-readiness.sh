@@ -219,7 +219,16 @@ else
   fail "Billing flow invariants for Play policy are missing or have drifted"
 fi
 
-if bash -lc 'cd "'"$PROJECT_ROOT"'" && export JAVA_HOME=$(/usr/libexec/java_home -v 17) && export PATH="$JAVA_HOME/bin:$PATH" && ./android/gradlew -p android bundleRelease -m >/dev/null'; then
+# The local Gradle dry-run needs the Android SDK. EAS cloud builds always have it,
+# so a missing LOCAL SDK is not a release blocker — warn (skip) instead of failing,
+# and only run the real check when an SDK is actually configured.
+ANDROID_SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+if [ -z "$ANDROID_SDK_DIR" ] && [ -f "$PROJECT_ROOT/android/local.properties" ]; then
+  ANDROID_SDK_DIR="$(grep -E '^sdk.dir=' "$PROJECT_ROOT/android/local.properties" | cut -d= -f2- || true)"
+fi
+if [ -z "$ANDROID_SDK_DIR" ] || [ ! -d "$ANDROID_SDK_DIR" ]; then
+  warn "Skipping local bundleRelease Gradle dry-run — no Android SDK locally (set ANDROID_HOME to enable). EAS cloud builds provide the SDK; not a release blocker."
+elif bash -lc 'cd "'"$PROJECT_ROOT"'" && export JAVA_HOME=$(/usr/libexec/java_home -v 17) && export PATH="$JAVA_HOME/bin:$PATH" && ./android/gradlew -p android bundleRelease -m >/dev/null'; then
   pass "Gradle can configure bundleRelease for Play upload"
 else
   fail "bundleRelease Gradle dry-run failed"
