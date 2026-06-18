@@ -259,6 +259,10 @@ export async function approveOrganization(
   if (!org) return { error: 'Organization not found', status: 404 };
   if (org.status === 'rejected') return { error: 'Organization already rejected', status: 409 as const, finalState: 'rejected' as const };
   if (org.admin_approved) return { already: true };
+  // IDOR: an admin must not approve their own league/organization.
+  if (adminId && adminId === org.league_owner_id) {
+    return { error: 'You cannot approve your own organization', status: 403 as const };
+  }
   const owner = await resolveOrganizationOwner(prisma, orgId, org.leagueOwner);
 
   // Atomic approval: org + owner approval_status
@@ -509,6 +513,10 @@ export async function approveCoach(
   });
   if (!user) return { error: 'User not found', status: 404 };
   if (user.approval_status !== 'PENDING') return { error: 'User is not pending approval', status: 400 };
+  // IDOR: an admin must not approve their own coach application.
+  if (adminId && adminId === userId) {
+    return { error: 'You cannot approve your own coach application', status: 403 as const };
+  }
 
   // Check org prerequisite: if coach has an org, it must be admin_approved
   const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
@@ -1028,6 +1036,10 @@ export async function approveEvent(
   if (event.approval_status === 'approved') return { error: 'Event already approved', status: 400 };
   if (event.approval_status === 'rejected') return { error: 'Event already rejected', status: 400 };
   if (event.approval_status !== 'pending') return { error: 'Invalid state', status: 400 };
+  // IDOR: an admin must not approve their own event submission.
+  if (adminId && adminId === event.creator_id) {
+    return { error: 'You cannot approve your own event', status: 403 as const };
+  }
 
   const guard = await prisma.event.updateMany({
     where: { id: eventId, approval_status: 'pending' },

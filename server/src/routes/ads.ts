@@ -7,6 +7,7 @@ import {
     getAdBoundingBoxDegrees,
 } from '../lib/adGeofencing.js';
 import { releaseExpiredPendingApprovalReservationsForAd } from '../lib/adReservationLifecycle.js';
+import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { APP_REVIEW_EMAIL } from '../lib/appReviewFixture.js';
 import {
     approveAd as approveAdService,
@@ -1643,6 +1644,21 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       }
     }
 
+    // Audit trail — ad approval is a financial admin action (can resume billing /
+    // go-live). Cover both the session-admin and email-token reviewer paths.
+    const approveDesc = `Ad approved${note ? `: ${note}` : ''}`;
+    if (req.user?.id) {
+      await logAdminActivityFromReq(req, 'ad_approved', 'ad', id, approveDesc, {
+        via: 'session',
+        banner_override: !!bannerOverride,
+      });
+    } else {
+      await logAdminActivity('email-token', 'email-token', 'ad_approved', 'ad', id, approveDesc, {
+        via: 'token',
+        banner_override: !!bannerOverride,
+      });
+    }
+
     return req.method === 'POST' && token
       ? res.send(
           confirmationPage(
@@ -1785,6 +1801,17 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
           consumeResult,
         });
       }
+    }
+
+    // Audit trail — ad rejection is a financial admin action (can trigger refund).
+    const rejectReason = req.body?.reason || (req.query?.reason as string) || null;
+    const rejectDesc = `Ad rejected${rejectReason ? `: ${rejectReason}` : ''}`;
+    if (req.user?.id) {
+      await logAdminActivityFromReq(req, 'ad_rejected', 'ad', id, rejectDesc, { via: 'session' });
+    } else {
+      await logAdminActivity('email-token', 'email-token', 'ad_rejected', 'ad', id, rejectDesc, {
+        via: 'token',
+      });
     }
 
     return req.method === 'POST' && token
