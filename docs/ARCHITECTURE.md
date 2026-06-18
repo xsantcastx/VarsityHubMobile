@@ -52,7 +52,7 @@ not introduce a parallel one.
    (`server/src/lib/circuitBreaker.ts`). Stripe is the one exception: it uses the
    SDK's own `timeout` + `maxNetworkRetries` (all 5 client constructions), not a
    breaker — do not also wrap Stripe calls. Don't add ad-hoc retry loops around
-   external calls; extend the breaker. *(Candidate not yet wrapped: `geocoding.ts`.)*
+   external calls; extend the breaker (now also wraps `geocoding.ts` → Google Maps).
 2. **Screen data fetching → react-query, one client.** Use the shared
    `lib/queryClient.ts`; gate the full-screen spinner on `isPending` (never
    `isFetching`). Do NOT add a second QueryClient or a parallel fetch cache.
