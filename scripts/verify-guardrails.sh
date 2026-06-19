@@ -73,6 +73,17 @@ check_no_matches \
   app components hooks utils \
   --glob '!**/__tests__/**'
 
+# Emails MUST go through EmailService/sendTemplateEmail; only the centralized
+# SendGrid provider may call sgMail.send directly (P0 invariant). Previously this
+# only ran in the manually-invoked pre-release audit — promote it to the commit
+# gate so a bypass can't land. Excludes the provider and test files.
+check_no_matches \
+  "sgMail.send outside the centralized SendGrid provider — route email through EmailService" \
+  "sgMail\.send" \
+  server/src \
+  --glob '!**/providers/SendGridProvider.ts' \
+  --glob '!**/__tests__/**'
+
 if ! rg -n "getNotificationHref|getNotificationTitle" app/feed.tsx "app/(tabs)/notifications/index.tsx" >/dev/null 2>&1; then
   echo "Guardrail failed: feed and notifications screen must use utils/notificationPresentation.ts"
   exit 1

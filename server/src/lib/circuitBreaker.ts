@@ -7,7 +7,7 @@
  * instead of hanging, then a half-open trial probes for recovery.
  *
  * Usage:
- *   await runWithBreaker('sendgrid', () => sgMail.send(mailData));
+ *   await runWithBreaker('sendgrid', () => emailProvider.send(mailData));
  *
  * Callers that surface HTTP should map CircuitOpenError -> 503 so clients retry.
  */
