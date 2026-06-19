@@ -2194,9 +2194,10 @@ export async function sendLeagueApprovalRequestEmail(params: {
     token: params.rejectToken,
   });
 
-  // v1.0.2 audit fix: send to ALL admin emails, not just the first
-  const { getAllAdminEmails } = await import('./adminEmails.js');
-  const adminEmails = getAllAdminEmails();
+  // New-org approval MUST always reach the super admin (customerservice@…),
+  // regardless of ADMIN_EMAILS config.
+  const { getApprovalNotificationEmails } = await import('./adminEmails.js');
+  const adminEmails = getApprovalNotificationEmails();
 
   // Send to all admins in parallel. The requester in this flow is the
   // league-owner applicant (the one who just created the league and needs

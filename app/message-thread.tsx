@@ -26,6 +26,7 @@ import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useConversationSocket } from '@/hooks/useConversationSocket';
 import { getAuthSnapshot } from '@/utils/authState';
 import { checkDMRestriction } from '@/utils/dmRestrictions';
 import { safeGoBack } from '@/utils/navigation';
@@ -181,6 +182,27 @@ function MessageThreadScreen() {
       clearInterval(interval);
     };
   }, [appState, conversation_id, isFocused, withParam]);
+
+  // Realtime: receive new messages instantly instead of waiting up to 60s for
+  // the poll above. The poll stays as a fallback. Stable string id => the
+  // socket effect only re-joins when the conversation actually changes.
+  const effectiveConvId = useMemo(
+    () =>
+      conversation_id
+        ? String(conversation_id)
+        : (msgs.find(m => m.conversation_id)?.conversation_id ?? null),
+    [conversation_id, msgs]
+  );
+  const handleRealtimeMessage = useCallback(
+    (incoming: any) => {
+      if (!incoming?.id) return;
+      // Own messages are handled by the optimistic send() path; skip the echo.
+      if (me?.id && String(incoming.sender_id) === String(me.id)) return;
+      setMsgs(prev => (prev.some(m => m.id === incoming.id) ? prev : prev.concat(incoming)));
+    },
+    [me?.id]
+  );
+  useConversationSocket(effectiveConvId, handleRealtimeMessage);
 
   useEffect(() => {
     // Auto-scroll to bottom when messages change

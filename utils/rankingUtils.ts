@@ -18,6 +18,8 @@ export interface HighlightItem {
     avatar_url?: string;
   };
   has_upvoted?: boolean;
+  has_bookmarked?: boolean;
+  bookmarks_count?: number;
   lat?: number;
   lng?: number;
   country_code?: string;
@@ -46,19 +48,19 @@ export const calculateRanking = (
   const postDate = new Date(item.created_at);
   const hoursSincePost = (now.getTime() - postDate.getTime()) / (1000 * 60 * 60);
   const daysSincePost = hoursSincePost / 24;
-  
+
   // Check if item is in nationalTop array
   const nationalTopIndex = nationalTop.findIndex(p => p.id === item.id);
   const isNationalTop = nationalTopIndex !== -1;
-  
-  // Check if item is in ranked array  
+
+  // Check if item is in ranked array
   const rankedIndex = ranked.findIndex(p => p.id === item.id);
   const isRanked = rankedIndex !== -1;
 
   // Calculate engagement metrics
   const upvotes = item.upvotes_count || 0;
   const comments = item._count?.comments || 0;
-  const totalEngagement = upvotes + (comments * 2);
+  const totalEngagement = upvotes + comments * 2;
   const score = item._score || 0;
 
   // Simplified ranking: each tab shows its own badge type
@@ -87,12 +89,15 @@ export const calculateRanking = (
 // Calculate distance between two points in kilometers
 const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
   const R = 6371; // Earth's radius in kilometers
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
 

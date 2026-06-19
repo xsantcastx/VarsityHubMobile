@@ -16,6 +16,7 @@ dotenv.config();
 
 import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
+import { runWithBreaker } from './circuitBreaker.js';
 
 // In-memory cache for geocoded locations (location string -> coordinates)
 // Uses LRU-style eviction to prevent unbounded memory growth
@@ -123,7 +124,9 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
     // Prevents silent degradation during traffic spikes. Max 3 attempts with 250/500ms gaps.
     const fetchGeocodeWithRetry = async (u: string) => {
       for (let attempt = 0; attempt < 3; attempt++) {
-        const r = await fetch(u);
+        // Breaker wraps the network call (fails fast when Google Maps is down);
+        // OVER_QUERY_LIMIT is a 200 business response handled by the retry below.
+        const r = await runWithBreaker('google-maps', () => fetch(u), { timeout: 8000 });
         const j = await r.json();
         if (j.status !== 'OVER_QUERY_LIMIT') return j;
         if (attempt < 2) {
@@ -162,7 +165,9 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
       // If first attempt failed and we added country, try without it
       if (query !== location.trim() && (zipPattern.test(location.trim()) || canadianZipPattern.test(location.trim().replace(/\s/g, '')))) {
         const fallbackUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(location.trim())}&key=${apiKey}`;
-        const fallbackResponse = await fetch(fallbackUrl);
+        const fallbackResponse = await runWithBreaker('google-maps', () => fetch(fallbackUrl), {
+          timeout: 8000,
+        });
         const fallbackData = await fallbackResponse.json();
         
         if (fallbackData.status === 'OK' && fallbackData.results && fallbackData.results.length > 0) {

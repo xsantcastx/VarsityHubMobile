@@ -178,6 +178,42 @@ export async function withDistributedLock<T>(
   return executeWithOptionalRedisLock(options, namespacedKey, task);
 }
 
+/**
+ * Run `task` at most once per cluster: the first replica to acquire the lock
+ * runs it; the others skip immediately (no wait, no throw) and return false.
+ *
+ * For startup-once work that must NOT run concurrently across Railway replicas
+ * (scheduler repeatable-job reconfiguration, data backfills). With no Redis
+ * (local dev) the task always runs — there's only one instance anyway.
+ *
+ * Returns true if this replica ran the task, false if another replica held the
+ * lock and it was skipped.
+ */
+export async function runClusterOnce(
+  key: string,
+  task: () => Promise<void>,
+  opts?: { namespace?: string; ttlMs?: number }
+): Promise<boolean> {
+  try {
+    await withDistributedLock(
+      {
+        namespace: opts?.namespace ?? 'startup-once',
+        key,
+        ttlMs: opts?.ttlMs ?? 5 * 60 * 1000,
+        // Try once and give up — a losing replica must not block startup.
+        acquireTimeoutMs: 1,
+      },
+      task
+    );
+    return true;
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('Failed to acquire distributed lock')) {
+      return false;
+    }
+    throw err;
+  }
+}
+
 export function __resetDistributedLockStateForTests() {
   redisClientPromise = null;
   redisWarned = false;

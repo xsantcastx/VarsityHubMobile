@@ -75,3 +75,20 @@ jest.mock('react-native-gesture-handler', () => {
     TapGestureHandler: passthrough,
   };
 });
+
+// @sentry/react-native starts an AsyncExpiringMap cleanup setInterval at import
+// time (utils/sentry.ts -> import * as Sentry). That timer is created before any
+// test's fake-timers/beforeAll runs, so it leaks an open handle and prevents Jest
+// from exiting cleanly. No client test asserts on Sentry behavior (EventMap mocks
+// @/utils/sentry locally, which takes precedence), so stub the whole package with
+// a Proxy of no-ops — any Sentry.x() / new Sentry.X() becomes a harmless no-op and
+// the real timer never starts.
+jest.mock('@sentry/react-native', () => {
+  const noop = function () {} as any;
+  return new Proxy(
+    {},
+    {
+      get: () => noop,
+    }
+  );
+});

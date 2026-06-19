@@ -76,6 +76,11 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
           comments: typeof input._count.comments === 'number' ? input._count.comments : 0,
         }
       : undefined,
+    // Carry through per-user interaction state so a refetch keeps the filled
+    // upvote arrow / saved state instead of reverting to false.
+    has_upvoted: typeof input.has_upvoted === 'boolean' ? input.has_upvoted : false,
+    has_bookmarked: typeof input.has_bookmarked === 'boolean' ? input.has_bookmarked : false,
+    bookmarks_count: typeof input.bookmarks_count === 'number' ? input.bookmarks_count : undefined,
     lat: typeof input.lat === 'number' ? input.lat : undefined,
     lng: typeof input.lng === 'number' ? input.lng : undefined,
     country_code: typeof input.country_code === 'string' ? input.country_code : undefined,
@@ -682,7 +687,12 @@ function HighlightsScreen() {
 
     switch (activeTab) {
       case 'trending':
-        // TRENDING: Top 3 posts first (numbered #1, #2, #3), then algorithm
+        // TRENDING: Top 3 posts first (numbered #1, #2, #3), then algorithm.
+        // Product rule: Trending never shows posts older than 14 days, so a
+        // stale-but-viral post can't keep ranking #1.
+        filtered = filtered.filter(
+          p => Date.now() - new Date(p.created_at || 0).getTime() <= 14 * 86400000
+        );
         filtered.sort((a, b) => {
           // Calculate engagement score (upvotes + comments * 2)
           const aEngagement = (a.upvotes_count || 0) + (a._count?.comments || 0) * 2;
@@ -720,7 +730,11 @@ function HighlightsScreen() {
         return filtered; // All posts, ordered by time
 
       case 'top':
-        // TOP: Top 10 posts with most engagement, numbered #1-#10
+        // TOP: Top 10 posts with most engagement over the last month (product
+        // rule: "most engagement in a month"), numbered #1-#10.
+        filtered = filtered.filter(
+          p => Date.now() - new Date(p.created_at || 0).getTime() <= 30 * 86400000
+        );
         filtered.sort((a, b) => {
           const aInteraction = (a.upvotes_count || 0) + (a._count?.comments || 0) * 1.5;
           const bInteraction = (b.upvotes_count || 0) + (b._count?.comments || 0) * 1.5;

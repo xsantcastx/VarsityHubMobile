@@ -3,8 +3,9 @@ import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { safeGoBack } from '@/utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -38,71 +39,89 @@ export default function TeamJoinRequestsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const [requests, setRequests] = useState<JoinRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [acting, setActing] = useState<string | null>(null); // requestId being actioned
+  const queryClient = useQueryClient();
 
-  const loadRequests = useCallback(
-    async (silent = false) => {
-      if (!teamId) return;
-      if (!silent) setLoading(true);
-      setError(null);
-      try {
-        const data = await TeamMemberships.getJoinRequests(teamId);
-        setRequests(Array.isArray(data) ? (data as JoinRequest[]) : []);
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Failed to load requests');
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
+  const {
+    data,
+    isPending,
+    isError,
+    error: queryError,
+    refetch,
+    isRefetching,
+  } = useQuery({
+    queryKey: ['team-join-requests', teamId ?? ''],
+    enabled: !!teamId,
+    queryFn: async () => {
+      const result = await TeamMemberships.getJoinRequests(teamId as string);
+      return Array.isArray(result) ? (result as JoinRequest[]) : [];
     },
-    [teamId]
-  );
+  });
 
-  useEffect(() => {
-    void loadRequests();
-  }, [loadRequests]);
+  // Derived view state — same names the JSX already consumes.
+  const requests = data ?? [];
+  const loading = isPending && !!teamId;
+  const refreshing = isRefetching;
+  const error = isError
+    ? queryError instanceof Error
+      ? queryError.message
+      : 'Failed to load requests'
+    : null;
 
   const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    void loadRequests(true);
-  }, [loadRequests]);
+    void refetch();
+  }, [refetch]);
 
-  const handleApprove = useCallback(async (request: JoinRequest) => {
-    setActing(request.id);
-    try {
-      await TeamMemberships.approveJoinRequest(request.id);
-      setRequests(prev => prev.filter(r => r.id !== request.id));
-    } catch (err: unknown) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to approve request');
-    } finally {
-      setActing(null);
-    }
-  }, []);
+  // Drop the actioned request from the cache so it disappears immediately —
+  // matches the old optimistic filter, no refetch round-trip.
+  const removeFromCache = useCallback(
+    (requestId: string) => {
+      queryClient.setQueryData<JoinRequest[]>(['team-join-requests', teamId ?? ''], prev =>
+        (prev ?? []).filter(r => r.id !== requestId)
+      );
+    },
+    [queryClient, teamId]
+  );
 
-  const handleReject = useCallback((request: JoinRequest) => {
-    Alert.alert('Decline Request', `Decline ${request.user.display_name}'s request to join?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Decline',
-        style: 'destructive',
-        onPress: async () => {
-          setActing(request.id);
-          try {
-            await TeamMemberships.rejectJoinRequest(request.id);
-            setRequests(prev => prev.filter(r => r.id !== request.id));
-          } catch (err: unknown) {
-            Alert.alert('Error', err instanceof Error ? err.message : 'Failed to decline request');
-          } finally {
-            setActing(null);
-          }
+  const approveMutation = useMutation({
+    mutationFn: (requestId: string) => TeamMemberships.approveJoinRequest(requestId),
+    onSuccess: (_data, requestId) => removeFromCache(requestId),
+    onError: (err: unknown) =>
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to approve request'),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (requestId: string) => TeamMemberships.rejectJoinRequest(requestId),
+    onSuccess: (_data, requestId) => removeFromCache(requestId),
+    onError: (err: unknown) =>
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to decline request'),
+  });
+
+  // Which request id (if any) has an action in flight — drives the per-row
+  // disabled/spinner state so a button can't be double-submitted.
+  const acting =
+    (approveMutation.isPending ? (approveMutation.variables as string) : null) ??
+    (rejectMutation.isPending ? (rejectMutation.variables as string) : null);
+
+  const handleApprove = useCallback(
+    (request: JoinRequest) => {
+      approveMutation.mutate(request.id);
+    },
+    [approveMutation]
+  );
+
+  const handleReject = useCallback(
+    (request: JoinRequest) => {
+      Alert.alert('Decline Request', `Decline ${request.user.display_name}'s request to join?`, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Decline',
+          style: 'destructive',
+          onPress: () => rejectMutation.mutate(request.id),
         },
-      },
-    ]);
-  }, []);
+      ]);
+    },
+    [rejectMutation]
+  );
 
   const renderItem = useCallback(
     ({ item }: { item: JoinRequest }) => {
@@ -214,7 +233,7 @@ export default function TeamJoinRequestsScreen() {
           <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
           <Pressable
             style={[styles.retryButton, { backgroundColor: theme.tint }]}
-            onPress={() => void loadRequests()}
+            onPress={() => void refetch()}
           >
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>

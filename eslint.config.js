@@ -141,6 +141,26 @@ module.exports = [
     },
   },
   {
+    // Screens must not call the global fetch directly — network calls go through
+    // api/* (CLAUDE.md "[ENG] Screens never call fetch directly"). Migrated from
+    // the PR-checklist grep so it surfaces in-editor. Uses no-restricted-globals
+    // (not a syntactic selector) so it resolves scope: a locally-declared helper
+    // named `fetch` or a method call like `Highlights.fetch()` is NOT flagged —
+    // only a reference to the real global fetch.
+    files: ['app/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'fetch',
+          message:
+            'Screens must not call fetch directly — route requests through api/*. If genuinely unavoidable, add // eslint-disable-next-line no-restricted-globals with a justification.',
+        },
+      ],
+    },
+  },
+  {
     ignores: ['**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**'],
   },
 ];

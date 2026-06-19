@@ -43,6 +43,7 @@ import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo, reversePromoRedemption } from '../lib/promos.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
+import { runWithBreaker } from '../lib/circuitBreaker.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import { getCanonicalUserRole } from '../lib/userAuthState.js';
@@ -70,6 +71,10 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 const stripe = new StripeCtor(process.env.STRIPE_SECRET_KEY || 'sk_test_not_configured', {
   apiVersion: '2024-06-20',
+  // Bound hangs (SDK default is 80s) and retry transient network errors. All
+  // mutating calls here pass idempotencyKeys, so retries are safe.
+  timeout: 20000,
+  maxNetworkRetries: 2,
 });
 const MAX_AD_SLOTS = 2;
 const webhookEventLocks = new Map<string, Promise<any>>();
@@ -3007,12 +3012,19 @@ async function verifyAppleReceipt(receiptData: string, useSandbox = false): Prom
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
   try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-      signal: controller.signal,
-    });
+    // Breaker fails fast when Apple's verify endpoint is down; the
+    // AbortController still cancels the in-flight request on timeout.
+    const resp = await runWithBreaker(
+      'apple-verify',
+      () =>
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+          signal: controller.signal,
+        }),
+      { timeout: 12000 }
+    );
     return resp.json();
   } finally {
     clearTimeout(timeout);
@@ -3786,11 +3798,16 @@ async function getGooglePlayAccessToken(): Promise<string | null> {
     grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
     assertion,
   });
-  const response = await fetch(GOOGLE_PLAY_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
+  const response = await runWithBreaker(
+    'google-play',
+    () =>
+      fetch(GOOGLE_PLAY_TOKEN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      }),
+    { timeout: 10000 }
+  );
   if (!response.ok) {
     const text = await response.text().catch(() => '');
     throw new Error(`Google token exchange failed (${response.status}): ${text || 'no response body'}`);
@@ -3811,9 +3828,14 @@ async function verifyGooglePurchaseWithPlayApi(params: {
 
   const { packageName, productId, purchaseToken } = params;
   const url = `${GOOGLE_PLAY_API_BASE}/applications/${encodeURIComponent(packageName)}/purchases/subscriptions/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}`;
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const response = await runWithBreaker(
+    'google-play',
+    () =>
+      fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+    { timeout: 10000 }
+  );
   if (!response.ok) {
     const text = await response.text().catch(() => '');
     return {

@@ -1,0 +1,29 @@
+#!/bin/sh
+
+set -eu
+
+# Pre-push gate: run the fast, deterministic checks that otherwise only fire in
+# CI, so a broken push is caught locally instead of one CI cycle later.
+# Keep this list fast and deterministic — slow/integration suites belong in CI.
+# Emergency bypass (use sparingly, never to skip a real failure): git push --no-verify
+
+echo "Running pre-push checks..."
+
+echo "  [1/5] TypeScript (client)..."
+npm run --silent typecheck
+
+echo "  [2/5] TypeScript (server)..."
+npx tsc --noEmit --project server/tsconfig.json
+
+echo "  [3/5] Unbounded-query guard..."
+( cd server && node --experimental-vm-modules ./node_modules/jest/bin/jest.js \
+    --no-coverage --silent unbounded-queries.test.ts )
+
+echo "  [4/5] Navigation dead-end audit..."
+npm run --silent audit:navigation:fail
+
+echo "  [5/5] Route guardrails (error envelope + async handlers)..."
+npm run --silent verify:error-envelope
+npm run --silent verify:async-handlers
+
+echo "Pre-push checks passed."

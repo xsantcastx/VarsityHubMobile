@@ -42,7 +42,10 @@ export async function reconcileStripeWebhookOrphans(): Promise<StripeReconciliat
     return { scanned: 0, orphans: 0, ignored: 0, durationMs: 0, truncated: false };
   }
 
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    timeout: 20000,
+    maxNetworkRetries: 2,
+  });
   const cutoffSec = Math.floor(Date.now() / 1000) - RECONCILE_LOOKBACK_HOURS * 60 * 60;
 
   // Stripe paginates with 100/page max. For an MVP we read the first page

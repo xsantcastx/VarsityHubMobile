@@ -22,6 +22,22 @@
 - Push notifications: Expo Server SDK (`sendPushNotification` in `server/src/lib/notifications.ts`)
 - Error tracking: Sentry with source maps
 
+## System Architecture — one way to do each thing
+
+Full verified reference: **`docs/ARCHITECTURE.md`** (keep it in sync if these change).
+This is a **modular monolith on PostgreSQL + Redis + Railway** — NOT microservices/
+Kubernetes, by design. Do not add K8s, Kafka, RabbitMQ, DynamoDB, Elasticsearch,
+sharding, partitioning, sidecars, or SFTP — they are correctly absent at this scale.
+
+Features must compose with these single patterns, never stack a parallel mechanism:
+
+- **Outbound third-party calls → `runWithBreaker(name, fn)`** (`server/src/lib/circuitBreaker.ts`) for SendGrid / Cloudinary / Google Play / Apple. Stripe is the lone exception: SDK `timeout` + `maxNetworkRetries` (all 5 client constructions) — do not also breaker-wrap Stripe. No ad-hoc retry loops around external calls.
+- **Screen data → react-query, the single `lib/queryClient.ts`.** Gate spinners on `isPending`, never `isFetching`. Never add a second QueryClient or parallel fetch cache. `PostCacheContext` is cross-screen post sharing, NOT a fetch cache — don't duplicate roles.
+- **Realtime → the single `server/src/realtime/socketServer.ts`** (JWT handshake, per-conversation room auth, Redis adapter, websocket-only). Polling stays as the fallback, not removed.
+- **Startup-once work → `runClusterOnce`** (`distributedLock.ts`) so it runs on one replica only; the scheduler worker still runs on all. Don't invent new leader election.
+- **Everything cross-replica coordinates via Redis** (rate limit DB 1, BullMQ DB 0, cache DB 2, locks, socket adapter). No in-process shared state — it breaks under `numReplicas>1` (`railway.toml`).
+- **RLS is enabled-not-forced** (dormant defense-in-depth). NEVER `FORCE` without a non-owner DB role + `SET LOCAL app.current_user_id` middleware — and remember `start.sh` runs `prisma migrate deploy` on every deploy, so any committed migration auto-applies to prod.
+
 ## Quick Start
 
 ```bash
@@ -86,12 +102,12 @@ Check env vars, Railway logs, and build configs — not just source code.
 
 ### Navigation Primitive Taxonomy
 
-| Primitive | When to use | Dead-end risk |
-|-----------|-------------|---------------|
-| `safeGoBack(router, fallback)` | **Default** for all back/dismiss/cancel actions. Returns the user to where they came from. | None — fallback is only used when there's no history |
-| `router.push(route)` | Forward navigation that the user should be able to back out of. | None |
-| `router.replace(route)` | **Auth gates** (unauthenticated redirect), **onboarding linear steps** (back would break the flow), **sequential purchase flows** (payment → confirmation). Stack is cleared intentionally. | High if misused — use `// nav-safe: <reason>` to document intent |
-| `router.replace('/(tabs)')` | **Banned.** Drops all history and lands on the tab root with no back stack. Use `safeGoBack(router, '/(tabs)/feed')` instead. | Always — pre-commit guardrail blocks this |
+| Primitive                      | When to use                                                                                                                                                                                 | Dead-end risk                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `safeGoBack(router, fallback)` | **Default** for all back/dismiss/cancel actions. Returns the user to where they came from.                                                                                                  | None — fallback is only used when there's no history             |
+| `router.push(route)`           | Forward navigation that the user should be able to back out of.                                                                                                                             | None                                                             |
+| `router.replace(route)`        | **Auth gates** (unauthenticated redirect), **onboarding linear steps** (back would break the flow), **sequential purchase flows** (payment → confirmation). Stack is cleared intentionally. | High if misused — use `// nav-safe: <reason>` to document intent |
+| `router.replace('/(tabs)')`    | **Banned.** Drops all history and lands on the tab root with no back stack. Use `safeGoBack(router, '/(tabs)/feed')` instead.                                                               | Always — pre-commit guardrail blocks this                        |
 
 **When in doubt:** use `safeGoBack`. If the destination must be deterministic regardless of history (auth gate, purchase confirmation), use `router.replace` with a `// nav-safe: <reason>` comment so `npm run audit:navigation` classifies it correctly.
 
@@ -112,11 +128,12 @@ Check env vars, Railway logs, and build configs — not just source code.
 
 ## Post-mapper Consistency Rule
 
-Two post mapper functions exist and MUST stay in sync:
-- `mapHighlightToFeedPost` in `app/game-details/GameVerticalFeedScreen.tsx` — used for highlights API data
-- `toFeedPost` in `app/profile.tsx` and `app/features/navigation/screens/ProfileScreen.tsx` — used for profile post data
+Two LIVE post mapper functions exist and MUST stay in sync:
 
-**When fixing a field mapping in one, always check and fix the other.** Caption/content/title fallback chains, `has_upvoted`, `has_bookmarked`, `author` shape — if they diverge, bugs appear in one context but not the other. The regression test at `app/game-details/__tests__/GameVerticalFeedScreen.caption.test.ts` guards the caption chain.
+- `mapHighlightToFeedPost` in `app/game-details/GameVerticalFeedScreen.tsx` — used for highlights API data
+- `toFeedPost` in `app/profile.tsx` — used for profile post data (the `/profile` + `/(tabs)/profile` route)
+
+**When fixing a field mapping in one, always check and fix the other.** Caption/content/title fallback chains, `preview_url`, `has_upvoted`, `has_bookmarked`, `author` shape — if they diverge, bugs appear in one context but not the other. Enforced by `app/game-details/__tests__/post-mapper-consistency.test.ts` (parity across both live mappers) and `app/game-details/__tests__/GameVerticalFeedScreen.caption.test.ts` (caption chain). NOTE: a third copy formerly lived in `app/features/navigation/screens/ProfileScreen.tsx`; that screen was orphaned dead code and has been deleted.
 
 ## Quick Checks
 
@@ -162,6 +179,7 @@ npm run audit:navigation
 **Format before commit**: `npm run format` runs prettier across all source directories. The pre-commit hook (lint-staged) auto-formats staged files, but running it manually first avoids surprises.
 
 **Quick checks before pushing to main**:
+
 ```bash
 npm run check:conflicts         # no merge/stash markers
 npm run format:check            # all files prettier-clean
@@ -256,25 +274,29 @@ The one-page standard. Every rule is **tagged by type** and **testable** — it 
 **Finding classification:** rank every finding by **exploitability × blast radius × recoverability**, not a bare severity label (see also the P0–P3 rubric). Every finding ships with proof: affected files, exploit/repro path, expected vs actual behavior, fix strategy. Every fix ships with verification: typecheck, test, before/after repro, release-risk note.
 
 ### Threat-Model Phase (run first) — [AUDIT]
+
 Enumerate, per feature: auth bypass, privilege escalation, payment spoofing, IDOR, webhook replay, stale-cache abuse, deep-link parameter injection.
 **Verify:** each threat has a named server-side control or a written "N/A because…" note in the audit output.
 
 ### Trust Boundary Map — [AUDIT]
-| Boundary | Trust Level | Control | Verify |
-|----------|-------------|---------|--------|
-| Client → API | Untrusted | JWT-verified; never trust body fields for identity | `req.user` derives from token, not body (grep) |
-| Webhooks (Stripe/Apple) | Trusted after sig-verify | Signature check + idempotency key | replaying a captured webhook is a no-op |
-| Third-party auth (Google/Apple) | Trusted token only | Verified server-side, not client claim | server re-verifies the token, not a client flag |
-| Deep links | Untrusted | `buildRouteParams()` allowlist | unlisted param is dropped (test) |
-| Admin actions | Privileged | Must emit audit log | `AdminActivityLog` row written (test) |
+
+| Boundary                        | Trust Level              | Control                                            | Verify                                          |
+| ------------------------------- | ------------------------ | -------------------------------------------------- | ----------------------------------------------- |
+| Client → API                    | Untrusted                | JWT-verified; never trust body fields for identity | `req.user` derives from token, not body (grep)  |
+| Webhooks (Stripe/Apple)         | Trusted after sig-verify | Signature check + idempotency key                  | replaying a captured webhook is a no-op         |
+| Third-party auth (Google/Apple) | Trusted token only       | Verified server-side, not client claim             | server re-verifies the token, not a client flag |
+| Deep links                      | Untrusted                | `buildRouteParams()` allowlist                     | unlisted param is dropped (test)                |
+| Admin actions                   | Privileged               | Must emit audit log                                | `AdminActivityLog` row written (test)           |
 
 ### Source-of-Truth Rules — [BIZ]
+
 - **Plan status** — server DB only (`getCanonicalPlan()`). **Verify:** no plan decision derived from client state/props (grep screens).
 - **Approval state** — server DB only (`AdminActivityLog`). **Verify:** approval never read from component props.
 - **Org membership** — server DB only; re-fetched on protected-screen nav. **Verify:** protected screen refetches membership, not cached client flag.
 - **Payment status** — Stripe/Apple webhook confirmed; `payment-success` verifies via API. **Verify:** success screen calls the verify endpoint, not query params.
 
 ### Architecture & Validation Standards — [ENG]
+
 - **Thin routes, thick features** — `app/` is routing only; logic in `src/features/*`. **Verify:** route files contain no business logic / direct DB or `fetch`.
 - **Screens never call `fetch` directly** — go through `api/*`. **Verify:** `grep -rn "fetch(" app/` returns only allowlisted hits.
 - **No client-controlled security-critical fields** (payment/approval/role/plan). **Verify:** server ignores these on the request body (schema test).
@@ -286,6 +308,7 @@ Enumerate, per feature: auth bypass, privilege escalation, payment spoofing, IDO
 - **Every admin action is auditable** (actor/target/action/timestamp). **Verify:** audit-log row asserted in a test.
 
 ### Per-Feature Audit Steps — [AUDIT]
+
 1. Map all components: routes, schemas, DB models, frontend screens. **Verify:** component map exists in the audit note.
 2. Trace data flow: client → API → DB → response → client state. **Verify:** flow documented end-to-end.
 3. Identify every permission check point; confirm it exists server-side. **Verify:** each gate has a server test.
@@ -294,6 +317,7 @@ Enumerate, per feature: auth bypass, privilege escalation, payment spoofing, IDO
 6. Verify every `catch {}` — no silent swallowing in auth/payment/critical paths. **Verify:** grep + manual review.
 
 ### Release Gate — [GATE] (objective pass/fail)
+
 - [ ] `npx tsc --noEmit --project server/tsconfig.json` — 0 new errors
 - [ ] `npx tsc --noEmit` — 0 new errors
 - [ ] `npm run lint` — 0 errors (warnings acceptable with justification)
@@ -307,8 +331,8 @@ Enumerate, per feature: auth bypass, privilege escalation, payment spoofing, IDO
 - [ ] Schema change includes migration status, client refresh, and rollback note
 
 ### Deck-friendly commandments (the short version)
-Thin routes, thick features · Backend validation is law, frontend is guidance · No client-controlled security-critical state · One source of truth per domain object · Every protected action checks auth/role/plan/ownership server-side · Every async flow is idempotent · No silent failures in user or payment flows · No duplicate logic across routes/features · Every screen handles loading/error/success/empty · Every deep link fails gracefully and safely · Every admin action is auditable · Every release change is testable and reversible.
 
+Thin routes, thick features · Backend validation is law, frontend is guidance · No client-controlled security-critical state · One source of truth per domain object · Every protected action checks auth/role/plan/ownership server-side · Every async flow is idempotent · No silent failures in user or payment flows · No duplicate logic across routes/features · Every screen handles loading/error/success/empty · Every deep link fails gracefully and safely · Every admin action is auditable · Every release change is testable and reversible.
 
 ## Working Style
 

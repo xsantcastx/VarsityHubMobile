@@ -58,3 +58,22 @@ export function getAllAdminEmails(): string[] {
     ? [...adminNotificationEmails]
     : ['customerservice@varsityhub.app'];
 }
+
+/**
+ * The super admin mailbox. Banner-ad and new-organization approvals must ALWAYS
+ * be routed here regardless of how ADMIN_EMAILS / ADMIN_NOTIFICATION_EMAILS are
+ * configured, so a non-empty env (e.g. ADMIN_EMAILS=admin@…) can't silently
+ * divert these approvals away from customer service.
+ */
+export const SUPER_ADMIN_EMAIL = 'customerservice@varsityhub.app';
+
+/**
+ * Recipients for approvals that must always include the super admin (new orgs,
+ * banner ads). Unions the super admin into the configured notification list and
+ * dedupes, so customerservice@varsityhub.app is guaranteed present.
+ */
+export function getApprovalNotificationEmails(): string[] {
+  const emails = getAllAdminEmails().map((e) => e.toLowerCase());
+  const superAdmin = SUPER_ADMIN_EMAIL.toLowerCase();
+  return emails.includes(superAdmin) ? emails : [...emails, superAdmin];
+}

@@ -1,15 +1,15 @@
 import {
-    isEmailVerificationRequiredError,
-    openVerificationGate,
+  isEmailVerificationRequiredError,
+  openVerificationGate,
 } from '@/hooks/useVerificationGate';
 import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { emitSessionExpired } from '@/utils/sessionEvents';
 import auth from './auth';
 import {
-    getAccessTokenForRequest,
-    getApiBaseUrl,
-    refreshAccessTokenWithCache,
-    type RefreshOutcome,
+  getAccessTokenForRequest,
+  getApiBaseUrl,
+  refreshAccessTokenWithCache,
+  type RefreshOutcome,
 } from './http';
 
 function computeBase(provided?: string | null) {
@@ -301,6 +301,12 @@ let _sigCache: {
   fetchedAt: number;
 } | null = null;
 const SIG_CACHE_TTL_MS = 55_000;
+// The signature request gates EVERY media upload and runs before any bytes are
+// sent. Without a timeout it hangs for the OS socket timeout (60s+) on congested
+// stadium wifi, leaving the progress bar pinned at 0%. Abort fast so callers can
+// fall through to their fallback (server proxy for images, fresh-sig retry for
+// video) instead of appearing frozen.
+const SIG_FETCH_TIMEOUT_MS = 12_000;
 
 async function getCloudinarySignature(
   baseUrl: string,
@@ -329,12 +335,20 @@ async function getCloudinarySignature(
 
   while (token) {
     try {
-      const res = await fetch(
-        buildUploadUrl(`${baseUrl}/uploads/cloudinary-signature`, options?.formFields),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const sigController = new AbortController();
+      const sigTimeout = setTimeout(() => sigController.abort(), SIG_FETCH_TIMEOUT_MS);
+      let res: Response;
+      try {
+        res = await fetch(
+          buildUploadUrl(`${baseUrl}/uploads/cloudinary-signature`, options?.formFields),
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: sigController.signal,
+          }
+        );
+      } finally {
+        clearTimeout(sigTimeout);
+      }
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         if (res.status === 401 && !refreshAttempted) {
@@ -514,7 +528,8 @@ export async function uploadFile(
       }
     } catch (retryErr: any) {
       directErr = retryErr;
-      if (__DEV__) console.warn('[upload] Video direct upload retry also failed:', retryErr?.message);
+      if (__DEV__)
+        console.warn('[upload] Video direct upload retry also failed:', retryErr?.message);
     }
     const videoUploadErr: any = new Error(
       'Video upload failed. Please check your connection and try again.'
@@ -598,7 +613,8 @@ export async function uploadFileWithProgress(
       }
     } catch (retryErr: any) {
       directErr = retryErr;
-      if (__DEV__) console.warn('[upload] Video direct upload retry also failed:', retryErr?.message);
+      if (__DEV__)
+        console.warn('[upload] Video direct upload retry also failed:', retryErr?.message);
     }
     const videoUploadErr: any = new Error(
       'Video upload failed. Please check your connection and try again.'

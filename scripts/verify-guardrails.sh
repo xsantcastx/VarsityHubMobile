@@ -70,7 +70,48 @@ check_no_matches \
 check_no_matches \
   "router.replace to bare tabs root — use safeGoBack(router, '/(tabs)/feed') instead" \
   "router\.replace\([\"']/\(tabs\)[\"']" \
-  app components hooks utils
+  app components hooks utils \
+  --glob '!**/__tests__/**'
+
+# Emails MUST go through EmailService/sendTemplateEmail; only the centralized
+# SendGrid provider may call sgMail.send directly (P0 invariant). Previously this
+# only ran in the manually-invoked pre-release audit — promote it to the commit
+# gate so a bypass can't land. Excludes the provider and test files.
+check_no_matches \
+  "sgMail.send outside the centralized SendGrid provider — route email through EmailService" \
+  "sgMail\.send" \
+  server/src \
+  --glob '!**/providers/SendGridProvider.ts' \
+  --glob '!**/__tests__/**'
+
+# Text colors MUST use useColorScheme()/theme constants — never hardcode a dark
+# hex text color. Matches the lowercase `color:` style prop only; backgroundColor,
+# borderColor, shadowColor, tintColor all use a capital `Color` and are unaffected.
+# Suppress an intentional contrast/computed color with a `// audit: <reason>` note.
+check_no_matches \
+  "hardcoded dark text color — use useColorScheme()/theme constants (or add // audit: <reason>)" \
+  "color:\s*[\"'](#000000|#111111|#111827|#1a1a1a|#333333|#374151|#000|#111|#333|black)[\"'](?!.*audit)" \
+  app components \
+  -P \
+  --glob '!**/__tests__/**'
+
+# react-query: exactly one QueryClient (lib/queryClient.ts). A second client
+# splits the cache and breaks the cross-screen dedupe the single client provides.
+check_no_matches \
+  "second QueryClient — import the shared client from lib/queryClient.ts" \
+  "new QueryClient\(" \
+  app components hooks utils lib \
+  --glob '!**/queryClient.ts' \
+  --glob '!**/__tests__/**'
+
+# Spinners gate on isPending, never isFetching (isFetching stays true during a
+# background refetch and flashes spinners). isFetchingNextPage is allowed.
+check_no_matches \
+  "isFetching gates a spinner — use isPending (isFetchingNextPage is fine)" \
+  "\bisFetching\b(?!NextPage)" \
+  app components hooks \
+  -P \
+  --glob '!**/__tests__/**'
 
 if ! rg -n "getNotificationHref|getNotificationTitle" app/feed.tsx "app/(tabs)/notifications/index.tsx" >/dev/null 2>&1; then
   echo "Guardrail failed: feed and notifications screen must use utils/notificationPresentation.ts"

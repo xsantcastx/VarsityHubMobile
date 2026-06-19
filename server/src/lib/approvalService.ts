@@ -918,6 +918,8 @@ export async function rejectAd(
         const Stripe = (await import('stripe')).default;
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
           apiVersion: '2024-06-20' as any,
+          timeout: 20000,
+          maxNetworkRetries: 2,
         });
         const refund = await stripe.refunds.create({
           payment_intent: tx.stripe_payment_intent_id,

@@ -15,6 +15,7 @@ import {
   sendVerificationEmail,
 } from '../lib/email.js';
 import { getAllPlanDefinitions } from '../lib/planLimits.js';
+import { getCircuitStats } from '../lib/circuitBreaker.js';
 import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
 import { prisma } from '../lib/prisma.js';
@@ -113,6 +114,11 @@ healthRouter.get(
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'development',
       integrations,
+      // Circuit breaker snapshot for the outbound upstreams (SendGrid, Cloudinary,
+      // google-maps, apple-verify, google-play). An `open: true` entry means that
+      // upstream is currently failing fast — surfaced here so external monitors and
+      // dashboards can observe degradation without waiting for a Sentry alert.
+      circuits: getCircuitStats(),
       ready: allConfigured,
       warnings: [
         ...(!integrations.twilio ? ['Twilio not configured - SMS disabled'] : []),

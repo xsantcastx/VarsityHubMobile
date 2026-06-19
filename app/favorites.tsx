@@ -3,15 +3,17 @@ import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { useInfiniteQuery } from '@tanstack/react-query';
 
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
@@ -71,13 +73,7 @@ function FavoritesScreen() {
   const { user, checkAuth } = useAuth();
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [items, setItems] = useState<SavedPost[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     let canceled = false;
@@ -89,14 +85,11 @@ function FavoritesScreen() {
         if (idValue) {
           setUserId(String(idValue));
         } else {
-          setError('Unable to determine your account. Please sign in again.');
+          setAuthError('Unable to determine your account. Please sign in again.');
         }
-      } catch (error) {
-        if (__DEV__) console.error('[favorites] Failed to load user data:', error);
-        if (!canceled) {
-          setError('Unable to load your favorites right now.');
-          setLoading(false);
-        }
+      } catch (err) {
+        if (__DEV__) console.error('[favorites] Failed to load user data:', err);
+        if (!canceled) setAuthError('Unable to load your favorites right now.');
       }
     })();
     return () => {
@@ -104,77 +97,72 @@ function FavoritesScreen() {
     };
   }, [checkAuth, user]);
 
-  const fetchSaved = useCallback(
-    async ({ cursor: cursorArg, mode }: { cursor?: string | null; mode?: 'append' | 'refresh' | 'initial' } = {}) => {
-      if (!userId) return;
-      const fetchMode = mode ?? 'initial';
-      if (fetchMode === 'append') {
-        setLoadingMore(true);
-      } else if (fetchMode === 'refresh') {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-      try {
-        const result: any = await User.interactionsForProfile(userId, {
-          type: 'save',
-          limit: 20,
-          cursor: cursorArg || undefined,
-          sort: 'newest',
-        });
-        const mapped = Array.isArray(result?.items)
-          ? (result.items.map(mapSavedPost).filter(Boolean) as SavedPost[])
-          : [];
-        if (fetchMode === 'append') {
-          setItems((prev) => {
-            const existingIds = new Set(prev.map((item) => item.id));
-            const next = mapped.filter((item) => !existingIds.has(item.id));
-            return prev.concat(next);
-          });
-        } else {
-          setItems(mapped);
-        }
-        const nextCursor =
-          typeof result?.nextCursor === 'string' && result.nextCursor.length > 0 ? result.nextCursor : null;
-        setCursor(nextCursor);
-        setHasMore(Boolean(nextCursor));
-        setError(null);
-      } catch (e: any) {
-        const message =
-          typeof e?.message === 'string' && e.message.length
-            ? e.message
-            : 'Unable to load your saved posts. Pull to refresh to try again.';
-        setError(message);
-        if (mode !== 'append') {
-          setItems([]);
-        }
-      } finally {
-        if (fetchMode === 'append') {
-          setLoadingMore(false);
-        } else if (fetchMode === 'refresh') {
-          setRefreshing(false);
-        } else {
-          setLoading(false);
-        }
-      }
-    },
-    [userId],
-  );
+  const {
+    data,
+    isPending,
+    isError,
+    error: queryError,
+    refetch,
+    isRefetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['favorites', userId ?? ''],
+    enabled: !!userId,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      User.interactionsForProfile(userId as string, {
+        type: 'save',
+        limit: 20,
+        cursor: pageParam || undefined,
+        sort: 'newest',
+      }),
+    getNextPageParam: (lastPage: any) =>
+      typeof lastPage?.nextCursor === 'string' && lastPage.nextCursor.length > 0
+        ? lastPage.nextCursor
+        : undefined,
+  });
 
-  useEffect(() => {
-    if (!userId) return;
-    void fetchSaved({ mode: 'initial' });
-  }, [userId, fetchSaved]);
+  // Flatten the cursor pages and de-dup by id (saved posts can repeat at page
+  // boundaries — the old imperative loader deduped on append; preserve that).
+  const items = useMemo<SavedPost[]>(() => {
+    const seen = new Set<string>();
+    const mapped: SavedPost[] = [];
+    for (const page of data?.pages ?? []) {
+      const rawItems = Array.isArray((page as any)?.items) ? (page as any).items : [];
+      for (const raw of rawItems) {
+        const m = mapSavedPost(raw);
+        if (m && !seen.has(m.id)) {
+          seen.add(m.id);
+          mapped.push(m);
+        }
+      }
+    }
+    return mapped;
+  }, [data]);
+
+  // Gate the full-screen spinner on isPending (no cached data yet) — never on a
+  // background refetch, so revisiting the screen shows cached items instantly.
+  const loading = isPending && !authError;
+  const loadingMore = isFetchingNextPage;
+  const refreshing = isRefetching && !isFetchingNextPage;
+  const error =
+    authError ??
+    (isError
+      ? (queryError instanceof Error && queryError.message) ||
+        'Unable to load your saved posts. Pull to refresh to try again.'
+      : null);
 
   const handleRefresh = useCallback(() => {
-    if (!userId) return;
-    void fetchSaved({ mode: 'refresh', cursor: null });
-  }, [userId, fetchSaved]);
+    void refetch();
+  }, [refetch]);
 
   const handleLoadMore = useCallback(() => {
-    if (!hasMore || loadingMore || !cursor) return;
-    void fetchSaved({ cursor, mode: 'append' });
-  }, [cursor, hasMore, loadingMore, fetchSaved]);
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const listEmptyComponent = useMemo(() => {
     if (loading) {
@@ -249,37 +237,54 @@ function FavoritesScreen() {
         </Pressable>
       );
     },
-    [palette.border, palette.mutedText, palette.surface, palette.text, router],
+    [palette.border, palette.mutedText, palette.surface, palette.text, router]
   );
 
   if (loading && items.length === 0) {
     return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-        <Stack.Screen options={{
-          title: 'Favorites',
-          headerBackTitle: 'Back',
-          headerShown: true,
-          headerLeft: () => (
-            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
-            </Pressable>
-          ),
-        }} />
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor: palette.background }]}
+        edges={['top', 'bottom']}
+      >
+        <Stack.Screen
+          options={{
+            title: 'Favorites',
+            headerBackTitle: 'Back',
+            headerShown: true,
+            headerLeft: () => (
+              <Pressable
+                onPress={() => {
+                  safeGoBack(router);
+                }}
+                style={{ paddingRight: 8 }}
+              >
+                <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
+              </Pressable>
+            ),
+          }}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={palette.tint} size="large" />
-          <Text style={[styles.loadingText, { color: palette.mutedText }]}>Loading your saved posts...</Text>
+          <Text style={[styles.loadingText, { color: palette.mutedText }]}>
+            Loading your saved posts...
+          </Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ 
-        title: 'Favorites',
-        headerBackTitle: 'Back',
-        headerShown: true,
-      }} />
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: palette.background }]}
+      edges={['top', 'bottom']}
+    >
+      <Stack.Screen
+        options={{
+          title: 'Favorites',
+          headerBackTitle: 'Back',
+          headerShown: true,
+        }}
+      />
       <View style={styles.header}>
         <Text style={[styles.title, { color: palette.text }]}>Favorites</Text>
         <Text style={[styles.subtitle, { color: palette.mutedText }]}>
@@ -289,11 +294,15 @@ function FavoritesScreen() {
       {error ? <Text style={[styles.error, { color: '#DC2626' }]}>{error}</Text> : null}
       <FlatList
         data={items}
-        keyExtractor={(item) => item.id}
+        keyExtractor={item => item.id}
         renderItem={renderItem}
         contentContainerStyle={items.length === 0 ? styles.listEmpty : styles.list}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={palette.tint} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={palette.tint}
+          />
         }
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.4}

@@ -69,7 +69,7 @@
     "server:db:studio": "cd server && npx prisma studio",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
-    "test:regressions:client": "jest --runInBand utils/__tests__/notificationPresentation.test.ts utils/__tests__/userDisplay.test.ts api/__tests__/upload-routing.test.ts components/__tests__/EventMap.test.ts app/game-details/__tests__/GameVerticalFeedScreen.nav.test.tsx __tests__/onboarding-step2-media.test.tsx",
+    "test:regressions:client": "jest --runInBand utils/__tests__/notificationPresentation.test.ts utils/__tests__/userDisplay.test.ts api/__tests__/upload-routing.test.ts components/__tests__/EventMap.test.ts app/game-details/__tests__/GameVerticalFeedScreen.nav.test.tsx __tests__/onboarding-step2-media.test.tsx app/__tests__/route-integrity.test.ts utils/__tests__/coachApprovalFlow.test.ts 'app/\\(tabs\\)/__tests__/team-hub.test.tsx' app/__tests__/navigation-guards.test.ts",
     "test:regressions:server": "npm --prefix server test -- --runInBand src/__tests__/requireOnboarded-bypass.test.ts src/__tests__/middleware-coverage.test.ts src/__tests__/geofencing-post-grace-window.test.ts src/__tests__/games-cache-invalidation.test.ts src/__tests__/games-approval-race.test.ts src/__tests__/users-follow-cache-invalidation.test.ts src/__tests__/apple-notification-dedup.test.ts src/__tests__/ad-approval-race.test.ts src/__tests__/team-invite-race-guards.test.ts",
     "ci:retry": "node scripts/run-with-retry.js",
     "test:repeat": "node scripts/repeat-command.js",
@@ -164,6 +164,7 @@
     "react-native-web": "^0.21.0",
     "react-native-webview": "13.15.0",
     "react-native-worklets": "0.5.1",
+    "socket.io-client": "^4.8.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {

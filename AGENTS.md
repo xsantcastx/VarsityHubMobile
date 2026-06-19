@@ -21,6 +21,23 @@
 - Generated local artifacts such as `.snyk-cache/`, `metro.pid`, and Claude-local report output must not be treated as product changes.
 - Before concluding a branch is dirty, distinguish tracked source changes from Claude-local worktree noise.
 
+## System Architecture — one way to do each thing
+
+Full verified reference: **`docs/ARCHITECTURE.md`** (kept in sync with `CLAUDE.md`).
+VarsityHub is a **modular monolith on PostgreSQL + Redis + Railway** (Cloudinary
+media, Sentry observability) — NOT microservices/Kubernetes, by design. Do NOT
+introduce K8s, Kafka, RabbitMQ, DynamoDB, Elasticsearch, sharding, partitioning,
+sidecars, or SFTP — they are correctly absent at this scale.
+
+New code composes with these single patterns; never stack a parallel mechanism:
+
+- **Outbound third-party calls → `runWithBreaker(name, fn)`** (`server/src/lib/circuitBreaker.ts`) for SendGrid / Cloudinary / Google Play / Apple. Stripe is the exception: SDK `timeout` + `maxNetworkRetries` (all 5 client constructions), not a breaker. No ad-hoc external-call retry loops.
+- **Screen data → react-query via the single `lib/queryClient.ts`**; spinner on `isPending`, never `isFetching`. No second QueryClient / parallel fetch cache. `PostCacheContext` = cross-screen post sharing, not a fetch cache.
+- **Realtime → the single `server/src/realtime/socketServer.ts`** (JWT handshake, per-conversation room auth, Redis adapter, websocket-only). Polling stays as fallback.
+- **Startup-once work → `runClusterOnce`** (`distributedLock.ts`); scheduler worker runs on all replicas. No new leader election.
+- **Cross-replica state lives in Redis** (rate limit DB 1, BullMQ DB 0, cache DB 2, locks, socket adapter). No in-process shared state — it breaks under `numReplicas>1` (`railway.toml`).
+- **RLS is enabled-not-forced** (dormant). NEVER `FORCE` without a non-owner DB role + `SET LOCAL app.current_user_id` middleware; `start.sh` auto-applies migrations to prod on every deploy.
+
 ## Available Agent Types
 
 ### Explore

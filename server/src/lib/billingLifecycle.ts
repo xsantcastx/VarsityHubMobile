@@ -14,7 +14,11 @@ const StripeCtor = require('stripe') as typeof import('stripe').default;
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
 const stripe = stripeSecretKey
-  ? new StripeCtor(stripeSecretKey, { apiVersion: '2024-06-20' })
+  ? new StripeCtor(stripeSecretKey, {
+      apiVersion: '2024-06-20',
+      timeout: 20000,
+      maxNetworkRetries: 2,
+    })
   : null;
 
 const RECONCILE_LIMIT_DEFAULT = 500;

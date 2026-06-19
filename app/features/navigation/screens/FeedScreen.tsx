@@ -476,6 +476,8 @@ export default function FeedScreen() {
   // State for notifications in modal
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [notificationsError, setNotificationsError] = useState(false);
+  const [notificationsReloadKey, setNotificationsReloadKey] = useState(0);
 
   // Ad rotation timer state - based on slide requirements
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
@@ -893,12 +895,22 @@ export default function FeedScreen() {
     let mounted = true;
     const loadModalData = async () => {
       setLoadingNotifications(true);
+      setNotificationsError(false);
       try {
-        const page = await NotificationApi.listPage(null, 20, false);
+        // Guard against the http layer's intentional never-resolving promise on
+        // session-expiry (api/http.ts): without this the spinner would hang
+        // forever. The race guarantees the loader always settles.
+        const page = await Promise.race([
+          NotificationApi.listPage(null, 20, false),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('notifications_timeout')), 20000)
+          ),
+        ]);
         if (!mounted) return;
         setNotificationsList(Array.isArray(page.items) ? page.items : []);
       } catch (e) {
-        if (__DEV__) console.error('Failed to load notifications', e);
+        if (__DEV__) console.error('[FeedScreen] Failed to load notifications', e);
+        if (mounted) setNotificationsError(true);
       } finally {
         if (mounted) setLoadingNotifications(false);
       }
@@ -908,7 +920,7 @@ export default function FeedScreen() {
     return () => {
       mounted = false;
     };
-  }, [notificationsMenuOpen]);
+  }, [notificationsMenuOpen, notificationsReloadKey]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -1885,7 +1897,8 @@ export default function FeedScreen() {
     return null;
   }
 
-  const showEmptyState = !loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error;
+  const showEmptyState =
+    !loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error;
   const listHeader = (
     <>
       {error && (
@@ -2207,6 +2220,31 @@ export default function FeedScreen() {
             {loadingNotifications ? (
               <View style={styles.center}>
                 <ActivityIndicator color={Colors[colorScheme].tint} />
+              </View>
+            ) : notificationsError ? (
+              <View style={{ padding: 24, alignItems: 'center' }}>
+                <MaterialIcons
+                  name="error-outline"
+                  size={48}
+                  color={Colors[colorScheme].mutedText}
+                />
+                <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>
+                  Couldn&apos;t load updates
+                </Text>
+                <Pressable
+                  onPress={() => setNotificationsReloadKey(k => k + 1)}
+                  style={{
+                    marginTop: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: 8,
+                    backgroundColor: Colors[colorScheme].tint,
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loading updates"
+                >
+                  <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>Retry</Text>
+                </Pressable>
               </View>
             ) : notificationsList.length === 0 ? (
               <View style={{ padding: 24, alignItems: 'center' }}>

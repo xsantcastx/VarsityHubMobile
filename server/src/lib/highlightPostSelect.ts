@@ -10,5 +10,5 @@ export const highlightPostSelect = {
   lat: true,
   lng: true,
   country_code: true,
-  _count: { select: { comments: true } },
+  _count: { select: { comments: true, bookmarks: true } },
 } as const;

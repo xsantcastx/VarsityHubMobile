@@ -1,4 +1,6 @@
+import { createServer as createHttpServer } from 'node:http';
 import { app } from './app.js';
+import { initRealtime } from './realtime/socketServer.js';
 import { captureException, captureMessage } from './lib/sentry.js';
 import { debugLog } from './lib/debugLog.js';
 import { initEmailService } from './lib/email.js';
@@ -8,6 +10,7 @@ import { env } from './lib/env.js';
 import { APP_REVIEW_EMAIL } from './lib/appReviewFixture.js';
 import { ADMIN_EMAILS, ADMIN_NOTIFICATION_EMAILS } from './lib/adminEmails.js';
 import { runRouteStartupBackfills } from './startup/routeBackfills.js';
+import { runClusterOnce } from './lib/distributedLock.js';
 import {
   getSendGridApiKeyFingerprint,
   isPlaceholderSendGridApiKey,
@@ -238,15 +241,36 @@ initializeQueues().catch(error => {
   captureException(error, { context: 'queue_initialization' });
 });
 
-// Start scheduler (BullMQ with Redis, falls back to setInterval without it)
-setupScheduler()
-  .then(() => startSchedulerWorker())
-  .catch(error => {
-    console.error('[startup] Scheduler failed to start:', error);
-    captureException(error, { context: 'scheduler_startup' });
-  });
+// Start scheduler (BullMQ with Redis, falls back to setInterval without it).
+// Reconfiguring the repeatable jobs is a remove-all-then-re-add sequence, so it
+// must run on only ONE replica (runClusterOnce). Every replica still starts the
+// scheduler WORKER so jobs are processed cluster-wide.
+void (async () => {
+  try {
+    await runClusterOnce('scheduler-setup', async () => {
+      await setupScheduler();
+    });
+  } catch (error) {
+    console.error('[startup] Scheduler setup failed:', error);
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      context: 'scheduler_startup',
+    });
+  }
+  try {
+    await startSchedulerWorker();
+  } catch (error) {
+    console.error('[startup] Scheduler worker failed to start:', error);
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      context: 'scheduler_worker_startup',
+    });
+  }
+})();
 
-runRouteStartupBackfills().catch(error => {
+// Backfills mutate data, so run them on a single replica to avoid concurrent
+// double-writes across the cluster.
+runClusterOnce('route-startup-backfills', async () => {
+  await runRouteStartupBackfills();
+}).catch(error => {
   console.error('[startup] Route startup backfills failed:', error);
   captureException(error, { context: 'route_startup_backfills' });
 });
@@ -355,7 +379,12 @@ export { app };
 
 // Only start server if not in test environment
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, HOST, () => {
+  // Wrap Express in an explicit HTTP server so socket.io (realtime messaging)
+  // can attach to the same port. initRealtime is idempotent and no-ops on emit
+  // if it was never started.
+  const httpServer = createHttpServer(app);
+  initRealtime(httpServer);
+  httpServer.listen(PORT, HOST, () => {
     debugLog(`API listening on http://${HOST}:${PORT}`);
   });
 }
