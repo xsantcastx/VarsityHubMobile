@@ -1,9 +1,10 @@
 /**
- * Render smoke test for ProfileScreen via the shared screen harness
- * (test-utils/screenMocks). Proves the 2.6k-line screen mounts and renders a
- * tree without crashing — catching import-time and render-time regressions that
- * tsc cannot see. Deep rendered-state assertions on a screen this size are
- * deliberately avoided: they are brittle and low-value relative to upkeep.
+ * Render smoke test for the LIVE profile screen (app/profile.tsx — routed via
+ * /profile and /(tabs)/profile/index.tsx). Proves the screen mounts and renders
+ * a tree without crashing, via the shared screen harness (test-utils/screenMocks).
+ *
+ * (Replaces the former ProfileScreen.smoke.test.tsx, which exercised the now-deleted
+ *  orphaned app/features/navigation/screens/ProfileScreen.tsx.)
  */
 import { render } from '@testing-library/react-native';
 
@@ -36,7 +37,7 @@ jest.mock('@/api/upload', () => ({
   __esModule: true,
   default: { uploadFile: jest.fn() },
 }));
-jest.mock('../../../../game-details/GameVerticalFeedScreen', () =>
+jest.mock('../game-details/GameVerticalFeedScreen', () =>
   require('@/test-utils/screenMocks').childSentinelMock('GameVerticalFeedScreen')()
 );
 
@@ -55,14 +56,12 @@ jest.mock('@/hooks/useCustomColorScheme', () => ({
   useCustomColorScheme: () => 'light',
 }));
 
-import ProfileScreen from '../ProfileScreen';
+import ProfileScreen from '../profile';
 
-describe('ProfileScreen (render smoke)', () => {
+describe('profile.tsx (render smoke)', () => {
   it('mounts and renders a tree without crashing for an empty user', () => {
     mockUser = null;
-    const { toJSON, unmount } = render(<ProfileScreen />);
+    const { toJSON } = render(<ProfileScreen />);
     expect(toJSON()).toBeTruthy();
-    // Explicit unmount so focus-effect cleanups run and no open handle leaks.
-    unmount();
   });
 });
