@@ -4,12 +4,13 @@ import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
+import { loadPostInteractionSets, serializeFeedPost } from '../lib/feedPostSerializer.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import { prisma } from '../lib/prisma.js';
 import {
-    getBlockedUserIds,
-    getExcludedPrivateAuthorIds,
-    getRequestBlockedCache,
+  getBlockedUserIds,
+  getExcludedPrivateAuthorIds,
+  getRequestBlockedCache,
 } from '../lib/privacyUtils.js';
 import { captureException } from '../lib/sentry.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -33,27 +34,6 @@ const withMediaPreview = (post: any) => ({
   preview_url: getVideoPreviewUrl(post.media_url),
 });
 
-const serializePoll = (poll: any, postContent: string | null, userVote: string | null = null) => {
-  const options = (poll.options ?? []).map((opt: any) => ({
-    id: opt.id,
-    text: opt.text,
-    votes: opt.votes_count ?? opt._count?.votes ?? 0,
-  }));
-  const totalVotes = options.reduce((sum: number, o: any) => sum + o.votes, 0);
-  return {
-    id: poll.id,
-    question: postContent || 'Poll',
-    options,
-    totalVotes,
-    endsAt: poll.expires_at
-      ? poll.expires_at instanceof Date
-        ? poll.expires_at.toISOString()
-        : poll.expires_at
-      : undefined,
-    userVote,
-  };
-};
-
 async function getZipCoordinatesWithFallback(
   zipCode: string
 ): Promise<{ lat: number; lon: number } | null> {
@@ -67,7 +47,6 @@ async function getZipCoordinatesWithFallback(
 
   return null;
 }
-
 
 async function getFollowedPostsPage(
   req: AuthedRequest,
@@ -115,10 +94,7 @@ async function getFollowedPostsPage(
       ? followedAuthorIds.filter(id => !allExcluded.includes(id))
       : followedAuthorIds;
 
-    where.OR = [
-      { author_id: { in: allowedAuthorIds } },
-      { type: 'admin_broadcast' },
-    ];
+    where.OR = [{ author_id: { in: allowedAuthorIds } }, { type: 'admin_broadcast' }];
   } else {
     // Preload followed team IDs, then resolve game IDs for those teams — all
     // indexed lookups. Replaces three layers of nested EXISTS subqueries.
@@ -146,10 +122,7 @@ async function getFollowedPostsPage(
     // Resolve game IDs where a followed team is home or away
     const followedGameRows = await prisma.game.findMany({
       where: {
-        OR: [
-          { home_team_id: { in: followedTeamIds } },
-          { away_team_id: { in: followedTeamIds } },
-        ],
+        OR: [{ home_team_id: { in: followedTeamIds } }, { away_team_id: { in: followedTeamIds } }],
       },
       select: { id: true },
       take: 500,
@@ -206,85 +179,13 @@ async function getFollowedPostsPage(
   const authorIds: string[] = items.map((post: any) => post.author_id).filter(Boolean);
   const pollIds: string[] = items.map((post: any) => post.poll?.id).filter(Boolean);
 
-  let upvotedIds = new Set<string>();
-  let bookmarkedIds = new Set<string>();
-  let followingIds = new Set<string>();
-  let pollVoteMap = new Map<string, string>();
+  const sets = await loadPostInteractionSets(prisma, currentUserId, {
+    postIds,
+    authorIds,
+    pollIds,
+  });
 
-  if (items.length) {
-    const followPromise = authorIds.length
-      ? prisma.follows.findMany({
-          where: { follower_id: currentUserId, following_id: { in: authorIds } },
-          select: { following_id: true },
-          take: authorIds.length,
-        })
-      : Promise.resolve([] as Array<{ following_id: string }>);
-    const pollVotePromise = pollIds.length
-      ? prisma.pollVote.findMany({
-          where: { user_id: currentUserId, poll_option: { poll_id: { in: pollIds } } },
-          select: { poll_option: { select: { poll_id: true } }, poll_option_id: true },
-          take: pollIds.length,
-        })
-      : Promise.resolve([] as any[]);
-    const [upvotes, bookmarks, follows, pollVotes] = await Promise.all([
-      prisma.postUpvote.findMany({
-        where: { user_id: currentUserId, post_id: { in: postIds } },
-        select: { post_id: true },
-        take: postIds.length,
-      }),
-      prisma.postBookmark.findMany({
-        where: { user_id: currentUserId, post_id: { in: postIds } },
-        select: { post_id: true },
-        take: postIds.length,
-      }),
-      followPromise,
-      pollVotePromise,
-    ]);
-    upvotedIds = new Set(upvotes.map((row: any) => row.post_id));
-    bookmarkedIds = new Set(bookmarks.map((row: any) => row.post_id));
-    followingIds = new Set((follows as Array<{ following_id: string }>).map(row => row.following_id));
-    pollVoteMap = new Map(
-      (pollVotes as any[]).map((row: any) => [row.poll_option.poll_id, row.poll_option_id])
-    );
-  }
-
-  const cleanTitle = (title: string | null): string | null => {
-    if (!title) return null;
-    const match = title.match(/^\[SAMPLE_GAME:[^\]]+\]\s*(.*)$/);
-    return match ? match[1] || null : title;
-  };
-
-  const payload = items.map((post: any) => ({
-    id: post.id,
-    author_id: post.author_id,
-    team_id: post.team_id ?? null,
-    is_pinned: post.is_pinned ?? false,
-    title: cleanTitle(post.title),
-    content: post.content ?? null,
-    media_url: post.media_url ?? null,
-    media_type: detectMediaType(post.media_url),
-    preview_url: getVideoPreviewUrl(post.media_url),
-    caption: post.content ?? null,
-    upvotes_count: post.upvotes_count ?? 0,
-    comments_count: post._count?.comments ?? 0,
-    bookmarks_count: post._count?.bookmarks ?? 0,
-    created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
-    author: post.author
-      ? {
-          id: post.author.id,
-          username: post.author.username,
-          display_name: post.author.display_name,
-          avatar_url: post.author.avatar_url,
-        }
-      : null,
-    team: post.team ? { id: post.team.id, name: post.team.name, logo_url: post.team.logo_url } : null,
-    has_upvoted: upvotedIds.has(post.id),
-    has_bookmarked: bookmarkedIds.has(post.id),
-    is_following_author: post.author ? followingIds.has(post.author.id) : false,
-    poll: post.poll
-      ? serializePoll(post.poll, post.content, pollVoteMap.get(post.poll.id) || null)
-      : null,
-  }));
+  const payload = items.map((post: any) => serializeFeedPost(post, sets));
 
   return {
     items: payload,
@@ -523,7 +424,12 @@ async function getAdsBundle(
         ? { lat: ad.target_lat, lon: ad.target_lng }
         : adZipCoords.get(ad.target_zip_code);
     if (!adCoords) return false;
-    const distance = haversineDistance(userCoords!.lat, userCoords!.lon, adCoords.lat, adCoords.lon);
+    const distance = haversineDistance(
+      userCoords!.lat,
+      userCoords!.lon,
+      adCoords.lat,
+      adCoords.lon
+    );
     return distance <= AD_GEOFENCE_RADIUS_MILES;
   });
 
@@ -594,14 +500,14 @@ feedRouter.get(
             : null
         ),
         getHighlightsBundle(req, highlightsLimit),
-        viewerPromise.then(async (v) => {
+        viewerPromise.then(async v => {
           const verifiedV = await ensureOAuthUserVerified(v as any);
           return getAdsBundle(verifiedV, req, adsLimit);
         }),
         prisma.notification.count({
           where: { user_id: req.user!.id, read_at: null },
         }),
-        viewerPromise.then(async (v) => {
+        viewerPromise.then(async v => {
           const verifiedV = await ensureOAuthUserVerified(v as any);
           return verifiedV?.email_verified
             ? prisma.message.count({ where: { recipient_id: req.user!.id, read: false } })
@@ -630,7 +536,7 @@ feedRouter.get(
         }
       }
 
-      const pick = <T,>(idx: number, fallback: T): T =>
+      const pick = <T>(idx: number, fallback: T): T =>
         settled[idx].status === 'fulfilled'
           ? ((settled[idx] as PromiseFulfilledResult<T>).value as T)
           : fallback;
