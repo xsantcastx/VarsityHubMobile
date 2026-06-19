@@ -1,9 +1,9 @@
-import escapeHtml from 'escape-html';
 import express from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { approveCoach, rejectCoach } from '../lib/approvalService.js';
+import { renderReviewPage, renderResultPage } from '../lib/reviewPage.js';
 import { sendAccountModerationEmail } from '../lib/email.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
 import {
@@ -39,25 +39,11 @@ adminRouter.use(adminLimiter);
 // without one of these guards — the router has no global auth middleware.
 
 function renderCoachReviewPage(action: 'approve' | 'reject', coachName: string, token: string) {
-  const title = action === 'approve' ? 'Approve Coach' : 'Reject Coach';
-  const button = action === 'approve' ? 'Approve Coach' : 'Reject Coach';
-  const color = action === 'approve' ? '#16A34A' : '#DC2626';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
-<h2>${title}?</h2>
-<p style="color:#374151;">Coach: <strong>${escapeHtml(coachName || 'Unknown')}</strong></p>
-<form method="POST" action="?token=${encodeURIComponent(token)}">
-<button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">${button}</button>
-</form>
-</body></html>`;
+  return renderReviewPage({ action, entityLabel: 'Coach', entityName: coachName, token });
 }
 
 function renderCoachResultPage(title: string, message: string, success: boolean) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
-<h2 style="color:${success ? '#16A34A' : '#DC2626'};">${escapeHtml(title)}</h2>
-<p style="color:#374151;">${escapeHtml(message)}</p>
-</body></html>`;
+  return renderResultPage(title, message, success);
 }
 
 async function handleCoachReview(

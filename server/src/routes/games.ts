@@ -1,7 +1,7 @@
-import escapeHtml from 'escape-html';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { isAdminEmail } from '../lib/adminEmails.js';
+import { renderReviewPage, renderResultPage, renderFinalStatePage } from '../lib/reviewPage.js';
 import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
 import { debugLog } from '../lib/debugLog.js';
 import {
@@ -393,47 +393,23 @@ async function invalidateGamesListCache(): Promise<void> {
 }
 
 function renderGameReviewPage(action: 'approve' | 'reject', title: string, token?: string) {
-  const headline = action === 'approve' ? 'Approve Game' : 'Reject Game';
-  const button = action === 'approve' ? 'Approve Game' : 'Reject Game';
-  const color = action === 'approve' ? '#16A34A' : '#DC2626';
-  const formAction = token ? `?token=${encodeURIComponent(token)}` : '?';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${headline}</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
-<h2>${headline}?</h2>
-<p style="color:#374151;">Game: <strong>${escapeHtml(title || 'Unknown')}</strong></p>
-<form method="POST" action="${formAction}">
-<button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">${button}</button>
-</form>
-</body></html>`;
+  return renderReviewPage({ action, entityLabel: 'Game', entityName: title, token });
 }
 
 function renderGameResultPage(title: string, message: string, success: boolean) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
-<h2 style="color:${success ? '#16A34A' : '#DC2626'};">${escapeHtml(title)}</h2>
-<p style="color:#374151;">${escapeHtml(message)}</p>
-</body></html>`;
+  return renderResultPage(title, message, success);
 }
 
 function renderGameFinalStatePage(
   game: { title: string | null; approval_status: string | null },
   action: 'approve' | 'reject'
 ) {
-  if (game.approval_status === 'approved') {
-    return renderGameResultPage(
-      'Already Approved',
-      `${game.title || 'This game'} was already approved.`,
-      action === 'approve'
-    );
-  }
-  if (game.approval_status === 'rejected') {
-    return renderGameResultPage(
-      'Already Rejected',
-      `${game.title || 'This game'} was already rejected.`,
-      action === 'reject'
-    );
-  }
-  return null;
+  return renderFinalStatePage({
+    approvalStatus: game.approval_status,
+    entityName: game.title,
+    entityNoun: 'game',
+    action,
+  });
 }
 
 async function applyGameApprovalDecision(
