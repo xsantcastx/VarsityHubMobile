@@ -14,10 +14,27 @@
  * same 20-line mock block.
  */
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 /** A host component that renders its children under a named host element. */
 export const hostPassthrough = (name: string) => (props: any) =>
   React.createElement(name, props, props?.children);
+
+/** A QueryClient tuned for tests: no retries, no GC delay, no background refetch. */
+export const createTestQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0, staleTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+
+/**
+ * Wrap a screen that uses react-query so useQuery/useInfiniteQuery have a client.
+ * Each render gets a fresh client so tests don't share cache.
+ */
+export const QueryWrapper = ({ children }: { children: React.ReactNode }) =>
+  React.createElement(QueryClientProvider, { client: createTestQueryClient() }, children);
 
 export const expoImageMock = () => ({ Image: hostPassthrough('Image') });
 
