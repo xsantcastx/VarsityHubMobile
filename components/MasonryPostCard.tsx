@@ -2,6 +2,8 @@ import { Post } from '@/api/entities';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { optimizeImageUrl } from '@/utils/imageUrl';
+import { prefetchUserProfile } from '@/utils/prefetch';
 import { REPORT_REASONS, usePostInteractions } from '@/hooks/usePostInteractions';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
@@ -106,6 +108,7 @@ function MasonryPostCard({
         <View style={styles.authorRow}>
           <Pressable
             style={styles.authorInfo}
+            onPressIn={() => prefetchUserProfile(author?.id ? String(author.id) : null)}
             onPress={() => {
               if (!author?.id) return;
               router.push({
@@ -117,9 +120,11 @@ function MasonryPostCard({
             <View style={styles.authorAvatarWrap}>
               {author?.avatar_url ? (
                 <Image
-                  source={{ uri: String(author.avatar_url) }}
+                  source={{ uri: optimizeImageUrl(String(author.avatar_url), 80) }}
                   style={styles.authorAvatar}
                   contentFit="cover"
+                  cachePolicy="memory-disk"
+                  recyclingKey={String(author?.id ?? author?.username ?? post.id)}
                 />
               ) : (
                 <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.authorAvatar} />
@@ -139,9 +144,22 @@ function MasonryPostCard({
       {(isImage || isVideo) && (
         <View style={[styles.mediaWrap, { height: mediaHeight }]}>
           {isImage && mediaUrl ? (
-            <Image source={{ uri: mediaUrl }} style={styles.media} contentFit="cover" />
+            <Image
+              source={{ uri: optimizeImageUrl(mediaUrl, 600) }}
+              style={styles.media}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              recyclingKey={String(post.id)}
+              transition={150}
+            />
           ) : isVideo && previewUrl ? (
-            <Image source={{ uri: previewUrl }} style={styles.media} contentFit="cover" />
+            <Image
+              source={{ uri: optimizeImageUrl(previewUrl, 600) }}
+              style={styles.media}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              recyclingKey={String(post.id)}
+            />
           ) : isVideo && mediaUrl ? (
             <View
               style={[

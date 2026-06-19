@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  InteractionManager,
   Modal,
   Platform,
   Pressable,
@@ -487,9 +488,15 @@ function CommunityDiscoverScreen() {
   );
 
   useEffect(() => {
-    void load().catch(error => {
-      reportDiscoverFailure('initial_load', error);
+    // Defer the initial load until the navigation transition settles so this
+    // heavy screen (search + multi-section results) isn't parsing a response
+    // while the slide-in animation is still running.
+    const task = InteractionManager.runAfterInteractions(() => {
+      void load().catch(error => {
+        reportDiscoverFailure('initial_load', error);
+      });
     });
+    return () => task.cancel();
   }, [load, reportDiscoverFailure]);
 
   // Debounced unified search (users, teams, organizations, games, events)

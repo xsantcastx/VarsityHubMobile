@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import { queryClient } from '@/lib/queryClient';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useShareLink } from '@/hooks/useShareLink';
@@ -1044,11 +1045,24 @@ const GameDetailsScreen = () => {
     try {
       // eslint-disable-next-line no-console
       if (__DEV__) console.log('[GameDetails] loadGameById() — fetching summary for', gameIdValue);
-      const summary: any = await retryWithBackoff(() => Game.summary(gameIdValue), {
-        maxRetries: 0,
-        initialDelayMs: 800,
-        maxDelayMs: 4000,
-      }).catch((err: any) => {
+      const summary: any = await retryWithBackoff(
+        () =>
+          // Route the primary summary fetch through react-query so a game
+          // prefetched on press-in (or revisited within staleTime) resolves
+          // from a warm cache instantly. retry:0 keeps the original
+          // single-attempt intent — the .catch below still falls back to
+          // Game.get on recoverable failures.
+          queryClient.fetchQuery({
+            queryKey: ['game-summary', gameIdValue],
+            queryFn: () => Game.summary(gameIdValue),
+            retry: 0,
+          }),
+        {
+          maxRetries: 0,
+          initialDelayMs: 800,
+          maxDelayMs: 4000,
+        }
+      ).catch((err: any) => {
         // eslint-disable-next-line no-console
         if (__DEV__)
           console.warn('[GameDetails] summary fetch failed:', {

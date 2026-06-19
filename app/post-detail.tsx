@@ -17,6 +17,7 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  InteractionManager,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -458,8 +459,13 @@ export default function PostDetailScreen() {
   useEffect(() => {
     const shouldShowLoading = isInitialLoad.current;
     isInitialLoad.current = false;
-    void load(undefined, shouldShowLoading);
+    // Defer the fetch until the navigation/swipe transition settles so the
+    // heavy post-detail screen doesn't parse its response mid-animation.
+    const task = InteractionManager.runAfterInteractions(() => {
+      void load(undefined, shouldShowLoading);
+    });
     setReplyingToComment(null);
+    return () => task.cancel();
   }, [load, params.id, params.postIds, currentPostIndex]);
 
   useEffect(() => {

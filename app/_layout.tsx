@@ -34,8 +34,8 @@ import { MAX_CONTENT_WIDTH } from '@/constants/layout';
 import { AuthProvider, useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryProvider } from '@/context/NavigationHistoryContext';
 import { PostCacheProvider } from '@/context/PostCacheContext';
-import { queryClient } from '@/lib/queryClient';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { asyncStoragePersister, CACHE_BUSTER, queryClient } from '@/lib/queryClient';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { useVerificationGate } from '@/hooks/useVerificationGate';
@@ -325,7 +325,21 @@ function RootLayout() {
       <ErrorBoundary>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <StripeProvider publishableKey={getConfig().stripePublishableKey}>
-            <QueryClientProvider client={queryClient}>
+            <PersistQueryClientProvider
+              client={queryClient}
+              persistOptions={{
+                persister: asyncStoragePersister,
+                // Drop persisted data older than 24h so a stale cold-start
+                // never shows day-old content before revalidation.
+                maxAge: 24 * 60 * 60 * 1000,
+                buster: CACHE_BUSTER,
+                dehydrateOptions: {
+                  // Only persist successful queries — never errors or
+                  // in-flight/pending states.
+                  shouldDehydrateQuery: query => query.state.status === 'success',
+                },
+              }}
+            >
               <PostCacheProvider>
                 <NavigationHistoryProvider>
                   <NavReadyAuthProvider>
@@ -335,7 +349,7 @@ function RootLayout() {
                   </NavReadyAuthProvider>
                 </NavigationHistoryProvider>
               </PostCacheProvider>
-            </QueryClientProvider>
+            </PersistQueryClientProvider>
           </StripeProvider>
         </GestureHandlerRootView>
       </ErrorBoundary>
