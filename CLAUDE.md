@@ -206,79 +206,94 @@ npm run audit:navigation        # classify all router.replace calls; flag REVIEW
 - **Org invite role escalation**: only owners can invite at `manager` role; managers may only invite `member`
 - **Payment-success inner catch must surface non-auth errors on final retry** — no silent swallowing
 
-## Audit Checklist (Run Before Each PR)
+## PR Checklist (Run Before Each PR)
+
+The enforcement gate derived from the **Security & Architecture Audit Standard** below. A PR passes only when every box is checked; the tags map each item back to the standard. Automated items first (run the block), then the human-judgment items.
 
 ```bash
-# TypeScript errors (server)
+# [GATE] TypeScript — client + server, 0 new errors
+npx tsc --noEmit 2>&1 | tail -5
 npx tsc --noEmit --project server/tsconfig.json 2>&1 | tail -5
 
-# TypeScript errors (client)
-npx tsc --noEmit 2>&1 | tail -5
-
-# Unbounded queries — Jest checks 50-line context windows; grep misses multi-line take: clauses
+# [GATE] Unbounded queries — Jest checks 50-line windows; grep misses multi-line take:
 cd server && npx jest --testPathPattern="unbounded-queries" --no-coverage 2>&1 | tail -5
 
-# Missing requireAuth on routes using req.user
+# [ENG] Missing requireAuth on routes using req.user
 grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 
-# Direct sgMail usage outside providers
+# [ENG] Direct sgMail usage outside providers
 rg -n "sgMail.send" server/src --glob "*.ts" -g '!server/src/services/email/providers/**'
 
-# Hardcoded dark text colors (dark mode violations)
+# [GATE] Hardcoded dark text colors (dark mode violations)
 grep -rn "'#000\|'#111\|'#222\|'#333\|'#374151\|'#111827\|'#1a1a\|black" app/ --include="*.tsx" | grep -v backgroundColor
 
-# Validation drift — frontend vs backend length constraints
-# Manually verify: username (3-20), email format, password (8+ chars), team/org names
+# [ENG] Screens must not call fetch directly — route through api/*
+grep -rn "fetch(" app/ --include="*.tsx" | grep -v "// allow-fetch"
 
-# Navigation dead ends — classify all router.replace calls; must show 0 REVIEW items
+# [AUDIT] Navigation dead ends — classify all router.replace; must show 0 REVIEW items
 npm run audit:navigation
 ```
 
-## Security Audit Framework
+Human-judgment gate (cannot be grepped — confirm explicitly in the PR description):
 
-Apply this structure for any security or architecture audit. Classify every finding by **exploitability**, **blast radius**, and **recoverability** — not just severity labels.
+- [ ] **[BIZ]** No client-controlled payment/approval/role/plan field reaches a security decision (server is authoritative).
+- [ ] **[AUDIT]** Validation parity: frontend constraints match the backend Zod schema — username (3–20), email format, password (8+), team/org names — or carry an `// intent:` note.
+- [ ] **[ENG]** Every new async screen renders loading, error, success, and empty states.
+- [ ] **[ENG]** No silent `catch {}` in auth/payment/user flows; errors logged with `[context]` and surfaced to the user.
+- [ ] **[AUDIT]** New webhooks/retries/jobs are idempotent (replay test or written rationale).
+- [ ] **[AUDIT]** New admin action emits an `AdminActivityLog` row (actor/target/action/timestamp).
+- [ ] **[GATE]** Security fix includes a before/after exploit reproduction; schema change includes migration status + rollback note.
 
-### Threat-Model Phase (run first)
-Check for: auth bypass, privilege escalation, payment spoofing, IDOR, webhook replay, stale cache abuse, deep-link parameter injection.
+## Security & Architecture Audit Standard
 
-### Trust Boundary Map
-| Boundary | Trust Level | Notes |
-|----------|-------------|-------|
-| Client → API | Untrusted | JWT-verified only; never trust body fields for user identity |
-| Webhooks (Stripe/Apple) | Trusted after sig-verify | Idempotency key required |
-| Third-party auth (Google/Apple) | Trusted token only | Verify server-side, not client claim |
-| Deep links | Untrusted | Validate params; use `buildRouteParams()` allowlist |
-| Admin actions | Privileged | Must emit audit log |
+The one-page standard. Every rule is **tagged by type** and **testable** — it states how we know it passed. Do not add a rule here without a `Verify:` clause. The four types:
 
-### Source-of-Truth Rules
-- **Plan status** — server DB only (`getCanonicalPlan()`); never derived from client state
-- **Approval state** — server DB only (`AdminActivityLog`); never from component props
-- **Org membership** — server DB only; re-fetched on navigation to protected screens
-- **Payment status** — Stripe/Apple webhook confirmed; `payment-success` must verify via API
+- **[AUDIT]** Audit Step — what a reviewer must actively check during a security/architecture pass.
+- **[ENG]** Engineering Standard — how code must be structured (enforced in review/CI).
+- **[BIZ]** Business Rule — VarsityHub-specific logic that must hold true (enforced server-side).
+- **[GATE]** Release Gate — objective pass/fail before merge/ship.
 
-### Audit Steps (per feature)
-1. Map all components: routes, schemas, DB models, frontend screens
-2. Trace data flow: client → API → DB → response → client state
-3. Identify every permission check point and verify it exists server-side
-4. Compare frontend validation vs backend Zod schema vs DB constraints for drift
-5. Check every async flow for idempotency (webhooks, retries, background jobs)
-6. Verify every `catch {}` block — no silent swallowing in auth/payment/critical paths
+**Finding classification:** rank every finding by **exploitability × blast radius × recoverability**, not a bare severity label (see also the P0–P3 rubric). Every finding ships with proof: affected files, exploit/repro path, expected vs actual behavior, fix strategy. Every fix ships with verification: typecheck, test, before/after repro, release-risk note.
 
-### Engineering Commandments
-- **Thin routes, thick features** — `app/` is routing only; logic in `src/features/*`
-- **Backend validation is law** — frontend validation is UX only; never rely on it for security
-- **No client-controlled security-critical state** — payment, approval, role, plan are always server-authoritative
-- **One source of truth per domain object**
-- **Every protected action checks auth → role → plan → ownership on the server**
-- **Every async flow is idempotent**
-- **No silent failures in user or payment flows** — log with `[context]` prefix, show user-friendly message
-- **No duplicate validation logic** — single Zod schema per domain, shared across routes
-- **Every screen handles loading, error, success, and empty states**
-- **Every deep link fails gracefully and safely**
-- **Every admin action is auditable** — actor, target, action, timestamp
-- **Every release change is testable and reversible**
+### Threat-Model Phase (run first) — [AUDIT]
+Enumerate, per feature: auth bypass, privilege escalation, payment spoofing, IDOR, webhook replay, stale-cache abuse, deep-link parameter injection.
+**Verify:** each threat has a named server-side control or a written "N/A because…" note in the audit output.
 
-### Release Gate (objective pass/fail)
+### Trust Boundary Map — [AUDIT]
+| Boundary | Trust Level | Control | Verify |
+|----------|-------------|---------|--------|
+| Client → API | Untrusted | JWT-verified; never trust body fields for identity | `req.user` derives from token, not body (grep) |
+| Webhooks (Stripe/Apple) | Trusted after sig-verify | Signature check + idempotency key | replaying a captured webhook is a no-op |
+| Third-party auth (Google/Apple) | Trusted token only | Verified server-side, not client claim | server re-verifies the token, not a client flag |
+| Deep links | Untrusted | `buildRouteParams()` allowlist | unlisted param is dropped (test) |
+| Admin actions | Privileged | Must emit audit log | `AdminActivityLog` row written (test) |
+
+### Source-of-Truth Rules — [BIZ]
+- **Plan status** — server DB only (`getCanonicalPlan()`). **Verify:** no plan decision derived from client state/props (grep screens).
+- **Approval state** — server DB only (`AdminActivityLog`). **Verify:** approval never read from component props.
+- **Org membership** — server DB only; re-fetched on protected-screen nav. **Verify:** protected screen refetches membership, not cached client flag.
+- **Payment status** — Stripe/Apple webhook confirmed; `payment-success` verifies via API. **Verify:** success screen calls the verify endpoint, not query params.
+
+### Architecture & Validation Standards — [ENG]
+- **Thin routes, thick features** — `app/` is routing only; logic in `src/features/*`. **Verify:** route files contain no business logic / direct DB or `fetch`.
+- **Screens never call `fetch` directly** — go through `api/*`. **Verify:** `grep -rn "fetch(" app/` returns only allowlisted hits.
+- **No client-controlled security-critical fields** (payment/approval/role/plan). **Verify:** server ignores these on the request body (schema test).
+- **Validation parity** across frontend/backend/DB; any intended deviation carries a `// intent:` note. **Verify:** frontend constraints match the Zod schema (manual diff in checklist).
+- **Every async flow is idempotent** (webhooks/retries/jobs). **Verify:** running the handler twice with the same input yields one effect.
+- **No silent failures** in user/payment/auth flows. **Verify:** no `catch {}` swallow; logs use `[context]` prefix and surface a user message.
+- **Every screen renders loading, error, success, and empty states.** **Verify:** each of the four states is reachable in the component.
+- **Every deep link validates params** — fails closed for privileged actions, graceful for public nav. **Verify:** missing/malformed param test for each route.
+- **Every admin action is auditable** (actor/target/action/timestamp). **Verify:** audit-log row asserted in a test.
+
+### Per-Feature Audit Steps — [AUDIT]
+1. Map all components: routes, schemas, DB models, frontend screens. **Verify:** component map exists in the audit note.
+2. Trace data flow: client → API → DB → response → client state. **Verify:** flow documented end-to-end.
+3. Identify every permission check point; confirm it exists server-side. **Verify:** each gate has a server test.
+4. Compare frontend vs backend Zod vs DB constraints for drift. **Verify:** drift table with intent notes.
+5. Check every async flow for idempotency. **Verify:** replay test per webhook/job.
+6. Verify every `catch {}` — no silent swallowing in auth/payment/critical paths. **Verify:** grep + manual review.
+
+### Release Gate — [GATE] (objective pass/fail)
 - [ ] `npx tsc --noEmit --project server/tsconfig.json` — 0 new errors
 - [ ] `npx tsc --noEmit` — 0 new errors
 - [ ] `npm run lint` — 0 errors (warnings acceptable with justification)
@@ -288,6 +303,11 @@ Check for: auth bypass, privilege escalation, payment spoofing, IDOR, webhook re
 - [ ] No hardcoded dark text colors in tsx files
 - [ ] Frontend length/format constraints match backend Zod schemas
 - [ ] Prisma schema indexed columns have matching migration SQL
+- [ ] Security fix includes before/after exploit reproduction
+- [ ] Schema change includes migration status, client refresh, and rollback note
+
+### Deck-friendly commandments (the short version)
+Thin routes, thick features · Backend validation is law, frontend is guidance · No client-controlled security-critical state · One source of truth per domain object · Every protected action checks auth/role/plan/ownership server-side · Every async flow is idempotent · No silent failures in user or payment flows · No duplicate logic across routes/features · Every screen handles loading/error/success/empty · Every deep link fails gracefully and safely · Every admin action is auditable · Every release change is testable and reversible.
 
 
 ## Working Style

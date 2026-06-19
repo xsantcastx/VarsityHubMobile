@@ -90,6 +90,37 @@ describe('regular post grace window', () => {
     );
   });
 
+  it('allows posting at +24h from FAR AWAY when the user already posted while live', async () => {
+    // Once a user posted live (proving they were at the venue), the grace
+    // window lets them post recaps/highlights from anywhere — no geofence.
+    jest.setSystemTime(new Date(EVENT_DATE.getTime() + 24 * 60 * 60 * 1000));
+    mockPostFindFirst.mockResolvedValue({ id: 'post-1' });
+
+    // Los Angeles coords — ~3900 km from the NYC venue.
+    const result = await verifyEventPostingPermission('event-1', 'user-1', 34.0522, -118.2437);
+
+    expect(result.allowed).toBe(true);
+  });
+
+  it('allows posting at +24h with NO location when the user already posted while live', async () => {
+    jest.setSystemTime(new Date(EVENT_DATE.getTime() + 24 * 60 * 60 * 1000));
+    mockPostFindFirst.mockResolvedValue({ id: 'post-1' });
+
+    const result = await verifyEventPostingPermission('event-1', 'user-1', null, null);
+
+    expect(result.allowed).toBe(true);
+  });
+
+  it('still enforces the 3km geofence during the LIVE window', async () => {
+    // Regression guard: dropping the geofence in grace must NOT relax live posting.
+    jest.setSystemTime(new Date(EVENT_DATE.getTime() + 30 * 60 * 1000));
+
+    const result = await verifyEventPostingPermission('event-1', 'user-1', 34.0522, -118.2437);
+
+    expect(result.allowed).toBe(false);
+    expect(result.code).toBe('TOO_FAR_FROM_VENUE');
+  });
+
   it('denies posting at +24h without a prior live post', async () => {
     jest.setSystemTime(new Date(EVENT_DATE.getTime() + 24 * 60 * 60 * 1000));
 
