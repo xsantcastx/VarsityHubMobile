@@ -3,10 +3,10 @@ import { captureException } from '@/utils/sentry';
 
 const teamOrganizationSchema = z
   .object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string().nullable(),
-  sport: z.string().nullable(),
+    id: z.string(),
+    name: z.string(),
+    description: z.string().nullable(),
+    sport: z.string().nullable(),
   })
   .passthrough();
 
@@ -17,7 +17,11 @@ export const teamSchema = z
     description: z.string().nullable(),
     status: z.string(),
     sport: z.string().nullable(),
-    club_type: z.string().nullable().optional().transform(value => value ?? null),
+    club_type: z
+      .string()
+      .nullable()
+      .optional()
+      .transform(value => value ?? null),
     extracurricular_category: z.string().nullable(),
     season: z.string().nullable(),
     season_start: z.string().nullable(),
@@ -101,7 +105,11 @@ const teamScreenSummarySchema = z
     counts: z
       .object({
         members: z.number(),
-        followers: z.number(),
+        // The /screen-summary endpoint returns only { members, games }. The UI
+        // reads the follower count from team.followers_count, not from here, so
+        // `followers` is optional — requiring it caused recurring schema-drift
+        // events with zero user-facing impact.
+        followers: z.number().optional(),
         games: z.number(),
       })
       .passthrough(),
