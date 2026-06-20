@@ -10,6 +10,8 @@ import {
   getCacheStats,
 } from '../lib/geocoding.js';
 import { sendError } from '../lib/http/sendError.js';
+import { captureException } from '../lib/sentry.js';
+import { runWithBreaker } from '../lib/circuitBreaker.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -43,12 +45,19 @@ geocodingRouter.post(
         });
       }
 
-      const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
-        params: {
-          address: location,
-          key: apiKey,
-        },
-      });
+      // Behind the google-maps breaker so a geocoding egress outage trips a
+      // circuit (visible as open:true in /health) and fails fast instead of
+      // hanging. A REQUEST_DENIED / ZERO_RESULTS is a resolved 200 — it does
+      // NOT throw, so only genuine network/timeout failures count toward tripping.
+      const response = await runWithBreaker('google-maps', () =>
+        axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+          params: {
+            address: location,
+            key: apiKey,
+          },
+          timeout: 8000,
+        })
+      );
 
       if (response.data.status !== 'OK' || !response.data.results[0]) {
         console.warn(`Geocoding for "${location}" failed with status: ${response.data.status}`);
@@ -70,7 +79,18 @@ geocodingRouter.post(
           details: error.errors,
         });
       }
+      // Breaker open: upstream is failing fast. Surface 503 so clients retry
+      // (and the breaker's own open-event already alerted) rather than a 500.
+      if ((error as any)?.isCircuitOpen) {
+        return sendError(res, 503, 'GEOCODING_UPSTREAM_UNAVAILABLE', {
+          message: 'Geocoding temporarily unavailable',
+        });
+      }
       console.error('Geocoding request failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        context: 'geocoding_location_failed',
+        provider: 'google-maps',
+      });
       return sendError(res, 500, 'GEOCODING_REQUEST_FAILED', {
         message: 'An unexpected error occurred',
       });
@@ -105,9 +125,12 @@ geocodingRouter.get(
       let locationBias: { lat: number; lng: number } | null = null;
       if (zip) {
         try {
-          const geoRes = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
-            params: { address: zip, key: apiKey },
-          });
+          const geoRes = await runWithBreaker('google-maps', () =>
+            axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+              params: { address: zip, key: apiKey },
+              timeout: 8000,
+            })
+          );
           if (geoRes.data.status === 'OK' && geoRes.data.results[0]) {
             const { lat, lng } = geoRes.data.results[0].geometry.location;
             locationBias = { lat, lng };
@@ -129,11 +152,11 @@ geocodingRouter.get(
         params.radius = '50000';
       }
 
-      const response = await axios.get(
-        'https://maps.googleapis.com/maps/api/place/autocomplete/json',
-        {
+      const response = await runWithBreaker('google-maps', () =>
+        axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
           params,
-        }
+          timeout: 8000,
+        })
       );
 
       if (response.data.status === 'ZERO_RESULTS') {
@@ -161,7 +184,16 @@ geocodingRouter.get(
           details: error.errors,
         });
       }
+      if ((error as any)?.isCircuitOpen) {
+        return sendError(res, 503, 'AUTOCOMPLETE_UPSTREAM_UNAVAILABLE', {
+          message: 'Place suggestions temporarily unavailable',
+        });
+      }
       console.error('Autocomplete request failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        context: 'geocoding_autocomplete_failed',
+        provider: 'google-maps',
+      });
       return sendError(res, 500, 'AUTOCOMPLETE_REQUEST_FAILED', {
         message: 'An unexpected error occurred',
       });

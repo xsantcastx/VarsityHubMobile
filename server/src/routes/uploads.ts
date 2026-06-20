@@ -659,6 +659,24 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
     });
   }
 
+  // Circuit breaker is OPEN — the Cloudinary upload breaker tripped and is failing
+  // fast (a transient infra state, not the caller's fault). Without this case the
+  // CircuitOpenError fell through to the generic 500 "Upload failed", so a breaker
+  // trip during an upstream blip looked like a hard "Server Error" with no retry
+  // guidance. Return 503 with the same "temporarily unavailable" wording the
+  // client already classifies as retryable (showUploadErrorAlert → "Upload Unavailable").
+  if (err?.isCircuitOpen === true || err?.code === 'EOPENBREAKER') {
+    console.error(
+      `[uploads] Upload breaker open (failing fast): circuit="${err?.circuit || 'cloudinary-upload'}"`
+    );
+    // Flat { error, code } shape parsed by the client (showUploadErrorAlert),
+    // matching the sibling 502 branches above — not the standard sendError envelope.
+    return res.status(503).json({ // error-envelope-exempt
+      error: 'Upload service is temporarily unavailable. Please try again in a minute.',
+      code: 'UPLOAD_BREAKER_OPEN',
+    });
+  }
+
   // Legacy error shape from older call sites that still use plain http_code.
   // Treat a 401/403 from an upload path as upstream failure too — the user's
   // session was already checked by requireAuth before reaching here.
