@@ -21,6 +21,7 @@ import {
     canAssignTeamRole as canAssignTeamRoleScoped,
     isOrgAdmin as isOrgAdminScoped,
 } from '../lib/teamAuthorization.js';
+import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import {
     buildTeamPlanLockedError,
     getTeamEntitlementState,
@@ -2632,6 +2633,15 @@ teamsRouter.post(
           data: { role: 'owner' },
         }),
       ]);
+
+      await logAdminActivityFromReq(
+        req,
+        'TRANSFER_TEAM_OWNERSHIP',
+        'team',
+        teamId,
+        `Transferred team ownership to user ${new_owner_id}`,
+        { new_owner_id }
+      );
 
       return res.json({ ok: true, message: 'Ownership transferred successfully' });
   })
