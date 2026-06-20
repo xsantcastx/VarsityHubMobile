@@ -76,6 +76,10 @@ export async function syncDatabaseBackup(): Promise<{
   let tablesSync = 0;
   let totalRows = 0;
   const failedTables: string[] = [];
+  // Capture WHY each table failed, not just its name — the per-table error was
+  // previously console-only, so the recurring "6 table(s) not synced" Sentry
+  // issue carried no actionable cause.
+  const failedTableReasons: Array<{ table: string; reason: string }> = [];
 
   try {
     // Test connectivity
@@ -204,15 +208,17 @@ export async function syncDatabaseBackup(): Promise<{
         tablesSync++;
         debugLog(`[db-backup] ${table}: ${totalTableRows} rows synced`);
       } catch (err: any) {
-        console.error(`[db-backup] Failed to sync table "${table}":`, err.message?.slice(0, 200));
+        const reason = String(err?.message || err).slice(0, 300);
+        console.error(`[db-backup] Failed to sync table "${table}":`, reason);
         failedTables.push(table);
+        failedTableReasons.push({ table, reason });
       }
     }
 
     if (failedTables.length > 0) {
       const backupErr = new Error(`DB backup sync partially failed — ${failedTables.length} table(s) not synced: ${failedTables.join(', ')}`);
       console.error('[db-backup]', backupErr.message);
-      captureException(backupErr, { extra: { failedTables, tablesSync, totalRows } });
+      captureException(backupErr, { extra: { failedTables, failedTableReasons, tablesSync, totalRows } });
     }
 
     // Re-enable FK constraints
