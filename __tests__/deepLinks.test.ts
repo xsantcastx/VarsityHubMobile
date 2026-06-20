@@ -107,17 +107,32 @@ describe('parseDeepLink', () => {
     });
   });
 
-  it('parses universal verification links with token and email params', () => {
+  it('parses universal verification links and drops the unused token param (audit #13)', () => {
+    // The verify flow confirms via an authenticated POST /verify/confirm with a
+    // user-entered code — there is no `token` query param. It was removed from the
+    // allowlist, so it must now be dropped while `email` still passes.
     expect(
       parseDeepLink('https://varsityhub.app/verify?token=123456&email=user%40example.com')
     ).toEqual({
       screen: '/verify',
       params: {
-        token: '123456',
         email: 'user@example.com',
       },
       source: 'universal',
     });
+  });
+
+  it('fails closed: drops unlisted/injected params not on a route allowlist', () => {
+    // Trust-boundary guarantee — an unlisted param (incl. privilege-shaped ones)
+    // must never survive into navigation params for an allowlisted route.
+    const result = parseDeepLink(
+      'https://varsityhub.app/verify?email=user%40example.com&role=owner&is_admin=1&token=abc'
+    );
+    expect(result?.screen).toBe('/verify');
+    expect(result?.params).toEqual({ email: 'user@example.com' });
+    expect(result?.params).not.toHaveProperty('role');
+    expect(result?.params).not.toHaveProperty('is_admin');
+    expect(result?.params).not.toHaveProperty('token');
   });
 
   it('parses universal admin dashboard review links used by approval emails', () => {
@@ -137,9 +152,7 @@ describe('parseDeepLink', () => {
   });
 
   it('parses universal admin ads links used by review handoff pages', () => {
-    expect(
-      parseDeepLink('https://varsityhub.app/admin-ads?ad_id=ad-123&action=reject')
-    ).toEqual({
+    expect(parseDeepLink('https://varsityhub.app/admin-ads?ad_id=ad-123&action=reject')).toEqual({
       screen: '/admin-ads',
       params: {
         ad_id: 'ad-123',

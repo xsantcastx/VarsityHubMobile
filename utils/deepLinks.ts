@@ -202,8 +202,11 @@ const DEFAULT_ROUTE_PARAMS: Record<string, Record<string, string>> = {
 // Generic resource routes (post, game, event, team, profile…) accept 'id' and UTM params by default.
 const ROUTE_PARAM_ALLOWLIST: Record<string, Set<string>> = {
   'reset-password': new Set(['email', 'code']),
-  'verify-email': new Set(['token', 'email']),
-  verify: new Set(['token', 'email']),
+  // Email verification confirms via the authenticated POST /verify/confirm with a
+  // user-entered `code` — there is no `token` query param in this flow, so only
+  // `email` is accepted. (Audit #13: dropped the dead `token` key.)
+  'verify-email': new Set(['email']),
+  verify: new Set(['email']),
   'payment-success': new Set(['session_id', 'type', 'adId']),
   'payment-cancel': new Set(['session_id', 'type']),
   'organization-invites': new Set(['token', 'orgId', 'email']),

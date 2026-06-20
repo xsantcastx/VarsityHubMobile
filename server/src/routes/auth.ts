@@ -2952,7 +2952,11 @@ authRouter.patch(
         onboarding_completed: z.boolean().optional(),
 
         // New onboarding fields
-        plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
+        // NOTE: `plan` is intentionally NOT accepted here — it is server-controlled
+        // (set only via verified payment / subscription flows). stripProtectedKeys()
+        // also drops it as defense-in-depth, and this schema is non-strict so an
+        // incoming `plan` is silently ignored. Do NOT re-add it — that would be a
+        // client-controlled-plan foot-gun.
         // Rookie is not a role
         role: z.enum(['fan', 'coach']).optional(),
         affiliation: z
@@ -3873,8 +3877,23 @@ authRouter.post(
       return sendAuthError(res, 400, 'No verification in progress', 'VERIFY_NO_CODE');
     if (new Date() > user.email_verification_expires)
       return sendAuthError(res, 400, 'Code expired', 'VERIFY_CODE_EXPIRED');
-    // AUTH-5: Compare hash of submitted code against stored hash
-    if (hashRefreshToken(String(code)) !== String(user.email_verification_code))
+    // AUTH-5: constant-time hash-to-hash comparison (mirrors /password/reset).
+    // Both values are SHA-256 hashes; timingSafeEqual avoids a length/byte
+    // timing side-channel on the verification code.
+    const submittedVerificationHash = hashRefreshToken(String(code));
+    const storedVerificationHash = String(user.email_verification_code);
+    const verificationCodesMatch = (() => {
+      if (submittedVerificationHash.length !== storedVerificationHash.length) return false;
+      try {
+        return crypto.timingSafeEqual(
+          Buffer.from(submittedVerificationHash),
+          Buffer.from(storedVerificationHash)
+        );
+      } catch {
+        return false;
+      }
+    })();
+    if (!verificationCodesMatch)
       return sendAuthError(res, 400, 'Invalid code', 'VERIFY_CODE_INVALID');
     const updated = await prisma.user.update({
       where: { id: user.id },
