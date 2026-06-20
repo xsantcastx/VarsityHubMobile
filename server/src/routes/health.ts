@@ -20,6 +20,7 @@ import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
 import { prisma } from '../lib/prisma.js';
 import { runDatabaseHealthcheck } from '../lib/healthProbe.js';
+import { runEgressProbe } from '../lib/egressProbe.js';
 import { getObjectStorageAdapter } from '../lib/objectStorage.js';
 import { resolveHealthCheckSecret } from '../lib/healthCheckSecret.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -168,6 +169,45 @@ healthRouter.get(
       };
     }
     res.json(body);
+  })
+);
+
+/**
+ * /health/egress — active outbound-connectivity probe.
+ *
+ * Returns 503 when the server cannot reach ANY third-party host (total egress
+ * loss), 200 otherwise. This is the signal an EXTERNAL monitor (UptimeRobot,
+ * etc.) should alert on: it calls in over inbound networking (healthy during an
+ * egress outage) and pages from its own infra, so it does NOT share the failure
+ * mode of Sentry/cron alerts, which ship over the very egress that's down.
+ *
+ * The 200/503 status + reachable/total summary is public (no secret) so a
+ * monitor can watch it with zero secret management; per-target detail (which
+ * reveals provider hosts) requires HEALTH_CHECK_SECRET. Targets are hardcoded,
+ * so there is no SSRF surface; the /health router is already rate-limited.
+ *
+ * Usage (monitor): GET /health/egress  → alert when status code is 503
+ * Usage (debug):   curl -H "x-health-check-secret: $S" .../health/egress
+ */
+healthRouter.get(
+  '/egress',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const { reachable, total, results } = await runEgressProbe();
+    const egressDown = reachable === 0;
+    const degraded = reachable < total;
+
+    const secret = resolveHealthCheckSecret();
+    const provided = String(req.headers['x-health-check-secret'] || '').trim();
+    const authorized = !!secret && !!provided && provided === secret;
+
+    res.status(egressDown ? 503 : 200).json({
+      status: egressDown ? 'egress_down' : degraded ? 'degraded' : 'ok',
+      reachable,
+      total,
+      // Per-target detail only when authorized — avoids leaking provider/Sentry hosts.
+      ...(authorized ? { results } : {}),
+      timestamp: new Date().toISOString(),
+    });
   })
 );
 
