@@ -15,6 +15,7 @@ import {
 import { sendAdPendingReviewEmail } from '../lib/email.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
+import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { prisma } from '../lib/prisma.js';
 import {
     consumeReviewToken,
@@ -1206,22 +1207,63 @@ adsRouter.get(
 
 // ── Shared helpers for ad moderation (used by POST, GET, and /review routes) ──
 
+/**
+ * Emit an AdminActivityLog row for an ad-moderation decision. Best-effort
+ * (logAdminActivity swallows its own errors). The email-link review path has no
+ * authenticated admin, so a null adminId is recorded under an 'email-token'
+ * sentinel rather than being dropped — the trail stays complete either way.
+ */
+async function logAdModerationActivity(
+  action: 'AD_APPROVE' | 'AD_REJECT',
+  description: string,
+  adId: string,
+  adminId: string | null,
+  note: string | null
+) {
+  let adminEmail = 'email-token';
+  if (adminId) {
+    const admin = await prisma.user.findUnique({
+      where: { id: adminId },
+      select: { email: true },
+    });
+    adminEmail = admin?.email || 'unknown';
+  }
+  await logAdminActivity(
+    adminId ?? 'email-token',
+    adminEmail,
+    action,
+    'ad',
+    adId,
+    description,
+    note ? { note } : undefined
+  );
+}
+
 async function approveAd(
   id: string,
   note?: string | null,
   adminId?: string | null,
   bannerOverride?: { reason: string }
 ) {
-  return approveAdService(id, adminId || null, prisma, {
+  const result = await approveAdService(id, adminId || null, prisma, {
     note: note || undefined,
     bannerOverride,
   });
+  // Only log a real decision — the service returns { error, status } on failure.
+  if (!(result as any)?.error) {
+    await logAdModerationActivity('AD_APPROVE', 'Approved ad', id, adminId || null, note || null);
+  }
+  return result;
 }
 
 async function rejectAd(id: string, reason?: string | null, adminId?: string | null) {
   // Thread the acting admin through so the service's self-reject IDOR guard is
   // live and the actor is recorded on refunds/notifications (was hardcoded null).
-  return rejectAdService(id, adminId || null, prisma, { reason: reason || undefined });
+  const result = await rejectAdService(id, adminId || null, prisma, { reason: reason || undefined });
+  if (!(result as any)?.error) {
+    await logAdModerationActivity('AD_REJECT', 'Rejected ad', id, adminId || null, reason || null);
+  }
+  return result;
 }
 
 /** Coerce a loose "true-ish" value into a boolean. Form checkboxes, JSON booleans,

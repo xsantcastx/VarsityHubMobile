@@ -2387,6 +2387,15 @@ organizationsRouter.post(
         });
       }
 
+      await logAdminActivityFromReq(
+        req,
+        'DENY_JOIN_REQUEST',
+        'user',
+        joinRequest.user_id,
+        `Denied coach join request for org ${organization.name}`,
+        reason ? { reason } : undefined
+      );
+
       return res.json({ message: 'Join request denied' });
     } catch (err: any) {
       if (err?.message === 'JOIN_REQUEST_ALREADY_REVIEWED') {
@@ -2772,6 +2781,16 @@ async function _executeJoinRequestDenialByToken(
     });
   }
 
+  await logAdminActivity(
+    reviewerUserId,
+    'league-owner-email-action',
+    'DENY_JOIN_REQUEST',
+    'user',
+    joinRequest.user_id,
+    `Denied coach join request for org ${organization.name} (via email link)`,
+    reason ? { reason } : undefined
+  );
+
   return { ok: true };
 }
 
@@ -3007,6 +3026,15 @@ organizationsRouter.post(
           select: { id: true },
         }),
       ]);
+
+      await logAdminActivityFromReq(
+        req,
+        'TRANSFER_ORG_OWNERSHIP',
+        'organization',
+        orgId,
+        `Transferred organization ownership to user ${new_owner_id}`,
+        { new_owner_id }
+      );
 
       return res.json({ message: 'Ownership transferred successfully' });
   })

@@ -18,8 +18,10 @@ import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
 import {
     canManageTeam as canManageTeamScoped,
+    canAssignTeamRole as canAssignTeamRoleScoped,
     isOrgAdmin as isOrgAdminScoped,
 } from '../lib/teamAuthorization.js';
+import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import {
     buildTeamPlanLockedError,
     getTeamEntitlementState,
@@ -2099,6 +2101,15 @@ teamsRouter.post(
       });
     }
 
+    // Role-tier guard (single source of truth). canManage above admits
+    // coaches/assistant_coaches, who must NOT be able to invite at manager level.
+    if (!(await canAssignTeamRoleScoped(req.user.id, id, assignedRole))) {
+      return res.status(403).json({
+        error: 'INSUFFICIENT_ROLE',
+        message: 'Only team owners can invite at manager level.',
+      });
+    }
+
     // PLAN LIMITS: Enforce authorized user caps based on TEAM OWNER's plan (Rule B).
     // Authorized users are covered by the coach's plan — never charged individually.
     // CRITICAL: Use transaction to prevent race condition bypassing user limits.
@@ -2622,6 +2633,15 @@ teamsRouter.post(
           data: { role: 'owner' },
         }),
       ]);
+
+      await logAdminActivityFromReq(
+        req,
+        'TRANSFER_TEAM_OWNERSHIP',
+        'team',
+        teamId,
+        `Transferred team ownership to user ${new_owner_id}`,
+        { new_owner_id }
+      );
 
       return res.json({ ok: true, message: 'Ownership transferred successfully' });
   })

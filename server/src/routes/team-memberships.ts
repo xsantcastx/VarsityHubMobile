@@ -5,7 +5,10 @@ import { sendTeamJoinRequestEmail } from '../lib/email.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
-import { canManageTeam as canManageTeamShared } from '../lib/teamAuthorization.js';
+import {
+  canManageTeam as canManageTeamShared,
+  canAssignTeamRole,
+} from '../lib/teamAuthorization.js';
 import { guardTeamMembershipMutation } from '../lib/teamEntitlements.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -173,6 +176,15 @@ teamMembershipsRouter.patch(
         const validatedRole = String(role) as ValidRole;
         if (!VALID_ROLES.includes(validatedRole)) {
           return sendError(res, 400, 'Invalid role', { details: { valid_roles: VALID_ROLES } });
+        }
+
+        // Role-tier guard (single source of truth). canManage above admits
+        // coaches/assistant_coaches, who must NOT be able to promote anyone
+        // (including themselves) to manager.
+        if (!(await canAssignTeamRole(req.user.id, membership.team_id, validatedRole))) {
+          return sendError(res, 403, 'INSUFFICIENT_ROLE', {
+            message: 'Only team owners can assign the manager role.',
+          });
         }
 
         const guard = await guardTeamMembershipMutation(prisma, {

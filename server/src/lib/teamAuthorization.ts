@@ -105,6 +105,45 @@ export async function canApproveTeamGame(userId: string | null | undefined, team
 }
 
 /**
+ * Can `userId` assign `targetRole` within `teamId`? Single source of truth for
+ * role-tier rules across EVERY team-role write path (POST /teams/:id/invite,
+ * POST /team-invites, PATCH /team-memberships/:id). Callers MUST already have
+ * gated on `canManageTeam` — this only adds the tier restriction on top.
+ *
+ *   - `owner`   → never assignable here (only via team creation / transfer-ownership).
+ *   - `manager` → only a team OWNER, or an org admin (owner/manager of the team's
+ *                 org), may grant it. Coaches/assistant_coaches pass canManageTeam
+ *                 but must NOT be able to mint managers — that is a privilege
+ *                 escalation (a coach could otherwise promote peers or self).
+ *   - any lower role → allowed (caller already passed canManageTeam).
+ *
+ * Fails closed on null user. The org-admin path is verified explicitly rather
+ * than inferred from a null direct membership, so an org admin who *also* holds
+ * a non-owner direct team role is still allowed to grant manager.
+ */
+export async function canAssignTeamRole(
+  userId: string | null | undefined,
+  teamId: string,
+  targetRole: string
+): Promise<boolean> {
+  if (!userId) return false;
+  if (targetRole === 'owner') return false;
+  if (targetRole !== 'manager') return true;
+
+  const callerMembership = await prisma.teamMembership.findFirst({
+    where: { team_id: teamId, user_id: userId, status: 'active' },
+    select: { role: true },
+  });
+  if (callerMembership?.role === 'owner') return true;
+
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { organization_id: true },
+  });
+  return isOrgAdmin(userId, team?.organization_id ?? null);
+}
+
+/**
  * Can `userId` see a private team's roster + full profile?
  *
  * Public teams (`is_private = false`) are always viewable. For private teams,
