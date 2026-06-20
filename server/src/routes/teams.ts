@@ -18,6 +18,7 @@ import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
 import {
     canManageTeam as canManageTeamScoped,
+    canAssignTeamRole as canAssignTeamRoleScoped,
     isOrgAdmin as isOrgAdminScoped,
 } from '../lib/teamAuthorization.js';
 import {
@@ -2096,6 +2097,15 @@ teamsRouter.post(
       return res.status(403).json({
         error: 'PERMISSION_DENIED',
         message: 'Only team staff or organization admins can invite members to teams.',
+      });
+    }
+
+    // Role-tier guard (single source of truth). canManage above admits
+    // coaches/assistant_coaches, who must NOT be able to invite at manager level.
+    if (!(await canAssignTeamRoleScoped(req.user.id, id, assignedRole))) {
+      return res.status(403).json({
+        error: 'INSUFFICIENT_ROLE',
+        message: 'Only team owners can invite at manager level.',
       });
     }
 
