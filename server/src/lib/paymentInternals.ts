@@ -49,9 +49,17 @@ const formatUsd = (cents?: number | null) => {
 let stripePromise: Promise<Stripe> | null = null;
 
 async function getStripe(): Promise<Stripe> {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  // Fail loud with one clear cause instead of constructing a client with a fake
+  // placeholder key — the old `|| 'sk_test_not_configured'` fallback turned a
+  // missing/placeholder key into hundreds of opaque "Invalid API Key provided:
+  // sk_test_…" errors from Stripe on every downstream call.
+  if (!secretKey) {
+    throw new Error('STRIPE_SECRET_KEY is not configured — cannot initialize Stripe client');
+  }
   if (!stripePromise) {
     stripePromise = import('stripe').then(({ default: StripeCtor }) =>
-      new StripeCtor(process.env.STRIPE_SECRET_KEY || 'sk_test_not_configured', {
+      new StripeCtor(secretKey, {
         apiVersion: '2024-06-20',
         timeout: 20000,
         maxNetworkRetries: 2,

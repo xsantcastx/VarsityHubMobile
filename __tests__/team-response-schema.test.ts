@@ -1,4 +1,4 @@
-import { validateTeam, validateTeamArray } from '@/api/schemas/team';
+import { validateTeam, validateTeamArray, validateTeamScreenSummary } from '@/api/schemas/team';
 import { captureException } from '@/utils/sentry';
 
 jest.mock('@/utils/sentry', () => ({
@@ -75,6 +75,39 @@ describe('team response schema validation', () => {
     const payload = [{ ...baseTeam, adhoc_field: 'present' }];
 
     const result = validateTeamArray('teams.list', payload);
+
+    expect(result).toEqual(payload);
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
+
+  // Regression: the /screen-summary endpoint returns counts WITHOUT `followers`.
+  // `followers` is now optional, so this must validate cleanly (was the source of
+  // the recurring "Team response schema drift at teams.screenSummary" events).
+  it('accepts a screen-summary payload whose counts omit followers (no drift)', () => {
+    const payload = {
+      team: baseTeam,
+      permissions: { can_manage: true },
+      counts: { members: 2, games: 3 },
+      members: [],
+      games: [],
+    };
+
+    const result = validateTeamScreenSummary('teams.screenSummary', payload);
+
+    expect(result).toEqual(payload);
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+  });
+
+  it('still accepts a screen-summary payload that includes followers', () => {
+    const payload = {
+      team: baseTeam,
+      permissions: { can_manage: false },
+      counts: { members: 1, followers: 9, games: 0 },
+      members: [],
+      games: [],
+    };
+
+    const result = validateTeamScreenSummary('teams.screenSummary', payload);
 
     expect(result).toEqual(payload);
     expect(captureExceptionMock).not.toHaveBeenCalled();

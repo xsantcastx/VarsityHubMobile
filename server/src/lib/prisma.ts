@@ -1,30 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import { debugLog } from './debugLog.js';
+import { withPoolLimits } from './prismaPoolUrl.js';
 import './load-env.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
-const withTestPoolLimits = (rawUrl: string): string => {
-  try {
-    const url = new URL(rawUrl);
-    // Jest loads many isolated Prisma clients across the suite. Cap each test
-    // client to a single DB connection so the aggregate doesn't exhaust Postgres.
-    if (!url.searchParams.has('connection_limit')) {
-      url.searchParams.set('connection_limit', '1');
-    }
-    if (!url.searchParams.has('pool_timeout')) {
-      url.searchParams.set('pool_timeout', '20');
-    }
-    return url.toString();
-  } catch {
-    return rawUrl;
-  }
-};
-
-const prismaDatasourceUrl =
-  isTest && process.env.DATABASE_URL
-    ? withTestPoolLimits(process.env.DATABASE_URL)
-    : process.env.DATABASE_URL;
+const prismaDatasourceUrl = process.env.DATABASE_URL
+  ? withPoolLimits(process.env.DATABASE_URL, { isTest, isProduction })
+  : process.env.DATABASE_URL;
 
 // Runtime diagnostic: mask password in DATABASE_URL and log connection pool settings
 (() => {

@@ -134,22 +134,11 @@ export async function runCoachStateDriftProbe(
       .join(' ');
     console.warn(`[coach-state-drift] FINDINGS ${summary}`);
     const actionableBuckets = buckets.filter(bucket => actionableKinds.has(bucket.kind));
-    const actionableTotal = actionableBuckets.reduce((acc, bucket) => acc + bucket.rows.length, 0);
-    if (actionableTotal > 0) {
-      const actionableSummary = actionableBuckets
-        .map(bucket => `${bucket.kind}=${bucket.rows.length}`)
-        .join(' ');
-      captureMessage(`[coach-state-drift] ${actionableSummary}`, 'warning', {
-        context: 'coach_state_drift_probe',
-        tags: {
-          job: 'coach-state-drift-probe',
-        },
-        buckets: actionableBuckets.map(bucket => ({
-          kind: bucket.kind,
-          count: bucket.rows.length,
-        })),
-      });
-    }
+    // De-dup (Sentry noise): emit exactly ONE issue per drift kind via the
+    // per-bucket loop below. The combined summary stays in logs (console.warn
+    // above); a second near-identical captureMessage here previously created a
+    // duplicate Sentry issue (e.g. `stuck_in_final_setup_7d=1` alongside the
+    // richer per-bucket `stuck_in_final_setup_7d (1): …`).
     // Attach buckets as breadcrumb-style context so Sentry-triage can see row
     // IDs without logging full PII to the top-level event.
     for (const bucket of actionableBuckets) {
