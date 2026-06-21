@@ -25,6 +25,15 @@ dotenv.config();
 
 export const geocodingRouter = Router();
 
+// Axios errors embed the full request URL — including `?key=<GOOGLE_MAPS_API_KEY>`
+// — in error.config.url / error.request.path. Logging or capturing the raw error
+// object leaks the key into Railway logs and Sentry. Always sanitize first.
+const redactApiKey = (value: string): string =>
+  value.replace(/([?&]key=)[^&\s'")]+/gi, '$1***');
+
+const safeErrorMessage = (error: unknown): string =>
+  redactApiKey(String((error as any)?.message ?? error)).slice(0, 300);
+
 const geocodeSchema = z.object({
   location: z.string().min(2, 'Location must be at least 2 characters'),
 });
@@ -86,8 +95,9 @@ geocodingRouter.post(
           message: 'Geocoding temporarily unavailable',
         });
       }
-      console.error('Geocoding request failed:', error);
-      captureException(error instanceof Error ? error : new Error(String(error)), {
+      const safe = safeErrorMessage(error);
+      console.error('Geocoding request failed:', safe);
+      captureException(new Error(`Geocoding request failed: ${safe}`), {
         context: 'geocoding_location_failed',
         provider: 'google-maps',
       });
@@ -189,8 +199,9 @@ geocodingRouter.get(
           message: 'Place suggestions temporarily unavailable',
         });
       }
-      console.error('Autocomplete request failed:', error);
-      captureException(error instanceof Error ? error : new Error(String(error)), {
+      const safe = safeErrorMessage(error);
+      console.error('Autocomplete request failed:', safe);
+      captureException(new Error(`Autocomplete request failed: ${safe}`), {
         context: 'geocoding_autocomplete_failed',
         provider: 'google-maps',
       });
