@@ -12,6 +12,7 @@ import {
 import { sendError } from '../lib/http/sendError.js';
 import { captureException } from '../lib/sentry.js';
 import { runWithBreaker } from '../lib/circuitBreaker.js';
+import { safeErrorMessage } from '../lib/redactSecrets.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -24,15 +25,6 @@ import {
 dotenv.config();
 
 export const geocodingRouter = Router();
-
-// Axios errors embed the full request URL — including `?key=<GOOGLE_MAPS_API_KEY>`
-// — in error.config.url / error.request.path. Logging or capturing the raw error
-// object leaks the key into Railway logs and Sentry. Always sanitize first.
-const redactApiKey = (value: string): string =>
-  value.replace(/([?&]key=)[^&\s'")]+/gi, '$1***');
-
-const safeErrorMessage = (error: unknown): string =>
-  redactApiKey(String((error as any)?.message ?? error)).slice(0, 300);
 
 const geocodeSchema = z.object({
   location: z.string().min(2, 'Location must be at least 2 characters'),
