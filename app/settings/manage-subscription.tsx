@@ -535,7 +535,7 @@ function ManageSubscription() {
                       </Button>
                     )}
                     <Button
-                      onPress={() => router.push('/settings/billing-history' as any)}
+                      onPress={() => router.push('/settings/billing-history')}
                       variant="outline"
                     >
                       <Text>Billing History</Text>
