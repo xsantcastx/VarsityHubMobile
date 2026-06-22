@@ -1,6 +1,8 @@
 import { TeamMemberships } from '@/api/entities';
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { safeGoBack } from '@/utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -38,6 +40,11 @@ export default function TeamJoinRequestsScreen() {
   const theme = Colors[colorScheme];
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // Staff-only screen. Mirror team-admin's guard: useRequireCoach redirects a
+  // non-coach fan to /(tabs)/feed instead of letting them reach the API, get a
+  // 403, and see a generic "Failed to load requests" error. Per-team
+  // authorization stays server-enforced on the approve/reject calls below.
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
 
   const queryClient = useQueryClient();
 
@@ -50,7 +57,7 @@ export default function TeamJoinRequestsScreen() {
     isRefetching,
   } = useQuery({
     queryKey: ['team-join-requests', teamId ?? ''],
-    enabled: !!teamId,
+    enabled: !!teamId && canAccessCoachTools,
     queryFn: async () => {
       const result = await TeamMemberships.getJoinRequests(teamId as string);
       return Array.isArray(result) ? (result as JoinRequest[]) : [];
@@ -200,6 +207,19 @@ export default function TeamJoinRequestsScreen() {
     },
     [acting, handleApprove, handleReject, theme]
   );
+
+  // While coach state resolves, or for any non-coach who reached this route,
+  // render the redirect placeholder (useRequireCoach handles the actual
+  // navigation) rather than the management UI or a 403 error state.
+  if (coachLoading || !canAccessCoachTools) {
+    return (
+      <CoachAccessRedirecting
+        backgroundColor={theme.background}
+        spinnerColor={theme.tint}
+        textColor={theme.mutedText}
+      />
+    );
+  }
 
   return (
     <SafeAreaView
