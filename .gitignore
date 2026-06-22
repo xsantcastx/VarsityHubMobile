@@ -150,3 +150,7 @@ uploads/
 # Ad-hoc debug screenshots / scratch artifacts (never commit)
 tmp-*.png
 tmp-*.jpg
+
+# Personal email signature/template scratch at repo root (may contain PII — never commit)
+/email-signature*.html
+/personal-email-template.html
