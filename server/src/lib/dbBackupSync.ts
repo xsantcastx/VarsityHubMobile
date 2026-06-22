@@ -11,6 +11,7 @@
 import { PrismaClient } from '@prisma/client';
 import { debugLog } from './debugLog.js';
 import { captureException } from './sentry.js';
+import { buildRowValuesClause, enumCastTypeName } from './dbBackupSql.js';
 
 // Tables in dependency order (parents before children)
 const TABLES_IN_ORDER = [
@@ -105,10 +106,8 @@ export async function syncDatabaseBackup(): Promise<{
     // cast — $executeRawUnsafe binds params as text, and Postgres won't implicitly
     // coerce text → enum (error 42804). Maps table → column → {dataType, udtName}.
     const primaryColumnTypeCache = new Map<string, Map<string, { dataType: string; udtName: string }>>();
-    const enumCastForColumn = (table: string, col: string): string => {
-      const t = primaryColumnTypeCache.get(table)?.get(col);
-      return t && t.dataType === 'USER-DEFINED' ? `"${t.udtName}"` : '';
-    };
+    const enumCastForColumn = (table: string, col: string): string =>
+      enumCastTypeName(primaryColumnTypeCache.get(table)?.get(col));
     const resolvePrimaryColumns = async (table: string): Promise<string[]> => {
       const cached = primaryColumnCache.get(table);
       if (cached && cached.length > 0) return cached;
@@ -203,12 +202,13 @@ export async function syncDatabaseBackup(): Promise<{
           let paramIdx = 1;
 
           for (const row of batch) {
-            const placeholders = columns.map((col) => {
-              const ph = `$${paramIdx++}`;
-              const cast = enumCastForColumn(table, col);
-              return cast ? `${ph}::${cast}` : ph;
-            });
-            valueClauses.push(`(${placeholders.join(', ')})`);
+            const { clause, nextParamIdx } = buildRowValuesClause(
+              columns,
+              paramIdx,
+              (col) => enumCastForColumn(table, col)
+            );
+            paramIdx = nextParamIdx;
+            valueClauses.push(clause);
             for (const col of columns) {
               params.push(row[col]);
             }
