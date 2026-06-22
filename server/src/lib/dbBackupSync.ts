@@ -101,6 +101,14 @@ export async function syncDatabaseBackup(): Promise<{
     // (schema drift between primary and backup after recent migrations).
     const backupColumnCache = new Map<string, Set<string>>();
     const primaryColumnCache = new Map<string, string[]>();
+    // Enum (USER-DEFINED) columns must be inserted with an explicit ::"<EnumType>"
+    // cast — $executeRawUnsafe binds params as text, and Postgres won't implicitly
+    // coerce text → enum (error 42804). Maps table → column → {dataType, udtName}.
+    const primaryColumnTypeCache = new Map<string, Map<string, { dataType: string; udtName: string }>>();
+    const enumCastForColumn = (table: string, col: string): string => {
+      const t = primaryColumnTypeCache.get(table)?.get(col);
+      return t && t.dataType === 'USER-DEFINED' ? `"${t.udtName}"` : '';
+    };
     const resolvePrimaryColumns = async (table: string): Promise<string[]> => {
       const cached = primaryColumnCache.get(table);
       if (cached && cached.length > 0) return cached;
@@ -123,9 +131,9 @@ export async function syncDatabaseBackup(): Promise<{
       }
 
       const primaryCols = await primary.$queryRaw<
-        Array<{ table_name: string; column_name: string; ordinal_position: number }>
+        Array<{ table_name: string; column_name: string; ordinal_position: number; data_type: string; udt_name: string }>
       >`
-        SELECT table_name, column_name, ordinal_position
+        SELECT table_name, column_name, ordinal_position, data_type, udt_name
         FROM information_schema.columns
         WHERE table_schema = 'public'
         ORDER BY table_name ASC, ordinal_position ASC
@@ -133,6 +141,8 @@ export async function syncDatabaseBackup(): Promise<{
       for (const row of primaryCols) {
         if (!primaryColumnCache.has(row.table_name)) primaryColumnCache.set(row.table_name, []);
         primaryColumnCache.get(row.table_name)!.push(row.column_name);
+        if (!primaryColumnTypeCache.has(row.table_name)) primaryColumnTypeCache.set(row.table_name, new Map());
+        primaryColumnTypeCache.get(row.table_name)!.set(row.column_name, { dataType: row.data_type, udtName: row.udt_name });
       }
     } catch (colErr: any) {
       console.error('[db-backup] Failed to read backup column info — will attempt sync without column filtering:', colErr.message?.slice(0, 200));
@@ -193,7 +203,11 @@ export async function syncDatabaseBackup(): Promise<{
           let paramIdx = 1;
 
           for (const row of batch) {
-            const placeholders = columns.map(() => `$${paramIdx++}`);
+            const placeholders = columns.map((col) => {
+              const ph = `$${paramIdx++}`;
+              const cast = enumCastForColumn(table, col);
+              return cast ? `${ph}::${cast}` : ph;
+            });
             valueClauses.push(`(${placeholders.join(', ')})`);
             for (const col of columns) {
               params.push(row[col]);
