@@ -234,13 +234,17 @@ echo ""
 
 DEAD_END_COUNT=0
 while IFS= read -r file; do
-  # Only flag if the file has no router/navigation call at all
-  if ! rg -q "router\.(push|replace|back|navigate)|safeGoBack|useNavigation|router\.dismiss" "$file" 2>/dev/null; then
+  # Only flag if the file has no router/navigation call at all.
+  # Redirect-only screens navigate via the <Redirect> component, not router.*;
+  # a // nav-safe: comment also clears a screen the same way it clears replaces.
+  if ! rg -q "router\.(push|replace|back|navigate)|safeGoBack|useNavigation|router\.dismiss|<Redirect|nav-safe:" "$file" 2>/dev/null; then
     echo -e "  ${YELLOW}?${RESET} $file  (no navigation found — verify it has a back button)"
     ((DEAD_END_COUNT++)) || true
   fi
 done < <(
-  rg -l "headerShown.*false" app/ --glob "*.tsx" 2>/dev/null | head -30
+  # Layout files (_layout.tsx) are not screens — exclude them from the screen
+  # dead-end scan.
+  rg -l "headerShown.*false" app/ --glob "*.tsx" --glob "!**/_layout.tsx" 2>/dev/null | head -30
 )
 
 if [ "$DEAD_END_COUNT" -eq 0 ]; then

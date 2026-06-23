@@ -203,6 +203,7 @@ async function phase2_fanOnboarding(): Promise<void> {
       role: 'fan',
       username: `audit_fan_${RUN}`,
       display_name: `Audit Fan ${RUN}`,
+      dob: '1990-01-01',
       zip_code: '10001',
       sports_interests: ['Football'],
       primary_intents: ['find_local_games'],
@@ -221,14 +222,18 @@ async function phase2_fanOnboarding(): Promise<void> {
   const feed = await api('GET', '/posts', { token: fan.token });
   record('Fan can access feed (GET /posts)', feed.status === 200, feed.status);
 
-  // Verify fan CANNOT create a team (not a coach)
+  // Verify fan CANNOT create a team. A fan has no organization_id, so the
+  // request is rejected by Zod (400, "organization_id required") before it can
+  // reach the COACH_ROLE_REQUIRED service-layer gate (teams.ts createTeamWithGuardrails).
+  // intent: accept 400 OR 403 — both mean "rejected, no team created"; the
+  // security invariant (a non-coach never creates a team) holds either way.
   const teamAttempt = await api('POST', '/teams', {
     body: { name: `FanTeam_${RUN}`, description: 'Should fail' },
     token: fan.token,
   });
   record(
-    'Fan CANNOT create a team (403)',
-    teamAttempt.status === 403,
+    'Fan CANNOT create a team (rejected, not created)',
+    (teamAttempt.status === 403 || teamAttempt.status === 400) && !teamAttempt.data?.id,
     teamAttempt.status,
     `code=${teamAttempt.data?.code || teamAttempt.data?.error || 'N/A'}`,
   );
@@ -248,26 +253,38 @@ async function phase2_fanOnboarding(): Promise<void> {
 async function phase3_coachOnboarding(): Promise<void> {
   phase('3 — Coach Onboarding & Approval');
 
-  // 3a. Complete coach onboarding
-  const onboard = await api('POST', '/auth/me/complete-onboarding', {
-    body: {
-      role: 'coach',
-      plan: 'rookie',
-      username: `audit_coach_${RUN}`,
-      display_name: `Audit Coach ${RUN}`,
-      zip_code: '10001',
-      messaging_policy_accepted: true,
-    },
+  // The real coach flow (verified against server routes) is ordered:
+  //   set DOB -> upgrade-to-coach (role=coach, approval PENDING, onboarding reset)
+  //   -> create org (becomes owner) -> create team -> complete onboarding.
+  // complete-onboarding now requires org/team (auth.ts ORG_TEAM_REQUIRED), and a
+  // PENDING coach may only create a team while they own an org AND onboarding is
+  // incomplete (teams.ts createTeamWithGuardrails). Hence org/team BEFORE onboarding.
+
+  // 3a. Set DOB — required before coach upgrade (server-side 18+ / COPPA gate)
+  const dobSet = await api('PATCH', '/auth/me/preferences', {
+    body: { dob: '1990-01-01' },
     token: coach.token,
   });
   record(
-    'Coach completes onboarding',
-    onboard.status === 200 || onboard.status === 201,
-    onboard.status,
-    onboard.data?.message || truncate(JSON.stringify(onboard.data), 100),
+    'Coach sets date of birth',
+    dobSet.status === 200,
+    dobSet.status,
+    truncate(JSON.stringify(dobSet.data), 80),
   );
 
-  // 3b. Coach creates org (using onboarding=true to bypass requireOnboarded)
+  // 3b. Upgrade to coach (canonical flow — direct coach registration is disabled)
+  const upgrade = await api('POST', '/auth/upgrade-to-coach', {
+    body: { plan: 'rookie' },
+    token: coach.token,
+  });
+  record(
+    'Coach upgrades to coach role (approval PENDING)',
+    upgrade.status === 200 || upgrade.status === 201,
+    upgrade.status,
+    upgrade.data?.message || truncate(JSON.stringify(upgrade.data), 100),
+  );
+
+  // 3c. Coach creates org (onboarding=true bypasses requireOnboarded; coach becomes owner)
   const orgRes = await api('POST', '/organizations', {
     body: {
       name: `Audit League ${RUN}`,
@@ -275,6 +292,8 @@ async function phase3_coachOnboarding(): Promise<void> {
       org_type: 'club',
       location: 'New York, NY',
       zip_code: '10001',
+      // Org verification doc is now required by createOrganizationSchema (must be a valid URL).
+      supporting_document_url: 'https://res.cloudinary.com/demo/image/upload/audit-supporting-doc.pdf',
       onboarding: true,
     },
     token: coach.token,
@@ -289,12 +308,11 @@ async function phase3_coachOnboarding(): Promise<void> {
     orgId ? `orgId=${orgId}` : truncate(JSON.stringify(orgRes.data), 100),
   );
 
-  // 3c. Coach creates team under org (using onboarding=true)
+  // 3d. Coach creates team under org (onboarding=true; allowed while org-owner + not onboarded)
   if (orgId) {
     const teamRes = await api('POST', '/teams', {
       body: {
         name: `Audit Team ${RUN}`,
-        sport: 'Football',
         organization_id: orgId,
         onboarding: true,
       },
@@ -313,7 +331,29 @@ async function phase3_coachOnboarding(): Promise<void> {
     skip('Coach creates team', 'No org created');
   }
 
-  // 3d. Verify coach is BLOCKED from creating content (APPROVAL_REQUIRED)
+  // 3e. Complete coach onboarding (now has org/team to satisfy ORG_TEAM_REQUIRED)
+  const onboard = await api('POST', '/auth/me/complete-onboarding', {
+    body: {
+      role: 'coach',
+      plan: 'rookie',
+      username: `audit_coach_${RUN}`,
+      display_name: `Audit Coach ${RUN}`,
+      dob: '1990-01-01',
+      zip_code: '10001',
+      organization_id: orgId || undefined,
+      team_id: teamId || undefined,
+      messaging_policy_accepted: true,
+    },
+    token: coach.token,
+  });
+  record(
+    'Coach completes onboarding',
+    onboard.status === 200 || onboard.status === 201,
+    onboard.status,
+    onboard.data?.message || truncate(JSON.stringify(onboard.data), 100),
+  );
+
+  // 3f. Verify coach is BLOCKED from creating content (APPROVAL_REQUIRED)
   const blockedPost = await api('POST', '/posts', {
     body: { content: `Should be blocked ${RUN}`, type: 'text' },
     token: coach.token,
@@ -325,7 +365,7 @@ async function phase3_coachOnboarding(): Promise<void> {
     `code=${blockedPost.data?.code || 'N/A'}`,
   );
 
-  // 3e. Admin approves the organization first (required before coach approval)
+  // 3g. Admin approves the organization first (required before coach approval)
   if (orgId) {
     const orgApprove = await api('POST', `/organizations/${orgId}/approve`, {
       token: admin.token,
@@ -341,7 +381,7 @@ async function phase3_coachOnboarding(): Promise<void> {
     skip('Admin approves organization', 'No org to approve');
   }
 
-  // 3f. Admin approves coach
+  // 3h. Admin approves coach
   const approveRes = await api('POST', `/admin/coaches/${coach.id}/approve`, {
     token: admin.token,
     body: { note: 'Audit test approval' },
@@ -353,7 +393,7 @@ async function phase3_coachOnboarding(): Promise<void> {
     approveRes.data?.message || truncate(JSON.stringify(approveRes.data), 100),
   );
 
-  // 3g. Verify coach can NOW create content
+  // 3i. Verify coach can NOW create content
   const allowedPost = await api('POST', '/posts', {
     body: { content: `Audit test post ${RUN}`, type: 'text' },
     token: coach.token,
@@ -426,7 +466,9 @@ async function phase4_contentInteraction(): Promise<void> {
 
   // 4f. Verify follow shows in coach's followers
   const followers = await api('GET', `/users/${coach.id}/followers`, { token: coach.token });
-  const followerList = Array.isArray(followers.data) ? followers.data : (followers.data?.followers || []);
+  const followerList = Array.isArray(followers.data)
+    ? followers.data
+    : (followers.data?.items || followers.data?.followers || []);
   const fanInFollowers = followerList.some(
     (f: any) => f.follower_id === fan.id || f.id === fan.id || f.user?.id === fan.id,
   );

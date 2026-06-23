@@ -146,8 +146,9 @@ npx tsc --noEmit --project server/tsconfig.json 2>&1 | tail -20
 # fails ~100 suites with "Cannot use 'import.meta' outside a module".
 cd server && npm test
 
-# Dark mode violations (text colors)
-grep -rn "'#000\|'#333\|'#374151\|'#111\|black" app/ --include="*.tsx" | grep -v backgroundColor
+# Dark mode violations (text colors) — excludes shadowColor (not text) and
+# lines tagged `// audit:` (reviewed-intentional contrast colors).
+grep -rn "'#000\|'#333\|'#374151\|'#111\|black" app/ --include="*.tsx" | grep -vE "backgroundColor|shadowColor|audit:"
 
 # Unbounded queries — Jest checks 50-line context windows; grep misses multi-line take: clauses
 cd server && npx jest --testPathPattern="unbounded-queries" --no-coverage 2>&1 | tail -5
@@ -155,7 +156,10 @@ cd server && npx jest --testPathPattern="unbounded-queries" --no-coverage 2>&1 |
 # Direct sgMail usage outside provider implementations
 rg -n "sgMail.send" server/src --glob "*.ts" -g '!server/src/services/email/providers/**'
 
-# Missing requireAuth on routes using req.user
+# Routes using req.user — ADVISORY ONLY (over-reports). requireAuth is applied
+# at the router level, not on the same line, so this grep can't confirm coverage.
+# Eyeball NEW hits in your diff; the REAL gate is the middleware test suite:
+#   cd server && npm test -- --testPathPattern="middleware-coverage|requireOnboarded-bypass"
 grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 
 # Navigation dead ends — classify every router.replace; flag any REVIEW items
@@ -226,105 +230,166 @@ npm run audit:navigation        # classify all router.replace calls; flag REVIEW
 
 ## PR Checklist (Run Before Each PR)
 
-The enforcement gate derived from the **Security & Architecture Audit Standard** below. A PR passes only when every box is checked; the tags map each item back to the standard. Automated items first (run the block), then the human-judgment items.
+The enforcement gate derived from the **Security & Architecture Audit Standard** below. A PR passes only when every box is checked; the tags map each item back to the standard. Run the automated block first, then confirm the human-judgment items in the PR description. Every command here is a real, wired npm script or a grep that runs against this tree today.
 
 ```bash
-# [GATE] TypeScript — client + server, 0 new errors
+# ── [GATE] Type safety — client + server, 0 new errors ────────────────────────
 npx tsc --noEmit 2>&1 | tail -5
 npx tsc --noEmit --project server/tsconfig.json 2>&1 | tail -5
 
-# [GATE] Unbounded queries — Jest checks 50-line windows; grep misses multi-line take:
-cd server && npx jest --testPathPattern="unbounded-queries" --no-coverage 2>&1 | tail -5
+# ── [GATE] Unbounded queries — Jest checks 50-line windows; grep misses multi-line take:
+# Single suite runs fine without the ESM wrapper; the FULL server suite needs `npm test`.
+cd server && npm test -- --testPathPattern="unbounded-queries" --no-coverage 2>&1 | tail -5; cd ..
 
-# [ENG] Missing requireAuth on routes using req.user
+# ── [GATE] Regression battery — the curated client+server invariant suites ─────
+npm run test:regressions
+
+# ── [ENG] Routes using req.user — ADVISORY (over-reports; requireAuth is ───────
+# applied at the router level, not same-line). Eyeball NEW diff hits; the real
+# gate is: cd server && npm test -- --testPathPattern="middleware-coverage|requireOnboarded-bypass"
 grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 
-# [ENG] Direct sgMail usage outside providers
+# ── [ENG] Direct sgMail usage outside providers ───────────────────────────────
 rg -n "sgMail.send" server/src --glob "*.ts" -g '!server/src/services/email/providers/**'
 
-# [GATE] Hardcoded dark text colors (dark mode violations)
-grep -rn "'#000\|'#111\|'#222\|'#333\|'#374151\|'#111827\|'#1a1a\|black" app/ --include="*.tsx" | grep -v backgroundColor
+# ── [ENG] No raw error responses — must use the error envelope ────────────────
+npm run verify:error-envelope        # no bare res.status().json() (diff-scoped)
+npm run verify:async-handlers        # every async route wrapped in asyncHandler
 
-# [ENG] Screens must not call fetch directly — route through api/*
-grep -rn "fetch(" app/ --include="*.tsx" | grep -v "// allow-fetch"
+# ── [ENG] No hardcoded secrets introduced ─────────────────────────────────────
+npm run verify:secrets
 
-# [AUDIT] Navigation dead ends — classify all router.replace; must show 0 REVIEW items
-npm run audit:navigation
+# ── [BIZ] Cache invalidation on user-state mutations ──────────────────────────
+npm run verify:user-cache
+
+# ── [GATE] Hardcoded dark text colors — excludes shadowColor + `// audit:` ─────
+grep -rn "'#000\|'#111\|'#222\|'#333\|'#374151\|'#111827\|'#1a1a\|black" app/ --include="*.tsx" | grep -vE "backgroundColor|shadowColor|audit:"
+
+# ── [ENG] Screens must not call fetch directly — route through api/* ───────────
+# \b excludes refetch(); the trailing filter excludes member calls like X.fetch().
+grep -rnE "\bfetch\(" app/ --include="*.tsx" | grep -v "// allow-fetch" | grep -vE "\.fetch\("
+
+# ── [AUDIT] Navigation dead ends — classify all router.replace; 0 REVIEW items ─
+npm run audit:navigation:fail        # nonzero exit if any UNREVIEWED item
+
+# ── [GATE] P0 foundation — dep CVEs + rate-limit coverage + payments confidence
+npm run verify:p0:foundation
 ```
+
+Touched payments / auth / webhooks? Also run the matching invariant suite from the **Per-System Audit Playbook** below (e.g. `cd server && npm test -- --testPathPattern="payments-invariants|stripe-webhook-signature"`).
 
 Human-judgment gate (cannot be grepped — confirm explicitly in the PR description):
 
-- [ ] **[BIZ]** No client-controlled payment/approval/role/plan field reaches a security decision (server is authoritative).
-- [ ] **[AUDIT]** Validation parity: frontend constraints match the backend Zod schema — username (3–20), email format, password (8+), team/org names — or carry an `// intent:` note.
-- [ ] **[ENG]** Every new async screen renders loading, error, success, and empty states.
-- [ ] **[ENG]** No silent `catch {}` in auth/payment/user flows; errors logged with `[context]` and surfaced to the user.
-- [ ] **[AUDIT]** New webhooks/retries/jobs are idempotent (replay test or written rationale).
-- [ ] **[AUDIT]** New admin action emits an `AdminActivityLog` row (actor/target/action/timestamp).
-- [ ] **[GATE]** Security fix includes a before/after exploit reproduction; schema change includes migration status + rollback note.
+- [ ] **[BIZ]** No client-controlled payment/approval/role/plan field reaches a security decision (server is authoritative). Server is the only writer of these via `getCanonicalPlan()` / `AdminActivityLog` / DB membership.
+- [ ] **[AUDIT]** Validation parity: frontend constraints match the backend Zod schema — username (3–20), email format, password (8+), team/org names — or carry an `// intent:` note explaining the deviation.
+- [ ] **[ENG]** Every new async screen renders loading, error, success, and empty states (all four reachable).
+- [ ] **[ENG]** No silent `catch {}` in auth/payment/user flows; errors logged with `[context]` prefix and surfaced to the user.
+- [ ] **[AUDIT]** New webhooks/retries/jobs are idempotent — replaying the same input is a no-op (replay test or written rationale).
+- [ ] **[AUDIT]** New admin/approval action emits an `AdminActivityLog` row (actor/target/action/timestamp) via `server/src/lib/adminActivityLogger.ts`.
+- [ ] **[AUDIT]** No silent fallback that changes security posture (e.g. a `catch` that downgrades a failed check to "allowed", or a default that grants instead of denies).
+- [ ] **[GATE]** Security fix includes a before/after exploit reproduction; schema change includes migration status, generated-client refresh, and rollback note (remember `start.sh` runs `prisma migrate deploy` on every prod deploy).
 
 ## Security & Architecture Audit Standard
 
-The one-page standard. Every rule is **tagged by type** and **testable** — it states how we know it passed. Do not add a rule here without a `Verify:` clause. The four types:
+The one-page standard. Every rule is **tagged by type** and **testable** — it states how we know it passed, and where the control actually lives in this tree. Do not add a rule here without a `Verify:` clause that points to a real command, file, or test. The four types:
 
 - **[AUDIT]** Audit Step — what a reviewer must actively check during a security/architecture pass.
 - **[ENG]** Engineering Standard — how code must be structured (enforced in review/CI).
 - **[BIZ]** Business Rule — VarsityHub-specific logic that must hold true (enforced server-side).
 - **[GATE]** Release Gate — objective pass/fail before merge/ship.
 
-**Finding classification:** rank every finding by **exploitability × blast radius × recoverability**, not a bare severity label (see also the P0–P3 rubric). Every finding ships with proof: affected files, exploit/repro path, expected vs actual behavior, fix strategy. Every fix ships with verification: typecheck, test, before/after repro, release-risk note.
+**Finding classification:** rank every finding by **exploitability × blast radius × recoverability**, mapped onto the P0–P3 rubric — not a bare severity label. Every finding ships with proof: affected files (`path:line`), exploit/repro path, expected vs actual behavior, fix strategy. Every fix ships with verification: typecheck, the relevant invariant test, before/after repro, release-risk note.
+
+### Layering (this repo — there is no `src/features/*`) — [ENG]
+
+The generic "feature folder" model does **not** apply here. The real shape:
+
+- **Client:** `app/` = Expo Router route files, kept thin (no `fetch`, no business logic) → `api/*` typed clients → shared code in `components/`, `hooks/`, `utils/`, `context/`, `constants/`, `lib/`, `shared/`. (`app/features/` exists but is legacy; prefer the dirs above. The orphaned `app/features/navigation/screens` was deleted — don't resurrect that pattern.)
+- **Server:** `server/src/routes/*` = thin Express handlers → business logic in `server/src/lib/*`, integrations in `server/src/services/*`, gates in `server/src/middleware/*`, async work in `server/src/workers/*` + `server/src/jobs/*`.
+
+**Verify:** route files (client `app/` and server `server/src/routes`) contain no direct DB access, no `fetch`, and no multi-step business logic — that lives one layer down.
 
 ### Threat-Model Phase (run first) — [AUDIT]
 
 Enumerate, per feature: auth bypass, privilege escalation, payment spoofing, IDOR, webhook replay, stale-cache abuse, deep-link parameter injection.
-**Verify:** each threat has a named server-side control or a written "N/A because…" note in the audit output.
+**Verify:** each threat has a named server-side control (file:line) or a written "N/A because…" note in the audit output.
 
 ### Trust Boundary Map — [AUDIT]
 
-| Boundary                        | Trust Level              | Control                                            | Verify                                          |
-| ------------------------------- | ------------------------ | -------------------------------------------------- | ----------------------------------------------- |
-| Client → API                    | Untrusted                | JWT-verified; never trust body fields for identity | `req.user` derives from token, not body (grep)  |
-| Webhooks (Stripe/Apple)         | Trusted after sig-verify | Signature check + idempotency key                  | replaying a captured webhook is a no-op         |
-| Third-party auth (Google/Apple) | Trusted token only       | Verified server-side, not client claim             | server re-verifies the token, not a client flag |
-| Deep links                      | Untrusted                | `buildRouteParams()` allowlist                     | unlisted param is dropped (test)                |
-| Admin actions                   | Privileged               | Must emit audit log                                | `AdminActivityLog` row written (test)           |
+| Boundary                        | Trust Level              | Control (where it lives)                                                                    | Verify                                                              |
+| ------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Client → API                    | Untrusted                | JWT-verified in `middleware/requireAuth.ts`; identity from token, never body                | `req.user` derives from token, not body (grep checklist item)       |
+| Stripe webhook                  | Trusted after sig-verify | `stripe.webhooks.constructEvent` + `x-idempotency-key` (`routes/payments.ts`)               | `stripe-webhook-signature.test.ts`; replay is a no-op               |
+| Apple S2S / IAP                 | Trusted after sig-verify | Cert chain pinned to exact `CN=Apple Root CA - G3` (`routes/payments.ts:2928,3410`) + dedup | `iap-config-invariants.test.ts`, `apple-notification-dedup.test.ts` |
+| SendGrid webhook                | Trusted after sig-verify | Signature check in `routes/sendgrid-webhook.ts`                                             | `sendgrid-webhook.test.ts`                                          |
+| Third-party auth (Google/Apple) | Trusted token only       | Token re-verified server-side, not a client claim (`routes/auth.ts`)                        | `oauth-account-linking.test.ts`, `require-verified-oauth.test.ts`   |
+| Deep links                      | Untrusted                | `buildRouteParams()` per-route allowlist (`utils/deepLinks.ts`)                             | unlisted param is dropped (test)                                    |
+| Admin / approval actions        | Privileged               | Must emit `AdminActivityLog` via `lib/adminActivityLogger.ts`                               | audit-log row asserted (e.g. `coach-approval.test.ts`)              |
+| Outbound 3rd-party calls        | Untrusted dependency     | `runWithBreaker()` (`lib/circuitBreaker.ts`); Stripe uses SDK timeout/retries instead       | `circuit-breaker.test.ts`                                           |
 
 ### Source-of-Truth Rules — [BIZ]
 
-- **Plan status** — server DB only (`getCanonicalPlan()`). **Verify:** no plan decision derived from client state/props (grep screens).
-- **Approval state** — server DB only (`AdminActivityLog`). **Verify:** approval never read from component props.
-- **Org membership** — server DB only; re-fetched on protected-screen nav. **Verify:** protected screen refetches membership, not cached client flag.
-- **Payment status** — Stripe/Apple webhook confirmed; `payment-success` verifies via API. **Verify:** success screen calls the verify endpoint, not query params.
+One writer per domain object; the client only ever reads.
+
+- **Plan status** — server DB only via `getCanonicalPlan()` (`server/src/lib/userBillingState.ts`). **Verify:** no plan/entitlement decision derived from client state, props, or query params; `payments-invariants.test.ts`.
+- **Approval state** — server DB only, recorded in `AdminActivityLog` (`server/src/lib/adminActivityLogger.ts`). **Verify:** approval never read from component props; IDOR self-action blocked (`coach-approval.test.ts`, `*-approval-race.test.ts`).
+- **Org/team membership & role** — server DB only; re-fetched on protected-screen nav. **Verify:** protected screen refetches, not a cached client flag; `team-membership-authorization.test.ts`, `organization-data-access-invariants.test.ts`.
+- **Payment status** — Stripe/Apple webhook confirmed; the `payment-success` screen verifies via API, never trusts query params. **Verify:** success path calls the verify endpoint; `payments-finalization.test.ts`.
 
 ### Architecture & Validation Standards — [ENG]
 
-- **Thin routes, thick features** — `app/` is routing only; logic in `src/features/*`. **Verify:** route files contain no business logic / direct DB or `fetch`.
-- **Screens never call `fetch` directly** — go through `api/*`. **Verify:** `grep -rn "fetch(" app/` returns only allowlisted hits.
-- **No client-controlled security-critical fields** (payment/approval/role/plan). **Verify:** server ignores these on the request body (schema test).
-- **Validation parity** across frontend/backend/DB; any intended deviation carries a `// intent:` note. **Verify:** frontend constraints match the Zod schema (manual diff in checklist).
-- **Every async flow is idempotent** (webhooks/retries/jobs). **Verify:** running the handler twice with the same input yields one effect.
-- **No silent failures** in user/payment/auth flows. **Verify:** no `catch {}` swallow; logs use `[context]` prefix and surface a user message.
-- **Every screen renders loading, error, success, and empty states.** **Verify:** each of the four states is reachable in the component.
-- **Every deep link validates params** — fails closed for privileged actions, graceful for public nav. **Verify:** missing/malformed param test for each route.
-- **Every admin action is auditable** (actor/target/action/timestamp). **Verify:** audit-log row asserted in a test.
+- **Thin routes** — see Layering above. **Verify:** route files have no DB/`fetch`/business logic.
+- **Screens never call `fetch` directly** — go through `api/*`; data fetching via the single `lib/queryClient.ts` (react-query), spinners gated on `isPending`. **Verify:** `grep -rn "fetch(" app/` returns only `// allow-fetch` hits.
+- **No client-controlled security-critical fields** (payment/approval/role/plan). **Verify:** server ignores these on the request body (schema test); owner role blocked on generic membership/invite endpoints.
+- **Validation parity** across frontend/backend Zod/DB; any intended deviation carries an `// intent:` note. **Verify:** frontend constraints match the Zod schema (diff in PR checklist).
+- **Every async flow is idempotent** (webhooks/retries/jobs/BullMQ). **Verify:** running the handler twice with the same input yields one effect; replay test per webhook.
+- **No silent failures** in user/payment/auth flows, and **no fallback that changes security posture** (a `catch` must never downgrade a failed gate to "allowed"). **Verify:** no `catch {}` swallow; logs use `[context]` prefix and surface a user message; payment-success inner catch surfaces non-auth errors on final retry.
+- **Errors use the envelope** — no raw `res.status().json()`; async handlers wrapped in `asyncHandler`. **Verify:** `npm run verify:error-envelope`, `npm run verify:async-handlers`.
+- **All `findMany` carry a `take`.** **Verify:** `unbounded-queries.test.ts`.
+- **Every screen renders loading, error, success, and empty states.** **Verify:** each of the four is reachable in the component.
+- **Every deep link validates params** — fails closed for privileged actions, graceful for public nav. **Verify:** missing/malformed param test per route.
+- **Every admin action is auditable** (actor/target/action/timestamp). **Verify:** `AdminActivityLog` row asserted in a test.
+
+### Observability & Rollback — [ENG]
+
+- **Structured logging:** user/payment/auth failures log with a `[context]` prefix; exceptions go to Sentry, never raw stacks into the DB (see `dataExportWorker.ts` error-category pattern). **Verify:** grep for the `[context]` prefix on new catch blocks.
+- **Admin auditability:** every privileged mutation writes `AdminActivityLog`. **Verify:** asserted in a test.
+- **Migrations auto-apply:** `start.sh` runs `prisma migrate deploy` on every Railway deploy — any committed migration hits prod automatically. **Verify:** schema change PRs include migration status + an explicit rollback note (forward-fix or down-migration).
+- **No in-process shared state** — coordinate cross-replica via Redis (rate-limit DB 1, BullMQ DB 0, cache DB 2, locks, socket adapter); startup-once work via `runClusterOnce`. **Verify:** new shared state goes through Redis, not module globals (breaks at `numReplicas>1`).
+
+### Per-System Audit Playbook — [AUDIT]
+
+Apply the per-feature loop (map → trace data flow → enumerate gates → check drift → check idempotency → check silent failures) to each major system, and run its invariant suite.
+
+| System                | Routes / source of truth                                                      | Run                                                                                                                                                                         |
+| --------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payments & Subs       | `routes/payments.ts`; `getCanonicalPlan()`; Stripe/Apple webhooks             | `cd server && npm test -- --testPathPattern="payments-invariants\|stripe-webhook-signature\|payments-finalization\|iap-config-invariants"` + `npm run verify:p0:foundation` |
+| Ads                   | `routes/ads.ts`; 56-day horizon; checkout holds fatal-on-failure              | `cd server && npm test -- --testPathPattern="ad-state-invariants\|ad-approval-race"` + `npm --prefix server run verify:ad-approval-flow`                                    |
+| Teams & Orgs          | `routes/organizations.ts`, team routes; DB membership; org_id required        | `cd server && npm test -- --testPathPattern="team-membership-authorization\|team-transfer-authorization\|team-invite-race-guards\|organization-data-access-invariants"`     |
+| Auth, Roles & Onboard | `routes/auth.ts`; `middleware/requireAuth\|requireVerified\|requireOnboarded` | `cd server && npm run test:invariants` + `npm test -- --testPathPattern="auth-security-hardening\|requireOnboarded-bypass\|oauth-account-linking"`                          |
+| Approvals & Admin     | coach/event/game approval; `AdminActivityLog`; IDOR self-action guard         | `cd server && npm test -- --testPathPattern="coach-approval\|event-approval-race\|games-approval-race\|admin-reports-race-guards"`                                          |
+| Feed / Post mappers   | `mapHighlightToFeedPost`, `toFeedPost` (see Post-mapper Consistency Rule)     | `npx jest app/game-details/__tests__/post-mapper-consistency.test.ts`                                                                                                       |
+| Runtime (post-deploy) | live Railway API health + auth                                                | `cd server && BASE_URL=… HEALTH_CHECK_SECRET=… npm run verify:production-health` + `npm run verify:auth-canary`                                                             |
 
 ### Per-Feature Audit Steps — [AUDIT]
 
-1. Map all components: routes, schemas, DB models, frontend screens. **Verify:** component map exists in the audit note.
-2. Trace data flow: client → API → DB → response → client state. **Verify:** flow documented end-to-end.
-3. Identify every permission check point; confirm it exists server-side. **Verify:** each gate has a server test.
-4. Compare frontend vs backend Zod vs DB constraints for drift. **Verify:** drift table with intent notes.
+1. Map all components: routes, Zod schemas, Prisma models, frontend screens. **Verify:** component map in the audit note.
+2. Trace data flow: client → `api/*` → route → middleware → `lib/*` → DB → response → client state. **Verify:** flow documented end-to-end.
+3. Identify every permission check point; confirm it exists server-side (auth → role → plan → ownership). **Verify:** each gate has a server test.
+4. Compare frontend vs backend Zod vs DB constraints for drift. **Verify:** drift table with `// intent:` notes for any deviation.
 5. Check every async flow for idempotency. **Verify:** replay test per webhook/job.
-6. Verify every `catch {}` — no silent swallowing in auth/payment/critical paths. **Verify:** grep + manual review.
+6. Verify every `catch` — no silent swallowing and no security-posture downgrade in auth/payment/critical paths. **Verify:** grep + manual review.
 
 ### Release Gate — [GATE] (objective pass/fail)
 
-- [ ] `npx tsc --noEmit --project server/tsconfig.json` — 0 new errors
-- [ ] `npx tsc --noEmit` — 0 new errors
+- [ ] `npx tsc --noEmit` and `npx tsc --noEmit --project server/tsconfig.json` — 0 new errors
 - [ ] `npm run lint` — 0 errors (warnings acceptable with justification)
 - [ ] `npm run release:verify:local` — exits 0
-- [ ] No unbounded `findMany` without `take`
+- [ ] `npm run test:regressions` — passes
+- [ ] No unbounded `findMany` without `take` (`unbounded-queries.test.ts`)
 - [ ] No `req.user` access without `requireAuth` middleware
 - [ ] No hardcoded dark text colors in tsx files
+- [ ] `npm run audit:navigation:fail` — 0 REVIEW items
 - [ ] Frontend length/format constraints match backend Zod schemas
 - [ ] Prisma schema indexed columns have matching migration SQL
 - [ ] Security fix includes before/after exploit reproduction
@@ -332,7 +397,7 @@ Enumerate, per feature: auth bypass, privilege escalation, payment spoofing, IDO
 
 ### Deck-friendly commandments (the short version)
 
-Thin routes, thick features · Backend validation is law, frontend is guidance · No client-controlled security-critical state · One source of truth per domain object · Every protected action checks auth/role/plan/ownership server-side · Every async flow is idempotent · No silent failures in user or payment flows · No duplicate logic across routes/features · Every screen handles loading/error/success/empty · Every deep link fails gracefully and safely · Every admin action is auditable · Every release change is testable and reversible.
+Thin routes, logic one layer down · Backend validation is law, frontend is guidance · No client-controlled security-critical state · One source of truth per domain object · Every protected action checks auth/role/plan/ownership server-side · Every async flow is idempotent · No silent failures and no fallback that changes security posture · No duplicate logic across routes/features · Every screen handles loading/error/success/empty · Every deep link fails gracefully and safely · Every admin action is auditable · Coordinate cross-replica via Redis, never in-process · Every release change is testable and reversible.
 
 ## Working Style
 

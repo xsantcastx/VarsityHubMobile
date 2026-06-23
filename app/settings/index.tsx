@@ -870,7 +870,7 @@ export default function SettingsScreen() {
             <NavRow
               title="Download My Data"
               subtitle="Request and download a privacy export archive"
-              onPress={() => void router.push('/settings/data-export' as any)}
+              onPress={() => void router.push('/settings/data-export')}
             />
             <NavRow
               title="Privacy Policy"
