@@ -2,7 +2,7 @@ import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -109,7 +109,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function EventApprovalsScreen() {
   const { loading: authLoading } = useAuth();
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  const { canManage, loading: coachLoading } = useRequireTeamManagement();
   const router = useRouter();
   const params = useLocalSearchParams<{
     event_id?: string;
@@ -658,7 +658,7 @@ export default function EventApprovalsScreen() {
     );
   }
 
-  if (!canAccessCoachTools) {
+  if (!canManage) {
     return <CoachAccessRedirecting backgroundColor={C.background} spinnerColor={C.tint} />;
   }
 

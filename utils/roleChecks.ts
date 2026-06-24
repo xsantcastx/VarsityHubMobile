@@ -413,6 +413,106 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
   return null;
 }
 
+/**
+ * Resolve a never-null destination for a "Finish Setup" CTA shown to an
+ * approved coach who cannot yet access coach tools.
+ *
+ * getCoachRecoveryRoute intentionally returns null for approved coaches whose
+ * only gap is a stale agreement or a missing org link (their approval is
+ * done). A CTA that pushes its raw result would be a no-op in exactly those
+ * cases. This mirrors the fallback the canonical guard useRequireCoach uses so
+ * both surfaces agree: stale agreement -> agreement screen; otherwise the app.
+ */
+export function getCoachFinishSetupRoute(user: CoachUserLike | null | undefined): string {
+  const recoveryRoute = getCoachRecoveryRoute(user);
+  if (recoveryRoute) return recoveryRoute;
+
+  const coachAccess = getCoachAccessState(user);
+  return coachAccess.hasCurrentCoachAgreement ? '/(tabs)/feed' : '/onboarding/coach-agreement';
+}
+
+/**
+ * Pure form of the redirect decision made by the `useRequireCoach` guard.
+ *
+ * Returns the route a coach-gated screen should redirect to, or null when the
+ * user is allowed to stay. Extracted so both `useRequireCoach` and the
+ * membership-aware `useRequireTeamManagement` guard share one implementation
+ * and can never drift. Mirrors the hook's effect exactly:
+ *   - admin with dirty pending/rejected coach state  -> feed
+ *   - non-coach (or no user)                          -> feed
+ *   - coach proceeding as fan                         -> feed
+ *   - coach without tools access                      -> recovery route / fallback
+ *   - otherwise                                       -> null (allowed)
+ */
+export function getCoachGuardRedirect(user: CoachUserLike | null | undefined): string | null {
+  const coachAccess = getCoachAccessState(user);
+  const isAdmin = user?.is_admin === true;
+
+  if (isAdmin && (coachAccess.isPendingCoach || coachAccess.isRejectedCoach)) {
+    return '/(tabs)/feed';
+  }
+  if (!user || !coachAccess.isCoach) {
+    return '/(tabs)/feed';
+  }
+  if (coachAccess.isProceedingAsFan) {
+    return '/(tabs)/feed';
+  }
+
+  const canAccessCoachTools = coachAccess.canAccessCoachTools && !coachAccess.needsPaidPlanCheckout;
+  if (!canAccessCoachTools) {
+    const recoveryRoute = getCoachRecoveryRoute(user);
+    const fallback = coachAccess.isApprovedCoach
+      ? coachAccess.hasCurrentCoachAgreement
+        ? '/(tabs)/feed'
+        : '/onboarding/coach-agreement'
+      : '/onboarding/pending-approval';
+    return recoveryRoute || fallback;
+  }
+
+  return null;
+}
+
+/**
+ * Access decision for team-management surfaces (manage-teams, my-team,
+ * team-hub, team-admin, manage-users, manage-season, ...).
+ *
+ * Coaches keep their EXACT existing guard semantics (agreement/approval/billing
+ * gates are intentional and unchanged). The only thing this adds on top of the
+ * coach guard is a membership escape hatch for NON-coach users: a fan-role
+ * member who holds a team-staff membership (owner/manager/coach/assistant_coach)
+ * or is an org owner/manager may manage — mirroring the server's
+ * `canManageTeam` rule (which is membership-based, not user-role-based).
+ *
+ * `managedTeamCount` / `orgAdminCount` come from the membership-filtered
+ * `Team.managed()` and `Organization.reviewSummaries()` responses, so the
+ * `equipment`/`health_wellness` authorized roles are correctly excluded — they
+ * are billing/roster staff, not managers, exactly as the server treats them.
+ */
+export function resolveTeamManagementAccess(params: {
+  user: CoachUserLike | null | undefined;
+  managedTeamCount: number;
+  orgAdminCount: number;
+}): { allow: boolean; redirectTo: string | null } {
+  const { user, managedTeamCount, orgAdminCount } = params;
+
+  const coachRedirect = getCoachGuardRedirect(user);
+  if (coachRedirect === null) {
+    return { allow: true, redirectTo: null };
+  }
+
+  // Coaches retain their coach-guard redirect untouched.
+  if (getCoachAccessState(user).isCoach) {
+    return { allow: false, redirectTo: coachRedirect };
+  }
+
+  // Non-coach members: allow when they actually manage something.
+  if (managedTeamCount > 0 || orgAdminCount > 0) {
+    return { allow: true, redirectTo: null };
+  }
+
+  return { allow: false, redirectTo: coachRedirect };
+}
+
 export function getCoachApprovalNotificationRoute(user: CoachUserLike | null | undefined): string {
   if (!user) {
     return '/onboarding/coach-agreement';

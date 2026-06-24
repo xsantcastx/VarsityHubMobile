@@ -30,11 +30,11 @@ import PostCard from '@/components/PostCard';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
-import { getAuthSnapshot, getCanonicalRole } from '@/utils/authState';
+import { getAuthSnapshot, getCanonicalOrganizationId } from '@/utils/authState';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { getCoachAccessState, getCoachRecoveryRoute } from '@/utils/roleChecks';
+import { getCoachAccessState, getCoachFinishSetupRoute } from '@/utils/roleChecks';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
@@ -557,7 +557,23 @@ function CommunityDiscoverScreen() {
           },
         } as any);
       } else {
-        Alert.alert('No Organization', 'You are not linked to any organization yet.');
+        // No owner/manager org from review summaries. The user may still be
+        // linked to an org as a non-admin member (e.g. a coach whose org
+        // membership role is `coach`/`member`). Send them to view their org
+        // rather than falsely claiming they have none. Only alert when there
+        // is genuinely no org link at all.
+        const orgId = getCanonicalOrganizationId(me as any);
+        if (orgId) {
+          router.push({
+            pathname: '/organization',
+            params: {
+              id: orgId,
+              from: 'discover-quick-actions',
+            },
+          } as any);
+        } else {
+          Alert.alert('No Organization', 'You are not linked to any organization yet.');
+        }
       }
     } catch (err: any) {
       captureException(err instanceof Error ? err : new Error(String(err?.message || err)), {
@@ -565,7 +581,7 @@ function CommunityDiscoverScreen() {
       });
       Alert.alert('Error', 'Could not load your organization.');
     }
-  }, [router]);
+  }, [me, router]);
 
   const handleTeamSchedule = useCallback(async () => {
     try {
@@ -1834,8 +1850,10 @@ function CommunityDiscoverScreen() {
                 },
               ]}
               onPress={() => {
-                const route = getCoachRecoveryRoute(me as any);
-                if (route) router.push(route as any);
+                // Never a no-op: getCoachFinishSetupRoute applies the same
+                // fallback as the canonical guard useRequireCoach when
+                // getCoachRecoveryRoute returns null for an approved coach.
+                router.push(getCoachFinishSetupRoute(me as any) as any);
               }}
               accessibilityRole="button"
               accessibilityLabel="Complete coach setup"
@@ -1850,37 +1868,17 @@ function CommunityDiscoverScreen() {
             </Pressable>
           ) : (
             <>
-              {/* Organizer-only card (shown before fan actions for organizer role) */}
-              {String(getCanonicalRole(me as any) || '').toLowerCase() === 'organizer' && (
-                <Pressable
-                  style={[
-                    styles.coachActionCard,
-                    { backgroundColor: '#1E3A5F15', borderColor: '#1E3A5F30' },
-                  ]}
-                  onPress={() => void handleManageOrg()}
-                  accessibilityRole="button"
-                  accessibilityLabel="Manage your organization"
-                >
-                  <MaterialIcons name="business" size={24} color={Colors[colorScheme].tint} />
-                  <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>
-                    Manage Org
-                  </Text>
-                  <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>
-                    Your organization
-                  </Text>
-                </Pressable>
-              )}
-              {/* Fan actions */}
+              {/* Fan actions. Note: the canonical user role is only ever 'fan'
+                  or 'coach' (UserRole enum) — there is no 'organizer' role, so
+                  org management for non-coach members is surfaced via the team
+                  and organization screens, not here. */}
               <Pressable
                 style={[
                   styles.coachActionCard,
                   {
                     backgroundColor: Colors[colorScheme].tint + '10',
                     borderColor: Colors[colorScheme].tint + '30',
-                    marginLeft:
-                      String(getCanonicalRole(me as any) || '').toLowerCase() === 'organizer'
-                        ? 12
-                        : 0,
+                    marginLeft: 0,
                   },
                 ]}
                 onPress={() => void router.push('/create-fan-event')}

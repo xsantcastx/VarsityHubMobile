@@ -1,21 +1,21 @@
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { getAuthSnapshot } from '@/utils/authState';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -43,7 +43,7 @@ type Team = {
 
 function ManageTeamsSimpleScreen() {
   const { user, checkAuth } = useAuth();
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  const { canManage, loading: coachLoading } = useRequireTeamManagement();
   const router = useRouter();
   const params = useLocalSearchParams<{ from?: string; fallback?: string; orgId?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
@@ -120,7 +120,7 @@ function ManageTeamsSimpleScreen() {
   );
 
   useEffect(() => {
-    if (coachLoading || !canAccessCoachTools) return;
+    if (coachLoading || !canManage) return;
     void (async () => {
       try {
         const me: any = await getAuthSnapshot(checkAuth, user);
@@ -145,7 +145,7 @@ function ManageTeamsSimpleScreen() {
         if (__DEV__) console.warn('[ManageTeams] payment status check error:', e);
       }
     })().catch(() => {});
-  }, [canAccessCoachTools, checkAuth, coachLoading, user]);
+  }, [canManage, checkAuth, coachLoading, user]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -202,7 +202,7 @@ function ManageTeamsSimpleScreen() {
     } as any);
   }, [activeTeams, explicitFallback, params.from, router]);
 
-  if (coachLoading || !canAccessCoachTools) {
+  if (coachLoading || !canManage) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}

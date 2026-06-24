@@ -4,7 +4,7 @@ import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { getCanonicalOrganizationId } from '@/utils/authState';
 import { Redirect, Stack, useRootNavigationState, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -20,7 +20,7 @@ function buildTeamAdminOverviewRoute(teamId: string): Href {
 
 export default function TeamHubRedirectScreen() {
   const { user } = useAuth();
-  const { canAccessCoachTools, loading } = useRequireCoach();
+  const { canManage, loading } = useRequireTeamManagement();
   const navigationState = useRootNavigationState();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
@@ -29,7 +29,7 @@ export default function TeamHubRedirectScreen() {
   useEffect(() => {
     let active = true;
     const redirect = async () => {
-      if (loading || !canAccessCoachTools) return;
+      if (loading || !canManage) return;
 
       const orgId = getCanonicalOrganizationId(user as any);
       if (orgId) {
@@ -56,7 +56,7 @@ export default function TeamHubRedirectScreen() {
     return () => {
       active = false;
     };
-  }, [canAccessCoachTools, loading, user]);
+  }, [canManage, loading, user]);
 
   if (loading) {
     return (
@@ -74,7 +74,7 @@ export default function TeamHubRedirectScreen() {
     );
   }
 
-  if (!canAccessCoachTools) {
+  if (!canManage) {
     return (
       <CoachAccessRedirecting
         backgroundColor={theme.background}

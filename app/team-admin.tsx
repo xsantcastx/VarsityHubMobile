@@ -3,7 +3,7 @@ import type { TeamAdminSummaryResponse, TeamResponse } from '@/api/schemas/team'
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -94,7 +94,7 @@ function roleLabel(role?: string | null): string {
 }
 
 export default function TeamAdminScreen() {
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  const { canManage, loading: coachLoading } = useRequireTeamManagement();
   const router = useRouter();
   const params = useLocalSearchParams<{
     teamId?: string;
@@ -254,7 +254,8 @@ export default function TeamAdminScreen() {
                 await TeamMemberships.update(member.id, { status: nextStatus });
                 await loadTeam();
               } catch (err: unknown) {
-                const message = err instanceof Error ? err.message : `Failed to ${label.toLowerCase()} member`;
+                const message =
+                  err instanceof Error ? err.message : `Failed to ${label.toLowerCase()} member`;
                 Alert.alert(`Unable to ${label.toLowerCase()} member`, message);
               } finally {
                 setActingMemberId(null);
@@ -302,7 +303,11 @@ export default function TeamAdminScreen() {
             text: 'Add',
             onPress: async () => {
               try {
-                await TeamMemberships.create({ team_id: selectedTeamId, user_id: user.id, role: 'player' });
+                await TeamMemberships.create({
+                  team_id: selectedTeamId,
+                  user_id: user.id,
+                  role: 'player',
+                });
                 setSearchQuery('');
                 setSearchResults([]);
                 await loadTeam();
@@ -331,7 +336,7 @@ export default function TeamAdminScreen() {
     );
   }
 
-  if (!canAccessCoachTools) {
+  if (!canManage) {
     return (
       <CoachAccessRedirecting
         backgroundColor={theme.background}
@@ -519,7 +524,14 @@ export default function TeamAdminScreen() {
 
                 {/* Add player by search */}
                 <TextInput
-                  style={[styles.searchInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  style={[
+                    styles.searchInput,
+                    {
+                      backgroundColor: theme.background,
+                      borderColor: theme.border,
+                      color: theme.text,
+                    },
+                  ]}
                   placeholder="Search users to add…"
                   placeholderTextColor={theme.mutedText}
                   value={searchQuery}
@@ -528,7 +540,11 @@ export default function TeamAdminScreen() {
                   autoCorrect={false}
                 />
                 {searching ? (
-                  <ActivityIndicator size="small" color={theme.tint} style={{ marginVertical: 6 }} />
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.tint}
+                    style={{ marginVertical: 6 }}
+                  />
                 ) : null}
                 {searchResults.length > 0 ? (
                   <View style={[styles.searchResultsContainer, { borderColor: theme.border }]}>
@@ -542,7 +558,9 @@ export default function TeamAdminScreen() {
                           {user.display_name || user.username || user.id}
                         </Text>
                         {user.username ? (
-                          <Text style={[styles.metaText, { color: theme.mutedText }]}>@{user.username}</Text>
+                          <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                            @{user.username}
+                          </Text>
                         ) : null}
                       </Pressable>
                     ))}
@@ -557,7 +575,12 @@ export default function TeamAdminScreen() {
                   members.map(member => (
                     <View key={member.id} style={[styles.row, { borderColor: theme.border }]}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.rowTitle, { color: member.status === 'archived' ? theme.mutedText : theme.text }]}>
+                        <Text
+                          style={[
+                            styles.rowTitle,
+                            { color: member.status === 'archived' ? theme.mutedText : theme.text },
+                          ]}
+                        >
                           {member.user?.display_name || member.user?.username || 'Member'}
                           {member.status === 'archived' ? ' (archived)' : ''}
                         </Text>
@@ -569,10 +592,24 @@ export default function TeamAdminScreen() {
                       <Pressable
                         onPress={() => void handleToggleMemberStatus(member)}
                         disabled={actingMemberId === member.id}
-                        style={[styles.actionButton, member.status === 'archived' ? styles.restoreButton : styles.archiveButton]}
+                        style={[
+                          styles.actionButton,
+                          member.status === 'archived'
+                            ? styles.restoreButton
+                            : styles.archiveButton,
+                        ]}
                       >
-                        <Text style={[styles.actionButtonText, { color: Colors[colorScheme].mutedText }]}>
-                          {actingMemberId === member.id ? '…' : member.status === 'archived' ? 'Restore' : 'Archive'}
+                        <Text
+                          style={[
+                            styles.actionButtonText,
+                            { color: Colors[colorScheme].mutedText },
+                          ]}
+                        >
+                          {actingMemberId === member.id
+                            ? '…'
+                            : member.status === 'archived'
+                              ? 'Restore'
+                              : 'Archive'}
                         </Text>
                       </Pressable>
                     </View>
