@@ -20,6 +20,7 @@ import {
     canManageTeam as canManageTeamScoped,
     canAssignTeamRole as canAssignTeamRoleScoped,
     isOrgAdmin as isOrgAdminScoped,
+    TEAM_STAFF_ROLES,
 } from '../lib/teamAuthorization.js';
 import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import {
@@ -400,7 +401,7 @@ teamsRouter.get(
         });
       }
       const userId = req.user.id;
-      const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
+      const managementRoles = [...TEAM_STAFF_ROLES];
       const managementRoleSql = Prisma.join(
         managementRoles.map((role) => Prisma.sql`${role}::"TeamRole"`)
       );
@@ -858,7 +859,7 @@ teamsRouter.get(
         }
 
         const userId = authReq.user.id;
-        const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
+        const managementRoles = [...TEAM_STAFF_ROLES];
 
         where.memberships = {
           some: {
