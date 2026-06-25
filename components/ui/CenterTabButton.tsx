@@ -22,7 +22,9 @@ export default function CenterTabButton(props: BottomTabBarButtonProps) {
     if (Platform.OS === 'ios') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    void router.push('/create');
+    // Go straight to Create Post — no intermediate "Create" sheet. Team
+    // creation lives only in the coach Quick Actions, not the + tab.
+    void router.push('/create-post');
   };
 
   return (

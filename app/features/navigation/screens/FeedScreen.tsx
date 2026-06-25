@@ -1078,8 +1078,8 @@ export default function FeedScreen() {
     upcomingEvents.forEach((event, index) => {
       result.push(event);
 
-      // Insert ad/promo card AFTER the first event (index 0)
-      if (index === 0) {
+      // Insert ad/promo card AFTER the second event (index 1)
+      if (index === 1) {
         if (isShowingPromoCard || activeAdsCount === 0) {
           // Show promo card during promo phase or if no ads
           result.push({ type: 'ad', ad: null });

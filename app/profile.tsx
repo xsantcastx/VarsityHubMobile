@@ -695,11 +695,9 @@ export default function ProfileScreen() {
   const approvedCoach = coachAccess.isApprovedCoach;
   // v1.0.2 audit fix: do NOT surface "Pending Coach" to the user.
   // Pre-approval, display "Fan" so profile looks normal; internal approval_status stays intact.
-  const roleLabel = coachAccess.isApprovedCoach
-    ? 'Coach / Organizer'
-    : roleRaw === 'player'
-      ? 'Player'
-      : null;
+  // No "Coach / Organizer" badge — removed per device-testing feedback. The
+  // Player badge (roster members) is unaffected.
+  const roleLabel = roleRaw === 'player' ? 'Player' : null;
   // Guard against internal IDs (cuid / UUID) being leaked as username
   const isInternalId = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || // UUID
