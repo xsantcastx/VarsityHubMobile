@@ -60,17 +60,38 @@ import {
   View,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-} from 'react-native-reanimated';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { useVideoPlayer } from 'expo-video';
 import { useEventListener } from 'expo';
 import * as FileSystem from 'expo-file-system/legacy';
+import { captureException } from '@/utils/sentry';
 
-let trim: ((uri: string, options: { startTime: number; endTime: number }) => Promise<{ success: boolean; outputPath?: string }>) | null = null;
+// Trim failures were only logged under __DEV__ (stripped in prod), so there was
+// no telemetry on why real-device trimming failed. Surface them to Sentry with
+// the URI scheme (not the full path — avoids leaking local file paths) + module
+// availability so the cause is diagnosable.
+function reportTrimFailure(stage: string, error: unknown, uri?: string) {
+  const scheme = typeof uri === 'string' ? uri.split(':')[0] : 'unknown';
+  captureException(
+    error instanceof Error ? error : new Error(String((error as any)?.message || error)),
+    {
+      tags: {
+        context: 'video_trim',
+        stage,
+        uri_scheme: scheme,
+        native_module: trim ? 'present' : 'missing',
+      },
+    }
+  );
+}
+
+let trim:
+  | ((
+      uri: string,
+      options: { startTime: number; endTime: number }
+    ) => Promise<{ success: boolean; outputPath?: string }>)
+  | null = null;
 try {
   trim = require('react-native-video-trim').trim;
 } catch {
@@ -126,17 +147,20 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
           if (!cancelled) setProcessableUri(dest);
         } catch (e) {
           if (__DEV__) console.warn('[VideoTrimmer] Failed to copy ph:// URI:', e);
+          reportTrimFailure('ph_copy', e, uri);
           if (!cancelled) setProcessableUri(uri);
         }
       } else {
         setProcessableUri(uri);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [uri]);
 
   // Create a player to read duration and generate thumbnails
-  const player = useVideoPlayer(uri, (p) => {
+  const player = useVideoPlayer(uri, p => {
     p.muted = true;
   });
 
@@ -160,11 +184,11 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
 
         player
           .generateThumbnailsAsync(times, { maxHeight: FILMSTRIP_HEIGHT })
-          .then((thumbs) => {
+          .then(thumbs => {
             setThumbnails(thumbs);
             setLoading(false);
           })
-          .catch((e) => {
+          .catch(e => {
             if (__DEV__) console.warn('[VideoTrimmer] Thumbnail generation failed:', e);
             setLoading(false);
           });
@@ -180,7 +204,7 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
       setStartLabel(formatTime(Math.max(0, start)));
       setEndLabel(formatTime(Math.min(durationRef.current, end)));
     },
-    [trackWidth],
+    [trackWidth]
   );
 
   const markMoved = useCallback(() => setHasMoved(true), []);
@@ -197,7 +221,7 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
     .onStart(() => {
       leftCtx.value = leftX.value;
     })
-    .onUpdate((e) => {
+    .onUpdate(e => {
       const raw = leftCtx.value + e.translationX;
       const clamped = Math.max(0, Math.min(raw, rightX.value - minGapPx));
       leftX.value = clamped;
@@ -211,7 +235,7 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
     .onStart(() => {
       rightCtx.value = rightX.value;
     })
-    .onUpdate((e) => {
+    .onUpdate(e => {
       const raw = rightCtx.value + e.translationX;
       const clamped = Math.min(trackWidth, Math.max(raw, leftX.value + minGapPx));
       rightX.value = clamped;
@@ -260,7 +284,10 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
     }
 
     if (!trim) {
-      Alert.alert('Development Build Required', 'Video trimming requires a custom development build. It is not supported in Expo Go.');
+      Alert.alert(
+        'Development Build Required',
+        'Video trimming requires a custom development build. It is not supported in Expo Go.'
+      );
       return;
     }
 
@@ -283,10 +310,16 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
       } else {
         Alert.alert('Trim Failed', 'Could not trim the video. Please try again.');
         if (__DEV__) console.warn('[VideoTrimmer] Trim failed:', result);
+        reportTrimFailure(
+          'trim_result',
+          new Error('react-native-video-trim returned an unsuccessful result'),
+          processableUri ?? undefined
+        );
       }
     } catch (e: any) {
       Alert.alert('Trim Failed', e?.message || 'An error occurred while trimming the video.');
       if (__DEV__) console.warn('[VideoTrimmer] Trim error:', e);
+      reportTrimFailure('trim_error', e, processableUri ?? undefined);
     } finally {
       setTrimming(false);
     }
