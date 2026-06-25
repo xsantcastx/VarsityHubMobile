@@ -1,0 +1,37 @@
+# Flow 5: Manager admit — a non-coach AUTHORIZED member CAN manage.
+#
+# Guards the new behavior in PR #77: a fan-role user who holds a `manager` team
+# membership is admitted to team-management surfaces by useRequireTeamManagement
+# (membership-based authority), even though their user role is not 'coach'. This
+# is the path that previously bounced them and that this PR opened up.
+#
+# Prerequisites:
+#   - Dev build running, Metro on localhost:8081, server up
+#   - Seeded manager account (role=fan + `manager` team membership):
+#       node -r tsx/cjs server/scripts/prepare-coach-uat-accounts.ts
+#     -> coach-uat-manager@varsityhub.test / CoachUAT2026!
+#
+# Run:
+#   maestro test .maestro/flows/05-manager-admit.yaml \
+#     -e MANAGER_EMAIL=coach-uat-manager@varsityhub.test \
+#     -e MANAGER_PASSWORD=CoachUAT2026!
+appId: com.varsithub.varsityhub-ios
+---
+- runFlow:
+    file: ../subflows/login.yaml
+    env:
+      EMAIL: ${MANAGER_EMAIL}
+      PASSWORD: ${MANAGER_PASSWORD}
+
+- extendedWaitUntil:
+    visible: 'Feed'
+    timeout: 15000
+
+# ── A non-coach manager is ADMITTED to team management ──────────────────────────
+- openLink: 'varsityhubmobile:///manage-teams'
+- waitForAnimationToEnd
+# Admitted: the manage-teams screen renders ("My Teams" header) instead of
+# bouncing to the feed.
+- extendedWaitUntil:
+    visible: 'My Teams'
+    timeout: 10000

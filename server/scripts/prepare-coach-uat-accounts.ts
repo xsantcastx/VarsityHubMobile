@@ -267,7 +267,11 @@ async function ensureOrgMembership(organizationId: string, userId: string, role:
   });
 }
 
-async function ensureTeamMembership(teamId: string, userId: string, role: 'owner' | 'manager') {
+async function ensureTeamMembership(
+  teamId: string,
+  userId: string,
+  role: 'owner' | 'manager' | 'coach' | 'assistant_coach' | 'player',
+) {
   await prisma.teamMembership.upsert({
     where: { team_id_user_id: { team_id: teamId, user_id: userId } },
     update: { role, status: 'active' },
@@ -511,6 +515,63 @@ async function upsertFixtureFan() {
   });
 }
 
+// Fan-role user that holds a `manager` team membership — i.e. a non-coach
+// AUTHORIZED user who should be ADMITTED to team-management surfaces by
+// useRequireTeamManagement (membership-based), even though their user role is
+// not 'coach'. Drives .maestro/flows/05-manager-admit.yaml.
+async function upsertFixtureManager() {
+  const passwordHash = await makePasswordHash();
+  const data = {
+    password_hash: passwordHash,
+    display_name: 'Coach UAT Manager Fixture',
+    username: 'cuat_mgrfx',
+    email_verified: true,
+    approval_status: 'APPROVED',
+    role: 'fan' as const,
+    onboarding_completed: true,
+    plan: 'rookie' as const,
+    pending_plan: null,
+    payment_pending: false,
+    payment_approved: false,
+    preferences: { role: 'fan', onboarding_completed: true, plan: 'rookie' },
+    date_of_birth: new Date('1992-07-11'),
+    dob_set_at: new Date(),
+  };
+  return prisma.user.upsert({
+    where: { email: `coach-uat-manager@${EMAIL_DOMAIN}` },
+    update: data,
+    create: { email: `coach-uat-manager@${EMAIL_DOMAIN}`, ...data },
+  });
+}
+
+// Fan-role user that holds a `player` (roster) team membership — i.e. an
+// athlete who must be BOUNCED from team-management surfaces. Drives
+// .maestro/flows/04-coach-gating.yaml.
+async function upsertFixtureAthlete() {
+  const passwordHash = await makePasswordHash();
+  const data = {
+    password_hash: passwordHash,
+    display_name: 'Coach UAT Athlete Fixture',
+    username: 'cuat_athfx',
+    email_verified: true,
+    approval_status: 'APPROVED',
+    role: 'fan' as const,
+    onboarding_completed: true,
+    plan: 'rookie' as const,
+    pending_plan: null,
+    payment_pending: false,
+    payment_approved: false,
+    preferences: { role: 'fan', onboarding_completed: true, plan: 'rookie' },
+    date_of_birth: new Date('2006-09-02'),
+    dob_set_at: new Date(),
+  };
+  return prisma.user.upsert({
+    where: { email: `coach-uat-athlete@${EMAIL_DOMAIN}` },
+    update: data,
+    create: { email: `coach-uat-athlete@${EMAIL_DOMAIN}`, ...data },
+  });
+}
+
 async function createPaidByOwnerOwner() {
   const passwordHash = await makePasswordHash();
   return prisma.user.upsert({
@@ -589,6 +650,11 @@ export async function prepareCoachUatAccounts() {
 
   const owner = await createPaidByOwnerOwner();
   const fixtureFan = await upsertFixtureFan();
+  const fixtureManager = await upsertFixtureManager();
+  const fixtureAthlete = await upsertFixtureAthlete();
+
+  // Team to hang the non-coach manager + athlete fixtures on (the rookie team).
+  let fixtureTeamId: string | null = null;
 
   const summary: Array<Record<string, string>> = [];
 
@@ -678,6 +744,7 @@ export async function prepareCoachUatAccounts() {
     if (seed.key === 'rookie' && teamId) {
       await ensureFixtureEvent(teamId, fixtureFan.id);
       await ensureFixtureGame(teamId, fixtureFan.id);
+      fixtureTeamId = teamId;
     }
 
     summary.push({
@@ -686,6 +753,27 @@ export async function prepareCoachUatAccounts() {
       password: PASSWORD,
       team: teamId ? teamName : 'n/a',
       expectation: seed.expectation,
+    });
+  }
+
+  // Attach the non-coach authorized manager + the athlete to the rookie team so
+  // the gating flows have stable role-membership accounts to log in as.
+  if (fixtureTeamId) {
+    await ensureTeamMembership(fixtureTeamId, fixtureManager.id, 'manager');
+    await ensureTeamMembership(fixtureTeamId, fixtureAthlete.id, 'player');
+    summary.push({
+      state: 'Non-coach manager (authorized, should ACCESS)',
+      email: `coach-uat-manager@${EMAIL_DOMAIN}`,
+      password: PASSWORD,
+      team: 'rookie team (manager)',
+      expectation: 'Admitted to manage-teams / approvals',
+    });
+    summary.push({
+      state: 'Athlete (roster, should be BOUNCED)',
+      email: `coach-uat-athlete@${EMAIL_DOMAIN}`,
+      password: PASSWORD,
+      team: 'rookie team (player)',
+      expectation: 'Bounced from management surfaces to feed',
     });
   }
 

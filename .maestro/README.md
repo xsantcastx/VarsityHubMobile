@@ -82,6 +82,26 @@ maestro test .maestro/flows/03-coach-onboarding-to-pending.yaml \
   -e TEST_VERIFY_CODE=123456
 ```
 
+**Flow 4 — Coach gating** (athlete is bounced from management)
+
+```bash
+maestro test .maestro/flows/04-coach-gating.yaml \
+  -e ATHLETE_EMAIL=coach-uat-athlete@varsityhub.test \
+  -e ATHLETE_PASSWORD=CoachUAT2026!
+```
+
+**Flow 5 — Manager admit** (non-coach authorized manager CAN manage)
+
+```bash
+maestro test .maestro/flows/05-manager-admit.yaml \
+  -e MANAGER_EMAIL=coach-uat-manager@varsityhub.test \
+  -e MANAGER_PASSWORD=CoachUAT2026!
+```
+
+Flows 4 and 5 need the seeded role accounts created by
+`server/scripts/prepare-coach-uat-accounts.ts` (a fan-role `manager` and a
+`player` athlete on the rookie team, password `CoachUAT2026!`).
+
 **Flow 6 — Tab back navigation** (regression guard for `backBehavior="history"`)
 
 ```bash
@@ -109,12 +129,14 @@ Reusable building blocks live in `.maestro/subflows/` and are pulled in with
 
 ## What Each Test Covers
 
-| Flow                   | Screens                                                                                | Risk                                            |
-| ---------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| 01-signup-fan          | sign-up → verify → step-1-role → step-2-basic → feed                                   | Highest — most users hit this                   |
-| 02-create-post         | sign-in → create-post → feed                                                           | Core feature, daily use                         |
-| 03-coach-onboarding    | sign-up → verify → step-1-role (coach) → step-2-basic → step-3-league → pending screen | Highest-value users                             |
-| 06-tab-back-navigation | login (coach) → Discover → Manage Teams → back → **assert Discover, not Feed**         | Navigation regression — back-button-to-feed bug |
+| Flow                   | Screens                                                                                | Risk                                                |
+| ---------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 01-signup-fan          | sign-up → verify → step-1-role → step-2-basic → feed                                   | Highest — most users hit this                       |
+| 02-create-post         | sign-in → create-post → feed                                                           | Core feature, daily use                             |
+| 03-coach-onboarding    | sign-up → verify → step-1-role (coach) → step-2-basic → step-3-league → pending screen | Highest-value users                                 |
+| 04-coach-gating        | login (athlete) → Discover (no coach actions) → deep-link manage-teams → **bounced**   | Authorization — roster member must not manage       |
+| 05-manager-admit       | login (non-coach manager) → deep-link manage-teams → **My Teams renders**              | Authorization — authorized manager must be admitted |
+| 06-tab-back-navigation | login (coach) → Discover → Manage Teams → back → **assert Discover, not Feed**         | Navigation regression — back-button-to-feed bug     |
 
 ---
 
