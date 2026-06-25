@@ -1369,10 +1369,12 @@ function CommunityDiscoverScreen() {
                   onPress={() => {
                     setQuery('');
                     setUnifiedSearchResults(null);
+                    // Route to the full organization screen (handles public
+                    // viewers correctly), not the sparse /organizations/[id] stub.
                     void router.push({
-                      pathname: '/organizations/[id]',
+                      pathname: '/organization',
                       params: { id: String(o.id) },
-                    });
+                    } as any);
                   }}
                   accessibilityRole="button"
                   accessibilityLabel={`View organization ${o.name}`}

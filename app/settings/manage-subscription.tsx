@@ -468,8 +468,8 @@ function ManageSubscription() {
                 <Text
                   style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}
                 >
-                  Your league owner manages the subscription. You have full access to coach features
-                  at no cost.
+                  Your organization owner manages the subscription. You have full access to coach
+                  features at no cost.
                 </Text>
               </>
             ) : paidByOwner && approvalStatus === 'PENDING' ? (
@@ -484,8 +484,8 @@ function ManageSubscription() {
                 <Text
                   style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}
                 >
-                  Your subscription activates after your coach application is approved by the league
-                  owner.
+                  Your subscription activates after your coach application is approved by the
+                  organization owner.
                 </Text>
               </>
             ) : (
@@ -549,7 +549,7 @@ function ManageSubscription() {
                         { color: Colors[colorScheme ?? 'light'].mutedText },
                       ]}
                     >
-                      Choose a plan to unlock league features.
+                      Choose a plan to unlock organization features.
                     </Text>
                     <View style={styles.actionsGroup}>
                       <Button onPress={() => onSubscribe('veteran')} disabled={loading} size="lg">

@@ -583,7 +583,7 @@ function Step3League() {
       // v1.0.2 pass 5 fix: wording now matches the new flow (waiting screen, not main app).
       Alert.alert(
         'Request Sent!',
-        `Your request to join "${selectedOrg.name}" has been sent. You'll see a waiting screen while the league admin reviews your request, then you'll be walked through the coach agreement and setup.`,
+        `Your request to join "${selectedOrg.name}" has been sent. You'll see a waiting screen while the organization admin reviews your request, then you'll be walked through the coach agreement and setup.`,
         [{ text: 'Continue' }]
       );
       captureBreadcrumb('Join organization request succeeded', 'onboarding.step3', {
@@ -627,7 +627,7 @@ function Step3League() {
           pathname: route,
           params: {
             leagueName: options?.organizationName || 'this organization',
-            ownerName: 'the league owner',
+            ownerName: 'the organization owner',
           },
         } as any);
         return;
@@ -1652,7 +1652,7 @@ function Step3League() {
                     multiline
                     style={styles.textArea}
                     maxLength={300}
-                    accessibilityLabel="Optional message to league owner"
+                    accessibilityLabel="Optional message to organization owner"
                   />
                   <View style={styles.charCountRow}>
                     <Text style={styles.charCountText}>{joinMessage.length}/300</Text>

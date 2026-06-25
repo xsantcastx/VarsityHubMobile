@@ -281,7 +281,7 @@ function ManageTeamsSimpleScreen() {
                 { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
               ]}
             >
-              Payment will be processed after your league admin approves your account.
+              Payment will be processed after your organization admin approves your account.
             </Text>
           </View>
         </View>
@@ -377,7 +377,7 @@ function ManageTeamsSimpleScreen() {
               <View style={styles.leagueHeader}>
                 <MaterialIcons name="emoji-events" size={40} color="#FFF" />
                 <View style={styles.leagueHeaderText}>
-                  <Text style={styles.leagueLabel}>MY LEAGUE</Text>
+                  <Text style={styles.leagueLabel}>MY ORGANIZATION</Text>
                   <Text style={styles.leagueName}>{organization.name}</Text>
                 </View>
               </View>
@@ -396,7 +396,7 @@ function ManageTeamsSimpleScreen() {
               </View>
 
               <View style={styles.leagueAction}>
-                <Text style={styles.leagueActionText}>View League Page</Text>
+                <Text style={styles.leagueActionText}>View Organization Page</Text>
                 <MaterialIcons name="arrow-forward" size={24} color="#FFF" />
               </View>
             </LinearGradient>
