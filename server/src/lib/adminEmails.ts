@@ -27,17 +27,34 @@ const rawAdminNotificationEmails =
   process.env.ADMIN_NOTIFICATION_EMAILS || process.env.ADMIN_EMAILS || '';
 export const ADMIN_NOTIFICATION_EMAILS: string[] = parseEmailList(rawAdminNotificationEmails);
 
-function getCurrentAdminEmails(): string[] {
-  return withAppReviewAdminAccess(parseEmailList(process.env.ADMIN_EMAILS));
+/**
+ * The ONLY mailboxes that may hold platform/god admin ACCESS (plus the App
+ * Store review demo account). Hardcoded floor: admin access is NOT derived from
+ * the ADMIN_EMAILS env var, so a misconfigured env can never grant admin to a
+ * regular user. ADMIN_EMAILS / ADMIN_NOTIFICATION_EMAILS drive notification
+ * routing only. (Rule set 2026-06-25.)
+ */
+export const PLATFORM_ADMIN_EMAILS: string[] = [
+  'emancero@varsityhub.app',
+  'customerservice@varsityhub.app',
+];
+
+function getPlatformAdminAccessEmails(): string[] {
+  return withAppReviewAdminAccess(PLATFORM_ADMIN_EMAILS.map((e) => e.trim().toLowerCase()));
 }
 
 function getCurrentAdminNotificationEmails(): string[] {
   return parseEmailList(process.env.ADMIN_NOTIFICATION_EMAILS || process.env.ADMIN_EMAILS);
 }
 
+/**
+ * Authoritative platform-admin ACCESS check. The email must be in the hardcoded
+ * PLATFORM_ADMIN_EMAILS floor (callers also require email_verified). The env
+ * var cannot widen this set — a regular user can never become admin via config.
+ */
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
-  return getCurrentAdminEmails().includes(email.trim().toLowerCase());
+  return getPlatformAdminAccessEmails().includes(email.trim().toLowerCase());
 }
 
 /**
