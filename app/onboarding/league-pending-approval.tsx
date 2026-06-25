@@ -373,8 +373,8 @@ function LeaguePendingApproval() {
           <Text
             style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 20 }]}
           >
-            This is taking longer than usual. We'll email you when your league is approved. You can
-            continue as a fan in the meantime.
+            This is taking longer than usual. We'll email you when your organization is approved.
+            You can continue as a fan in the meantime.
           </Text>
           <FanFallbackActions
             isDark={isDark}

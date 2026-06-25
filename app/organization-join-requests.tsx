@@ -343,7 +343,7 @@ function OrganizationJoinRequestsScreen() {
               <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>
                 {filter === 'pending'
                   ? 'All caught up! New requests will appear here.'
-                  : 'Coaches can request to join your organization during onboarding or from the league search.'}
+                  : 'Coaches can request to join your organization during onboarding or from the organization search.'}
               </Text>
             </View>
           ) : (
