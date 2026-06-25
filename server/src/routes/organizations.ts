@@ -2020,10 +2020,13 @@ organizationsRouter.get(
       const id = String(req.params.id);
       const status = String((req.query as any).status || 'pending');
 
-      // Existing-org coach admission is decided by the league owner only.
+      // Coach admission is decided by the organization owner — or a platform
+      // admin (org-scoped god-override), matching the canReviewCoachRequests
+      // flag GET /organizations/:id already advertises to admins.
+      const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
       const membership = await getOrganizationMembership(req.user!.id, id);
-      if (!membership || membership.role !== 'owner') {
-        return res.status(403).json({ error: 'Only the league owner can review coach requests' });
+      if (!isPlatformAdmin && (!membership || membership.role !== 'owner')) {
+        return sendError(res, 403, 'Only the organization owner can review coach requests');
       }
 
       const joinRequests = await listOrganizationJoinRequestsForOrganization(id, status);
@@ -2083,10 +2086,13 @@ organizationsRouter.post(
         return res.status(403).json({ error: 'You cannot approve your own join request.' });
       }
 
-      // Existing-org coach admission is decided by the league owner only.
+      // Coach admission is decided by the organization owner — or a platform
+      // admin (org-scoped god-override). The self-approval IDOR guard above
+      // still applies to admins.
+      const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
       const membership = await getOrganizationMembership(req.user!.id, joinRequest.organization_id);
-      if (!membership || membership.status !== 'active' || membership.role !== 'owner') {
-        return res.status(403).json({ error: 'Only the league owner can approve coach requests' });
+      if (!isPlatformAdmin && (!membership || membership.status !== 'active' || membership.role !== 'owner')) {
+        return sendError(res, 403, 'Only the organization owner can approve coach requests');
       }
 
       if (joinRequest.status !== 'pending') {
@@ -2284,10 +2290,12 @@ organizationsRouter.post(
         return res.status(404).json({ error: 'Join request not found' });
       }
 
-      // Existing-org coach admission is decided by the league owner only.
+      // Coach admission is decided by the organization owner — or a platform
+      // admin (org-scoped god-override).
+      const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
       const membership = await getOrganizationMembership(req.user!.id, joinRequest.organization_id);
-      if (!membership || membership.status !== 'active' || membership.role !== 'owner') {
-        return res.status(403).json({ error: 'Only the league owner can reject coach requests' });
+      if (!isPlatformAdmin && (!membership || membership.status !== 'active' || membership.role !== 'owner')) {
+        return sendError(res, 403, 'Only the organization owner can reject coach requests');
       }
 
       if (joinRequest.status !== 'pending') {
