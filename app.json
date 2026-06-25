@@ -31,6 +31,7 @@
       "appleTeamId": "B5H8F69RW5",
       "bundleIdentifier": "com.varsithub.varsityhub-ios",
       "usesAppleSignIn": true,
+      "associatedDomains": ["applinks:varsityhub.app", "applinks:www.varsityhub.app"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "VarsityHub uses your camera to take photos and videos for team posts, profile pictures, and game highlights.",
@@ -58,6 +59,21 @@
       "edgeToEdgeEnabled": true,
       "versionCode": 38,
       "package": "com.xsantcastx.varsityhub",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [
+            { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/games" },
+            { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/posts" },
+            { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/teams" },
+            { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/events" },
+            { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/organizations" },
+            { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/share" }
+          ]
+        }
+      ],
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
