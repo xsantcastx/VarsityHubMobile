@@ -53,9 +53,12 @@ export function useRequireTeamManagement() {
   const coachRedirect = useMemo(() => getCoachGuardRedirect(coachUser), [coachUser]);
 
   // The coach guard fully decides every coach (and the no-user case). The
-  // membership probe is only needed for a NON-coach user the coach guard would
-  // otherwise bounce — those are the users this hook newly admits.
-  const needsMembershipProbe = !coachAccess.isCoach && coachRedirect !== null;
+  // membership probe is only needed for an AUTHENTICATED non-coach user the
+  // coach guard would otherwise bounce — those are the users this hook newly
+  // admits. An unauthenticated user (no `user`) is still bounced by the redirect
+  // effect below; probing for them just fires two guaranteed-401 calls + Sentry
+  // noise, so skip it.
+  const needsMembershipProbe = !!user && !coachAccess.isCoach && coachRedirect !== null;
 
   const [probe, setProbe] = useState<{
     done: boolean;

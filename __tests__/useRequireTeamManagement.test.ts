@@ -161,4 +161,18 @@ describe('useRequireTeamManagement', () => {
       tags: { context: 'team_management_guard_probe' },
     });
   });
+
+  it('bounces an unauthenticated user WITHOUT probing (no API calls, no Sentry noise)', async () => {
+    mockUseAuth.mockReturnValue({ loading: false, user: null });
+
+    const { result } = renderHook(() => useRequireTeamManagement());
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(tabs)/feed'));
+    expect(result.current.canManage).toBe(false);
+    // No membership probe should fire for a logged-out user — no failing API
+    // calls, no captureException noise.
+    expect(mockManaged).not.toHaveBeenCalled();
+    expect(mockReviewSummaries).not.toHaveBeenCalled();
+    expect(mockCaptureException).not.toHaveBeenCalled();
+  });
 });
