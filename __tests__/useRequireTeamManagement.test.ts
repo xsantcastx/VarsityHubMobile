@@ -28,6 +28,11 @@ jest.mock('@/api/entities', () => ({
   Organization: { reviewSummaries: () => mockReviewSummaries() },
 }));
 
+const mockCaptureException = jest.fn();
+jest.mock('@/utils/sentry', () => ({
+  captureException: (...args: unknown[]) => mockCaptureException(...args),
+}));
+
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 
 beforeEach(() => {
@@ -35,6 +40,7 @@ beforeEach(() => {
   mockUseAuth.mockReset();
   mockManaged.mockReset().mockResolvedValue([]);
   mockReviewSummaries.mockReset().mockResolvedValue([]);
+  mockCaptureException.mockReset();
 });
 
 const approvedCoachWithTools = {
@@ -135,5 +141,24 @@ describe('useRequireTeamManagement', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.canManage).toBe(true);
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('fails closed and reports when the membership probe errors', async () => {
+    mockManaged.mockRejectedValue(new Error('network down'));
+    mockReviewSummaries.mockRejectedValue(new Error('network down'));
+    mockUseAuth.mockReturnValue({
+      loading: false,
+      user: { id: 'fan-flaky', role: 'fan', preferences: { role: 'fan' } },
+    });
+
+    const { result } = renderHook(() => useRequireTeamManagement());
+
+    // Probe error -> 0 managed -> bounced (fail-closed), not silently swallowed.
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(tabs)/feed'));
+    expect(result.current.canManage).toBe(false);
+    expect(mockCaptureException).toHaveBeenCalledTimes(2);
+    expect(mockCaptureException.mock.calls[0][1]).toMatchObject({
+      tags: { context: 'team_management_guard_probe' },
+    });
   });
 });

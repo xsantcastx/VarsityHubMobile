@@ -22,6 +22,7 @@ import {
   resolveTeamManagementAccess,
   type CoachUserLike,
 } from '@/utils/roleChecks';
+import { captureException } from '@/utils/sentry';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -29,6 +30,18 @@ function countItems(value: unknown): number {
   if (Array.isArray(value)) return value.length;
   const items = (value as { items?: unknown })?.items;
   return Array.isArray(items) ? items.length : 0;
+}
+
+// A failed membership probe falls back to 0 (fail-closed: the user is bounced
+// rather than wrongly admitted). Surface it so a manager wrongly bounced by a
+// transient error is diagnosable instead of silently swallowed.
+function reportProbeFailure(source: string, error: unknown) {
+  captureException(
+    error instanceof Error ? error : new Error(String((error as any)?.message || error)),
+    {
+      tags: { context: 'team_management_guard_probe', source },
+    }
+  );
 }
 
 export function useRequireTeamManagement() {
@@ -58,8 +71,14 @@ export function useRequireTeamManagement() {
     let cancelled = false;
     void (async () => {
       const [teams, orgs] = await Promise.all([
-        Team.managed().catch(() => []),
-        Organization.reviewSummaries().catch(() => []),
+        Team.managed().catch(e => {
+          reportProbeFailure('managed_teams', e);
+          return [];
+        }),
+        Organization.reviewSummaries().catch(e => {
+          reportProbeFailure('org_admin', e);
+          return [];
+        }),
       ]);
       if (cancelled) return;
       setProbe({
