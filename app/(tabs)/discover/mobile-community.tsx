@@ -167,6 +167,9 @@ function CommunityDiscoverScreen() {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   const [isCreatingGame, setIsCreatingGame] = useState(false);
+  // Which async coach quick action is currently resolving its target, so the
+  // card can show a spinner and re-taps are ignored (no double navigation).
+  const [quickActionBusy, setQuickActionBusy] = useState<null | 'org' | 'schedule'>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
   const reportDiscoverFailure = useCallback((task: string, error: unknown) => {
@@ -216,7 +219,12 @@ function CommunityDiscoverScreen() {
   const [viewerPosts, setViewerPosts] = useState<FeedPost[]>([]);
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const [personalizationNotice, setPersonalizationNotice] = useState<string | null>(null);
-  const coachAccess = useMemo(() => getCoachAccessState(me as any), [me]);
+  // Derive the quick-actions branch from the LIVE auth user (reactive, and
+  // already populated before this screen's own load() runs), falling back to the
+  // loaded snapshot. This avoids the cold-start flip (coach briefly seeing the
+  // fan actions) and keeps the branch fresh when auth state changes, without
+  // refetching on every focus.
+  const coachAccess = useMemo(() => getCoachAccessState((user ?? me) as any), [user, me]);
   const showPrecisionBanner =
     Platform.OS === 'android' &&
     permissionGranted &&
@@ -476,7 +484,9 @@ function CommunityDiscoverScreen() {
         currentUser = await getAuthSnapshot(checkAuth, user);
         setMe(currentUser ?? null);
       } catch (err) {
-        if (__DEV__) console.warn('Discover load: unable to fetch user', err);
+        // Don't swallow: a failed snapshot nulls `me`, which silently downgrades
+        // a coach to the fan quick actions. Surface it so the flip is diagnosable.
+        reportDiscoverFailure('load_user_snapshot', err);
         setMe(null);
       }
 
@@ -484,7 +494,7 @@ function CommunityDiscoverScreen() {
 
       if (!silent) setLoading(false);
     },
-    [checkAuth, loadGames, loadPersonalization, user]
+    [checkAuth, loadGames, loadPersonalization, reportDiscoverFailure, user]
   );
 
   useEffect(() => {
@@ -544,11 +554,18 @@ function CommunityDiscoverScreen() {
   }, [load]);
 
   const handleManageOrg = useCallback(async () => {
+    if (quickActionBusy) return;
+    setQuickActionBusy('org');
+    analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, { action: 'manage_org' });
     try {
       const summaries = await Organization.reviewSummaries();
       const list = Array.isArray(summaries) ? summaries : [];
       const firstOrgId = list[0]?.organization?.id;
       if (firstOrgId) {
+        analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, {
+          action: 'manage_org',
+          outcome: 'navigated',
+        });
         router.push({
           pathname: '/organization',
           params: {
@@ -562,8 +579,12 @@ function CommunityDiscoverScreen() {
         // membership role is `coach`/`member`). Send them to view their org
         // rather than falsely claiming they have none. Only alert when there
         // is genuinely no org link at all.
-        const orgId = getCanonicalOrganizationId(me as any);
+        const orgId = getCanonicalOrganizationId((me ?? user) as any);
         if (orgId) {
+          analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, {
+            action: 'manage_org',
+            outcome: 'navigated_fallback',
+          });
           router.push({
             pathname: '/organization',
             params: {
@@ -572,18 +593,31 @@ function CommunityDiscoverScreen() {
             },
           } as any);
         } else {
+          analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, {
+            action: 'manage_org',
+            outcome: 'no_org',
+          });
           Alert.alert('No Organization', 'You are not linked to any organization yet.');
         }
       }
     } catch (err: any) {
+      analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, {
+        action: 'manage_org',
+        outcome: 'error',
+      });
       captureException(err instanceof Error ? err : new Error(String(err?.message || err)), {
         tags: { context: 'discover_manage_org' },
       });
       Alert.alert('Error', 'Could not load your organization.');
+    } finally {
+      setQuickActionBusy(null);
     }
-  }, [me, router]);
+  }, [me, user, router, quickActionBusy]);
 
   const handleTeamSchedule = useCallback(async () => {
+    if (quickActionBusy) return;
+    setQuickActionBusy('schedule');
+    analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, { action: 'team_schedule' });
     try {
       const teams = await Team.managed();
       const arr = Array.isArray(teams)
@@ -592,6 +626,10 @@ function CommunityDiscoverScreen() {
           ? (teams as any).items
           : [];
       if (arr.length === 1) {
+        analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, {
+          action: 'team_schedule',
+          outcome: 'navigated',
+        });
         router.push({
           pathname: '/manage-season',
           params: {
@@ -600,6 +638,10 @@ function CommunityDiscoverScreen() {
           },
         } as any);
       } else if (arr.length > 1) {
+        analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, {
+          action: 'team_schedule',
+          outcome: 'navigated_picker',
+        });
         router.push({
           pathname: '/manage-season',
           params: {
@@ -607,6 +649,10 @@ function CommunityDiscoverScreen() {
           },
         } as any);
       } else {
+        analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, {
+          action: 'team_schedule',
+          outcome: 'no_teams',
+        });
         Alert.alert('No Teams', 'Create a team first to manage your schedule.', [
           {
             text: 'Create Team',
@@ -622,12 +668,18 @@ function CommunityDiscoverScreen() {
         ]);
       }
     } catch (err: any) {
+      analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, {
+        action: 'team_schedule',
+        outcome: 'error',
+      });
       captureException(err instanceof Error ? err : new Error(String(err?.message || err)), {
         tags: { context: 'discover_team_schedule' },
       });
       Alert.alert('Error', 'Could not load teams. Please try again.');
+    } finally {
+      setQuickActionBusy(null);
     }
-  }, [router]);
+  }, [router, quickActionBusy]);
 
   const handleQuickGameSave = useCallback(
     async (data: QuickGameData) => {
@@ -1751,15 +1803,18 @@ function CommunityDiscoverScreen() {
                     borderColor: Colors[colorScheme].tint + '30',
                   },
                 ]}
-                onPress={() =>
+                onPress={() => {
+                  analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, {
+                    action: 'manage_teams',
+                  });
                   void router.push({
                     pathname: '/manage-teams',
                     params: {
                       from: 'discover-quick-actions',
                       fallback: '/(tabs)/discover',
                     },
-                  } as any)
-                }
+                  } as any);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel="Manage Teams"
               >
@@ -1778,13 +1833,19 @@ function CommunityDiscoverScreen() {
                     backgroundColor: Colors[colorScheme].tint + '10',
                     borderColor: Colors[colorScheme].tint + '30',
                     marginLeft: 12,
+                    opacity: quickActionBusy && quickActionBusy !== 'schedule' ? 0.5 : 1,
                   },
                 ]}
                 onPress={() => void handleTeamSchedule()}
+                disabled={quickActionBusy !== null}
                 accessibilityRole="button"
                 accessibilityLabel="Team Schedule"
               >
-                <MaterialIcons name="event" size={24} color={Colors[colorScheme].tint} />
+                {quickActionBusy === 'schedule' ? (
+                  <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+                ) : (
+                  <MaterialIcons name="event" size={24} color={Colors[colorScheme].tint} />
+                )}
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>
                   Team Schedule
                 </Text>
@@ -1801,15 +1862,18 @@ function CommunityDiscoverScreen() {
                     marginLeft: 12,
                   },
                 ]}
-                onPress={() =>
+                onPress={() => {
+                  analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, {
+                    action: 'approvals',
+                  });
                   void router.push({
                     pathname: '/event-approvals',
                     params: {
                       from: 'discover-quick-actions',
                       fallback: '/(tabs)/discover',
                     },
-                  } as any)
-                }
+                  } as any);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel="Review pending event approvals"
               >
@@ -1824,13 +1888,23 @@ function CommunityDiscoverScreen() {
               <Pressable
                 style={[
                   styles.coachActionCard,
-                  { backgroundColor: '#1E3A5F15', borderColor: '#1E3A5F30', marginLeft: 12 },
+                  {
+                    backgroundColor: '#1E3A5F15',
+                    borderColor: '#1E3A5F30',
+                    marginLeft: 12,
+                    opacity: quickActionBusy && quickActionBusy !== 'org' ? 0.5 : 1,
+                  },
                 ]}
                 onPress={() => void handleManageOrg()}
+                disabled={quickActionBusy !== null}
                 accessibilityRole="button"
                 accessibilityLabel="Manage your organization"
               >
-                <MaterialIcons name="business" size={24} color={Colors[colorScheme].tint} />
+                {quickActionBusy === 'org' ? (
+                  <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+                ) : (
+                  <MaterialIcons name="business" size={24} color={Colors[colorScheme].tint} />
+                )}
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>
                   Manage Org
                 </Text>

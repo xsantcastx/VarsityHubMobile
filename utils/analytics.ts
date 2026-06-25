@@ -30,10 +30,7 @@ const MAX_ANALYTICS_KEYS = 25;
 let posthog: PostHog | null = null;
 let analyticsInitialized = false;
 
-function normalizeAnalyticsValue(
-  value: unknown,
-  depth = 0
-): string | number | boolean | string[] {
+function normalizeAnalyticsValue(value: unknown, depth = 0): string | number | boolean | string[] {
   if (value == null) return 'null';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
     if (typeof value === 'string' && value.length > MAX_ANALYTICS_STRING_LENGTH) {
@@ -80,7 +77,9 @@ function sanitizeAnalyticsObject(value: unknown, depth = 0): unknown {
     return normalizeAnalyticsValue(value, depth);
   }
   if (Array.isArray(value)) {
-    return value.slice(0, MAX_ANALYTICS_ARRAY_ITEMS).map(item => sanitizeAnalyticsObject(item, depth + 1));
+    return value
+      .slice(0, MAX_ANALYTICS_ARRAY_ITEMS)
+      .map(item => sanitizeAnalyticsObject(item, depth + 1));
   }
   if (typeof value === 'object') {
     return Object.fromEntries(
@@ -191,4 +190,5 @@ export const ANALYTICS_EVENTS = {
   GEOFENCE_BLOCKED: 'geofence_blocked',
   SEARCH_PERFORMED: 'search_performed',
   PROFILE_EDITED: 'profile_edited',
+  COACH_QUICK_ACTION_TAPPED: 'coach_quick_action_tapped',
 } as const;
