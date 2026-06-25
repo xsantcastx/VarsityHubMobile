@@ -4,7 +4,7 @@ import { Organization as OrganizationApi } from '@/api/entities';
 import { findSeedOrganization, seedOrganizationToPayload } from '@/data/seedOrganizations';
 import { Ionicons } from '@expo/vector-icons';
 import * as MediaLibrary from 'expo-media-library';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -205,6 +205,15 @@ function OrganizationDetailScreen() {
       setSavingQr(false);
     }
   }, [orgShareUrl]);
+
+  // Real (DB) organizations now render on the consolidated /organization screen,
+  // which handles public viewers correctly (proper header insets, back button,
+  // follow, events). Only seed/demo orgs keep this standalone page. Redirect
+  // everything else here too, so deep links / shared /organizations/:id URLs
+  // also land on the good screen — not just in-app search.
+  if (normalizedId && !seedOrg) {
+    return <Redirect href={`/organization?id=${encodeURIComponent(normalizedId)}` as any} />;
+  }
 
   if (loading) {
     return (
