@@ -1,0 +1,56 @@
+# Flow 6: Tab back navigation — regression guard for backBehavior="history".
+#
+# Bug it guards (fixed in PR #77): hidden-tab coach screens are reached via a
+# tab switch, so the in-screen back button (safeGoBack -> router.back()) used to
+# pop the Tabs navigator to its FIRST tab (Feed) because backBehavior defaulted
+# to 'firstRoute'. Back from a coach screen should return to the tab the user
+# came from (Discover), not Feed.
+#
+# Prerequisites:
+#   - Dev build running on device/simulator, Metro on localhost:8081
+#   - Local/staging server up
+#   - COACH_EMAIL is an APPROVED coach with an organization (so the Discover
+#     "Manage Teams" Quick Action is visible — i.e. canAccessCoachTools=true).
+#     Seed via server/scripts/prepare-coach-uat-accounts.ts.
+#
+# Run:
+#   maestro test .maestro/flows/06-tab-back-navigation.yaml \
+#     -e COACH_EMAIL=coach@varsityhub.test \
+#     -e COACH_PASSWORD=CoachUAT2026!
+#
+# Run on BOTH iOS and Android — the Android hardware-back path is the one most
+# affected by backBehavior.
+appId: com.varsithub.varsityhub-ios
+---
+- runFlow:
+    file: ../subflows/login.yaml
+    env:
+      EMAIL: ${COACH_EMAIL}
+      PASSWORD: ${COACH_PASSWORD}
+
+# ── Go to the Discover tab ──────────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible: 'Feed'
+    timeout: 15000
+- tapOn:
+    text: 'Discover'
+- extendedWaitUntil:
+    visible: 'Quick Actions'
+    timeout: 10000
+
+# ── Enter a coach screen FROM Discover (the tab-switch path that had the bug) ────
+- tapOn:
+    text: 'Manage Teams'
+- extendedWaitUntil:
+    visible: 'My Teams'
+    timeout: 10000
+
+# ── Press the in-screen back button ─────────────────────────────────────────────
+- tapOn:
+    id: 'back-button'
+- waitForAnimationToEnd
+
+# ── ASSERT: back returned to Discover, NOT Feed ─────────────────────────────────
+# "Quick Actions" only renders on Discover; if the bug regressed we'd land on
+# Feed and this assertion would fail.
+- assertVisible: 'Quick Actions'

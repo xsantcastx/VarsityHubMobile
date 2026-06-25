@@ -1,0 +1,56 @@
+# Reusable sign-in subflow.
+#
+# Launches a fresh app, handles the Expo dev-client launcher, and signs in with
+# the supplied credentials. Used by flows that need an authenticated session of
+# a known role (coach / fan / manager / athlete) rather than registering anew.
+#
+# Inputs (env):
+#   EMAIL     — account email
+#   PASSWORD  — account password
+#
+# Usage:
+#   - runFlow:
+#       file: ../subflows/login.yaml
+#       env:
+#         EMAIL: ${COACH_EMAIL}
+#         PASSWORD: ${COACH_PASSWORD}
+appId: com.varsithub.varsityhub-ios
+---
+- launchApp:
+    clearState: true
+
+# ── Expo dev-client launcher (shown with clearState) ────────────────────────────
+- runFlow:
+    when:
+      visible: 'http://localhost:8081'
+    commands:
+      - tapOn: 'http://localhost:8081'
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible: 'Continue'
+    commands:
+      - tapOn: 'Continue'
+      - waitForAnimationToEnd
+      # Dismiss the dev panel sheet by tapping the dimmed area above it.
+      - tapOn:
+          point: '50%,15%'
+      - waitForAnimationToEnd
+
+# ── Sign In ─────────────────────────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible: 'Sign In'
+    timeout: 15000
+
+- tapOn:
+    id: 'sign-in-email'
+- inputText: ${EMAIL}
+# onSubmitEditing on the email field focuses the password field.
+- pressKey: Enter
+- waitForAnimationToEnd
+- inputText: ${PASSWORD}
+
+- tapOn:
+    text: 'Sign In'
+- waitForAnimationToEnd

@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -49,10 +49,7 @@ function mapScopeMembers(
   }));
 }
 
-function mapScopeInvites(
-  invites: any[],
-  scope: { id: string; name: string }
-): ManageUserRow[] {
+function mapScopeInvites(invites: any[], scope: { id: string; name: string }): ManageUserRow[] {
   return invites.map((invite: any) => ({
     id: String(invite.id || invite.email),
     role: invite.role || 'member',
@@ -68,7 +65,7 @@ function mapScopeInvites(
 
 function dedupeRows(rows: ManageUserRow[]): ManageUserRow[] {
   const seen = new Set<string>();
-  return rows.filter((row) => {
+  return rows.filter(row => {
     const key = [
       row.user?.id || row.user?.email || row.id,
       row.team?.id || row.team?.name || 'no-team',
@@ -83,7 +80,7 @@ function dedupeRows(rows: ManageUserRow[]): ManageUserRow[] {
 
 // TODO v1.1: Wire up navigation from admin-dashboard
 function ManageUsersScreen() {
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  const { canManage, loading: coachLoading } = useRequireTeamManagement();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [q, setQ] = useState('');
@@ -92,11 +89,12 @@ function ManageUsersScreen() {
   const [rows, setRows] = useState<any[]>([]);
 
   useEffect(() => {
-    if (coachLoading || !canAccessCoachTools) return;
+    if (coachLoading || !canManage) return;
 
     let mounted = true;
     void (async () => {
-      setLoading(true); setError(null);
+      setLoading(true);
+      setError(null);
       try {
         const scopedRows: ManageUserRow[] = [];
 
@@ -147,26 +145,39 @@ function ManageUsersScreen() {
         if (!mounted) return;
         setRows(dedupeRows(scopedRows));
       } catch {
-        if (!mounted) return; setError('Failed to load users');
-      } finally { if (mounted) setLoading(false); }
+        if (!mounted) return;
+        setError('Failed to load users');
+      } finally {
+        if (mounted) setLoading(false);
+      }
     })();
-    return () => { mounted = false; };
-  }, [canAccessCoachTools, coachLoading]);
+    return () => {
+      mounted = false;
+    };
+  }, [canManage, coachLoading]);
 
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
-    return rows.filter((u: any) => (u.user?.display_name || '').toLowerCase().includes(s) || (u.user?.email || '').toLowerCase().includes(s) || (u.team?.name || '').toLowerCase().includes(s));
+    return rows.filter(
+      (u: any) =>
+        (u.user?.display_name || '').toLowerCase().includes(s) ||
+        (u.user?.email || '').toLowerCase().includes(s) ||
+        (u.team?.name || '').toLowerCase().includes(s)
+    );
   }, [q, rows]);
 
   if (coachLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['top', 'bottom']}
+      >
         <ActivityIndicator style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />
       </SafeAreaView>
     );
   }
 
-  if (!canAccessCoachTools) {
+  if (!canManage) {
     return (
       <CoachAccessRedirecting
         backgroundColor={Colors[colorScheme].background}
@@ -177,34 +188,78 @@ function ManageUsersScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{
-        title: 'Manage Users',
-        headerLeft: () => (
-          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
-            <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
-          </Pressable>
-        ),
-      }} />
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['top', 'bottom']}
+    >
+      <Stack.Screen
+        options={{
+          title: 'Manage Users',
+          headerLeft: () => (
+            <Pressable
+              onPress={() => {
+                safeGoBack(router);
+              }}
+              style={{ paddingLeft: 8 }}
+            >
+              <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
+            </Pressable>
+          ),
+        }}
+      />
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Users</Text>
-      <Input placeholder="Search name, email, or team" value={q} onChangeText={setQ} style={{ marginBottom: 10 }} />
-      {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator color={Colors[colorScheme].tint} /></View>}
-      {error && !loading && <Text style={{ color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }}>{error}</Text>}
+      <Input
+        placeholder="Search name, email, or team"
+        value={q}
+        onChangeText={setQ}
+        style={{ marginBottom: 10 }}
+      />
+      {loading && (
+        <View style={{ paddingVertical: 16 }}>
+          <ActivityIndicator color={Colors[colorScheme].tint} />
+        </View>
+      )}
+      {error && !loading && (
+        <Text style={{ color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }}>{error}</Text>
+      )}
       {!error && !loading && filtered.length === 0 && (
-        <Text style={{ color: Colors[colorScheme].mutedText }}>No members or pending invites found.</Text>
+        <Text style={{ color: Colors[colorScheme].mutedText }}>
+          No members or pending invites found.
+        </Text>
       )}
       <FlatList
         data={filtered}
-        keyExtractor={(u) => String(u.id)}
+        keyExtractor={u => String(u.id)}
         renderItem={({ item }) => (
-          <View style={[styles.row, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+          <View
+            style={[
+              styles.row,
+              {
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
+          >
             <View style={{ flex: 1 }}>
-              <Text style={[styles.name, { color: Colors[colorScheme].text }]}>{formatUserLabel(item.user)}</Text>
-              <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>{item.user?.email || ''}</Text>
+              <Text style={[styles.name, { color: Colors[colorScheme].text }]}>
+                {formatUserLabel(item.user)}
+              </Text>
+              <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>
+                {item.user?.email || ''}
+              </Text>
             </View>
             <Badge>{item.role}</Badge>
-            <Text style={[styles.team, { color: Colors[colorScheme].text }]}>{item.team?.name || ''}</Text>
-            <Text style={[styles.status, (item.status || 'active') === 'active' ? styles.ok : styles.invited]}>{item.status}</Text>
+            <Text style={[styles.team, { color: Colors[colorScheme].text }]}>
+              {item.team?.name || ''}
+            </Text>
+            <Text
+              style={[
+                styles.status,
+                (item.status || 'active') === 'active' ? styles.ok : styles.invited,
+              ]}
+            >
+              {item.status}
+            </Text>
           </View>
         )}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
@@ -217,7 +272,14 @@ function ManageUsersScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   title: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
   name: { fontWeight: '700' },
   muted: {},
   team: { minWidth: 120, textAlign: 'right', fontWeight: '600' },

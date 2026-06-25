@@ -1,0 +1,42 @@
+# Flow 4: Coach gating — an athlete (roster member) is BOUNCED from management.
+#
+# Guards the membership-aware guard (useRequireTeamManagement): a fan-role user
+# whose only team membership is `player` must NOT reach team-management surfaces,
+# and must NOT see coach Quick Actions on Discover.
+#
+# Prerequisites:
+#   - Dev build running, Metro on localhost:8081, server up
+#   - Seeded athlete account (role=fan + `player` team membership):
+#       node -r tsx/cjs server/scripts/prepare-coach-uat-accounts.ts
+#     -> coach-uat-athlete@varsityhub.test / CoachUAT2026!
+#
+# Run:
+#   maestro test .maestro/flows/04-coach-gating.yaml \
+#     -e ATHLETE_EMAIL=coach-uat-athlete@varsityhub.test \
+#     -e ATHLETE_PASSWORD=CoachUAT2026!
+appId: com.varsithub.varsityhub-ios
+---
+- runFlow:
+    file: ../subflows/login.yaml
+    env:
+      EMAIL: ${ATHLETE_EMAIL}
+      PASSWORD: ${ATHLETE_PASSWORD}
+
+# ── Discover shows FAN actions, not coach tools ─────────────────────────────────
+- extendedWaitUntil:
+    visible: 'Feed'
+    timeout: 15000
+- tapOn:
+    text: 'Discover'
+- extendedWaitUntil:
+    visible: 'Quick Actions'
+    timeout: 10000
+- assertVisible: 'Fan Event'
+- assertNotVisible: 'Manage Teams'
+
+# ── Direct navigation to a coach-gated screen is bounced ────────────────────────
+- openLink: 'varsityhubmobile:///manage-teams'
+- waitForAnimationToEnd
+# The guard redirects a non-manager to the feed: the manage-teams header must
+# never appear.
+- assertNotVisible: 'My Teams'

@@ -9,7 +9,7 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
-import { getCoachAccessState, getCoachRecoveryRoute, type CoachUserLike } from '@/utils/roleChecks';
+import { getCoachAccessState, getCoachGuardRedirect, type CoachUserLike } from '@/utils/roleChecks';
 
 export function useRequireCoach() {
   const { user, loading } = useAuth();
@@ -24,54 +24,14 @@ export function useRequireCoach() {
   useEffect(() => {
     if (loading) return;
 
-    // Admin escape: an admin who happens to have dirty coach state (test
-    // residue, manual DB edit, etc.) must never be trapped in the
-    // pending-approval recovery route. Mirror of the admin overrides in
-    // utils/appRouteDecisions.ts and utils/roleChecks.ts:getCoachRecoveryRoute
-    // shipped in commit 7c875eb6 — this hook is the third routing path
-    // and was missed in that pass. Send them back to /(tabs) instead.
-    if (
-      coachUser?.is_admin === true &&
-      (coachAccess.isPendingCoach || coachAccess.isRejectedCoach)
-    ) {
-      router.replace('/(tabs)/feed');
-      return;
+    // The full redirect decision (admin escape, fan mode, agreement/approval
+    // recovery) lives in getCoachGuardRedirect so this guard and the
+    // membership-aware useRequireTeamManagement guard can never drift.
+    const redirect = getCoachGuardRedirect(coachUser);
+    if (redirect) {
+      router.replace(redirect as never);
     }
-
-    if (!user || !isCoach) {
-      router.replace('/(tabs)/feed');
-      return;
-    }
-
-    if (coachAccess.isProceedingAsFan) {
-      router.replace('/(tabs)/feed');
-      return;
-    }
-
-    if (!canAccessCoachTools) {
-      const recoveryRoute = getCoachRecoveryRoute(coachUser);
-      // getCoachRecoveryRoute intentionally returns null for approved coaches.
-      // They must never land on pending-approval (their approval is done):
-      // missing agreement → agreement screen; otherwise (e.g. no org yet) let
-      // them into the app.
-      const fallback = isApprovedCoach
-        ? coachAccess.hasCurrentCoachAgreement
-          ? '/(tabs)/feed'
-          : '/onboarding/coach-agreement'
-        : '/onboarding/pending-approval';
-      router.replace((recoveryRoute || fallback) as never);
-      return;
-    }
-  }, [
-    canAccessCoachTools,
-    coachAccess,
-    coachUser,
-    isApprovedCoach,
-    isCoach,
-    loading,
-    router,
-    user,
-  ]);
+  }, [coachUser, loading, router]);
 
   return { isCoach, isApprovedCoach, canAccessCoachTools, loading };
 }

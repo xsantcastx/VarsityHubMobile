@@ -17,11 +17,28 @@ import {
   canAccessCreateTeamSurface,
   getCoachAccessState,
   getCoachApprovalNotificationRoute,
+  getCoachFinishSetupRoute,
+  getCoachGuardRedirect,
   getCoachRecoveryRoute,
   getPendingCoachRoute,
   isOrganizationAdminMember,
   isOrganizationOwner,
+  resolveTeamManagementAccess,
 } from '../utils/roleChecks';
+
+const APPROVED_COACH_WITH_TOOLS = {
+  id: 'coach-ok',
+  role: 'coach',
+  approval_status: 'APPROVED',
+  organization_id: 'org_1',
+  required_coach_agreement_version: 1,
+  preferences: {
+    role: 'coach',
+    onboarding_completed: true,
+    coach_agreement_accepted_at: '2026-01-01T00:00:00.000Z',
+    coach_agreement_version: 1,
+  },
+};
 
 describe('getCoachAccessState — identity', () => {
   it('null / undefined user produces a safe default (no access)', () => {
@@ -459,5 +476,164 @@ describe('getCoachRecoveryRoute', () => {
         },
       })
     ).toBe('/settings/manage-subscription');
+  });
+});
+
+describe('getCoachFinishSetupRoute — never a no-op (DISC Finish Setup CTA)', () => {
+  it('falls back to the agreement screen for an approved coach with a stale agreement', () => {
+    // This is the exact case where getCoachRecoveryRoute returns null and the
+    // raw CTA used to do nothing.
+    const user = {
+      approval_status: 'APPROVED',
+      organization_id: 'org_1',
+      required_coach_agreement_version: 2,
+      preferences: {
+        role: 'coach',
+        onboarding_completed: true,
+        coach_agreement_accepted_at: '2026-01-01T00:00:00.000Z',
+        coach_agreement_version: 1,
+      },
+    };
+    expect(getCoachRecoveryRoute(user)).toBeNull();
+    expect(getCoachFinishSetupRoute(user)).toBe('/onboarding/coach-agreement');
+  });
+
+  it('falls back to the feed for an approved coach with a current agreement but no org', () => {
+    const user = {
+      approval_status: 'APPROVED',
+      required_coach_agreement_version: 1,
+      preferences: {
+        role: 'coach',
+        onboarding_completed: true,
+        coach_agreement_accepted_at: '2026-01-01T00:00:00.000Z',
+        coach_agreement_version: 1,
+      },
+    };
+    expect(getCoachRecoveryRoute(user)).toBeNull();
+    expect(getCoachFinishSetupRoute(user)).toBe('/(tabs)/feed');
+  });
+
+  it('prefers an explicit recovery route when one exists', () => {
+    const user = {
+      approval_status: 'PENDING',
+      preferences: { role: 'coach', join_request_pending: true },
+    };
+    expect(getCoachFinishSetupRoute(user)).toBe('/onboarding/pending-approval');
+  });
+});
+
+describe('getCoachGuardRedirect — pure form of the useRequireCoach decision', () => {
+  it('allows (null) an approved coach with tools access', () => {
+    expect(getCoachGuardRedirect(APPROVED_COACH_WITH_TOOLS)).toBeNull();
+  });
+
+  it('redirects a non-coach (fan) to feed', () => {
+    expect(getCoachGuardRedirect({ role: 'fan', preferences: { role: 'fan' } })).toBe(
+      '/(tabs)/feed'
+    );
+  });
+
+  it('redirects an approved coach with a stale agreement to the agreement screen', () => {
+    expect(
+      getCoachGuardRedirect({
+        role: 'coach',
+        approval_status: 'APPROVED',
+        organization_id: 'org_1',
+        required_coach_agreement_version: 2,
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: '2026-01-01T00:00:00.000Z',
+          coach_agreement_version: 1,
+        },
+      })
+    ).toBe('/onboarding/coach-agreement');
+  });
+
+  it('sends admins with dirty pending coach state to feed, not pending-approval', () => {
+    expect(
+      getCoachGuardRedirect({
+        is_admin: true,
+        role: 'coach',
+        approval_status: 'PENDING',
+        preferences: { role: 'coach' },
+      })
+    ).toBe('/(tabs)/feed');
+  });
+
+  it('keeps non-admin pending coaches on the pending-approval route', () => {
+    expect(
+      getCoachGuardRedirect({
+        role: 'coach',
+        approval_status: 'PENDING',
+        preferences: { role: 'coach', join_request_pending: true },
+      })
+    ).toBe('/onboarding/pending-approval');
+  });
+});
+
+describe('resolveTeamManagementAccess — non-coach membership escape', () => {
+  it('allows an approved coach with tools access regardless of membership counts', () => {
+    expect(
+      resolveTeamManagementAccess({
+        user: APPROVED_COACH_WITH_TOOLS,
+        managedTeamCount: 0,
+        orgAdminCount: 0,
+      })
+    ).toEqual({ allow: true, redirectTo: null });
+  });
+
+  it('allows a fan-role member who manages at least one team', () => {
+    expect(
+      resolveTeamManagementAccess({
+        user: { role: 'fan', preferences: { role: 'fan' } },
+        managedTeamCount: 1,
+        orgAdminCount: 0,
+      })
+    ).toEqual({ allow: true, redirectTo: null });
+  });
+
+  it('allows a fan-role org admin even with no managed teams', () => {
+    expect(
+      resolveTeamManagementAccess({
+        user: { role: 'fan', preferences: { role: 'fan' } },
+        managedTeamCount: 0,
+        orgAdminCount: 1,
+      })
+    ).toEqual({ allow: true, redirectTo: null });
+  });
+
+  it('redirects a fan-role user with no manageable teams to feed', () => {
+    expect(
+      resolveTeamManagementAccess({
+        user: { role: 'fan', preferences: { role: 'fan' } },
+        managedTeamCount: 0,
+        orgAdminCount: 0,
+      })
+    ).toEqual({ allow: false, redirectTo: '/(tabs)/feed' });
+  });
+
+  it('NEVER lets a coach bypass the agreement gate via team membership', () => {
+    // An approved coach with a stale agreement keeps the coach redirect even
+    // though they manage teams — the legal agreement gate must hold.
+    const staleAgreementCoach = {
+      role: 'coach',
+      approval_status: 'APPROVED',
+      organization_id: 'org_1',
+      required_coach_agreement_version: 2,
+      preferences: {
+        role: 'coach',
+        onboarding_completed: true,
+        coach_agreement_accepted_at: '2026-01-01T00:00:00.000Z',
+        coach_agreement_version: 1,
+      },
+    };
+    expect(
+      resolveTeamManagementAccess({
+        user: staleAgreementCoach,
+        managedTeamCount: 5,
+        orgAdminCount: 2,
+      })
+    ).toEqual({ allow: false, redirectTo: '/onboarding/coach-agreement' });
   });
 });

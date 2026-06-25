@@ -3,7 +3,7 @@ import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -135,7 +135,7 @@ function getRoleBadgeColor(role: string): { bg: string; text: string } {
 
 function MyTeamScreen() {
   const { user } = useAuth();
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  const { canManage, loading: coachLoading } = useRequireTeamManagement();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -187,7 +187,7 @@ function MyTeamScreen() {
   // Team selector
   const [showTeamPicker, setShowTeamPicker] = useState(false);
 
-  // Guard: useRequireCoach hook handles redirect for non-coaches
+  // Guard: useRequireTeamManagement handles redirect for users who can't manage
 
   const loadTeams = useCallback(async (): Promise<string | null> => {
     try {
@@ -533,7 +533,7 @@ function MyTeamScreen() {
     );
   }
 
-  if (!canAccessCoachTools) {
+  if (!canManage) {
     return (
       <CoachAccessRedirecting
         backgroundColor={Colors[colorScheme].background}

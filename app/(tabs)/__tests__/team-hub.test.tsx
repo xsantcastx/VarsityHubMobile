@@ -11,16 +11,16 @@ import { ActivityIndicator } from 'react-native';
 import { render, waitFor } from '@testing-library/react-native';
 
 // ── Controllable mock state (jest-hoisted: names must start with `mock`) ──
-let mockRequireCoach: { canAccessCoachTools: boolean; loading: boolean } = {
-  canAccessCoachTools: false,
+let mockRequireManagement: { canManage: boolean; loading: boolean } = {
+  canManage: false,
   loading: true,
 };
 let mockUser: any = null;
 let mockManagedTeams: any[] = [];
 let mockRedirectedTo: string | null = null;
 
-jest.mock('@/hooks/useRequireCoach', () => ({
-  useRequireCoach: () => mockRequireCoach,
+jest.mock('@/hooks/useRequireTeamManagement', () => ({
+  useRequireTeamManagement: () => mockRequireManagement,
 }));
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({ user: mockUser }),
@@ -49,7 +49,7 @@ jest.mock('expo-router', () => ({
 import TeamHubRedirectScreen from '../team-hub';
 
 beforeEach(() => {
-  mockRequireCoach = { canAccessCoachTools: false, loading: true };
+  mockRequireManagement = { canManage: false, loading: true };
   mockUser = null;
   mockManagedTeams = [];
   mockRedirectedTo = null;
@@ -57,7 +57,7 @@ beforeEach(() => {
 
 describe('TeamHubRedirectScreen', () => {
   it('shows a spinner while coach access is resolving (loading state)', () => {
-    mockRequireCoach = { canAccessCoachTools: false, loading: true };
+    mockRequireManagement = { canManage: false, loading: true };
     const { UNSAFE_getAllByType, queryByText } = render(<TeamHubRedirectScreen />);
     expect(UNSAFE_getAllByType(ActivityIndicator).length).toBeGreaterThan(0);
     expect(queryByText('coach-access-redirecting')).toBeNull();
@@ -65,21 +65,21 @@ describe('TeamHubRedirectScreen', () => {
   });
 
   it('blocks a non-coach with the coach-access gate (does not leak the tool)', () => {
-    mockRequireCoach = { canAccessCoachTools: false, loading: false };
+    mockRequireManagement = { canManage: false, loading: false };
     const { getByText } = render(<TeamHubRedirectScreen />);
     expect(getByText('coach-access-redirecting')).toBeTruthy();
     expect(mockRedirectedTo).toBeNull();
   });
 
   it('redirects a coach with an organization to the org overview', async () => {
-    mockRequireCoach = { canAccessCoachTools: true, loading: false };
+    mockRequireManagement = { canManage: true, loading: false };
     mockUser = { organization_id: 'org-1' };
     render(<TeamHubRedirectScreen />);
     await waitFor(() => expect(mockRedirectedTo).toBe('/organization?id=org-1&tab=overview'));
   });
 
   it('redirects an org-less coach to their first managed team', async () => {
-    mockRequireCoach = { canAccessCoachTools: true, loading: false };
+    mockRequireManagement = { canManage: true, loading: false };
     mockUser = { id: 'coach-1' };
     mockManagedTeams = [{ id: 'team-9' }];
     render(<TeamHubRedirectScreen />);
@@ -87,7 +87,7 @@ describe('TeamHubRedirectScreen', () => {
   });
 
   it('falls back to the tab root when a coach manages no teams', async () => {
-    mockRequireCoach = { canAccessCoachTools: true, loading: false };
+    mockRequireManagement = { canManage: true, loading: false };
     mockUser = { id: 'coach-1' };
     mockManagedTeams = [];
     render(<TeamHubRedirectScreen />);

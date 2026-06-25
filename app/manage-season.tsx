@@ -4,7 +4,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
 import { handleCoachAccessError } from '@/utils/coachAccess';
@@ -90,7 +90,7 @@ interface PlayoffMatchup {
 
 function ManageSeasonScreen() {
   const { user } = useAuth();
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  const { canManage, loading: coachLoading } = useRequireTeamManagement();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ teamId?: string; from?: string; fallback?: string }>();
@@ -140,7 +140,12 @@ function ManageSeasonScreen() {
 
   const reportSeasonFailure = useCallback((task: string, error: unknown) => {
     if (__DEV__) console.warn(`[manage-season] ${task} failed:`, error);
-    captureBreadcrumb('Manage season deferred task failed', 'manage_season.screen', { task }, 'warning');
+    captureBreadcrumb(
+      'Manage season deferred task failed',
+      'manage_season.screen',
+      { task },
+      'warning'
+    );
     captureException(error instanceof Error ? error : new Error(String(error)), {
       tags: { context: 'manage-season', task },
     });
@@ -269,14 +274,14 @@ function ManageSeasonScreen() {
 
   // Load team and then games
   useEffect(() => {
-    void loadTeam().catch((error) => {
+    void loadTeam().catch(error => {
       reportSeasonFailure('load_team', error);
     });
   }, [loadTeam, reportSeasonFailure]);
 
   useEffect(() => {
     if (currentTeam?.id) {
-      void loadGames().catch((error) => {
+      void loadGames().catch(error => {
         reportSeasonFailure('load_games_for_team', error);
       });
     }
@@ -928,7 +933,9 @@ function ManageSeasonScreen() {
       setShowQuickAddModal(false);
       setEditingGame(null);
     } catch (error: any) {
-      if (handleCoachAccessError(router, error, isEditing ? 'updating games' : 'creating games', user)) {
+      if (
+        handleCoachAccessError(router, error, isEditing ? 'updating games' : 'creating games', user)
+      ) {
         return;
       }
       if (__DEV__) console.error('Error adding quick game:', error);
@@ -1193,7 +1200,7 @@ function ManageSeasonScreen() {
     );
   }
 
-  if (!canAccessCoachTools) {
+  if (!canManage) {
     return (
       <CoachAccessRedirecting
         backgroundColor={Colors[colorScheme].background}

@@ -122,7 +122,7 @@ export default function TabLayout() {
 
   return (
     <ErrorBoundary>
-      <Tabs screenOptions={screenOptions}>
+      <Tabs backBehavior="history" screenOptions={screenOptions}>
         <Tabs.Screen
           name="feed/index"
           options={{
