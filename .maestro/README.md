@@ -1,6 +1,7 @@
 # Maestro E2E Tests
 
-Three smoke tests covering the highest-risk flows.
+Smoke tests covering the highest-risk flows: onboarding, posting, coach
+gating/admit, and tab back navigation.
 
 ## Install Maestro
 
