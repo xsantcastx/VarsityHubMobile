@@ -37,7 +37,7 @@ import { sanitizeText } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import ViewShot, { captureRef } from 'react-native-view-shot';
-import AppearancePicker, { AppearancePreset } from './components/AppearancePicker';
+import { AppearancePreset } from './components/AppearancePicker';
 import MatchBanner from './components/MatchBanner';
 
 const EVENT_TYPES = [
@@ -207,7 +207,9 @@ function CreateFanEventScreen() {
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const bannerCaptureRef = useRef<ViewShot | null>(null);
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
-  const [appearance, setAppearance] = useState<AppearancePreset>('classic');
+  // Banner appearance is fixed to the default; the in-form style picker was
+  // removed (device-testing feedback) — users just upload a custom photo.
+  const [appearance] = useState<AppearancePreset>('classic');
   const [uploadingBanner, setUploadingBanner] = useState(false);
 
   // Team selection for fan event pitches (must be tied to a team)
@@ -1023,10 +1025,6 @@ function CreateFanEventScreen() {
                   </Text>
                 </Pressable>
               </View>
-              <Text style={[styles.generatedBannerLabel, { color: Colors[colorScheme].mutedText }]}>
-                Generated fallback style
-              </Text>
-              <AppearancePicker value={appearance} onChange={setAppearance} />
             </View>
           )}
         </View>

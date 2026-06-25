@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import { getApiBaseUrl } from '../api/http';
 import MatchBanner from '../app/components/MatchBanner';
-import AppearancePicker, { AppearancePreset } from './AppearancePicker';
+import { AppearancePreset } from './AppearancePicker';
 import ImageEditor from './ImageEditor';
 import LocationPicker from './LocationPicker';
 
@@ -1052,7 +1052,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             <View style={styles.formSection}>
               <View style={styles.labelWithIcon}>
                 <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
-                  {gameType === 'home' ? 'Home Venue' : 'Away Venue'}
+                  Venue
                 </Text>
                 {gameType === 'home' && teamHasVenue && homeVenueLocked && (
                   <View style={styles.lockedBadge}>
@@ -1329,33 +1329,6 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                           {uploadingCustomBanner ? 'Uploading...' : 'Upload Custom'}
                         </Text>
                       </Pressable>
-                      
-                      <Pressable 
-                        style={[styles.bannerOptionButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors[colorScheme].tint }]}
-                        onPress={() => {
-                          // Open editor with the current captured banner (if already uploaded use that, else capture)
-                          const openEditorWithCurrent = async () => {
-                            if (bannerUrl) {
-                              setEditingImageUri(bannerUrl);
-                              setEditorVisible(true);
-                              return;
-                            }
-                            if (viewShotRef.current) {
-                              try {
-                                const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
-                                setEditingImageUri(uri as any);
-                                setEditorVisible(true);
-                              } catch (e) {
-                                if (__DEV__) console.warn('Capture failed', e);
-                              }
-                            }
-                          };
-                          void openEditorWithCurrent();
-                        }}
-                      >
-                        <Ionicons name="brush-outline" size={16} color={Colors[colorScheme].tint} />
-                        <Text style={[styles.bannerOptionText, { color: Colors[colorScheme].tint }]}>Edit Generated</Text>
-                      </Pressable>
                     </View>
                   </View>
                 )}
@@ -1376,15 +1349,6 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                   </Text>
                 </View>
               </View>
-              {/* Appearance Picker (coach choices) - only applies to auto-generated banners */}
-              {!bannerUrl && (
-                <View style={{ marginTop: 8 }}>
-                  <Text style={[styles.bannerUploadLabel, { color: Colors[colorScheme].mutedText, fontSize: 12 }]}>
-                    Auto-Generated Banner Style
-                  </Text>
-                  <AppearancePicker value={appearance} onChange={setAppearance} />
-                </View>
-              )}
             </View>
           )}
 
@@ -1755,7 +1719,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   pickerContainer: {
-    maxHeight: '70%',
+    // Floor the height so the sheet always opens to a usable size — without it
+    // the opponent picker collapsed to just the header + search bar (the
+    // "stuck super low" device-testing report) when the team list was empty.
+    minHeight: '55%',
+    maxHeight: '85%',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
