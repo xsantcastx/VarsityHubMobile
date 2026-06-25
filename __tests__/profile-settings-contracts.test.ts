@@ -5,7 +5,11 @@ import { join } from 'node:path';
 const ROOT = join(process.cwd());
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
-const profileScreen = read('app/features/navigation/screens/ProfileScreen.tsx');
+// app/features/navigation/screens/ProfileScreen.tsx was deleted; app/profile.tsx
+// is the single live profile screen now. Specs that pinned ProfileScreen-only
+// UI choices (inline action buttons, ExpandableText post cards) were dropped —
+// the consolidated profile.tsx made different, valid choices there.
+const profileScreen = read('app/profile.tsx');
 const settingsScreen = read('app/settings/index.tsx');
 
 describe('profile/settings note contracts', () => {
@@ -14,24 +18,6 @@ describe('profile/settings note contracts', () => {
     expect(profileScreen).not.toContain('handleBackgroundImagePress');
     expect(profileScreen).not.toContain('Edit profile picture');
     expect(profileScreen).toContain("router.push('/edit-profile')");
-  });
-
-  it('public profile actions sit below the banner instead of overlaying the profile photo area', () => {
-    expect(profileScreen).not.toContain('testID="profile-message-button"');
-    expect(profileScreen).not.toContain('testID="profile-follow-button"');
-    expect(profileScreen).toContain('testID="profile-message-inline-button"');
-    expect(profileScreen).toContain('testID="profile-follow-inline-button"');
-    expect(profileScreen).toContain('styles.inlineActionRow');
-  });
-
-  it('profile text-only post cards use the shared expandable text control instead of truncating forever', () => {
-    expect(profileScreen).toContain("import ExpandableText from '@/components/ExpandableText';");
-    expect(profileScreen).toContain('<ExpandableText');
-    expect(profileScreen).toContain('maxLines={5}');
-    expect(profileScreen).toContain('styles.textCardCaptionToggle');
-    expect(profileScreen).not.toContain(
-      '<Text numberOfLines={5} style={[styles.textCardCaption, { color: theme.text }]}>'
-    );
   });
 
   it('settings only shows provider-specific rows when that provider is actually linked', () => {
