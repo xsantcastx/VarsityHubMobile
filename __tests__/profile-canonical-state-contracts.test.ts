@@ -5,30 +5,24 @@ import { join } from 'node:path';
 const ROOT = join(process.cwd());
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
+// app/features/navigation/screens/ProfileScreen.tsx was deleted (orphaned dead
+// code). app/profile.tsx is the single live profile screen now.
 const legacyProfile = read('app/profile.tsx');
-const navProfile = read('app/features/navigation/screens/ProfileScreen.tsx');
 const useUserHook = read('hooks/useUser.ts');
 
 describe('profile canonical state contracts', () => {
-  it('profile screens derive the current account from AuthProvider', () => {
-    for (const screen of [legacyProfile, navProfile]) {
-      expect(screen).toContain('const { user: userFromAuth, checkAuth } = useAuth();');
-    }
-    // ProfileScreen may still consume useUser, but the hook itself is now an
-    // AuthProvider delegate (getAuthSnapshot) — not a parallel /me mirror.
+  it('profile screen derives the current account from AuthProvider', () => {
+    expect(legacyProfile).toContain('const { user: userFromAuth, checkAuth } = useAuth();');
+    // useUser is now an AuthProvider delegate (getAuthSnapshot), not a parallel
+    // /me mirror.
     expect(useUserHook).toContain("import { getAuthSnapshot } from '@/utils/authState';");
     expect(useUserHook).not.toContain('User.me');
   });
 
-  it('profile screens resolve current user through the shared auth snapshot', () => {
+  it('profile screen resolves current user through the shared auth snapshot', () => {
     expect(legacyProfile).toContain(
       'const currentUser: any = await getAuthSnapshot(checkAuth, userFromAuth);'
     );
-    expect(navProfile).toContain(
-      'const currentUser: any = await getAuthSnapshot(checkAuth, userFromAuth ?? userFromHook);'
-    );
-    for (const screen of [legacyProfile, navProfile]) {
-      expect(screen).not.toContain('const currentUser: any = await User.me();');
-    }
+    expect(legacyProfile).not.toContain('const currentUser: any = await User.me();');
   });
 });
