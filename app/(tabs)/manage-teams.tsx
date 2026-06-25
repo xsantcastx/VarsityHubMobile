@@ -235,7 +235,13 @@ function ManageTeamsSimpleScreen() {
 
       {/* Simple Header */}
       <View style={[styles.header, { backgroundColor: theme.background }]}>
-        <Pressable style={styles.backButton} onPress={() => safeGoBack(router, explicitFallback)}>
+        <Pressable
+          style={styles.backButton}
+          onPress={() => safeGoBack(router, explicitFallback)}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          testID="back-button"
+        >
           <MaterialIcons name="arrow-back" size={28} color={theme.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text }]}>My Teams</Text>
