@@ -2972,6 +2972,26 @@ function verifyAppleSignedJws(token: string): any {
   // guidelines permit it for TestFlight, and blocking Sandbox in production would
   // break all pre-release IAP testing. The environment value is logged and stored
   // so any unexpected Sandbox activity in production is auditable.
+  //
+  // SECURITY VISIBILITY: a Sandbox receipt is free to mint (TestFlight / StoreKit
+  // sandbox) yet grants full entitlement downstream, so accepting it in production
+  // is a known, bounded abuse vector. We keep accepting it (testers need it) but
+  // surface every production-Sandbox acceptance to Sentry so the pattern — free
+  // sandbox receipts redeemed for real plans — is visible with a running count.
+  // This is the shared verifier for /apple/verify-receipt + /apple/verify-ad-receipt
+  // (initial grants); S2S renewals use their own inner-JWS verifier, so this does
+  // not fire on every sandbox renewal.
+  if (environment === 'Sandbox' && process.env.NODE_ENV === 'production') {
+    const txId = String(payload.transactionId || payload.originalTransactionId || '').trim();
+    captureException(new Error('Apple Sandbox transaction accepted in production'), {
+      context: 'apple_sandbox_entitlement_in_production',
+      provider: 'apple_iap',
+      environment,
+      productId: String(payload.productId || payload.product_id || ''),
+      transactionId: txId ? `${txId.slice(0, 6)}…` : '',
+      bundleId,
+    });
+  }
 
   return payload;
 }
