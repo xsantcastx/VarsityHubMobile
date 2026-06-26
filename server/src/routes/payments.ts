@@ -1302,6 +1302,10 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireAuth as any, paymentL
   const { ad_id, dates, promo_code, plan, team_count, organization_id, checkout_mode } = parsed.data;
   if (!(await enforceVerifiedForSubscriptionFlow(req, res, plan))) return;
   if (!(await enforceVerifiedForAdPaymentFlow(req, res, ad_id))) return;
+  // PARKED subscription branch: reached only via `plan`, which no shipped client
+  // sends (Subscriptions.createCheckout has no caller; web subs disabled, native
+  // uses IAP). The live use of /checkout is web ad checkout below (`ad_id` +
+  // checkout_mode:'web'). Dormant contract for re-enabling web subscriptions.
   if (typeof plan === 'string' && plan.trim()) {
     if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
     try {
@@ -1636,6 +1640,10 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
   });
 
   // ── SUBSCRIPTION FLOW ──
+  // PARKED: reachable only when a client sends `plan`. No shipped client does —
+  // web subscriptions are disabled and native uses IAP. The live use of this
+  // endpoint is the ad flow below (`ad_id`). Kept as a dormant contract for when
+  // web subscriptions are re-enabled. See subscription-paywall.tsx (client).
   if (typeof plan === 'string' && plan.trim()) {
     if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
     const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};

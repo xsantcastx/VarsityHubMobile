@@ -233,6 +233,11 @@ function ManageSubscription() {
       return;
     }
 
+    // PARKED: web-subscription Stripe path (twin of subscription-paywall.tsx).
+    // UNREACHABLE today — web returns above, iOS/Android use native IAP (~line 179).
+    // The Stripe PaymentSheet + finalizeWithRetry/Subscriptions.finalizeSubscription
+    // flow below only ran for web subscriptions, which are disabled. Kept so web
+    // subscriptions can be re-enabled. See subscription-paywall.tsx for context.
     // Non-mobile fallback: Use Stripe PaymentSheet
     setLoading(true);
     try {

@@ -244,6 +244,14 @@ function SubscriptionPaywallScreen() {
       return;
     }
 
+    // PARKED: web-subscription Stripe path. Everything below is currently
+    // UNREACHABLE — web returns above, and iOS/Android take the native IAP
+    // branch (line ~148). Subscriptions never touch Stripe today; only ADS do
+    // (ad-calendar.tsx web/Android). Kept intentionally so web subscriptions
+    // can be re-enabled (delete the web-block return above to revive). The
+    // Payments.createPaymentSheet({plan}) wrapper, Subscriptions.createCheckout,
+    // and the server "SUBSCRIPTION FLOW" branch in /create-payment-sheet are all
+    // parked for the same reason. See manage-subscription.tsx for the twin path.
     // Non-mobile fallback: Use Stripe PaymentSheet
     setLoading(true);
     try {
