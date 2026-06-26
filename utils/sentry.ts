@@ -137,6 +137,24 @@ function isExpectedAuthUxError(
   );
 }
 
+// Expected geofencing/posting business rules. The server returns these as 403s
+// when a user tries to post/story outside the game-day→+48h window, too far from
+// the venue, or without location set. All three create-post/story screens already
+// catch them and show a friendly Alert, but the promise is floated (`void
+// doConfirmPost()` in create-post.tsx), so @sentry/react-native's rejection
+// tracker (allRejections: true) still records them as handled exceptions. These
+// are UX states, not bugs — drop them, mirroring isExpectedAuthUxError.
+const EXPECTED_GEOFENCING_CODES = new Set([
+  'POSTING_WINDOW_CLOSED',
+  'TOO_FAR_FROM_VENUE',
+  'LOCATION_REQUIRED',
+  'NO_EVENT_LOCATION',
+]);
+
+function isExpectedGeofencingUxError(error: unknown): boolean {
+  return EXPECTED_GEOFENCING_CODES.has(getErrorCode(error));
+}
+
 export function initSentry() {
   const dsn = SENTRY_DSN;
   if (!dsn || dsn === '' || isPlaceholderDsn(dsn)) {
@@ -177,6 +195,11 @@ export function initSentry() {
         // Expected auth UX states (invalid credentials, expired/invalid codes,
         // signup conflicts, rate limits) should not page as exceptions.
         if (isExpectedAuthUxError(originalException, event)) {
+          return null;
+        }
+        // Expected posting/geofencing business 403s — handled in-screen with an
+        // Alert; the floated post promise still trips the RN rejection tracker.
+        if (isExpectedGeofencingUxError(originalException)) {
           return null;
         }
         return event;

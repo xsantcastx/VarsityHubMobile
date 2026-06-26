@@ -59,6 +59,61 @@ const TABLES_IN_ORDER = [
   'RefreshToken',
 ];
 
+/**
+ * Reconcile enum types on the backup DB to match primary before syncing rows.
+ *
+ * The backup Postgres does NOT receive `prisma migrate deploy` — start.sh only
+ * migrates DATABASE_URL — so enum types and values added by recent migrations
+ * are missing on the backup. That is the root cause of the recurring
+ * "N table(s) not synced" Sentry issue: row inserts use an explicit ::"EnumType"
+ * cast (enum columns can't be coerced from text), which fails with 42704 (type
+ * does not exist) for Organization/Team/OrganizationMembership/OrganizationJoinRequest
+ * and 22P02 (invalid enum value, e.g. NotificationType gaining JOIN_REQUEST_APPROVED).
+ * Replaying primary's enum catalog onto the backup here is self-healing and
+ * idempotent, and avoids running migrations against the backup at deploy time.
+ */
+async function reconcileBackupEnums(primary: PrismaClient, backup: PrismaClient): Promise<void> {
+  const enumRows = await primary.$queryRaw<Array<{ typname: string; enumlabel: string }>>`
+    SELECT t.typname, e.enumlabel
+    FROM pg_type t
+    JOIN pg_enum e ON e.enumtypid = t.oid
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = 'public'
+    ORDER BY t.typname ASC, e.enumsortorder ASC
+  `;
+  // Group labels by enum type, preserving primary's value order.
+  const enums = new Map<string, string[]>();
+  for (const row of enumRows) {
+    if (!enums.has(row.typname)) enums.set(row.typname, []);
+    enums.get(row.typname)!.push(row.enumlabel);
+  }
+
+  // Type/label names come from our own primary catalog (trusted), but escape
+  // single quotes in labels defensively.
+  const esc = (v: string) => v.replace(/'/g, "''");
+  for (const [typname, labels] of enums) {
+    const quotedLabels = labels.map((l) => `'${esc(l)}'`).join(', ');
+    // CREATE TYPE has no IF NOT EXISTS — guard with a DO block.
+    await backup.$executeRawUnsafe(
+      `DO $$ BEGIN
+         IF NOT EXISTS (
+           SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+           WHERE t.typname = '${esc(typname)}' AND n.nspname = 'public'
+         ) THEN
+           CREATE TYPE "${typname}" AS ENUM (${quotedLabels});
+         END IF;
+       END $$;`
+    );
+    // Add any values an already-existing backup type is missing. ADD VALUE
+    // IF NOT EXISTS is idempotent and runs in autocommit (no $transaction).
+    for (const label of labels) {
+      await backup.$executeRawUnsafe(
+        `ALTER TYPE "${typname}" ADD VALUE IF NOT EXISTS '${esc(label)}'`
+      );
+    }
+  }
+}
+
 export async function syncDatabaseBackup(): Promise<{
   success: boolean;
   tablesSync: number;
@@ -147,6 +202,14 @@ export async function syncDatabaseBackup(): Promise<{
       console.error('[db-backup] Failed to read backup column info — will attempt sync without column filtering:', colErr.message?.slice(0, 200));
     }
 
+    // Bring the backup's enum types/values up to date with primary before any
+    // inserts. Degrade gracefully — a failure here must not abort the whole sync.
+    try {
+      await reconcileBackupEnums(primary, backup);
+    } catch (enumErr: any) {
+      console.error('[db-backup] Enum reconciliation failed — continuing sync:', String(enumErr?.message || enumErr).slice(0, 200));
+    }
+
     for (const table of TABLES_IN_ORDER) {
       // Prisma uses the model name as table name by default
       if (!existingTables.has(table)) {
@@ -232,7 +295,17 @@ export async function syncDatabaseBackup(): Promise<{
     if (failedTables.length > 0) {
       const backupErr = new Error(`DB backup sync partially failed — ${failedTables.length} table(s) not synced: ${failedTables.join(', ')}`);
       console.error('[db-backup]', backupErr.message);
-      captureException(backupErr, { extra: { failedTables, failedTableReasons, tablesSync, totalRows } });
+      // Sentry flattens nested arrays/objects in `extra` to "[Array]", which is
+      // why this issue was historically un-diagnosable. Pre-stringify the reasons
+      // so the per-table cause survives onto the issue page.
+      captureException(backupErr, {
+        extra: {
+          failedTables,
+          failedTableReasons: JSON.stringify(failedTableReasons),
+          tablesSync,
+          totalRows,
+        },
+      });
     }
 
     // Re-enable FK constraints

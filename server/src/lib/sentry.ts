@@ -75,6 +75,14 @@ export function initSentry(app: Express) {
     // never reach Sentry even if captured elsewhere.
     ignoreErrors: [/Failed to decode param/, 'URIError'],
     beforeSend(event: any) {
+      // Never report from local dev machines. A developer's server/.env may set
+      // SENTRY_DSN (and placeholder creds), so a dev box left running schedulers
+      // pollutes the shared prod project with noise tagged environment=development
+      // (e.g. the stripe-webhook-reconciliation cron firing on a placeholder key).
+      // Mirrors the mobile client, which drops all events when __DEV__.
+      if (environment === 'development') {
+        return null;
+      }
       // Filter out health checks and non-error requests
       if (event.request?.url?.includes('/health')) {
         return null;
