@@ -346,20 +346,25 @@ export async function verifyEventPostingPermission(
   }
 
   if (postingWindowState === 'grace') {
-    const priorLivePost = event.game_id
-      ? await prisma.post.findFirst({
-          where: {
-            author_id: userId,
-            game_id: event.game_id,
-            deleted_at: null,
-            created_at: {
-              gte: new Date(event.date),
-              lte: liveCutoff,
-            },
-          },
-          select: { id: true },
-        })
-      : null;
+    // The user qualifies for the open-ended post-event window if they posted to
+    // this event while it was live — matched by a direct event_id link (event-only
+    // pages) OR via the event's game_id (legacy game-backed events). Both are
+    // checked so this works on all event pages, not just those with a game.
+    const priorLivePost = await prisma.post.findFirst({
+      where: {
+        author_id: userId,
+        deleted_at: null,
+        created_at: {
+          gte: new Date(event.date),
+          lte: liveCutoff,
+        },
+        OR: [
+          { event_id: eventId },
+          ...(event.game_id ? [{ game_id: event.game_id }] : []),
+        ],
+      },
+      select: { id: true },
+    });
 
     if (!priorLivePost) {
       return {
