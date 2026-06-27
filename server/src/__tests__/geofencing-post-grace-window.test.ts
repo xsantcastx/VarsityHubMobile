@@ -131,14 +131,26 @@ describe('regular post grace window', () => {
     expect(result.reason).toContain('only if you already posted to this event while it was live');
   });
 
-  it('denies posting after the +48h grace window closes', async () => {
-    jest.setSystemTime(new Date(EVENT_DATE.getTime() + 49 * 60 * 60 * 1000));
+  it('still allows posting long after the event when the user posted while live (open-ended)', async () => {
+    // Post-event uploads have no closing cutoff. 30 days later, a user who
+    // posted during the live window can still post.
+    jest.setSystemTime(new Date(EVENT_DATE.getTime() + 30 * 24 * 60 * 60 * 1000));
+    mockPostFindFirst.mockResolvedValue({ id: 'post-1' });
+
+    const result = await verifyEventPostingPermission('event-1', 'user-1', 40.7128, -74.006);
+
+    expect(result.allowed).toBe(true);
+    expect(mockPostFindFirst).toHaveBeenCalled();
+  });
+
+  it('still denies posting long after the event when the user never posted while live', async () => {
+    jest.setSystemTime(new Date(EVENT_DATE.getTime() + 30 * 24 * 60 * 60 * 1000));
 
     const result = await verifyEventPostingPermission('event-1', 'user-1', 40.7128, -74.006);
 
     expect(result.allowed).toBe(false);
     expect(result.code).toBe('POSTING_WINDOW_CLOSED');
-    expect(mockPostFindFirst).not.toHaveBeenCalled();
+    expect(result.reason).toContain('only if you already posted to this event while it was live');
   });
 
   it('keeps story uploads open through +48h after the event', () => {
