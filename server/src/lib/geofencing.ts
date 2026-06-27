@@ -358,10 +358,7 @@ export async function verifyEventPostingPermission(
           gte: new Date(event.date),
           lte: liveCutoff,
         },
-        OR: [
-          { event_id: eventId },
-          ...(event.game_id ? [{ game_id: event.game_id }] : []),
-        ],
+        OR: [{ event_id: eventId }, ...(event.game_id ? [{ game_id: event.game_id }] : [])],
       },
       select: { id: true },
     });

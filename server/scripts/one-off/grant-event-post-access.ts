@@ -154,7 +154,20 @@ function parseArgs() {
     console.error('Required: --event <eventId> or --event-title <substring>');
     process.exit(1);
   }
-  return { user, username, event, eventTitle, type, country, admin1, at, media, captions, dryRun, yes };
+  return {
+    user,
+    username,
+    event,
+    eventTitle,
+    type,
+    country,
+    admin1,
+    at,
+    media,
+    captions,
+    dryRun,
+    yes,
+  };
 }
 
 function windowState(kickoff: Date, now: Date): 'before_open' | 'live' | 'grace' | 'closed' {
@@ -199,9 +212,13 @@ async function main() {
       process.exit(1);
     }
     if (matches.length > 1) {
-      console.error(`❌ Ambiguous --event-title "${args.eventTitle}" — ${matches.length} matches. Re-run with --event <id>:`);
+      console.error(
+        `❌ Ambiguous --event-title "${args.eventTitle}" — ${matches.length} matches. Re-run with --event <id>:`
+      );
       for (const m of matches) {
-        console.error(`   • ${m.id}  ${new Date(m.date).toISOString()}  "${m.title}"  game_id=${m.game_id ?? 'null'}`);
+        console.error(
+          `   • ${m.id}  ${new Date(m.date).toISOString()}  "${m.title}"  game_id=${m.game_id ?? 'null'}`
+        );
       }
       process.exit(1);
     }
@@ -241,9 +258,13 @@ async function main() {
       process.exit(1);
     }
     if (matches.length > 1) {
-      console.error(`❌ Ambiguous --username "${args.username}" — ${matches.length} matches. Re-run with --user <id>:`);
+      console.error(
+        `❌ Ambiguous --username "${args.username}" — ${matches.length} matches. Re-run with --user <id>:`
+      );
       for (const m of matches) {
-        console.error(`   • ${m.id}  @${m.username ?? '—'}  "${m.display_name ?? '—'}"  ${m.email ?? ''}`);
+        console.error(
+          `   • ${m.id}  @${m.username ?? '—'}  "${m.display_name ?? '—'}"  ${m.email ?? ''}`
+        );
       }
       process.exit(1);
     }
@@ -287,7 +308,9 @@ async function main() {
   console.log(`          @${user.username ?? '—'}  ${user.email ?? ''}`);
   console.log(`Event   : ${event.title} (${event.id})`);
   console.log(`Game id : ${event.game_id}`);
-  console.log(`Venue   : ${event.location ?? '—'}  [${event.latitude ?? '—'}, ${event.longitude ?? '—'}]`);
+  console.log(
+    `Venue   : ${event.location ?? '—'}  [${event.latitude ?? '—'}, ${event.longitude ?? '—'}]`
+  );
   console.log(`Kickoff : ${kickoff.toISOString()}`);
   console.log(`Backdate: ${createdAt.toISOString()} (inside live window)`);
   console.log(`Window  : currently ${state.toUpperCase()}`);
@@ -298,11 +321,17 @@ async function main() {
         '          Re-run this script per batch of marketing photos.'
     );
   } else if (state === 'live' || state === 'grace') {
-    console.log('          ✅ After this, the user can post to the page from the app (grace window).');
+    console.log(
+      '          ✅ After this, the user can post to the page from the app (grace window).'
+    );
   }
-  console.log(`Posts   : ${plan.length} (${args.media.length > 0 ? 'photo upload' : 'access marker'})`);
+  console.log(
+    `Posts   : ${plan.length} (${args.media.length > 0 ? 'photo upload' : 'access marker'})`
+  );
   for (const p of plan) {
-    console.log(`          • ${p.media_url ?? '(no media — marker)'}${p.content ? `  “${p.content}”` : ''}`);
+    console.log(
+      `          • ${p.media_url ?? '(no media — marker)'}${p.content ? `  “${p.content}”` : ''}`
+    );
   }
   console.log('────────────────────────────────────────────────────────────────');
 
@@ -343,7 +372,9 @@ async function main() {
         });
 
     if (existing) {
-      console.log(`⏭️  Skip (already present): ${p.media_url ?? 'qualifying marker'} → ${existing.id}`);
+      console.log(
+        `⏭️  Skip (already present): ${p.media_url ?? 'qualifying marker'} → ${existing.id}`
+      );
       skipped++;
       continue;
     }
@@ -363,7 +394,9 @@ async function main() {
       },
       select: { id: true },
     });
-    console.log(`✅ Created post ${post.id}${p.media_url ? `  ${p.media_url}` : '  (access marker)'}`);
+    console.log(
+      `✅ Created post ${post.id}${p.media_url ? `  ${p.media_url}` : '  (access marker)'}`
+    );
     created++;
   }
 
@@ -372,7 +405,9 @@ async function main() {
   if (state !== 'closed') {
     console.log(`User can now post to "${event.title}" from the app until the 48h window closes.`);
   } else {
-    console.log(`Posts are live on "${event.title}". App self-posting stays closed (window expired).`);
+    console.log(
+      `Posts are live on "${event.title}". App self-posting stays closed (window expired).`
+    );
   }
   await prisma.$disconnect();
 }
