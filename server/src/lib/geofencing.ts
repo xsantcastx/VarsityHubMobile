@@ -4,8 +4,8 @@
  * BUSINESS RULES:
  * - Story Posts: open on game day and stay open until +48h, within 3km of venue
  * - Regular Posts: open 2 days before event start, stay live through the event,
- *   then remain open until +48h only for users who already posted to that same
- *   event while it was live, within 3km of venue
+ *   then remain open-ended (no closing cutoff) only for users who already posted
+ *   to that same event while it was live, within 3km of venue
  * - Sample events/games (IDs starting with "sample-") bypass all geofencing checks
  *
  * This maintains authenticity and prevents users from different states from trolling games.
@@ -17,7 +17,6 @@ const EARTH_RADIUS_KM = 6371;
 const EARTH_RADIUS_MILES = 3959;
 const REGULAR_POST_OPEN_BEFORE_MS = 2 * 24 * 60 * 60 * 1000;
 const REGULAR_POST_LIVE_WINDOW_MS = 2 * 60 * 60 * 1000;
-const REGULAR_POST_GRACE_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 export type PostingPermissionErrorCode =
   | 'EVENT_NOT_FOUND'
@@ -117,8 +116,8 @@ export function isStoryPostingWindowOpen(eventDate: Date): boolean {
 
 /**
  * Check if posting window is open for regular posts
- * Posts: opens 2 days before event start. After the live window, posting remains open until
- * +48h only for users who already posted to that event while it was live.
+ * Posts: opens 2 days before event start. After the live window, posting remains open-ended
+ * (no closing cutoff) only for users who already posted to that event while it was live.
  */
 export function isPostPostingWindowOpen(eventDate: Date): boolean {
   const now = new Date();
@@ -130,13 +129,11 @@ export function getPostPostingWindowBounds(eventDate: Date) {
   const eventTime = new Date(eventDate);
   const windowStart = new Date(eventTime.getTime() - REGULAR_POST_OPEN_BEFORE_MS);
   const liveCutoff = new Date(eventTime.getTime() + REGULAR_POST_LIVE_WINDOW_MS);
-  const windowEnd = new Date(eventTime.getTime() + REGULAR_POST_GRACE_WINDOW_MS);
 
   return {
     eventTime,
     windowStart,
     liveCutoff,
-    windowEnd,
   };
 }
 
@@ -144,11 +141,12 @@ export function getPostPostingWindowState(
   eventDate: Date,
   now: Date = new Date()
 ): PostPostingWindowState {
-  const { windowStart, liveCutoff, windowEnd } = getPostPostingWindowBounds(eventDate);
+  const { windowStart, liveCutoff } = getPostPostingWindowBounds(eventDate);
   if (now < windowStart) return 'before_open';
   if (now <= liveCutoff) return 'live';
-  if (now <= windowEnd) return 'grace';
-  return 'closed';
+  // Post-event uploads stay open-ended — no closing cutoff. Access during this
+  // state is gated by the "already posted while live" check, not by a timer.
+  return 'grace';
 }
 
 /**
@@ -336,38 +334,40 @@ export async function verifyEventPostingPermission(
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
-  const { windowStart, liveCutoff, windowEnd } = getPostPostingWindowBounds(event.date);
+  const { windowStart, liveCutoff } = getPostPostingWindowBounds(event.date);
   const postingWindowState = getPostPostingWindowState(event.date);
 
   if (postingWindowState === 'before_open' || postingWindowState === 'closed') {
     return {
       allowed: false,
       code: 'POSTING_WINDOW_CLOSED',
-      reason: `Posting opens ${formatWindowDateTime(windowStart)} and closes ${formatWindowDateTime(windowEnd)}.`,
+      reason: `Posting opens ${formatWindowDateTime(windowStart)}.`,
     };
   }
 
   if (postingWindowState === 'grace') {
-    const priorLivePost = event.game_id
-      ? await prisma.post.findFirst({
-          where: {
-            author_id: userId,
-            game_id: event.game_id,
-            deleted_at: null,
-            created_at: {
-              gte: new Date(event.date),
-              lte: liveCutoff,
-            },
-          },
-          select: { id: true },
-        })
-      : null;
+    // The user qualifies for the open-ended post-event window if they posted to
+    // this event while it was live — matched by a direct event_id link (event-only
+    // pages) OR via the event's game_id (legacy game-backed events). Both are
+    // checked so this works on all event pages, not just those with a game.
+    const priorLivePost = await prisma.post.findFirst({
+      where: {
+        author_id: userId,
+        deleted_at: null,
+        created_at: {
+          gte: new Date(event.date),
+          lte: liveCutoff,
+        },
+        OR: [{ event_id: eventId }, ...(event.game_id ? [{ game_id: event.game_id }] : [])],
+      },
+      select: { id: true },
+    });
 
     if (!priorLivePost) {
       return {
         allowed: false,
         code: 'POSTING_WINDOW_CLOSED',
-        reason: `Post-event uploads stay open until ${formatWindowDateTime(windowEnd)}, but only if you already posted to this event while it was live.`,
+        reason: `Post-event uploads stay open, but only if you already posted to this event while it was live.`,
       };
     }
 

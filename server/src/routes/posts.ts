@@ -336,16 +336,22 @@ postsRouter.get(
       ];
     }
     if (req.query.event_id) {
+      const eventId = String(req.query.event_id);
       const event = await prisma.event.findUnique({
-        where: { id: String(req.query.event_id) },
+        where: { id: eventId },
         select: { game_id: true },
       });
-      if (event?.game_id) {
-        where.game_id = event.game_id;
-      } else {
-        // Event not found or has no linked game — no posts to return
+      if (!event) {
+        // Event not found — no posts to return
         return res.json({ items: [], nextCursor: null });
       }
+      // Posts attach to an event directly (event_id) or via its linked game
+      // (game_id). Match both so event-only pages and legacy game-backed events
+      // both return their posts.
+      const eventMatch = event.game_id
+        ? [{ event_id: eventId }, { game_id: event.game_id }]
+        : [{ event_id: eventId }];
+      where.AND = [...(Array.isArray(where.AND) ? where.AND : []), { OR: eventMatch }];
     }
     if (req.query.type) where.type = String(req.query.type);
     if (req.query.user_id) where.author_id = String(req.query.user_id);
@@ -874,6 +880,11 @@ postsRouter.post(
       finalTeamId = data.team_id;
     }
 
+    // Attach the post directly to its event (real, non-sample events only) so it
+    // associates with event-only pages that have no game, and so its author can
+    // qualify for the open-ended post-event upload window via event_id.
+    const finalEventId = eventId && !isSampleEvent ? String(eventId) : null;
+
     const post = await prisma.post.create({
       data: {
         title: finalTitle ? stripHtml(finalTitle) : null,
@@ -881,6 +892,7 @@ postsRouter.post(
         type: data.type || 'post',
         media_url: data.media_url,
         game_id: finalGameId,
+        event_id: finalEventId || undefined,
         team_id: finalTeamId || undefined,
         author_id: req.user.id,
         country_code: country_code || undefined,

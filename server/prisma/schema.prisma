@@ -501,6 +501,13 @@ model Post {
   game_id String?
   game    Game?   @relation(fields: [game_id], references: [id], onDelete: SetNull)
 
+  // Direct event link. Posts attach to an event either via this column (event
+  // pages that have no linked game) or via game_id (events backed by a game).
+  // Required for the open-ended post-event upload window to work on event-only
+  // pages — the grace check looks for a prior live-window post by event_id OR game_id.
+  event_id String?
+  event    Event?  @relation(fields: [event_id], references: [id], onDelete: SetNull)
+
   team_id   String?
   team      Team?   @relation(fields: [team_id], references: [id], onDelete: SetNull)
   is_pinned Boolean @default(false)
@@ -535,6 +542,7 @@ model Post {
   // Partial index not supported in Prisma schema DSL; this covers the most selective columns.
   @@index([country_code, deleted_at, upvotes_count, created_at])
   @@index([type, created_at])
+  @@index([event_id, created_at])
 }
 
 model Poll {
@@ -602,6 +610,7 @@ model Event {
   game    Game?       @relation(fields: [game_id], references: [id], onDelete: SetNull)
   creator User?       @relation(fields: [creator_id], references: [id], onDelete: SetNull)
   rsvps   EventRsvp[]
+  posts   Post[]
 
   @@index([date])
   @@index([game_id])
