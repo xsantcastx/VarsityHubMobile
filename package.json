@@ -91,7 +91,6 @@
     "format": "npx prettier --write \"app/**/*.{ts,tsx,js,jsx}\" \"components/**/*.{ts,tsx,js,jsx}\" \"hooks/**/*.{ts,tsx,js,jsx}\" \"utils/**/*.{ts,tsx,js,jsx}\" \"api/**/*.{ts,tsx,js,jsx}\" \"context/**/*.{ts,tsx,js,jsx}\" \"constants/**/*.{ts,tsx,js,jsx}\" \"__tests__/**/*.{ts,tsx}\" \"server/src/**/*.{ts,tsx,js,jsx}\" \"*.{js,json,md}\" \"docs/**/*.md\""
   },
   "dependencies": {
-    "@base44/sdk": "^0.7.0",
     "@expo/vector-icons": "^15.0.2",
     "@lottiefiles/dotlottie-react": "^0.13.5",
     "@react-native-async-storage/async-storage": "2.2.0",
