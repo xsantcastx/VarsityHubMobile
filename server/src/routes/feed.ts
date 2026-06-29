@@ -85,14 +85,16 @@ async function getFollowedPostsPage(
     const followedAuthorIds = followRows.map(r => r.following_id);
     followedFeedMeta = { following_count: followedAuthorIds.length };
 
-    if (followedAuthorIds.length === 0) {
-      return { items: [], nextCursor: null, followed_feed_meta: followedFeedMeta };
-    }
-
     const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
-    const allowedAuthorIds = allExcluded.length
-      ? followedAuthorIds.filter(id => !allExcluded.includes(id))
-      : followedAuthorIds;
+    // Always include the viewer's own posts in their feed. Without this, a user
+    // who follows nobody yet (or whose follows don't include themselves — i.e.
+    // everyone) posts, reloads Feed, and sees nothing, because the feed only
+    // matched followed authors. Own posts are included unconditionally — you
+    // never block or privacy-hide yourself.
+    const allowedAuthorIds = [
+      currentUserId,
+      ...followedAuthorIds.filter(id => !allExcluded.includes(id)),
+    ];
 
     where.OR = [{ author_id: { in: allowedAuthorIds } }, { type: 'admin_broadcast' }];
   } else {
