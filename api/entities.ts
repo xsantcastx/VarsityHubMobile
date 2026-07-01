@@ -1,46 +1,46 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth, { invalidateMeCache } from './auth';
 import {
-    httpDelete,
-    httpGet,
-    httpPatch,
-    httpPost,
-    httpPostLongTimeout,
-    httpPostWithOptions,
-    httpPut,
+  httpDelete,
+  httpGet,
+  httpPatch,
+  httpPost,
+  httpPostLongTimeout,
+  httpPostWithOptions,
+  httpPut,
 } from './http';
 import { validateAuthenticatedUser, validateOnboardingCompletion } from './schemas/auth';
 import {
-    validateEvent,
-    validateEventArray,
-    validateEventRsvpArray,
-    validateEventSummaryArray,
+  validateEvent,
+  validateEventArray,
+  validateEventRsvpArray,
+  validateEventSummaryArray,
 } from './schemas/event';
 import {
-    validateOrganization,
-    validateOrganizationAdminSummary,
-    validateOrganizationArray,
-    validateOrganizationReviewSummaryArray,
+  validateOrganization,
+  validateOrganizationAdminSummary,
+  validateOrganizationArray,
+  validateOrganizationReviewSummaryArray,
 } from './schemas/organization';
 import {
-    validateFollowedTeamArray,
-    validateTeam,
-    validateTeamAdminSummary,
-    validateTeamArray,
-    validateTeamScreenSummary,
+  validateFollowedTeamArray,
+  validateTeam,
+  validateTeamAdminSummary,
+  validateTeamArray,
+  validateTeamScreenSummary,
 } from './schemas/team';
 import type {
-    CompleteOnboardingPayload,
-    CreateAdPayload,
-    CreateEventPayload,
-    CreateGamePayload,
-    CreatePostPayload,
-    UpdateAdPayload,
-    UpdateEventPayload,
-    UpdateGamePayload,
-    UpdateMePayload,
-    UpdatePostPayload,
-    UpdatePreferencesPayload,
+  CompleteOnboardingPayload,
+  CreateAdPayload,
+  CreateEventPayload,
+  CreateGamePayload,
+  CreatePostPayload,
+  UpdateAdPayload,
+  UpdateEventPayload,
+  UpdateGamePayload,
+  UpdateMePayload,
+  UpdatePostPayload,
+  UpdatePreferencesPayload,
 } from './types';
 
 export const User = {
@@ -211,8 +211,7 @@ export const User = {
     httpPost(`/users/${encodeURIComponent(userId)}/accept-follow`, {}),
   rejectFollow: (userId: string) =>
     httpPost(`/users/${encodeURIComponent(userId)}/reject-follow`, {}),
-  suggested: (limit?: number) =>
-    httpGet(`/users/me/suggested${limit ? `?limit=${limit}` : ''}`),
+  suggested: (limit?: number) => httpGet(`/users/me/suggested${limit ? `?limit=${limit}` : ''}`),
 };
 
 export const DataExport = {
@@ -618,6 +617,7 @@ export const Organization = {
     httpGet('/organizations/' + encodeURIComponent(id)).then(data =>
       validateOrganization('organizations.get', data)
     ),
+  games: (id: string): Promise<any> => httpGet(`/organizations/${encodeURIComponent(id)}/games`),
   adminSummary: (id: string): Promise<any> =>
     httpGet(`/organizations/${encodeURIComponent(id)}/admin-summary`).then(data =>
       validateOrganizationAdminSummary('organizations.adminSummary', data)
@@ -662,7 +662,11 @@ export const Organization = {
   myJoinRequests: () => httpGet('/organizations/join-requests/me'),
   // Organization join requests (coach/admin workflows)
   requestToJoin: (organizationId: string, message?: string, teamId?: string) =>
-    httpPost(`/organizations/join-requests`, { organization_id: organizationId, message, team_id: teamId }),
+    httpPost(`/organizations/join-requests`, {
+      organization_id: organizationId,
+      message,
+      team_id: teamId,
+    }),
   getJoinRequests: (organizationId: string, status?: 'pending' | 'approved' | 'rejected') => {
     const params: string[] = [];
     if (status) params.push('status=' + encodeURIComponent(status));
@@ -694,7 +698,8 @@ export const Team = {
     if (mine) params.push('mine=1');
     if (options?.directory) params.push('directory=1');
     if (typeof options?.limit === 'number') params.push(`limit=${String(options.limit)}`);
-    if (options?.organization_id) params.push(`organization_id=${encodeURIComponent(options.organization_id)}`);
+    if (options?.organization_id)
+      params.push(`organization_id=${encodeURIComponent(options.organization_id)}`);
     const qs = params.length ? '?' + params.join('&') : '';
     return httpGet('/teams' + qs).then(data => validateTeamArray('teams.list', data));
   },
@@ -904,12 +909,16 @@ export const Subscriptions = {
 export const TeamMemberships = {
   create: (data: { team_id: string; user_id: string; role?: string }) =>
     httpPost('/team-memberships', data),
-  update: (membershipId: string, data: { role?: string; custom_position?: string | null; status?: 'active' | 'archived' }) =>
-    httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
+  update: (
+    membershipId: string,
+    data: { role?: string; custom_position?: string | null; status?: 'active' | 'archived' }
+  ) => httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
   delete: (membershipId: string) =>
     httpDelete(`/team-memberships/${encodeURIComponent(membershipId)}`),
   searchUsers: (teamId: string, q: string) =>
-    httpGet(`/team-memberships/search-users?teamId=${encodeURIComponent(teamId)}&q=${encodeURIComponent(q)}`),
+    httpGet(
+      `/team-memberships/search-users?teamId=${encodeURIComponent(teamId)}&q=${encodeURIComponent(q)}`
+    ),
   // Team join requests
   requestToJoin: (teamId: string, message?: string) =>
     httpPost('/team-memberships/join-requests', { team_id: teamId, message }),
@@ -1011,7 +1020,9 @@ export const Advertisement = {
     httpPost(`/ads/${encodeURIComponent(adId)}/review`, {
       action,
       note,
-      ...(overrideBannerFlag ? { override_banner_flag: true, override_reason: overrideReason } : {}),
+      ...(overrideBannerFlag
+        ? { override_banner_flag: true, override_reason: overrideReason }
+        : {}),
     }),
   report: (adId: string, reason: string, details?: string) =>
     httpPost('/reports', { target_type: 'ad', target_id: adId, reason, details }),

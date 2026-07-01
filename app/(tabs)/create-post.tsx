@@ -125,6 +125,7 @@ function CreatePostScreen() {
     error: _locError,
     permissionGranted,
     requestPermission,
+    refresh: refreshLocation,
     needsPreciseAccuracy,
     openSettings,
   } = useDeviceLocation();
@@ -811,9 +812,26 @@ function CreatePostScreen() {
       }
       const trimmedContent = sanitizeText(content);
 
+      // For geofenced event/game posts, ensure a CURRENT device fix before submit.
+      // The server requires live device-origin GPS (anti-spoof); sending stale or
+      // empty coords gets the post rejected with LOCATION_REQUIRED even when the
+      // user is standing at the venue. Fetch a fresh fix (prompting for permission
+      // if needed) so a real attendee isn't blocked by a not-yet-resolved fix.
+      let geoLocation = location;
+      const isGeofencedTarget = !!selectedGameId && !isSampleEvent(selectedGameId);
+      if (
+        isGeofencedTarget &&
+        (typeof geoLocation?.latitude !== 'number' || typeof geoLocation?.longitude !== 'number')
+      ) {
+        if (!permissionGranted) {
+          await requestPermission();
+        }
+        geoLocation = await refreshLocation();
+      }
+
       const locationPayload =
-        location?.latitude && location?.longitude
-          ? { lat: location.latitude, lng: location.longitude, source: 'device' as const }
+        geoLocation?.latitude && geoLocation?.longitude
+          ? { lat: geoLocation.latitude, lng: geoLocation.longitude, source: 'device' as const }
           : {};
       const payload: Record<string, any> = {
         content: trimmedContent,

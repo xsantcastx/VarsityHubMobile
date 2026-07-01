@@ -545,6 +545,7 @@ const GameDetailsScreen = () => {
     error: _locError,
     permissionGranted,
     requestPermission,
+    refresh: refreshLocation,
     needsPreciseAccuracy,
     openSettings,
   } = useDeviceLocation();
@@ -1639,10 +1640,17 @@ const GameDetailsScreen = () => {
         if (!gameId || isSampleId(gameId))
           throw new Error('Could not create real game record for story');
         const storyPayload: any = { media_url: mediaUrl };
-        if (location?.latitude && location?.longitude) {
+        // Geofenced story: ensure a CURRENT device fix before submit so an
+        // attendee whose GPS hadn't resolved isn't rejected with LOCATION_REQUIRED.
+        let storyGeo = location;
+        if (typeof storyGeo?.latitude !== 'number' || typeof storyGeo?.longitude !== 'number') {
+          if (!permissionGranted) await requestPermission();
+          storyGeo = await refreshLocation();
+        }
+        if (storyGeo?.latitude && storyGeo?.longitude) {
           storyPayload.location = {
-            lat: location.latitude,
-            lng: location.longitude,
+            lat: storyGeo.latitude,
+            lng: storyGeo.longitude,
             source: 'device',
           };
         }
@@ -1753,10 +1761,17 @@ const GameDetailsScreen = () => {
         if (!gameId || isSampleId(gameId))
           throw new Error('Could not create real game record for story');
         const storyPayload: any = { media_url: mediaUrl };
-        if (location?.latitude && location?.longitude) {
+        // Geofenced story: ensure a CURRENT device fix before submit so an
+        // attendee whose GPS hadn't resolved isn't rejected with LOCATION_REQUIRED.
+        let storyGeo = location;
+        if (typeof storyGeo?.latitude !== 'number' || typeof storyGeo?.longitude !== 'number') {
+          if (!permissionGranted) await requestPermission();
+          storyGeo = await refreshLocation();
+        }
+        if (storyGeo?.latitude && storyGeo?.longitude) {
           storyPayload.location = {
-            lat: location.latitude,
-            lng: location.longitude,
+            lat: storyGeo.latitude,
+            lng: storyGeo.longitude,
             source: 'device',
           };
         }

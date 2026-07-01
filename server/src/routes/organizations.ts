@@ -3847,6 +3847,72 @@ organizationsRouter.get(
   })
 );
 
+// Get all approved games belonging to an organization (the org's teams' games).
+// Read-only / public-read, mirroring GET /:id and the public games-list visibility
+// (approved-only). Powers a full org tournament schedule view.
+organizationsRouter.get(
+  '/:id/games',
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id);
+
+    const organization = await prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, teams: { select: { id: true } } },
+    });
+
+    if (!organization) {
+      return sendError(res, 404, 'Organization not found');
+    }
+
+    const teamIds = organization.teams.map(team => team.id);
+
+    if (teamIds.length === 0) {
+      return res.json({ games: [] });
+    }
+
+    const games = await prisma.game.findMany({
+      where: {
+        approval_status: 'approved',
+        OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+      },
+      orderBy: { date: 'asc' },
+      take: 500,
+      include: {
+        homeTeam: { select: { id: true, name: true, avatar_url: true } },
+        awayTeam: { select: { id: true, name: true, avatar_url: true } },
+      },
+    });
+
+    return res.json({
+      games: games.map((game: any) => ({
+        id: game.id,
+        title: game.title,
+        date: toIsoDate(game.date),
+        description: game.description ?? null,
+        home_team: game.home_team || game.homeTeam?.name || null,
+        away_team: game.away_team || game.awayTeam?.name || null,
+        home_team_id: game.home_team_id || null,
+        away_team_id: game.away_team_id || null,
+        banner_url: game.banner_url || game.cover_image_url || null,
+        homeTeam: game.homeTeam
+          ? {
+              id: game.homeTeam.id,
+              name: game.homeTeam.name,
+              avatar_url: game.homeTeam.avatar_url ?? null,
+            }
+          : null,
+        awayTeam: game.awayTeam
+          ? {
+              id: game.awayTeam.id,
+              name: game.awayTeam.name,
+              avatar_url: game.awayTeam.avatar_url ?? null,
+            }
+          : null,
+      })),
+    });
+  })
+);
+
 // Get single organization
 // IMPORTANT: This catch-all /:id route MUST be last so it doesn't shadow
 // literal routes like /invites/me, /search/nearby, /join-requests/me

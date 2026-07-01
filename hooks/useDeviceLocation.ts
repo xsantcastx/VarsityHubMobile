@@ -19,7 +19,7 @@ export interface UseDeviceLocationResult {
   needsPreciseAccuracy: boolean;
   requestPermission: () => Promise<boolean>;
   openSettings: () => Promise<void>;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<DeviceLocation | null>;
 }
 
 /**
@@ -44,18 +44,24 @@ export function useDeviceLocation(): UseDeviceLocationResult {
   const lastFetchTimeRef = useRef(lastFetchTime);
   lastFetchTimeRef.current = lastFetchTime;
 
-  const assignLocation = useCallback((coords: Location.LocationObjectCoords, timestamp?: number) => {
-    const loc: DeviceLocation = {
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      accuracy: coords.accuracy ?? undefined,
-      timestamp,
-    };
-    setLocation(loc);
-    setAccuracyMeters(typeof coords.accuracy === 'number' ? coords.accuracy : null);
-  }, []);
+  const assignLocation = useCallback(
+    (coords: Location.LocationObjectCoords, timestamp?: number): DeviceLocation => {
+      const loc: DeviceLocation = {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy ?? undefined,
+        timestamp,
+      };
+      setLocation(loc);
+      setAccuracyMeters(typeof coords.accuracy === 'number' ? coords.accuracy : null);
+      return loc;
+    },
+    []
+  );
 
-  const fetchLocation = useCallback(async () => {
+  // Returns the resolved fix so callers (e.g. a post submit handler) can await a
+  // fresh location and use it immediately, instead of reading possibly-stale state.
+  const fetchLocation = useCallback(async (): Promise<DeviceLocation | null> => {
     try {
       setLoading(true);
       setError(null);
@@ -63,17 +69,15 @@ export function useDeviceLocation(): UseDeviceLocationResult {
       // Check cache first
       const now = Date.now();
       if (locationRef.current && now - lastFetchTimeRef.current < CACHE_DURATION_MS) {
-        setLoading(false);
-        return;
+        return locationRef.current;
       }
 
       // Try last known position first (faster, may be stale)
       const lastKnown = await Location.getLastKnownPositionAsync();
-      if (lastKnown?.coords && (now - (lastKnown.timestamp || 0)) < 30 * 60 * 1000) {
-        assignLocation(lastKnown.coords, lastKnown.timestamp);
+      if (lastKnown?.coords && now - (lastKnown.timestamp || 0) < 30 * 60 * 1000) {
+        const loc = assignLocation(lastKnown.coords, lastKnown.timestamp);
         setLastFetchTime(now);
-        setLoading(false);
-        return;
+        return loc;
       }
 
       // Get fresh position with balanced accuracy
@@ -82,14 +86,17 @@ export function useDeviceLocation(): UseDeviceLocationResult {
       });
 
       if (fresh?.coords) {
-        assignLocation(fresh.coords, fresh.timestamp);
+        const loc = assignLocation(fresh.coords, fresh.timestamp);
         setLastFetchTime(now);
         setError(null);
+        return loc;
       }
+      return null;
     } catch (e: any) {
       const errMsg = e?.message || 'Failed to fetch location';
       if (__DEV__) console.warn('[location] Fetch failed:', errMsg);
       setError(errMsg);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -152,14 +159,15 @@ export function useDeviceLocation(): UseDeviceLocationResult {
     }
   };
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<DeviceLocation | null> => {
     setLastFetchTime(0); // Clear cache
     lastFetchTimeRef.current = 0;
-    await fetchLocation();
+    return await fetchLocation();
   }, [fetchLocation]);
 
   const isPrecise = accuracyMeters == null ? true : accuracyMeters <= PRECISION_THRESHOLD;
-  const needsPreciseAccuracy = Platform.OS === 'android' && permissionGranted === true && !isPrecise;
+  const needsPreciseAccuracy =
+    Platform.OS === 'android' && permissionGranted === true && !isPrecise;
 
   return {
     location,

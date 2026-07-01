@@ -1,4 +1,4 @@
-import { Game, Organization, Team } from '@/api/entities';
+import { Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
@@ -66,7 +66,82 @@ type GameItem = {
   opponent_name?: string;
   location?: string;
   game_type?: string;
+  description?: string;
 };
+
+type ScheduleStage = {
+  label: string;
+  games: GameItem[];
+};
+
+// Parse the stage label from a game description.
+// Seed formats: "FIFA World Cup 2026 — Group A, Match 1. ..."
+//               "FIFA World Cup 2026 — Round of 32, Round of 32. ..."
+// Take the text after the first " — " and before the first ",".
+function parseStageLabel(description?: string): string | null {
+  if (!description) return null;
+  const dashIdx = description.indexOf(' — ');
+  if (dashIdx === -1) return null;
+  const afterDash = description.slice(dashIdx + 3);
+  const commaIdx = afterDash.indexOf(',');
+  const label = (commaIdx === -1 ? afterDash : afterDash.slice(0, commaIdx)).trim();
+  return label.length > 0 ? label : null;
+}
+
+const CATCH_ALL_STAGE = 'Games';
+
+// Knockout bracket order (earliest round first). Tolerant of common label variants.
+const KNOCKOUT_ORDER: { match: (label: string) => boolean }[] = [
+  { match: l => /round of 64/i.test(l) },
+  { match: l => /round of 32/i.test(l) },
+  { match: l => /round of 16/i.test(l) },
+  { match: l => /quarter/i.test(l) },
+  { match: l => /semi/i.test(l) },
+  { match: l => /\bfinal\b/i.test(l) && !/semi|quarter/i.test(l) },
+];
+
+function knockoutRank(label: string): number {
+  for (let i = 0; i < KNOCKOUT_ORDER.length; i += 1) {
+    if (KNOCKOUT_ORDER[i].match(label)) return i;
+  }
+  return -1;
+}
+
+// Order: Group A, B, C… (alphabetical) first; then knockout rounds in bracket
+// order; then the catch-all "Games" bucket last.
+function stageSortKey(label: string): [number, string | number] {
+  if (label === CATCH_ALL_STAGE) return [3, label];
+  if (/^group\b/i.test(label)) return [0, label.toLowerCase()];
+  const ko = knockoutRank(label);
+  if (ko >= 0) return [1, ko];
+  return [2, label.toLowerCase()];
+}
+
+function gameDate(g: GameItem): number {
+  return new Date((g.scheduled_date || g.date) as string).getTime();
+}
+
+function groupGamesByStage(games: GameItem[]): ScheduleStage[] {
+  const buckets = new Map<string, GameItem[]>();
+  for (const game of games) {
+    const label = parseStageLabel(game.description) || CATCH_ALL_STAGE;
+    const bucket = buckets.get(label);
+    if (bucket) bucket.push(game);
+    else buckets.set(label, [game]);
+  }
+  return Array.from(buckets.entries())
+    .map(([label, list]) => ({
+      label,
+      games: list.slice().sort((a, b) => gameDate(a) - gameDate(b)),
+    }))
+    .sort((a, b) => {
+      const [ga, sa] = stageSortKey(a.label);
+      const [gb, sb] = stageSortKey(b.label);
+      if (ga !== gb) return ga - gb;
+      if (typeof sa === 'number' && typeof sb === 'number') return sa - sb;
+      return String(sa).localeCompare(String(sb));
+    });
+}
 
 type AuthorizedInvite = {
   id: string;
@@ -104,6 +179,7 @@ export default function OrganizationScreen() {
   const [organization, setOrganization] = useState<OrganizationData | null>(null);
   const [teams, setTeams] = useState<TeamItem[]>([]);
   const [games, setGames] = useState<GameItem[]>([]);
+  const [gamesError, setGamesError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [isOrgOwner, setIsOrgOwner] = useState(false);
@@ -127,6 +203,7 @@ export default function OrganizationScreen() {
   const loadOrganization = useCallback(async () => {
     if (!mounted.current || !user) return;
     setError(null);
+    setGamesError(false);
     try {
       let orgId = params.id?.trim();
 
@@ -253,18 +330,10 @@ export default function OrganizationScreen() {
       setTeams(orgTeams);
 
       try {
-        const allGamesData = await Game.list('-date');
+        const orgGamesData = await Organization.games(orgId as string);
         if (!mounted.current) return;
-        const allGames = Array.isArray(allGamesData)
-          ? allGamesData
-          : allGamesData?.games || allGamesData?.items || [];
-        const teamNames = orgTeams.map(t => t.name.toLowerCase());
-        const orgGames: GameItem[] = allGames
-          .filter((g: any) => {
-            const homeTeam = (g.home_team || '').toLowerCase();
-            const awayTeam = (g.away_team || '').toLowerCase();
-            return teamNames.some(name => homeTeam.includes(name) || awayTeam.includes(name));
-          })
+        const rawGames = Array.isArray(orgGamesData) ? orgGamesData : orgGamesData?.games || [];
+        const orgGames: GameItem[] = rawGames
           .map((g: any) => ({
             id: String(g.id),
             date: g.date,
@@ -274,16 +343,17 @@ export default function OrganizationScreen() {
             opponent_name: g.opponent_name,
             location: g.location,
             game_type: g.game_type,
+            description: g.description,
           }))
-          .sort((a: GameItem, b: GameItem) => {
-            const dateA = new Date((a.scheduled_date || a.date) as string).getTime();
-            const dateB = new Date((b.scheduled_date || b.date) as string).getTime();
-            return dateA - dateB;
-          });
+          .sort((a: GameItem, b: GameItem) => gameDate(a) - gameDate(b));
         setGames(orgGames);
+        setGamesError(false);
       } catch (err: any) {
         if (__DEV__) console.error('[organization] Failed to load games:', err);
-        if (mounted.current) setGames([]);
+        if (mounted.current) {
+          setGames([]);
+          setGamesError(true);
+        }
       }
     } catch (err: any) {
       if (!mounted.current) return;
@@ -413,12 +483,7 @@ export default function OrganizationScreen() {
       void Linking.openURL(`https://maps.google.com/?q=${query}`);
     });
   };
-  const upcomingGames = games
-    .filter(g => {
-      const d = g.scheduled_date || g.date;
-      return d && new Date(d as string) >= new Date();
-    })
-    .slice(0, 10);
+  const scheduleStages = groupGamesByStage(games);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -869,7 +934,7 @@ export default function OrganizationScreen() {
           )}
         </View>
 
-        {/* Upcoming Events */}
+        {/* Schedule — read-only, grouped by tournament stage */}
         <View
           style={[
             styles.card,
@@ -877,47 +942,60 @@ export default function OrganizationScreen() {
             { backgroundColor: theme.card, borderColor: theme.border },
           ]}
         >
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Upcoming Events</Text>
-          {upcomingGames.length === 0 ? (
-            <Text style={[styles.emptyText, { color: theme.mutedText }]}>No upcoming events.</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Schedule</Text>
+          {gamesError ? (
+            <Text style={[styles.emptyText, { color: theme.mutedText }]}>
+              Could not load the schedule.
+            </Text>
+          ) : scheduleStages.length === 0 ? (
+            <Text style={[styles.emptyText, { color: theme.mutedText }]}>No games yet.</Text>
           ) : (
-            upcomingGames.map(game => {
-              const dateStr = formatEventDate(game.scheduled_date || game.date);
-              const opponent = game.opponent_name || game.away_team || 'TBD';
-              return (
-                <Pressable
-                  key={game.id}
-                  style={[styles.rowItem, { borderColor: theme.border }]}
-                  onPress={() => handleGamePress(game)}
-                >
-                  <View style={[styles.eventIconContainer, { backgroundColor: theme.surface }]}>
-                    <Ionicons name="football-outline" size={20} color={theme.tint} />
-                  </View>
-                  <View style={{ flex: 1, gap: 4 }}>
-                    <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
-                      vs {opponent}
-                    </Text>
-                    <View style={styles.eventMetaRow}>
-                      <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}>
-                        {dateStr}
-                      </Text>
-                      {game.location && (
-                        <>
-                          <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}> • </Text>
-                          <Text
-                            style={[styles.rowSubtitle, { color: theme.mutedText }]}
-                            numberOfLines={1}
-                          >
-                            {game.location}
+            scheduleStages.map(stage => (
+              <View key={stage.label} style={{ gap: 8 }}>
+                <Text style={[styles.stageHeading, { color: theme.mutedText }]}>{stage.label}</Text>
+                {stage.games.map(game => {
+                  const dateStr = formatEventDate(game.scheduled_date || game.date);
+                  const home = game.home_team || 'TBD';
+                  const away = game.away_team || game.opponent_name || 'TBD';
+                  return (
+                    <Pressable
+                      key={game.id}
+                      style={[styles.rowItem, { borderColor: theme.border }]}
+                      onPress={() => handleGamePress(game)}
+                    >
+                      <View style={[styles.eventIconContainer, { backgroundColor: theme.surface }]}>
+                        <Ionicons name="football-outline" size={20} color={theme.tint} />
+                      </View>
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+                          {home} vs {away}
+                        </Text>
+                        <View style={styles.eventMetaRow}>
+                          <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}>
+                            {dateStr}
                           </Text>
-                        </>
-                      )}
-                    </View>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
-                </Pressable>
-              );
-            })
+                          {game.location && (
+                            <>
+                              <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}>
+                                {' '}
+                                •{' '}
+                              </Text>
+                              <Text
+                                style={[styles.rowSubtitle, { color: theme.mutedText }]}
+                                numberOfLines={1}
+                              >
+                                {game.location}
+                              </Text>
+                            </>
+                          )}
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))
           )}
         </View>
       </ScrollView>
@@ -1140,6 +1218,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
+  },
+  stageHeading: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 4,
   },
   bioText: {
     fontSize: 14,
