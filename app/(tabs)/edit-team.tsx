@@ -1,9 +1,9 @@
 import {
-    EditScreenHeader,
-    EditScreenLoading,
-    EditScreenSubmitButton,
-    EditTextField,
-    editScreenSharedStyles as sharedStyles,
+  EditScreenHeader,
+  EditScreenLoading,
+  EditScreenSubmitButton,
+  EditTextField,
+  editScreenSharedStyles as sharedStyles,
 } from '@/components/EditScreenShared';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -14,7 +14,20 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Linking,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
@@ -47,16 +60,37 @@ function EditTeamScreen() {
   const [members, setMembers] = useState<any[]>([]);
   const [memberSearch, setMemberSearch] = useState('');
   const [transferring, setTransferring] = useState(false);
+  // Archive is gated to team leadership (owner/manager) or an org admin — the
+  // same boundary the server enforces in canArchiveTeam. Coaches/assistant_coaches
+  // can edit the team but must not archive it.
+  const [canArchive, setCanArchive] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const fallbackRoute = team?.organization_id
     ? `/organization?id=${encodeURIComponent(team.organization_id)}&tab=teams`
     : '/organization?tab=teams';
 
-  const sports = ['Basketball', 'Football', 'Soccer', 'Baseball', 'Tennis', 'Volleyball', 'Swimming', 'Track & Field', 'Other'];
+  const sports = [
+    'Basketball',
+    'Football',
+    'Soccer',
+    'Baseball',
+    'Tennis',
+    'Volleyball',
+    'Swimming',
+    'Track & Field',
+    'Other',
+  ];
   const seasons = (() => {
     const y = new Date().getFullYear();
     return [
-      `Spring ${y}`, `Summer ${y}`, `Fall ${y}`, `Winter ${y}/${(y + 1) % 100}`,
-      `Spring ${y + 1}`, `Summer ${y + 1}`, `Fall ${y + 1}`, `Winter ${y + 1}/${(y + 2) % 100}`,
+      `Spring ${y}`,
+      `Summer ${y}`,
+      `Fall ${y}`,
+      `Winter ${y}/${(y + 1) % 100}`,
+      `Spring ${y + 1}`,
+      `Summer ${y + 1}`,
+      `Fall ${y + 1}`,
+      `Winter ${y + 1}/${(y + 2) % 100}`,
     ];
   })();
 
@@ -75,11 +109,20 @@ function EditTeamScreen() {
       setIsPrivate(!!teamData.is_private);
 
       if (!teamData?.can_manage_team) {
-        Alert.alert('Access Denied', 'You must be team staff or an organization admin to edit this team.');
+        Alert.alert(
+          'Access Denied',
+          'You must be team staff or an organization admin to edit this team.'
+        );
         safeGoBack(router, fallbackRoute);
         return;
       }
-      setIsOwner(summary?.permissions?.membership_role === 'owner' || teamData?.my_role === 'owner');
+      const membershipRole = summary?.permissions?.membership_role;
+      setIsOwner(membershipRole === 'owner' || teamData?.my_role === 'owner');
+      setCanArchive(
+        membershipRole === 'owner' ||
+          membershipRole === 'manager' ||
+          summary?.permissions?.via_org_admin === true
+      );
       setMembers(Array.isArray(summary?.members) ? summary.members : []);
 
       const orgFromResponse = (teamData as any).organization;
@@ -98,6 +141,35 @@ function EditTeamScreen() {
       void loadTeam();
     }
   }, [loadTeam, params?.id]);
+
+  const handleArchiveTeam = useCallback(() => {
+    if (!params.id || archiving) return;
+    Alert.alert(
+      'Archive Team',
+      `Archive "${name || 'this team'}"? Members, pending invites, and followers will be removed, and team chats unlinked. Past games and events keep their history. This cannot be undone from the app.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Archive Team',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setArchiving(true);
+              await Team.delete(params.id as string);
+              Alert.alert('Team Archived', `${name || 'The team'} has been archived.`, [
+                { text: 'OK', onPress: () => safeGoBack(router, fallbackRoute) },
+              ]);
+            } catch (e: any) {
+              const msg = e?.data?.error || e?.message || 'Failed to archive team';
+              Alert.alert('Unable to archive team', msg);
+            } finally {
+              setArchiving(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [archiving, fallbackRoute, name, params.id, router]);
 
   const setLogoFromPickerResult = async (pickerResult: ImagePicker.ImagePickerResult) => {
     if (!pickerResult.canceled && pickerResult.assets[0]) {
@@ -131,13 +203,14 @@ function EditTeamScreen() {
     await pickLogoImage({
       requestPermission: ImagePicker.requestMediaLibraryPermissionsAsync,
       permissionMessage: 'Please allow access to your photos to upload a team logo.',
-      launchPicker: () => ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        exif: false,
-      }),
+      launchPicker: () =>
+        ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+          exif: false,
+        }),
     });
   };
 
@@ -145,25 +218,22 @@ function EditTeamScreen() {
     await pickLogoImage({
       requestPermission: ImagePicker.requestCameraPermissionsAsync,
       permissionMessage: 'Please allow camera access to take a team logo photo.',
-      launchPicker: () => ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        exif: false,
-      }),
+      launchPicker: () =>
+        ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+          exif: false,
+        }),
     });
   };
 
   const showImagePicker = () => {
-    Alert.alert(
-      'Select Logo',
-      'Choose how you want to add a team logo',
-      [
-        { text: 'Camera', onPress: takePhoto },
-        { text: 'Photo Library', onPress: pickImage },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
+    Alert.alert('Select Logo', 'Choose how you want to add a team logo', [
+      { text: 'Camera', onPress: takePhoto },
+      { text: 'Photo Library', onPress: pickImage },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const onSubmit = async () => {
@@ -172,37 +242,45 @@ function EditTeamScreen() {
       Alert.alert('Team name required', 'Please enter a team name to continue.');
       return;
     }
-    
+
     setSubmitting(true);
     try {
       let logoUrl = existingLogoUrl; // Keep existing logo by default
-      
+
       // Upload new logo if one was selected
       if (logoUri) {
         try {
-          const uploaded = await uploadFile(getApiBaseUrl(), logoUri, 'team-logo.jpg', 'image/jpeg');
+          const uploaded = await uploadFile(
+            getApiBaseUrl(),
+            logoUri,
+            'team-logo.jpg',
+            'image/jpeg'
+          );
           logoUrl = uploaded?.path || uploaded?.url;
         } catch (error) {
           if (__DEV__) console.error('Logo upload failed:', error);
-          Alert.alert('Warning', 'Team updated but logo upload failed. Please try updating the logo again.');
+          Alert.alert(
+            'Warning',
+            'Team updated but logo upload failed. Please try updating the logo again.'
+          );
         }
       }
-      
+
       // Handle organization - find existing or create new
       let organizationId: string | null | undefined = team?.organization_id ?? null; // Keep existing by default
       const trimmedOrgName = organizationName.trim();
-      
+
       if (trimmedOrgName) {
         try {
           // Search for existing organization
           const existingOrgs = await Organization.list(trimmedOrgName, 10);
-          
+
           if (Array.isArray(existingOrgs) && existingOrgs.length > 0) {
             // Check for exact match (case-insensitive)
-            const exactMatch = existingOrgs.find((org: any) => 
-              org.name?.toLowerCase() === trimmedOrgName.toLowerCase()
+            const exactMatch = existingOrgs.find(
+              (org: any) => org.name?.toLowerCase() === trimmedOrgName.toLowerCase()
             );
-            
+
             if (exactMatch) {
               organizationId = exactMatch.id;
             } else {
@@ -214,20 +292,23 @@ function EditTeamScreen() {
             // which must go through the onboarding flow. Skip org assignment here.
             Alert.alert(
               'Organization Not Found',
-              'No matching organization found. To create a new organization, go to Settings and set up a new league with supporting documents.',
+              'No matching organization found. To create a new organization, go to Settings and set up a new league with supporting documents.'
             );
             // Continue without changing organization
           }
         } catch (err: any) {
           if (__DEV__) console.error('[EditTeam] Error handling organization:', err);
           if (__DEV__) console.error('[EditTeam] Error message:', err?.message);
-          Alert.alert('Warning', `Error with organization. Team will be updated without organization change.`);
+          Alert.alert(
+            'Warning',
+            `Error with organization. Team will be updated without organization change.`
+          );
           // Continue without changing organization if there's an error
         }
       } else {
         organizationId = null;
       }
-      
+
       const teamData: Record<string, any> = {
         name: name.trim(),
         description: description.trim() || undefined,
@@ -248,26 +329,43 @@ function EditTeamScreen() {
       setExistingLogoUrl(logoUrl || null);
       setLogoUri(null);
       // Update local state so UI reflects saved data (including name)
-      setTeam((prev: any) => prev ? { ...prev, name: name.trim(), description: description.trim() || prev.description, sport: sport || prev.sport } : prev);
+      setTeam((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              name: name.trim(),
+              description: description.trim() || prev.description,
+              sport: sport || prev.sport,
+            }
+          : prev
+      );
       if (organizationId !== undefined) {
-        setTeam((prev: any) => prev ? {
-          ...prev,
-          organization_id: organizationId,
-          organization: organizationId
-            ? { ...(prev.organization ?? {}), id: organizationId, name: trimmedOrgName }
-            : null,
-        } : prev);
+        setTeam((prev: any) =>
+          prev
+            ? {
+                ...prev,
+                organization_id: organizationId,
+                organization: organizationId
+                  ? { ...(prev.organization ?? {}), id: organizationId, name: trimmedOrgName }
+                  : null,
+              }
+            : prev
+        );
         setOrganizationName(organizationId ? trimmedOrgName : '');
       }
       Alert.alert('Success!', 'Your team has been updated successfully.', [
-        { text: 'OK', onPress: () => safeGoBack(router, fallbackRoute) }
+        { text: 'OK', onPress: () => safeGoBack(router, fallbackRoute) },
       ]);
     } catch (e: any) {
       if (__DEV__) console.error('Team update error:', e);
       if (__DEV__) console.error('Team update error status:', e?.status);
       if (__DEV__) console.error('Team update error data:', e?.data);
       if (__DEV__) console.error('Team update error message:', e?.message);
-      const errorMsg = e?.data?.error || e?.data?.message || e?.message || 'Failed to update team. Please try again.';
+      const errorMsg =
+        e?.data?.error ||
+        e?.data?.message ||
+        e?.message ||
+        'Failed to update team. Please try again.';
       Alert.alert('Error', errorMsg);
     } finally {
       setSubmitting(false);
@@ -289,10 +387,13 @@ function EditTeamScreen() {
   const currentLogoUri = logoUri || existingLogoUrl;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['bottom']}
+    >
       <Stack.Screen options={{ title: 'Edit Team', headerShown: false }} />
-      <ScrollView 
-        style={{ flex: 1 }} 
+      <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
       >
@@ -307,8 +408,19 @@ function EditTeamScreen() {
         />
 
         {/* Intro Card */}
-        <View style={[styles.introCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-          <LinearGradient colors={[Colors[colorScheme].tint, Colors[colorScheme].tint + 'CC']} style={styles.introIcon}>
+        <View
+          style={[
+            styles.introCard,
+            {
+              backgroundColor: Colors[colorScheme].surface,
+              borderColor: Colors[colorScheme].border,
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[Colors[colorScheme].tint, Colors[colorScheme].tint + 'CC']}
+            style={styles.introIcon}
+          >
             <MaterialIcons name="edit" size={28} color="#fff" />
           </LinearGradient>
           <Text style={[styles.introTitle, { color: Colors[colorScheme].text }]}>
@@ -322,16 +434,38 @@ function EditTeamScreen() {
         {/* Team Logo Section */}
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Team Logo</Text>
-          <View style={[styles.logoSection, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+          <View
+            style={[
+              styles.logoSection,
+              {
+                backgroundColor: Colors[colorScheme].surface,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
+          >
             <Pressable style={styles.logoContainer} onPress={showImagePicker}>
               {currentLogoUri ? (
                 <Image source={{ uri: currentLogoUri }} style={styles.logoImage} />
               ) : (
-                <View style={[styles.logoPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
-                  <MaterialIcons name="camera-alt" size={32} color={Colors[colorScheme].mutedText} />
+                <View
+                  style={[styles.logoPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}
+                >
+                  <MaterialIcons
+                    name="camera-alt"
+                    size={32}
+                    color={Colors[colorScheme].mutedText}
+                  />
                 </View>
               )}
-              <View style={[styles.logoOverlay, { backgroundColor: Colors[colorScheme].tint, borderColor: Colors[colorScheme].background }]}>
+              <View
+                style={[
+                  styles.logoOverlay,
+                  {
+                    backgroundColor: Colors[colorScheme].tint,
+                    borderColor: Colors[colorScheme].background,
+                  },
+                ]}
+              >
                 <MaterialIcons name="camera-alt" size={20} color="#fff" />
               </View>
             </Pressable>
@@ -340,7 +474,8 @@ function EditTeamScreen() {
                 {currentLogoUri ? 'Change Logo' : 'Add Logo'}
               </Text>
               <Text style={[styles.logoDescription, { color: Colors[colorScheme].mutedText }]}>
-                Upload a square logo (PNG or JPG) for your team. This will be displayed on games and team profiles.
+                Upload a square logo (PNG or JPG) for your team. This will be displayed on games and
+                team profiles.
               </Text>
             </View>
           </View>
@@ -348,8 +483,10 @@ function EditTeamScreen() {
 
         {/* Form Fields */}
         <View style={styles.formSection}>
-          <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Team Information</Text>
-          
+          <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+            Team Information
+          </Text>
+
           <EditTextField
             label="Team Name *"
             value={name}
@@ -364,15 +501,30 @@ function EditTeamScreen() {
 
           <View style={sharedStyles.inputGroup}>
             <View style={sharedStyles.labelRow}>
-              <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Description</Text>
-              <Text style={[sharedStyles.charCount, { color: description.length > 500 ? '#DC2626' : Colors[colorScheme].mutedText }]}>
+              <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>
+                Description
+              </Text>
+              <Text
+                style={[
+                  sharedStyles.charCount,
+                  { color: description.length > 500 ? '#DC2626' : Colors[colorScheme].mutedText },
+                ]}
+              >
                 {description.length}/500
               </Text>
             </View>
             <TextInput
-              style={[sharedStyles.textArea, styles.teamTextArea, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 1000 ? '#DC2626' : Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+              style={[
+                sharedStyles.textArea,
+                styles.teamTextArea,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: description.length > 1000 ? '#DC2626' : Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                },
+              ]}
               value={description}
-              onChangeText={(text) => {
+              onChangeText={text => {
                 if (text.length <= 1000) {
                   setDescription(text);
                 }
@@ -386,9 +538,18 @@ function EditTeamScreen() {
           </View>
 
           <View style={sharedStyles.inputGroup}>
-            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>School / Organization</Text>
+            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>
+              School / Organization
+            </Text>
             <TextInput
-              style={[sharedStyles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+              style={[
+                sharedStyles.textInput,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                },
+              ]}
               value={organizationName}
               onChangeText={setOrganizationName}
               placeholder="e.g., Duke, UNC, Stamford High School"
@@ -400,16 +561,38 @@ function EditTeamScreen() {
           </View>
 
           <View style={sharedStyles.inputGroup}>
-            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Sport</Text>
-            <View style={[styles.selectContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipContainer}>
-                {sports.map((sportOption) => (
+            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>
+              Sport
+            </Text>
+            <View
+              style={[
+                styles.selectContainer,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipContainer}
+              >
+                {sports.map(sportOption => (
                   <Pressable
                     key={sportOption}
-                    style={[styles.chip, sport === sportOption && { backgroundColor: Colors[colorScheme].tint }]}
+                    style={[
+                      styles.chip,
+                      sport === sportOption && { backgroundColor: Colors[colorScheme].tint },
+                    ]}
                     onPress={() => setSport(sport === sportOption ? '' : sportOption)}
                   >
-                    <Text style={[styles.chipText, { color: sport === sportOption ? '#fff' : Colors[colorScheme].text }]}>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        { color: sport === sportOption ? '#fff' : Colors[colorScheme].text },
+                      ]}
+                    >
                       {sportOption}
                     </Text>
                   </Pressable>
@@ -419,16 +602,38 @@ function EditTeamScreen() {
           </View>
 
           <View style={sharedStyles.inputGroup}>
-            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Season</Text>
-            <View style={[styles.selectContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipContainer}>
-                {seasons.map((seasonOption) => (
+            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>
+              Season
+            </Text>
+            <View
+              style={[
+                styles.selectContainer,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipContainer}
+              >
+                {seasons.map(seasonOption => (
                   <Pressable
                     key={seasonOption}
-                    style={[styles.chip, season === seasonOption && { backgroundColor: Colors[colorScheme].tint }]}
+                    style={[
+                      styles.chip,
+                      season === seasonOption && { backgroundColor: Colors[colorScheme].tint },
+                    ]}
                     onPress={() => setSeason(season === seasonOption ? '' : seasonOption)}
                   >
-                    <Text style={[styles.chipText, { color: season === seasonOption ? '#fff' : Colors[colorScheme].text }]}>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        { color: season === seasonOption ? '#fff' : Colors[colorScheme].text },
+                      ]}
+                    >
                       {seasonOption}
                     </Text>
                   </Pressable>
@@ -439,7 +644,9 @@ function EditTeamScreen() {
 
           {/* Privacy Toggle */}
           <View style={sharedStyles.inputGroup}>
-            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Team Privacy</Text>
+            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>
+              Team Privacy
+            </Text>
             <Pressable
               style={[
                 styles.privacyToggle,
@@ -477,20 +684,49 @@ function EditTeamScreen() {
           </View>
         </View>
 
-        {/* Transfer Ownership — Owner Only */}
-        {isOwner && (
+        {/* Danger Zone — Transfer (owner only) + Archive (owner/manager/org admin) */}
+        {(isOwner || canArchive) && (
           <View style={styles.formSection}>
             <Text style={[styles.sectionTitle, { color: '#DC2626' }]}>Danger Zone</Text>
-            <Pressable
-              style={[styles.transferButton, { borderColor: '#DC2626' }]}
-              onPress={() => setShowTransferModal(true)}
-            >
-              <MaterialIcons name="swap-horiz" size={20} color="#DC2626" />
-              <Text style={styles.transferButtonText}>Transfer Ownership</Text>
-            </Pressable>
-            <Text style={[sharedStyles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
-              Transfer team ownership to another team member. You will become a manager.
-            </Text>
+            {isOwner && (
+              <>
+                <Pressable
+                  style={[styles.transferButton, { borderColor: '#DC2626' }]}
+                  onPress={() => setShowTransferModal(true)}
+                >
+                  <MaterialIcons name="swap-horiz" size={20} color="#DC2626" />
+                  <Text style={styles.transferButtonText}>Transfer Ownership</Text>
+                </Pressable>
+                <Text style={[sharedStyles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+                  Transfer team ownership to another team member. You will become a manager.
+                </Text>
+              </>
+            )}
+            {canArchive && (
+              <>
+                <Pressable
+                  style={[
+                    styles.transferButton,
+                    { borderColor: '#DC2626', marginTop: isOwner ? 16 : 0 },
+                  ]}
+                  onPress={handleArchiveTeam}
+                  disabled={archiving}
+                >
+                  {archiving ? (
+                    <ActivityIndicator size="small" color="#DC2626" />
+                  ) : (
+                    <MaterialIcons name="archive" size={20} color="#DC2626" />
+                  )}
+                  <Text style={styles.transferButtonText}>
+                    {archiving ? 'Archiving...' : 'Archive Team'}
+                  </Text>
+                </Pressable>
+                <Text style={[sharedStyles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+                  Archiving removes members, invites, and followers and unlinks team chats. Past
+                  games and events keep their history.
+                </Text>
+              </>
+            )}
           </View>
         )}
 
@@ -508,8 +744,16 @@ function EditTeamScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: Colors[colorScheme].background }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Transfer Ownership</Text>
-              <Pressable onPress={() => { setShowTransferModal(false); setMemberSearch(''); }} hitSlop={12}>
+              <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
+                Transfer Ownership
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setShowTransferModal(false);
+                  setMemberSearch('');
+                }}
+                hitSlop={12}
+              >
                 <MaterialIcons name="close" size={24} color={Colors[colorScheme].text} />
               </Pressable>
             </View>
@@ -580,28 +824,50 @@ function EditTeamScreen() {
                                 setShowTransferModal(false);
                                 setMemberSearch('');
                                 setIsOwner(false);
-                                Alert.alert('Ownership Transferred', `${displayName} is now the team owner.`, [
-                                  { text: 'OK', onPress: () => { safeGoBack(router, fallbackRoute); } }
-                                ]);
+                                Alert.alert(
+                                  'Ownership Transferred',
+                                  `${displayName} is now the team owner.`,
+                                  [
+                                    {
+                                      text: 'OK',
+                                      onPress: () => {
+                                        safeGoBack(router, fallbackRoute);
+                                      },
+                                    },
+                                  ]
+                                );
                               } catch (e: any) {
-                                const msg = e?.data?.error || e?.message || 'Failed to transfer ownership';
+                                const msg =
+                                  e?.data?.error || e?.message || 'Failed to transfer ownership';
                                 Alert.alert('Error', msg);
                               } finally {
                                 setTransferring(false);
                               }
-                            }
-                          }
+                            },
+                          },
                         ]
                       );
                     }}
                     disabled={transferring}
                   >
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.memberName, { color: Colors[colorScheme].text }]}>{displayName}</Text>
-                      {email ? <Text style={[styles.memberEmail, { color: Colors[colorScheme].mutedText }]}>{email}</Text> : null}
+                      <Text style={[styles.memberName, { color: Colors[colorScheme].text }]}>
+                        {displayName}
+                      </Text>
+                      {email ? (
+                        <Text
+                          style={[styles.memberEmail, { color: Colors[colorScheme].mutedText }]}
+                        >
+                          {email}
+                        </Text>
+                      ) : null}
                     </View>
-                    <View style={[styles.rolePill, { backgroundColor: Colors[colorScheme].surface }]}>
-                      <Text style={[styles.roleLabel, { color: Colors[colorScheme].mutedText }]}>{role}</Text>
+                    <View
+                      style={[styles.rolePill, { backgroundColor: Colors[colorScheme].surface }]}
+                    >
+                      <Text style={[styles.roleLabel, { color: Colors[colorScheme].mutedText }]}>
+                        {role}
+                      </Text>
                     </View>
                   </Pressable>
                 );
@@ -611,7 +877,9 @@ function EditTeamScreen() {
             {transferring && (
               <View style={styles.transferringOverlay}>
                 <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-                <Text style={[{ color: Colors[colorScheme].text, marginTop: 8 }]}>Transferring...</Text>
+                <Text style={[{ color: Colors[colorScheme].text, marginTop: 8 }]}>
+                  Transferring...
+                </Text>
               </View>
             )}
           </View>

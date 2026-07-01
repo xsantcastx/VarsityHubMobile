@@ -645,6 +645,10 @@ export const Organization = {
   createWithTeams: (data: any) => httpPost('/organizations/create', data),
   invite: (organizationId: string, email: string, role?: string) =>
     httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),
+  transferOwnership: (organizationId: string, newOwnerId: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/transfer-ownership`, {
+      new_owner_id: newOwnerId,
+    }),
   cancelInvite: (organizationId: string, inviteId: string) =>
     httpPost(
       `/organizations/${encodeURIComponent(organizationId)}/invites/${encodeURIComponent(inviteId)}/cancel`,

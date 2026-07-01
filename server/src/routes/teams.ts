@@ -19,6 +19,7 @@ import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js
 import {
     canManageTeam as canManageTeamScoped,
     canAssignTeamRole as canAssignTeamRoleScoped,
+    canArchiveTeam as canArchiveTeamScoped,
     isOrgAdmin as isOrgAdminScoped,
     TEAM_STAFF_ROLES,
 } from '../lib/teamAuthorization.js';
@@ -1927,10 +1928,13 @@ teamsRouter.delete(
     // missed the org-admin fallback, blocking league owners from archiving
     // teams inside their own league.
     const isAdmin = await getIsAdmin(req as any);
-    const canManage = await canManageTeamScoped(req.user.id, teamId);
-    if (!isAdmin && !canManage) {
+    // Archiving cascades (memberships/invites/follows/chat unlinks), so it is
+    // gated more tightly than team edits: only team leadership (owner/manager)
+    // or an org admin — not coaches/assistant_coaches — may archive.
+    const canArchive = await canArchiveTeamScoped(req.user.id, teamId);
+    if (!isAdmin && !canArchive) {
       return res.status(403).json({
-        error: 'Only team staff or league admins can delete teams',
+        error: 'Only team owners, managers, or league admins can delete teams',
       });
     }
     if (team.status !== 'active') {

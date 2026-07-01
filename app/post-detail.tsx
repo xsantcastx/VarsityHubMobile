@@ -1543,17 +1543,32 @@ export default function PostDetailScreen() {
                       ) : currentUser &&
                         c.author_id &&
                         String(currentUser.id) !== String(c.author_id) ? (
-                        <Pressable
-                          style={styles.commentActionBtn}
-                          onPress={() => handleReportComment(String(c.id))}
-                          accessibilityLabel="Report comment"
-                        >
-                          <Ionicons
-                            name="flag-outline"
-                            size={16}
-                            color={Colors[colorScheme].mutedText}
-                          />
-                        </Pressable>
+                        <>
+                          {/* Post owners can moderate comments on their own post
+                              (server allows author-of-post deletion, posts.ts). */}
+                          {post &&
+                          String(currentUser.id) ===
+                            String(post.author_id ?? post.author?.id ?? '') ? (
+                            <Pressable
+                              style={styles.commentActionBtn}
+                              onPress={() => handleDeleteComment(String(c.id))}
+                              accessibilityLabel="Delete comment"
+                            >
+                              <Ionicons name="trash" size={16} color="#DC2626" />
+                            </Pressable>
+                          ) : null}
+                          <Pressable
+                            style={styles.commentActionBtn}
+                            onPress={() => handleReportComment(String(c.id))}
+                            accessibilityLabel="Report comment"
+                          >
+                            <Ionicons
+                              name="flag-outline"
+                              size={16}
+                              color={Colors[colorScheme].mutedText}
+                            />
+                          </Pressable>
+                        </>
                       ) : null}
                     </View>
                   </View>

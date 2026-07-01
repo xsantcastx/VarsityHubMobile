@@ -2,7 +2,7 @@ import CustomActionModal from '@/components/CustomActionModal';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
@@ -13,7 +13,24 @@ import VideoTrimmer from '@/components/VideoTrimmer';
 import * as MediaLibrary from 'expo-media-library';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Clipboard, FlatList, Image, InteractionManager, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  Clipboard,
+  FlatList,
+  Image,
+  InteractionManager,
+  Keyboard,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '@/utils/uploadUtils';
 import { safeGoBack } from '@/utils/navigation';
@@ -23,7 +40,7 @@ import { Team as TeamApi } from '@/api/entities';
 // Pre-generated waveform bar heights — avoids Array allocation + Math.random() on every render
 const VOICE_WAVE_HEIGHTS = Array.from({ length: 20 }, (_, i) => {
   // Deterministic pseudo-random using a simple hash so heights are stable across renders
-  const h = ((i * 7 + 3) * 13) % 20 + 8;
+  const h = (((i * 7 + 3) * 13) % 20) + 8;
   return h;
 });
 
@@ -32,12 +49,23 @@ const Audio = {
   requestPermissionsAsync: () => Promise.resolve({ status: 'denied' }),
   setAudioModeAsync: () => Promise.resolve(),
   Recording: {
-    createAsync: () => Promise.resolve({ recording: { timer: null, stopAndUnloadAsync: () => Promise.resolve(), getURI: () => null, getStatusAsync: () => Promise.resolve({}) } })
+    createAsync: () =>
+      Promise.resolve({
+        recording: {
+          timer: null,
+          stopAndUnloadAsync: () => Promise.resolve(),
+          getURI: () => null,
+          getStatusAsync: () => Promise.resolve({}),
+        },
+      }),
   },
   RecordingOptionsPresets: { HIGH_QUALITY: {} },
   Sound: {
-    createAsync: (_source: any, _initialStatus?: any) => Promise.resolve({ sound: { playAsync: () => Promise.resolve(), unloadAsync: () => Promise.resolve() } })
-  }
+    createAsync: (_source: any, _initialStatus?: any) =>
+      Promise.resolve({
+        sound: { playAsync: () => Promise.resolve(), unloadAsync: () => Promise.resolve() },
+      }),
+  },
 };
 
 // Using expo-audio for recording and playback functionality
@@ -92,7 +120,10 @@ interface TeamMember {
 }
 
 export default function TeamChatScreen() {
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  // Group-chat management mirrors the server's canManageTeam boundary (team
+  // staff OR org admin), not the narrower approved-coach-only gate. Aliased to
+  // keep the rest of this screen's loading/redirect logic unchanged.
+  const { canManage: canAccessCoachTools, loading: coachLoading } = useRequireTeamManagement();
   const { id, fallback } = useLocalSearchParams<{ id?: string; fallback?: string }>();
   const router = useRouter();
   const _insets = useSafeAreaInsets();
@@ -105,7 +136,9 @@ export default function TeamChatScreen() {
         : '/organization?tab=teams';
 
   // Modal state for replacing Alert.alert
-  const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
+  const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(
+    null
+  );
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +152,11 @@ export default function TeamChatScreen() {
   const [files, setFiles] = useState<any[]>([]);
   const [typingUsers, _setTypingUsers] = useState<string[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<{ uri: string; width: number; height: number } | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{
+    uri: string;
+    width: number;
+    height: number;
+  } | null>(null);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   // const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -129,23 +166,27 @@ export default function TeamChatScreen() {
   const [audioPosition, setAudioPosition] = useState<{ [key: string]: number }>({});
   // const [soundObjects, setSoundObjects] = useState<{ [key: string]: Audio.Sound }>({});
   const [soundObjects, setSoundObjects] = useState<{ [key: string]: any }>({});
-  
+
   // Modal states for custom menus
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showImageOptionsMenu, setShowImageOptionsMenu] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
-  const [videoToTrim, setVideoToTrim] = useState<{ uri: string; name: string; size: number } | null>(null);
+  const [videoToTrim, setVideoToTrim] = useState<{
+    uri: string;
+    name: string;
+    size: number;
+  } | null>(null);
   const [videoTrimmedUri, setVideoTrimmedUri] = useState<string | null>(null);
-  
+
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
   const toastAnim = useRef(new Animated.Value(0)).current;
-  
+
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutRef = useRef<any>(null);
   const textInputRef = useRef<TextInput>(null);
-  
+
   // Animated values for typing dots
   const dot1Anim = useRef(new Animated.Value(0.4)).current;
   const dot2Anim = useRef(new Animated.Value(0.4)).current;
@@ -154,7 +195,9 @@ export default function TeamChatScreen() {
 
   // Clear animation timeouts on unmount
   useEffect(() => {
-    return () => { animTimeoutRefs.current.forEach(clearTimeout); };
+    return () => {
+      animTimeoutRefs.current.forEach(clearTimeout);
+    };
   }, []);
 
   // Animation refs for messages
@@ -162,14 +205,17 @@ export default function TeamChatScreen() {
 
   // Message persistence functions
   const STORAGE_KEY = `team_messages_${id}`;
-  
-  const saveMessages = useCallback(async (messages: ChatMessage[]) => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-    } catch (error) {
-      if (__DEV__) console.error('Failed to save messages:', error);
-    }
-  }, [STORAGE_KEY]);
+
+  const saveMessages = useCallback(
+    async (messages: ChatMessage[]) => {
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+      } catch (error) {
+        if (__DEV__) console.error('Failed to save messages:', error);
+      }
+    },
+    [STORAGE_KEY]
+  );
 
   const loadMessages = useCallback(async (): Promise<ChatMessage[]> => {
     try {
@@ -190,14 +236,17 @@ export default function TeamChatScreen() {
     });
   }, []);
 
-  const saveFiles = useCallback(async (filesList: any[]) => {
-    try {
-      const filesKey = `team-${id}-files`;
-      await AsyncStorage.setItem(filesKey, JSON.stringify(filesList));
-    } catch (error) {
-      if (__DEV__) console.error('Failed to save files:', error);
-    }
-  }, [id]);
+  const saveFiles = useCallback(
+    async (filesList: any[]) => {
+      try {
+        const filesKey = `team-${id}-files`;
+        await AsyncStorage.setItem(filesKey, JSON.stringify(filesList));
+      } catch (error) {
+        if (__DEV__) console.error('Failed to save files:', error);
+      }
+    },
+    [id]
+  );
 
   const loadFiles = useCallback(async (): Promise<any[]> => {
     try {
@@ -252,132 +301,148 @@ export default function TeamChatScreen() {
   }, [dot1Anim, dot2Anim, dot3Anim]);
 
   // Message animation functions
-  const animateNewMessage = useCallback((messageId: string) => {
-    const fadeAnim = new Animated.Value(0);
-    const scaleAnim = new Animated.Value(0.8);
-    messageAnimations.set(messageId, fadeAnim);
-    
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 100,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [messageAnimations]);
+  const animateNewMessage = useCallback(
+    (messageId: string) => {
+      const fadeAnim = new Animated.Value(0);
+      const scaleAnim = new Animated.Value(0.8);
+      messageAnimations.set(messageId, fadeAnim);
+
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 100,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    },
+    [messageAnimations]
+  );
 
   // Welcome messages shown when a team chat has no history yet
-  const welcomeMessages: ChatMessage[] = useMemo(() => [
-    {
-      id: '1',
-      content: "Great practice today everyone! Don't forget we have the game against Warriors this Saturday at 7 PM.",
-      author: {
-        id: 'coach1',
-        display_name: 'Coach Johnson',
-        role: 'Head Coach',
+  const welcomeMessages: ChatMessage[] = useMemo(
+    () => [
+      {
+        id: '1',
+        content:
+          "Great practice today everyone! Don't forget we have the game against Warriors this Saturday at 7 PM.",
+        author: {
+          id: 'coach1',
+          display_name: 'Coach Johnson',
+          role: 'Head Coach',
+        },
+        timestamp: '2025-09-23T10:30:00Z',
+        type: 'announcement',
+        reactions: [
+          { emoji: '👍', count: 8, users: ['1', '2', '3'] },
+          { emoji: '🔥', count: 3, users: ['4', '5'] },
+        ],
       },
-      timestamp: '2025-09-23T10:30:00Z',
-      type: 'announcement',
-      reactions: [
-        { emoji: '👍', count: 8, users: ['1', '2', '3'] },
-        { emoji: '🔥', count: 3, users: ['4', '5'] },
-      ],
-    },
-    {
-      id: '2',
-      content: 'I will be there early to help set up the equipment.',
-      author: {
-        id: 'player1',
-        display_name: 'Alex Wilson',
-        role: 'Team Captain',
+      {
+        id: '2',
+        content: 'I will be there early to help set up the equipment.',
+        author: {
+          id: 'player1',
+          display_name: 'Alex Wilson',
+          role: 'Team Captain',
+        },
+        timestamp: '2025-09-23T10:35:00Z',
+        type: 'text',
+        replyTo: '1',
       },
-      timestamp: '2025-09-23T10:35:00Z',
-      type: 'text',
-      replyTo: '1',
-    },
-    {
-      id: '3',
-      content: 'Can someone pick me up? My car is in the shop.',
-      author: {
-        id: 'player2',
-        display_name: 'Sarah Johnson',
-        role: 'Player',
+      {
+        id: '3',
+        content: 'Can someone pick me up? My car is in the shop.',
+        author: {
+          id: 'player2',
+          display_name: 'Sarah Johnson',
+          role: 'Player',
+        },
+        timestamp: '2025-09-23T11:15:00Z',
+        type: 'text',
       },
-      timestamp: '2025-09-23T11:15:00Z',
-      type: 'text',
-    },
-    {
-      id: '4',
-      content: 'I can give you a ride Sarah! I pass by your area.',
-      author: {
-        id: 'player3',
-        display_name: 'Mike Davis',
-        role: 'Player',
+      {
+        id: '4',
+        content: 'I can give you a ride Sarah! I pass by your area.',
+        author: {
+          id: 'player3',
+          display_name: 'Mike Davis',
+          role: 'Player',
+        },
+        timestamp: '2025-09-23T11:20:00Z',
+        type: 'text',
+        replyTo: '3',
+        reactions: [{ emoji: '🙏', count: 2, users: ['2', '5'] }],
       },
-      timestamp: '2025-09-23T11:20:00Z',
-      type: 'text',
-      replyTo: '3',
-      reactions: [
-        { emoji: '🙏', count: 2, users: ['2', '5'] },
-      ],
-    },
-  ], []);
+    ],
+    []
+  );
 
   useEffect(() => {
     let mounted = true;
     // Defer the initial fetch until the push animation finishes so the
     // transition isn't competing with network parsing and state updates.
-    const task = InteractionManager.runAfterInteractions(() => void (async () => {
-      if (!mounted) return;
-      if (!id) { setError('Missing team id'); setLoading(false); return; }
-      setLoading(true); setError(null);
-      try {
-        const membersData = await TeamApi.members(String(id));
-        if (!mounted) return;
-        
-        const formattedMembers: TeamMember[] = Array.isArray(membersData) ? membersData.map((m: any) => ({
-          id: String(m.id),
-          user: m.user ? {
-            id: String(m.user.id),
-            display_name: m.user.display_name || m.user.name,
-            email: m.user.email,
-            avatar_url: m.user.avatar_url,
-          } : undefined,
-          role: m.role || 'player',
-          status: 'offline' as 'online' | 'offline' | 'away',
-          lastSeen: undefined,
-        })) : [];
-        
-        setMembers(formattedMembers);
-        
-        // Load persisted messages first, then fallback to welcome messages
-        const savedMessages = await loadMessages();
-        if (savedMessages.length > 0) {
-          setMessages(savedMessages);
-        } else {
-          setMessages(welcomeMessages);
-          await saveMessages(welcomeMessages);
-        }
-        
-        // Load persisted files
-        const savedFiles = await loadFiles();
-        setFiles(savedFiles);
-        
-        // Initialize with empty files list - files will be added as they're uploaded
-        
-      } catch {
-        if (!mounted) return;
-        setError('Failed to load team chat');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })());
+    const task = InteractionManager.runAfterInteractions(
+      () =>
+        void (async () => {
+          if (!mounted) return;
+          if (!id) {
+            setError('Missing team id');
+            setLoading(false);
+            return;
+          }
+          setLoading(true);
+          setError(null);
+          try {
+            const membersData = await TeamApi.members(String(id));
+            if (!mounted) return;
+
+            const formattedMembers: TeamMember[] = Array.isArray(membersData)
+              ? membersData.map((m: any) => ({
+                  id: String(m.id),
+                  user: m.user
+                    ? {
+                        id: String(m.user.id),
+                        display_name: m.user.display_name || m.user.name,
+                        email: m.user.email,
+                        avatar_url: m.user.avatar_url,
+                      }
+                    : undefined,
+                  role: m.role || 'player',
+                  status: 'offline' as 'online' | 'offline' | 'away',
+                  lastSeen: undefined,
+                }))
+              : [];
+
+            setMembers(formattedMembers);
+
+            // Load persisted messages first, then fallback to welcome messages
+            const savedMessages = await loadMessages();
+            if (savedMessages.length > 0) {
+              setMessages(savedMessages);
+            } else {
+              setMessages(welcomeMessages);
+              await saveMessages(welcomeMessages);
+            }
+
+            // Load persisted files
+            const savedFiles = await loadFiles();
+            setFiles(savedFiles);
+
+            // Initialize with empty files list - files will be added as they're uploaded
+          } catch {
+            if (!mounted) return;
+            setError('Failed to load team chat');
+          } finally {
+            if (mounted) setLoading(false);
+          }
+        })()
+    );
     return () => {
       mounted = false;
       task.cancel();
@@ -395,7 +460,7 @@ export default function TeamChatScreen() {
 
   const sendMessage = useCallback(async () => {
     if (!newMessage.trim() || sending) return;
-    
+
     setSending(true);
     try {
       const message: ChatMessage = {
@@ -411,7 +476,7 @@ export default function TeamChatScreen() {
         replyTo: replyingTo?.id,
         status: 'sending',
       };
-      
+
       setMessages(prev => {
         const updated = [...prev, message];
         void saveMessages(updated);
@@ -419,19 +484,19 @@ export default function TeamChatScreen() {
       });
       setNewMessage('');
       setReplyingTo(null);
-      
+
       // Animate new message
       animateNewMessage(message.id);
-      
+
       // Scroll to bottom
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
-      
+
       // Mark as sent (local-only chat, persisted to AsyncStorage)
-      setMessages(prev => prev.map(msg =>
-        msg.id === message.id ? { ...msg, status: 'sent' } : msg
-      ));
+      setMessages(prev =>
+        prev.map(msg => (msg.id === message.id ? { ...msg, status: 'sent' } : msg))
+      );
     } catch {
       showModal('Error', 'Failed to send message');
     } finally {
@@ -440,58 +505,57 @@ export default function TeamChatScreen() {
   }, [animateNewMessage, newMessage, replyingTo, saveMessages, sending, showModal]);
 
   const addReaction = useCallback((messageId: string, emoji: string) => {
-    setMessages(prev => prev.map(message => {
-      if (message.id === messageId) {
-        const existingReactions = message.reactions || [];
-        const reactionIndex = existingReactions.findIndex(r => r.emoji === emoji);
-        
-        if (reactionIndex >= 0) {
-          // Toggle reaction if user already reacted
-          const reaction = existingReactions[reactionIndex];
-          const hasUserReacted = reaction.users.includes('current_user');
-          
-          if (hasUserReacted) {
-            // Remove user's reaction
-            const updatedUsers = reaction.users.filter(id => id !== 'current_user');
-            if (updatedUsers.length === 0) {
-              // Remove reaction entirely if no users left
-              return {
-                ...message,
-                reactions: existingReactions.filter((_, idx) => idx !== reactionIndex)
-              };
+    setMessages(prev =>
+      prev.map(message => {
+        if (message.id === messageId) {
+          const existingReactions = message.reactions || [];
+          const reactionIndex = existingReactions.findIndex(r => r.emoji === emoji);
+
+          if (reactionIndex >= 0) {
+            // Toggle reaction if user already reacted
+            const reaction = existingReactions[reactionIndex];
+            const hasUserReacted = reaction.users.includes('current_user');
+
+            if (hasUserReacted) {
+              // Remove user's reaction
+              const updatedUsers = reaction.users.filter(id => id !== 'current_user');
+              if (updatedUsers.length === 0) {
+                // Remove reaction entirely if no users left
+                return {
+                  ...message,
+                  reactions: existingReactions.filter((_, idx) => idx !== reactionIndex),
+                };
+              } else {
+                // Update reaction count
+                const updatedReactions = [...existingReactions];
+                updatedReactions[reactionIndex] = {
+                  ...reaction,
+                  count: updatedUsers.length,
+                  users: updatedUsers,
+                };
+                return { ...message, reactions: updatedReactions };
+              }
             } else {
-              // Update reaction count
+              // Add user's reaction
               const updatedReactions = [...existingReactions];
               updatedReactions[reactionIndex] = {
                 ...reaction,
-                count: updatedUsers.length,
-                users: updatedUsers
+                count: reaction.count + 1,
+                users: [...reaction.users, 'current_user'],
               };
               return { ...message, reactions: updatedReactions };
             }
           } else {
-            // Add user's reaction
-            const updatedReactions = [...existingReactions];
-            updatedReactions[reactionIndex] = {
-              ...reaction,
-              count: reaction.count + 1,
-              users: [...reaction.users, 'current_user']
+            // Add new reaction
+            return {
+              ...message,
+              reactions: [...existingReactions, { emoji, count: 1, users: ['current_user'] }],
             };
-            return { ...message, reactions: updatedReactions };
           }
-        } else {
-          // Add new reaction
-          return {
-            ...message,
-            reactions: [
-              ...existingReactions,
-              { emoji, count: 1, users: ['current_user'] }
-            ]
-          };
         }
-      }
-      return message;
-    }));
+        return message;
+      })
+    );
     setShowEmojiPicker(null);
   }, []);
 
@@ -508,26 +572,29 @@ export default function TeamChatScreen() {
     setReplyingTo(null);
   }, []);
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastType(type);
-    
-    Animated.sequence([
-      Animated.timing(toastAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.delay(2000),
-      Animated.timing(toastAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setToastMessage(null);
-    });
-  }, [toastAnim]);
+  const showToast = useCallback(
+    (message: string, type: 'success' | 'error' = 'success') => {
+      setToastMessage(message);
+      setToastType(type);
+
+      Animated.sequence([
+        Animated.timing(toastAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.delay(2000),
+        Animated.timing(toastAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setToastMessage(null);
+      });
+    },
+    [toastAnim]
+  );
 
   const uploadFile = useCallback(async () => {
     setShowAttachmentMenu(true);
@@ -559,111 +626,112 @@ export default function TeamChatScreen() {
     return '#757575';
   };
 
-  const sendImageMessage = useCallback(async (imageAsset: ImagePicker.ImagePickerAsset) => {
-    try {
-      const message: ChatMessage = {
-        id: Date.now().toString(),
-        content: 'Uploading image...',
-        author: {
-          id: 'current_user',
-          display_name: 'You',
-          role: 'Player',
-        },
-        timestamp: new Date().toISOString(),
-        type: 'image',
-        image: {
-          uri: imageAsset.uri,
-          width: imageAsset.width,
-          height: imageAsset.height,
-        },
-        replyTo: replyingTo?.id,
-        status: 'sending',
-      };
-      
-      setMessages(prev => {
-        const updated = [...prev, message];
-        void saveMessages(updated);
-        return updated;
-      });
-      setReplyingTo(null);
-      
-      // Animate new message
-      animateNewMessage(message.id);
-      
-      // Upload image to server
-      const fileToUpload = {
-        uri: imageAsset.uri,
-        name: `image_${Date.now()}.jpg`,
-        type: 'image/jpeg',
-        size: imageAsset.fileSize,
-      };
-      
-      const uploadResponse = await uploadImage(fileToUpload);
+  const sendImageMessage = useCallback(
+    async (imageAsset: ImagePicker.ImagePickerAsset) => {
+      try {
+        const message: ChatMessage = {
+          id: Date.now().toString(),
+          content: 'Uploading image...',
+          author: {
+            id: 'current_user',
+            display_name: 'You',
+            role: 'Player',
+          },
+          timestamp: new Date().toISOString(),
+          type: 'image',
+          image: {
+            uri: imageAsset.uri,
+            width: imageAsset.width,
+            height: imageAsset.height,
+          },
+          replyTo: replyingTo?.id,
+          status: 'sending',
+        };
 
-      // Update message with server URL and success status
-      const updatedMessage: ChatMessage = {
-        ...message,
-        content: '',
-        image: {
-          ...message.image!,
-          uri: uploadResponse.url, // Use server URL
-        },
-        status: 'sent',
-      };
-
-      setMessages(prev => {
-        const updated = prev.map(msg => 
-          msg.id === message.id ? updatedMessage : msg
-        );
-        void saveMessages(updated);
-        return updated;
-      });
-      
-      // Scroll to bottom
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-      
-      // Add image to files tab list
-      const newFile = {
-        id: Date.now().toString(),
-        name: fileToUpload.name,
-        size: formatFileSize(fileToUpload.size || 0),
-        type: mapMimeTypeToFileType(fileToUpload.type || 'image/jpeg'),
-        uploadedBy: 'You',
-        uploadedAt: new Date().toISOString(),
-        url: uploadResponse.url,
-      };
-      
-      setFiles(prev => {
-        const updated = [newFile, ...prev];
-        void saveFiles(updated);
-        return updated;
-      });
-      
-      showToast('Image uploaded successfully!');
-    } catch (error) {
-      if (__DEV__) console.error('Image upload failed:', error);
-      
-      // Update message to show error
-      setMessages(prev => {
-        const updated = prev.map(msg => {
-          if (msg.status === 'sending' && msg.type === 'image') {
-            return {
-              ...msg,
-              content: '❌ Failed to upload image',
-              status: 'sent' as const,
-            };
-          }
-          return msg;
+        setMessages(prev => {
+          const updated = [...prev, message];
+          void saveMessages(updated);
+          return updated;
         });
-        void saveMessages(updated);
-        return updated;
-      });
-      
-  showModal('Error', 'Failed to upload image to server');
-    }
-  }, [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]);
+        setReplyingTo(null);
+
+        // Animate new message
+        animateNewMessage(message.id);
+
+        // Upload image to server
+        const fileToUpload = {
+          uri: imageAsset.uri,
+          name: `image_${Date.now()}.jpg`,
+          type: 'image/jpeg',
+          size: imageAsset.fileSize,
+        };
+
+        const uploadResponse = await uploadImage(fileToUpload);
+
+        // Update message with server URL and success status
+        const updatedMessage: ChatMessage = {
+          ...message,
+          content: '',
+          image: {
+            ...message.image!,
+            uri: uploadResponse.url, // Use server URL
+          },
+          status: 'sent',
+        };
+
+        setMessages(prev => {
+          const updated = prev.map(msg => (msg.id === message.id ? updatedMessage : msg));
+          void saveMessages(updated);
+          return updated;
+        });
+
+        // Scroll to bottom
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+
+        // Add image to files tab list
+        const newFile = {
+          id: Date.now().toString(),
+          name: fileToUpload.name,
+          size: formatFileSize(fileToUpload.size || 0),
+          type: mapMimeTypeToFileType(fileToUpload.type || 'image/jpeg'),
+          uploadedBy: 'You',
+          uploadedAt: new Date().toISOString(),
+          url: uploadResponse.url,
+        };
+
+        setFiles(prev => {
+          const updated = [newFile, ...prev];
+          void saveFiles(updated);
+          return updated;
+        });
+
+        showToast('Image uploaded successfully!');
+      } catch (error) {
+        if (__DEV__) console.error('Image upload failed:', error);
+
+        // Update message to show error
+        setMessages(prev => {
+          const updated = prev.map(msg => {
+            if (msg.status === 'sending' && msg.type === 'image') {
+              return {
+                ...msg,
+                content: '❌ Failed to upload image',
+                status: 'sent' as const,
+              };
+            }
+            return msg;
+          });
+          void saveMessages(updated);
+          return updated;
+        });
+
+        showModal('Error', 'Failed to upload image to server');
+      }
+    },
+    [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]
+  );
 
   const pickImage = useCallback(async () => {
     try {
@@ -702,23 +770,30 @@ export default function TeamChatScreen() {
     setShowImageOptionsMenu(true);
   }, []);
 
-  const saveImageToGallery = useCallback(async (imageUri: string) => {
-    try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
-  showModal('Permission needed', 'Please grant permission to save images to your gallery.', [
-    { label: 'Cancel', onPress: () => {} },
-    { label: 'Open Settings', onPress: () => Linking.openSettings(), color: '#2563eb' },
-  ]);
-        return;
+  const saveImageToGallery = useCallback(
+    async (imageUri: string) => {
+      try {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') {
+          showModal(
+            'Permission needed',
+            'Please grant permission to save images to your gallery.',
+            [
+              { label: 'Cancel', onPress: () => {} },
+              { label: 'Open Settings', onPress: () => Linking.openSettings(), color: '#2563eb' },
+            ]
+          );
+          return;
+        }
+
+        await MediaLibrary.saveToLibraryAsync(imageUri);
+        showToast('Image saved to gallery!');
+      } catch {
+        showModal('Error', 'Failed to save image to gallery');
       }
-      
-      await MediaLibrary.saveToLibraryAsync(imageUri);
-      showToast('Image saved to gallery!');
-    } catch {
-      showModal('Error', 'Failed to save image to gallery');
-    }
-  }, [showModal, showToast]);
+    },
+    [showModal, showToast]
+  );
 
   const closeImageViewer = useCallback(() => {
     setImageViewerVisible(false);
@@ -727,60 +802,65 @@ export default function TeamChatScreen() {
 
   // Voice recording functions - TEMPORARILY DISABLED
   const startRecording = useCallback(async () => {
-  showModal('Audio Recording', 'Voice recording temporarily disabled during migration to expo-audio');
+    showModal(
+      'Audio Recording',
+      'Voice recording temporarily disabled during migration to expo-audio'
+    );
     return;
   }, [showModal]);
 
-  const sendVoiceMessage = useCallback(async (uri: string, duration: number) => {
-    try {
-      const message: ChatMessage = {
-        id: Date.now().toString(),
-        content: '',
-        author: {
-          id: 'current_user',
-          display_name: 'You',
-          role: 'Player',
-        },
-        timestamp: new Date().toISOString(),
-        type: 'voice',
-        voice: {
-          uri,
-          duration: Math.round(duration / 1000), // Convert to seconds
-        },
-        replyTo: replyingTo?.id,
-        status: 'sending',
-      };
-      
-      setMessages(prev => {
-        const updated = [...prev, message];
-        void saveMessages(updated); // Save to storage
-        return updated;
-      });
-      setReplyingTo(null);
-      
-      // Animate new message
-      animateNewMessage(message.id);
-      
-      // Scroll to bottom
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-      
-      // Simulate message status progression
-      setTimeout(() => {
+  const sendVoiceMessage = useCallback(
+    async (uri: string, duration: number) => {
+      try {
+        const message: ChatMessage = {
+          id: Date.now().toString(),
+          content: '',
+          author: {
+            id: 'current_user',
+            display_name: 'You',
+            role: 'Player',
+          },
+          timestamp: new Date().toISOString(),
+          type: 'voice',
+          voice: {
+            uri,
+            duration: Math.round(duration / 1000), // Convert to seconds
+          },
+          replyTo: replyingTo?.id,
+          status: 'sending',
+        };
+
         setMessages(prev => {
-          const updated = prev.map(msg => 
-            msg.id === message.id ? { ...msg, status: 'sent' as const } : msg
-          );
-          void saveMessages(updated);
+          const updated = [...prev, message];
+          void saveMessages(updated); // Save to storage
           return updated;
         });
-      }, 800);
-      
-    } catch {
-      showModal('Error', 'Failed to send voice message');
-    }
-  }, [animateNewMessage, replyingTo, saveMessages, showModal]);
+        setReplyingTo(null);
+
+        // Animate new message
+        animateNewMessage(message.id);
+
+        // Scroll to bottom
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+
+        // Simulate message status progression
+        setTimeout(() => {
+          setMessages(prev => {
+            const updated = prev.map(msg =>
+              msg.id === message.id ? { ...msg, status: 'sent' as const } : msg
+            );
+            void saveMessages(updated);
+            return updated;
+          });
+        }, 800);
+      } catch {
+        showModal('Error', 'Failed to send voice message');
+      }
+    },
+    [animateNewMessage, replyingTo, saveMessages, showModal]
+  );
 
   const stopRecording = useCallback(async () => {
     if (!recording) return;
@@ -790,16 +870,16 @@ export default function TeamChatScreen() {
       if ((recording as any).timer) {
         clearInterval((recording as any).timer);
       }
-      
+
       setIsRecording(false);
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
-      
+
       if (uri) {
         const status = await recording.getStatusAsync();
         await sendVoiceMessage(uri, status.durationMillis || 0);
       }
-      
+
       setRecording(null);
       setRecordingDuration(0);
     } catch {
@@ -811,61 +891,61 @@ export default function TeamChatScreen() {
   }, [recording, sendVoiceMessage, showModal]);
 
   // Voice playback functions
-  const playVoiceMessage = useCallback(async (messageId: string, uri: string) => {
-    try {
-      // Stop any currently playing audio
-      if (playingAudio && playingAudio !== messageId) {
-        const currentSound = soundObjects[playingAudio];
-        if (currentSound) {
-          await currentSound.stopAsync();
-        }
-      }
-
-      // If this message is already playing, pause it
-      if (playingAudio === messageId) {
-        const sound = soundObjects[messageId];
-        if (sound) {
-          await sound.pauseAsync();
-          setPlayingAudio(null);
-        }
-        return;
-      }
-
-      // Create new sound object if it doesn't exist
-      let sound = soundObjects[messageId];
-      if (!sound) {
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          { uri },
-          { shouldPlay: false }
-        );
-        sound = newSound;
-        setSoundObjects(prev => ({ ...prev, [messageId]: sound }));
-        
-        // Set up playback status update
-        sound.setOnPlaybackStatusUpdate((status: any) => {
-          if (status.isLoaded) {
-            if (status.positionMillis !== undefined && status.durationMillis) {
-              setAudioPosition(prev => ({
-                ...prev,
-                [messageId]: status.positionMillis / status.durationMillis
-              }));
-            }
-            
-            if (status.didJustFinish) {
-              setPlayingAudio(null);
-              setAudioPosition(prev => ({ ...prev, [messageId]: 0 }));
-            }
+  const playVoiceMessage = useCallback(
+    async (messageId: string, uri: string) => {
+      try {
+        // Stop any currently playing audio
+        if (playingAudio && playingAudio !== messageId) {
+          const currentSound = soundObjects[playingAudio];
+          if (currentSound) {
+            await currentSound.stopAsync();
           }
-        });
-      }
+        }
 
-      // Play the sound
-      await sound.playAsync();
-      setPlayingAudio(messageId);
-    } catch {
-      showModal('Error', 'Failed to play voice message');
-    }
-  }, [playingAudio, showModal, soundObjects]);
+        // If this message is already playing, pause it
+        if (playingAudio === messageId) {
+          const sound = soundObjects[messageId];
+          if (sound) {
+            await sound.pauseAsync();
+            setPlayingAudio(null);
+          }
+          return;
+        }
+
+        // Create new sound object if it doesn't exist
+        let sound = soundObjects[messageId];
+        if (!sound) {
+          const { sound: newSound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: false });
+          sound = newSound;
+          setSoundObjects(prev => ({ ...prev, [messageId]: sound }));
+
+          // Set up playback status update
+          sound.setOnPlaybackStatusUpdate((status: any) => {
+            if (status.isLoaded) {
+              if (status.positionMillis !== undefined && status.durationMillis) {
+                setAudioPosition(prev => ({
+                  ...prev,
+                  [messageId]: status.positionMillis / status.durationMillis,
+                }));
+              }
+
+              if (status.didJustFinish) {
+                setPlayingAudio(null);
+                setAudioPosition(prev => ({ ...prev, [messageId]: 0 }));
+              }
+            }
+          });
+        }
+
+        // Play the sound
+        await sound.playAsync();
+        setPlayingAudio(messageId);
+      } catch {
+        showModal('Error', 'Failed to play voice message');
+      }
+    },
+    [playingAudio, showModal, soundObjects]
+  );
 
   const formatDuration = useCallback((milliseconds: number) => {
     const seconds = Math.floor(milliseconds / 1000);
@@ -874,119 +954,124 @@ export default function TeamChatScreen() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }, []);
 
-  const sendFileMessage = useCallback(async (fileAsset: any) => {
-    try {
-      // Create initial message with uploading status
-      const message: ChatMessage = {
-        id: Date.now().toString(),
-        content: `Uploading file: ${fileAsset.name}...`,
-        author: {
-          id: 'current_user',
-          display_name: 'You',
-          role: 'Player',
-        },
-        timestamp: new Date().toISOString(),
-        type: 'file',
-        file: {
+  const sendFileMessage = useCallback(
+    async (fileAsset: any) => {
+      try {
+        // Create initial message with uploading status
+        const message: ChatMessage = {
+          id: Date.now().toString(),
+          content: `Uploading file: ${fileAsset.name}...`,
+          author: {
+            id: 'current_user',
+            display_name: 'You',
+            role: 'Player',
+          },
+          timestamp: new Date().toISOString(),
+          type: 'file',
+          file: {
+            uri: fileAsset.uri,
+            name: fileAsset.name,
+            size: formatFileSize(fileAsset.size || 0),
+            type: fileAsset.mimeType || 'application/octet-stream',
+          },
+          replyTo: replyingTo?.id,
+          status: 'sending',
+        };
+
+        setMessages(prev => {
+          const updated = [...prev, message];
+          void saveMessages(updated);
+          return updated;
+        });
+        setReplyingTo(null);
+
+        // Animate new message
+        animateNewMessage(message.id);
+
+        // Upload file to server
+        const fileToUpload = {
           uri: fileAsset.uri,
           name: fileAsset.name,
-          size: formatFileSize(fileAsset.size || 0),
-          type: fileAsset.mimeType || 'application/octet-stream',
-        },
-        replyTo: replyingTo?.id,
-        status: 'sending',
-      };
-      
-      setMessages(prev => {
-        const updated = [...prev, message];
-        void saveMessages(updated);
-        return updated;
-      });
-      setReplyingTo(null);
-      
-      // Animate new message
-      animateNewMessage(message.id);
-      
-      // Upload file to server
-      const fileToUpload = {
-        uri: fileAsset.uri,
-        name: fileAsset.name,
-        type: fileAsset.mimeType,
-        size: fileAsset.size,
-      };
-      
-      let uploadResponse: UploadResponse;
-      
-      if (fileAsset.mimeType?.startsWith('image/')) {
-        uploadResponse = await uploadImage(fileToUpload);
-      } else {
-        uploadResponse = await uploadDocument(fileToUpload);
-      }
+          type: fileAsset.mimeType,
+          size: fileAsset.size,
+        };
 
-      // Update message with server URL and success status
-      const updatedMessage: ChatMessage = {
-        ...message,
-        content: `Shared a file: ${fileAsset.name}`,
-        file: {
-          ...message.file!,
-          uri: uploadResponse.url, // Use server URL
-        },
-        status: 'sent',
-      };
+        let uploadResponse: UploadResponse;
 
-      setMessages(prev => {
-        const updated = prev.map(msg => 
-          msg.id === message.id ? updatedMessage : msg
-        );
-        void saveMessages(updated);
-        return updated;
-      });
-      
-      // Scroll to bottom
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-      
-      // Add file to files tab list
-      const newFile = {
-        id: Date.now().toString(),
-        name: fileAsset.name,
-        size: formatFileSize(fileAsset.size || 0),
-        type: mapMimeTypeToFileType(fileAsset.mimeType || 'application/octet-stream'),
-        uploadedBy: 'You',
-        uploadedAt: new Date().toISOString(),
-        url: uploadResponse.url,
-      };
-      
-      setFiles(prev => {
-        const updated = [newFile, ...prev];
-        void saveFiles(updated);
-        return updated;
-      });
-      
-      showToast('File uploaded successfully!');
-    } catch (error) {
-      if (__DEV__) console.error('File upload failed:', error);
-      
-      // Update message to show error - use a new variable since message is not in scope
-      setMessages(prev => {
-        const updated = prev.map(msg => {
-          if (msg.status === 'sending' && msg.type === 'file' && msg.file?.name === fileAsset.name) {
-            return {
-              ...msg,
-              content: `❌ Failed to upload: ${fileAsset.name}`,
-              status: 'sent' as const, // Use valid status
-            };
-          }
-          return msg;
+        if (fileAsset.mimeType?.startsWith('image/')) {
+          uploadResponse = await uploadImage(fileToUpload);
+        } else {
+          uploadResponse = await uploadDocument(fileToUpload);
+        }
+
+        // Update message with server URL and success status
+        const updatedMessage: ChatMessage = {
+          ...message,
+          content: `Shared a file: ${fileAsset.name}`,
+          file: {
+            ...message.file!,
+            uri: uploadResponse.url, // Use server URL
+          },
+          status: 'sent',
+        };
+
+        setMessages(prev => {
+          const updated = prev.map(msg => (msg.id === message.id ? updatedMessage : msg));
+          void saveMessages(updated);
+          return updated;
         });
-        void saveMessages(updated);
-        return updated;
-      });
-      
-      showModal('Error', 'Failed to upload file to server');
-    }
-  }, [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]);
+
+        // Scroll to bottom
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+
+        // Add file to files tab list
+        const newFile = {
+          id: Date.now().toString(),
+          name: fileAsset.name,
+          size: formatFileSize(fileAsset.size || 0),
+          type: mapMimeTypeToFileType(fileAsset.mimeType || 'application/octet-stream'),
+          uploadedBy: 'You',
+          uploadedAt: new Date().toISOString(),
+          url: uploadResponse.url,
+        };
+
+        setFiles(prev => {
+          const updated = [newFile, ...prev];
+          void saveFiles(updated);
+          return updated;
+        });
+
+        showToast('File uploaded successfully!');
+      } catch (error) {
+        if (__DEV__) console.error('File upload failed:', error);
+
+        // Update message to show error - use a new variable since message is not in scope
+        setMessages(prev => {
+          const updated = prev.map(msg => {
+            if (
+              msg.status === 'sending' &&
+              msg.type === 'file' &&
+              msg.file?.name === fileAsset.name
+            ) {
+              return {
+                ...msg,
+                content: `❌ Failed to upload: ${fileAsset.name}`,
+                status: 'sent' as const, // Use valid status
+              };
+            }
+            return msg;
+          });
+          void saveMessages(updated);
+          return updated;
+        });
+
+        showModal('Error', 'Failed to upload file to server');
+      }
+    },
+    [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]
+  );
 
   // Document picking functions
   const pickDocument = useCallback(async () => {
@@ -1004,42 +1089,45 @@ export default function TeamChatScreen() {
     }
   }, [sendFileMessage, showModal]);
 
-  const handleFileUpload = useCallback(async (type: 'media' | 'document') => {
-    try {
-      setIsUploadingFile(true);
-      
-      if (type === 'media') {
-        // Use image picker for media
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.All,
-          allowsEditing: false,
-          quality: 0.8,
-        });
+  const handleFileUpload = useCallback(
+    async (type: 'media' | 'document') => {
+      try {
+        setIsUploadingFile(true);
 
-        if (!result.canceled && result.assets[0]) {
-          if (result.assets[0].type === 'image') {
-            await sendImageMessage(result.assets[0]);
-          } else {
-            // Show trim preview for video files
-            setVideoToTrim({
-              uri: result.assets[0].uri,
-              name: `video_${Date.now()}.mp4`,
-              size: result.assets[0].fileSize || 0,
-            });
-            setVideoTrimmedUri(null);
-            return; // Upload happens via confirmVideoSend
+        if (type === 'media') {
+          // Use image picker for media
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.All,
+            allowsEditing: false,
+            quality: 0.8,
+          });
+
+          if (!result.canceled && result.assets[0]) {
+            if (result.assets[0].type === 'image') {
+              await sendImageMessage(result.assets[0]);
+            } else {
+              // Show trim preview for video files
+              setVideoToTrim({
+                uri: result.assets[0].uri,
+                name: `video_${Date.now()}.mp4`,
+                size: result.assets[0].fileSize || 0,
+              });
+              setVideoTrimmedUri(null);
+              return; // Upload happens via confirmVideoSend
+            }
           }
+        } else {
+          // Use document picker for documents
+          await pickDocument();
         }
-      } else {
-        // Use document picker for documents
-        await pickDocument();
+      } catch {
+        showToast('Failed to upload file', 'error');
+      } finally {
+        setIsUploadingFile(false);
       }
-    } catch {
-      showToast('Failed to upload file', 'error');
-    } finally {
-      setIsUploadingFile(false);
-    }
-  }, [sendImageMessage, pickDocument, showToast]);
+    },
+    [sendImageMessage, pickDocument, showToast]
+  );
 
   const confirmVideoSend = useCallback(async () => {
     if (!videoToTrim) return;
@@ -1062,41 +1150,50 @@ export default function TeamChatScreen() {
 
   const getFileColor = (type: string) => {
     switch (type) {
-      case 'pdf': return '#EF4444';
-      case 'excel': return '#10B981';
-      case 'image': return '#8B5CF6';
-      case 'video': return '#F59E0B';
-      default: return '#6B7280';
+      case 'pdf':
+        return '#EF4444';
+      case 'excel':
+        return '#10B981';
+      case 'image':
+        return '#8B5CF6';
+      case 'video':
+        return '#F59E0B';
+      default:
+        return '#6B7280';
     }
   };
 
   const mapMimeTypeToFileType = (mimeType: string): string => {
     const mime = mimeType.toLowerCase();
     if (mime.includes('pdf')) return 'pdf';
-    if (mime.includes('excel') || mime.includes('spreadsheet') || mime.includes('ms-excel')) return 'excel';
+    if (mime.includes('excel') || mime.includes('spreadsheet') || mime.includes('ms-excel'))
+      return 'excel';
     if (mime.includes('image')) return 'image';
     if (mime.includes('video')) return 'video';
     return 'document';
   };
 
-  const handleTextChange = useCallback((text: string) => {
-    setNewMessage(text);
-    
-    // Handle typing indicator
-    if (!isTyping && text.length > 0) {
-      setIsTyping(true);
-    }
-    
-    // Clear existing timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    
-    // Set new timeout
-    typingTimeoutRef.current = setTimeout(() => {
-      setIsTyping(false);
-    }, 1000);
-  }, [isTyping]);
+  const handleTextChange = useCallback(
+    (text: string) => {
+      setNewMessage(text);
+
+      // Handle typing indicator
+      if (!isTyping && text.length > 0) {
+        setIsTyping(true);
+      }
+
+      // Clear existing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      // Set new timeout
+      typingTimeoutRef.current = setTimeout(() => {
+        setIsTyping(false);
+      }, 1000);
+    },
+    [isTyping]
+  );
 
   // Cleanup typing timeout
   useEffect(() => {
@@ -1111,7 +1208,7 @@ export default function TeamChatScreen() {
   useEffect(() => {
     return () => {
       // Stop and unload all sound objects
-      Object.values(soundObjects).forEach(async (sound) => {
+      Object.values(soundObjects).forEach(async sound => {
         try {
           await sound.stopAsync();
           await sound.unloadAsync();
@@ -1127,7 +1224,7 @@ export default function TeamChatScreen() {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const hours = diff / (1000 * 60 * 60);
-    
+
     if (hours < 1) {
       const minutes = Math.floor(diff / (1000 * 60));
       return `${minutes}m ago`;
@@ -1138,45 +1235,48 @@ export default function TeamChatScreen() {
     }
   };
 
-  const handleFilePress = useCallback(async (file: { uri: string; name: string; type: string }) => {
-    try {
-      // Only allow safe URI schemes
-      const uri = file.uri;
-      if (!/^(https?:|mailto:|file:)/i.test(uri)) {
-        showModal('Invalid File', 'This file cannot be opened for security reasons.');
-        return;
-      }
-      // Try to open the file using the device's default app
-      const supported = await Linking.canOpenURL(uri);
+  const handleFilePress = useCallback(
+    async (file: { uri: string; name: string; type: string }) => {
+      try {
+        // Only allow safe URI schemes
+        const uri = file.uri;
+        if (!/^(https?:|mailto:|file:)/i.test(uri)) {
+          showModal('Invalid File', 'This file cannot be opened for security reasons.');
+          return;
+        }
+        // Try to open the file using the device's default app
+        const supported = await Linking.canOpenURL(uri);
 
-      if (supported) {
-        await Linking.openURL(uri);
-      } else {
-        // If can't open directly, show options
-        showModal('File Download', 'File download is not supported on this platform.');
+        if (supported) {
+          await Linking.openURL(uri);
+        } else {
+          // If can't open directly, show options
+          showModal('File Download', 'File download is not supported on this platform.');
+        }
+      } catch (error) {
+        if (__DEV__) console.error('Error opening file:', error);
+        showModal('Error', 'Unable to open file');
       }
-    } catch (error) {
-      if (__DEV__) console.error('Error opening file:', error);
-    showModal('Error', 'Unable to open file');
-    }
-  }, [showModal]);
+    },
+    [showModal]
+  );
 
   const renderMessage = ({ item, index }: { item: ChatMessage; index: number }) => {
     const isAnnouncement = item.type === 'announcement';
     const isCurrentUser = item.author.id === 'current_user';
     const showAvatar = index === 0 || messages[index - 1].author.id !== item.author.id;
     const replyMessage = item.replyTo ? messages.find(m => m.id === item.replyTo) : null;
-    
+
     // Get or create animation value for this message
     const messageAnim = messageAnimations.get(item.id) || new Animated.Value(1);
     if (!messageAnimations.has(item.id)) {
       messageAnimations.set(item.id, messageAnim);
     }
-    
+
     const handleLongPress = () => {
       // Copy to clipboard immediately
       Clipboard.setString(item.content);
-    showModal('Copied', 'Message copied to clipboard');
+      showModal('Copied', 'Message copied to clipboard');
     };
 
     const handleQuickReaction = () => {
@@ -1203,13 +1303,15 @@ export default function TeamChatScreen() {
             </Text>
           </View>
         )}
-        
-        <View style={[
-          styles.messageContent,
-          isCurrentUser && styles.currentUserContent,
-          isAnnouncement && styles.announcementContent,
-          !showAvatar && !isCurrentUser && styles.messageContentWithoutAvatar,
-        ]}>
+
+        <View
+          style={[
+            styles.messageContent,
+            isCurrentUser && styles.currentUserContent,
+            isAnnouncement && styles.announcementContent,
+            !showAvatar && !isCurrentUser && styles.messageContentWithoutAvatar,
+          ]}
+        >
           {showAvatar && !isCurrentUser && (
             <View style={styles.messageHeader}>
               <Text style={[styles.authorName, { color: Colors[colorScheme].text }]}>
@@ -1223,31 +1325,36 @@ export default function TeamChatScreen() {
               </Text>
             </View>
           )}
-          
+
           {replyMessage && (
             <View style={[styles.replyContainer, { borderColor: Colors[colorScheme].border }]}>
               <Text style={[styles.replyAuthor, { color: Colors[colorScheme].tint }]}>
                 {replyMessage.author.display_name}
               </Text>
-              <Text style={[styles.replyText, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
+              <Text
+                style={[styles.replyText, { color: Colors[colorScheme].mutedText }]}
+                numberOfLines={2}
+              >
                 {replyMessage.content}
               </Text>
             </View>
           )}
-          
-          <Pressable 
+
+          <Pressable
             onPress={handleQuickReaction}
             onLongPress={handleLongPress}
             style={[
               styles.messageBubble,
               {
-                backgroundColor: isCurrentUser ? Colors[colorScheme].tint : Colors[colorScheme].surface,
+                backgroundColor: isCurrentUser
+                  ? Colors[colorScheme].tint
+                  : Colors[colorScheme].surface,
                 borderTopLeftRadius: isCurrentUser ? 20 : 6,
                 borderTopRightRadius: isCurrentUser ? 6 : 20,
                 borderBottomLeftRadius: 20,
                 borderBottomRightRadius: 20,
               },
-              isAnnouncement && { 
+              isAnnouncement && {
                 backgroundColor: '#FEF3C7',
                 borderTopLeftRadius: 20,
                 borderTopRightRadius: 20,
@@ -1259,14 +1366,17 @@ export default function TeamChatScreen() {
                 <Ionicons name="megaphone" size={16} color="#F59E0B" />
               </View>
             )}
-            
+
             {item.image && (
-              <Pressable style={styles.imageContainer} onPress={() => {
-                setSelectedImage(item.image!);
-                setImageViewerVisible(true);
-              }}>
-                <Image 
-                  source={{ uri: item.image.uri }} 
+              <Pressable
+                style={styles.imageContainer}
+                onPress={() => {
+                  setSelectedImage(item.image!);
+                  setImageViewerVisible(true);
+                }}
+              >
+                <Image
+                  source={{ uri: item.image.uri }}
                   style={styles.messageImage}
                   resizeMode="cover"
                 />
@@ -1274,27 +1384,46 @@ export default function TeamChatScreen() {
             )}
 
             {item.voice && (
-              <View style={[styles.voiceMessageContainer, { 
-                backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.1)' : Colors[colorScheme].background 
-              }]}>
-                <Pressable 
-                  style={[styles.voicePlayButton, { 
-                    backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.2)' : Colors[colorScheme].tint 
-                  }]}
+              <View
+                style={[
+                  styles.voiceMessageContainer,
+                  {
+                    backgroundColor: isCurrentUser
+                      ? 'rgba(255,255,255,0.1)'
+                      : Colors[colorScheme].background,
+                  },
+                ]}
+              >
+                <Pressable
+                  style={[
+                    styles.voicePlayButton,
+                    {
+                      backgroundColor: isCurrentUser
+                        ? 'rgba(255,255,255,0.2)'
+                        : Colors[colorScheme].tint,
+                    },
+                  ]}
                   onPress={() => playVoiceMessage(item.id, item.voice!.uri)}
                 >
-                  <Ionicons 
-                    name={playingAudio === item.id ? "pause" : "play"}
-                    size={16} 
-                    color={isCurrentUser ? '#fff' : '#fff'} 
+                  <Ionicons
+                    name={playingAudio === item.id ? 'pause' : 'play'}
+                    size={16}
+                    color={isCurrentUser ? '#fff' : '#fff'}
                   />
                 </Pressable>
-                
+
                 <View style={styles.voiceWaveform}>
-                  <View style={[styles.voiceProgress, { 
-                    width: `${(audioPosition[item.id] || 0) * 100}%`,
-                    backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.5)' : Colors[colorScheme].tint + '80'
-                  }]} />
+                  <View
+                    style={[
+                      styles.voiceProgress,
+                      {
+                        width: `${(audioPosition[item.id] || 0) * 100}%`,
+                        backgroundColor: isCurrentUser
+                          ? 'rgba(255,255,255,0.5)'
+                          : Colors[colorScheme].tint + '80',
+                      },
+                    ]}
+                  />
                   <View style={styles.voiceWaves}>
                     {VOICE_WAVE_HEIGHTS.map((h, i) => (
                       <View
@@ -1303,111 +1432,184 @@ export default function TeamChatScreen() {
                           styles.voiceWave,
                           {
                             height: h,
-                            backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.3)' : Colors[colorScheme].mutedText + '60'
-                          }
+                            backgroundColor: isCurrentUser
+                              ? 'rgba(255,255,255,0.3)'
+                              : Colors[colorScheme].mutedText + '60',
+                          },
                         ]}
                       />
                     ))}
                   </View>
                 </View>
-                
-                <Text style={[styles.voiceDuration, { 
-                  color: isCurrentUser ? 'rgba(255,255,255,0.8)' : Colors[colorScheme].mutedText 
-                }]}>
+
+                <Text
+                  style={[
+                    styles.voiceDuration,
+                    {
+                      color: isCurrentUser
+                        ? 'rgba(255,255,255,0.8)'
+                        : Colors[colorScheme].mutedText,
+                    },
+                  ]}
+                >
                   {formatDuration(item.voice.duration)}
                 </Text>
               </View>
             )}
-            
+
             {item.file && (
-              <Pressable 
-                style={[styles.fileMessageContainer, { 
-                  backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.1)' : Colors[colorScheme].background 
-                }]}
+              <Pressable
+                style={[
+                  styles.fileMessageContainer,
+                  {
+                    backgroundColor: isCurrentUser
+                      ? 'rgba(255,255,255,0.1)'
+                      : Colors[colorScheme].background,
+                  },
+                ]}
                 onPress={() => void handleFilePress(item.file!)}
               >
-                <View style={[styles.fileIcon, { backgroundColor: getFileIconColor(item.file.type) }]}>
-                  <Ionicons 
-                    name={getFileIcon(item.file.type) as any} 
-                    size={24} 
-                    color="#fff" 
-                  />
+                <View
+                  style={[styles.fileIcon, { backgroundColor: getFileIconColor(item.file.type) }]}
+                >
+                  <Ionicons name={getFileIcon(item.file.type) as any} size={24} color="#fff" />
                 </View>
                 <View style={styles.fileInfo}>
-                  <Text style={[styles.fileName, { 
-                    color: isCurrentUser ? '#fff' : Colors[colorScheme].text 
-                  }]}>
+                  <Text
+                    style={[
+                      styles.fileName,
+                      {
+                        color: isCurrentUser ? '#fff' : Colors[colorScheme].text,
+                      },
+                    ]}
+                  >
                     {item.file.name}
                   </Text>
-                  <Text style={[styles.fileDetails, { 
-                    color: isCurrentUser ? 'rgba(255,255,255,0.8)' : Colors[colorScheme].mutedText 
-                  }]}>
+                  <Text
+                    style={[
+                      styles.fileDetails,
+                      {
+                        color: isCurrentUser
+                          ? 'rgba(255,255,255,0.8)'
+                          : Colors[colorScheme].mutedText,
+                      },
+                    ]}
+                  >
                     {item.file.size}
                   </Text>
                 </View>
-                <Ionicons 
-                  name="download-outline" 
-                  size={20} 
-                  color={isCurrentUser ? 'rgba(255,255,255,0.8)' : Colors[colorScheme].mutedText} 
+                <Ionicons
+                  name="download-outline"
+                  size={20}
+                  color={isCurrentUser ? 'rgba(255,255,255,0.8)' : Colors[colorScheme].mutedText}
                 />
               </Pressable>
             )}
-            
+
             {item.content ? (
-              <Text style={[
-                styles.messageText,
-                { color: isCurrentUser ? '#fff' : Colors[colorScheme].text },
-                isAnnouncement && { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
-                item.image && styles.messageTextWithImage,
-              ]}>
+              <Text
+                style={[
+                  styles.messageText,
+                  { color: isCurrentUser ? '#fff' : Colors[colorScheme].text },
+                  isAnnouncement && { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
+                  item.image && styles.messageTextWithImage,
+                ]}
+              >
                 {item.content}
               </Text>
             ) : null}
-            
+
             {/* Message Status - only show for current user's messages */}
             {isCurrentUser && item.status && (
               <View style={styles.messageStatus}>
-                <Text style={[styles.statusTime, { color: isCurrentUser ? 'rgba(255,255,255,0.7)' : Colors[colorScheme].mutedText }]}>
+                <Text
+                  style={[
+                    styles.statusTime,
+                    {
+                      color: isCurrentUser
+                        ? 'rgba(255,255,255,0.7)'
+                        : Colors[colorScheme].mutedText,
+                    },
+                  ]}
+                >
                   {formatTime(item.timestamp)}
                 </Text>
                 <View style={styles.statusIcons}>
                   {item.status === 'sending' && (
-                    <Ionicons name="time-outline" size={12} color={isCurrentUser ? 'rgba(255,255,255,0.7)' : Colors[colorScheme].mutedText} />
+                    <Ionicons
+                      name="time-outline"
+                      size={12}
+                      color={
+                        isCurrentUser ? 'rgba(255,255,255,0.7)' : Colors[colorScheme].mutedText
+                      }
+                    />
                   )}
                   {item.status === 'sent' && (
-                    <Ionicons name="checkmark" size={12} color={isCurrentUser ? 'rgba(255,255,255,0.7)' : Colors[colorScheme].mutedText} />
+                    <Ionicons
+                      name="checkmark"
+                      size={12}
+                      color={
+                        isCurrentUser ? 'rgba(255,255,255,0.7)' : Colors[colorScheme].mutedText
+                      }
+                    />
                   )}
                   {item.status === 'delivered' && (
                     <View style={styles.doubleCheck}>
-                      <Ionicons name="checkmark" size={12} color={isCurrentUser ? 'rgba(255,255,255,0.7)' : Colors[colorScheme].mutedText} style={styles.checkmark1} />
-                      <Ionicons name="checkmark" size={12} color={isCurrentUser ? 'rgba(255,255,255,0.7)' : Colors[colorScheme].mutedText} style={styles.checkmark2} />
+                      <Ionicons
+                        name="checkmark"
+                        size={12}
+                        color={
+                          isCurrentUser ? 'rgba(255,255,255,0.7)' : Colors[colorScheme].mutedText
+                        }
+                        style={styles.checkmark1}
+                      />
+                      <Ionicons
+                        name="checkmark"
+                        size={12}
+                        color={
+                          isCurrentUser ? 'rgba(255,255,255,0.7)' : Colors[colorScheme].mutedText
+                        }
+                        style={styles.checkmark2}
+                      />
                     </View>
                   )}
                   {item.status === 'read' && (
                     <View style={styles.doubleCheck}>
-                      <Ionicons name="checkmark" size={12} color="#00BFA5" style={styles.checkmark1} />
-                      <Ionicons name="checkmark" size={12} color="#00BFA5" style={styles.checkmark2} />
+                      <Ionicons
+                        name="checkmark"
+                        size={12}
+                        color="#00BFA5"
+                        style={styles.checkmark1}
+                      />
+                      <Ionicons
+                        name="checkmark"
+                        size={12}
+                        color="#00BFA5"
+                        style={styles.checkmark2}
+                      />
                     </View>
                   )}
                 </View>
               </View>
             )}
           </Pressable>
-          
+
           {item.reactions && item.reactions.length > 0 && (
             <View style={styles.reactionsContainer}>
               {item.reactions.map((reaction, idx) => {
                 const hasUserReacted = reaction.users.includes('current_user');
                 return (
-                  <Pressable 
-                    key={idx} 
+                  <Pressable
+                    key={idx}
                     style={[
-                      styles.reaction, 
-                      { 
-                        backgroundColor: hasUserReacted ? Colors[colorScheme].tint + '20' : Colors[colorScheme].surface,
+                      styles.reaction,
+                      {
+                        backgroundColor: hasUserReacted
+                          ? Colors[colorScheme].tint + '20'
+                          : Colors[colorScheme].surface,
                         borderColor: hasUserReacted ? Colors[colorScheme].tint : 'transparent',
                         borderWidth: hasUserReacted ? 1 : 0,
-                      }
+                      },
                     ]}
                     onPress={() => addReaction(item.id, reaction.emoji)}
                   >
@@ -1418,7 +1620,7 @@ export default function TeamChatScreen() {
                   </Pressable>
                 );
               })}
-              <Pressable 
+              <Pressable
                 style={[styles.reaction, { backgroundColor: Colors[colorScheme].surface }]}
                 onPress={() => setShowEmojiPicker(item.id)}
               >
@@ -1429,24 +1631,32 @@ export default function TeamChatScreen() {
 
           {/* Quick Action Buttons */}
           <View style={[styles.quickActions, isCurrentUser && styles.quickActionsRight]}>
-            <Pressable 
+            <Pressable
               style={[styles.quickActionButton, { backgroundColor: Colors[colorScheme].surface }]}
               onPress={() => replyToMessage(item)}
             >
               <Ionicons name="arrow-undo-outline" size={14} color={Colors[colorScheme].text} />
             </Pressable>
-            <Pressable 
+            <Pressable
               style={[styles.quickActionButton, { backgroundColor: Colors[colorScheme].surface }]}
               onPress={() => setShowEmojiPicker(item.id)}
             >
               <Ionicons name="happy-outline" size={14} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
-          
+
           {/* Emoji Picker */}
           {showEmojiPicker === item.id && (
-            <View style={[styles.emojiPicker, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              {availableEmojis.map((emoji) => (
+            <View
+              style={[
+                styles.emojiPicker,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              {availableEmojis.map(emoji => (
                 <Pressable
                   key={emoji}
                   style={styles.emojiOption}
@@ -1464,7 +1674,10 @@ export default function TeamChatScreen() {
 
   const renderMember = ({ item }: { item: TeamMember }) => (
     <Pressable
-      style={[styles.memberCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+      style={[
+        styles.memberCard,
+        { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border },
+      ]}
       onPress={() => {
         if (item.user?.id) {
           void router.push(`/user-profile?id=${encodeURIComponent(item.user.id)}`);
@@ -1479,10 +1692,12 @@ export default function TeamChatScreen() {
           <Text style={styles.memberInitials}>
             {(item.user?.display_name || 'M').charAt(0).toUpperCase()}
           </Text>
-          <View style={[
-            styles.statusIndicator,
-            { backgroundColor: item.status === 'online' ? '#10B981' : '#6B7280' }
-          ]} />
+          <View
+            style={[
+              styles.statusIndicator,
+              { backgroundColor: item.status === 'online' ? '#10B981' : '#6B7280' },
+            ]}
+          />
         </View>
         <View style={styles.memberDetails}>
           <Text style={[styles.memberName, { color: Colors[colorScheme].text }]}>
@@ -1524,14 +1739,32 @@ export default function TeamChatScreen() {
 
   if (coachLoading) {
     return (
-      <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
-            </Pressable>
-          ) }} />
+      <SafeAreaView
+        style={[
+          styles.container,
+          styles.centerContent,
+          { backgroundColor: Colors[colorScheme].background },
+        ]}
+        edges={['top', 'bottom']}
+      >
+        <Stack.Screen
+          options={{
+            title: 'Team Chat',
+            headerShown: true,
+            headerLeft: () => (
+              <Pressable
+                onPress={() => safeGoBack(router, explicitFallback)}
+                style={{ paddingRight: 8 }}
+              >
+                <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
+              </Pressable>
+            ),
+          }}
+        />
         <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-        <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>Loading team chat...</Text>
+        <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
+          Loading team chat...
+        </Text>
       </SafeAreaView>
     );
   }
@@ -1548,31 +1781,101 @@ export default function TeamChatScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
-            </Pressable>
-          ) }} />
+      <SafeAreaView
+        style={[
+          styles.container,
+          styles.centerContent,
+          { backgroundColor: Colors[colorScheme].background },
+        ]}
+        edges={['top', 'bottom']}
+      >
+        <Stack.Screen
+          options={{
+            title: 'Team Chat',
+            headerShown: true,
+            headerLeft: () => (
+              <Pressable
+                onPress={() => safeGoBack(router, explicitFallback)}
+                style={{ paddingRight: 8 }}
+              >
+                <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
+              </Pressable>
+            ),
+          }}
+        />
         <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-        <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>Loading team chat...</Text>
+        <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
+          Loading team chat...
+        </Text>
       </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
-            </Pressable>
-          ) }} />
+      <SafeAreaView
+        style={[
+          styles.container,
+          styles.centerContent,
+          { backgroundColor: Colors[colorScheme].background },
+        ]}
+        edges={['top', 'bottom']}
+      >
+        <Stack.Screen
+          options={{
+            title: 'Team Chat',
+            headerShown: true,
+            headerLeft: () => (
+              <Pressable
+                onPress={() => safeGoBack(router, explicitFallback)}
+                style={{ paddingRight: 8 }}
+              >
+                <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
+              </Pressable>
+            ),
+          }}
+        />
         <Ionicons name="cloud-offline-outline" size={48} color={Colors[colorScheme].mutedText} />
         <Text style={[styles.errorText, { color: '#EF4444' }]}>{error}</Text>
         <Pressable
-          style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: Colors[colorScheme].tint, borderRadius: 10 }}
-          onPress={() => { setError(null); setLoading(true); void (async () => { try { const membersData = await TeamApi.members(String(id)); const formattedMembers: TeamMember[] = Array.isArray(membersData) ? membersData.map((m: any) => ({ id: String(m.id), user: m.user ? { id: String(m.user.id), display_name: m.user.display_name || m.user.name, email: m.user.email, avatar_url: m.user.avatar_url } : undefined, role: m.role || 'player', status: 'offline' as const, })) : []; setMembers(formattedMembers); const savedMessages = await loadMessages(); setMessages(savedMessages.length > 0 ? savedMessages : welcomeMessages); } catch { setError('Failed to load team chat'); } finally { setLoading(false); } })(); }}
+          style={{
+            marginTop: 16,
+            paddingHorizontal: 24,
+            paddingVertical: 10,
+            backgroundColor: Colors[colorScheme].tint,
+            borderRadius: 10,
+          }}
+          onPress={() => {
+            setError(null);
+            setLoading(true);
+            void (async () => {
+              try {
+                const membersData = await TeamApi.members(String(id));
+                const formattedMembers: TeamMember[] = Array.isArray(membersData)
+                  ? membersData.map((m: any) => ({
+                      id: String(m.id),
+                      user: m.user
+                        ? {
+                            id: String(m.user.id),
+                            display_name: m.user.display_name || m.user.name,
+                            email: m.user.email,
+                            avatar_url: m.user.avatar_url,
+                          }
+                        : undefined,
+                      role: m.role || 'player',
+                      status: 'offline' as const,
+                    }))
+                  : [];
+                setMembers(formattedMembers);
+                const savedMessages = await loadMessages();
+                setMessages(savedMessages.length > 0 ? savedMessages : welcomeMessages);
+              } catch {
+                setError('Failed to load team chat');
+              } finally {
+                setLoading(false);
+              }
+            })();
+          }}
         >
           <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
         </Pressable>
@@ -1593,12 +1896,22 @@ export default function TeamChatScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
+            <Pressable
+              onPress={() => safeGoBack(router, explicitFallback)}
+              style={{ paddingRight: 8 }}
+            >
               <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
           headerRight: () => (
-            <Pressable onPress={() => showModal('Chat Settings', 'Chat settings are managed in the VarsityHub web dashboard.')}>
+            <Pressable
+              onPress={() =>
+                showModal(
+                  'Chat Settings',
+                  'Chat settings are managed in the VarsityHub web dashboard.'
+                )
+              }
+            >
               <Ionicons name="settings-outline" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           ),
@@ -1607,19 +1920,21 @@ export default function TeamChatScreen() {
 
       {/* Tab Navigation */}
       <View style={styles.tabContainer}>
-        {(['chat', 'members', 'files'] as const).map((tab) => (
+        {(['chat', 'members', 'files'] as const).map(tab => (
           <Pressable
             key={tab}
             style={[
               styles.tab,
-              { backgroundColor: selectedTab === tab ? Colors[colorScheme].tint : 'transparent' }
+              { backgroundColor: selectedTab === tab ? Colors[colorScheme].tint : 'transparent' },
             ]}
             onPress={() => setSelectedTab(tab)}
           >
-            <Text style={[
-              styles.tabText,
-              { color: selectedTab === tab ? '#fff' : Colors[colorScheme].text }
-            ]}>
+            <Text
+              style={[
+                styles.tabText,
+                { color: selectedTab === tab ? '#fff' : Colors[colorScheme].text },
+              ]}
+            >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </Text>
           </Pressable>
@@ -1632,7 +1947,7 @@ export default function TeamChatScreen() {
             <FlatList
               ref={flatListRef}
               data={messages}
-              keyExtractor={(item) => item.id}
+              keyExtractor={item => item.id}
               renderItem={renderMessage}
               style={styles.messagesList}
               contentContainerStyle={styles.messagesContent}
@@ -1640,79 +1955,112 @@ export default function TeamChatScreen() {
               onScrollBeginDrag={Keyboard.dismiss}
               ListEmptyComponent={
                 <View style={{ alignItems: 'center', paddingTop: 48 }}>
-                  <Ionicons name="chatbubbles-outline" size={40} color={Colors[colorScheme].mutedText} />
-                  <Text style={{ color: Colors[colorScheme].mutedText, marginTop: 12, fontSize: 15 }}>No messages yet</Text>
-                  <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13, marginTop: 4 }}>Start the conversation below</Text>
+                  <Ionicons
+                    name="chatbubbles-outline"
+                    size={40}
+                    color={Colors[colorScheme].mutedText}
+                  />
+                  <Text
+                    style={{ color: Colors[colorScheme].mutedText, marginTop: 12, fontSize: 15 }}
+                  >
+                    No messages yet
+                  </Text>
+                  <Text
+                    style={{ color: Colors[colorScheme].mutedText, fontSize: 13, marginTop: 4 }}
+                  >
+                    Start the conversation below
+                  </Text>
                 </View>
               }
             />
           </Pressable>
-          
+
           {/* Typing Indicator */}
           {typingUsers.length > 0 && (
-            <View style={[styles.typingIndicator, { backgroundColor: Colors[colorScheme].surface }]}>
+            <View
+              style={[styles.typingIndicator, { backgroundColor: Colors[colorScheme].surface }]}
+            >
               <View style={styles.typingDots}>
-                <Animated.View style={[
-                  styles.typingDot, 
-                  { 
-                    backgroundColor: Colors[colorScheme].mutedText,
-                    opacity: dot1Anim,
-                    transform: [{ scale: dot1Anim }]
-                  }
-                ]} />
-                <Animated.View style={[
-                  styles.typingDot, 
-                  { 
-                    backgroundColor: Colors[colorScheme].mutedText,
-                    opacity: dot2Anim,
-                    transform: [{ scale: dot2Anim }]
-                  }
-                ]} />
-                <Animated.View style={[
-                  styles.typingDot, 
-                  { 
-                    backgroundColor: Colors[colorScheme].mutedText,
-                    opacity: dot3Anim,
-                    transform: [{ scale: dot3Anim }]
-                  }
-                ]} />
+                <Animated.View
+                  style={[
+                    styles.typingDot,
+                    {
+                      backgroundColor: Colors[colorScheme].mutedText,
+                      opacity: dot1Anim,
+                      transform: [{ scale: dot1Anim }],
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.typingDot,
+                    {
+                      backgroundColor: Colors[colorScheme].mutedText,
+                      opacity: dot2Anim,
+                      transform: [{ scale: dot2Anim }],
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.typingDot,
+                    {
+                      backgroundColor: Colors[colorScheme].mutedText,
+                      opacity: dot3Anim,
+                      transform: [{ scale: dot3Anim }],
+                    },
+                  ]}
+                />
               </View>
               <Text style={[styles.typingText, { color: Colors[colorScheme].mutedText }]}>
-                {typingUsers.length === 1 
+                {typingUsers.length === 1
                   ? `${typingUsers[0]} is typing...`
-                  : `${typingUsers.length} people are typing...`
-                }
+                  : `${typingUsers.length} people are typing...`}
               </Text>
             </View>
           )}
-          
+
           {/* Recording Indicator */}
           {isRecording && (
             <View style={[styles.recordingIndicator, { backgroundColor: '#EF4444' }]}>
               <View style={styles.recordingDot} />
               <Text style={styles.recordingText}>Recording voice message...</Text>
               <Text style={styles.recordingTime}>
-                {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                {Math.floor(recordingDuration / 60)}:
+                {(recordingDuration % 60).toString().padStart(2, '0')}
               </Text>
             </View>
           )}
-          
+
           {/* Message Input */}
-          <View style={[
-            styles.inputContainer, 
-            { 
-              backgroundColor: Colors[colorScheme].surface, 
-              borderColor: Colors[colorScheme].border,
-              borderTopWidth: replyingTo ? 0 : 1,
-            }
-          ]}>
+          <View
+            style={[
+              styles.inputContainer,
+              {
+                backgroundColor: Colors[colorScheme].surface,
+                borderColor: Colors[colorScheme].border,
+                borderTopWidth: replyingTo ? 0 : 1,
+              },
+            ]}
+          >
             {replyingTo && (
-              <View style={[styles.replyingToContainer, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
+              <View
+                style={[
+                  styles.replyingToContainer,
+                  {
+                    backgroundColor: Colors[colorScheme].background,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+              >
                 <View style={styles.replyingToContent}>
                   <Text style={[styles.replyingToLabel, { color: Colors[colorScheme].tint }]}>
                     Replying to {replyingTo.author.display_name}
                   </Text>
-                  <Text style={[styles.replyingToText, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
+                  <Text
+                    style={[styles.replyingToText, { color: Colors[colorScheme].mutedText }]}
+                    numberOfLines={2}
+                  >
                     {replyingTo.content}
                   </Text>
                 </View>
@@ -1721,22 +2069,31 @@ export default function TeamChatScreen() {
                 </Pressable>
               </View>
             )}
-            
+
             <View style={styles.inputRow}>
-              <View style={[styles.textInputContainer, { backgroundColor: Colors[colorScheme].background }]}>
-                <Pressable 
-                  style={styles.inputIconButton} 
+              <View
+                style={[
+                  styles.textInputContainer,
+                  { backgroundColor: Colors[colorScheme].background },
+                ]}
+              >
+                <Pressable
+                  style={styles.inputIconButton}
                   onPress={() => setShowAttachmentMenu(true)}
                 >
                   <Ionicons name="attach" size={20} color={Colors[colorScheme].mutedText} />
                 </Pressable>
-                
+
                 <TextInput
                   ref={textInputRef}
                   style={[styles.messageInput, { color: Colors[colorScheme].text }]}
                   value={newMessage}
                   onChangeText={handleTextChange}
-                  placeholder={replyingTo ? `Reply to ${replyingTo.author.display_name}...` : "Type a message..."}
+                  placeholder={
+                    replyingTo
+                      ? `Reply to ${replyingTo.author.display_name}...`
+                      : 'Type a message...'
+                  }
                   placeholderTextColor={Colors[colorScheme].mutedText}
                   multiline
                   maxLength={500}
@@ -1744,40 +2101,32 @@ export default function TeamChatScreen() {
                   returnKeyType="send"
                   onSubmitEditing={sendMessage}
                 />
-                
-                <Pressable 
-                  style={styles.inputIconButton}
-                  onPress={showImageOptions}
-                >
+
+                <Pressable style={styles.inputIconButton} onPress={showImageOptions}>
                   <Ionicons name="camera" size={20} color={Colors[colorScheme].mutedText} />
                 </Pressable>
               </View>
-              
+
               {newMessage.trim() ? (
-                <Pressable 
+                <Pressable
                   style={[styles.sendButton, { backgroundColor: Colors[colorScheme].tint }]}
                   onPress={sendMessage}
                   disabled={sending}
                 >
-                  <Ionicons 
-                    name={sending ? "hourglass" : "send"}
-                    size={18} 
-                    color="#fff"
-                  />
+                  <Ionicons name={sending ? 'hourglass' : 'send'} size={18} color="#fff" />
                 </Pressable>
               ) : (
-                <Pressable 
-                  style={[styles.micButton, { 
-                    backgroundColor: isRecording ? '#EF4444' : Colors[colorScheme].tint 
-                  }]}
+                <Pressable
+                  style={[
+                    styles.micButton,
+                    {
+                      backgroundColor: isRecording ? '#EF4444' : Colors[colorScheme].tint,
+                    },
+                  ]}
                   onPress={isRecording ? stopRecording : startRecording}
                   onLongPress={!isRecording ? startRecording : undefined}
                 >
-                  <Ionicons 
-                    name={isRecording ? "stop" : "mic"} 
-                    size={18} 
-                    color="#fff" 
-                  />
+                  <Ionicons name={isRecording ? 'stop' : 'mic'} size={18} color="#fff" />
                 </Pressable>
               )}
             </View>
@@ -1788,7 +2137,7 @@ export default function TeamChatScreen() {
       {selectedTab === 'members' && (
         <FlatList
           data={members}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           renderItem={renderMember}
           style={styles.membersList}
           contentContainerStyle={styles.membersContent}
@@ -1796,7 +2145,9 @@ export default function TeamChatScreen() {
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingTop: 48 }}>
               <Ionicons name="people-outline" size={40} color={Colors[colorScheme].mutedText} />
-              <Text style={{ color: Colors[colorScheme].mutedText, marginTop: 12, fontSize: 15 }}>No members yet</Text>
+              <Text style={{ color: Colors[colorScheme].mutedText, marginTop: 12, fontSize: 15 }}>
+                No members yet
+              </Text>
             </View>
           }
         />
@@ -1805,7 +2156,7 @@ export default function TeamChatScreen() {
       {selectedTab === 'files' && (
         <View style={styles.filesList}>
           {/* Upload Button */}
-          <Pressable 
+          <Pressable
             style={[styles.uploadButton, { borderColor: Colors[colorScheme].border }]}
             onPress={uploadFile}
           >
@@ -1818,17 +2169,27 @@ export default function TeamChatScreen() {
           {files.length > 0 ? (
             <FlatList
               data={files}
-              keyExtractor={(item) => item.id}
+              keyExtractor={item => item.id}
               renderItem={({ item }) => (
-                <Pressable 
-                  style={[styles.fileItem, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-                  onPress={() => void handleFilePress({ uri: item.url, name: item.name, type: item.type })}
+                <Pressable
+                  style={[
+                    styles.fileItem,
+                    {
+                      backgroundColor: Colors[colorScheme].surface,
+                      borderColor: Colors[colorScheme].border,
+                    },
+                  ]}
+                  onPress={() =>
+                    void handleFilePress({ uri: item.url, name: item.name, type: item.type })
+                  }
                 >
-                  <View style={[styles.fileIcon, { backgroundColor: getFileColor(item.type) + '20' }]}>
-                    <Ionicons 
-                      name={getFileIcon(item.type) as any} 
-                      size={24} 
-                      color={getFileColor(item.type)} 
+                  <View
+                    style={[styles.fileIcon, { backgroundColor: getFileColor(item.type) + '20' }]}
+                  >
+                    <Ionicons
+                      name={getFileIcon(item.type) as any}
+                      size={24}
+                      color={getFileColor(item.type)}
                     />
                   </View>
                   <View style={styles.fileInfo}>
@@ -1842,9 +2203,11 @@ export default function TeamChatScreen() {
                       {formatTime(item.uploadedAt)}
                     </Text>
                   </View>
-                  <Pressable 
+                  <Pressable
                     style={styles.fileDownloadButton}
-                    onPress={() => void handleFilePress({ uri: item.url, name: item.name, type: item.type })}
+                    onPress={() =>
+                      void handleFilePress({ uri: item.url, name: item.name, type: item.type })
+                    }
                   >
                     <Ionicons name="download-outline" size={20} color={Colors[colorScheme].tint} />
                   </Pressable>
@@ -1865,7 +2228,7 @@ export default function TeamChatScreen() {
           )}
         </View>
       )}
-      
+
       {/* Full Screen Image Viewer */}
       <Modal
         visible={imageViewerVisible}
@@ -1875,7 +2238,7 @@ export default function TeamChatScreen() {
       >
         <View style={styles.imageViewerContainer}>
           <Pressable style={styles.imageViewerOverlay} onPress={closeImageViewer} />
-          
+
           <View style={styles.imageViewerContent}>
             {selectedImage && (
               <Image
@@ -1884,7 +2247,7 @@ export default function TeamChatScreen() {
                 resizeMode="contain"
               />
             )}
-            
+
             <View style={styles.imageViewerActions}>
               <Pressable
                 style={[styles.imageActionButton, { backgroundColor: Colors[colorScheme].surface }]}
@@ -1892,7 +2255,7 @@ export default function TeamChatScreen() {
               >
                 <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
               </Pressable>
-              
+
               <Pressable
                 style={[styles.imageActionButton, { backgroundColor: Colors[colorScheme].surface }]}
                 onPress={() => {
@@ -1913,28 +2276,63 @@ export default function TeamChatScreen() {
         visible={!!videoToTrim}
         transparent
         animationType="slide"
-        onRequestClose={() => { setVideoToTrim(null); setVideoTrimmedUri(null); }}
+        onRequestClose={() => {
+          setVideoToTrim(null);
+          setVideoTrimmedUri(null);
+        }}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', padding: 16 }}>
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.9)',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
           {videoToTrim && (
             <>
-              <VideoPlayer uri={videoTrimmedUri ?? videoToTrim.uri} style={{ width: '100%', aspectRatio: 16 / 9, borderRadius: 12, alignSelf: 'center', maxHeight: 300 }} />
+              <VideoPlayer
+                uri={videoTrimmedUri ?? videoToTrim.uri}
+                style={{
+                  width: '100%',
+                  aspectRatio: 16 / 9,
+                  borderRadius: 12,
+                  alignSelf: 'center',
+                  maxHeight: 300,
+                }}
+              />
               <VideoTrimmer
                 uri={videoToTrim.uri}
-                onTrimComplete={(u) => setVideoTrimmedUri(u)}
+                onTrimComplete={u => setVideoTrimmedUri(u)}
                 onTrimReset={() => setVideoTrimmedUri(null)}
               />
-              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 12 }}>
+              <View
+                style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 12 }}
+              >
                 <Pressable
-                  onPress={() => { setVideoToTrim(null); setVideoTrimmedUri(null); }}
-                  style={{ backgroundColor: '#333', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+                  onPress={() => {
+                    setVideoToTrim(null);
+                    setVideoTrimmedUri(null);
+                  }}
+                  style={{
+                    backgroundColor: '#333',
+                    paddingHorizontal: 24,
+                    paddingVertical: 12,
+                    borderRadius: 8,
+                  }}
                 >
                   <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
                 </Pressable>
                 <Pressable
                   onPress={confirmVideoSend}
                   disabled={isUploadingFile}
-                  style={{ backgroundColor: '#4A90D9', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, opacity: isUploadingFile ? 0.6 : 1 }}
+                  style={{
+                    backgroundColor: '#4A90D9',
+                    paddingHorizontal: 24,
+                    paddingVertical: 12,
+                    borderRadius: 8,
+                    opacity: isUploadingFile ? 0.6 : 1,
+                  }}
                 >
                   {isUploadingFile ? (
                     <ActivityIndicator size="small" color="#fff" />
@@ -1955,10 +2353,7 @@ export default function TeamChatScreen() {
         animationType="fade"
         onRequestClose={() => setShowAttachmentMenu(false)}
       >
-        <Pressable 
-          style={styles.modalOverlay} 
-          onPress={() => setShowAttachmentMenu(false)}
-        >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowAttachmentMenu(false)}>
           <View style={[styles.customMenu, { backgroundColor: Colors[colorScheme].surface }]}>
             <View style={styles.menuHeader}>
               <Text style={[styles.menuTitle, { color: Colors[colorScheme].text }]}>
@@ -1968,15 +2363,15 @@ export default function TeamChatScreen() {
                 Choose what to attach
               </Text>
             </View>
-            
+
             <View style={styles.menuOptions}>
-              <Pressable 
+              <Pressable
                 style={[
-                  styles.menuOption, 
-                  { 
+                  styles.menuOption,
+                  {
                     backgroundColor: Colors[colorScheme].background,
-                    opacity: isUploadingFile ? 0.6 : 1
-                  }
+                    opacity: isUploadingFile ? 0.6 : 1,
+                  },
                 ]}
                 onPress={() => {
                   if (!isUploadingFile) {
@@ -1997,19 +2392,21 @@ export default function TeamChatScreen() {
                   <Text style={[styles.menuOptionTitle, { color: Colors[colorScheme].text }]}>
                     Photo & Video
                   </Text>
-                  <Text style={[styles.menuOptionSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  <Text
+                    style={[styles.menuOptionSubtitle, { color: Colors[colorScheme].mutedText }]}
+                  >
                     {isUploadingFile ? 'Processing...' : 'Share photos and videos'}
                   </Text>
                 </View>
               </Pressable>
-              
-              <Pressable 
+
+              <Pressable
                 style={[
-                  styles.menuOption, 
-                  { 
+                  styles.menuOption,
+                  {
                     backgroundColor: Colors[colorScheme].background,
-                    opacity: isUploadingFile ? 0.6 : 1
-                  }
+                    opacity: isUploadingFile ? 0.6 : 1,
+                  },
                 ]}
                 onPress={() => {
                   if (!isUploadingFile) {
@@ -2030,14 +2427,16 @@ export default function TeamChatScreen() {
                   <Text style={[styles.menuOptionTitle, { color: Colors[colorScheme].text }]}>
                     Document
                   </Text>
-                  <Text style={[styles.menuOptionSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  <Text
+                    style={[styles.menuOptionSubtitle, { color: Colors[colorScheme].mutedText }]}
+                  >
                     {isUploadingFile ? 'Processing...' : 'Share files and documents'}
                   </Text>
                 </View>
               </Pressable>
             </View>
-            
-            <Pressable 
+
+            <Pressable
               style={[styles.menuCancelButton, { backgroundColor: Colors[colorScheme].border }]}
               onPress={() => setShowAttachmentMenu(false)}
             >
@@ -2056,22 +2455,17 @@ export default function TeamChatScreen() {
         animationType="fade"
         onRequestClose={() => setShowImageOptionsMenu(false)}
       >
-        <Pressable 
-          style={styles.modalOverlay} 
-          onPress={() => setShowImageOptionsMenu(false)}
-        >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowImageOptionsMenu(false)}>
           <View style={[styles.customMenu, { backgroundColor: Colors[colorScheme].surface }]}>
             <View style={styles.menuHeader}>
-              <Text style={[styles.menuTitle, { color: Colors[colorScheme].text }]}>
-                Add Image
-              </Text>
+              <Text style={[styles.menuTitle, { color: Colors[colorScheme].text }]}>Add Image</Text>
               <Text style={[styles.menuSubtitle, { color: Colors[colorScheme].mutedText }]}>
                 Choose how to add your image
               </Text>
             </View>
-            
+
             <View style={styles.menuOptions}>
-              <Pressable 
+              <Pressable
                 style={[styles.menuOption, { backgroundColor: Colors[colorScheme].background }]}
                 onPress={() => {
                   setShowImageOptionsMenu(false);
@@ -2085,13 +2479,15 @@ export default function TeamChatScreen() {
                   <Text style={[styles.menuOptionTitle, { color: Colors[colorScheme].text }]}>
                     Camera
                   </Text>
-                  <Text style={[styles.menuOptionSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  <Text
+                    style={[styles.menuOptionSubtitle, { color: Colors[colorScheme].mutedText }]}
+                  >
                     Take a new photo
                   </Text>
                 </View>
               </Pressable>
-              
-              <Pressable 
+
+              <Pressable
                 style={[styles.menuOption, { backgroundColor: Colors[colorScheme].background }]}
                 onPress={() => {
                   setShowImageOptionsMenu(false);
@@ -2105,14 +2501,16 @@ export default function TeamChatScreen() {
                   <Text style={[styles.menuOptionTitle, { color: Colors[colorScheme].text }]}>
                     Photo Library
                   </Text>
-                  <Text style={[styles.menuOptionSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  <Text
+                    style={[styles.menuOptionSubtitle, { color: Colors[colorScheme].mutedText }]}
+                  >
                     Choose from gallery
                   </Text>
                 </View>
               </Pressable>
             </View>
-            
-            <Pressable 
+
+            <Pressable
               style={[styles.menuCancelButton, { backgroundColor: Colors[colorScheme].border }]}
               onPress={() => setShowImageOptionsMenu(false)}
             >
@@ -2126,7 +2524,7 @@ export default function TeamChatScreen() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <Animated.View 
+        <Animated.View
           style={[
             styles.toast,
             {
@@ -2143,10 +2541,10 @@ export default function TeamChatScreen() {
             },
           ]}
         >
-          <Ionicons 
-            name={toastType === 'success' ? 'checkmark-circle' : 'alert-circle'} 
-            size={20} 
-            color="#fff" 
+          <Ionicons
+            name={toastType === 'success' ? 'checkmark-circle' : 'alert-circle'}
+            size={20}
+            color="#fff"
           />
           <Text style={styles.toastText}>{toastMessage}</Text>
         </Animated.View>
@@ -2161,7 +2559,6 @@ export default function TeamChatScreen() {
           onClose={() => setModal(null)}
         />
       )}
-      
     </KeyboardAvoidingView>
   );
 }

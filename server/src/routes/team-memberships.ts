@@ -564,6 +564,7 @@ const reviewJoinRequestSchema = z.object({
 teamMembershipsRouter.post(
   '/join-requests/:id/approve',
   requireAuth as any,
+  requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return sendError(res, 401, 'Unauthorized');
     const { id } = req.params;
@@ -639,6 +640,7 @@ teamMembershipsRouter.post(
 teamMembershipsRouter.post(
   '/join-requests/:id/reject',
   requireAuth as any,
+  requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return sendError(res, 401, 'Unauthorized');
     const { id } = req.params;

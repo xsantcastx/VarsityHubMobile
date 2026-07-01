@@ -268,6 +268,32 @@ export function getTeamManagementAccess(
   };
 }
 
+/**
+ * Client mirror of the server's `canAssignTeamRole`
+ * (`server/src/lib/teamAuthorization.ts:124`). Given the acting user's team role
+ * and org-admin status, returns which of `candidateRoles` they may assign:
+ *   - `owner`   → never here (ownership changes go through transfer-ownership)
+ *   - `manager` → only a team owner or an org admin
+ *   - any other → allowed
+ *
+ * The server remains the authority (every role write is 403-guarded); this keeps
+ * the FE picker from offering roles the server will reject, closing the
+ * dead-end where a coach could tap "Manager" and only learn on the 403.
+ */
+export function getAssignableTeamRoles<T extends string>(
+  actor: { teamRole?: string | null; isOrgAdmin?: boolean } | null | undefined,
+  candidateRoles: readonly T[]
+): T[] {
+  const teamRole = String(actor?.teamRole || '').toLowerCase();
+  const canAssignManager = teamRole === 'owner' || actor?.isOrgAdmin === true;
+  return candidateRoles.filter(role => {
+    const normalized = String(role || '').toLowerCase();
+    if (normalized === 'owner') return false;
+    if (normalized === 'manager') return canAssignManager;
+    return true;
+  });
+}
+
 export function isOrganizationOwner(
   user: (CoachUserLike & { id?: string | null }) | null | undefined,
   memberships: OrgMembershipLike[] | null | undefined

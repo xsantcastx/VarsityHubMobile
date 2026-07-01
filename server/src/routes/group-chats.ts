@@ -8,6 +8,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { groupMessageLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 const groupChatsRouter = Router();
@@ -271,6 +272,7 @@ groupChatsRouter.post(
   '/',
   requireAuth as any,
   requireVerified as any,
+  requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -345,6 +347,7 @@ groupChatsRouter.post(
   '/:chatId/members',
   requireAuth as any,
   requireVerified as any,
+  requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const chatId = String(req.params.chatId);
@@ -414,6 +417,7 @@ groupChatsRouter.delete(
   '/:chatId/members/:userId',
   requireAuth as any,
   requireVerified as any,
+  requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const chatId = String(req.params.chatId);

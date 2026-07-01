@@ -36,6 +36,7 @@ describe('API Group chats', () => {
         password_hash: hash,
         display_name: 'GC User A',
         email_verified: true,
+        onboarding_completed: true,
         preferences: { onboarding_completed: true },
       },
     });
@@ -45,6 +46,7 @@ describe('API Group chats', () => {
         password_hash: hash,
         display_name: 'GC User B',
         email_verified: true,
+        onboarding_completed: true,
         preferences: { onboarding_completed: true },
       },
     });
@@ -59,6 +61,10 @@ describe('API Group chats', () => {
         display_name: 'GC Org Manager',
         email_verified: true,
         approval_status: 'APPROVED',
+        role: 'coach',
+        onboarding_completed: true,
+        coach_agreement_accepted_at: new Date(),
+        coach_agreement_version: 1,
         preferences: {
           role: 'coach',
           plan: 'rookie',
@@ -77,6 +83,8 @@ describe('API Group chats', () => {
         display_name: 'GC Roster Member',
         email_verified: true,
         approval_status: 'APPROVED',
+        role: 'fan',
+        onboarding_completed: true,
         preferences: { role: 'fan', onboarding_completed: true },
       },
     });
