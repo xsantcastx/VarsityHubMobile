@@ -5,10 +5,11 @@ import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { handleCoachAccessError } from '@/utils/coachAccess';
+import { getAssignableTeamRoles } from '@/utils/roleChecks';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -371,6 +372,20 @@ function MyTeamScreen() {
 
   const selectedTeam = teams.find(t => t.id === selectedTeamId);
 
+  // Mirror the server's canAssignTeamRole so the pickers only offer roles this
+  // user can actually grant (manager → team owner / org admin only; owner never
+  // here). The actor's team role comes from their own row in the roster. Org
+  // admins who lack a direct team-leadership role are covered by the platform
+  // is_admin flag; any residual case is still enforced server-side (403).
+  const myTeamRole = useMemo(
+    () => members.find(m => user?.id && m.user.id === user.id)?.role ?? null,
+    [members, user?.id]
+  );
+  const roleActor = useMemo(
+    () => ({ teamRole: myTeamRole, isOrgAdmin: (user as any)?.is_admin === true }),
+    [myTeamRole, user]
+  );
+
   const renderMember = ({ item }: { item: TeamMember }) => {
     const badge = getRoleBadgeColor(item.role);
     return (
@@ -647,7 +662,7 @@ function MyTeamScreen() {
             {memberActionLoading ? (
               <ActivityIndicator style={{ marginVertical: 16 }} color={Colors[colorScheme].tint} />
             ) : (
-              ROLE_OPTIONS.map(role => {
+              getAssignableTeamRoles(roleActor, ROLE_OPTIONS).map(role => {
                 const badge = getRoleBadgeColor(role);
                 const isActive = selectedMember?.role === role;
                 return (
@@ -808,9 +823,14 @@ function MyTeamScreen() {
               Role
             </Text>
             <View style={styles.roleGrid}>
-              {(
-                ['player', 'coach', 'assistant_coach', 'parent', 'manager', 'member'] as Role[]
-              ).map(role => {
+              {getAssignableTeamRoles(roleActor, [
+                'player',
+                'coach',
+                'assistant_coach',
+                'parent',
+                'manager',
+                'member',
+              ] as Role[]).map(role => {
                 const badge = getRoleBadgeColor(role);
                 const isActive = inviteRole === role;
                 return (

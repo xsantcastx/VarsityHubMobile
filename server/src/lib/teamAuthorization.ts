@@ -29,6 +29,9 @@ import { prisma } from './prisma.js';
 
 export const TEAM_STAFF_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
 export const ORG_ADMIN_ROLES = ['owner', 'manager'] as const;
+// Deliberately stricter than TEAM_STAFF_ROLES: only team leadership may perform
+// destructive, cascading team actions (archive/delete). See canArchiveTeam.
+export const TEAM_LEADERSHIP_ROLES = ['owner', 'manager'] as const;
 
 /**
  * Can `userId` manage members + settings of `teamId`?
@@ -75,6 +78,36 @@ export async function canManageAnyTeam(
     .filter((id): id is string => Boolean(id));
   if (organizationIds.length === 0) return false;
   return isAdminOfAnyOrg(userId, organizationIds);
+}
+
+/**
+ * Can `userId` archive/delete `teamId`?
+ *
+ * Deliberately STRICTER than canManageTeam: archiving a team cascades
+ * (memberships, invites, follows, chat unlinks), so only team leadership
+ * (owner/manager) OR an org admin of the team's org may do it. Coaches and
+ * assistant_coaches pass canManageTeam but MUST NOT be able to archive teams.
+ * Fails closed on null user; same org-admin fallback as the other helpers.
+ */
+export async function canArchiveTeam(userId: string | null | undefined, teamId: string): Promise<boolean> {
+  if (!userId) return false;
+
+  const membership = await prisma.teamMembership.findFirst({
+    where: {
+      team_id: teamId,
+      user_id: userId,
+      role: { in: [...TEAM_LEADERSHIP_ROLES] },
+      status: 'active',
+    },
+    select: { id: true },
+  });
+  if (membership) return true;
+
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { organization_id: true },
+  });
+  return isOrgAdmin(userId, team?.organization_id ?? null);
 }
 
 /**

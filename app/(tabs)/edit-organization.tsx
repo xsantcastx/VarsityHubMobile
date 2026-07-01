@@ -7,7 +7,19 @@ import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization } from '@/api/entities';
@@ -53,6 +65,13 @@ export default function EditOrganizationScreen() {
   const [uploadingProfile, setUploadingProfile] = useState(false);
   const [uploadingBackground, setUploadingBackground] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  // Transfer ownership state — owner-only, mirrors the team transfer flow.
+  const [isOwner, setIsOwner] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [members, setMembers] = useState<any[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [transferring, setTransferring] = useState(false);
 
   const loadOrg = useCallback(async () => {
     if (!params.id) return;
@@ -67,6 +86,7 @@ export default function EditOrganizationScreen() {
         return;
       }
       setHasPermission(true);
+      setIsOwner(org?.is_owner === true);
 
       setName(org.name || '');
       // Strip auto-generated descriptions — treat them as blank
@@ -87,14 +107,67 @@ export default function EditOrganizationScreen() {
     }
   }, [fallbackRoute, params.id, router]);
 
-  useEffect(() => { void loadOrg(); }, [loadOrg]);
+  useEffect(() => {
+    void loadOrg();
+  }, [loadOrg]);
+
+  const openTransferModal = useCallback(async () => {
+    if (!params.id) return;
+    setShowTransferModal(true);
+    setLoadingMembers(true);
+    try {
+      const list = await Organization.members(params.id);
+      setMembers(Array.isArray(list) ? list : []);
+    } catch {
+      setMembers([]);
+      Alert.alert('Error', 'Failed to load organization members.');
+    } finally {
+      setLoadingMembers(false);
+    }
+  }, [params.id]);
+
+  const handleTransferOwnership = useCallback(
+    (newOwnerId: string, displayName: string) => {
+      if (!params.id || transferring) return;
+      Alert.alert(
+        'Confirm Transfer',
+        `Transfer ownership of this organization to ${displayName}?\n\nThis cannot be undone. You will become a manager.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Transfer',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setTransferring(true);
+                await Organization.transferOwnership(params.id as string, newOwnerId);
+                setShowTransferModal(false);
+                setMemberSearch('');
+                Alert.alert(
+                  'Ownership Transferred',
+                  `${displayName} is now the organization owner.`,
+                  [{ text: 'OK', onPress: () => safeGoBack(router, fallbackRoute) }]
+                );
+              } catch (e: any) {
+                const msg = e?.data?.error || e?.message || 'Failed to transfer ownership';
+                Alert.alert('Unable to transfer ownership', msg);
+              } finally {
+                setTransferring(false);
+              }
+            },
+          },
+        ]
+      );
+    },
+    [fallbackRoute, params.id, router, transferring]
+  );
 
   const pickImage = async (
     aspect: [number, number],
     fileName: string,
     setUrl: (url: string | null) => void,
     setUploading: (v: boolean) => void,
-    label: string,
+    label: string
   ) => {
     try {
       const r = await ImagePicker.launchImageLibraryAsync({
@@ -122,8 +195,22 @@ export default function EditOrganizationScreen() {
   };
 
   const pickLogo = () => pickImage([1, 1], 'org-logo.jpg', setLogoUrl, setUploadingLogo, 'logo');
-  const pickProfile = () => pickImage([1, 1], 'org-profile.jpg', setProfilePictureUrl, setUploadingProfile, 'profile picture');
-  const pickBackground = () => pickImage([16, 9], 'org-background.jpg', setBackgroundUrl, setUploadingBackground, 'background');
+  const pickProfile = () =>
+    pickImage(
+      [1, 1],
+      'org-profile.jpg',
+      setProfilePictureUrl,
+      setUploadingProfile,
+      'profile picture'
+    );
+  const pickBackground = () =>
+    pickImage(
+      [16, 9],
+      'org-background.jpg',
+      setBackgroundUrl,
+      setUploadingBackground,
+      'background'
+    );
 
   const handleSave = async () => {
     if (!hasPermission) {
@@ -177,11 +264,15 @@ export default function EditOrganizationScreen() {
     onRemove: () => void,
     style: any,
     iconSize: number,
-    placeholderText: string,
+    placeholderText: string
   ) => (
     <>
       <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
-      <Pressable style={[style, { borderColor: theme.border, backgroundColor: theme.card }]} onPress={onPick} disabled={uploading}>
+      <Pressable
+        style={[style, { borderColor: theme.border, backgroundColor: theme.card }]}
+        onPress={onPick}
+        disabled={uploading}
+      >
         {uploading ? (
           <ActivityIndicator size="small" color={theme.tint} />
         ) : url ? (
@@ -189,16 +280,24 @@ export default function EditOrganizationScreen() {
         ) : (
           <View style={styles.logoPlaceholder}>
             <Ionicons name="camera-outline" size={iconSize} color={theme.mutedText} />
-            <Text style={[styles.logoPlaceholderText, { color: theme.mutedText }]}>{placeholderText}</Text>
+            <Text style={[styles.logoPlaceholderText, { color: theme.mutedText }]}>
+              {placeholderText}
+            </Text>
           </View>
         )}
       </Pressable>
       {url && (
         <View style={styles.logoActions}>
-          <Pressable onPress={onPick} style={[styles.logoActionBtn, { backgroundColor: theme.tint }]}>
+          <Pressable
+            onPress={onPick}
+            style={[styles.logoActionBtn, { backgroundColor: theme.tint }]}
+          >
             <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Change</Text>
           </Pressable>
-          <Pressable onPress={onRemove} style={[styles.logoActionBtn, { backgroundColor: '#EF4444' }]}>
+          <Pressable
+            onPress={onRemove}
+            style={[styles.logoActionBtn, { backgroundColor: '#EF4444' }]}
+          >
             <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Remove</Text>
           </Pressable>
         </View>
@@ -225,7 +324,13 @@ export default function EditOrganizationScreen() {
         </Pressable>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
+      >
         {/* Background Image */}
         {renderImageUpload(
           'Background Image',
@@ -235,7 +340,7 @@ export default function EditOrganizationScreen() {
           () => setBackgroundUrl(null),
           styles.backgroundSection,
           28,
-          'Tap to add background',
+          'Tap to add background'
         )}
 
         {/* Logo */}
@@ -247,7 +352,7 @@ export default function EditOrganizationScreen() {
           () => setLogoUrl(null),
           styles.logoSection,
           32,
-          'Tap to add logo',
+          'Tap to add logo'
         )}
 
         {/* Profile Picture */}
@@ -259,13 +364,16 @@ export default function EditOrganizationScreen() {
           () => setProfilePictureUrl(null),
           styles.logoSection,
           32,
-          'Tap to add photo',
+          'Tap to add photo'
         )}
 
         {/* Name */}
         <Text style={[styles.label, { color: theme.text }]}>Organization Name *</Text>
         <TextInput
-          style={[styles.input, { color: theme.text, backgroundColor: theme.card, borderColor: theme.border }]}
+          style={[
+            styles.input,
+            { color: theme.text, backgroundColor: theme.card, borderColor: theme.border },
+          ]}
           value={name}
           onChangeText={setName}
           placeholder="Organization name"
@@ -276,7 +384,11 @@ export default function EditOrganizationScreen() {
         {/* Description — leave blank if blank; no auto-generated text */}
         <Text style={[styles.label, { color: theme.text }]}>Description</Text>
         <TextInput
-          style={[styles.input, styles.textArea, { color: theme.text, backgroundColor: theme.card, borderColor: theme.border }]}
+          style={[
+            styles.input,
+            styles.textArea,
+            { color: theme.text, backgroundColor: theme.card, borderColor: theme.border },
+          ]}
           value={description}
           onChangeText={setDescription}
           placeholder=""
@@ -289,7 +401,10 @@ export default function EditOrganizationScreen() {
         {/* Sport */}
         <Text style={[styles.label, { color: theme.text }]}>Sport</Text>
         <TextInput
-          style={[styles.input, { color: theme.text, backgroundColor: theme.card, borderColor: theme.border }]}
+          style={[
+            styles.input,
+            { color: theme.text, backgroundColor: theme.card, borderColor: theme.border },
+          ]}
           value={sport}
           onChangeText={setSport}
           placeholder="e.g., Basketball, Football"
@@ -298,17 +413,24 @@ export default function EditOrganizationScreen() {
 
         {/* Org Type — read-only; cannot be changed after creation */}
         <Text style={[styles.label, { color: theme.text }]}>Type</Text>
-        <View style={[styles.readOnlyField, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View
+          style={[styles.readOnlyField, { backgroundColor: theme.card, borderColor: theme.border }]}
+        >
           <Text style={{ color: theme.mutedText, fontSize: 15 }}>
-            {ORG_TYPES.find((t) => t.value === orgType)?.label || 'Not set'}
+            {ORG_TYPES.find(t => t.value === orgType)?.label || 'Not set'}
           </Text>
-          <Text style={{ color: theme.mutedText, fontSize: 11, marginTop: 2 }}>Cannot be changed after creation</Text>
+          <Text style={{ color: theme.mutedText, fontSize: 11, marginTop: 2 }}>
+            Cannot be changed after creation
+          </Text>
         </View>
 
         {/* Location */}
         <Text style={[styles.label, { color: theme.text }]}>Location</Text>
         <TextInput
-          style={[styles.input, { color: theme.text, backgroundColor: theme.card, borderColor: theme.border }]}
+          style={[
+            styles.input,
+            { color: theme.text, backgroundColor: theme.card, borderColor: theme.border },
+          ]}
           value={location}
           onChangeText={setLocation}
           placeholder="City, State"
@@ -318,7 +440,10 @@ export default function EditOrganizationScreen() {
         {/* ZIP Code */}
         <Text style={[styles.label, { color: theme.text }]}>ZIP Code</Text>
         <TextInput
-          style={[styles.input, { color: theme.text, backgroundColor: theme.card, borderColor: theme.border }]}
+          style={[
+            styles.input,
+            { color: theme.text, backgroundColor: theme.card, borderColor: theme.border },
+          ]}
           value={zipCode}
           onChangeText={setZipCode}
           placeholder="12345"
@@ -326,7 +451,100 @@ export default function EditOrganizationScreen() {
           keyboardType="number-pad"
           maxLength={10}
         />
+
+        {/* Danger Zone — Transfer Ownership (owner only) */}
+        {isOwner && (
+          <View style={styles.dangerZone}>
+            <Text style={[styles.label, { color: '#DC2626' }]}>Danger Zone</Text>
+            <Pressable
+              style={[styles.transferButton, { borderColor: '#DC2626' }]}
+              onPress={openTransferModal}
+            >
+              <Ionicons name="swap-horizontal" size={20} color="#DC2626" />
+              <Text style={styles.transferButtonText}>Transfer Ownership</Text>
+            </Pressable>
+            <Text style={{ color: theme.mutedText, fontSize: 12, marginTop: 6 }}>
+              Transfer organization ownership to another member. You will become a manager.
+            </Text>
+          </View>
+        )}
       </ScrollView>
+
+      {/* Transfer Ownership Modal */}
+      <Modal visible={showTransferModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Transfer Ownership</Text>
+              <Pressable
+                onPress={() => {
+                  setShowTransferModal(false);
+                  setMemberSearch('');
+                }}
+                hitSlop={12}
+              >
+                <Ionicons name="close" size={22} color={theme.text} />
+              </Pressable>
+            </View>
+            <Text style={{ color: theme.mutedText, fontSize: 13, marginBottom: 12 }}>
+              Select a member to become the new owner. You will be demoted to manager.
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                { color: theme.text, backgroundColor: theme.card, borderColor: theme.border },
+              ]}
+              value={memberSearch}
+              onChangeText={setMemberSearch}
+              placeholder="Search members"
+              placeholderTextColor={theme.mutedText}
+            />
+            {loadingMembers ? (
+              <ActivityIndicator style={{ marginVertical: 24 }} color={theme.tint} />
+            ) : (
+              <FlatList
+                style={{ marginTop: 12, maxHeight: 320 }}
+                data={members.filter((m: any) => {
+                  // Exclude the current owner and any existing owners.
+                  if (String(m?.role || '').toLowerCase() === 'owner') return false;
+                  const q = memberSearch.trim().toLowerCase();
+                  if (!q) return true;
+                  const name = String(
+                    m?.user?.display_name || m?.user?.username || ''
+                  ).toLowerCase();
+                  return name.includes(q);
+                })}
+                keyExtractor={(m: any) => String(m?.id || m?.user?.id)}
+                ListEmptyComponent={
+                  <Text style={{ color: theme.mutedText, textAlign: 'center', marginVertical: 16 }}>
+                    No eligible members found.
+                  </Text>
+                }
+                renderItem={({ item }: { item: any }) => {
+                  const uid = item?.user?.id || item?.user_id;
+                  const displayName = item?.user?.display_name || item?.user?.username || 'Member';
+                  return (
+                    <Pressable
+                      style={[styles.memberRow, { borderColor: theme.border }]}
+                      disabled={transferring || !uid}
+                      onPress={() => handleTransferOwnership(String(uid), displayName)}
+                    >
+                      <Text style={{ color: theme.text, fontSize: 15 }}>{displayName}</Text>
+                      <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
+                    </Pressable>
+                  );
+                }}
+              />
+            )}
+            {transferring && (
+              <View style={styles.transferringOverlay}>
+                <ActivityIndicator size="large" color={theme.tint} />
+                <Text style={{ color: theme.text, marginTop: 8 }}>Transferring...</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -334,6 +552,52 @@ export default function EditOrganizationScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  dangerZone: { marginTop: 28 },
+  transferButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  transferButtonText: { color: '#DC2626', fontSize: 15, fontWeight: '700' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 32,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700' },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 8,
+  },
+  transferringOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -47,6 +47,15 @@ describe('Group Chat Permissions', () => {
 
   async function makeUser(prefix: string, prefs: Record<string, unknown> = {}) {
     const hash = await bcrypt.hash(PASSWORD, 10);
+    // Mirror the production dual-write: auth state lives on the top-level columns
+    // (which requireOnboarded reads first) AND in preferences. Fixtures that set
+    // only preferences fail the onboarding/agreement gates once a route runs
+    // requireOnboarded, because the columns default to false/null.
+    const role = typeof prefs.role === 'string' ? prefs.role : 'fan';
+    const agreementAt =
+      typeof prefs.coach_agreement_accepted_at === 'string'
+        ? prefs.coach_agreement_accepted_at
+        : null;
     return prisma.user.create({
       data: {
         email: `${prefix}-${ts}-${Math.random()}@example.com`,
@@ -54,6 +63,11 @@ describe('Group Chat Permissions', () => {
         display_name: prefix,
         email_verified: true,
         approval_status: 'APPROVED',
+        onboarding_completed: true,
+        role,
+        ...(agreementAt
+          ? { coach_agreement_accepted_at: new Date(agreementAt), coach_agreement_version: 1 }
+          : {}),
         date_of_birth: new Date('1990-01-01'),
         preferences: { onboarding_completed: true, ...prefs },
       },
