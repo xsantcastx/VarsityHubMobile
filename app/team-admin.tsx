@@ -6,7 +6,8 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -119,14 +120,7 @@ export default function TeamAdminScreen() {
   const [activeTab, setActiveTab] = useState<TeamAdminTab>(
     isTeamAdminTab(params.tab) ? params.tab : 'overview'
   );
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [team, setTeam] = useState<TeamResponse | null>(null);
-  const [members, setMembers] = useState<TeamMember[]>([]);
-  const [pendingInvites, setPendingInvites] = useState<TeamInvite[]>([]);
-  const [games, setGames] = useState<TeamGame[]>([]);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(routeTeamId);
   const [actingInviteId, setActingInviteId] = useState<string | null>(null);
   const [actingMemberId, setActingMemberId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -140,9 +134,24 @@ export default function TeamAdminScreen() {
     }
   }, [params.tab]);
 
-  const loadTeam = useCallback(async () => {
-    setError(null);
-    try {
+  type TeamAdminQueryData = {
+    selectedTeamId: string;
+    team: TeamResponse | null;
+    members: TeamMember[];
+    pendingInvites: TeamInvite[];
+    games: TeamGame[];
+  };
+
+  const {
+    data,
+    isPending: loading,
+    isError,
+    error: queryError,
+    refetch,
+    isRefetching,
+  } = useQuery({
+    queryKey: ['team-admin', routeTeamId],
+    queryFn: async (): Promise<TeamAdminQueryData> => {
       let nextTeamId = routeTeamId;
       if (!nextTeamId) {
         const managed = await Team.managed();
@@ -152,48 +161,54 @@ export default function TeamAdminScreen() {
       }
 
       if (!nextTeamId) {
-        setError('No managed team found');
-        setTeam(null);
-        setMembers([]);
-        setPendingInvites([]);
-        setGames([]);
-        return;
+        throw new Error('No managed team found');
       }
 
-      setSelectedTeamId(nextTeamId);
       const summary = (await Team.adminSummary(nextTeamId)) as TeamAdminSummary;
 
-      setTeam(summary?.team ?? null);
-      setMembers(Array.isArray(summary?.members) ? (summary.members as TeamMember[]) : []);
-      setPendingInvites(
-        Array.isArray((summary as any)?.pending_invites)
+      return {
+        selectedTeamId: nextTeamId,
+        team: summary?.team ?? null,
+        members: Array.isArray(summary?.members) ? (summary.members as TeamMember[]) : [],
+        pendingInvites: Array.isArray((summary as any)?.pending_invites)
           ? ((summary as any).pending_invites as TeamInvite[])
-          : []
-      );
-      setGames(
-        Array.isArray(summary?.upcoming_games) ? (summary.upcoming_games as TeamGame[]) : []
-      );
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to load team admin';
-      setError(message);
-      setTeam(null);
-      setMembers([]);
-      setPendingInvites([]);
-      setGames([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [routeTeamId]);
+          : [],
+        games: Array.isArray(summary?.upcoming_games) ? (summary.upcoming_games as TeamGame[]) : [],
+      };
+    },
+  });
 
-  useEffect(() => {
-    void loadTeam();
-  }, [loadTeam]);
+  const team = data?.team ?? null;
+  const members = data?.members ?? [];
+  const pendingInvites = data?.pendingInvites ?? [];
+  const games = data?.games ?? [];
+  const selectedTeamId = data?.selectedTeamId ?? routeTeamId;
+  const error = isError
+    ? queryError instanceof Error
+      ? queryError.message
+      : 'Failed to load team admin'
+    : null;
+
+  // Background-only refetch on focus (e.g. after editing the roster on
+  // another screen) — only once data has loaded once, so it never re-shows
+  // the blocking spinner. Mirrors manage-teams.tsx's hasLoadedTeamsRef guard.
+  const hasLoadedTeamRef = useRef(false);
+  hasLoadedTeamRef.current = hasLoadedTeamRef.current || !loading;
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedTeamRef.current) return undefined;
+      void refetch().catch(e => {
+        if (__DEV__) console.warn('[TeamAdmin] focus reload error:', e);
+      });
+      return undefined;
+    }, [refetch])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadTeam();
+    await refetch();
     setRefreshing(false);
-  }, [loadTeam]);
+  }, [refetch]);
 
   const staffMembers = useMemo(
     () =>
@@ -216,7 +231,7 @@ export default function TeamAdminScreen() {
             setActingInviteId(invite.id);
             try {
               await Team.cancelInvite(selectedTeamId, invite.id);
-              await loadTeam();
+              await refetch();
             } catch (err: unknown) {
               const message = err instanceof Error ? err.message : 'Failed to cancel invite';
               Alert.alert('Unable to cancel invite', message);
@@ -227,7 +242,7 @@ export default function TeamAdminScreen() {
         },
       ]);
     },
-    [actingInviteId, loadTeam, selectedTeamId]
+    [actingInviteId, refetch, selectedTeamId]
   );
 
   const handleToggleMemberStatus = useCallback(
@@ -252,7 +267,7 @@ export default function TeamAdminScreen() {
               setActingMemberId(member.id);
               try {
                 await TeamMemberships.update(member.id, { status: nextStatus });
-                await loadTeam();
+                await refetch();
               } catch (err: unknown) {
                 const message =
                   err instanceof Error ? err.message : `Failed to ${label.toLowerCase()} member`;
@@ -265,7 +280,7 @@ export default function TeamAdminScreen() {
         ]
       );
     },
-    [actingMemberId, loadTeam]
+    [actingMemberId, refetch]
   );
 
   const handleSearchUsers = useCallback(
@@ -310,7 +325,7 @@ export default function TeamAdminScreen() {
                 });
                 setSearchQuery('');
                 setSearchResults([]);
-                await loadTeam();
+                await refetch();
               } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : 'Failed to add player';
                 Alert.alert('Unable to add player', message);
@@ -320,7 +335,7 @@ export default function TeamAdminScreen() {
         ]
       );
     },
-    [selectedTeamId, loadTeam]
+    [selectedTeamId, refetch]
   );
 
   if (coachLoading) {
@@ -351,7 +366,9 @@ export default function TeamAdminScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing || isRefetching} onRefresh={onRefresh} />
+        }
       >
         <View style={styles.headerRow}>
           <Pressable onPress={() => safeGoBack(router, fallbackRoute)} hitSlop={12}>
