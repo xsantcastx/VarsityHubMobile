@@ -5,11 +5,11 @@ import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ManagedTeam, useManagedTeamsQuery } from '@/hooks/useManagedTeamsQuery';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
+import { useTeamMembersQuery } from '@/hooks/useTeamMembersQuery';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { getAssignableTeamRoles } from '@/utils/roleChecks';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useQuery } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -67,6 +67,23 @@ type RawTeamMember = {
 type ApiErrorLike = {
   message?: string;
 };
+
+const selectRosterMembers = (list: any[]): TeamMember[] =>
+  (list as RawTeamMember[]).map(m => ({
+    id: String(m.id),
+    role: m.role || 'member',
+    status: m.status || 'active',
+    position: m.position || m.custom_position || undefined,
+    jersey_number: m.jersey_number || undefined,
+    user: {
+      id: String(m.user?.id || ''),
+      email: m.user?.email || '',
+      display_name: m.user?.display_name || m.user?.email || 'Unknown',
+      avatar_url: m.user?.avatar_url || undefined,
+      username: m.user?.username || undefined,
+      is_parent: m.user?.is_parent || false,
+    },
+  }));
 
 function resolveNextSelectedTeamId(
   teams: ManagedTeam[],
@@ -213,33 +230,19 @@ function MyTeamScreen() {
     setSelectedTeamId(prev => resolveNextSelectedTeamId(teams, routeTeamId, prev));
   }, [teams, routeTeamId]);
 
+  // The shared ['team-members', teamId] entry caches the raw response;
+  // this select maps it to the roster shape. Module-level so its identity
+  // is stable across renders (keeps the mapped array referentially stable).
   const {
     data: members = [],
     isPending: membersPending,
     isError: membersIsError,
     error: membersError,
     refetch: refetchMembers,
-  } = useQuery({
-    queryKey: ['team-members', selectedTeamId],
+  } = useTeamMembersQuery({
+    teamId: selectedTeamId,
     enabled: !!selectedTeamId && canManage && !coachLoading,
-    queryFn: async (): Promise<TeamMember[]> => {
-      const list = (await TeamApi.members(selectedTeamId as string)) as RawTeamMember[];
-      return list.map(m => ({
-        id: String(m.id),
-        role: m.role || 'member',
-        status: m.status || 'active',
-        position: m.position || m.custom_position || undefined,
-        jersey_number: m.jersey_number || undefined,
-        user: {
-          id: String(m.user?.id || ''),
-          email: m.user?.email || '',
-          display_name: m.user?.display_name || m.user?.email || 'Unknown',
-          avatar_url: m.user?.avatar_url || undefined,
-          username: m.user?.username || undefined,
-          is_parent: m.user?.is_parent || false,
-        },
-      }));
-    },
+    select: selectRosterMembers,
   });
 
   // Members failures previously emptied the roster silently (except

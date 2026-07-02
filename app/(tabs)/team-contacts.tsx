@@ -3,6 +3,7 @@ import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
+import { useTeamMembersQuery } from '@/hooks/useTeamMembersQuery';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
@@ -34,8 +35,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '@/utils/uploadUtils';
 import { safeGoBack } from '@/utils/navigation';
-// @ts-ignore
-import { Team as TeamApi } from '@/api/entities';
 
 // Pre-generated waveform bar heights — avoids Array allocation + Math.random() on every render
 const VOICE_WAVE_HEIGHTS = Array.from({ length: 20 }, (_, i) => {
@@ -119,6 +118,24 @@ interface TeamMember {
   lastSeen?: string;
 }
 
+// Maps the raw shared ['team-members'] cache entry to this screen's chat
+// shape. Module-level so its identity is stable across renders.
+const selectChatMembers = (membersData: any[]): TeamMember[] =>
+  membersData.map((m: any) => ({
+    id: String(m.id),
+    user: m.user
+      ? {
+          id: String(m.user.id),
+          display_name: m.user.display_name || m.user.name,
+          email: m.user.email,
+          avatar_url: m.user.avatar_url,
+        }
+      : undefined,
+    role: m.role || 'player',
+    status: 'offline' as 'online' | 'offline' | 'away',
+    lastSeen: undefined,
+  }));
+
 export default function TeamChatScreen() {
   // Group-chat management mirrors the server's canManageTeam boundary (team
   // staff OR org admin), not the narrower approved-coach-only gate. Aliased to
@@ -140,9 +157,6 @@ export default function TeamChatScreen() {
     null
   );
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [members, setMembers] = useState<TeamMember[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [selectedTab, setSelectedTab] = useState<'chat' | 'members' | 'files'>('chat');
@@ -383,71 +397,64 @@ export default function TeamChatScreen() {
     []
   );
 
+  // Defer kicking off the first fetch until the push animation finishes so
+  // the transition isn't competing with network parsing. Cached revisits are
+  // unaffected: a disabled query still renders its cached data instantly.
+  const [interactionsDone, setInteractionsDone] = useState(false);
   useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => setInteractionsDone(true));
+    return () => task.cancel();
+  }, []);
+
+  const {
+    data: membersData,
+    isPending: membersPending,
+    isError: membersIsError,
+    refetch: refetchMembers,
+  } = useTeamMembersQuery({
+    teamId: id ? String(id) : null,
+    enabled: !!id && interactionsDone,
+    select: selectChatMembers,
+  });
+  const members = membersData ?? [];
+
+  // Persisted chat messages/files live in AsyncStorage (local-only state);
+  // load them once per team alongside the members query.
+  const [localReady, setLocalReady] = useState(false);
+  useEffect(() => {
+    if (!id || !interactionsDone) return;
     let mounted = true;
-    // Defer the initial fetch until the push animation finishes so the
-    // transition isn't competing with network parsing and state updates.
-    const task = InteractionManager.runAfterInteractions(
-      () =>
-        void (async () => {
-          if (!mounted) return;
-          if (!id) {
-            setError('Missing team id');
-            setLoading(false);
-            return;
-          }
-          setLoading(true);
-          setError(null);
-          try {
-            const membersData = await TeamApi.members(String(id));
-            if (!mounted) return;
+    void (async () => {
+      // Load persisted messages first, then fallback to welcome messages
+      const savedMessages = await loadMessages();
+      if (!mounted) return;
+      if (savedMessages.length > 0) {
+        setMessages(savedMessages);
+      } else {
+        setMessages(welcomeMessages);
+        await saveMessages(welcomeMessages);
+      }
 
-            const formattedMembers: TeamMember[] = Array.isArray(membersData)
-              ? membersData.map((m: any) => ({
-                  id: String(m.id),
-                  user: m.user
-                    ? {
-                        id: String(m.user.id),
-                        display_name: m.user.display_name || m.user.name,
-                        email: m.user.email,
-                        avatar_url: m.user.avatar_url,
-                      }
-                    : undefined,
-                  role: m.role || 'player',
-                  status: 'offline' as 'online' | 'offline' | 'away',
-                  lastSeen: undefined,
-                }))
-              : [];
-
-            setMembers(formattedMembers);
-
-            // Load persisted messages first, then fallback to welcome messages
-            const savedMessages = await loadMessages();
-            if (savedMessages.length > 0) {
-              setMessages(savedMessages);
-            } else {
-              setMessages(welcomeMessages);
-              await saveMessages(welcomeMessages);
-            }
-
-            // Load persisted files
-            const savedFiles = await loadFiles();
-            setFiles(savedFiles);
-
-            // Initialize with empty files list - files will be added as they're uploaded
-          } catch {
-            if (!mounted) return;
-            setError('Failed to load team chat');
-          } finally {
-            if (mounted) setLoading(false);
-          }
-        })()
-    );
+      // Load persisted files — added to as uploads complete
+      const savedFiles = await loadFiles();
+      if (!mounted) return;
+      setFiles(savedFiles);
+      setLocalReady(true);
+    })();
     return () => {
       mounted = false;
-      task.cancel();
     };
-  }, [id, loadFiles, loadMessages, welcomeMessages, saveMessages]);
+  }, [id, interactionsDone, loadFiles, loadMessages, welcomeMessages, saveMessages]);
+
+  // Full-screen spinner until both the roster query and the local chat state
+  // are ready (isPending only — background revalidation of cached data never
+  // re-shows it). On retry the error card stays up until refetch succeeds.
+  const loading = !!id && (membersPending || !localReady);
+  const error = !id
+    ? 'Missing team id'
+    : membersIsError && membersData === undefined
+      ? 'Failed to load team chat'
+      : null;
 
   // Start/stop typing animations based on typing users
   useEffect(() => {
@@ -1846,35 +1853,7 @@ export default function TeamChatScreen() {
             borderRadius: 10,
           }}
           onPress={() => {
-            setError(null);
-            setLoading(true);
-            void (async () => {
-              try {
-                const membersData = await TeamApi.members(String(id));
-                const formattedMembers: TeamMember[] = Array.isArray(membersData)
-                  ? membersData.map((m: any) => ({
-                      id: String(m.id),
-                      user: m.user
-                        ? {
-                            id: String(m.user.id),
-                            display_name: m.user.display_name || m.user.name,
-                            email: m.user.email,
-                            avatar_url: m.user.avatar_url,
-                          }
-                        : undefined,
-                      role: m.role || 'player',
-                      status: 'offline' as const,
-                    }))
-                  : [];
-                setMembers(formattedMembers);
-                const savedMessages = await loadMessages();
-                setMessages(savedMessages.length > 0 ? savedMessages : welcomeMessages);
-              } catch {
-                setError('Failed to load team chat');
-              } finally {
-                setLoading(false);
-              }
-            })();
+            void refetchMembers();
           }}
         >
           <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
