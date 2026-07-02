@@ -8,6 +8,7 @@ import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
 import { promptForSignIn } from '@/utils/requireSignIn';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -141,14 +142,7 @@ export default function PostDetailScreen() {
     }, [params.index, params.postIds, postIdsArray.length])
   );
 
-  const [loading, setLoading] = useState(true);
-  const [post, setPost] = useState<any>(null);
-  const [comments, setComments] = useState<any[]>([]);
-  const [commentsNextCursor, setCommentsNextCursor] = useState<string | null>(null);
   const [loadingMoreComments, setLoadingMoreComments] = useState(false);
-  const [postsById, setPostsById] = useState<Record<string, any>>({});
-  const [commentsById, setCommentsById] = useState<Record<string, any[]>>({});
-  const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState('');
   const [voting, setVoting] = useState(false);
   const [commenting, setCommenting] = useState(false);
@@ -353,120 +347,134 @@ export default function PostDetailScreen() {
     void loadUser();
   }, [checkAuth, user]);
 
-  const load = useCallback(
-    async (postId?: string, showLoading = true) => {
-      const targetId = postId || currentPostId;
-      if (!targetId) {
-        setError('No post ID provided');
-        setLoading(false);
-        return;
-      }
-
-      // Try to get cached post first
-      const cachedPost = postCache.get(targetId);
-      if (cachedPost?.id && cachedPost?.author?.username) {
-        setPost(cachedPost);
-        if (targetId) {
-          setPostsById(prev => ({ ...prev, [targetId]: cachedPost }));
-        }
-        setError(null);
-        setLoading(false);
-        // Still load comments and fresh data in background
-        void PostApi.comments(targetId)
-          .catch(() => [])
-          .then((c: any) => {
-            let commentsArray: any[] = [];
-            if (Array.isArray(c)) {
-              commentsArray = c;
-            } else if (c && Array.isArray(c.items)) {
-              commentsArray = c.items;
-              setCommentsNextCursor(c.nextCursor ?? null);
-            }
-            setComments(commentsArray);
-            if (targetId) {
-              setCommentsById(prev => ({ ...prev, [targetId]: commentsArray }));
-            }
-          });
-        return;
-      }
-
-      // Only show loading skeleton on initial load, not when swiping
-      if (showLoading) {
-        setLoading(true);
-      }
-      setError(null);
-      try {
-        const [p, c] = await Promise.all([
-          PostApi.get(targetId).catch((err: any) => {
-            if (__DEV__) console.error('[post-detail] Failed to get post:', err?.message || err);
-            throw err;
-          }),
-          PostApi.comments(targetId).catch((err: any) => {
-            if (__DEV__) console.warn('[post-detail] Failed to get comments:', err?.message || err);
-            return [];
-          }),
-        ]);
-
-        if (!p || !p.id) {
-          setError('Post not found or was deleted');
-          setLoading(false);
-          return;
-        }
-
-        // Cache the post
-        postCache.set(targetId, p);
-
-        setPost(p);
-        if (targetId) {
-          setPostsById(prev => ({ ...prev, [targetId]: p }));
-        }
-
-        // Handle comments response - it returns { items, nextCursor }
-        let commentsArray: any[] = [];
-        if (Array.isArray(c)) {
-          commentsArray = c;
-        } else if (c && Array.isArray(c.items)) {
-          commentsArray = c.items;
-          setCommentsNextCursor(c.nextCursor ?? null);
-        }
-        setComments(commentsArray);
-        if (targetId) {
-          setCommentsById(prev => ({ ...prev, [targetId]: commentsArray }));
-        }
-
-        // Initialize follow and save states from post data
-        if (p) {
-          if (typeof p.is_following_author === 'boolean') {
-            setFollowing(p.is_following_author);
-          }
-          if (typeof p.has_bookmarked === 'boolean') {
-            setSaved(p.has_bookmarked);
-          }
-          // Note: has_upvoted is stored directly in post state for UI
-        }
-      } catch (e: any) {
-        const errorMsg = e?.message || 'Failed to load post';
-        setError(errorMsg);
-        if (__DEV__) console.error('Error loading post and comments:', e);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [currentPostId, postCache]
-  );
-
-  // Reload when params or currentPostIndex changes
+  // Defer the fetch of the newly-current post until the navigation/swipe
+  // transition settles so this heavy screen doesn't parse a response
+  // mid-animation. Cached entries render instantly regardless (a disabled
+  // query still serves its cache).
+  const queryClient = useQueryClient();
+  const [settledPostId, setSettledPostId] = useState<string | null>(null);
   useEffect(() => {
-    const shouldShowLoading = isInitialLoad.current;
-    isInitialLoad.current = false;
-    // Defer the fetch until the navigation/swipe transition settles so the
-    // heavy post-detail screen doesn't parse its response mid-animation.
     const task = InteractionManager.runAfterInteractions(() => {
-      void load(undefined, shouldShowLoading);
+      setSettledPostId(currentPostId ?? null);
     });
     setReplyingToComment(null);
     return () => task.cancel();
-  }, [load, params.id, params.postIds, currentPostIndex]);
+  }, [currentPostId]);
+
+  // One query per post in the swipe sequence. Only the settled current post
+  // fetches; previously-visited posts render reactively from the cache (the
+  // old postsById/commentsById maps). PostCacheContext seeds instant paints
+  // via placeholderData, mirroring the old cache-first path.
+  const fetchPostDetail = useCallback(
+    async (targetId: string) => {
+      const [p, c] = await Promise.all([
+        PostApi.get(targetId).catch((err: any) => {
+          if (__DEV__) console.error('[post-detail] Failed to get post:', err?.message || err);
+          throw err;
+        }),
+        PostApi.comments(targetId).catch((err: any) => {
+          if (__DEV__) console.warn('[post-detail] Failed to get comments:', err?.message || err);
+          return [] as any;
+        }),
+      ]);
+
+      if (!p || !p.id) {
+        throw new Error('Post not found or was deleted');
+      }
+
+      // Cache the post for cross-screen sharing
+      postCache.set(targetId, p);
+
+      // Comments response is either an array or { items, nextCursor }
+      let commentsArray: any[] = [];
+      let nextCursor: string | null = null;
+      if (Array.isArray(c)) {
+        commentsArray = c;
+      } else if (c && Array.isArray(c.items)) {
+        commentsArray = c.items;
+        nextCursor = c.nextCursor ?? null;
+      }
+
+      return { post: p, comments: commentsArray, nextCursor };
+    },
+    [postCache]
+  );
+
+  const postQueries = useQueries({
+    queries: postIdsArray.map(id => ({
+      queryKey: ['post-detail', id],
+      enabled: id === settledPostId,
+      queryFn: () => fetchPostDetail(id),
+      placeholderData: () => {
+        const cachedPost = postCache.get(id);
+        return cachedPost?.id && cachedPost?.author?.username
+          ? { post: cachedPost, comments: [] as any[], nextCursor: null as string | null }
+          : undefined;
+      },
+    })),
+  });
+
+  const { postsById, commentsById } = useMemo(() => {
+    const posts: Record<string, any> = {};
+    const commentsMap: Record<string, any[]> = {};
+    postIdsArray.forEach((id, i) => {
+      const d = postQueries[i]?.data;
+      if (d?.post) {
+        posts[id] = d.post;
+        commentsMap[id] = d.comments ?? [];
+      }
+    });
+    return { postsById: posts, commentsById: commentsMap };
+    // postQueries is a new array each render but its data refs are stable
+  }, [postIdsArray, postQueries]);
+
+  const currentQueryIndex = currentPostId ? postIdsArray.indexOf(currentPostId) : -1;
+  const currentQuery = currentQueryIndex >= 0 ? postQueries[currentQueryIndex] : undefined;
+  const post = (currentPostId && postsById[currentPostId]) || null;
+  const comments = (currentPostId && commentsById[currentPostId]) || [];
+  const commentsNextCursor = currentQuery?.data?.nextCursor ?? null;
+
+  // Full-screen skeleton only before the FIRST post ever renders — swiping to
+  // an unvisited post shows the per-item placeholder inside the FlatList
+  // instead, matching the old showLoading=initial-only behavior.
+  const hasRenderedOnceRef = useRef(false);
+  hasRenderedOnceRef.current = hasRenderedOnceRef.current || !!post || !!currentQuery?.isError;
+  const error = !currentPostId
+    ? 'No post ID provided'
+    : currentQuery?.isError
+      ? (currentQuery.error as any)?.message || 'Failed to load post'
+      : null;
+  const loading = !hasRenderedOnceRef.current && !error;
+
+  const retryLoad = useCallback(() => {
+    void currentQuery?.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQuery?.refetch]);
+
+  // Patch one post's cached payload; every consumer (current post, swipe
+  // pages, counts) re-renders from the cache.
+  const patchPostDetail = useCallback(
+    (postId: string, updater: (old: any) => any) => {
+      queryClient.setQueryData(['post-detail', postId], (old: any) => (old ? updater(old) : old));
+    },
+    [queryClient]
+  );
+
+  // Initialize follow/save toggles once per post (from server fields); later
+  // optimistic toggles must not be clobbered by cache patches.
+  const interactionInitRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!post?.id) return;
+    if (interactionInitRef.current === String(post.id)) return;
+    interactionInitRef.current = String(post.id);
+    if (typeof post.is_following_author === 'boolean') {
+      setFollowing(post.is_following_author);
+    }
+    if (typeof post.has_bookmarked === 'boolean') {
+      setSaved(post.has_bookmarked);
+    }
+    // Note: has_upvoted is read directly from the cached post for UI
+  }, [post]);
 
   useEffect(() => {
     activeScrollViewRef.current = null;
@@ -502,16 +510,18 @@ export default function PostDetailScreen() {
     setVoting(true);
     // Only the top-level vote fields change here, so a shallow snapshot is enough.
     const prevPost = post ? { ...post } : post;
-    setPost((p: any) => {
-      if (!p) return p;
+    patchPostDetail(currentPostId, old => {
+      const p = old.post;
+      if (!p) return old;
       const optimisticNext = !p.has_upvoted;
-      const next = {
-        ...p,
-        has_upvoted: optimisticNext,
-        upvotes_count: Math.max(0, (p.upvotes_count || 0) + (optimisticNext ? 1 : -1)),
+      return {
+        ...old,
+        post: {
+          ...p,
+          has_upvoted: optimisticNext,
+          upvotes_count: Math.max(0, (p.upvotes_count || 0) + (optimisticNext ? 1 : -1)),
+        },
       };
-      if (currentPostId) setPostsById(prev => ({ ...prev, [currentPostId]: next }));
-      return next;
     });
     try {
       const r: any = await PostApi.toggleUpvote(currentPostId);
@@ -523,24 +533,24 @@ export default function PostDetailScreen() {
         });
       }
       // Reconcile with server values
-      setPost((p: any) => {
-        const next = {
-          ...(p || {}),
+      patchPostDetail(currentPostId, old => ({
+        ...old,
+        post: {
+          ...(old.post || {}),
           upvotes_count:
             typeof r?.count === 'number'
               ? r.count
               : typeof r?.upvotes_count === 'number'
                 ? r.upvotes_count
-                : p?.upvotes_count || 0,
+                : old.post?.upvotes_count || 0,
           has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted),
-        };
-        if (currentPostId) setPostsById(prev => ({ ...prev, [currentPostId]: next }));
-        return next;
-      });
+        },
+      }));
     } catch (error: any) {
       // Revert optimistic update on failure
-      setPost(prevPost);
-      if (currentPostId && prevPost) setPostsById(prev => ({ ...prev, [currentPostId]: prevPost }));
+      if (prevPost) {
+        patchPostDetail(currentPostId, old => ({ ...old, post: prevPost }));
+      }
       Alert.alert('Error', error?.message || 'Something went wrong. Please try again.');
       if (__DEV__) console.error('Error toggling upvote:', error);
     } finally {
@@ -577,9 +587,10 @@ export default function PostDetailScreen() {
       _optimistic: true,
     };
     const prevComments = comments;
-    const nextOptimistic = [optimisticComment, ...comments];
-    setComments(nextOptimistic as any);
-    setCommentsById(prev => ({ ...prev, [currentPostId]: nextOptimistic as any }));
+    patchPostDetail(currentPostId, old => ({
+      ...old,
+      comments: [optimisticComment, ...(old.comments ?? [])],
+    }));
     setReplyingToComment(null);
     setComment('');
 
@@ -590,24 +601,17 @@ export default function PostDetailScreen() {
         is_reply: !!parentId,
         source: 'post_detail',
       });
-      // Replace optimistic comment with real server response
-      const nextReal = [created, ...prevComments];
-      setComments(nextReal);
-      setCommentsById(prev => ({ ...prev, [currentPostId]: nextReal }));
-      // Increment comment count on the post object
-      setPost((p: any) => (p ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
-      setPostsById(prev => {
-        const existing = prev[currentPostId];
-        if (!existing) return prev;
-        return {
-          ...prev,
-          [currentPostId]: { ...existing, comments_count: (existing.comments_count || 0) + 1 },
-        };
-      });
+      // Replace optimistic comment with real server response and bump the count
+      patchPostDetail(currentPostId, old => ({
+        ...old,
+        comments: [created, ...prevComments],
+        post: old.post
+          ? { ...old.post, comments_count: (old.post.comments_count || 0) + 1 }
+          : old.post,
+      }));
     } catch (error) {
       // Revert optimistic insert on failure
-      setComments(prevComments);
-      setCommentsById(prev => ({ ...prev, [currentPostId]: prevComments }));
+      patchPostDetail(currentPostId, old => ({ ...old, comments: prevComments }));
       const err = error as any;
       if (__DEV__) console.error('Error adding comment:', err?.message || error);
       Alert.alert('Comment Failed', err?.message || 'Failed to post comment. Please try again.');
@@ -811,13 +815,10 @@ export default function PostDetailScreen() {
         onPress: async () => {
           try {
             await PostApi.deleteComment(currentPostId, commentId);
-            setComments(prevComments => {
-              const next = prevComments.filter(c => String(c.id) !== commentId);
-              if (currentPostId) {
-                setCommentsById(prev => ({ ...prev, [currentPostId]: next }));
-              }
-              return next;
-            });
+            patchPostDetail(currentPostId, old => ({
+              ...old,
+              comments: (old.comments ?? []).filter((c: any) => String(c.id) !== commentId),
+            }));
             Alert.alert('Success', 'Comment deleted successfully');
           } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to delete comment');
@@ -841,6 +842,7 @@ export default function PostDetailScreen() {
             try {
               await PostApi.delete(currentPostId);
               postCache.remove(currentPostId);
+              queryClient.removeQueries({ queryKey: ['post-detail', currentPostId] });
               handleBack();
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete post');
@@ -858,15 +860,12 @@ export default function PostDetailScreen() {
     setUpdatingComment(true);
     try {
       await PostApi.updateComment(currentPostId, editCommentId, sanitizeText(editCommentText));
-      setComments(prevComments => {
-        const next = prevComments.map(c =>
+      patchPostDetail(currentPostId, old => ({
+        ...old,
+        comments: (old.comments ?? []).map((c: any) =>
           String(c.id) === editCommentId ? { ...c, content: editCommentText.trim() } : c
-        );
-        if (currentPostId) {
-          setCommentsById(prev => ({ ...prev, [currentPostId]: next }));
-        }
-        return next;
-      });
+        ),
+      }));
       setEditCommentId(null);
       setEditCommentText('');
       Alert.alert('Success', 'Comment updated successfully');
@@ -904,7 +903,7 @@ export default function PostDetailScreen() {
             {is404 ? 'This post is no longer available' : error}
           </Text>
           {!is404 && (
-            <Pressable testID="retry-button" style={styles.retryButton} onPress={() => void load()}>
+            <Pressable testID="retry-button" style={styles.retryButton} onPress={retryLoad}>
               <Text style={styles.retryButtonText}>Try Again</Text>
             </Pressable>
           )}
@@ -944,7 +943,7 @@ export default function PostDetailScreen() {
           <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>
             Failed to load post
           </Text>
-          <Pressable style={styles.retryButton} onPress={() => void load()}>
+          <Pressable style={styles.retryButton} onPress={retryLoad}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
           <Pressable
@@ -980,7 +979,7 @@ export default function PostDetailScreen() {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].destructive} />
           <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={() => void load()}>
+          <Pressable style={styles.retryButton} onPress={retryLoad}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
           <Pressable
@@ -1588,8 +1587,11 @@ export default function PostDetailScreen() {
                         cursor: commentsNextCursor,
                       });
                       const moreItems = Array.isArray(more) ? more : (more?.items ?? []);
-                      setComments(prev => [...prev, ...moreItems]);
-                      setCommentsNextCursor(more?.nextCursor ?? null);
+                      patchPostDetail(String(postData.id), old => ({
+                        ...old,
+                        comments: [...(old.comments ?? []), ...moreItems],
+                        nextCursor: more?.nextCursor ?? null,
+                      }));
                     } catch {
                       // silently ignore — user can retry by tapping again
                     } finally {
@@ -1689,8 +1691,8 @@ export default function PostDetailScreen() {
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
             renderItem={({ item }) => {
-              const postData = item === currentPostId ? post : postsById[item];
-              const commentsData = item === currentPostId ? comments : commentsById[item];
+              const postData = postsById[item];
+              const commentsData = commentsById[item];
               return (
                 <View style={{ width: SCREEN_WIDTH }}>
                   {postData ? (
