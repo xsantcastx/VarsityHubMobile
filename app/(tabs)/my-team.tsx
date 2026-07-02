@@ -3,13 +3,15 @@ import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { ManagedTeam, useManagedTeamsQuery } from '@/hooks/useManagedTeamsQuery';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { getAssignableTeamRoles } from '@/utils/roleChecks';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useQuery } from '@tanstack/react-query';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -27,13 +29,6 @@ import {
 // @ts-ignore JS exports
 import { Team as TeamApi } from '@/api/entities';
 
-type ManagedTeam = {
-  id: string;
-  name: string;
-  sport?: string;
-  avatar_url?: string;
-};
-
 type MemberUser = {
   id: string;
   email: string;
@@ -50,13 +45,6 @@ type TeamMember = {
   position?: string;
   jersey_number?: string;
   user: MemberUser;
-};
-
-type RawManagedTeam = {
-  id: string;
-  name?: string | null;
-  sport?: string | null;
-  avatar_url?: string | null;
 };
 
 type RawTeamMember = {
@@ -157,12 +145,8 @@ function MyTeamScreen() {
         ? `/organization?id=${encodeURIComponent(params.orgId)}&tab=${encodeURIComponent(params.orgTab || 'teams')}`
         : '/organization?tab=teams';
 
-  const [teams, setTeams] = useState<ManagedTeam[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
-  const [members, setMembers] = useState<TeamMember[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // Member action modal
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
@@ -190,95 +174,120 @@ function MyTeamScreen() {
 
   // Guard: useRequireTeamManagement handles redirect for users who can't manage
 
-  const loadTeams = useCallback(async (): Promise<string | null> => {
-    try {
-      setError(null);
-      const list = (await TeamApi.managed()) as RawManagedTeam[];
-      const formatted: ManagedTeam[] = list.map(t => ({
-        id: String(t.id),
-        name: String(t.name || 'Team'),
-        sport: t.sport || undefined,
-        avatar_url: t.avatar_url || undefined,
-      }));
-      setTeams(formatted);
-      const nextSelectedTeamId = resolveNextSelectedTeamId(formatted, routeTeamId, selectedTeamId);
-      setSelectedTeamId(nextSelectedTeamId);
-      if (!nextSelectedTeamId) {
-        setSelectedTeamId(null);
-        setMembers([]);
-      }
-      return nextSelectedTeamId;
-    } catch (error: unknown) {
-      const e = error as ApiErrorLike;
-      if (handleCoachAccessError(router, e, 'loading your teams', user)) {
-        return null;
-      }
-      if (__DEV__) console.error('Failed to load teams:', e);
-      setError('Unable to load teams.');
-      setTeams([]);
-      setSelectedTeamId(null);
-      setMembers([]);
-      return null;
-    }
-  }, [routeTeamId, router, selectedTeamId, user]);
+  const {
+    data: teams = [],
+    isPending: teamsPending,
+    isError: teamsIsError,
+    error: teamsError,
+    refetch: refetchTeams,
+  } = useManagedTeamsQuery({
+    userId: user?.id,
+    enabled: !!user && canManage && !coachLoading,
+  });
 
-  const loadMembers = useCallback(
-    async (teamId: string) => {
-      try {
-        const list = (await TeamApi.members(teamId)) as RawTeamMember[];
-        setMembers(
-          list.map(m => ({
-            id: String(m.id),
-            role: m.role || 'member',
-            status: m.status || 'active',
-            position: m.position || m.custom_position || undefined,
-            jersey_number: m.jersey_number || undefined,
-            user: {
-              id: String(m.user?.id || ''),
-              email: m.user?.email || '',
-              display_name: m.user?.display_name || m.user?.email || 'Unknown',
-              avatar_url: m.user?.avatar_url || undefined,
-              username: m.user?.username || undefined,
-              is_parent: m.user?.is_parent || false,
-            },
-          }))
-        );
-      } catch (error: unknown) {
-        const e = error as ApiErrorLike;
-        if (handleCoachAccessError(router, e, 'loading team members', user)) {
-          return;
-        }
-        if (__DEV__) console.error('Failed to load members:', e);
-        setMembers([]);
-      }
-    },
-    [router, user]
-  );
-
-  const loadAll = useCallback(async () => {
-    await loadTeams();
-  }, [loadTeams]);
-
-  useFocusEffect(
-    useCallback(() => {
-      setLoading(true);
-      void loadAll().finally(() => setLoading(false));
-    }, [loadAll])
-  );
-
+  // If the managed() call failed with a specific coach-access error code,
+  // route via the shared handler instead of showing the generic error card.
+  // Mirrors the manage-teams pattern: `handledByCoachAccess` tracks whether
+  // the CURRENT error was already special-cased so the generic error card
+  // doesn't also render underneath the Alert.
+  const [handledByCoachAccess, setHandledByCoachAccess] = useState(false);
+  const lastHandledTeamsErrorRef = useRef<unknown>(null);
   useEffect(() => {
-    if (!selectedTeamId) {
-      setMembers([]);
+    if (!teamsIsError || !teamsError) {
+      lastHandledTeamsErrorRef.current = null;
+      setHandledByCoachAccess(false);
       return;
     }
-    void loadMembers(selectedTeamId);
-  }, [loadMembers, selectedTeamId]);
+    if (lastHandledTeamsErrorRef.current === teamsError) return;
+    lastHandledTeamsErrorRef.current = teamsError;
+    setHandledByCoachAccess(handleCoachAccessError(router, teamsError, 'loading your teams', user));
+  }, [teamsIsError, teamsError, router, user]);
+
+  const error = teamsIsError && !handledByCoachAccess ? 'Unable to load teams.' : null;
+
+  // Keep the selected team valid as the teams list changes: prefer the route
+  // param, then the previous selection, then the first team. The functional
+  // update keeps `selectedTeamId` out of the deps (resolve is idempotent, so
+  // re-running with the same inputs bails via React's same-value setState).
+  useEffect(() => {
+    setSelectedTeamId(prev => resolveNextSelectedTeamId(teams, routeTeamId, prev));
+  }, [teams, routeTeamId]);
+
+  const {
+    data: members = [],
+    isPending: membersPending,
+    isError: membersIsError,
+    error: membersError,
+    refetch: refetchMembers,
+  } = useQuery({
+    queryKey: ['team-members', selectedTeamId],
+    enabled: !!selectedTeamId && canManage && !coachLoading,
+    queryFn: async (): Promise<TeamMember[]> => {
+      const list = (await TeamApi.members(selectedTeamId as string)) as RawTeamMember[];
+      return list.map(m => ({
+        id: String(m.id),
+        role: m.role || 'member',
+        status: m.status || 'active',
+        position: m.position || m.custom_position || undefined,
+        jersey_number: m.jersey_number || undefined,
+        user: {
+          id: String(m.user?.id || ''),
+          email: m.user?.email || '',
+          display_name: m.user?.display_name || m.user?.email || 'Unknown',
+          avatar_url: m.user?.avatar_url || undefined,
+          username: m.user?.username || undefined,
+          is_parent: m.user?.is_parent || false,
+        },
+      }));
+    },
+  });
+
+  // Members failures previously emptied the roster silently (except
+  // coach-access errors, which redirect). The query keeps `members` at the
+  // empty default on error; this effect preserves the redirect special case.
+  const lastHandledMembersErrorRef = useRef<unknown>(null);
+  useEffect(() => {
+    if (!membersIsError || !membersError) {
+      lastHandledMembersErrorRef.current = null;
+      return;
+    }
+    if (lastHandledMembersErrorRef.current === membersError) return;
+    lastHandledMembersErrorRef.current = membersError;
+    if (handleCoachAccessError(router, membersError, 'loading team members', user)) return;
+    if (__DEV__) console.error('Failed to load members:', membersError);
+  }, [membersIsError, membersError, router, user]);
+
+  // Full-screen spinner only while there's no cached data yet (isPending),
+  // never during background revalidation — see lib/queryClient.ts.
+  const loading = teamsPending || (!!selectedTeamId && membersPending);
+
+  // Auto-refresh when the screen regains focus (e.g. after roster changes on
+  // another screen). Skip the very first focus — mount already triggers the
+  // initial fetch. Background-only: refetch() doesn't flip isPending once data
+  // exists, so this never re-shows the blocking spinner.
+  const hasLoadedTeamsRef = useRef(false);
+  hasLoadedTeamsRef.current = hasLoadedTeamsRef.current || !teamsPending;
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedTeamsRef.current) return undefined;
+      void refetchTeams().catch(e => {
+        if (__DEV__) console.warn('[MyTeam] focus reload error:', e);
+      });
+      return undefined;
+    }, [refetchTeams])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadAll();
-    setRefreshing(false);
-  }, [loadAll]);
+    try {
+      await Promise.all([
+        refetchTeams(),
+        selectedTeamId ? refetchMembers() : Promise.resolve(null),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchTeams, refetchMembers, selectedTeamId]);
 
   const handleUpdateRole = useCallback(
     async (role: Role) => {
@@ -286,7 +295,7 @@ function MyTeamScreen() {
       setMemberActionLoading(true);
       try {
         await TeamApi.updateMember(selectedMember.id, { role });
-        if (selectedTeamId) await loadMembers(selectedTeamId);
+        if (selectedTeamId) await refetchMembers();
         setShowRoleModal(false);
         setSelectedMember(null);
       } catch (error: unknown) {
@@ -299,7 +308,7 @@ function MyTeamScreen() {
         setMemberActionLoading(false);
       }
     },
-    [selectedMember, selectedTeamId, loadMembers, memberActionLoading, router, user]
+    [selectedMember, selectedTeamId, refetchMembers, memberActionLoading, router, user]
   );
 
   const handleUpdatePosition = useCallback(async () => {
@@ -307,7 +316,7 @@ function MyTeamScreen() {
     setMemberActionLoading(true);
     try {
       await TeamApi.updateMember(selectedMember.id, { custom_position: positionInput.trim() });
-      if (selectedTeamId) await loadMembers(selectedTeamId);
+      if (selectedTeamId) await refetchMembers();
       setShowPositionModal(false);
       setSelectedMember(null);
       setPositionInput('');
@@ -324,7 +333,7 @@ function MyTeamScreen() {
     selectedMember,
     selectedTeamId,
     positionInput,
-    loadMembers,
+    refetchMembers,
     memberActionLoading,
     router,
     user,
@@ -335,7 +344,7 @@ function MyTeamScreen() {
     setMemberActionLoading(true);
     try {
       await TeamApi.removeMember(selectedMember.id, 'Removed by team manager');
-      if (selectedTeamId) await loadMembers(selectedTeamId);
+      if (selectedTeamId) await refetchMembers();
       setShowRemoveModal(false);
       setSelectedMember(null);
     } catch (error: unknown) {
@@ -347,7 +356,7 @@ function MyTeamScreen() {
     } finally {
       setMemberActionLoading(false);
     }
-  }, [selectedMember, selectedTeamId, loadMembers, memberActionLoading, router, user]);
+  }, [selectedMember, selectedTeamId, refetchMembers, memberActionLoading, router, user]);
 
   const handleInvite = useCallback(async () => {
     if (!selectedTeamId || !inviteEmail.trim()) return;
@@ -358,7 +367,7 @@ function MyTeamScreen() {
       setShowInviteModal(false);
       setInviteEmail('');
       setInviteRole('player');
-      await loadMembers(selectedTeamId);
+      await refetchMembers();
     } catch (error: unknown) {
       const e = error as ApiErrorLike;
       if (handleCoachAccessError(router, e, 'sending team invites', user)) {
@@ -368,7 +377,7 @@ function MyTeamScreen() {
     } finally {
       setInviting(false);
     }
-  }, [selectedTeamId, inviteEmail, inviteRole, loadMembers, router, user]);
+  }, [selectedTeamId, inviteEmail, inviteRole, refetchMembers, router, user]);
 
   const selectedTeam = teams.find(t => t.id === selectedTeamId);
 

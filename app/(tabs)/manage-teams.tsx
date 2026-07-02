@@ -1,10 +1,10 @@
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useManagedTeamsQuery } from '@/hooks/useManagedTeamsQuery';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { getAuthSnapshot } from '@/utils/authState';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -19,28 +19,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// @ts-ignore
-import { Team as TeamApi } from '@/api/entities';
 import { EmptyState, SectionHeader, TeamCard } from '@/components/ui';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
-
-type Team = {
-  id: string;
-  name: string;
-  members: number;
-  status: 'active' | 'archived';
-  sport?: string;
-  season?: string;
-  avatar_url?: string;
-  my_role?: string;
-  organization?: {
-    id: string;
-    name: string;
-    description?: string;
-    sport?: string;
-  } | null;
-};
 
 function ManageTeamsSimpleScreen() {
   const { user, checkAuth } = useAuth();
@@ -70,23 +51,9 @@ function ManageTeamsSimpleScreen() {
     error: queryError,
     refetch,
     isRefetching,
-  } = useQuery({
-    queryKey: ['managed-teams', user?.id],
+  } = useManagedTeamsQuery({
+    userId: user?.id,
     enabled: !!user && canManage && !coachLoading,
-    queryFn: async (): Promise<Team[]> => {
-      const list: any[] = await TeamApi.managed();
-      return list.map((t: any) => ({
-        id: String(t.id),
-        name: String(t.name || 'Team'),
-        members: Number(t.members || t._count?.members || 0),
-        status: (t.status || 'active') as any,
-        sport: t.sport || null,
-        season: t.season || null,
-        avatar_url: t.avatar_url || null,
-        my_role: t.my_role || null,
-        organization: t.organization || null,
-      }));
-    },
   });
 
   // If the managed() call failed with a specific coach-access error code,
