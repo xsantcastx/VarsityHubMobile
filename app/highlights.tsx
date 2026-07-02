@@ -10,7 +10,8 @@ import * as Haptics from 'expo-haptics';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -496,13 +497,8 @@ function HighlightsScreen() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const { user, checkAuth } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [highlights, setHighlights] = useState<HighlightItem[]>([]);
-  const [nationalTop, setNationalTop] = useState<HighlightItem[]>([]);
-  const [ranked, setRanked] = useState<HighlightItem[]>([]);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | undefined>();
   const [activeTab, setActiveTab] = useState<TabType>('trending');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{
@@ -515,14 +511,16 @@ function HighlightsScreen() {
   const [searching, setSearching] = useState(false);
   const postCache = usePostCache();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const {
+    data: highlightsPayload,
+    isPending: loading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ['highlights', user?.id ?? 'guest'],
+    queryFn: async () => {
       const me: any = await getAuthSnapshot(checkAuth, user).catch((error: any) => {
-        if (__DEV__) {
-          if (__DEV__) console.warn('[Highlights] Failed to load user:', error?.message || error);
-        }
+        if (__DEV__) console.warn('[Highlights] Failed to load user:', error?.message || error);
         return null;
       });
 
@@ -543,11 +541,6 @@ function HighlightsScreen() {
             ? me.lng
             : undefined;
 
-      // Store user location for ranking calculations only if both coordinates are valid
-      if (typeof lat === 'number' && typeof lng === 'number' && lat !== 0 && lng !== 0) {
-        setUserLocation({ lat, lng });
-      }
-
       // Request better data with more posts
       const payload = await Highlights.fetch({
         country,
@@ -563,48 +556,54 @@ function HighlightsScreen() {
       // Cache all the raw posts for faster loading when navigating to post detail
       postCache.setBatch([...rawNationalTop, ...rawRanked]);
 
-      setNationalTop(rawNationalTop.map(mapHighlightItem).filter(Boolean) as HighlightItem[]);
-      setRanked(rawRanked.map(mapHighlightItem).filter(Boolean) as HighlightItem[]);
+      return {
+        rawNationalTop,
+        rawRanked,
+        // Location for ranking calculations, only when both coordinates are valid
+        userLocation:
+          typeof lat === 'number' && typeof lng === 'number' && lat !== 0 && lng !== 0
+            ? { lat, lng }
+            : undefined,
+      };
+    },
+  });
 
-      // Merge all highlights from different buckets
-      const allHighlights = [...rawNationalTop, ...rawRanked];
+  const userLocation = highlightsPayload?.userLocation;
+  const nationalTop = useMemo(
+    () =>
+      (highlightsPayload?.rawNationalTop ?? [])
+        .map(mapHighlightItem)
+        .filter(Boolean) as HighlightItem[],
+    [highlightsPayload]
+  );
+  const ranked = useMemo(
+    () =>
+      (highlightsPayload?.rawRanked ?? []).map(mapHighlightItem).filter(Boolean) as HighlightItem[],
+    [highlightsPayload]
+  );
+  // Merge all highlights from different buckets, de-duplicated by ID
+  const highlights = useMemo(() => {
+    const mapped = [
+      ...(highlightsPayload?.rawNationalTop ?? []),
+      ...(highlightsPayload?.rawRanked ?? []),
+    ]
+      .map(mapHighlightItem)
+      .filter(Boolean) as HighlightItem[];
+    return Array.from(new Map(mapped.map(item => [item.id, item])).values());
+  }, [highlightsPayload]);
 
-      const mapped = allHighlights.map(mapHighlightItem).filter(Boolean) as HighlightItem[];
-
-      // Remove duplicates by ID
-      const uniqueHighlights = Array.from(new Map(mapped.map(item => [item.id, item])).values());
-
-      setHighlights(uniqueHighlights);
-    } catch (e: any) {
-      if (__DEV__) {
-        if (__DEV__) console.error('[Highlights] Load failed:', e);
-        if (__DEV__)
-          console.error('[Highlights] Error details:', e?.response?.data || e?.message || e);
-      }
-      setError('Unable to load highlights.');
-      setHighlights([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [checkAuth, postCache, user]);
+  // Error card only when highlights never loaded — a failed background
+  // refetch keeps the cached list visible instead of blanking the screen.
+  const error = isError && highlightsPayload === undefined ? 'Unable to load highlights.' : null;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await load();
-  }, [load]);
-
-  useEffect(() => {
-    let mounted = true;
-    const loadData = async () => {
-      await load();
-      if (!mounted) return;
-    };
-    void loadData();
-    return () => {
-      mounted = false;
-    };
-  }, [load]);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch]);
 
   // Global search function for teams, events, users, and posts
   const performGlobalSearch = useCallback(
@@ -787,63 +786,71 @@ function HighlightsScreen() {
     [router]
   );
 
-  const handleUpvote = useCallback(async (item: HighlightItem) => {
-    // Optimistic update: toggle immediately for responsiveness
-    const optimisticNext = !item.has_upvoted;
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    setHighlights(prev =>
-      prev.map(h =>
-        h.id === item.id
-          ? {
-              ...h,
-              has_upvoted: optimisticNext,
-              upvotes_count: Math.max(0, (h.upvotes_count || 0) + (optimisticNext ? 1 : -1)),
-            }
-          : h
-      )
-    );
-    try {
-      const r: any = await Post.toggleUpvote(item.id);
-      const upvotedNow = typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted);
-      if (upvotedNow) {
-        analytics.track(ANALYTICS_EVENTS.POST_UPVOTED, { post_id: item.id, source: 'highlights' });
+  // Patch one post's vote fields inside the cached raw payload (both
+  // buckets); the mapped highlights/nationalTop/ranked memos re-derive.
+  const patchHighlight = useCallback(
+    (postId: string, patch: (h: any) => any) => {
+      queryClient.setQueryData(['highlights', user?.id ?? 'guest'], (old: any) => {
+        if (!old) return old;
+        const apply = (arr: any[]) =>
+          (arr ?? []).map(h =>
+            String(h?.id ?? h?.post_id ?? h?.highlight_id) === postId ? patch(h) : h
+          );
+        return {
+          ...old,
+          rawNationalTop: apply(old.rawNationalTop),
+          rawRanked: apply(old.rawRanked),
+        };
+      });
+    },
+    [queryClient, user?.id]
+  );
+
+  const handleUpvote = useCallback(
+    async (item: HighlightItem) => {
+      // Optimistic update: toggle immediately for responsiveness
+      const optimisticNext = !item.has_upvoted;
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      patchHighlight(item.id, h => ({
+        ...h,
+        has_upvoted: optimisticNext,
+        upvotes_count: Math.max(0, (h.upvotes_count || 0) + (optimisticNext ? 1 : -1)),
+      }));
+      try {
+        const r: any = await Post.toggleUpvote(item.id);
+        const upvotedNow =
+          typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted);
+        if (upvotedNow) {
+          analytics.track(ANALYTICS_EVENTS.POST_UPVOTED, {
+            post_id: item.id,
+            source: 'highlights',
+          });
+        }
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        // Reconcile with server values
+        patchHighlight(item.id, h => ({
+          ...h,
+          has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted),
+          upvotes_count:
+            typeof r?.count === 'number'
+              ? r.count
+              : typeof r?.upvotes_count === 'number'
+                ? r.upvotes_count
+                : h.upvotes_count,
+        }));
+      } catch (error) {
+        // Revert optimistic update on failure
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+        patchHighlight(item.id, h => ({
+          ...h,
+          has_upvoted: item.has_upvoted,
+          upvotes_count: Math.max(0, (h.upvotes_count || 0) + (optimisticNext ? -1 : 1)),
+        }));
+        if (__DEV__) console.warn('[Highlights] Failed to toggle upvote:', error);
       }
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      // Reconcile with server values
-      setHighlights(prev =>
-        prev.map(h =>
-          h.id === item.id
-            ? {
-                ...h,
-                has_upvoted:
-                  typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted),
-                upvotes_count:
-                  typeof r?.count === 'number'
-                    ? r.count
-                    : typeof r?.upvotes_count === 'number'
-                      ? r.upvotes_count
-                      : h.upvotes_count,
-              }
-            : h
-        )
-      );
-    } catch (error) {
-      // Revert optimistic update on failure
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-      setHighlights(prev =>
-        prev.map(h =>
-          h.id === item.id
-            ? {
-                ...h,
-                has_upvoted: item.has_upvoted,
-                upvotes_count: Math.max(0, (h.upvotes_count || 0) + (optimisticNext ? -1 : 1)),
-              }
-            : h
-        )
-      );
-      if (__DEV__) console.warn('[Highlights] Failed to toggle upvote:', error);
-    }
-  }, []);
+    },
+    [patchHighlight]
+  );
 
   const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
     <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
@@ -889,7 +896,7 @@ function HighlightsScreen() {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color="#DC2626" />
           <Text style={styles.errorText}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={load}>
+          <Pressable style={styles.retryButton} onPress={() => void refetch()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
         </View>
