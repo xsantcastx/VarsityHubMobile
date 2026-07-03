@@ -129,4 +129,15 @@ if ! bash scripts/audit-navigation.sh --fail >/dev/null 2>&1; then
   exit 1
 fi
 
+# ── Phantom dependency guard ──────────────────────────────────────────────────
+# A package imported by app code but missing from package.json silently disables
+# a feature in production (e.g. react-native-compressor → uncompressed video that
+# bounced off the 50 MB cap). TypeScript can't catch it; this can.
+if ! node scripts/check-phantom-deps.cjs; then
+  echo ""
+  echo "Guardrail failed: a package is imported but not installed/declared."
+  echo "Run: npm run check:deps   then  npx expo install <pkg>"
+  exit 1
+fi
+
 echo "Guardrails passed."
