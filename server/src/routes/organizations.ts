@@ -8,9 +8,7 @@ import { getLatestCoachApplication } from '../lib/coachApplications.js';
 import { debugLog } from '../lib/debugLog.js';
 import {
   buildCoachJoinRequestReviewUrl,
-  sendCoachApprovedEmail,
   sendCoachJoinRequestEmail,
-  sendCoachRejectedEmail,
   sendLeagueApprovalRequestEmail,
   sendOrganizationInviteEmail,
   sendStaffMemberJoinedEmail,
@@ -23,6 +21,11 @@ import {
   isOrganizationOwner as isOrganizationOwnerScoped,
   ORGANIZATION_OWNER_ROLE,
 } from '../lib/organizationAuthorization.js';
+import {
+  approveJoinRequest,
+  denyJoinRequest,
+  reportApprovalNotificationFailure,
+} from '../lib/organizationJoinRequests.js';
 import {
   getOrganizationInviteState,
   getOrganizationJoinRequestState,
@@ -47,7 +50,7 @@ import {
   getPreferencesObject,
   mergeAuthStateIntoPreferences,
 } from '../lib/userAuthState.js';
-import { buildBillingStateColumns, getEffectiveEntitledPlan } from '../lib/userBillingState.js';
+import { getEffectiveEntitledPlan } from '../lib/userBillingState.js';
 import { invalidateMeCacheForUser } from '../lib/userCache.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -78,20 +81,6 @@ function isValidOrganizationInviteRole(
   role: string
 ): role is (typeof VALID_ORG_INVITE_ROLES)[number] {
   return VALID_ORG_INVITE_ROLES.includes(role as (typeof VALID_ORG_INVITE_ROLES)[number]);
-}
-
-function reportApprovalNotificationFailure(
-  channel: 'email' | 'push' | 'in_app',
-  context: string,
-  err: unknown,
-  extra: Record<string, unknown>
-): void {
-  console.error(`[organizations] ${context} ${channel} failed:`, (err as any)?.message || err);
-  captureException(err instanceof Error ? err : new Error(String(err)), {
-    context,
-    notification_channel: channel,
-    ...extra,
-  });
 }
 
 // ---------------------------------------------
@@ -430,50 +419,6 @@ async function shouldForcePendingApprovalOnOrganizationCreate(params: {
   return latestApplication?.status !== 'approved';
 }
 
-function buildApprovedCoachPreferences(params: {
-  currentPrefs: unknown;
-  organization: { id: string; name: string };
-  teamId?: string | null;
-  teamName?: string | null;
-}): Record<string, any> {
-  const next = mergeAuthStateIntoPreferences(getPreferencesObject(params.currentPrefs), {
-    role: 'coach',
-    organization_id: params.organization.id,
-    proceeding_as_fan: false,
-  }) as Record<string, any>;
-  next.organization_name = params.organization.name;
-  next.join_request_pending = false;
-
-  if (params.teamId) next.team_id = params.teamId;
-  if (params.teamName) next.team_name = params.teamName;
-
-  delete next.pending_plan;
-  delete next.payment_pending;
-  delete next.payment_approved;
-
-  return next;
-}
-
-function buildRejectedCoachPreferences(params: {
-  currentPrefs: unknown;
-  organization?: { id: string; name: string } | null;
-}): Record<string, any> {
-  const next = mergeAuthStateIntoPreferences(getPreferencesObject(params.currentPrefs), {
-    role: 'coach',
-  }) as Record<string, any>;
-  next.join_request_pending = false;
-
-  if (params.organization) {
-    next.organization_id = params.organization.id;
-    next.organization_name = params.organization.name;
-  }
-
-  delete next.team_id;
-  delete next.team_name;
-
-  return next;
-}
-
 async function isCurrentUserPlatformAdmin(req: AuthedRequest): Promise<boolean> {
   if (!req.user?.id) return false;
   const user = await prisma.user.findUnique({
@@ -535,40 +480,40 @@ function describeLeagueEmailReviewState(
 organizationsRouter.get(
   '/',
   asyncHandler(async (req, res) => {
-      const authedReq = req as AuthedRequest;
-      const currentUserId = authedReq.user?.id ?? null;
-      const isAdminUser = await isCurrentUserPlatformAdmin(authedReq);
-      const q = String((req.query as any).q || '').trim();
-      const limit = Math.max(
-        1,
-        Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50)
-      );
+    const authedReq = req as AuthedRequest;
+    const currentUserId = authedReq.user?.id ?? null;
+    const isAdminUser = await isCurrentUserPlatformAdmin(authedReq);
+    const q = String((req.query as any).q || '').trim();
+    const limit = Math.max(
+      1,
+      Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50)
+    );
 
-      const where: any = q ? { name: { startsWith: q, mode: 'insensitive' } } : {};
-      if (!isAdminUser) {
-        if (currentUserId) {
-          where.OR = [
-            { admin_approved: true },
-            { memberships: { some: { user_id: currentUserId, status: 'active' } } },
-            { joinRequests: { some: { user_id: currentUserId, status: 'pending' } } },
-          ];
-        } else {
-          where.admin_approved = true;
-        }
+    const where: any = q ? { name: { startsWith: q, mode: 'insensitive' } } : {};
+    if (!isAdminUser) {
+      if (currentUserId) {
+        where.OR = [
+          { admin_approved: true },
+          { memberships: { some: { user_id: currentUserId, status: 'active' } } },
+          { joinRequests: { some: { user_id: currentUserId, status: 'pending' } } },
+        ];
+      } else {
+        where.admin_approved = true;
       }
+    }
 
-      const organizations = await prisma.organization.findMany({
-        where,
-        take: limit,
-        orderBy: { created_at: 'desc' },
-        select: buildOrganizationSerializeSelect({ includeCounts: true }),
-      });
+    const organizations = await prisma.organization.findMany({
+      where,
+      take: limit,
+      orderBy: { created_at: 'desc' },
+      select: buildOrganizationSerializeSelect({ includeCounts: true }),
+    });
 
-      return res.json(
-        organizations.map(organization =>
-          serializeOrganization(organization, { includeCounts: true })
-        )
-      );
+    return res.json(
+      organizations.map(organization =>
+        serializeOrganization(organization, { includeCounts: true })
+      )
+    );
   })
 );
 
@@ -578,27 +523,27 @@ organizationsRouter.get(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const orgs = await prisma.organization.findMany({
-        where: {
-          memberships: {
-            some: {
-              user_id: req.user!.id,
-              role: ORGANIZATION_OWNER_ROLE,
-              status: 'active',
-            },
+    const orgs = await prisma.organization.findMany({
+      where: {
+        memberships: {
+          some: {
+            user_id: req.user!.id,
+            role: ORGANIZATION_OWNER_ROLE,
+            status: 'active',
           },
         },
-        take: 50,
-        orderBy: { created_at: 'desc' },
-        select: buildOrganizationSerializeSelect({ includeCounts: true }),
-      });
-      return res.json(
-        orgs.map(organization =>
-          serializeOrganization(organization, {
-            includeCounts: true,
-          })
-        )
-      );
+      },
+      take: 50,
+      orderBy: { created_at: 'desc' },
+      select: buildOrganizationSerializeSelect({ includeCounts: true }),
+    });
+    return res.json(
+      orgs.map(organization =>
+        serializeOrganization(organization, {
+          includeCounts: true,
+        })
+      )
+    );
   })
 );
 
@@ -606,80 +551,78 @@ organizationsRouter.get(
   '/mine/review-summaries',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const memberships = await prisma.organizationMembership.findMany({
-        where: {
-          user_id: req.user!.id,
-          role: { in: ['owner', 'manager'] },
-          status: 'active',
-        },
-        orderBy: { created_at: 'desc' },
-        take: 50,
-        include: {
-          organization: {
-            select: {
-              id: true,
-              name: true,
-              teams: {
-                select: { id: true },
-                orderBy: { created_at: 'asc' },
-              },
+    const memberships = await prisma.organizationMembership.findMany({
+      where: {
+        user_id: req.user!.id,
+        role: { in: ['owner', 'manager'] },
+        status: 'active',
+      },
+      orderBy: { created_at: 'desc' },
+      take: 50,
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            teams: {
+              select: { id: true },
+              orderBy: { created_at: 'asc' },
             },
           },
         },
-      });
+      },
+    });
 
-      const summaries = await Promise.all(
-        memberships.map(async membership => {
-          const organization = membership.organization;
-          const teamIds = organization.teams.map(team => team.id);
+    const summaries = await Promise.all(
+      memberships.map(async membership => {
+        const organization = membership.organization;
+        const teamIds = organization.teams.map(team => team.id);
 
-          const [pendingCoachRequests, pendingGameReviews, pendingEventReviews] = await Promise.all(
-            [
-              prisma.organizationJoinRequest.count({
+        const [pendingCoachRequests, pendingGameReviews, pendingEventReviews] = await Promise.all([
+          prisma.organizationJoinRequest.count({
+            where: {
+              organization_id: organization.id,
+              status: 'pending',
+            },
+          }),
+          teamIds.length > 0
+            ? prisma.game.count({
                 where: {
-                  organization_id: organization.id,
-                  status: 'pending',
+                  approval_status: 'pending',
+                  OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
                 },
-              }),
-              teamIds.length > 0
-                ? prisma.game.count({
-                    where: {
-                      approval_status: 'pending',
-                      OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
-                    },
-                  })
-                : Promise.resolve(0),
-              teamIds.length > 0
-                ? prisma.event.count({
-                    where: {
-                      approval_status: 'pending',
-                      team_id: { in: teamIds },
-                    },
-                  })
-                : Promise.resolve(0),
-            ]
-          );
+              })
+            : Promise.resolve(0),
+          teamIds.length > 0
+            ? prisma.event.count({
+                where: {
+                  approval_status: 'pending',
+                  team_id: { in: teamIds },
+                },
+              })
+            : Promise.resolve(0),
+        ]);
 
-          return {
-            organization: {
-              id: organization.id,
-              name: organization.name,
-            },
-            permissions: {
-              can_manage: true,
-              can_review_coach_requests: membership.role === ORGANIZATION_OWNER_ROLE,
-              membership_role: membership.role,
-            },
-            counts: {
-              pending_coach_requests: pendingCoachRequests,
-              pending_game_reviews: pendingGameReviews,
-              pending_event_reviews: pendingEventReviews,
-            },
-          };
-        })
-      );
+        return {
+          organization: {
+            id: organization.id,
+            name: organization.name,
+          },
+          permissions: {
+            can_manage: true,
+            can_review_coach_requests: membership.role === ORGANIZATION_OWNER_ROLE,
+            membership_role: membership.role,
+          },
+          counts: {
+            pending_coach_requests: pendingCoachRequests,
+            pending_game_reviews: pendingGameReviews,
+            pending_event_reviews: pendingEventReviews,
+          },
+        };
+      })
+    );
 
-      return res.json(summaries);
+    return res.json(summaries);
   })
 );
 
@@ -826,22 +769,22 @@ organizationsRouter.post(
   '/:id/follow',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const userId = req.user!.id;
-      const orgId = String(req.params.id);
-      const org = await prisma.organization.findUnique({
-        where: { id: orgId },
-        select: { id: true },
+    const userId = req.user!.id;
+    const orgId = String(req.params.id);
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true },
+    });
+    if (!org) return res.status(404).json({ error: 'Organization not found' });
+    try {
+      await prisma.organizationFollow.create({
+        data: { user_id: userId, organization_id: orgId },
       });
-      if (!org) return res.status(404).json({ error: 'Organization not found' });
-      try {
-        await prisma.organizationFollow.create({
-          data: { user_id: userId, organization_id: orgId },
-        });
-        return res.status(201).json({ is_following: true });
-      } catch (e: any) {
-        if (e?.code === 'P2002') return res.status(201).json({ is_following: true });
-        throw e;
-      }
+      return res.status(201).json({ is_following: true });
+    } catch (e: any) {
+      if (e?.code === 'P2002') return res.status(201).json({ is_following: true });
+      throw e;
+    }
   })
 );
 
@@ -850,12 +793,12 @@ organizationsRouter.delete(
   '/:id/follow',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const userId = req.user!.id;
-      const orgId = String(req.params.id);
-      await prisma.organizationFollow.deleteMany({
-        where: { user_id: userId, organization_id: orgId },
-      });
-      return res.json({ is_following: false });
+    const userId = req.user!.id;
+    const orgId = String(req.params.id);
+    await prisma.organizationFollow.deleteMany({
+      where: { user_id: userId, organization_id: orgId },
+    });
+    return res.json({ is_following: false });
   })
 );
 
@@ -867,58 +810,58 @@ organizationsRouter.get(
   '/:id/members',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const id = String(req.params.id);
-      const organization = await prisma.organization.findUnique({
-        where: { id },
-        select: { id: true },
+    const id = String(req.params.id);
+    const organization = await prisma.organization.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!organization) return res.status(404).json({ error: 'Organization not found' });
+
+    // Caller must be a member of this org or a platform admin
+    const callerMembership = await getOrganizationMembership(req.user!.id, id);
+    if (!callerMembership) {
+      const caller = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { email: true },
       });
-      if (!organization) return res.status(404).json({ error: 'Organization not found' });
-
-      // Caller must be a member of this org or a platform admin
-      const callerMembership = await getOrganizationMembership(req.user!.id, id);
-      if (!callerMembership) {
-        const caller = await prisma.user.findUnique({
-          where: { id: req.user!.id },
-          select: { email: true },
-        });
-        if (!isEmailAdmin(caller?.email)) {
-          return res.status(403).json({ error: 'You must be a member of this organization' });
-        }
+      if (!isEmailAdmin(caller?.email)) {
+        return res.status(403).json({ error: 'You must be a member of this organization' });
       }
+    }
 
-      const members = await prisma.organizationMembership.findMany({
-        where: { organization_id: id, status: 'active' },
-        take: 500,
-        include: {
-          user: {
-            select: {
-              id: true,
-              display_name: true,
-              username: true,
-              avatar_url: true,
-              preferences: true,
-            },
+    const members = await prisma.organizationMembership.findMany({
+      where: { organization_id: id, status: 'active' },
+      take: 500,
+      include: {
+        user: {
+          select: {
+            id: true,
+            display_name: true,
+            username: true,
+            avatar_url: true,
+            preferences: true,
           },
         },
-        orderBy: { created_at: 'desc' },
-      });
+      },
+      orderBy: { created_at: 'desc' },
+    });
 
-      const list = members.map(m => {
-        const user = (m as any).user;
-        const prefs = (user?.preferences || {}) as any;
-        return {
-          ...m,
-          user: {
-            id: user?.id,
-            display_name: user?.display_name,
-            username: user?.username,
-            avatar_url: user?.avatar_url,
-            is_parent: prefs?.is_parent === true,
-          },
-        };
-      });
+    const list = members.map(m => {
+      const user = (m as any).user;
+      const prefs = (user?.preferences || {}) as any;
+      return {
+        ...m,
+        user: {
+          id: user?.id,
+          display_name: user?.display_name,
+          username: user?.username,
+          avatar_url: user?.avatar_url,
+          is_parent: prefs?.is_parent === true,
+        },
+      };
+    });
 
-      return res.json(list);
+    return res.json(list);
   })
 );
 
@@ -951,139 +894,136 @@ organizationsRouter.post(
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const parsed = createOrganizationSchema.safeParse(req.body);
-      if (!parsed.success) {
-        // v1.0.3: return the Zod issues so the client can show WHICH field
-        // failed validation. The bare "Invalid payload" response caused an
-        // entire session of "Failed to create page — something went wrong"
-        // with no way for users OR support to diagnose missing fields
-        // (most commonly: supporting_document_url null after a silent upload
-        // failure).
-        return res.status(400).json({
-          error: 'Invalid payload',
-          code: 'VALIDATION_FAILED',
-          issues: parsed.error.issues.map(i => ({
-            path: i.path,
-            message: i.message,
-          })),
-        });
-      }
-
-      // v1.0.2: 48hr cooldown if prior application was rejected (mirrors POST /create).
-      const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
-      const applicant = await prisma.user.findUnique({
-        where: { id: req.user!.id },
-        select: {
-          approval_status: true,
-          rejected_at: true,
-          rejection_reason: true,
-          preferences: true,
-          role: true,
-          plan: true,
-          pending_plan: true,
-          payment_pending: true,
-          payment_approved: true,
-        },
+    const parsed = createOrganizationSchema.safeParse(req.body);
+    if (!parsed.success) {
+      // v1.0.3: return the Zod issues so the client can show WHICH field
+      // failed validation. The bare "Invalid payload" response caused an
+      // entire session of "Failed to create page — something went wrong"
+      // with no way for users OR support to diagnose missing fields
+      // (most commonly: supporting_document_url null after a silent upload
+      // failure).
+      return res.status(400).json({
+        error: 'Invalid payload',
+        code: 'VALIDATION_FAILED',
+        issues: parsed.error.issues.map(i => ({
+          path: i.path,
+          message: i.message,
+        })),
       });
-      const applicantPrefs = getPreferencesObject(applicant?.preferences);
-      if (getCanonicalUserRole(applicant as any) !== 'coach') {
-        return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
-      }
-      // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
-      if (applicant?.approval_status === 'REJECTED') {
-        let rejectedAt = applicant.rejected_at;
-        if (!rejectedAt) {
-          rejectedAt = new Date();
-          await prisma.user.update({
-            where: { id: req.user!.id },
-            data: { rejected_at: rejectedAt },
-          });
-          await invalidateMeCacheForUser(req.user!.id);
-        }
-        const elapsed = Date.now() - new Date(rejectedAt).getTime();
-        if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
-          const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
-          return res.status(429).json({
-            error:
-              'Your previous application was declined. Please wait before creating another organization.',
-            code: 'REJECTION_COOLDOWN',
-            retry_after_ms: retryAfterMs,
-            retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
-            reason: applicant.rejection_reason || null,
-          });
-        }
-      }
+    }
 
-      const data = parsed.data;
-      const authorizedInviteInputs = (data.authorized_users || [])
-        .filter(user => typeof user.email === 'string' && user.email.trim().length > 0)
-        .map(user => ({
-          email: String(user.email).trim().toLowerCase(),
-          role: String(user.role || 'member')
-            .trim()
-            .toLowerCase(),
-        }));
-
-      const invalidInviteRole = authorizedInviteInputs.find(
-        invite => !isValidOrganizationInviteRole(invite.role)
-      );
-      if (invalidInviteRole) {
-        return res.status(400).json({
-          error: `Invalid role. Must be one of: ${VALID_ORG_INVITE_ROLES.join(', ')}`,
-          code: 'INVALID_INVITE_ROLE',
+    // v1.0.2: 48hr cooldown if prior application was rejected (mirrors POST /create).
+    const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
+    const applicant = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        approval_status: true,
+        rejected_at: true,
+        rejection_reason: true,
+        preferences: true,
+        role: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+      },
+    });
+    const applicantPrefs = getPreferencesObject(applicant?.preferences);
+    if (getCanonicalUserRole(applicant as any) !== 'coach') {
+      return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
+    }
+    // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
+    if (applicant?.approval_status === 'REJECTED') {
+      let rejectedAt = applicant.rejected_at;
+      if (!rejectedAt) {
+        rejectedAt = new Date();
+        await prisma.user.update({
+          where: { id: req.user!.id },
+          data: { rejected_at: rejectedAt },
+        });
+        await invalidateMeCacheForUser(req.user!.id);
+      }
+      const elapsed = Date.now() - new Date(rejectedAt).getTime();
+      if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
+        const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
+        return res.status(429).json({
+          error:
+            'Your previous application was declined. Please wait before creating another organization.',
+          code: 'REJECTION_COOLDOWN',
+          retry_after_ms: retryAfterMs,
+          retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
+          reason: applicant.rejection_reason || null,
         });
       }
+    }
 
-      const applicantPlan = getEffectiveEntitledPlan(applicant as any);
-      const applicantTeamCountTotal =
-        applicantPrefs.team_count_total ||
-        (await prisma.teamMembership.count({
-          where: { user_id: req.user!.id, role: 'owner', status: 'active' },
-        }));
-      const authorizedUsersLimit = getAuthorizedUsersOrgLimit(
-        applicantPlan,
-        applicantTeamCountTotal
-      );
-      const totalAuthorizedUsersOnCreate = 1 + authorizedInviteInputs.length;
-      if (authorizedUsersLimit !== null && totalAuthorizedUsersOnCreate > authorizedUsersLimit) {
-        return res.status(403).json({
-          error: 'USER_LIMIT_REACHED',
-          message: `Plan limit reached. ${applicantPlan} plan allows ${authorizedUsersLimit} authorized user${authorizedUsersLimit === 1 ? '' : 's'} for your organization.`,
-          limit: authorizedUsersLimit,
-          current: totalAuthorizedUsersOnCreate,
-        });
-      }
+    const data = parsed.data;
+    const authorizedInviteInputs = (data.authorized_users || [])
+      .filter(user => typeof user.email === 'string' && user.email.trim().length > 0)
+      .map(user => ({
+        email: String(user.email).trim().toLowerCase(),
+        role: String(user.role || 'member')
+          .trim()
+          .toLowerCase(),
+      }));
 
-      const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate({
-        userId: req.user!.id,
-        approvalStatus: applicant?.approval_status,
-        onboarding: data.onboarding,
+    const invalidInviteRole = authorizedInviteInputs.find(
+      invite => !isValidOrganizationInviteRole(invite.role)
+    );
+    if (invalidInviteRole) {
+      return res.status(400).json({
+        error: `Invalid role. Must be one of: ${VALID_ORG_INVITE_ROLES.join(', ')}`,
+        code: 'INVALID_INVITE_ROLE',
       });
-      // Duplicate guard: when zip_code is provided scope to that area; otherwise skip the
-      // full-table scan (no zip_code means we can't reliably detect cross-area duplicates and
-      // `zip_code: undefined` in a Prisma where clause removes the filter entirely, causing a
-      // scan of ALL organizations).
-      const nm = normalizeOrganizationName(data.name);
-      let dup: { id: string; name: string } | null = null;
-      if (data.zip_code) {
-        const sameZipOrgs = await prisma.organization.findMany({
-          where: { zip_code: data.zip_code, status: 'active' },
-          select: { id: true, name: true },
-          take: 100,
-        });
-        dup = sameZipOrgs.find(o => normalizeOrganizationName(o.name) === nm) ?? null;
-      }
-      if (dup) {
-        return res
-          .status(409)
-          .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
-      }
-      return handleOrganizationCreateRequest(req, res, parsed.data, {
-        applicantPrefs,
-        shouldForcePendingApproval,
-        authorizedInviteInputs,
-        routeTag: '/',
+    }
+
+    const applicantPlan = getEffectiveEntitledPlan(applicant as any);
+    const applicantTeamCountTotal =
+      applicantPrefs.team_count_total ||
+      (await prisma.teamMembership.count({
+        where: { user_id: req.user!.id, role: 'owner', status: 'active' },
+      }));
+    const authorizedUsersLimit = getAuthorizedUsersOrgLimit(applicantPlan, applicantTeamCountTotal);
+    const totalAuthorizedUsersOnCreate = 1 + authorizedInviteInputs.length;
+    if (authorizedUsersLimit !== null && totalAuthorizedUsersOnCreate > authorizedUsersLimit) {
+      return res.status(403).json({
+        error: 'USER_LIMIT_REACHED',
+        message: `Plan limit reached. ${applicantPlan} plan allows ${authorizedUsersLimit} authorized user${authorizedUsersLimit === 1 ? '' : 's'} for your organization.`,
+        limit: authorizedUsersLimit,
+        current: totalAuthorizedUsersOnCreate,
       });
+    }
+
+    const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate({
+      userId: req.user!.id,
+      approvalStatus: applicant?.approval_status,
+      onboarding: data.onboarding,
+    });
+    // Duplicate guard: when zip_code is provided scope to that area; otherwise skip the
+    // full-table scan (no zip_code means we can't reliably detect cross-area duplicates and
+    // `zip_code: undefined` in a Prisma where clause removes the filter entirely, causing a
+    // scan of ALL organizations).
+    const nm = normalizeOrganizationName(data.name);
+    let dup: { id: string; name: string } | null = null;
+    if (data.zip_code) {
+      const sameZipOrgs = await prisma.organization.findMany({
+        where: { zip_code: data.zip_code, status: 'active' },
+        select: { id: true, name: true },
+        take: 100,
+      });
+      dup = sameZipOrgs.find(o => normalizeOrganizationName(o.name) === nm) ?? null;
+    }
+    if (dup) {
+      return res
+        .status(409)
+        .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
+    }
+    return handleOrganizationCreateRequest(req, res, parsed.data, {
+      applicantPrefs,
+      shouldForcePendingApproval,
+      authorizedInviteInputs,
+      routeTag: '/',
+    });
   })
 );
 
@@ -1122,130 +1062,127 @@ organizationsRouter.post(
   // routes drift when someone updates one and not the other).
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
-      if (!parsed.success) {
-        // v1.0.3: return Zod issues so client can render actionable errors.
-        return res.status(400).json({
-          error: 'Invalid payload',
-          code: 'VALIDATION_FAILED',
-          issues: parsed.error.issues.map(i => ({
-            path: i.path,
-            message: i.message,
-          })),
+    const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      // v1.0.3: return Zod issues so client can render actionable errors.
+      return res.status(400).json({
+        error: 'Invalid payload',
+        code: 'VALIDATION_FAILED',
+        issues: parsed.error.issues.map(i => ({
+          path: i.path,
+          message: i.message,
+        })),
+      });
+    }
+
+    // v1.0.2: 48hr cooldown for users whose prior org application was rejected.
+    const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
+    const applicant = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        approval_status: true,
+        rejected_at: true,
+        rejection_reason: true,
+        preferences: true,
+        role: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+      },
+    });
+    const applicantPrefs = getPreferencesObject(applicant?.preferences);
+    if (getCanonicalUserRole(applicant as any) !== 'coach') {
+      return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
+    }
+    // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
+    if (applicant?.approval_status === 'REJECTED') {
+      let rejectedAt = applicant.rejected_at;
+      if (!rejectedAt) {
+        rejectedAt = new Date();
+        await prisma.user.update({
+          where: { id: req.user!.id },
+          data: { rejected_at: rejectedAt },
+        });
+        await invalidateMeCacheForUser(req.user!.id);
+      }
+      const elapsed = Date.now() - new Date(rejectedAt).getTime();
+      if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
+        const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
+        return res.status(429).json({
+          error:
+            'Your previous application was declined. Please wait before creating another organization.',
+          code: 'REJECTION_COOLDOWN',
+          retry_after_ms: retryAfterMs,
+          retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
+          reason: applicant.rejection_reason || null,
         });
       }
+    }
 
-      // v1.0.2: 48hr cooldown for users whose prior org application was rejected.
-      const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
-      const applicant = await prisma.user.findUnique({
-        where: { id: req.user!.id },
-        select: {
-          approval_status: true,
-          rejected_at: true,
-          rejection_reason: true,
-          preferences: true,
-          role: true,
-          plan: true,
-          pending_plan: true,
-          payment_pending: true,
-          payment_approved: true,
-        },
+    const data = parsed.data;
+    const authorizedInviteInputs = (data.authorized_users || [])
+      .filter(user => typeof user.email === 'string' && user.email.trim().length > 0)
+      .map(user => ({
+        email: String(user.email).trim().toLowerCase(),
+        role: String(user.role || 'member')
+          .trim()
+          .toLowerCase(),
+      }));
+
+    const invalidInviteRole = authorizedInviteInputs.find(
+      invite => !isValidOrganizationInviteRole(invite.role)
+    );
+    if (invalidInviteRole) {
+      return res.status(400).json({
+        error: `Invalid role. Must be one of: ${VALID_ORG_INVITE_ROLES.join(', ')}`,
+        code: 'INVALID_INVITE_ROLE',
       });
-      const applicantPrefs = getPreferencesObject(applicant?.preferences);
-      if (getCanonicalUserRole(applicant as any) !== 'coach') {
-        return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
-      }
-      // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
-      if (applicant?.approval_status === 'REJECTED') {
-        let rejectedAt = applicant.rejected_at;
-        if (!rejectedAt) {
-          rejectedAt = new Date();
-          await prisma.user.update({
-            where: { id: req.user!.id },
-            data: { rejected_at: rejectedAt },
-          });
-          await invalidateMeCacheForUser(req.user!.id);
-        }
-        const elapsed = Date.now() - new Date(rejectedAt).getTime();
-        if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
-          const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
-          return res.status(429).json({
-            error:
-              'Your previous application was declined. Please wait before creating another organization.',
-            code: 'REJECTION_COOLDOWN',
-            retry_after_ms: retryAfterMs,
-            retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
-            reason: applicant.rejection_reason || null,
-          });
-        }
-      }
+    }
 
-      const data = parsed.data;
-      const authorizedInviteInputs = (data.authorized_users || [])
-        .filter(user => typeof user.email === 'string' && user.email.trim().length > 0)
-        .map(user => ({
-          email: String(user.email).trim().toLowerCase(),
-          role: String(user.role || 'member')
-            .trim()
-            .toLowerCase(),
-        }));
-
-      const invalidInviteRole = authorizedInviteInputs.find(
-        invite => !isValidOrganizationInviteRole(invite.role)
-      );
-      if (invalidInviteRole) {
-        return res.status(400).json({
-          error: `Invalid role. Must be one of: ${VALID_ORG_INVITE_ROLES.join(', ')}`,
-          code: 'INVALID_INVITE_ROLE',
-        });
-      }
-
-      const applicantPlan = getEffectiveEntitledPlan(applicant as any);
-      const applicantTeamCountTotal =
-        applicantPrefs.team_count_total ||
-        (await prisma.teamMembership.count({
-          where: { user_id: req.user!.id, role: 'owner', status: 'active' },
-        }));
-      const authorizedUsersLimit = getAuthorizedUsersOrgLimit(
-        applicantPlan,
-        applicantTeamCountTotal
-      );
-      const totalAuthorizedUsersOnCreate = 1 + authorizedInviteInputs.length;
-      if (authorizedUsersLimit !== null && totalAuthorizedUsersOnCreate > authorizedUsersLimit) {
-        return res.status(403).json({
-          error: 'USER_LIMIT_REACHED',
-          message: `Plan limit reached. ${applicantPlan} plan allows ${authorizedUsersLimit} authorized user${authorizedUsersLimit === 1 ? '' : 's'} for your organization.`,
-          limit: authorizedUsersLimit,
-          current: totalAuthorizedUsersOnCreate,
-        });
-      }
-
-      const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate({
-        userId: req.user!.id,
-        approvalStatus: applicant?.approval_status,
-        onboarding: data.onboarding,
+    const applicantPlan = getEffectiveEntitledPlan(applicant as any);
+    const applicantTeamCountTotal =
+      applicantPrefs.team_count_total ||
+      (await prisma.teamMembership.count({
+        where: { user_id: req.user!.id, role: 'owner', status: 'active' },
+      }));
+    const authorizedUsersLimit = getAuthorizedUsersOrgLimit(applicantPlan, applicantTeamCountTotal);
+    const totalAuthorizedUsersOnCreate = 1 + authorizedInviteInputs.length;
+    if (authorizedUsersLimit !== null && totalAuthorizedUsersOnCreate > authorizedUsersLimit) {
+      return res.status(403).json({
+        error: 'USER_LIMIT_REACHED',
+        message: `Plan limit reached. ${applicantPlan} plan allows ${authorizedUsersLimit} authorized user${authorizedUsersLimit === 1 ? '' : 's'} for your organization.`,
+        limit: authorizedUsersLimit,
+        current: totalAuthorizedUsersOnCreate,
       });
-      // Duplicate guard (same logic as simple create)
-      const nm = normalizeOrganizationName(data.name);
-      const duplicateWhere: any = { status: 'active' };
-      if (data.zip_code) duplicateWhere.zip_code = data.zip_code;
-      const possibleDuplicates = await prisma.organization.findMany({
-        where: duplicateWhere,
-        select: { id: true, name: true, zip_code: true },
-        take: 100,
-      });
-      const dup = possibleDuplicates.find(o => normalizeOrganizationName(o.name) === nm);
-      if (dup) {
-        return res
-          .status(409)
-          .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
-      }
-      return handleOrganizationCreateRequest(req, res, parsed.data, {
-        applicantPrefs,
-        shouldForcePendingApproval,
-        authorizedInviteInputs,
-        routeTag: '/create',
-      });
+    }
+
+    const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate({
+      userId: req.user!.id,
+      approvalStatus: applicant?.approval_status,
+      onboarding: data.onboarding,
+    });
+    // Duplicate guard (same logic as simple create)
+    const nm = normalizeOrganizationName(data.name);
+    const duplicateWhere: any = { status: 'active' };
+    if (data.zip_code) duplicateWhere.zip_code = data.zip_code;
+    const possibleDuplicates = await prisma.organization.findMany({
+      where: duplicateWhere,
+      select: { id: true, name: true, zip_code: true },
+      take: 100,
+    });
+    const dup = possibleDuplicates.find(o => normalizeOrganizationName(o.name) === nm);
+    if (dup) {
+      return res
+        .status(409)
+        .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
+    }
+    return handleOrganizationCreateRequest(req, res, parsed.data, {
+      applicantPrefs,
+      shouldForcePendingApproval,
+      authorizedInviteInputs,
+      routeTag: '/create',
+    });
   })
 );
 
@@ -1442,12 +1379,12 @@ organizationsRouter.get(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-      if (!user) return res.status(404).json({ error: 'User not found' });
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-      const invites = await listOrganizationInvitesForEmail(user.email);
+    const invites = await listOrganizationInvitesForEmail(user.email);
 
-      return res.json(invites);
+    return res.json(invites);
   })
 );
 
@@ -1456,47 +1393,47 @@ organizationsRouter.post(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const organizationId = String(req.params.id);
-      const inviteId = String(req.params.inviteId);
-      const userId = req.user?.id || null;
-      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const organizationId = String(req.params.id);
+    const inviteId = String(req.params.inviteId);
+    const userId = req.user?.id || null;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-      const [membership, isPlatformAdmin, invite] = await Promise.all([
-        getOrganizationMembership(userId, organizationId),
-        isCurrentUserPlatformAdmin(req),
-        prisma.organizationInvite.findUnique({
-          where: { id: inviteId },
-          select: { id: true, organization_id: true, status: true },
-        }),
-      ]);
+    const [membership, isPlatformAdmin, invite] = await Promise.all([
+      getOrganizationMembership(userId, organizationId),
+      isCurrentUserPlatformAdmin(req),
+      prisma.organizationInvite.findUnique({
+        where: { id: inviteId },
+        select: { id: true, organization_id: true, status: true },
+      }),
+    ]);
 
-      if (!invite || invite.organization_id !== organizationId) {
-        return res.status(404).json({ error: 'Invite not found' });
-      }
+    if (!invite || invite.organization_id !== organizationId) {
+      return res.status(404).json({ error: 'Invite not found' });
+    }
 
-      if (!isPlatformAdmin && (!membership || !isOrganizationAdmin(membership.role))) {
-        return res.status(403).json({
-          error: 'PERMISSION_DENIED',
-          message: 'Only organization admins can cancel invites.',
-        });
-      }
-
-      const updated = await prisma.organizationInvite.updateMany({
-        where: { id: inviteId, organization_id: organizationId, status: 'pending' },
-        data: { status: 'revoked' },
+    if (!isPlatformAdmin && (!membership || !isOrganizationAdmin(membership.role))) {
+      return res.status(403).json({
+        error: 'PERMISSION_DENIED',
+        message: 'Only organization admins can cancel invites.',
       });
+    }
 
-      if (updated.count === 0) {
-        return res.status(409).json({ error: 'Invite already processed' });
-      }
+    const updated = await prisma.organizationInvite.updateMany({
+      where: { id: inviteId, organization_id: organizationId, status: 'pending' },
+      data: { status: 'revoked' },
+    });
 
-      return res.json({
-        ok: true,
-        invite: {
-          id: inviteId,
-          status: 'revoked',
-        },
-      });
+    if (updated.count === 0) {
+      return res.status(409).json({ error: 'Invite already processed' });
+    }
+
+    return res.json({
+      ok: true,
+      invite: {
+        id: inviteId,
+        status: 'revoked',
+      },
+    });
   })
 );
 
@@ -1506,93 +1443,91 @@ organizationsRouter.post(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const inviteId = String(req.params.inviteId);
-      const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-      if (!user) return res.status(404).json({ error: 'User not found' });
+    const inviteId = String(req.params.inviteId);
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-      const invite = await getOrganizationInviteState(inviteId);
-      if (!invite || invite.status !== 'pending') {
-        return res.status(404).json({ error: 'Invite not found or not valid' });
-      }
-      if (!user.email || user.email.toLowerCase() !== invite.email.toLowerCase()) {
-        return res.status(403).json({ error: 'Invite not for this user' });
-      }
+    const invite = await getOrganizationInviteState(inviteId);
+    if (!invite || invite.status !== 'pending') {
+      return res.status(404).json({ error: 'Invite not found or not valid' });
+    }
+    if (!user.email || user.email.toLowerCase() !== invite.email.toLowerCase()) {
+      return res.status(403).json({ error: 'Invite not for this user' });
+    }
 
-      const accepted = await prisma.$transaction(async tx => {
-        const transition = await tx.organizationInvite.updateMany({
-          where: { id: inviteId, status: 'pending' },
-          data: { status: 'accepted' },
-        });
-        if (transition.count === 0) return false;
+    const accepted = await prisma.$transaction(async tx => {
+      const transition = await tx.organizationInvite.updateMany({
+        where: { id: inviteId, status: 'pending' },
+        data: { status: 'accepted' },
+      });
+      if (transition.count === 0) return false;
 
-        await tx.organizationMembership.upsert({
-          where: {
-            organization_id_user_id: {
-              organization_id: invite.organization_id,
-              user_id: user.id,
-            } as any,
-          },
-          update: { status: 'active' }, // SECURITY: Only reactivate — never escalate role via invite
-          create: {
+      await tx.organizationMembership.upsert({
+        where: {
+          organization_id_user_id: {
             organization_id: invite.organization_id,
             user_id: user.id,
-            role: toOrganizationInviteRole(invite.role),
-            status: 'active',
-          },
-          select: { id: true },
-        });
-        return true;
+          } as any,
+        },
+        update: { status: 'active' }, // SECURITY: Only reactivate — never escalate role via invite
+        create: {
+          organization_id: invite.organization_id,
+          user_id: user.id,
+          role: toOrganizationInviteRole(invite.role),
+          status: 'active',
+        },
+        select: { id: true },
       });
-      if (!accepted) return res.status(409).json({ error: 'Invite already processed' });
+      return true;
+    });
+    if (!accepted) return res.status(409).json({ error: 'Invite already processed' });
 
-      try {
-        const accepterName = user.display_name || user.email || 'A staff member';
-        const [organization, managers] = await Promise.all([
-          prisma.organization.findUnique({
-            where: { id: invite.organization_id },
-            select: { name: true },
-          }),
-          prisma.organizationMembership.findMany({
-            where: {
-              organization_id: invite.organization_id,
-              role: { in: ['owner', 'manager'] },
-              status: 'active',
-              user_id: { not: req.user!.id },
-            },
-            select: {
-              user: {
-                select: {
-                  email: true,
-                  display_name: true,
-                },
+    try {
+      const accepterName = user.display_name || user.email || 'A staff member';
+      const [organization, managers] = await Promise.all([
+        prisma.organization.findUnique({
+          where: { id: invite.organization_id },
+          select: { name: true },
+        }),
+        prisma.organizationMembership.findMany({
+          where: {
+            organization_id: invite.organization_id,
+            role: { in: ['owner', 'manager'] },
+            status: 'active',
+            user_id: { not: req.user!.id },
+          },
+          select: {
+            user: {
+              select: {
+                email: true,
+                display_name: true,
               },
             },
-            take: 100,
-          }),
-        ]);
+          },
+          take: 100,
+        }),
+      ]);
 
-        await Promise.allSettled(
-          managers
-            .map(entry => entry.user)
-            .filter(
-              manager => typeof manager?.email === 'string' && manager.email.trim().length > 0
-            )
-            .map(manager =>
-              sendStaffMemberJoinedEmail({
-                to: String(manager!.email).trim(),
-                ownerName: manager?.display_name || undefined,
-                newMember: accepterName,
-                newMemberRole: invite.role || 'member',
-                scope: 'organization',
-                scopeName: organization?.name || 'your organization',
-              })
-            )
-        );
-      } catch (notifErr) {
-        console.error('[organizations] Failed to send invite accepted notification:', notifErr);
-      }
+      await Promise.allSettled(
+        managers
+          .map(entry => entry.user)
+          .filter(manager => typeof manager?.email === 'string' && manager.email.trim().length > 0)
+          .map(manager =>
+            sendStaffMemberJoinedEmail({
+              to: String(manager!.email).trim(),
+              ownerName: manager?.display_name || undefined,
+              newMember: accepterName,
+              newMemberRole: invite.role || 'member',
+              scope: 'organization',
+              scopeName: organization?.name || 'your organization',
+            })
+          )
+      );
+    } catch (notifErr) {
+      console.error('[organizations] Failed to send invite accepted notification:', notifErr);
+    }
 
-      return res.json({ message: 'Invite accepted' });
+    return res.json({ message: 'Invite accepted' });
   })
 );
 
@@ -1602,24 +1537,24 @@ organizationsRouter.post(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const inviteId = String(req.params.inviteId);
-      const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-      if (!user) return res.status(404).json({ error: 'User not found' });
+    const inviteId = String(req.params.inviteId);
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-      const invite = await getOrganizationInviteState(inviteId);
-      if (!invite || invite.status !== 'pending') {
-        return res.status(404).json({ error: 'Invite not found or not valid' });
-      }
-      if (!user.email || user.email.toLowerCase() !== invite.email.toLowerCase()) {
-        return res.status(403).json({ error: 'Invite not for this user' });
-      }
+    const invite = await getOrganizationInviteState(inviteId);
+    if (!invite || invite.status !== 'pending') {
+      return res.status(404).json({ error: 'Invite not found or not valid' });
+    }
+    if (!user.email || user.email.toLowerCase() !== invite.email.toLowerCase()) {
+      return res.status(403).json({ error: 'Invite not for this user' });
+    }
 
-      const declined = await prisma.organizationInvite.updateMany({
-        where: { id: inviteId, status: 'pending' },
-        data: { status: 'declined' },
-      });
-      if (declined.count === 0) return res.status(409).json({ error: 'Invite already processed' });
-      return res.json({ message: 'Invite declined' });
+    const declined = await prisma.organizationInvite.updateMany({
+      where: { id: inviteId, status: 'pending' },
+      data: { status: 'declined' },
+    });
+    if (declined.count === 0) return res.status(409).json({ error: 'Invite already processed' });
+    return res.json({ message: 'Invite declined' });
   })
 );
 
@@ -1632,60 +1567,60 @@ organizationsRouter.get(
   '/search/nearby',
   organizationsNearbyLimiter,
   asyncHandler(async (req, res) => {
-      const query = String((req.query as any).query || '').trim();
-      const sport = String((req.query as any).sport || '').trim();
-      const orgType = String((req.query as any).org_type || '').trim();
-      const limit = Math.max(
-        1,
-        Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50)
-      );
+    const query = String((req.query as any).query || '').trim();
+    const sport = String((req.query as any).sport || '').trim();
+    const orgType = String((req.query as any).org_type || '').trim();
+    const limit = Math.max(
+      1,
+      Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50)
+    );
 
-      debugLog('🔍 Organization search request:', { query, sport, orgType, limit });
+    debugLog('🔍 Organization search request:', { query, sport, orgType, limit });
 
-      if (!query) {
-        return res.status(400).json({ error: 'query parameter is required' });
-      }
+    if (!query) {
+      return res.status(400).json({ error: 'query parameter is required' });
+    }
 
-      // Check if query is a zip code (5 digits) or organization name
-      const isZipCode = /^\d{5}$/.test(query);
+    // Check if query is a zip code (5 digits) or organization name
+    const isZipCode = /^\d{5}$/.test(query);
 
-      const where: any = {
-        status: 'active',
-        OR: isZipCode
-          ? [{ zip_code: query }]
-          : [
-              { name: { contains: query, mode: 'insensitive' } },
-              { location: { contains: query, mode: 'insensitive' } },
-            ],
-      };
+    const where: any = {
+      status: 'active',
+      OR: isZipCode
+        ? [{ zip_code: query }]
+        : [
+            { name: { contains: query, mode: 'insensitive' } },
+            { location: { contains: query, mode: 'insensitive' } },
+          ],
+    };
 
-      if (sport) where.sport = sport;
-      if (orgType) where.org_type = orgType;
+    if (sport) where.sport = sport;
+    if (orgType) where.org_type = orgType;
 
-      const organizations = await prisma.organization.findMany({
-        where,
-        take: limit,
-        orderBy: { created_at: 'desc' },
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          sport: true,
-          org_type: true,
-          location: true,
-          zip_code: true,
-          created_at: true,
-          _count: {
-            select: {
-              memberships: true,
-              teams: true,
-            },
+    const organizations = await prisma.organization.findMany({
+      where,
+      take: limit,
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        sport: true,
+        org_type: true,
+        location: true,
+        zip_code: true,
+        created_at: true,
+        _count: {
+          select: {
+            memberships: true,
+            teams: true,
           },
         },
-      });
+      },
+    });
 
-      debugLog(`✅ Found ${organizations.length} organizations matching "${query}"`);
-      return res.json(organizations);
+    debugLog(`✅ Found ${organizations.length} organizations matching "${query}"`);
+    return res.json(organizations);
   })
 );
 
@@ -1694,50 +1629,46 @@ organizationsRouter.post(
   '/check-duplicate',
   requireAuth as any,
   asyncHandler(async (req, res) => {
-      const checkDuplicateSchema = z.object({
-        name: z.string().min(1).max(200),
-        zip_code: z.string().max(20).optional(),
-      });
-      const parsed = checkDuplicateSchema.safeParse(req.body);
-      if (!parsed.success)
-        return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
-      const { name, zip_code } = parsed.data;
+    const checkDuplicateSchema = z.object({
+      name: z.string().min(1).max(200),
+      zip_code: z.string().max(20).optional(),
+    });
+    const parsed = checkDuplicateSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { name, zip_code } = parsed.data;
 
-      const normalizedInput = normalizeOrganizationName(name);
-      if (!normalizedInput) {
-        return res.json({ exists: false, organization: null });
-      }
+    const normalizedInput = normalizeOrganizationName(name);
+    if (!normalizedInput) {
+      return res.json({ exists: false, organization: null });
+    }
 
-      // If zip_code provided, check orgs in that zip first
-      if (zip_code) {
-        const localOrgs = await prisma.organization.findMany({
-          where: { zip_code, status: 'active' },
-          select: { id: true, name: true, location: true, sport: true },
-          take: 200,
-        });
-        const localMatch = localOrgs.find(
-          o => normalizeOrganizationName(o.name) === normalizedInput
-        );
-        if (localMatch) {
-          return res.json({ exists: true, organization: localMatch });
-        }
-      }
-
-      // Broader name-only scan as fallback (recent 200 active orgs)
-      const recentOrgs = await prisma.organization.findMany({
-        where: { status: 'active' },
-        orderBy: { created_at: 'desc' },
-        take: 200,
+    // If zip_code provided, check orgs in that zip first
+    if (zip_code) {
+      const localOrgs = await prisma.organization.findMany({
+        where: { zip_code, status: 'active' },
         select: { id: true, name: true, location: true, sport: true },
+        take: 200,
       });
-      const broadMatch = recentOrgs.find(
-        o => normalizeOrganizationName(o.name) === normalizedInput
-      );
+      const localMatch = localOrgs.find(o => normalizeOrganizationName(o.name) === normalizedInput);
+      if (localMatch) {
+        return res.json({ exists: true, organization: localMatch });
+      }
+    }
 
-      return res.json({
-        exists: !!broadMatch,
-        organization: broadMatch ?? null,
-      });
+    // Broader name-only scan as fallback (recent 200 active orgs)
+    const recentOrgs = await prisma.organization.findMany({
+      where: { status: 'active' },
+      orderBy: { created_at: 'desc' },
+      take: 200,
+      select: { id: true, name: true, location: true, sport: true },
+    });
+    const broadMatch = recentOrgs.find(o => normalizeOrganizationName(o.name) === normalizedInput);
+
+    return res.json({
+      exists: !!broadMatch,
+      organization: broadMatch ?? null,
+    });
   })
 );
 
@@ -2017,21 +1948,21 @@ organizationsRouter.get(
   '/:id/join-requests',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const id = String(req.params.id);
-      const status = String((req.query as any).status || 'pending');
+    const id = String(req.params.id);
+    const status = String((req.query as any).status || 'pending');
 
-      // Coach admission is decided by the organization owner — or a platform
-      // admin (org-scoped god-override), matching the canReviewCoachRequests
-      // flag GET /organizations/:id already advertises to admins.
-      const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
-      const membership = await getOrganizationMembership(req.user!.id, id);
-      if (!isPlatformAdmin && (!membership || membership.role !== 'owner')) {
-        return sendError(res, 403, 'Only the organization owner can review coach requests');
-      }
+    // Coach admission is decided by the organization owner — or a platform
+    // admin (org-scoped god-override), matching the canReviewCoachRequests
+    // flag GET /organizations/:id already advertises to admins.
+    const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
+    const membership = await getOrganizationMembership(req.user!.id, id);
+    if (!isPlatformAdmin && (!membership || membership.role !== 'owner')) {
+      return sendError(res, 403, 'Only the organization owner can review coach requests');
+    }
 
-      const joinRequests = await listOrganizationJoinRequestsForOrganization(id, status);
+    const joinRequests = await listOrganizationJoinRequestsForOrganization(id, status);
 
-      return res.json(joinRequests);
+    return res.json(joinRequests);
   })
 );
 
@@ -2040,9 +1971,9 @@ organizationsRouter.get(
   '/join-requests/me',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const joinRequests = await listOrganizationJoinRequestsForUser(req.user!.id);
+    const joinRequests = await listOrganizationJoinRequestsForUser(req.user!.id);
 
-      return res.json(joinRequests);
+    return res.json(joinRequests);
   })
 );
 
@@ -2057,27 +1988,8 @@ organizationsRouter.post(
       const requestId = String(req.params.requestId);
 
       const joinRequest = await getOrganizationJoinRequestState(requestId);
-      const [organization, user] = await Promise.all([
-        joinRequest
-          ? prisma.organization.findUnique({
-              where: { id: joinRequest.organization_id },
-              select: { id: true, name: true, admin_approved: true },
-            })
-          : Promise.resolve(null),
-        joinRequest
-          ? prisma.user.findUnique({
-              where: { id: joinRequest.user_id },
-              select: {
-                id: true,
-                email: true,
-                display_name: true,
-                preferences: true,
-              },
-            })
-          : Promise.resolve(null),
-      ]);
 
-      if (!joinRequest || !organization || !user) {
+      if (!joinRequest) {
         return res.status(404).json({ error: 'Join request not found' });
       }
 
@@ -2091,156 +2003,24 @@ organizationsRouter.post(
       // still applies to admins.
       const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
       const membership = await getOrganizationMembership(req.user!.id, joinRequest.organization_id);
-      if (!isPlatformAdmin && (!membership || membership.status !== 'active' || membership.role !== 'owner')) {
+      if (
+        !isPlatformAdmin &&
+        (!membership || membership.status !== 'active' || membership.role !== 'owner')
+      ) {
         return sendError(res, 403, 'Only the organization owner can approve coach requests');
       }
 
-      if (joinRequest.status !== 'pending') {
-        return res.status(400).json({ error: 'This request has already been reviewed' });
+      const result = await approveJoinRequest({
+        requestId,
+        reviewerUserId: req.user!.id,
+        context: { via: 'app', req },
+      });
+      if (!result.ok) {
+        return sendError(res, result.status, result.error);
       }
-
-      // SECURITY: Only allow approving join requests for admin-approved organizations.
-      // Without this, coaches could get APPROVED status by joining an unapproved org.
-      if (!organization.admin_approved) {
-        return res
-          .status(403)
-          .json({ error: 'Organization must be approved by VarsityHub before accepting members.' });
-      }
-
-      // ORG-8 + ORG-4: Serializable isolation with status re-check inside transaction
-      await prisma.$transaction(
-        async tx => {
-          // Re-check status inside transaction to prevent race condition (ORG-4)
-          const transition = await tx.organizationJoinRequest.updateMany({
-            where: { id: requestId, status: 'pending' },
-            data: {
-              status: 'approved',
-              reviewed_at: new Date(),
-              reviewed_by: req.user!.id,
-            },
-          });
-          if (transition.count === 0) {
-            throw new Error('JOIN_REQUEST_ALREADY_REVIEWED');
-          }
-          await tx.organizationMembership.upsert({
-            where: {
-              organization_id_user_id: {
-                organization_id: joinRequest.organization_id,
-                user_id: joinRequest.user_id,
-              } as any,
-            },
-            update: { role: 'coach', status: 'active' },
-            create: {
-              organization_id: joinRequest.organization_id,
-              user_id: joinRequest.user_id,
-              role: 'coach',
-              status: 'active',
-            },
-            select: { id: true },
-          });
-          await tx.user.update({
-            where: { id: joinRequest.user_id },
-            data: {
-              approval_status: 'APPROVED',
-              paid_by_owner: true,
-              rejected_at: null,
-              rejection_reason: null,
-              preferences: buildApprovedCoachPreferences({
-                currentPrefs: user.preferences,
-                organization: {
-                  id: joinRequest.organization_id,
-                  name: organization.name,
-                },
-              }),
-              ...buildAuthStateColumns({
-                role: 'coach',
-                organization_id: joinRequest.organization_id,
-                proceeding_as_fan: false,
-                coach_agreement_accepted_at: new Date(),
-                coach_agreement_version: Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1),
-              }),
-              ...buildBillingStateColumns({
-                pending_plan: null,
-                payment_pending: false,
-                payment_approved: false,
-              }),
-            },
-          });
-        },
-        { isolationLevel: 'Serializable' }
-      );
-      await invalidateMeCacheForUser(joinRequest.user_id);
-
-      // Email the coach that they were approved (fire-and-forget)
-      if (user.email) {
-        sendCoachApprovedEmail({
-          to: user.email,
-          coachName: user.display_name || 'Coach',
-          leagueName: organization.name,
-        }).catch(err =>
-          console.error('[orgs] Failed to send coach approved email:', (err as any)?.message)
-        );
-      }
-
-      // Push notification so coach knows they were approved
-      sendPushNotification(
-        joinRequest.user_id,
-        'Join Request Approved',
-        `Your request to join ${organization.name} was approved!`,
-        { type: 'join_request_approved', organization_id: joinRequest.organization_id }
-      )
-        .then(() => {
-          debugLog(`[notif] push sent JOIN_REQUEST_APPROVED to user=${joinRequest.user_id}`);
-        })
-        .catch(err => {
-          console.error(
-            '[notif] Failed to send push for JOIN_REQUEST_APPROVED:',
-            (err as any)?.message || err
-          );
-        });
-
-      // In-app notification so it shows in the Updates page
-      try {
-        const notif = await prisma.notification.create({
-          data: {
-            user_id: joinRequest.user_id,
-            actor_id: req.user?.id || null,
-            type: 'JOIN_REQUEST_APPROVED',
-            meta: {
-              organization_id: joinRequest.organization_id,
-              organization_name: organization.name,
-            },
-          },
-        });
-        debugLog(
-          `[notif] JOIN_REQUEST_APPROVED created id=${notif.id} for user=${joinRequest.user_id}`
-        );
-      } catch (err) {
-        console.error(
-          '[notif] Failed to create JOIN_REQUEST_APPROVED notification:',
-          (err as any)?.message || err
-        );
-        captureException(err as Error, {
-          context: 'join_request_approval_notification_failed',
-          organizationId: joinRequest.organization_id,
-          userId: joinRequest.user_id,
-          actorId: req.user?.id || null,
-        });
-      }
-
-      await logAdminActivityFromReq(
-        req,
-        'APPROVE_JOIN_REQUEST',
-        'user',
-        joinRequest.user_id,
-        `Approved coach join request for org ${organization.name}`
-      );
 
       return res.json({ message: 'Join request approved' });
     } catch (err: any) {
-      if (err?.message === 'JOIN_REQUEST_ALREADY_REVIEWED') {
-        return res.status(400).json({ error: 'This request has already been reviewed' });
-      }
       console.error('[organizations] POST /join-requests/:requestId/approve error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
@@ -2266,27 +2046,8 @@ organizationsRouter.post(
       const { reason } = parsed.data;
 
       const joinRequest = await getOrganizationJoinRequestState(requestId);
-      const [organization, user] = await Promise.all([
-        joinRequest
-          ? prisma.organization.findUnique({
-              where: { id: joinRequest.organization_id },
-              select: { id: true, name: true },
-            })
-          : Promise.resolve(null),
-        joinRequest
-          ? prisma.user.findUnique({
-              where: { id: joinRequest.user_id },
-              select: {
-                id: true,
-                email: true,
-                display_name: true,
-                preferences: true,
-              },
-            })
-          : Promise.resolve(null),
-      ]);
 
-      if (!joinRequest || !organization || !user) {
+      if (!joinRequest) {
         return res.status(404).json({ error: 'Join request not found' });
       }
 
@@ -2294,121 +2055,25 @@ organizationsRouter.post(
       // admin (org-scoped god-override).
       const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
       const membership = await getOrganizationMembership(req.user!.id, joinRequest.organization_id);
-      if (!isPlatformAdmin && (!membership || membership.status !== 'active' || membership.role !== 'owner')) {
+      if (
+        !isPlatformAdmin &&
+        (!membership || membership.status !== 'active' || membership.role !== 'owner')
+      ) {
         return sendError(res, 403, 'Only the organization owner can reject coach requests');
       }
 
-      if (joinRequest.status !== 'pending') {
-        return res.status(400).json({ error: 'This request has already been reviewed' });
+      const result = await denyJoinRequest({
+        requestId,
+        reviewerUserId: req.user!.id,
+        context: { via: 'app', req },
+        reason,
+      });
+      if (!result.ok) {
+        return sendError(res, result.status, result.error);
       }
-
-      await prisma.$transaction(
-        async tx => {
-          const transition = await tx.organizationJoinRequest.updateMany({
-            where: { id: requestId, status: 'pending' },
-            data: {
-              status: 'denied',
-              reviewed_at: new Date(),
-              reviewed_by: req.user!.id,
-              rejection_reason: reason || null,
-            },
-          });
-          if (transition.count === 0) {
-            throw new Error('JOIN_REQUEST_ALREADY_REVIEWED');
-          }
-          await tx.user.update({
-            where: { id: user.id },
-            data: {
-              approval_status: 'REJECTED',
-              paid_by_owner: false,
-              rejected_at: new Date(),
-              rejection_reason: reason || null,
-              preferences: buildRejectedCoachPreferences({
-                currentPrefs: user.preferences,
-                organization: {
-                  id: joinRequest.organization_id,
-                  name: organization.name,
-                },
-              }),
-              ...buildAuthStateColumns({
-                role: 'coach',
-                organization_id: joinRequest.organization_id,
-              }),
-            },
-          });
-        },
-        { isolationLevel: 'Serializable' }
-      );
-      await invalidateMeCacheForUser(user.id);
-
-      // Email the coach that they were denied (fire-and-forget)
-      if (user.email) {
-        sendCoachRejectedEmail({
-          to: user.email,
-          coachName: user.display_name || 'Coach',
-          leagueName: organization.name,
-          reason: reason || undefined,
-        }).catch(err =>
-          console.error('[orgs] Failed to send coach rejected email:', (err as any)?.message)
-        );
-      }
-
-      // Push notification so the coach sees the denial immediately
-      sendPushNotification(
-        user.id,
-        'Join Request Declined',
-        `Your request to join ${organization.name} was not approved.${reason ? ` Reason: ${reason}` : ''}`,
-        { type: 'join_request_denied', organization_id: joinRequest.organization_id }
-      )
-        .then(() => {
-          debugLog(`[notif] push sent JOIN_REQUEST_DENIED to user=${user.id}`);
-        })
-        .catch(err => {
-          console.error(
-            '[notif] Failed to send push for JOIN_REQUEST_DENIED:',
-            (err as any)?.message || err
-          );
-        });
-
-      // Create in-app notification for the denied user
-      try {
-        await prisma.notification.create({
-          data: {
-            user_id: user.id,
-            actor_id: req.user!.id,
-            type: 'JOIN_REQUEST_DENIED',
-            meta: {
-              organization_id: joinRequest.organization_id,
-              organization_name: organization.name,
-              reason: reason || undefined,
-            },
-          },
-        });
-      } catch (notifErr) {
-        console.warn('[organizations] Failed to create denial notification:', notifErr);
-        captureException(notifErr as Error, {
-          context: 'join_request_denial_notification_failed',
-          organizationId: joinRequest.organization_id,
-          userId: user.id,
-          actorId: req.user?.id || null,
-          reason: reason || null,
-        });
-      }
-
-      await logAdminActivityFromReq(
-        req,
-        'DENY_JOIN_REQUEST',
-        'user',
-        joinRequest.user_id,
-        `Denied coach join request for org ${organization.name}`,
-        reason ? { reason } : undefined
-      );
 
       return res.json({ message: 'Join request denied' });
     } catch (err: any) {
-      if (err?.message === 'JOIN_REQUEST_ALREADY_REVIEWED') {
-        return res.status(400).json({ error: 'This request has already been reviewed' });
-      }
       console.error('[organizations] POST /join-requests/:requestId/deny error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
@@ -2517,291 +2182,6 @@ function renderJoinRequestStatePage(
   );
 }
 
-async function _executeJoinRequestApprovalByToken(
-  requestId: string,
-  reviewerUserId: string
-): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
-  const joinRequest = await getOrganizationJoinRequestState(requestId);
-  const [organization, user] = await Promise.all([
-    joinRequest
-      ? prisma.organization.findUnique({
-          where: { id: joinRequest.organization_id },
-          select: { id: true, name: true, admin_approved: true },
-        })
-      : Promise.resolve(null),
-    joinRequest
-      ? prisma.user.findUnique({
-          where: { id: joinRequest.user_id },
-          select: { id: true, email: true, display_name: true, preferences: true },
-        })
-      : Promise.resolve(null),
-  ]);
-  if (!joinRequest || !organization || !user) {
-    return { ok: false, status: 404, error: 'Join request not found' };
-  }
-  if (joinRequest.status !== 'pending')
-    return { ok: false, status: 400, error: 'This request has already been reviewed' };
-  if (!organization.admin_approved)
-    return {
-      ok: false,
-      status: 403,
-      error: 'Organization must be approved by VarsityHub before accepting members.',
-    };
-
-  try {
-    await prisma.$transaction(
-      async tx => {
-        const transition = await tx.organizationJoinRequest.updateMany({
-          where: { id: requestId, status: 'pending' },
-          data: { status: 'approved', reviewed_at: new Date(), reviewed_by: reviewerUserId },
-        });
-        if (transition.count === 0) {
-          throw new Error('JOIN_REQUEST_ALREADY_REVIEWED');
-        }
-        await tx.organizationMembership.upsert({
-          where: {
-            organization_id_user_id: {
-              organization_id: joinRequest.organization_id,
-              user_id: joinRequest.user_id,
-            } as any,
-          },
-          update: { role: 'coach', status: 'active' },
-          create: {
-            organization_id: joinRequest.organization_id,
-            user_id: joinRequest.user_id,
-            role: 'coach',
-            status: 'active',
-          },
-          select: { id: true },
-        });
-        await tx.user.update({
-          where: { id: joinRequest.user_id },
-          data: {
-            approval_status: 'APPROVED',
-            paid_by_owner: true,
-            rejected_at: null,
-            rejection_reason: null,
-            preferences: buildApprovedCoachPreferences({
-              currentPrefs: user.preferences,
-              organization: {
-                id: joinRequest.organization_id,
-                name: organization.name,
-              },
-            }),
-            ...buildAuthStateColumns({
-              role: 'coach',
-              organization_id: joinRequest.organization_id,
-              proceeding_as_fan: false,
-              coach_agreement_accepted_at: new Date(),
-              coach_agreement_version: Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1),
-            }),
-            ...buildBillingStateColumns({
-              pending_plan: null,
-              payment_pending: false,
-              payment_approved: false,
-            }),
-          },
-        });
-      },
-      { isolationLevel: 'Serializable' }
-    );
-  } catch (err: any) {
-    if (err?.message === 'JOIN_REQUEST_ALREADY_REVIEWED') {
-      return { ok: false, status: 400, error: 'This request has already been reviewed' };
-    }
-    throw err;
-  }
-
-  await invalidateMeCacheForUser(joinRequest.user_id);
-
-  if (user.email) {
-    sendCoachApprovedEmail({
-      to: user.email,
-      coachName: user.display_name || 'Coach',
-      leagueName: organization.name,
-    }).catch(err =>
-      reportApprovalNotificationFailure('email', 'coach_join_request_approved_email_failed', err, {
-        organizationId: joinRequest.organization_id,
-        userId: joinRequest.user_id,
-        actorId: reviewerUserId,
-      })
-    );
-  }
-  sendPushNotification(
-    joinRequest.user_id,
-    'Join Request Approved',
-    `Your request to join ${organization.name} was approved!`,
-    { type: 'join_request_approved', organization_id: joinRequest.organization_id }
-  ).catch(err => {
-    reportApprovalNotificationFailure('push', 'join_request_approval_push_failed', err, {
-      organizationId: joinRequest.organization_id,
-      userId: joinRequest.user_id,
-      actorId: reviewerUserId,
-    });
-  });
-  try {
-    await prisma.notification.create({
-      data: {
-        user_id: joinRequest.user_id,
-        actor_id: reviewerUserId,
-        type: 'JOIN_REQUEST_APPROVED',
-        meta: {
-          organization_id: joinRequest.organization_id,
-          organization_name: organization.name,
-        },
-      },
-    });
-  } catch (err) {
-    reportApprovalNotificationFailure('in_app', 'join_request_approval_notification_failed', err, {
-      organizationId: joinRequest.organization_id,
-      userId: joinRequest.user_id,
-      actorId: reviewerUserId,
-    });
-  }
-
-  await logAdminActivity(
-    reviewerUserId,
-    'league-owner-email-action',
-    'APPROVE_JOIN_REQUEST',
-    'user',
-    joinRequest.user_id,
-    `Approved coach join request for org ${organization.name} (via email link)`
-  );
-
-  return { ok: true };
-}
-
-async function _executeJoinRequestDenialByToken(
-  requestId: string,
-  reviewerUserId: string,
-  reason?: string
-): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
-  const joinRequest = await getOrganizationJoinRequestState(requestId);
-  const [organization, user] = await Promise.all([
-    joinRequest
-      ? prisma.organization.findUnique({
-          where: { id: joinRequest.organization_id },
-          select: { id: true, name: true },
-        })
-      : Promise.resolve(null),
-    joinRequest
-      ? prisma.user.findUnique({
-          where: { id: joinRequest.user_id },
-          select: { id: true, email: true, display_name: true, preferences: true },
-        })
-      : Promise.resolve(null),
-  ]);
-  if (!joinRequest || !organization || !user) {
-    return { ok: false, status: 404, error: 'Join request not found' };
-  }
-  if (joinRequest.status !== 'pending')
-    return { ok: false, status: 400, error: 'This request has already been reviewed' };
-
-  try {
-    await prisma.$transaction(
-      async tx => {
-        const transition = await tx.organizationJoinRequest.updateMany({
-          where: { id: requestId, status: 'pending' },
-          data: {
-            status: 'denied',
-            reviewed_at: new Date(),
-            reviewed_by: reviewerUserId,
-            rejection_reason: reason || null,
-          },
-        });
-        if (transition.count === 0) {
-          throw new Error('JOIN_REQUEST_ALREADY_REVIEWED');
-        }
-        await tx.user.update({
-          where: { id: user.id },
-          data: {
-            approval_status: 'REJECTED',
-            paid_by_owner: false,
-            rejected_at: new Date(),
-            rejection_reason: reason || null,
-            preferences: buildRejectedCoachPreferences({
-              currentPrefs: user.preferences,
-              organization: {
-                id: joinRequest.organization_id,
-                name: organization.name,
-              },
-            }),
-            ...buildAuthStateColumns({
-              role: 'coach',
-              organization_id: joinRequest.organization_id,
-            }),
-          },
-        });
-      },
-      { isolationLevel: 'Serializable' }
-    );
-  } catch (err: any) {
-    if (err?.message === 'JOIN_REQUEST_ALREADY_REVIEWED') {
-      return { ok: false, status: 400, error: 'This request has already been reviewed' };
-    }
-    throw err;
-  }
-
-  await invalidateMeCacheForUser(user.id);
-
-  if (user.email) {
-    sendCoachRejectedEmail({
-      to: user.email,
-      coachName: user.display_name || 'Coach',
-      leagueName: organization.name,
-      reason: reason || undefined,
-    }).catch(err =>
-      console.error('[orgs] Failed to send coach rejected email:', (err as any)?.message)
-    );
-  }
-  sendPushNotification(
-    user.id,
-    'Join Request Declined',
-    `Your request to join ${organization.name} was not approved.${reason ? ` Reason: ${reason}` : ''}`,
-    { type: 'join_request_denied', organization_id: joinRequest.organization_id }
-  ).catch(err => {
-    console.error(
-      '[notif] Failed to send push for JOIN_REQUEST_DENIED:',
-      (err as any)?.message || err
-    );
-  });
-  try {
-    await prisma.notification.create({
-      data: {
-        user_id: user.id,
-        actor_id: reviewerUserId,
-        type: 'JOIN_REQUEST_DENIED',
-        meta: {
-          organization_id: joinRequest.organization_id,
-          organization_name: organization.name,
-          reason: reason || undefined,
-        },
-      },
-    });
-  } catch (err) {
-    console.warn('[organizations] Failed to create denial notification:', err);
-    captureException(err as Error, {
-      context: 'join_request_denial_notification_failed',
-      organizationId: joinRequest.organization_id,
-      userId: user.id,
-      actorId: reviewerUserId,
-      reason: reason || null,
-    });
-  }
-
-  await logAdminActivity(
-    reviewerUserId,
-    'league-owner-email-action',
-    'DENY_JOIN_REQUEST',
-    'user',
-    joinRequest.user_id,
-    `Denied coach join request for org ${organization.name} (via email link)`,
-    reason ? { reason } : undefined
-  );
-
-  return { ok: true };
-}
-
 async function joinRequestEmailReviewHandler(
   req: AuthedRequest,
   res: any,
@@ -2906,8 +2286,16 @@ async function joinRequestEmailReviewHandler(
 
   const result =
     action === 'approve'
-      ? await _executeJoinRequestApprovalByToken(requestId, ownerMembership.user_id)
-      : await _executeJoinRequestDenialByToken(requestId, ownerMembership.user_id);
+      ? await approveJoinRequest({
+          requestId,
+          reviewerUserId: ownerMembership.user_id,
+          context: { via: 'email-link' },
+        })
+      : await denyJoinRequest({
+          requestId,
+          reviewerUserId: ownerMembership.user_id,
+          context: { via: 'email-link' },
+        });
 
   if (!result.ok) {
     return res
@@ -2983,68 +2371,68 @@ organizationsRouter.post(
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-      const orgId = req.params.id;
-      const transferSchema = z.object({ new_owner_id: z.string().min(1) });
-      const parsed = transferSchema.safeParse(req.body);
-      if (!parsed.success)
-        return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
-      const { new_owner_id } = parsed.data;
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const orgId = req.params.id;
+    const transferSchema = z.object({ new_owner_id: z.string().min(1) });
+    const parsed = transferSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { new_owner_id } = parsed.data;
 
-      // Verify requester is current owner
-      const currentOwnership = await prisma.organizationMembership.findFirst({
-        where: { organization_id: orgId, user_id: req.user.id, role: 'owner', status: 'active' },
+    // Verify requester is current owner
+    const currentOwnership = await prisma.organizationMembership.findFirst({
+      where: { organization_id: orgId, user_id: req.user.id, role: 'owner', status: 'active' },
+      select: { id: true },
+    });
+    if (!currentOwnership) {
+      return res.status(403).json({ error: 'Only the current owner can transfer ownership' });
+    }
+
+    // ORG-10: Prevent self-transfer (no-op that could cause confusion)
+    if (new_owner_id === req.user.id) {
+      return res.status(400).json({ error: 'Cannot transfer ownership to yourself' });
+    }
+
+    // Verify new owner is a member of the organization
+    const newOwnerMembership = await prisma.organizationMembership.findFirst({
+      where: { organization_id: orgId, user_id: new_owner_id, status: 'active' },
+      select: { id: true },
+    });
+    if (!newOwnerMembership) {
+      return res.status(400).json({ error: 'New owner must be a member of the organization' });
+    }
+
+    // Transfer the canonical owner pointer AND membership roles together.
+    // Without updating `league_owner_id`, old-owner authority leaked through
+    // billing, team-management fallback checks, and org-owner-only screens.
+    await prisma.$transaction([
+      prisma.organization.update({
+        where: { id: orgId },
+        data: { league_owner_id: new_owner_id },
         select: { id: true },
-      });
-      if (!currentOwnership) {
-        return res.status(403).json({ error: 'Only the current owner can transfer ownership' });
-      }
-
-      // ORG-10: Prevent self-transfer (no-op that could cause confusion)
-      if (new_owner_id === req.user.id) {
-        return res.status(400).json({ error: 'Cannot transfer ownership to yourself' });
-      }
-
-      // Verify new owner is a member of the organization
-      const newOwnerMembership = await prisma.organizationMembership.findFirst({
-        where: { organization_id: orgId, user_id: new_owner_id, status: 'active' },
+      }),
+      prisma.organizationMembership.update({
+        where: { id: currentOwnership.id },
+        data: { role: 'manager' },
         select: { id: true },
-      });
-      if (!newOwnerMembership) {
-        return res.status(400).json({ error: 'New owner must be a member of the organization' });
-      }
+      }),
+      prisma.organizationMembership.update({
+        where: { id: newOwnerMembership.id },
+        data: { role: 'owner' },
+        select: { id: true },
+      }),
+    ]);
 
-      // Transfer the canonical owner pointer AND membership roles together.
-      // Without updating `league_owner_id`, old-owner authority leaked through
-      // billing, team-management fallback checks, and org-owner-only screens.
-      await prisma.$transaction([
-        prisma.organization.update({
-          where: { id: orgId },
-          data: { league_owner_id: new_owner_id },
-          select: { id: true },
-        }),
-        prisma.organizationMembership.update({
-          where: { id: currentOwnership.id },
-          data: { role: 'manager' },
-          select: { id: true },
-        }),
-        prisma.organizationMembership.update({
-          where: { id: newOwnerMembership.id },
-          data: { role: 'owner' },
-          select: { id: true },
-        }),
-      ]);
+    await logAdminActivityFromReq(
+      req,
+      'TRANSFER_ORG_OWNERSHIP',
+      'organization',
+      orgId,
+      `Transferred organization ownership to user ${new_owner_id}`,
+      { new_owner_id }
+    );
 
-      await logAdminActivityFromReq(
-        req,
-        'TRANSFER_ORG_OWNERSHIP',
-        'organization',
-        orgId,
-        `Transferred organization ownership to user ${new_owner_id}`,
-        { new_owner_id }
-      );
-
-      return res.json({ message: 'Ownership transferred successfully' });
+    return res.json({ message: 'Ownership transferred successfully' });
   })
 );
 
@@ -3315,12 +2703,22 @@ organizationsRouter.post(
       },
     });
     if (!org) return res.status(404).json({ error: 'Organization not found' });
-    if (org.admin_approved) return res.status(409).json({ error: 'Organization is already approved.', code: 'ALREADY_APPROVED' });
-    if (org.status === 'rejected') return res.status(409).json({ error: 'This application was rejected. Please contact support.', code: 'REJECTED' });
+    if (org.admin_approved)
+      return res
+        .status(409)
+        .json({ error: 'Organization is already approved.', code: 'ALREADY_APPROVED' });
+    if (org.status === 'rejected')
+      return res.status(409).json({
+        error: 'This application was rejected. Please contact support.',
+        code: 'REJECTED',
+      });
 
     const isAdmin = await getIsAdmin(req as any);
     const isOwner = org.league_owner_id === userId;
-    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Only the organization owner can resend the approval request.' });
+    if (!isOwner && !isAdmin)
+      return res
+        .status(403)
+        .json({ error: 'Only the organization owner can resend the approval request.' });
 
     // Rate-limit: one resend per org per 24 hours (non-admin). Uses cache (Redis/in-memory).
     if (!isAdmin) {
@@ -3364,9 +2762,12 @@ organizationsRouter.post(
       supportingDocumentUrl: org.supporting_document_url || undefined,
     })
       .then(sent => {
-        if (!sent) console.warn('[organizations] resend approval email reported unsent for org', orgId);
+        if (!sent)
+          console.warn('[organizations] resend approval email reported unsent for org', orgId);
       })
-      .catch(err => console.warn('[organizations] resend approval email failed:', (err as any)?.message || err));
+      .catch(err =>
+        console.warn('[organizations] resend approval email failed:', (err as any)?.message || err)
+      );
 
     return res.json({ message: 'Approval request email resent to admins.' });
   })
@@ -3616,234 +3017,234 @@ organizationsRouter.get(
   '/:id/admin-summary',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const orgId = String(req.params.id);
-      const viewerId = req.user?.id || null;
-      if (!viewerId) return res.status(401).json({ error: 'Authentication required' });
+    const orgId = String(req.params.id);
+    const viewerId = req.user?.id || null;
+    if (!viewerId) return res.status(401).json({ error: 'Authentication required' });
 
-      const [organization, membership, isPlatformAdmin] = await Promise.all([
-        prisma.organization.findUnique({
-          where: { id: orgId },
-          select: buildOrganizationSerializeSelect({
-            includeCounts: true,
-            includeFollowersCount: true,
-            includeTeams: true,
-          }),
+    const [organization, membership, isPlatformAdmin] = await Promise.all([
+      prisma.organization.findUnique({
+        where: { id: orgId },
+        select: buildOrganizationSerializeSelect({
+          includeCounts: true,
+          includeFollowersCount: true,
+          includeTeams: true,
         }),
-        getOrganizationMembership(viewerId, orgId),
-        getIsAdmin(req as any),
-      ]);
+      }),
+      getOrganizationMembership(viewerId, orgId),
+      getIsAdmin(req as any),
+    ]);
 
-      if (!organization) {
-        return res.status(404).json({ error: 'Organization not found' });
-      }
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
 
-      const membershipRole = membership?.status === 'active' ? String(membership.role || '') : null;
-      const canManage = isPlatformAdmin || isOrganizationAdmin(membershipRole);
-      const canReviewCoachRequests = isPlatformAdmin || membershipRole === ORGANIZATION_OWNER_ROLE;
+    const membershipRole = membership?.status === 'active' ? String(membership.role || '') : null;
+    const canManage = isPlatformAdmin || isOrganizationAdmin(membershipRole);
+    const canReviewCoachRequests = isPlatformAdmin || membershipRole === ORGANIZATION_OWNER_ROLE;
 
-      if (!canManage) {
-        return res.status(403).json({
-          error: 'Only organization admins or platform admins can view admin summary',
-        });
-      }
+    if (!canManage) {
+      return res.status(403).json({
+        error: 'Only organization admins or platform admins can view admin summary',
+      });
+    }
 
-      const teamIds = Array.isArray((organization as any).teams)
-        ? (organization as any).teams.map((team: any) => String(team.id))
-        : [];
-      const now = new Date();
+    const teamIds = Array.isArray((organization as any).teams)
+      ? (organization as any).teams.map((team: any) => String(team.id))
+      : [];
+    const now = new Date();
 
-      const [
-        members,
-        pendingInvites,
-        pendingCoachRequests,
-        pendingGames,
-        pendingEvents,
-        upcomingGames,
-        upcomingEvents,
-        pendingInviteCount,
-        pendingCoachCount,
-        pendingGameCount,
-        pendingEventCount,
-        upcomingGameCount,
-        upcomingEventCount,
-      ] = await Promise.all([
-        prisma.organizationMembership.findMany({
-          where: { organization_id: orgId, status: 'active' },
-          orderBy: { created_at: 'asc' },
-          take: 500,
-          include: {
-            user: {
-              select: {
-                id: true,
-                display_name: true,
-                username: true,
-                avatar_url: true,
-                email: true,
-                preferences: true,
-              },
+    const [
+      members,
+      pendingInvites,
+      pendingCoachRequests,
+      pendingGames,
+      pendingEvents,
+      upcomingGames,
+      upcomingEvents,
+      pendingInviteCount,
+      pendingCoachCount,
+      pendingGameCount,
+      pendingEventCount,
+      upcomingGameCount,
+      upcomingEventCount,
+    ] = await Promise.all([
+      prisma.organizationMembership.findMany({
+        where: { organization_id: orgId, status: 'active' },
+        orderBy: { created_at: 'asc' },
+        take: 500,
+        include: {
+          user: {
+            select: {
+              id: true,
+              display_name: true,
+              username: true,
+              avatar_url: true,
+              email: true,
+              preferences: true,
             },
           },
-        }),
-        prisma.organizationInvite.findMany({
-          where: { organization_id: orgId, status: 'pending' },
-          orderBy: { created_at: 'asc' },
-          take: 200,
-        }),
-        listOrganizationJoinRequestsForOrganization(orgId, 'pending'),
-        teamIds.length > 0
-          ? prisma.game.findMany({
-              where: {
-                approval_status: 'pending',
-                OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
-              },
-              orderBy: { date: 'asc' },
-              take: 25,
-              include: {
-                homeTeam: { select: { id: true, name: true } },
-                awayTeam: { select: { id: true, name: true } },
-              },
-            })
-          : Promise.resolve([]),
-        teamIds.length > 0
-          ? prisma.event.findMany({
-              where: {
-                approval_status: 'pending',
-                team_id: { in: teamIds },
-              },
-              orderBy: { date: 'asc' },
-              take: 25,
-            })
-          : Promise.resolve([]),
-        teamIds.length > 0
-          ? prisma.game.findMany({
-              where: {
-                approval_status: 'approved',
-                date: { gte: now },
-                OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
-              },
-              orderBy: { date: 'asc' },
-              take: 25,
-              include: {
-                homeTeam: { select: { id: true, name: true } },
-                awayTeam: { select: { id: true, name: true } },
-              },
-            })
-          : Promise.resolve([]),
-        teamIds.length > 0
-          ? prisma.event.findMany({
-              where: {
-                approval_status: 'approved',
-                date: { gte: now },
-                team_id: { in: teamIds },
-              },
-              orderBy: { date: 'asc' },
-              take: 25,
-            })
-          : Promise.resolve([]),
-        prisma.organizationInvite.count({
-          where: { organization_id: orgId, status: 'pending' },
-        }),
-        prisma.organizationJoinRequest.count({
-          where: { organization_id: orgId, status: 'pending' },
-        }),
-        teamIds.length > 0
-          ? prisma.game.count({
-              where: {
-                approval_status: 'pending',
-                OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
-              },
-            })
-          : Promise.resolve(0),
-        teamIds.length > 0
-          ? prisma.event.count({
-              where: {
-                approval_status: 'pending',
-                team_id: { in: teamIds },
-              },
-            })
-          : Promise.resolve(0),
-        teamIds.length > 0
-          ? prisma.game.count({
-              where: {
-                approval_status: 'approved',
-                date: { gte: now },
-                OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
-              },
-            })
-          : Promise.resolve(0),
-        teamIds.length > 0
-          ? prisma.event.count({
-              where: {
-                approval_status: 'approved',
-                date: { gte: now },
-                team_id: { in: teamIds },
-              },
-            })
-          : Promise.resolve(0),
-      ]);
+        },
+      }),
+      prisma.organizationInvite.findMany({
+        where: { organization_id: orgId, status: 'pending' },
+        orderBy: { created_at: 'asc' },
+        take: 200,
+      }),
+      listOrganizationJoinRequestsForOrganization(orgId, 'pending'),
+      teamIds.length > 0
+        ? prisma.game.findMany({
+            where: {
+              approval_status: 'pending',
+              OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+            },
+            orderBy: { date: 'asc' },
+            take: 25,
+            include: {
+              homeTeam: { select: { id: true, name: true } },
+              awayTeam: { select: { id: true, name: true } },
+            },
+          })
+        : Promise.resolve([]),
+      teamIds.length > 0
+        ? prisma.event.findMany({
+            where: {
+              approval_status: 'pending',
+              team_id: { in: teamIds },
+            },
+            orderBy: { date: 'asc' },
+            take: 25,
+          })
+        : Promise.resolve([]),
+      teamIds.length > 0
+        ? prisma.game.findMany({
+            where: {
+              approval_status: 'approved',
+              date: { gte: now },
+              OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+            },
+            orderBy: { date: 'asc' },
+            take: 25,
+            include: {
+              homeTeam: { select: { id: true, name: true } },
+              awayTeam: { select: { id: true, name: true } },
+            },
+          })
+        : Promise.resolve([]),
+      teamIds.length > 0
+        ? prisma.event.findMany({
+            where: {
+              approval_status: 'approved',
+              date: { gte: now },
+              team_id: { in: teamIds },
+            },
+            orderBy: { date: 'asc' },
+            take: 25,
+          })
+        : Promise.resolve([]),
+      prisma.organizationInvite.count({
+        where: { organization_id: orgId, status: 'pending' },
+      }),
+      prisma.organizationJoinRequest.count({
+        where: { organization_id: orgId, status: 'pending' },
+      }),
+      teamIds.length > 0
+        ? prisma.game.count({
+            where: {
+              approval_status: 'pending',
+              OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+            },
+          })
+        : Promise.resolve(0),
+      teamIds.length > 0
+        ? prisma.event.count({
+            where: {
+              approval_status: 'pending',
+              team_id: { in: teamIds },
+            },
+          })
+        : Promise.resolve(0),
+      teamIds.length > 0
+        ? prisma.game.count({
+            where: {
+              approval_status: 'approved',
+              date: { gte: now },
+              OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+            },
+          })
+        : Promise.resolve(0),
+      teamIds.length > 0
+        ? prisma.event.count({
+            where: {
+              approval_status: 'approved',
+              date: { gte: now },
+              team_id: { in: teamIds },
+            },
+          })
+        : Promise.resolve(0),
+    ]);
 
-      return res.json({
-        organization: serializeOrganization(organization, {
-          includeCounts: true,
-          includeTeams: true,
-          includeViewerState: true,
-          viewerRole: membershipRole,
-          isMember: membership?.status === 'active',
-          isOwner: membershipRole === ORGANIZATION_OWNER_ROLE,
-          canEdit: membershipRole === ORGANIZATION_OWNER_ROLE,
-          canManage,
-          canReviewCoaches: canReviewCoachRequests,
-        }),
-        permissions: {
-          can_manage: canManage,
-          can_review_coach_requests: canReviewCoachRequests,
-          membership_role: membershipRole,
-          is_platform_admin: isPlatformAdmin,
-        },
-        counts: {
-          teams: Number((organization as any)?._count?.teams || teamIds.length),
-          members: members.length,
-          followers: Number((organization as any)?._count?.followers || 0),
-          pending_authorized_invites: pendingInviteCount,
-          pending_coach_requests: pendingCoachCount,
-          pending_game_reviews: pendingGameCount,
-          pending_event_reviews: pendingEventCount,
-          upcoming_games: upcomingGameCount,
-          upcoming_events: upcomingEventCount,
-        },
-        teams: Array.isArray((organization as any).teams)
-          ? (organization as any).teams.map((team: any) => ({
-              id: team.id,
-              name: team.name,
-              description: team.description ?? null,
-              sport: team.sport ?? null,
-              season_start: toIsoDate(team.season_start),
-              season_end: toIsoDate(team.season_end),
-              status: team.status ?? null,
-              logo_url: team.logo_url || team.avatar_url || null,
-              avatar_url: team.avatar_url || team.logo_url || null,
-              created_at: toIsoDate(team.created_at),
-              _count: {
-                memberships: Number(team?._count?.memberships || 0),
-              },
-            }))
-          : [],
-        members: members.map(serializeOrganizationAdminMember),
-        requests: {
-          authorized_invites: pendingInvites.map(serializeOrganizationAdminInvite),
-          coach_requests: pendingCoachRequests.map(request => ({
-            ...request,
-            created_at: toIsoDate(request.created_at),
-            reviewed_at: toIsoDate(request.reviewed_at),
-          })),
-          pending_games: pendingGames.map(serializeOrganizationAdminGame),
-          pending_events: pendingEvents.map(serializeOrganizationAdminEvent),
-        },
-        upcoming: {
-          games: upcomingGames.map(serializeOrganizationAdminGame),
-          events: upcomingEvents.map(serializeOrganizationAdminEvent),
-        },
-      });
+    return res.json({
+      organization: serializeOrganization(organization, {
+        includeCounts: true,
+        includeTeams: true,
+        includeViewerState: true,
+        viewerRole: membershipRole,
+        isMember: membership?.status === 'active',
+        isOwner: membershipRole === ORGANIZATION_OWNER_ROLE,
+        canEdit: membershipRole === ORGANIZATION_OWNER_ROLE,
+        canManage,
+        canReviewCoaches: canReviewCoachRequests,
+      }),
+      permissions: {
+        can_manage: canManage,
+        can_review_coach_requests: canReviewCoachRequests,
+        membership_role: membershipRole,
+        is_platform_admin: isPlatformAdmin,
+      },
+      counts: {
+        teams: Number((organization as any)?._count?.teams || teamIds.length),
+        members: members.length,
+        followers: Number((organization as any)?._count?.followers || 0),
+        pending_authorized_invites: pendingInviteCount,
+        pending_coach_requests: pendingCoachCount,
+        pending_game_reviews: pendingGameCount,
+        pending_event_reviews: pendingEventCount,
+        upcoming_games: upcomingGameCount,
+        upcoming_events: upcomingEventCount,
+      },
+      teams: Array.isArray((organization as any).teams)
+        ? (organization as any).teams.map((team: any) => ({
+            id: team.id,
+            name: team.name,
+            description: team.description ?? null,
+            sport: team.sport ?? null,
+            season_start: toIsoDate(team.season_start),
+            season_end: toIsoDate(team.season_end),
+            status: team.status ?? null,
+            logo_url: team.logo_url || team.avatar_url || null,
+            avatar_url: team.avatar_url || team.logo_url || null,
+            created_at: toIsoDate(team.created_at),
+            _count: {
+              memberships: Number(team?._count?.memberships || 0),
+            },
+          }))
+        : [],
+      members: members.map(serializeOrganizationAdminMember),
+      requests: {
+        authorized_invites: pendingInvites.map(serializeOrganizationAdminInvite),
+        coach_requests: pendingCoachRequests.map(request => ({
+          ...request,
+          created_at: toIsoDate(request.created_at),
+          reviewed_at: toIsoDate(request.reviewed_at),
+        })),
+        pending_games: pendingGames.map(serializeOrganizationAdminGame),
+        pending_events: pendingEvents.map(serializeOrganizationAdminEvent),
+      },
+      upcoming: {
+        games: upcomingGames.map(serializeOrganizationAdminGame),
+        events: upcomingEvents.map(serializeOrganizationAdminEvent),
+      },
+    });
   })
 );
 
@@ -3853,71 +3254,71 @@ organizationsRouter.get(
 organizationsRouter.get(
   '/:id',
   asyncHandler(async (req, res) => {
-      const id = String(req.params.id);
-      const authedReq = req as AuthedRequest;
-      const currentUserId = authedReq.user?.id ?? null;
-      debugLog(`[org-get] id=${id} user=${currentUserId || 'anon'}`);
-      const organization = await prisma.organization.findUnique({
-        where: { id },
-        select: buildOrganizationSerializeSelect({
-          includeCounts: true,
-          includeFollowersCount: true,
-          includeTeams: true,
-        }),
-      });
+    const id = String(req.params.id);
+    const authedReq = req as AuthedRequest;
+    const currentUserId = authedReq.user?.id ?? null;
+    debugLog(`[org-get] id=${id} user=${currentUserId || 'anon'}`);
+    const organization = await prisma.organization.findUnique({
+      where: { id },
+      select: buildOrganizationSerializeSelect({
+        includeCounts: true,
+        includeFollowersCount: true,
+        includeTeams: true,
+      }),
+    });
 
-      if (!organization) {
-        debugLog(`[org-get] not found: id=${id}`);
-        return res.status(404).json({ error: 'Organization not found' });
-      }
+    if (!organization) {
+      debugLog(`[org-get] not found: id=${id}`);
+      return res.status(404).json({ error: 'Organization not found' });
+    }
 
-      if (!organization.admin_approved) {
-        const isAdminUser = await isCurrentUserPlatformAdmin(authedReq);
-        if (!isAdminUser) {
-          if (!currentUserId) {
-            debugLog(`[org-get] unapproved+anon: id=${id}`);
-            return res.status(404).json({ error: 'Organization not found' });
-          }
-          const [membership, pendingJoin] = await Promise.all([
-            getOrganizationMembership(currentUserId, id),
-            getOrganizationJoinRequestStateForUser(id, currentUserId),
-          ]);
-          const hasAccess = membership?.status === 'active' || pendingJoin?.status === 'pending';
-          if (!hasAccess) {
-            debugLog(`[org-get] unapproved+no-access: id=${id} user=${currentUserId}`);
-            return res.status(404).json({ error: 'Organization not found' });
-          }
+    if (!organization.admin_approved) {
+      const isAdminUser = await isCurrentUserPlatformAdmin(authedReq);
+      if (!isAdminUser) {
+        if (!currentUserId) {
+          debugLog(`[org-get] unapproved+anon: id=${id}`);
+          return res.status(404).json({ error: 'Organization not found' });
+        }
+        const [membership, pendingJoin] = await Promise.all([
+          getOrganizationMembership(currentUserId, id),
+          getOrganizationJoinRequestStateForUser(id, currentUserId),
+        ]);
+        const hasAccess = membership?.status === 'active' || pendingJoin?.status === 'pending';
+        if (!hasAccess) {
+          debugLog(`[org-get] unapproved+no-access: id=${id} user=${currentUserId}`);
+          return res.status(404).json({ error: 'Organization not found' });
         }
       }
+    }
 
-      const viewerMembership = currentUserId
-        ? await getOrganizationMembership(currentUserId, id)
-        : null;
-      const viewerRole =
-        viewerMembership?.status === 'active' ? String(viewerMembership.role || '') : null;
-      const isMember = viewerMembership?.status === 'active';
-      const isOwner = viewerRole === ORGANIZATION_OWNER_ROLE;
-      const canManage = isOrganizationAdmin(viewerRole);
+    const viewerMembership = currentUserId
+      ? await getOrganizationMembership(currentUserId, id)
+      : null;
+    const viewerRole =
+      viewerMembership?.status === 'active' ? String(viewerMembership.role || '') : null;
+    const isMember = viewerMembership?.status === 'active';
+    const isOwner = viewerRole === ORGANIZATION_OWNER_ROLE;
+    const canManage = isOrganizationAdmin(viewerRole);
 
-      const isFollowing = currentUserId
-        ? !!(await prisma.organizationFollow.findFirst({
-            where: { user_id: currentUserId, organization_id: id },
-          }))
-        : null;
+    const isFollowing = currentUserId
+      ? !!(await prisma.organizationFollow.findFirst({
+          where: { user_id: currentUserId, organization_id: id },
+        }))
+      : null;
 
-      return res.json(
-        serializeOrganization(organization, {
-          includeCounts: true,
-          includeTeams: true,
-          includeViewerState: true,
-          isFollowing,
-          viewerRole,
-          isMember,
-          isOwner,
-          canEdit: isOwner,
-          canManage,
-          canReviewCoaches: isOwner,
-        })
-      );
+    return res.json(
+      serializeOrganization(organization, {
+        includeCounts: true,
+        includeTeams: true,
+        includeViewerState: true,
+        isFollowing,
+        viewerRole,
+        isMember,
+        isOwner,
+        canEdit: isOwner,
+        canManage,
+        canReviewCoaches: isOwner,
+      })
+    );
   })
 );
