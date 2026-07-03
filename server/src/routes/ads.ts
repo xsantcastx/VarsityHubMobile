@@ -2,15 +2,15 @@ import escapeHtml from 'escape-html';
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import {
-    AD_GEOFENCE_RADIUS_KM,
-    AD_GEOFENCE_RADIUS_MILES,
-    getAdBoundingBoxDegrees,
+  AD_GEOFENCE_RADIUS_KM,
+  AD_GEOFENCE_RADIUS_MILES,
+  getAdBoundingBoxDegrees,
 } from '../lib/adGeofencing.js';
 import { releaseExpiredPendingApprovalReservationsForAd } from '../lib/adReservationLifecycle.js';
 import { APP_REVIEW_EMAIL } from '../lib/appReviewFixture.js';
 import {
-    approveAd as approveAdService,
-    rejectAd as rejectAdService,
+  approveAd as approveAdService,
+  rejectAd as rejectAdService,
 } from '../lib/approvalService.js';
 import { sendAdPendingReviewEmail } from '../lib/email.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
@@ -18,19 +18,20 @@ import { geocodeLocation } from '../lib/geocoding.js';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { prisma } from '../lib/prisma.js';
 import {
-    consumeReviewToken,
-    getReviewTokenReplayState,
-    verifyReviewToken,
-    type ReviewTokenPayload,
+  consumeReviewToken,
+  getReviewTokenReplayState,
+  verifyReviewToken,
+  type ReviewTokenPayload,
 } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { addBreadcrumb } from '../lib/sentry.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import {
-    adCreationLimiter,
-    adModerationLimiter,
-    alternativeZipsLimiter,
+  adCreationLimiter,
+  adEngagementLimiter,
+  adModerationLimiter,
+  alternativeZipsLimiter,
 } from '../middleware/rateLimiters.js';
 import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -620,6 +621,7 @@ async function recordAdEngagement(id: string, type: 'impression' | 'click') {
 adsRouter.post(
   '/:id/impression',
   requireAuth as any,
+  adEngagementLimiter as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const ad = await recordAdEngagement(String(req.params.id), 'impression');
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
@@ -630,6 +632,7 @@ adsRouter.post(
 adsRouter.post(
   '/:id/click',
   requireAuth as any,
+  adEngagementLimiter as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const ad = await recordAdEngagement(String(req.params.id), 'click');
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
@@ -1259,7 +1262,9 @@ async function approveAd(
 async function rejectAd(id: string, reason?: string | null, adminId?: string | null) {
   // Thread the acting admin through so the service's self-reject IDOR guard is
   // live and the actor is recorded on refunds/notifications (was hardcoded null).
-  const result = await rejectAdService(id, adminId || null, prisma, { reason: reason || undefined });
+  const result = await rejectAdService(id, adminId || null, prisma, {
+    reason: reason || undefined,
+  });
   if (!(result as any)?.error) {
     await logAdModerationActivity('AD_REJECT', 'Rejected ad', id, adminId || null, reason || null);
   }
@@ -1549,11 +1554,20 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
             const { verifyReviewToken } = await import('../lib/reviewTokens.js');
             const raw = verifyReviewToken<{ adId?: string; action?: string }>(token);
             if (!raw) {
-              console.warn('[ads] approve token failed JWT verification — likely expired or secret mismatch', { ad_id: id });
+              console.warn(
+                '[ads] approve token failed JWT verification — likely expired or secret mismatch',
+                { ad_id: id }
+              );
             } else if (raw.adId !== id) {
-              console.warn('[ads] approve token adId mismatch', { token_adId: raw.adId, url_id: id });
+              console.warn('[ads] approve token adId mismatch', {
+                token_adId: raw.adId,
+                url_id: id,
+              });
             } else if (raw.action !== 'approve_ad') {
-              console.warn('[ads] approve token action mismatch', { token_action: raw.action, expected: 'approve_ad' });
+              console.warn('[ads] approve token action mismatch', {
+                token_action: raw.action,
+                expected: 'approve_ad',
+              });
             }
           } catch {
             console.warn('[ads] approve token diagnostic check threw', { ad_id: id });
@@ -1720,11 +1734,20 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
             const { verifyReviewToken } = await import('../lib/reviewTokens.js');
             const raw = verifyReviewToken<{ adId?: string; action?: string }>(token);
             if (!raw) {
-              console.warn('[ads] reject token failed JWT verification — likely expired or secret mismatch', { ad_id: id });
+              console.warn(
+                '[ads] reject token failed JWT verification — likely expired or secret mismatch',
+                { ad_id: id }
+              );
             } else if (raw.adId !== id) {
-              console.warn('[ads] reject token adId mismatch', { token_adId: raw.adId, url_id: id });
+              console.warn('[ads] reject token adId mismatch', {
+                token_adId: raw.adId,
+                url_id: id,
+              });
             } else if (raw.action !== 'reject_ad') {
-              console.warn('[ads] reject token action mismatch', { token_action: raw.action, expected: 'reject_ad' });
+              console.warn('[ads] reject token action mismatch', {
+                token_action: raw.action,
+                expected: 'reject_ad',
+              });
             }
           } catch {
             console.warn('[ads] reject token diagnostic check threw', { ad_id: id });
