@@ -38,7 +38,7 @@
         "NSMicrophoneUsageDescription": "VarsityHub uses your microphone to capture audio when recording game-day videos and highlight clips.",
         "NSPhotoLibraryUsageDescription": "VarsityHub uses your photo library so you can select existing photos and videos to share in team posts or set as your profile picture.",
         "NSLocationWhenInUseUsageDescription": "VarsityHub uses your location to display nearby games, tournaments, and team events on the map.",
-        "NSPrivacyPolicyURL": "https://varsityhub.app/privacy-policy",
+        "NSPrivacyPolicyURL": "https://limeprod.com/VarsityHubPrivacy",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
@@ -177,7 +177,7 @@
       "EXPO_PUBLIC_NODE_ENV": "production",
       "EXPO_PUBLIC_APP_SCHEME": "varsityhubmobile",
       "EXPO_PUBLIC_WEB_BASE_URL": "https://varsityhub.app",
-      "APP_STORE_PRIVACY_POLICY_URL": "https://varsityhub.app/privacy-policy",
+      "APP_STORE_PRIVACY_POLICY_URL": "https://limeprod.com/VarsityHubPrivacy",
       "EXPO_PUBLIC_SENTRY_DSN": "",
       "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "",
       "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "",
