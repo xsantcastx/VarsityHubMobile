@@ -8,9 +8,10 @@ const scope = {
 const withScopeMock = jest.fn((callback: (scope: typeof scope) => void) => callback(scope));
 const captureExceptionMock = jest.fn();
 const captureMessageMock = jest.fn();
+const initMock = jest.fn();
 
 jest.unstable_mockModule('@sentry/node', () => ({
-  init: jest.fn(),
+  init: initMock,
   withScope: withScopeMock,
   captureException: captureExceptionMock,
   captureMessage: captureMessageMock,
@@ -29,7 +30,24 @@ jest.unstable_mockModule('@sentry/node', () => ({
   },
 }));
 
-const { captureException, captureMessage } = await import('../lib/sentry.js');
+const { captureException, captureMessage, initSentry } = await import('../lib/sentry.js');
+
+function initAndGetBeforeSend(nodeEnv: string): (event: any) => any {
+  const prevDsn = process.env.SENTRY_DSN;
+  const prevNodeEnv = process.env.NODE_ENV;
+  process.env.SENTRY_DSN = 'https://key@example.ingest.sentry.io/1';
+  process.env.NODE_ENV = nodeEnv;
+  try {
+    initMock.mockClear();
+    const app = { use: jest.fn() } as any;
+    initSentry(app);
+    const options = initMock.mock.calls[0]?.[0] as { beforeSend: (event: any) => any };
+    return options.beforeSend;
+  } finally {
+    process.env.SENTRY_DSN = prevDsn;
+    process.env.NODE_ENV = prevNodeEnv;
+  }
+}
 
 describe('Sentry scope tagging', () => {
   beforeEach(() => {
@@ -73,5 +91,24 @@ describe('Sentry scope tagging', () => {
     expect(scope.setTag).toHaveBeenCalledWith('route', '/payments/webhook');
     expect(scope.setTag).toHaveBeenCalledWith('provider', 'stripe');
     expect(captureMessageMock).toHaveBeenCalledWith('manual warning', 'warning');
+  });
+});
+
+describe('Sentry beforeSend environment filter', () => {
+  it('drops every event when the environment is development', () => {
+    const beforeSend = initAndGetBeforeSend('development');
+    const event = { exception: { values: [{ type: 'Error', value: 'placeholder Stripe key' }] } };
+    expect(beforeSend(event)).toBeNull();
+  });
+
+  it('keeps ordinary error events in production', () => {
+    const beforeSend = initAndGetBeforeSend('production');
+    const event = { exception: { values: [{ type: 'Error', value: 'real failure' }] } };
+    expect(beforeSend(event)).toBe(event);
+  });
+
+  it('still drops health-check noise in production', () => {
+    const beforeSend = initAndGetBeforeSend('production');
+    expect(beforeSend({ request: { url: 'https://api.example.com/health' } })).toBeNull();
   });
 });
