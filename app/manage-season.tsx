@@ -450,21 +450,26 @@ function ManageSeasonScreen() {
     g => g.approval_status === 'pending' || g.status === 'pending'
   );
 
+  // g.date is a 'YYYY-MM-DD' wall-clock calendar date (games store the intended
+  // wall time as UTC). Compare it to the user's LOCAL calendar date as strings —
+  // round-tripping through Date parsed the game date as UTC midnight but "today"
+  // as local midnight, which pushed games happening today out of Upcoming.
+  const localToday = new Date();
+  const localTodayStr = [
+    localToday.getFullYear(),
+    String(localToday.getMonth() + 1).padStart(2, '0'),
+    String(localToday.getDate()).padStart(2, '0'),
+  ].join('-');
+
   const upcomingGames: Game[] = (games ?? []).filter(g => {
     if (g.approval_status === 'pending' || g.approval_status === 'rejected') return false;
     if (g.status === 'completed' || g.status === 'cancelled') return false;
-    const gameDate = new Date(g.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return gameDate >= today;
+    return g.date >= localTodayStr;
   });
 
   const recentGames: Game[] = (games ?? []).filter(g => {
     if (g.approval_status === 'pending') return false;
-    const gameDate = new Date(g.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return gameDate < today || g.status === 'completed' || g.status === 'cancelled';
+    return g.date < localTodayStr || g.status === 'completed' || g.status === 'cancelled';
   });
 
   const onRefresh = useCallback(async () => {

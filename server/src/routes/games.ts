@@ -967,7 +967,13 @@ gamesRouter.get(
       ) {
         whereClause.approval_status = normalizedApprovalStatus;
       } else if (showPending) {
-        whereClause.approval_status = 'pending';
+        // show_pending=true means "my full schedule": approved games PLUS my
+        // not-yet-approved ones. Team Schedule (manage-season) relies on this.
+        // A 2026-03 hardening pass narrowed it to pending-only, which made
+        // every approved game vanish from the Team Schedule screen. Callers
+        // that want pending-only (event approvals) pass approval_status=pending
+        // explicitly and hit the branch above.
+        whereClause.approval_status = { in: ['approved', 'pending'] };
       } else {
         whereClause.approval_status = 'approved';
       }
