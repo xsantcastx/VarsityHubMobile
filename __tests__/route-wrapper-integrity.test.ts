@@ -4,16 +4,14 @@ import path from 'node:path';
 const read = (...parts: string[]) => fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
 
 describe('route wrapper integrity', () => {
-  it('ships feed through the canonical feature screen', () => {
+  it('ships feed through the canonical implementation at app/feed.tsx', () => {
     const routeFile = read('app', 'feed.tsx');
-    const featureFile = read('app', 'features', 'navigation', 'screens', 'FeedScreen.tsx');
+    const tabsBridge = read('app', '(tabs)', 'feed', 'index.tsx');
 
-    expect(routeFile.trim()).toBe(
-      "export { default } from './features/navigation/screens/FeedScreen';"
-    );
-    expect(featureFile).toMatch(/<BannerAd[\s\S]*adId=\{adData\.id\}/);
-    expect(featureFile).toContain("router.push('/verify')");
-    expect(featureFile).not.toContain('const userPromise = User.me()');
+    expect(tabsBridge.trim()).toBe("export { default } from '../../feed';");
+    expect(routeFile).toMatch(/<BannerAd[\s\S]*adId=\{adData\.id\}/);
+    expect(routeFile).toContain("router.push('/verify')");
+    expect(routeFile).not.toContain('const userPromise = User.me()');
   });
 
   it('keeps the dual profile implementations aligned (documented in CLAUDE.md)', () => {

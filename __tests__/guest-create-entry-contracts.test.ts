@@ -14,7 +14,7 @@ const publicEvent = read('app/public-event.tsx');
 const gameDetails = read('app/game-details/GameDetailsScreen.tsx');
 const signIn = read('app/sign-in.tsx');
 const create = read('app/create.tsx');
-const feedScreen = read('app/features/navigation/screens/FeedScreen.tsx');
+const feedScreen = read('app/feed.tsx');
 const submitAd = read('components/SubmitAdScreenBase.tsx');
 
 describe('guest create-entry contracts', () => {
