@@ -164,10 +164,15 @@ export default function EventApprovalsScreen() {
 
   const loadEvents = useCallback(async () => {
     try {
-      // Load both pending events AND pending games (fan pitches go to /games)
+      // Load both pending events AND pending games (fan pitches go to /games).
+      // approvalStatus:'pending' asks for pending-only explicitly — showPending
+      // means "approved + mine pending" (the Team Schedule contract) and would
+      // let approved games crowd pending pitches out of the 50-row window.
       const [eventsData, gamesData] = await Promise.all([
         Event.pending().catch(() => []),
-        Game.list(undefined, { showPending: true, limit: 50 }).catch(() => ({ games: [] })),
+        Game.list(undefined, { approvalStatus: 'pending', limit: 50 }).catch(() => ({
+          games: [],
+        })),
       ]);
       const pendingEvents = asArray<RawPendingEvent>(eventsData).filter(
         event => event?.approval_status === 'pending'
