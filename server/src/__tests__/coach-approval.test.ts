@@ -37,9 +37,8 @@ describe('Coach Approval Workflow', () => {
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
-    ({ getOrganizationJoinRequestState, getOrganizationJoinRequestStateForUser } = await import(
-      '../lib/organizationWorkflowState.js'
-    ));
+    ({ getOrganizationJoinRequestState, getOrganizationJoinRequestStateForUser } =
+      await import('../lib/organizationWorkflowState.js'));
 
     // Pending coach (role=coach, approval_status=PENDING)
     const pendingHash = await bcrypt.hash(PASSWORD, 10);
@@ -163,7 +162,12 @@ describe('Coach Approval Workflow', () => {
       select: { id: true },
     });
     await prisma.organizationMembership.create({
-      data: { organization_id: approvedOrg.id, user_id: approvedCoachId, role: 'owner', status: 'active' },
+      data: {
+        organization_id: approvedOrg.id,
+        user_id: approvedCoachId,
+        role: 'owner',
+        status: 'active',
+      },
       select: { id: true },
     });
   });
@@ -310,10 +314,7 @@ describe('Coach Approval Workflow', () => {
         data: {
           post_id: discussionPost.id,
           options: {
-            create: [
-              { text: 'Option A' },
-              { text: 'Option B' },
-            ],
+            create: [{ text: 'Option A' }, { text: 'Option B' }],
           },
         },
         include: {
@@ -677,10 +678,14 @@ describe('Coach Approval Workflow', () => {
       expect(userAfter?.approval_status).toBe('PENDING');
       expect(userAfter?.organization_id).toBe(orgIdFromCreate);
       expect((userAfter?.preferences as any)?.organization_id).toBe(orgIdFromCreate);
-      expect((userAfter?.preferences as any)?.organization_name).toContain('Onboarding Create League');
+      expect((userAfter?.preferences as any)?.organization_name).toContain(
+        'Onboarding Create League'
+      );
       expect((userAfter?.preferences as any)?.join_request_pending).toBe(false);
 
-      await prisma.organizationMembership.deleteMany({ where: { organization_id: orgIdFromCreate } });
+      await prisma.organizationMembership.deleteMany({
+        where: { organization_id: orgIdFromCreate },
+      });
       await prisma.organization.deleteMany({ where: { id: orgIdFromCreate } });
       await prisma.user.deleteMany({ where: { id: creator.id } });
       orgIdFromCreate = '';
@@ -858,7 +863,9 @@ describe('Coach Approval Workflow', () => {
         expect(applicationAfter?.status).toBe('approved');
         expect(applicationAfter?.reviewed_by).toBeNull();
       } finally {
-        await prisma.adminActivityLog.deleteMany({ where: { target_id: coach.id } }).catch(() => {});
+        await prisma.adminActivityLog
+          .deleteMany({ where: { target_id: coach.id } })
+          .catch(() => {});
         await prisma.coachApplication.deleteMany({ where: { user_id: coach.id } }).catch(() => {});
         await prisma.user.delete({ where: { id: coach.id } }).catch(() => {});
       }
@@ -929,11 +936,15 @@ describe('Coach Approval Workflow', () => {
         expect(auditLog?.admin_id).toBe('email-token');
         expect(auditLog?.admin_email).toBe('email-token');
       } finally {
-        await prisma.adminActivityLog.deleteMany({
-          where: { OR: [{ target_id: coach.id }, { admin_id: actor.id }] },
-        }).catch(() => {});
+        await prisma.adminActivityLog
+          .deleteMany({
+            where: { OR: [{ target_id: coach.id }, { admin_id: actor.id }] },
+          })
+          .catch(() => {});
         await prisma.coachApplication.deleteMany({ where: { user_id: coach.id } }).catch(() => {});
-        await prisma.user.deleteMany({ where: { id: { in: [coach.id, actor.id] } } }).catch(() => {});
+        await prisma.user
+          .deleteMany({ where: { id: { in: [coach.id, actor.id] } } })
+          .catch(() => {});
       }
     });
   });
@@ -954,18 +965,45 @@ describe('Coach Approval Workflow', () => {
           approval_status: 'PENDING',
         },
       });
-      const admin = await prisma.user.create({
-        data: {
-          email: `dashboard-admin-${ts}@example.com`,
-          password_hash: adminHash,
-          display_name: 'Dashboard Admin',
-          email_verified: true,
-          role: 'fan',
-          onboarding_completed: true,
-          preferences: { role: 'fan', plan: 'rookie', onboarding_completed: true },
-          approval_status: 'APPROVED',
-        },
+      // Platform admin access is a hardcoded floor (src/lib/adminEmails.ts,
+      // rule 2026-06-25) — ADMIN_EMAILS cannot widen it, so the dashboard
+      // path must authenticate as a real floor mailbox. Find-or-create the
+      // shared durable fixture; never delete it (parallel suites use it too).
+      const PLATFORM_ADMIN_EMAIL = 'customerservice@varsityhub.app';
+      let admin = await prisma.user.findUnique({
+        where: { email: PLATFORM_ADMIN_EMAIL },
+        select: { id: true, email_verified: true },
       });
+      if (admin && !admin.email_verified) {
+        await prisma.user.update({
+          where: { id: admin.id },
+          data: { email_verified: true },
+        });
+      }
+      if (!admin) {
+        admin = await prisma.user
+          .create({
+            data: {
+              email: PLATFORM_ADMIN_EMAIL,
+              password_hash: adminHash,
+              display_name: 'Platform Admin',
+              email_verified: true,
+              role: 'fan',
+              onboarding_completed: true,
+              preferences: { role: 'fan', plan: 'rookie', onboarding_completed: true },
+              approval_status: 'APPROVED',
+            },
+            select: { id: true, email_verified: true },
+          })
+          // Lost a create race with a parallel suite — the row exists now.
+          .catch(() =>
+            prisma.user.findUnique({
+              where: { email: PLATFORM_ADMIN_EMAIL },
+              select: { id: true, email_verified: true },
+            })
+          );
+      }
+      if (!admin) throw new Error(`Failed to ensure platform admin ${PLATFORM_ADMIN_EMAIL}`);
       const application = await prisma.coachApplication.create({
         data: {
           user_id: coach.id,
@@ -976,8 +1014,6 @@ describe('Coach Approval Workflow', () => {
         },
       });
 
-      const savedAdminEmails = process.env.ADMIN_EMAILS || '';
-      process.env.ADMIN_EMAILS = [admin.email, savedAdminEmails].filter(Boolean).join(',');
       const sessionToken = signJwt({ id: admin.id });
 
       try {
@@ -997,12 +1033,15 @@ describe('Coach Approval Workflow', () => {
         expect(applicationAfter?.status).toBe('approved');
         expect(applicationAfter?.reviewed_by).toBe(admin.id);
       } finally {
-        process.env.ADMIN_EMAILS = savedAdminEmails;
-        await prisma.adminActivityLog.deleteMany({
-          where: { OR: [{ target_id: coach.id }, { admin_id: admin.id }] },
-        }).catch(() => {});
+        // Scope log cleanup to this coach only — the shared floor admin may
+        // have activity rows from parallel suites we must not delete.
+        await prisma.adminActivityLog
+          .deleteMany({
+            where: { target_id: coach.id },
+          })
+          .catch(() => {});
         await prisma.coachApplication.deleteMany({ where: { user_id: coach.id } }).catch(() => {});
-        await prisma.user.deleteMany({ where: { id: { in: [coach.id, admin.id] } } }).catch(() => {});
+        await prisma.user.deleteMany({ where: { id: coach.id } }).catch(() => {});
       }
     });
 
@@ -1215,7 +1254,9 @@ describe('Coach Approval Workflow', () => {
     });
 
     afterAll(async () => {
-      await prisma.organizationMembership.deleteMany({ where: { user_id: managerId } }).catch(() => {});
+      await prisma.organizationMembership
+        .deleteMany({ where: { user_id: managerId } })
+        .catch(() => {});
       await prisma.user.delete({ where: { id: managerId } }).catch(() => {});
     });
 
@@ -1336,7 +1377,11 @@ describe('Coach Approval Workflow', () => {
 
       const updated = await prisma.user.findUnique({
         where: { id: coach.id },
-        select: { coach_agreement_accepted_at: true, coach_agreement_version: true, approval_status: true },
+        select: {
+          coach_agreement_accepted_at: true,
+          coach_agreement_version: true,
+          approval_status: true,
+        },
       });
 
       expect(updated?.approval_status).toBe('APPROVED');
@@ -1371,7 +1416,11 @@ describe('Coach Approval Workflow', () => {
 
       const updated = await prisma.user.findUnique({
         where: { id: owner.id },
-        select: { coach_agreement_accepted_at: true, coach_agreement_version: true, approval_status: true },
+        select: {
+          coach_agreement_accepted_at: true,
+          coach_agreement_version: true,
+          approval_status: true,
+        },
       });
 
       expect(updated?.approval_status).toBe('APPROVED');

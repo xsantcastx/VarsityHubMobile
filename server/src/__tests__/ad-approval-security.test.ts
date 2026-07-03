@@ -8,6 +8,13 @@ let app: import('express').Express;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
+// Platform admin access is a hardcoded floor (src/lib/adminEmails.ts, rule
+// 2026-06-25) — the ADMIN_EMAILS env var cannot widen it, so admin-session
+// paths must authenticate as a real floor mailbox. Floor users are shared,
+// durable fixtures in the test DB: find-or-create, never delete (another
+// suite in a parallel worker may be using the same mailbox).
+const VERIFIED_ADMIN_EMAIL = 'customerservice@varsityhub.app';
+const LIMITER_ADMIN_EMAIL = 'emancero@varsityhub.app';
 
 // This integration spec exercises real Prisma writes plus bcrypt hashing and
 // moderation-link flows. It normally finishes fast, but the server config's
@@ -15,7 +22,6 @@ const PASSWORD = 'TestPassword123!';
 jest.setTimeout(20_000);
 
 describe('Ad Approval Security', () => {
-  let originalAdminEmails = '';
   let ownerId = '';
   let ownerToken = '';
   let verifiedAdminId = '';
@@ -28,6 +34,48 @@ describe('Ad Approval Security', () => {
   // bucket (used by the happy-path approve test) is never near its cap.
   let limiterAdminId = '';
   let limiterAdminToken = '';
+
+  // Find-or-create a platform-floor admin mailbox. Reuses an existing row so
+  // the suite stays re-runnable and safe alongside parallel suites; only
+  // guarantees the fields requireAdmin checks (email_verified + floor email).
+  async function ensurePlatformAdmin(email: string, displayName: string, hash: string) {
+    const existing = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email_verified: true },
+    });
+    if (existing) {
+      if (!existing.email_verified) {
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { email_verified: true },
+        });
+      }
+      return existing.id;
+    }
+    try {
+      const created = await prisma.user.create({
+        data: {
+          email,
+          password_hash: hash,
+          display_name: displayName,
+          email_verified: true,
+          role: 'fan',
+          onboarding_completed: true,
+          approval_status: 'APPROVED',
+          preferences: {
+            role: 'fan',
+            onboarding_completed: true,
+          },
+        },
+      });
+      return created.id;
+    } catch {
+      // Lost a create race with a parallel suite — the row exists now.
+      const raced = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+      if (!raced) throw new Error(`Failed to ensure platform admin ${email}`);
+      return raced.id;
+    }
+  }
 
   beforeAll(async () => {
     ({ app } = await import('../adApprovalTestApp.js'));
@@ -54,22 +102,7 @@ describe('Ad Approval Security', () => {
     ownerId = owner.id;
     ownerToken = signJwt({ id: ownerId });
 
-    const verifiedAdmin = await prisma.user.create({
-      data: {
-        email: `ad-admin-${ts}@example.com`,
-        password_hash: hash,
-        display_name: 'Verified Admin',
-        email_verified: true,
-        role: 'fan',
-        onboarding_completed: true,
-        approval_status: 'APPROVED',
-        preferences: {
-          role: 'fan',
-          onboarding_completed: true,
-        },
-      },
-    });
-    verifiedAdminId = verifiedAdmin.id;
+    verifiedAdminId = await ensurePlatformAdmin(VERIFIED_ADMIN_EMAIL, 'Verified Admin', hash);
     verifiedAdminToken = signJwt({ id: verifiedAdminId });
 
     const unverifiedAdmin = await prisma.user.create({
@@ -108,58 +141,33 @@ describe('Ad Approval Security', () => {
     verifiedNonAdminId = verifiedNonAdmin.id;
     verifiedNonAdminToken = signJwt({ id: verifiedNonAdminId });
 
-    const limiterAdmin = await prisma.user.create({
-      data: {
-        email: `ad-limiter-admin-${ts}@example.com`,
-        password_hash: hash,
-        display_name: 'Limiter Admin',
-        email_verified: true,
-        role: 'fan',
-        onboarding_completed: true,
-        approval_status: 'APPROVED',
-        preferences: {
-          role: 'fan',
-          onboarding_completed: true,
-        },
-      },
-    });
-    limiterAdminId = limiterAdmin.id;
+    limiterAdminId = await ensurePlatformAdmin(LIMITER_ADMIN_EMAIL, 'Limiter Admin', hash);
     limiterAdminToken = signJwt({ id: limiterAdminId });
-
-    originalAdminEmails = process.env.ADMIN_EMAILS || '';
-    process.env.ADMIN_EMAILS = [
-      verifiedAdmin.email,
-      unverifiedAdmin.email,
-      limiterAdmin.email,
-      originalAdminEmails,
-    ]
-      .filter(Boolean)
-      .join(',');
   });
 
   afterAll(async () => {
-    process.env.ADMIN_EMAILS = originalAdminEmails;
-
     try {
-      const userIds = [
-        ownerId,
-        verifiedAdminId,
-        unverifiedAdminId,
-        verifiedNonAdminId,
-        limiterAdminId,
-      ].filter(Boolean);
+      // Floor admins (verifiedAdminId / limiterAdminId) are shared durable
+      // fixtures — never deleted here.
+      const userIds = [ownerId, unverifiedAdminId, verifiedNonAdminId].filter(Boolean);
 
-      await prisma.notification.deleteMany({
-        where: { user_id: { in: userIds } },
-      }).catch(() => {});
+      await prisma.notification
+        .deleteMany({
+          where: { user_id: { in: userIds } },
+        })
+        .catch(() => {});
 
-      await prisma.ad.deleteMany({
-        where: { user_id: { in: userIds } },
-      }).catch(() => {});
+      await prisma.ad
+        .deleteMany({
+          where: { user_id: { in: userIds } },
+        })
+        .catch(() => {});
 
-      await prisma.user.deleteMany({
-        where: { id: { in: userIds } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: userIds } },
+        })
+        .catch(() => {});
     } catch (e) {
       console.warn('Cleanup error (non-critical):', e);
     }
@@ -178,7 +186,8 @@ describe('Ad Approval Security', () => {
         radius: 25,
         description,
         status,
-        payment_status: status === 'active' ? 'paid' : status === 'pending' ? 'pending_approval' : 'unpaid',
+        payment_status:
+          status === 'active' ? 'paid' : status === 'pending' ? 'pending_approval' : 'unpaid',
       },
     });
   }
@@ -186,9 +195,7 @@ describe('Ad Approval Security', () => {
   async function expectTokenApprovalWorks(extraHeaders?: Record<string, string>) {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
-    const req = request(app)
-      .post(`/ads/${ad.id}/approve`)
-      .query({ token });
+    const req = request(app).post(`/ads/${ad.id}/approve`).query({ token });
 
     for (const [key, value] of Object.entries(extraHeaders || {})) {
       req.set(key, value);
@@ -210,15 +217,9 @@ describe('Ad Approval Security', () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
-    const first = await request(app)
-      .post(`/ads/${ad.id}/approve`)
-      .query({ token })
-      .send({});
+    const first = await request(app).post(`/ads/${ad.id}/approve`).query({ token }).send({});
 
-    const second = await request(app)
-      .post(`/ads/${ad.id}/approve`)
-      .query({ token })
-      .send({});
+    const second = await request(app).post(`/ads/${ad.id}/approve`).query({ token }).send({});
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(409);
@@ -229,9 +230,7 @@ describe('Ad Approval Security', () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
-    const res = await request(app)
-      .get(`/ads/${ad.id}/approve`)
-      .query({ token });
+    const res = await request(app).get(`/ads/${ad.id}/approve`).query({ token });
 
     expect(res.status).toBe(200);
     expect(String(res.headers['content-type'] || '')).toContain('text/html');
@@ -243,9 +242,7 @@ describe('Ad Approval Security', () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'reject_ad' }, '7d');
 
-    const res = await request(app)
-      .get(`/ads/${ad.id}/reject`)
-      .query({ token });
+    const res = await request(app).get(`/ads/${ad.id}/reject`).query({ token });
 
     expect(res.status).toBe(200);
     expect(String(res.headers['content-type'] || '')).toContain('text/html');
@@ -340,9 +337,7 @@ describe('Ad Approval Security', () => {
   it('blocks unauthenticated /review requests', async () => {
     const ad = await createAd('pending');
 
-    const res = await request(app)
-      .post(`/ads/${ad.id}/review`)
-      .send({ action: 'approve' });
+    const res = await request(app).post(`/ads/${ad.id}/review`).send({ action: 'approve' });
 
     expect(res.status).toBe(401);
   });
@@ -450,7 +445,8 @@ describe('Ad Approval Security', () => {
 
   it('approves a flagged banner with a valid override reason and records it in admin_note (/review)', async () => {
     const ad = await createFlaggedAd();
-    const reason = 'Reviewed by trust & safety team — banner is a sports action shot, not suggestive content.';
+    const reason =
+      'Reviewed by trust & safety team — banner is a sports action shot, not suggestive content.';
 
     const res = await request(app)
       .post(`/ads/${ad.id}/review`)
