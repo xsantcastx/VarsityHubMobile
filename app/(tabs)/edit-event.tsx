@@ -187,7 +187,9 @@ export default function EditEventScreen() {
         ImagePicker.launchImageLibraryAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
           allowsEditing: true,
-          aspect: [16, 9],
+          // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
+          // crop at the displayed ratio so uploads aren't re-cropped at render time.
+          aspect: [4, 5],
           quality: 0.9,
           exif: false,
         }),
@@ -202,7 +204,9 @@ export default function EditEventScreen() {
         ImagePicker.launchCameraAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
           allowsEditing: true,
-          aspect: [16, 9],
+          // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
+          // crop at the displayed ratio so uploads aren't re-cropped at render time.
+          aspect: [4, 5],
           quality: 0.9,
           exif: false,
         }),

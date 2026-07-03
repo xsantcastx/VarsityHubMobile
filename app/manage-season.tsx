@@ -807,15 +807,20 @@ function ManageSeasonScreen() {
         gameData.type === 'home' ? gameData.opponentTeamId : gameData.currentTeamId
       );
 
-      // Create game data for API
+      // Create game data for API. For non-competitive events
+      // `gameData.currentTeam` carries the user-entered event title
+      // (buildQuickGameData) — use it verbatim; every event is one-of-one,
+      // never "<title> Event".
       const gamePayload: Record<string, any> = {
         title: gameData.isCompetitive
           ? `${gameData.currentTeam} vs ${gameData.opponent}`
-          : `${gameData.currentTeam} Event`,
+          : gameData.currentTeam,
         date: gameDateTime.toISOString(),
-        description: gameData.isCompetitive
-          ? `${gameData.type === 'home' ? 'Home' : 'Away'} game: ${gameData.currentTeam} vs ${gameData.opponent}`
-          : `Event for ${gameData.currentTeam}`,
+        description:
+          gameData.description ||
+          (gameData.isCompetitive
+            ? `${gameData.type === 'home' ? 'Home' : 'Away'} game: ${gameData.currentTeam} vs ${gameData.opponent}`
+            : gameData.currentTeam),
       };
 
       // Only add team fields if this is a competitive game
@@ -962,15 +967,50 @@ function ManageSeasonScreen() {
 
   const handleSaveGame = async (gameData: GameFormData) => {
     try {
+      // Merge the separate date + time pickers into one timestamp (UTC parts,
+      // matching handleSaveQuickGame so the intended wall time is preserved).
+      const gameDateTime = new Date(
+        Date.UTC(
+          gameData.date.getFullYear(),
+          gameData.date.getMonth(),
+          gameData.date.getDate(),
+          gameData.time.getHours(),
+          gameData.time.getMinutes()
+        )
+      );
+
+      const isHome = gameData.type === 'home';
+      const currentTeamId = sanitizeTeamId(currentTeam?.id || params.teamId);
+      const opponentTeamId = sanitizeTeamId(gameData.opponent_team_id ?? undefined);
+      const homeTeamId = isHome ? currentTeamId : opponentTeamId;
+      const awayTeamId = isHome ? opponentTeamId : currentTeamId;
+
       // Create game data for API
-      const gamePayload = {
+      const gamePayload: Record<string, any> = {
         title: `${gameData.currentTeam} vs ${gameData.opponent}`,
-        home_team: gameData.type === 'home' ? gameData.currentTeam : gameData.opponent,
-        away_team: gameData.type === 'home' ? gameData.opponent : gameData.currentTeam,
-        date: gameData.date.toISOString(),
+        home_team: isHome ? gameData.currentTeam : gameData.opponent,
+        away_team: isHome ? gameData.opponent : gameData.currentTeam,
+        date: gameDateTime.toISOString(),
         location: gameData.location,
         description: `${gameData.type === 'home' ? 'Home' : gameData.type === 'away' ? 'Away' : 'Neutral'} game: ${gameData.currentTeam} vs ${gameData.opponent}`,
       };
+
+      // Link teams by ID when they exist on VarsityHub; otherwise keep the
+      // opponent as a display-only placeholder name (no fake team accounts).
+      if (homeTeamId) gamePayload.home_team_id = homeTeamId;
+      if (awayTeamId) {
+        gamePayload.away_team_id = awayTeamId;
+      } else if (gameData.opponent) {
+        gamePayload.away_team_name = gameData.opponent;
+      }
+
+      if (gameData.banner_url) {
+        gamePayload.banner_url = gameData.banner_url;
+        gamePayload.cover_image_url = gameData.banner_url;
+      }
+      if (gameData.attendance) gamePayload.expected_attendance = gameData.attendance;
+      if (gameData.latitude != null) gamePayload.latitude = gameData.latitude;
+      if (gameData.longitude != null) gamePayload.longitude = gameData.longitude;
 
       // Save to backend API
       const savedGame = await GameAPI.create(gamePayload);

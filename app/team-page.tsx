@@ -150,13 +150,10 @@ async function fetchTeamData(teamId?: string, teamName?: string): Promise<TeamPa
         const summary: any = await Team.screenSummary(teamId);
         if (summary?.team) {
           teamData = summary.team as LeagueTeam;
-          summaryMembers = Array.isArray(summary.members)
-            ? (summary.members as TeamMember[])
-            : [];
+          summaryMembers = Array.isArray(summary.members) ? (summary.members as TeamMember[]) : [];
           summaryGames = Array.isArray(summary.games) ? (summary.games as GameItem[]) : [];
           canManageTeam =
-            summary?.permissions?.can_manage === true ||
-            summary?.team?.can_manage_team === true;
+            summary?.permissions?.can_manage === true || summary?.team?.can_manage_team === true;
         } else {
           const fullTeamData = await Team.get(teamId);
           if (fullTeamData) {
@@ -1282,7 +1279,14 @@ function TeamScreen() {
                   year: 'numeric',
                 })
               : 'TBD';
-            const opponent = g.opponent_name || g.away_team || g.awayTeam || 'TBD';
+            // Resolve the opponent from whichever side this team is NOT on.
+            // away_team_name is the display-only placeholder for opponents
+            // not on VarsityHub (no fake team accounts).
+            const viewedId = String(team?.id ?? teamId ?? '');
+            const isAwaySide = g.away_team_id != null && String(g.away_team_id) === viewedId;
+            const opponent = isAwaySide
+              ? g.home_team || g.opponent_name || 'TBD'
+              : g.opponent_name || g.away_team || g.awayTeam || g.away_team_name || 'TBD';
             const gameType = g.game_type || 'Game';
             const hasScore = g.home_score != null || g.away_score != null;
             const gameId = g.id ? String(g.id) : null;
@@ -1290,8 +1294,7 @@ function TeamScreen() {
               <Pressable
                 disabled={!gameId}
                 onPress={() =>
-                  gameId &&
-                  router.push({ pathname: '/game/[id]', params: { id: gameId } } as any)
+                  gameId && router.push({ pathname: '/game/[id]', params: { id: gameId } } as any)
                 }
                 accessibilityRole="button"
                 accessibilityLabel={`Open event vs ${opponent} on ${dateStr}`}
