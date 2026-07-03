@@ -8,6 +8,7 @@ import { calculateContrastRatio } from '@/utils/accessibility';
 import { getAuthSnapshot } from '@/utils/authState';
 import events from '@/utils/events';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { getGradientForColor } from '@/utils/theme';
@@ -1378,7 +1379,11 @@ export default function ProfileScreen() {
                         </View>
                       ) : (
                         <Image
-                          source={{ uri: media.displayImageUrl! }}
+                          source={{
+                            uri:
+                              optimizeImageUrl(media.displayImageUrl!, 500) ||
+                              media.displayImageUrl!,
+                          }}
                           style={styles.gridImage}
                           contentFit="cover"
                         />
@@ -1497,7 +1502,11 @@ export default function ProfileScreen() {
                         </View>
                       ) : (
                         <Image
-                          source={{ uri: media.displayImageUrl! }}
+                          source={{
+                            uri:
+                              optimizeImageUrl(media.displayImageUrl!, 500) ||
+                              media.displayImageUrl!,
+                          }}
                           style={styles.gridImage}
                           contentFit="cover"
                         />
@@ -1616,7 +1625,11 @@ export default function ProfileScreen() {
                         </View>
                       ) : (
                         <Image
-                          source={{ uri: media.displayImageUrl! }}
+                          source={{
+                            uri:
+                              optimizeImageUrl(media.displayImageUrl!, 500) ||
+                              media.displayImageUrl!,
+                          }}
                           style={styles.gridImage}
                           contentFit="cover"
                         />
