@@ -784,17 +784,17 @@ function CommunityDiscoverScreen() {
           );
         }
 
-        // Create game payload
+        // Create game payload. For non-competitive events `data.currentTeam`
+        // carries the user-entered event title (buildQuickGameData) — use it
+        // verbatim; every event is one-of-one, never "<title> Event".
         const gamePayload: Record<string, any> = {
-          title: data.isCompetitive
-            ? `${data.currentTeam} vs ${data.opponent}`
-            : `${data.currentTeam} Event`,
+          title: data.isCompetitive ? `${data.currentTeam} vs ${data.opponent}` : data.currentTeam,
           date: gameDateTime.toISOString(),
           description:
             data.description ||
             (data.isCompetitive
               ? `${data.type === 'home' ? 'Home' : 'Away'} game: ${data.currentTeam} vs ${data.opponent}`
-              : `Event for ${data.currentTeam}`),
+              : data.currentTeam),
         };
 
         // Only add team fields if this is a competitive game

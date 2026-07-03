@@ -5,17 +5,17 @@ import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Linking,
-    PanResponder,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Linking,
+  PanResponder,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -27,13 +27,13 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import {
-    BIO_MAX_LENGTH,
-    DISPLAY_NAME_MAX_LENGTH,
-    sanitizeText,
-    validateBio,
-    validateDisplayName,
-    validateYear,
-    validateZipCode,
+  BIO_MAX_LENGTH,
+  DISPLAY_NAME_MAX_LENGTH,
+  sanitizeText,
+  validateBio,
+  validateDisplayName,
+  validateYear,
+  validateZipCode,
 } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
@@ -383,7 +383,8 @@ export default function EditProfileScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [3, 2],
+      // Profile background renders full width x 200px (~2:1) — crop to match.
+      aspect: [2, 1],
       quality: 0.85,
       exif: false,
     });

@@ -205,7 +205,9 @@ export default function EditOrganizationScreen() {
     );
   const pickBackground = () =>
     pickImage(
-      [16, 9],
+      // Crop at the ratio the org page actually renders (full width x 160px ≈ 2.4:1),
+      // not 16:9 — otherwise the saved image gets cropped again at display time.
+      [5, 2],
       'org-background.jpg',
       setBackgroundUrl,
       setUploadingBackground,

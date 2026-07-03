@@ -672,7 +672,9 @@ export default function QuickAddGameModal({
       const pickerResult = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [16, 9],
+        // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
+        // crop at the displayed ratio so uploads aren't re-cropped at render time.
+        aspect: [4, 5],
         quality: 0.9,
         exif: false,
       });
@@ -700,7 +702,9 @@ export default function QuickAddGameModal({
       const pickerResult = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [16, 9],
+        // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
+        // crop at the displayed ratio so uploads aren't re-cropped at render time.
+        aspect: [4, 5],
         quality: 0.9,
         exif: false,
       });
@@ -1322,7 +1326,7 @@ export default function QuickAddGameModal({
                           setHomeVenueLat(location.latitude);
                           setHomeVenueLng(location.longitude);
                         }}
-                        placeholder="Search for home venue..."
+                        placeholder="Search for venue location..."
                       />
                       {teamHasVenue && (
                         <Pressable
@@ -1366,7 +1370,7 @@ export default function QuickAddGameModal({
                         setAwayVenueLat(location.latitude);
                         setAwayVenueLng(location.longitude);
                       }}
-                      placeholder="Search for away venue location..."
+                      placeholder="Search for venue location..."
                     />
                     {awayVenue && awayVenueLat && awayVenueLng && (
                       <Pressable
@@ -2226,7 +2230,9 @@ const styles = StyleSheet.create({
   },
   customBannerImage: {
     width: '100%',
-    height: 120,
+    // Preview the uploaded photo at the same 4:5 ratio the event card displays,
+    // so what the user sees here is what actually ships to the feed.
+    aspectRatio: 4 / 5,
     borderRadius: 12,
     backgroundColor: '#D1D5DB',
   },

@@ -12,18 +12,18 @@ import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Linking,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -134,7 +134,8 @@ function CreateFanEventScreen() {
   const [roleError, setRoleError] = useState(false);
   const [pendingEventCount, setPendingEventCount] = useState<number | null>(null);
   const locationInputRef = useRef<TextInput>(null);
-  const eventLimitReached = userRole !== 'coach' && pendingEventCount !== null && pendingEventCount >= 3;
+  const eventLimitReached =
+    userRole !== 'coach' && pendingEventCount !== null && pendingEventCount >= 3;
 
   useEffect(() => {
     getAuthSnapshot(checkAuth, user)
@@ -156,7 +157,7 @@ function CreateFanEventScreen() {
     Event.mine()
       .then((events: MyEventSummary[]) => {
         if (Array.isArray(events)) {
-          const pending = events.filter((event) => event.approval_status === 'pending').length;
+          const pending = events.filter(event => event.approval_status === 'pending').length;
           setPendingEventCount(pending);
         }
       })
@@ -204,7 +205,7 @@ function CreateFanEventScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const bannerCaptureRef = useRef<ViewShot | null>(null);
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   // Banner appearance is fixed to the default; the in-form style picker was
@@ -216,12 +217,15 @@ function CreateFanEventScreen() {
   const [pitchTeamId, setPitchTeamId] = useState('');
   const [pitchTeamName, setPitchTeamName] = useState('');
   const [showPitchTeamPicker, setShowPitchTeamPicker] = useState(false);
+  const [pitchTeamQuery, setPitchTeamQuery] = useState('');
 
   // Game-specific fields (coach only)
   const [selectedTeam, setSelectedTeam] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [opponent, setOpponent] = useState('');
-  const [opponentSuggestions, setOpponentSuggestions] = useState<Array<{ id: string; name: string }>>([]);
+  const [opponentSuggestions, setOpponentSuggestions] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
   const [opponentSearching, setOpponentSearching] = useState(false);
   const opponentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [gameType, setGameType] = useState<'home' | 'away'>('home');
@@ -229,7 +233,7 @@ function CreateFanEventScreen() {
 
   const teams = useMemo<TeamOption[]>(() => {
     if (!Array.isArray(rawTeams) || rawTeams.length === 0) return [];
-    return rawTeams.map((team) => ({
+    return rawTeams.map(team => ({
       id: String(team.id),
       name: team.name || 'Unknown Team',
       logo: (team.logo_url || team.avatar_url || undefined) as string | undefined,
@@ -237,18 +241,25 @@ function CreateFanEventScreen() {
     }));
   }, [rawTeams]);
 
+  // Client-side search over the user's followed teams for the pitch picker
+  const filteredPitchTeams = useMemo(() => {
+    const q = pitchTeamQuery.trim().toLowerCase();
+    if (!q) return teams;
+    return teams.filter(t => t.name.toLowerCase().includes(q));
+  }, [teams, pitchTeamQuery]);
+
   const eventTypeLabel = useMemo(
-    () => EVENT_TYPES.find((type) => type.value === eventType)?.label || 'Event',
+    () => EVENT_TYPES.find(type => type.value === eventType)?.label || 'Event',
     [eventType]
   );
 
   const selectedTeamLogo = useMemo(
-    () => teams.find((team) => team.id === selectedTeamId || team.name === selectedTeam)?.logo,
+    () => teams.find(team => team.id === selectedTeamId || team.name === selectedTeam)?.logo,
     [selectedTeam, selectedTeamId, teams]
   );
 
   const pitchTeamLogo = useMemo(
-    () => teams.find((team) => team.id === pitchTeamId)?.logo,
+    () => teams.find(team => team.id === pitchTeamId)?.logo,
     [pitchTeamId, teams]
   );
 
@@ -316,18 +327,21 @@ function CreateFanEventScreen() {
     }, 300);
   }, []);
 
-  const handleLocationChange = useCallback((text: string) => {
-    setLocation(text);
-    setLocationTouched(true);
-    setSelectedPlace(null);
-    setErrors(prev => ({ ...prev, location: '' }));
+  const handleLocationChange = useCallback(
+    (text: string) => {
+      setLocation(text);
+      setLocationTouched(true);
+      setSelectedPlace(null);
+      setErrors(prev => ({ ...prev, location: '' }));
 
-    if (text.length >= 3) {
-      requestLocationSuggestions(text);
-    } else {
-      setLocationSuggestions([]);
-    }
-  }, [requestLocationSuggestions]);
+      if (text.length >= 3) {
+        requestLocationSuggestions(text);
+      } else {
+        setLocationSuggestions([]);
+      }
+    },
+    [requestLocationSuggestions]
+  );
 
   const handleSelectLocation = useCallback((suggestion: PlaceSuggestion) => {
     setLocation(suggestion.description);
@@ -349,7 +363,7 @@ function CreateFanEventScreen() {
   // Pre-fill venue when Home Game is selected and a team with a saved venue is chosen
   useEffect(() => {
     if (!selectedTeamId || eventType !== 'game') return;
-    const team = teams.find((t) => t.id === selectedTeamId);
+    const team = teams.find(t => t.id === selectedTeamId);
     if (gameType === 'home' && team?.venue_address) {
       if (!locationTouched) {
         setLocation(team.venue_address);
@@ -361,7 +375,7 @@ function CreateFanEventScreen() {
         setSelectedPlace(null);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excludes locationTouched to avoid resetting location on every touch state change
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excludes locationTouched to avoid resetting location on every touch state change
   }, [gameType, selectedTeamId, teams, eventType]);
 
   // Opponent team search
@@ -380,8 +394,12 @@ function CreateFanEventScreen() {
         const results = await TeamAPI.list(text.trim(), false, { limit: 6 });
         const list = Array.isArray(results)
           ? (results as TeamSearchResponse['items'])
-          : (Array.isArray((results as TeamSearchResponse | null)?.items) ? (results as TeamSearchResponse).items : []);
-        setOpponentSuggestions((list || []).map((team) => ({ id: String(team.id), name: String(team.name || '') })));
+          : Array.isArray((results as TeamSearchResponse | null)?.items)
+            ? (results as TeamSearchResponse).items
+            : [];
+        setOpponentSuggestions(
+          (list || []).map(team => ({ id: String(team.id), name: String(team.name || '') }))
+        );
       } catch {
         setOpponentSuggestions([]);
       } finally {
@@ -391,7 +409,9 @@ function CreateFanEventScreen() {
   }, []);
 
   useEffect(() => {
-    return () => { if (opponentTimerRef.current) clearTimeout(opponentTimerRef.current); };
+    return () => {
+      if (opponentTimerRef.current) clearTimeout(opponentTimerRef.current);
+    };
   }, []);
 
   const uploadBannerFromUri = useCallback(async (uri: string) => {
@@ -422,17 +442,23 @@ function CreateFanEventScreen() {
   const pickBannerFromLibrary = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission required', 'Photo library permission is needed to upload an event photo.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: () => Linking.openSettings() },
-      ]);
+      Alert.alert(
+        'Permission required',
+        'Photo library permission is needed to upload an event photo.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      );
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [16, 9],
+      // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
+      // crop at the displayed ratio so uploads aren't re-cropped at render time.
+      aspect: [4, 5],
       quality: 0.9,
       exif: false,
     });
@@ -442,7 +468,10 @@ function CreateFanEventScreen() {
         await uploadBannerFromUri(result.assets[0].uri);
       } catch (error: unknown) {
         const uploadError = error as CreateEventError;
-        Alert.alert('Upload Failed', uploadError?.message || 'Failed to upload event photo. Please try again.');
+        Alert.alert(
+          'Upload Failed',
+          uploadError?.message || 'Failed to upload event photo. Please try again.'
+        );
       }
     }
   }, [uploadBannerFromUri]);
@@ -470,21 +499,20 @@ function CreateFanEventScreen() {
         await uploadBannerFromUri(result.assets[0].uri);
       } catch (error: unknown) {
         const uploadError = error as CreateEventError;
-        Alert.alert('Upload Failed', uploadError?.message || 'Failed to upload event photo. Please try again.');
+        Alert.alert(
+          'Upload Failed',
+          uploadError?.message || 'Failed to upload event photo. Please try again.'
+        );
       }
     }
   }, [uploadBannerFromUri]);
 
   const showBannerOptions = useCallback(() => {
-    Alert.alert(
-      'Event Photo',
-      'Choose how you want to add a custom event photo.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Photo Library', onPress: () => void pickBannerFromLibrary() },
-        { text: 'Take Photo', onPress: () => void takeBannerPhoto() },
-      ]
-    );
+    Alert.alert('Event Photo', 'Choose how you want to add a custom event photo.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Photo Library', onPress: () => void pickBannerFromLibrary() },
+      { text: 'Take Photo', onPress: () => void takeBannerPhoto() },
+    ]);
   }, [pickBannerFromLibrary, takeBannerPhoto]);
 
   const captureGeneratedBanner = useCallback(async () => {
@@ -492,7 +520,12 @@ function CreateFanEventScreen() {
     setUploadingBanner(true);
     try {
       const uri = await captureRef(bannerCaptureRef, { format: 'png', quality: 0.9 });
-      const uploadResult = await uploadFile(getApiBaseUrl(), uri, 'generated-event-banner.png', 'image/png');
+      const uploadResult = await uploadFile(
+        getApiBaseUrl(),
+        uri,
+        'generated-event-banner.png',
+        'image/png'
+      );
       return uploadResult?.url || uploadResult?.path || null;
     } finally {
       setUploadingBanner(false);
@@ -500,7 +533,7 @@ function CreateFanEventScreen() {
   }, []);
 
   const validateForm = (): boolean => {
-    const newErrors: {[key: string]: string} = {};
+    const newErrors: { [key: string]: string } = {};
 
     if (isCoach && eventType === 'game') {
       if (!selectedTeam.trim()) {
@@ -607,7 +640,7 @@ function CreateFanEventScreen() {
         isCoach ? 'Event Created!' : 'Event Pitched!',
         isCoach
           ? 'Your event has been submitted for review.'
-          : 'Your event idea has been submitted! A coach or admin will review it and you\'ll be notified.',
+          : "Your event idea has been submitted! A coach or admin will review it and you'll be notified.",
         [{ text: 'OK', onPress: () => safeGoBack(router) }]
       );
     } catch (error: unknown) {
@@ -620,19 +653,23 @@ function CreateFanEventScreen() {
       } else if (errorCode === 'EVENT_LIMIT_EXCEEDED') {
         Alert.alert(
           'Event Limit Reached',
-          errorMessage || "You've reached your limit of 3 pending events. Wait for one to be approved or rejected before submitting another.",
-          [
-            { text: 'OK' },
-          ]
+          errorMessage ||
+            "You've reached your limit of 3 pending events. Wait for one to be approved or rejected before submitting another.",
+          [{ text: 'OK' }]
         );
       } else {
-        const detailedError = errorMessage || e?.data?.message || e?.message || 'Failed to create event. Please try again.';
-        if (__DEV__) console.error('[CreateFanEvent] Create event error:', {
-          error: e,
-          errorMessage,
-          errorCode,
-          eventType,
-        });
+        const detailedError =
+          errorMessage ||
+          e?.data?.message ||
+          e?.message ||
+          'Failed to create event. Please try again.';
+        if (__DEV__)
+          console.error('[CreateFanEvent] Create event error:', {
+            error: e,
+            errorMessage,
+            errorCode,
+            eventType,
+          });
         Alert.alert('Error', detailedError);
       }
     } finally {
@@ -670,7 +707,10 @@ function CreateFanEventScreen() {
   const isGameEvent = isCoach && eventType === 'game';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['bottom']}
+    >
       <Stack.Screen
         options={{
           title: isCoach ? 'Create Event' : 'Pitch Event',
@@ -695,7 +735,12 @@ function CreateFanEventScreen() {
 
         {/* Role load error */}
         {roleError && (
-          <View style={[styles.infoBox, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5', marginBottom: 16 }]}>
+          <View
+            style={[
+              styles.infoBox,
+              { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5', marginBottom: 16 },
+            ]}
+          >
             <MaterialIcons name="warning" size={20} color="#DC2626" />
             <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: '#991B1B' }}>
               Couldn't verify your account type. Showing fan options. Pull down to refresh.
@@ -705,17 +750,29 @@ function CreateFanEventScreen() {
 
         {/* Event Limit Warning */}
         {eventLimitReached && (
-          <View style={[styles.infoBox, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B', marginBottom: 16 }]}>
+          <View
+            style={[
+              styles.infoBox,
+              { backgroundColor: '#FEF3C7', borderColor: '#F59E0B', marginBottom: 16 },
+            ]}
+          >
             <MaterialIcons name="warning" size={20} color="#B45309" />
-            <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }}>
+            <Text
+              style={{
+                flex: 1,
+                fontSize: 13,
+                lineHeight: 18,
+                color: colorScheme === 'dark' ? '#FDE68A' : '#92400E',
+              }}
+            >
               You have {pendingEventCount} pending events (limit: 3). Wait for approval or{' '}
               <Text
                 style={{ fontWeight: '700' }}
                 onPress={() => router.push(APP_ROUTES.manageSubscription as never)}
               >
                 upgrade your plan
-              </Text>
-              {' '}to create more.
+              </Text>{' '}
+              to create more.
             </Text>
           </View>
         )}
@@ -724,7 +781,7 @@ function CreateFanEventScreen() {
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Type *</Text>
           <View style={styles.typeGrid}>
-            {EVENT_TYPES.map((type) => {
+            {EVENT_TYPES.map(type => {
               // Fans cannot create game events — only coaches can
               if (!isCoach && type.value === 'game') return null;
               return (
@@ -734,7 +791,10 @@ function CreateFanEventScreen() {
                     styles.typeButton,
                     {
                       backgroundColor: Colors[colorScheme].card,
-                      borderColor: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                      borderColor:
+                        eventType === type.value
+                          ? Colors[colorScheme].tint
+                          : Colors[colorScheme].border,
                     },
                     eventType === type.value && styles.typeButtonActive,
                   ]}
@@ -749,7 +809,12 @@ function CreateFanEventScreen() {
                   <Text
                     style={[
                       styles.typeLabel,
-                      { color: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].text }
+                      {
+                        color:
+                          eventType === type.value
+                            ? Colors[colorScheme].tint
+                            : Colors[colorScheme].text,
+                      },
                     ]}
                   >
                     {type.label}
@@ -775,7 +840,9 @@ function CreateFanEventScreen() {
                   color: Colors[colorScheme].text,
                 },
               ]}
-              placeholder={isCoach ? 'e.g., Varsity Football Watch Party' : 'e.g., Homecoming Tailgate Party'}
+              placeholder={
+                isCoach ? 'e.g., Varsity Football Watch Party' : 'e.g., Homecoming Tailgate Party'
+              }
               placeholderTextColor={Colors[colorScheme].mutedText}
               value={title}
               onChangeText={setTitle}
@@ -803,14 +870,30 @@ function CreateFanEventScreen() {
               ]}
               onPress={() => setShowPitchTeamPicker(true)}
             >
-              <Text style={[{ color: pitchTeamName ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
+              <Text
+                style={[
+                  {
+                    color: pitchTeamName ? Colors[colorScheme].text : Colors[colorScheme].mutedText,
+                  },
+                ]}
+              >
                 {pitchTeamName || 'Select a team'}
               </Text>
               <MaterialIcons name="expand-more" size={20} color={Colors[colorScheme].mutedText} />
             </Pressable>
             {errors.pitchTeam && <Text style={styles.errorText}>{errors.pitchTeam}</Text>}
             {!_teamsLoading && teamsError && (
-              <View style={[styles.infoBox, { backgroundColor: '#FEF2F2', borderColor: '#FECACA', marginTop: 8, marginBottom: 0 }]}>
+              <View
+                style={[
+                  styles.infoBox,
+                  {
+                    backgroundColor: '#FEF2F2',
+                    borderColor: '#FECACA',
+                    marginTop: 8,
+                    marginBottom: 0,
+                  },
+                ]}
+              >
                 <MaterialIcons name="error-outline" size={20} color="#DC2626" />
                 <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: '#991B1B' }}>
                   Couldn't load your teams. Pull to refresh.
@@ -818,10 +901,28 @@ function CreateFanEventScreen() {
               </View>
             )}
             {!_teamsLoading && !teamsError && teams.length === 0 && (
-              <View style={[styles.infoBox, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B', marginTop: 8, marginBottom: 0 }]}>
+              <View
+                style={[
+                  styles.infoBox,
+                  {
+                    backgroundColor: '#FEF3C7',
+                    borderColor: '#F59E0B',
+                    marginTop: 8,
+                    marginBottom: 0,
+                  },
+                ]}
+              >
                 <MaterialIcons name="group-add" size={20} color="#B45309" />
-                <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }}>
-                  You don't follow any teams yet. Follow a team from the Explore tab to pitch an event.
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 13,
+                    lineHeight: 18,
+                    color: colorScheme === 'dark' ? '#FDE68A' : '#92400E',
+                  }}
+                >
+                  You don't follow any teams yet. Follow a team from the Explore tab to pitch an
+                  event.
                 </Text>
               </View>
             )}
@@ -845,7 +946,13 @@ function CreateFanEventScreen() {
               ]}
               onPress={() => setShowTeamPicker(true)}
             >
-              <Text style={[{ color: selectedTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
+              <Text
+                style={[
+                  {
+                    color: selectedTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText,
+                  },
+                ]}
+              >
                 {selectedTeam || 'Select a team'}
               </Text>
               <MaterialIcons name="expand-more" size={20} color={Colors[colorScheme].mutedText} />
@@ -874,14 +981,29 @@ function CreateFanEventScreen() {
               autoCapitalize="words"
             />
             {opponentSearching && (
-              <ActivityIndicator size="small" style={{ position: 'absolute', right: 28, top: 44 }} color={Colors[colorScheme].mutedText} />
+              <ActivityIndicator
+                size="small"
+                style={{ position: 'absolute', right: 28, top: 44 }}
+                color={Colors[colorScheme].mutedText}
+              />
             )}
             {opponentSuggestions.length > 0 && (
-              <View style={[styles.suggestionsBox, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-                {opponentSuggestions.map((t) => (
+              <View
+                style={[
+                  styles.suggestionsBox,
+                  {
+                    backgroundColor: Colors[colorScheme].card,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+              >
+                {opponentSuggestions.map(t => (
                   <Pressable
                     key={t.id}
-                    style={[styles.suggestionItem, { borderBottomColor: Colors[colorScheme].border }]}
+                    style={[
+                      styles.suggestionItem,
+                      { borderBottomColor: Colors[colorScheme].border },
+                    ]}
                     onPress={() => {
                       setOpponent(t.name);
                       setOpponentSuggestions([]);
@@ -889,7 +1011,9 @@ function CreateFanEventScreen() {
                     }}
                   >
                     <MaterialIcons name="group" size={16} color={Colors[colorScheme].mutedText} />
-                    <Text style={[styles.suggestionText, { color: Colors[colorScheme].text }]}>{t.name}</Text>
+                    <Text style={[styles.suggestionText, { color: Colors[colorScheme].text }]}>
+                      {t.name}
+                    </Text>
                   </Pressable>
                 ))}
               </View>
@@ -907,17 +1031,28 @@ function CreateFanEventScreen() {
                 style={[
                   styles.gameTypeButton,
                   {
-                    backgroundColor: gameType === 'home' ? Colors[colorScheme].tint : Colors[colorScheme].card,
-                    borderColor: gameType === 'home' ? Colors[colorScheme].tint : Colors[colorScheme].border,
-                  }
+                    backgroundColor:
+                      gameType === 'home' ? Colors[colorScheme].tint : Colors[colorScheme].card,
+                    borderColor:
+                      gameType === 'home' ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                  },
                 ]}
-                onPress={() => { setGameType('home'); setLocationTouched(false); }}
+                onPress={() => {
+                  setGameType('home');
+                  setLocationTouched(false);
+                }}
               >
-                <MaterialIcons name="home" size={20} color={gameType === 'home' ? '#fff' : Colors[colorScheme].text} />
-                <Text style={[
-                  styles.gameTypeText,
-                  { color: gameType === 'home' ? '#fff' : Colors[colorScheme].text }
-                ]}>
+                <MaterialIcons
+                  name="home"
+                  size={20}
+                  color={gameType === 'home' ? '#fff' : Colors[colorScheme].text}
+                />
+                <Text
+                  style={[
+                    styles.gameTypeText,
+                    { color: gameType === 'home' ? '#fff' : Colors[colorScheme].text },
+                  ]}
+                >
                   Home Game
                 </Text>
               </Pressable>
@@ -926,17 +1061,28 @@ function CreateFanEventScreen() {
                 style={[
                   styles.gameTypeButton,
                   {
-                    backgroundColor: gameType === 'away' ? Colors[colorScheme].tint : Colors[colorScheme].card,
-                    borderColor: gameType === 'away' ? Colors[colorScheme].tint : Colors[colorScheme].border,
-                  }
+                    backgroundColor:
+                      gameType === 'away' ? Colors[colorScheme].tint : Colors[colorScheme].card,
+                    borderColor:
+                      gameType === 'away' ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                  },
                 ]}
-                onPress={() => { setGameType('away'); setLocationTouched(false); }}
+                onPress={() => {
+                  setGameType('away');
+                  setLocationTouched(false);
+                }}
               >
-                <MaterialIcons name="flight" size={20} color={gameType === 'away' ? '#fff' : Colors[colorScheme].text} />
-                <Text style={[
-                  styles.gameTypeText,
-                  { color: gameType === 'away' ? '#fff' : Colors[colorScheme].text }
-                ]}>
+                <MaterialIcons
+                  name="flight"
+                  size={20}
+                  color={gameType === 'away' ? '#fff' : Colors[colorScheme].text}
+                />
+                <Text
+                  style={[
+                    styles.gameTypeText,
+                    { color: gameType === 'away' ? '#fff' : Colors[colorScheme].text },
+                  ]}
+                >
                   Away Game
                 </Text>
               </Pressable>
@@ -958,7 +1104,11 @@ function CreateFanEventScreen() {
                 color: Colors[colorScheme].text,
               },
             ]}
-            placeholder={isCoach ? 'Describe your event...' : 'What\'s the event about? Who should come? Any details a reviewer should know?'}
+            placeholder={
+              isCoach
+                ? 'Describe your event...'
+                : "What's the event about? Who should come? Any details a reviewer should know?"
+            }
             placeholderTextColor={Colors[colorScheme].mutedText}
             value={description}
             onChangeText={setDescription}
@@ -971,15 +1121,31 @@ function CreateFanEventScreen() {
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Photo</Text>
           <Text style={[styles.bannerHelperText, { color: Colors[colorScheme].mutedText }]}>
-            Upload a custom photo or keep the generated banner so this event never lands with a blank card.
+            Upload a custom photo or keep the generated banner so this event never lands with a
+            blank card.
           </Text>
 
           {bannerUrl ? (
-            <View style={[styles.bannerCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-              <Image source={{ uri: bannerUrl }} style={styles.customBannerImage} resizeMode="cover" />
+            <View
+              style={[
+                styles.bannerCard,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <Image
+                source={{ uri: bannerUrl }}
+                style={styles.customBannerImage}
+                resizeMode="cover"
+              />
               <View style={styles.bannerActionRow}>
                 <Pressable
-                  style={[styles.bannerPrimaryButton, { backgroundColor: Colors[colorScheme].tint }]}
+                  style={[
+                    styles.bannerPrimaryButton,
+                    { backgroundColor: Colors[colorScheme].tint },
+                  ]}
                   onPress={showBannerOptions}
                   disabled={uploadingBanner}
                 >
@@ -989,19 +1155,32 @@ function CreateFanEventScreen() {
                   </Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.bannerSecondaryButton, { borderColor: Colors[colorScheme].border }]}
+                  style={[
+                    styles.bannerSecondaryButton,
+                    { borderColor: Colors[colorScheme].border },
+                  ]}
                   onPress={() => setBannerUrl(null)}
                   disabled={uploadingBanner}
                 >
                   <MaterialIcons name="delete-outline" size={16} color={Colors[colorScheme].text} />
-                  <Text style={[styles.bannerSecondaryButtonText, { color: Colors[colorScheme].text }]}>
+                  <Text
+                    style={[styles.bannerSecondaryButtonText, { color: Colors[colorScheme].text }]}
+                  >
                     Use Generated
                   </Text>
                 </Pressable>
               </View>
             </View>
           ) : (
-            <View style={[styles.bannerCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+            <View
+              style={[
+                styles.bannerCard,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
               <ViewShot ref={bannerCaptureRef} options={{ format: 'png', quality: 0.9 }}>
                 <MatchBanner
                   leftImage={previewBanner.leftImage || undefined}
@@ -1015,7 +1194,10 @@ function CreateFanEventScreen() {
               </ViewShot>
               <View style={styles.bannerActionRow}>
                 <Pressable
-                  style={[styles.bannerPrimaryButton, { backgroundColor: Colors[colorScheme].tint }]}
+                  style={[
+                    styles.bannerPrimaryButton,
+                    { backgroundColor: Colors[colorScheme].tint },
+                  ]}
                   onPress={showBannerOptions}
                   disabled={uploadingBanner}
                 >
@@ -1110,10 +1292,22 @@ function CreateFanEventScreen() {
               returnKeyType="done"
             />
             {locationQuerying && (
-              <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={styles.locationSpinner} />
+              <ActivityIndicator
+                size="small"
+                color={Colors[colorScheme].tint}
+                style={styles.locationSpinner}
+              />
             )}
             {locationSuggestions.length > 0 && (
-              <View style={[styles.locationSuggestionList, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+              <View
+                style={[
+                  styles.locationSuggestionList,
+                  {
+                    backgroundColor: Colors[colorScheme].card,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+              >
                 {locationSuggestions.map((suggestion, index) => (
                   <Pressable
                     key={suggestion.place_id}
@@ -1124,13 +1318,25 @@ function CreateFanEventScreen() {
                     ]}
                     onPress={() => handleSelectLocation(suggestion)}
                   >
-                    <MaterialIcons name="location-on" size={16} color={Colors[colorScheme].tint} style={{ marginRight: 8 }} />
+                    <MaterialIcons
+                      name="location-on"
+                      size={16}
+                      color={Colors[colorScheme].tint}
+                      style={{ marginRight: 8 }}
+                    />
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.locationSuggestionMain, { color: Colors[colorScheme].text }]}>
+                      <Text
+                        style={[styles.locationSuggestionMain, { color: Colors[colorScheme].text }]}
+                      >
                         {suggestion.structured_formatting?.main_text || suggestion.description}
                       </Text>
                       {suggestion.structured_formatting?.secondary_text && (
-                        <Text style={[styles.locationSuggestionSecondary, { color: Colors[colorScheme].mutedText }]}>
+                        <Text
+                          style={[
+                            styles.locationSuggestionSecondary,
+                            { color: Colors[colorScheme].mutedText },
+                          ]}
+                        >
                           {suggestion.structured_formatting.secondary_text}
                         </Text>
                       )}
@@ -1141,20 +1347,30 @@ function CreateFanEventScreen() {
             )}
           </View>
           {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
-          {!selectedPlace && locationTouched && location.length >= 3 && locationSuggestions.length === 0 && !locationQuerying && (
-            <Text style={[styles.inputHelperText, { color: Colors[colorScheme].mutedText }]}>
-              Tip: Select a suggested location for better accuracy, or continue typing to enter manually
-            </Text>
-          )}
+          {!selectedPlace &&
+            locationTouched &&
+            location.length >= 3 &&
+            locationSuggestions.length === 0 &&
+            !locationQuerying && (
+              <Text style={[styles.inputHelperText, { color: Colors[colorScheme].mutedText }]}>
+                Tip: Select a suggested location for better accuracy, or continue typing to enter
+                manually
+              </Text>
+            )}
         </View>
 
         {/* Info Box */}
-        <View style={[styles.infoBox, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+        <View
+          style={[
+            styles.infoBox,
+            { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+          ]}
+        >
           <MaterialIcons name="info" size={20} color={Colors[colorScheme].tint} />
           <Text style={[styles.infoText, { color: Colors[colorScheme].mutedText }]}>
             {isCoach
               ? 'Your event will be reviewed before appearing publicly.'
-              : 'Event pitches are reviewed by coaches or admins. You\'ll be notified once it\'s approved.'}
+              : "Event pitches are reviewed by coaches or admins. You'll be notified once it's approved."}
           </Text>
         </View>
 
@@ -1172,7 +1388,11 @@ function CreateFanEventScreen() {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.submitButtonText}>
-              {eventLimitReached ? 'Event Limit Reached' : isCoach ? 'Create Event' : 'Submit Pitch'}
+              {eventLimitReached
+                ? 'Event Limit Reached'
+                : isCoach
+                  ? 'Create Event'
+                  : 'Submit Pitch'}
             </Text>
           )}
         </Pressable>
@@ -1188,12 +1408,18 @@ function CreateFanEventScreen() {
         onRequestClose={() => setShowTeamPicker(false)}
       >
         <View style={styles.pickerOverlay}>
-          <View style={[styles.pickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
+          <View
+            style={[styles.pickerContainer, { backgroundColor: Colors[colorScheme].background }]}
+          >
             <View style={styles.pickerHeader}>
               <Pressable onPress={() => setShowTeamPicker(false)}>
-                <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
+                <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>
+                  Cancel
+                </Text>
               </Pressable>
-              <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Team</Text>
+              <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>
+                Select Team
+              </Text>
               <View style={{ width: 50 }} />
             </View>
             <ScrollView style={styles.pickerList}>
@@ -1204,13 +1430,13 @@ function CreateFanEventScreen() {
                   </Text>
                 </View>
               )}
-              {teams.map((team) => (
+              {teams.map(team => (
                 <Pressable
                   key={team.id}
                   style={[
                     styles.pickerItem,
                     { borderBottomColor: Colors[colorScheme].border },
-                    selectedTeam === team.name && { backgroundColor: Colors[colorScheme].surface }
+                    selectedTeam === team.name && { backgroundColor: Colors[colorScheme].surface },
                   ]}
                   onPress={() => {
                     setSelectedTeam(team.name);
@@ -1220,9 +1446,7 @@ function CreateFanEventScreen() {
                   }}
                 >
                   <View style={styles.pickerItemContent}>
-                    {team.logo && (
-                      <Image source={{ uri: team.logo }} style={styles.teamLogo} />
-                    )}
+                    {team.logo && <Image source={{ uri: team.logo }} style={styles.teamLogo} />}
                     <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
                       {team.name}
                     </Text>
@@ -1237,59 +1461,104 @@ function CreateFanEventScreen() {
         </View>
       </Modal>
 
-      {/* Pitch Team Picker Modal (for fan event pitches) */}
+      {/* Pitch Team Picker Modal (for fan event pitches) — full-height sheet
+          with search over the user's followed teams (device-testing feedback:
+          the old bottom picker sat too low and had no search) */}
       <Modal
         visible={showPitchTeamPicker}
-        transparent
         animationType="slide"
-        onRequestClose={() => setShowPitchTeamPicker(false)}
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setShowPitchTeamPicker(false);
+          setPitchTeamQuery('');
+        }}
       >
-        <View style={styles.pickerOverlay}>
-          <View style={[styles.pickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
-            <View style={styles.pickerHeader}>
-              <Pressable onPress={() => setShowPitchTeamPicker(false)}>
-                <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
-              </Pressable>
-              <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Team</Text>
-              <View style={{ width: 50 }} />
+        <View style={[styles.pickerSheet, { backgroundColor: Colors[colorScheme].background }]}>
+          <View style={styles.pickerHeader}>
+            <Pressable
+              onPress={() => {
+                setShowPitchTeamPicker(false);
+                setPitchTeamQuery('');
+              }}
+            >
+              <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>
+                Cancel
+              </Text>
+            </Pressable>
+            <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>
+              Select Team
+            </Text>
+            <View style={{ width: 50 }} />
+          </View>
+          <View style={styles.pickerSearchWrap}>
+            <View
+              style={[
+                styles.pickerSearchRow,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <MaterialIcons name="search" size={20} color={Colors[colorScheme].mutedText} />
+              <TextInput
+                style={[styles.pickerSearchInput, { color: Colors[colorScheme].text }]}
+                placeholder="Search teams you follow..."
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                value={pitchTeamQuery}
+                onChangeText={setPitchTeamQuery}
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+              {pitchTeamQuery.length > 0 && (
+                <Pressable onPress={() => setPitchTeamQuery('')} hitSlop={8}>
+                  <MaterialIcons name="cancel" size={20} color={Colors[colorScheme].mutedText} />
+                </Pressable>
+              )}
             </View>
-            <ScrollView style={styles.pickerList}>
-              {teams.length === 0 && (
-                <View style={styles.noResultsContainer}>
-                  <Text style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}>
-                    No followed teams found. Follow a team first to pitch an event.
+          </View>
+          <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+            {teams.length === 0 && (
+              <View style={styles.noResultsContainer}>
+                <Text style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}>
+                  No followed teams found. Follow a team first to pitch an event.
+                </Text>
+              </View>
+            )}
+            {teams.length > 0 && filteredPitchTeams.length === 0 && (
+              <View style={styles.noResultsContainer}>
+                <Text style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}>
+                  No followed teams match "{pitchTeamQuery.trim()}".
+                </Text>
+              </View>
+            )}
+            {filteredPitchTeams.map(team => (
+              <Pressable
+                key={team.id}
+                style={[
+                  styles.pickerItem,
+                  { borderBottomColor: Colors[colorScheme].border },
+                  pitchTeamId === team.id && { backgroundColor: Colors[colorScheme].surface },
+                ]}
+                onPress={() => {
+                  setPitchTeamId(team.id);
+                  setPitchTeamName(team.name);
+                  setShowPitchTeamPicker(false);
+                  setPitchTeamQuery('');
+                }}
+              >
+                <View style={styles.pickerItemContent}>
+                  {team.logo && <Image source={{ uri: team.logo }} style={styles.teamLogo} />}
+                  <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
+                    {team.name}
                   </Text>
                 </View>
-              )}
-              {teams.map((team) => (
-                <Pressable
-                  key={team.id}
-                  style={[
-                    styles.pickerItem,
-                    { borderBottomColor: Colors[colorScheme].border },
-                    pitchTeamId === team.id && { backgroundColor: Colors[colorScheme].surface }
-                  ]}
-                  onPress={() => {
-                    setPitchTeamId(team.id);
-                    setPitchTeamName(team.name);
-                    setShowPitchTeamPicker(false);
-                  }}
-                >
-                  <View style={styles.pickerItemContent}>
-                    {team.logo && (
-                      <Image source={{ uri: team.logo }} style={styles.teamLogo} />
-                    )}
-                    <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
-                      {team.name}
-                    </Text>
-                  </View>
-                  {pitchTeamId === team.id && (
-                    <MaterialIcons name="check" size={20} color={Colors[colorScheme].tint} />
-                  )}
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
+                {pitchTeamId === team.id && (
+                  <MaterialIcons name="check" size={20} color={Colors[colorScheme].tint} />
+                )}
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -1496,6 +1765,26 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '80%',
+  },
+  pickerSheet: {
+    flex: 1,
+  },
+  pickerSearchWrap: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  pickerSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  pickerSearchInput: {
+    flex: 1,
+    fontSize: 16,
   },
   pickerHeader: {
     flexDirection: 'row',

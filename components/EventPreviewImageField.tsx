@@ -69,17 +69,23 @@ export default function EventPreviewImageField({
   const pickFromLibrary = useCallback(async () => {
     const permission = await requestPickerPermission('library');
     if (permission.status !== 'granted') {
-      Alert.alert('Permission Required', 'Photo library access is required to choose an event image.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: () => Linking.openSettings() },
-      ]);
+      Alert.alert(
+        'Permission Required',
+        'Photo library access is required to choose an event image.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      );
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [16, 9],
+      // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
+      // crop at the displayed ratio so uploads aren't re-cropped at render time.
+      aspect: [4, 5],
       quality: 0.9,
       exif: false,
     });
@@ -102,7 +108,9 @@ export default function EventPreviewImageField({
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [16, 9],
+      // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
+      // crop at the displayed ratio so uploads aren't re-cropped at render time.
+      aspect: [4, 5],
       quality: 0.9,
       exif: false,
     });
@@ -123,7 +131,9 @@ export default function EventPreviewImageField({
   return (
     <View style={styles.section}>
       <Text style={[styles.label, { color: Colors[colorScheme].text }]}>{label}</Text>
-      <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>{helperText}</Text>
+      <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+        {helperText}
+      </Text>
 
       <View
         style={[
@@ -160,8 +170,14 @@ export default function EventPreviewImageField({
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
               <>
-                <MaterialIcons name={value ? 'photo-camera' : 'cloud-upload'} size={16} color="#FFFFFF" />
-                <Text style={styles.primaryButtonText}>{value ? 'Change Photo' : 'Add Preview Photo'}</Text>
+                <MaterialIcons
+                  name={value ? 'photo-camera' : 'cloud-upload'}
+                  size={16}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.primaryButtonText}>
+                  {value ? 'Change Photo' : 'Add Preview Photo'}
+                </Text>
               </>
             )}
           </Pressable>
@@ -177,7 +193,9 @@ export default function EventPreviewImageField({
               disabled={disabled || uploading}
             >
               <MaterialIcons name="delete-outline" size={16} color={Colors[colorScheme].text} />
-              <Text style={[styles.secondaryButtonText, { color: Colors[colorScheme].text }]}>Remove</Text>
+              <Text style={[styles.secondaryButtonText, { color: Colors[colorScheme].text }]}>
+                Remove
+              </Text>
             </Pressable>
           ) : null}
         </View>

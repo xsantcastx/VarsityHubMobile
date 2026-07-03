@@ -391,7 +391,6 @@ function MessageThreadScreen() {
             {item.content || ''}
           </Text>
         </View>
-        {mine && <View style={styles.avatarSpacer} />}
       </View>
     );
   };

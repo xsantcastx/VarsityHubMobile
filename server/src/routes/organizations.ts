@@ -573,8 +573,34 @@ organizationsRouter.get(
       },
     });
 
+    // Legacy orgs record ownership only on Organization.league_owner_id with no
+    // membership row. Without this, their owners get an empty summary list and
+    // the Discover "Manage Org" action dead-ends (manage-org-route-trace.ts).
+    const membershipOrgIds = memberships.map(m => m.organization_id);
+    const legacyOwnedOrgs = await prisma.organization.findMany({
+      where: {
+        league_owner_id: req.user!.id,
+        ...(membershipOrgIds.length > 0 ? { id: { notIn: membershipOrgIds } } : {}),
+      },
+      orderBy: { created_at: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        name: true,
+        teams: {
+          select: { id: true },
+          orderBy: { created_at: 'asc' },
+        },
+      },
+    });
+
+    const entries = [
+      ...memberships.map(m => ({ organization: m.organization, role: m.role })),
+      ...legacyOwnedOrgs.map(o => ({ organization: o, role: ORGANIZATION_OWNER_ROLE })),
+    ];
+
     const summaries = await Promise.all(
-      memberships.map(async membership => {
+      entries.map(async membership => {
         const organization = membership.organization;
         const teamIds = organization.teams.map(team => team.id);
 
