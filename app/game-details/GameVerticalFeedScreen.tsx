@@ -196,9 +196,14 @@ const FeedCard = memo(
     const [videoError, setVideoError] = useState<string | null>(null);
     const [videoRetryKey, setVideoRetryKey] = useState(0);
     const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Only feed the video player a source for actual videos. Passing the
+    // media_url unconditionally handed every IMAGE post's URL to an AVPlayer
+    // too — one live player per mounted card downloading and trying to decode
+    // a JPEG. Combined with the FlatList window that was enough memory
+    // pressure to blank expo-image bitmaps app-wide (white grids/avatars).
     const videoSource = useMemo(
-      () => (post.media_url ? { uri: post.media_url } : null),
-      [post.media_url]
+      () => (post.media_type === 'video' && post.media_url ? { uri: post.media_url } : null),
+      [post.media_type, post.media_url]
     );
     const imageSource = useMemo(
       () =>
@@ -1443,6 +1448,13 @@ function GameVerticalFeedScreen({
         snapToAlignment="start"
         decelerationRate="fast"
         showsVerticalScrollIndicator={false}
+        // Full-screen media cards: the default window (21 viewport heights)
+        // kept ~21 cards + their video players mounted, which caused iOS
+        // memory warnings that purged expo-image caches (white images on the
+        // screens underneath). Keep just the neighbors warm.
+        windowSize={5}
+        maxToRenderPerBatch={2}
+        removeClippedSubviews
         onEndReached={onEndReached}
         onEndReachedThreshold={0.3}
         initialScrollIndex={
