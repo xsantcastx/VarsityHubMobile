@@ -118,6 +118,11 @@ export function serializeFeedPost(post: any, sets: PostInteractionSets) {
     id: post.id,
     author_id: post.author_id,
     team_id: post.team_id ?? null,
+    // Event/game link, denormalized in both directions at write time. Exposed
+    // so the client can render the post's context card and tie the post back
+    // to its event/game feed regardless of which column it was created with.
+    game_id: post.game_id ?? null,
+    event_id: post.event_id ?? null,
     is_pinned: post.is_pinned ?? false,
     title: stripSampleGameTitle(post.title),
     content: post.content ?? null,

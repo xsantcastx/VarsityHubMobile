@@ -1203,6 +1203,44 @@ export default function PostDetailScreen() {
             </Pressable>
           )}
 
+          {/* Event card — the "vice versa" tie. Renders for event-only posts
+              (no game to show) so the post always surfaces its event context. */}
+          {!postData.game && postData.event && (
+            <Pressable
+              style={[
+                styles.gameInfo,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+              onPress={() => {
+                const eventGameId = postData.event?.game_id;
+                if (eventGameId) {
+                  void router.push({ pathname: '/game/[id]', params: { id: eventGameId } });
+                } else if (postData.event?.id) {
+                  void router.push({
+                    pathname: '/public-event',
+                    params: { id: postData.event.id },
+                  });
+                }
+              }}
+            >
+              <Ionicons name="calendar-outline" size={20} color={Colors[colorScheme].tint} />
+              <View style={styles.gameDetails}>
+                <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
+                  {postData.event.title}
+                </Text>
+                {postData.event.location && (
+                  <Text style={[styles.gameTeams, { color: Colors[colorScheme].mutedText }]}>
+                    {postData.event.location}
+                  </Text>
+                )}
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+            </Pressable>
+          )}
+
           {/* Team Links */}
           {(postData.team_id || postData.team) && (
             <Pressable

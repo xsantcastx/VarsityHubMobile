@@ -74,6 +74,12 @@ export type FeedPost = {
   has_upvoted: boolean;
   has_bookmarked: boolean;
   is_following_author: boolean;
+  // Event/game link, denormalized server-side in both directions. Carried
+  // through so tapping a post can route back to its event/game and the
+  // context card resolves. Keep BOTH mappers (here + profile.toFeedPost) in
+  // sync per the Post-mapper Consistency Rule.
+  game_id?: string | null;
+  event_id?: string | null;
   // Collage support (optional)
   type?: string | null;
   collage?: CollageData | null;
@@ -122,6 +128,8 @@ export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
     has_upvoted: Boolean(item?.has_upvoted),
     has_bookmarked: Boolean(item?.has_bookmarked),
     is_following_author: Boolean(item?.is_following_author),
+    game_id: item?.game_id ?? item?.game?.id ?? null,
+    event_id: item?.event_id ?? item?.event?.id ?? null,
   };
 };
 
