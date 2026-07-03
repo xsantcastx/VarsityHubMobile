@@ -2,11 +2,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useQuery } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatUserLabel } from '@/utils/userDisplay';
@@ -81,80 +83,71 @@ function dedupeRows(rows: ManageUserRow[]): ManageUserRow[] {
 // TODO v1.1: Wire up navigation from admin-dashboard
 function ManageUsersScreen() {
   const { canManage, loading: coachLoading } = useRequireTeamManagement();
+  const { user } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [q, setQ] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [rows, setRows] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (coachLoading || !canManage) return;
+  const {
+    data,
+    isPending: loading,
+    isError,
+  } = useQuery({
+    queryKey: ['manage-users', user?.id],
+    enabled: canManage && !coachLoading,
+    queryFn: async (): Promise<ManageUserRow[]> => {
+      const scopedRows: ManageUserRow[] = [];
 
-    let mounted = true;
-    void (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const scopedRows: ManageUserRow[] = [];
+      const orgSummaries: any = await Organization.reviewSummaries().catch(() => []);
+      const managedOrgSummaries = await Promise.all(
+        (Array.isArray(orgSummaries) ? orgSummaries : []).map((entry: any) =>
+          Organization.adminSummary(String(entry?.organization?.id)).catch(() => null)
+        )
+      );
 
-        const orgSummaries: any = await Organization.reviewSummaries().catch(() => []);
-        const managedOrgSummaries = await Promise.all(
-          (Array.isArray(orgSummaries) ? orgSummaries : []).map((entry: any) =>
-            Organization.adminSummary(String(entry?.organization?.id)).catch(() => null)
-          )
+      for (const summary of managedOrgSummaries) {
+        if (!summary?.organization?.id) continue;
+        const members = Array.isArray(summary.members) ? summary.members : [];
+        const invites = Array.isArray(summary?.requests?.authorized_invites)
+          ? summary.requests.authorized_invites
+          : [];
+        const scope = {
+          id: String(summary.organization.id),
+          name: summary.organization.name || 'Organization',
+        };
+        scopedRows.push(
+          ...mapScopeMembers(members, scope, scope.id),
+          ...mapScopeInvites(invites, scope)
         );
-
-        for (const summary of managedOrgSummaries) {
-          if (!summary?.organization?.id) continue;
-          const members = Array.isArray(summary.members) ? summary.members : [];
-          const invites = Array.isArray(summary?.requests?.authorized_invites)
-            ? summary.requests.authorized_invites
-            : [];
-          const scope = {
-            id: String(summary.organization.id),
-            name: summary.organization.name || 'Organization',
-          };
-          scopedRows.push(
-            ...mapScopeMembers(members, scope, scope.id),
-            ...mapScopeInvites(invites, scope)
-          );
-        }
-
-        const managedTeams: any[] = await TeamApi.managed().catch(() => []);
-        const teamSummaries = await Promise.all(
-          (Array.isArray(managedTeams) ? managedTeams : []).map((team: any) =>
-            TeamApi.adminSummary(String(team.id)).catch(() => null)
-          )
-        );
-
-        for (const summary of teamSummaries) {
-          if (!summary?.team?.id) continue;
-          const members = Array.isArray(summary.members) ? summary.members : [];
-          const invites = Array.isArray(summary.pending_invites) ? summary.pending_invites : [];
-          const scope = {
-            id: String(summary.team.id),
-            name: summary.team.name || 'Team',
-          };
-          scopedRows.push(
-            ...mapScopeMembers(members, scope, scope.id),
-            ...mapScopeInvites(invites, scope)
-          );
-        }
-
-        if (!mounted) return;
-        setRows(dedupeRows(scopedRows));
-      } catch {
-        if (!mounted) return;
-        setError('Failed to load users');
-      } finally {
-        if (mounted) setLoading(false);
       }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [canManage, coachLoading]);
+
+      const managedTeams: any[] = await TeamApi.managed().catch(() => []);
+      const teamSummaries = await Promise.all(
+        (Array.isArray(managedTeams) ? managedTeams : []).map((team: any) =>
+          TeamApi.adminSummary(String(team.id)).catch(() => null)
+        )
+      );
+
+      for (const summary of teamSummaries) {
+        if (!summary?.team?.id) continue;
+        const members = Array.isArray(summary.members) ? summary.members : [];
+        const invites = Array.isArray(summary.pending_invites) ? summary.pending_invites : [];
+        const scope = {
+          id: String(summary.team.id),
+          name: summary.team.name || 'Team',
+        };
+        scopedRows.push(
+          ...mapScopeMembers(members, scope, scope.id),
+          ...mapScopeInvites(invites, scope)
+        );
+      }
+
+      return dedupeRows(scopedRows);
+    },
+  });
+
+  const rows = data ?? [];
+  const error = isError ? 'Failed to load users' : null;
 
   const filtered = useMemo(() => {
     const s = q.toLowerCase();

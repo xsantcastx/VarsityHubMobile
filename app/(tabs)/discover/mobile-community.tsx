@@ -4,6 +4,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
@@ -149,19 +150,11 @@ function CommunityDiscoverScreen() {
     needsPreciseAccuracy,
     openSettings,
   } = useDeviceLocation();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [games, setGames] = useState<GameItem[]>([]);
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [me, setMe] = useState<any>(null);
-  const [zipDirectory, setZipDirectory] = useState<ZipDirectoryEntry[]>([]);
   const [zipSuggestionsOpen, setZipSuggestionsOpen] = useState(false);
-  const [followingPosts, setFollowingPosts] = useState<any[]>([]);
-  const [discoverPosts, setDiscoverPosts] = useState<any[]>([]);
   const [tab, setTab] = useState<'discover' | 'following'>('discover');
-  const [nearbyPeople, setNearbyPeople] = useState<any[]>([]);
-  const [suggestedPeople, setSuggestedPeople] = useState<any[]>([]);
   const [suggestedFollowLoading, setSuggestedFollowLoading] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedDate, setSelectedDate] = useState<string>('');
@@ -218,7 +211,6 @@ function CommunityDiscoverScreen() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerPosts, setViewerPosts] = useState<FeedPost[]>([]);
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
-  const [personalizationNotice, setPersonalizationNotice] = useState<string | null>(null);
   // Derive the quick-actions branch from the LIVE auth user (reactive, and
   // already populated before this screen's own load() runs), falling back to the
   // loaded snapshot. This avoids the cold-start flip (coach briefly seeing the
@@ -304,12 +296,51 @@ function CommunityDiscoverScreen() {
     [toFeedPost]
   );
 
-  const loadGames = useCallback(async (user: any) => {
-    try {
-      const gamesData = await Game.list('-date');
-      let normalizedGames = Array.isArray(gamesData)
-        ? gamesData
-        : gamesData?.games || gamesData?.items || [];
+  // `me` drives the coach quick-actions branch; resolve it once per auth
+  // change, independent of the data queries below.
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const snapshot = await getAuthSnapshot(checkAuth, user);
+        if (mounted) setMe(snapshot ?? null);
+      } catch (err) {
+        // Don't swallow: a failed snapshot nulls `me`, which silently downgrades
+        // a coach to the fan quick actions. Surface it so the flip is diagnosable.
+        reportDiscoverFailure('load_user_snapshot', err);
+        if (mounted) setMe(null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [checkAuth, reportDiscoverFailure, user]);
+
+  // Defer the initial fetches until the navigation transition settles so this
+  // heavy screen (search + multi-section results) isn't parsing a response
+  // while the slide-in animation is still running. Cached revisits are
+  // unaffected: a disabled query still renders its cached data instantly.
+  const [interactionsDone, setInteractionsDone] = useState(false);
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => setInteractionsDone(true));
+    return () => task.cancel();
+  }, []);
+
+  const queryClient = useQueryClient();
+
+  const {
+    data: gamesData,
+    isPending: gamesPending,
+    isError: gamesIsError,
+    error: gamesError,
+    refetch: refetchGames,
+  } = useQuery({
+    queryKey: ['discover-games', user?.id ?? 'guest'],
+    enabled: interactionsDone,
+    queryFn: async (): Promise<GameItem[]> => {
+      const snapshot: any = await getAuthSnapshot(checkAuth, user).catch(() => null);
+      const raw = await Game.list('-date');
+      let normalizedGames = Array.isArray(raw) ? raw : raw?.games || raw?.items || [];
 
       // Filter out past events by default
       const now = new Date();
@@ -319,7 +350,9 @@ function CommunityDiscoverScreen() {
         return !isNaN(gameDate.getTime()) && gameDate >= now;
       });
 
-      const zip = user?.preferences?.zip_code ? String(user.preferences.zip_code).trim() : '';
+      const zip = snapshot?.preferences?.zip_code
+        ? String(snapshot.preferences.zip_code).trim()
+        : '';
       if (zip) {
         // Normalize zip code (remove dashes, spaces)
         const normalizedZip = zip.replace(/[-\s]/g, '').toLowerCase();
@@ -341,173 +374,186 @@ function CommunityDiscoverScreen() {
         });
         normalizedGames = [...withZip, ...withoutZip];
       }
-      setGames(normalizedGames);
-      setZipDirectory(buildZipDirectory(normalizedGames));
-    } catch (gameError) {
-      if (__DEV__) console.error('Discover load: failed to fetch games', gameError);
-      const errorMsg = gameError instanceof Error ? gameError.message : 'Unknown error';
-      if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
-        setError('Network error. Please check your connection and try again.');
-      } else {
-        setError('Unable to load events right now. Pull to refresh to retry.');
-      }
-      setGames([]);
-      setZipDirectory([]);
-    }
-  }, []);
+      return normalizedGames;
+    },
+  });
+  const games = gamesData ?? [];
+  const zipDirectory = useMemo(() => buildZipDirectory(games), [games]);
+  // Error card only when the games list never loaded — a failed background
+  // refetch keeps the cached list visible.
+  const error = (() => {
+    if (!gamesIsError || gamesData !== undefined) return null;
+    const errorMsg = gamesError instanceof Error ? gamesError.message : 'Unknown error';
+    if (__DEV__) console.error('Discover load: failed to fetch games', gamesError);
+    return errorMsg.includes('network') || errorMsg.includes('fetch')
+      ? 'Network error. Please check your connection and try again.'
+      : 'Unable to load events right now. Pull to refresh to retry.';
+  })();
 
-  const loadPersonalization = useCallback(async (user: any) => {
-    setPersonalizationNotice(null);
+  const personalizationQueryKey = ['discover-personalization', user?.id ?? 'guest'];
+  const {
+    data: personalization,
+    isPending: personalizationPending,
+    isError: personalizationIsError,
+    refetch: refetchPersonalization,
+  } = useQuery({
+    queryKey: personalizationQueryKey,
+    enabled: interactionsDone,
+    queryFn: async () => {
+      const snapshot: any = await getAuthSnapshot(checkAuth, user).catch(() => null);
 
-    // Fetch posts and people in parallel — people used to wait for posts to finish
-    const fetchPosts = async (): Promise<any[]> => {
-      try {
-        let items: any[] = [];
+      // Fetch posts and people in parallel — people used to wait for posts to finish
+      const fetchPosts = async (): Promise<any[]> => {
         try {
-          const trending = await Post.trendingPage(undefined, 20);
-          items = Array.isArray(trending.items) ? trending.items : [];
-        } catch {
-          const postsPage = await Post.listPage(undefined, 20, '-created_date');
-          items = Array.isArray(postsPage.items) ? postsPage.items : [];
-        }
-        if (items.length === 0) {
+          let items: any[] = [];
           try {
-            const fallback = await Post.list('-created_at', 20);
-            items = Array.isArray(fallback) ? fallback : [];
+            const trending = await Post.trendingPage(undefined, 20);
+            items = Array.isArray(trending.items) ? trending.items : [];
           } catch {
-            /* empty */
+            const postsPage = await Post.listPage(undefined, 20, '-created_date');
+            items = Array.isArray(postsPage.items) ? postsPage.items : [];
           }
-        }
-        return items;
-      } catch {
-        try {
-          const fallback = await Post.list('-created_at', 20);
-          return Array.isArray(fallback) ? fallback : [];
-        } catch {
-          return [];
-        }
-      }
-    };
-
-    const fetchPeople = async (): Promise<any[]> => {
-      try {
-        const school = user?.preferences?.school || user?.school || null;
-        const league = user?.preferences?.league || user?.league || null;
-        const zipQ = user?.preferences?.zip_code ? String(user.preferences.zip_code).trim() : '';
-        if (school || league) {
-          const q = String(school || league);
-          try {
-            const members = await Team.allMembers(q);
-            const arr = Array.isArray(members)
-              ? members
-              : Array.isArray((members as any)?.items)
-                ? (members as any).items
-                : [];
-            return arr.slice(0, 20);
-          } catch {
-            if (zipQ) {
-              const users = await User.listAll(zipQ, 30);
-              const arr = Array.isArray(users)
-                ? users
-                : Array.isArray((users as any)?.items)
-                  ? (users as any).items
-                  : [];
-              return arr.slice(0, 20);
+          if (items.length === 0) {
+            try {
+              const fallback = await Post.list('-created_at', 20);
+              items = Array.isArray(fallback) ? fallback : [];
+            } catch {
+              /* empty */
             }
           }
-        } else if (zipQ) {
-          const users = await User.listAll(zipQ, 30);
-          const arr = Array.isArray(users)
-            ? users
-            : Array.isArray((users as any)?.items)
-              ? (users as any).items
-              : [];
-          return arr.slice(0, 20);
+          return items;
+        } catch {
+          try {
+            const fallback = await Post.list('-created_at', 20);
+            return Array.isArray(fallback) ? fallback : [];
+          } catch {
+            return [];
+          }
         }
-      } catch (peopleError) {
-        if (__DEV__) console.warn('Discover load: nearby people failed', peopleError);
-      }
-      return [];
-    };
+      };
 
-    try {
+      const fetchPeople = async (): Promise<any[]> => {
+        try {
+          const school = snapshot?.preferences?.school || snapshot?.school || null;
+          const league = snapshot?.preferences?.league || snapshot?.league || null;
+          const zipQ = snapshot?.preferences?.zip_code
+            ? String(snapshot.preferences.zip_code).trim()
+            : '';
+          if (school || league) {
+            const q = String(school || league);
+            try {
+              const members = await Team.allMembers(q);
+              const arr = Array.isArray(members)
+                ? members
+                : Array.isArray((members as any)?.items)
+                  ? (members as any).items
+                  : [];
+              return arr.slice(0, 20);
+            } catch {
+              if (zipQ) {
+                const users = await User.listAll(zipQ, 30);
+                const arr = Array.isArray(users)
+                  ? users
+                  : Array.isArray((users as any)?.items)
+                    ? (users as any).items
+                    : [];
+                return arr.slice(0, 20);
+              }
+            }
+          } else if (zipQ) {
+            const users = await User.listAll(zipQ, 30);
+            const arr = Array.isArray(users)
+              ? users
+              : Array.isArray((users as any)?.items)
+                ? (users as any).items
+                : [];
+            return arr.slice(0, 20);
+          }
+        } catch (peopleError) {
+          if (__DEV__) console.warn('Discover load: nearby people failed', peopleError);
+        }
+        return [];
+      };
+
       const [items, people] = await Promise.all([fetchPosts(), fetchPeople()]);
 
-      // Suggested users (fire-and-forget, non-blocking)
-      User.suggested(10)
-        .then((res: any) => {
-          const items = Array.isArray(res?.items) ? res.items : [];
-          setSuggestedPeople(
-            items.filter((u: any) => {
-              const name = u?.display_name || u?.username;
-              return name && !isInternalId(name);
-            })
-          );
-        })
-        .catch(() => {
-          /* non-fatal */
-        });
-
+      // Split ONCE at fetch time (posts don't jump tabs when a follow toggles)
       const followingOnly = items.filter(
         (p: any) => p && (p.is_following_author || p.is_following)
       );
       const nonFollowing = items.filter(
         (p: any) => !(p && (p.is_following_author || p.is_following))
       );
-      setFollowingPosts(followingOnly.slice(0, 12));
-      setDiscoverPosts((nonFollowing.length ? nonFollowing : items).slice(0, 12));
       // Filter out users whose display_name and username are both system-generated IDs
       const filteredPeople = people.filter((u: any) => {
         const name = u?.display_name || u?.username;
         return name && !isInternalId(name);
       });
-      setNearbyPeople(filteredPeople);
-    } catch (personalizationError) {
-      if (__DEV__) console.warn('Discover load: personalization failed', personalizationError);
-      setPersonalizationNotice(
-        'Personalized suggestions are temporarily unavailable. Pull to refresh to try again.'
-      );
-      setFollowingPosts([]);
-      setDiscoverPosts([]);
-      setNearbyPeople([]);
-    }
-  }, []);
 
-  const load = useCallback(
-    async ({ silent = false }: { silent?: boolean } = {}) => {
-      if (!silent) setLoading(true);
-      setError(null);
-      setPersonalizationNotice(null);
-
-      let currentUser: any = null;
-      try {
-        currentUser = await getAuthSnapshot(checkAuth, user);
-        setMe(currentUser ?? null);
-      } catch (err) {
-        // Don't swallow: a failed snapshot nulls `me`, which silently downgrades
-        // a coach to the fan quick actions. Surface it so the flip is diagnosable.
-        reportDiscoverFailure('load_user_snapshot', err);
-        setMe(null);
-      }
-
-      await Promise.allSettled([loadGames(currentUser), loadPersonalization(currentUser)]);
-
-      if (!silent) setLoading(false);
+      return {
+        followingPosts: followingOnly.slice(0, 12),
+        discoverPosts: (nonFollowing.length ? nonFollowing : items).slice(0, 12),
+        nearbyPeople: filteredPeople,
+      };
     },
-    [checkAuth, loadGames, loadPersonalization, reportDiscoverFailure, user]
+  });
+  const followingPosts = personalization?.followingPosts ?? [];
+  const discoverPosts = personalization?.discoverPosts ?? [];
+  const nearbyPeople = personalization?.nearbyPeople ?? [];
+  const personalizationNotice =
+    personalizationIsError && personalization === undefined
+      ? 'Personalized suggestions are temporarily unavailable. Pull to refresh to try again.'
+      : null;
+
+  // Patch both cached post arrays (optimistic follow toggle, delete, edit);
+  // the derived followingPosts/discoverPosts re-render from the cache.
+  const patchDiscoverPosts = useCallback(
+    (mapPosts: (posts: any[]) => any[]) => {
+      queryClient.setQueryData(['discover-personalization', user?.id ?? 'guest'], (old: any) =>
+        old
+          ? {
+              ...old,
+              followingPosts: mapPosts(old.followingPosts ?? []),
+              discoverPosts: mapPosts(old.discoverPosts ?? []),
+            }
+          : old
+      );
+    },
+    [queryClient, user?.id]
   );
 
-  useEffect(() => {
-    // Defer the initial load until the navigation transition settles so this
-    // heavy screen (search + multi-section results) isn't parsing a response
-    // while the slide-in animation is still running.
-    const task = InteractionManager.runAfterInteractions(() => {
-      void load().catch(error => {
-        reportDiscoverFailure('initial_load', error);
+  // Suggested users load non-blocking, mirroring the old fire-and-forget .then()
+  const suggestedQueryKey = ['discover-suggested-people'];
+  const { data: suggestedData, refetch: refetchSuggested } = useQuery({
+    queryKey: suggestedQueryKey,
+    enabled: interactionsDone,
+    queryFn: async () => {
+      const res: any = await User.suggested(10);
+      const items = Array.isArray(res?.items) ? res.items : [];
+      return items.filter((u: any) => {
+        const name = u?.display_name || u?.username;
+        return name && !isInternalId(name);
       });
-    });
-    return () => task.cancel();
-  }, [load, reportDiscoverFailure]);
+    },
+  });
+  const suggestedPeople = suggestedData ?? [];
+  const patchSuggestedPeople = useCallback(
+    (mapPeople: (people: any[]) => any[]) => {
+      queryClient.setQueryData(['discover-suggested-people'], (old: any) =>
+        old ? mapPeople(old) : old
+      );
+    },
+    [queryClient]
+  );
+
+  // Full-screen skeleton until both primary queries have data (isPending only —
+  // background revalidation never re-shows it; see lib/queryClient.ts).
+  const loading = gamesPending || personalizationPending;
+
+  const refreshAll = useCallback(async () => {
+    // refetch() resolves (never throws); failed refreshes keep cached data.
+    await Promise.all([refetchGames(), refetchPersonalization(), refetchSuggested()]);
+  }, [refetchGames, refetchPersonalization, refetchSuggested]);
 
   // Debounced unified search (users, teams, organizations, games, events)
   useEffect(() => {
@@ -547,11 +593,11 @@ function CommunityDiscoverScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await load({ silent: true });
+      await refreshAll();
     } finally {
       setRefreshing(false);
     }
-  }, [load]);
+  }, [refreshAll]);
 
   const handleManageOrg = useCallback(async () => {
     if (quickActionBusy) return;
@@ -821,7 +867,7 @@ function CommunityDiscoverScreen() {
         setCreateEventModalOpen(false);
 
         // Refresh the games list
-        await load({ silent: true });
+        await refetchGames();
 
         // Show success message - use native alert
         if (typeof alert !== 'undefined') {
@@ -843,7 +889,7 @@ function CommunityDiscoverScreen() {
         setIsCreatingGame(false);
       }
     },
-    [load, isCreatingGame, router, user]
+    [refetchGames, isCreatingGame, router, user]
   );
 
   const filtered = useMemo(() => {
@@ -2153,13 +2199,8 @@ function CommunityDiscoverScreen() {
                       onPress={async () => {
                         // Optimistic toggle
                         const nextVal = !p.is_following_author;
-                        setFollowingPosts(prev =>
-                          prev.map(item =>
-                            item.id === p.id ? { ...item, is_following_author: nextVal } : item
-                          )
-                        );
-                        setDiscoverPosts(prev =>
-                          prev.map(item =>
+                        patchDiscoverPosts(posts =>
+                          posts.map(item =>
                             item.id === p.id ? { ...item, is_following_author: nextVal } : item
                           )
                         );
@@ -2171,13 +2212,8 @@ function CommunityDiscoverScreen() {
                           }
                         } catch {
                           // Revert on failure
-                          setFollowingPosts(prev =>
-                            prev.map(item =>
-                              item.id === p.id ? { ...item, is_following_author: !nextVal } : item
-                            )
-                          );
-                          setDiscoverPosts(prev =>
-                            prev.map(item =>
+                          patchDiscoverPosts(posts =>
+                            posts.map(item =>
                               item.id === p.id ? { ...item, is_following_author: !nextVal } : item
                             )
                           );
@@ -2225,21 +2261,13 @@ function CommunityDiscoverScreen() {
                   }}
                   showAuthorHeader={true}
                   onDeleted={postId => {
-                    // Remove deleted post from both arrays
-                    setFollowingPosts(prev => prev.filter(post => String(post.id) !== postId));
-                    setDiscoverPosts(prev => prev.filter(post => String(post.id) !== postId));
+                    // Remove deleted post from both cached arrays
+                    patchDiscoverPosts(posts => posts.filter(post => String(post.id) !== postId));
                   }}
                   onUpdated={updatedPost => {
-                    // Update post in both arrays if it exists
-                    setFollowingPosts(prev =>
-                      prev.map(post =>
-                        String(post.id) === String(updatedPost.id)
-                          ? { ...post, ...updatedPost }
-                          : post
-                      )
-                    );
-                    setDiscoverPosts(prev =>
-                      prev.map(post =>
+                    // Update post in both cached arrays if it exists
+                    patchDiscoverPosts(posts =>
+                      posts.map(post =>
                         String(post.id) === String(updatedPost.id)
                           ? { ...post, ...updatedPost }
                           : post
@@ -2377,8 +2405,10 @@ function CommunityDiscoverScreen() {
                       } else {
                         await User.follow(u.id);
                       }
-                      setSuggestedPeople(prev =>
-                        prev.map(p => (p.id === u.id ? { ...p, is_following: !p.is_following } : p))
+                      patchSuggestedPeople(people =>
+                        people.map(p =>
+                          p.id === u.id ? { ...p, is_following: !p.is_following } : p
+                        )
                       );
                     } catch {
                       // silent
@@ -2428,7 +2458,7 @@ function CommunityDiscoverScreen() {
             {error}
           </Text>
           <Pressable
-            onPress={() => void load()}
+            onPress={() => void refreshAll()}
             style={{
               marginTop: 12,
               paddingHorizontal: 20,

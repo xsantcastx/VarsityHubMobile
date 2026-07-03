@@ -6,9 +6,10 @@ import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { getCanonicalOrganizationId } from '@/utils/authState';
 import { goBackToTrackedRoute } from '@/utils/navigation';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -99,35 +100,23 @@ export default function OrganizationScreen() {
     goBackToTrackedRoute(router, currentHref, navHistory?.getFallbackRoute?.(), backFallback);
   }, [backFallback, currentHref, navHistory, router]);
 
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [organization, setOrganization] = useState<OrganizationData | null>(null);
-  const [teams, setTeams] = useState<TeamItem[]>([]);
-  const [games, setGames] = useState<GameItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [isOrgAdmin, setIsOrgAdmin] = useState(false);
-  const [isOrgOwner, setIsOrgOwner] = useState(false);
-  const [canReviewCoachRequests, setCanReviewCoachRequests] = useState(false);
-  const [pendingCoachCount, setPendingCoachCount] = useState(0);
-  const [pendingCoachError, setPendingCoachError] = useState(false);
-  const [pendingAuthorizedInviteCount, setPendingAuthorizedInviteCount] = useState(0);
-  const [pendingAuthorizedInvites, setPendingAuthorizedInvites] = useState<AuthorizedInvite[]>([]);
-  const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
 
-  const mounted = useRef(true);
-  useEffect(() => {
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  const loadOrganization = useCallback(async () => {
-    if (!mounted.current || !user) return;
-    setError(null);
-    try {
+  const queryClient = useQueryClient();
+  const orgPageQueryKey = ['org-page', params.id?.trim() || 'mine', user?.id];
+  const {
+    data: orgPage,
+    isPending: loading,
+    isError,
+    error: orgPageError,
+    refetch,
+  } = useQuery({
+    queryKey: orgPageQueryKey,
+    enabled: !!user,
+    queryFn: async () => {
       let orgId = params.id?.trim();
 
       // Fallback: if no orgId in params, look up the user's org from the server
@@ -147,84 +136,20 @@ export default function OrganizationScreen() {
             // Fall back to the org ID stored in their preferences during onboarding.
             orgId = getCanonicalOrganizationId(user as any) || undefined;
           }
-          if (!orgId) {
-            if (mounted.current) {
-              setError('not_found');
-              setLoading(false);
-            }
-            return;
-          }
         } catch {
           orgId = getCanonicalOrganizationId(user as any) || undefined;
-          if (orgId) {
-            // fall through and load via canonical auth snapshot
-          } else {
-            if (mounted.current) {
-              setError('not_found');
-              setLoading(false);
-            }
-            return;
-          }
         }
+        if (!orgId) throw new Error('not_found');
       }
 
-      let orgData: OrganizationData | null = null;
+      let orgData: OrganizationData;
       try {
         orgData = await Organization.get(orgId as string);
-        if (!mounted.current) return;
-        setOrganization(orgData);
-        setIsFollowing(!!(orgData as any).is_following);
       } catch (err: any) {
-        if (!mounted.current) return;
         if (__DEV__) console.error('[organization] Failed to load organization data:', err);
         const errMsg = err?.message || 'Failed to load organization';
         // Surface the error rather than showing a blank page
-        if (mounted.current) {
-          setError(errMsg.toLowerCase().includes('not found') ? 'not_found' : errMsg);
-          setLoading(false);
-        }
-        return;
-      }
-
-      const ownerAccess =
-        (orgData as any)?.can_edit === true || (orgData as any)?.is_owner === true;
-      const adminAccess = (orgData as any)?.can_manage === true || ownerAccess;
-      const reviewCoachAccess =
-        (orgData as any)?.can_review_coaches === true || (orgData as any)?.is_owner === true;
-      if (mounted.current) {
-        setIsOrgAdmin(adminAccess);
-        setIsOrgOwner(ownerAccess);
-        setCanReviewCoachRequests(reviewCoachAccess);
-      }
-      if (adminAccess) {
-        Organization.adminSummary(orgId as string)
-          .then((summary: any) => {
-            if (!mounted.current) return;
-            setPendingCoachError(false);
-            setPendingCoachCount(Number(summary?.counts?.pending_coach_requests || 0));
-            setPendingAuthorizedInviteCount(
-              Number(summary?.counts?.pending_authorized_invites || 0)
-            );
-            setPendingAuthorizedInvites(
-              Array.isArray(summary?.requests?.authorized_invites)
-                ? (summary.requests.authorized_invites as AuthorizedInvite[])
-                : []
-            );
-          })
-          .catch(() => {
-            if (!mounted.current) return;
-            setPendingCoachError(true);
-            setPendingCoachCount(0);
-            setPendingAuthorizedInviteCount(0);
-            setPendingAuthorizedInvites([]);
-          });
-      } else if (mounted.current) {
-        setIsOrgAdmin(false);
-        setCanReviewCoachRequests(false);
-        setPendingCoachCount(0);
-        setPendingCoachError(false);
-        setPendingAuthorizedInviteCount(0);
-        setPendingAuthorizedInvites([]);
+        throw new Error(errMsg.toLowerCase().includes('not found') ? 'not_found' : errMsg);
       }
 
       let allTeams: any[] = [];
@@ -238,8 +163,6 @@ export default function OrganizationScreen() {
         allTeams = [];
       }
 
-      if (!mounted.current) return;
-
       const orgTeams: TeamItem[] = allTeams
         .map((t: any) => ({
           id: String(t.id),
@@ -250,16 +173,15 @@ export default function OrganizationScreen() {
           organization_id: t.organization_id,
         }))
         .sort((a: TeamItem, b: TeamItem) => a.name.localeCompare(b.name));
-      setTeams(orgTeams);
 
+      let orgGames: GameItem[] = [];
       try {
         const allGamesData = await Game.list('-date');
-        if (!mounted.current) return;
         const allGames = Array.isArray(allGamesData)
           ? allGamesData
           : allGamesData?.games || allGamesData?.items || [];
         const teamNames = orgTeams.map(t => t.name.toLowerCase());
-        const orgGames: GameItem[] = allGames
+        orgGames = allGames
           .filter((g: any) => {
             const homeTeam = (g.home_team || '').toLowerCase();
             const awayTeam = (g.away_team || '').toLowerCase();
@@ -280,29 +202,100 @@ export default function OrganizationScreen() {
             const dateB = new Date((b.scheduled_date || b.date) as string).getTime();
             return dateA - dateB;
           });
-        setGames(orgGames);
       } catch (err: any) {
         if (__DEV__) console.error('[organization] Failed to load games:', err);
-        if (mounted.current) setGames([]);
+        orgGames = [];
       }
-    } catch (err: any) {
-      if (!mounted.current) return;
-      if (__DEV__) console.error('[organization] Failed to load organization:', err);
-      setError(err?.message || 'Failed to load organization data');
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, [params.id, user]);
+
+      return {
+        orgId: String(orgId),
+        organization: orgData,
+        isFollowing: !!(orgData as any).is_following,
+        teams: orgTeams,
+        games: orgGames,
+      };
+    },
+  });
+
+  const organization = orgPage?.organization ?? null;
+  const teams = orgPage?.teams ?? [];
+  const games = orgPage?.games ?? [];
+  const isFollowing = orgPage?.isFollowing ?? false;
+  const error = isError
+    ? (orgPageError as any)?.message === 'not_found'
+      ? 'not_found'
+      : (orgPageError as any)?.message || 'Failed to load organization data'
+    : null;
+
+  // Access flags derive from the org payload (server-computed booleans).
+  const isOrgOwner =
+    (organization as any)?.can_edit === true || (organization as any)?.is_owner === true;
+  const isOrgAdmin = (organization as any)?.can_manage === true || isOrgOwner;
+  const canReviewCoachRequests =
+    (organization as any)?.can_review_coaches === true || (organization as any)?.is_owner === true;
+
+  // Pending coach/invite counts load in a dependent query so the org page
+  // paints without waiting on the admin summary (matches the old
+  // fire-and-forget .then()). Non-admins never fetch it.
+  const {
+    data: adminSummary,
+    isError: adminSummaryIsError,
+    refetch: refetchAdminSummary,
+  } = useQuery({
+    queryKey: ['org-admin-summary', orgPage?.orgId ?? null],
+    enabled: !!orgPage?.orgId && isOrgAdmin,
+    queryFn: () => Organization.adminSummary(orgPage?.orgId as string),
+  });
+  const pendingCoachError = isOrgAdmin && adminSummaryIsError;
+  const pendingCoachCount =
+    isOrgAdmin && !adminSummaryIsError
+      ? Number((adminSummary as any)?.counts?.pending_coach_requests || 0)
+      : 0;
+  const pendingAuthorizedInviteCount =
+    isOrgAdmin && !adminSummaryIsError
+      ? Number((adminSummary as any)?.counts?.pending_authorized_invites || 0)
+      : 0;
+  const pendingAuthorizedInvites: AuthorizedInvite[] =
+    isOrgAdmin && !adminSummaryIsError
+      ? Array.isArray((adminSummary as any)?.requests?.authorized_invites)
+        ? ((adminSummary as any).requests.authorized_invites as AuthorizedInvite[])
+        : []
+      : [];
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refetch(), isOrgAdmin ? refetchAdminSummary() : Promise.resolve(null)]);
+  }, [refetch, refetchAdminSummary, isOrgAdmin]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadOrganization();
-    setRefreshing(false);
-  }, [loadOrganization]);
+    try {
+      await refreshAll();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshAll]);
 
-  useEffect(() => {
-    void loadOrganization();
-  }, [loadOrganization]);
+  // Optimistic follow-state patch: write through to the cached payload so the
+  // toggle and follower count survive re-renders and background refetches.
+  const patchFollowState = useCallback(
+    (following: boolean, delta: number) => {
+      queryClient.setQueryData(orgPageQueryKey, (old: any) =>
+        old
+          ? {
+              ...old,
+              isFollowing: following,
+              organization: {
+                ...old.organization,
+                followers_count: Math.max(0, (old.organization?.followers_count ?? 0) + delta),
+              },
+            }
+          : old
+      );
+    },
+    // orgPageQueryKey is derived from these two inputs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [queryClient, params.id, user?.id]
+  );
 
   const handleTeamPress = (team: TeamItem) => {
     router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } });
@@ -386,7 +379,7 @@ export default function OrganizationScreen() {
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
           <Pressable
-            onPress={loadOrganization}
+            onPress={() => void refetch()}
             style={[styles.retryButton, { backgroundColor: theme.tint }]}
           >
             <Text style={styles.retryText}>Retry</Text>
@@ -583,21 +576,10 @@ export default function OrganizationScreen() {
                   try {
                     if (isFollowing) {
                       await Organization.unfollow(organization.id);
-                      setIsFollowing(false);
-                      setOrganization(prev =>
-                        prev
-                          ? {
-                              ...prev,
-                              followers_count: Math.max(0, (prev.followers_count ?? 0) - 1),
-                            }
-                          : null
-                      );
+                      patchFollowState(false, -1);
                     } else {
                       await Organization.follow(organization.id);
-                      setIsFollowing(true);
-                      setOrganization(prev =>
-                        prev ? { ...prev, followers_count: (prev.followers_count ?? 0) + 1 } : null
-                      );
+                      patchFollowState(true, 1);
                     }
                   } catch (err) {
                     if (__DEV__) console.error('Organization follow/unfollow failed:', err);
@@ -752,7 +734,7 @@ export default function OrganizationScreen() {
                       if (!organization?.id) return;
                       try {
                         await Organization.cancelInvite(organization.id, invite.id);
-                        await loadOrganization();
+                        await refreshAll();
                       } catch (err: any) {
                         Alert.alert('Error', err?.message || 'Failed to cancel invite.');
                       }
@@ -965,7 +947,7 @@ export default function OrganizationScreen() {
                   try {
                     await Organization.invite(organization.id, inviteEmail.trim(), 'member');
                     setInviteModalVisible(false);
-                    await loadOrganization();
+                    await refreshAll();
                     Alert.alert('Invited', `Invitation sent to ${inviteEmail.trim()}`);
                   } catch (err: any) {
                     Alert.alert(

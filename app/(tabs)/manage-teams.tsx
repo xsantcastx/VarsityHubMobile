@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useManagedTeamsQuery } from '@/hooks/useManagedTeamsQuery';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { getAuthSnapshot } from '@/utils/authState';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -18,28 +19,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// @ts-ignore
-import { Team as TeamApi } from '@/api/entities';
-import { EmptyState, SectionHeader, TeamCard, TeamCardSkeleton } from '@/components/ui';
+import { EmptyState, SectionHeader, TeamCard } from '@/components/ui';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
-
-type Team = {
-  id: string;
-  name: string;
-  members: number;
-  status: 'active' | 'archived';
-  sport?: string;
-  season?: string;
-  avatar_url?: string;
-  my_role?: string;
-  organization?: {
-    id: string;
-    name: string;
-    description?: string;
-    sport?: string;
-  } | null;
-};
 
 function ManageTeamsSimpleScreen() {
   const { user, checkAuth } = useAuth();
@@ -48,15 +30,11 @@ function ManageTeamsSimpleScreen() {
   const params = useLocalSearchParams<{ from?: string; fallback?: string; orgId?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [teams, setTeams] = useState<Team[]>([]);
   const [paymentStatus, setPaymentStatus] = useState<'none' | 'pending_approval' | 'ready_to_pay'>(
     'none'
   );
   const [userPlan, setUserPlan] = useState<string | null>(null);
-  const hasLoadedTeamsRef = useRef(false);
   const explicitFallback =
     typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
       ? params.fallback.trim()
@@ -66,57 +44,54 @@ function ManageTeamsSimpleScreen() {
           ? `/organization?id=${encodeURIComponent(params.orgId)}&tab=teams`
           : '/organization?tab=teams';
 
-  const loadTeams = useCallback(
-    async (options?: { silent?: boolean }) => {
-      if (!user) return;
-      try {
-        if (!options?.silent || !hasLoadedTeamsRef.current) {
-          setLoading(true);
-        }
-        setError(null);
-        const list: any[] = await TeamApi.managed();
-        const formattedTeams = list.map((t: any) => ({
-          id: String(t.id),
-          name: String(t.name || 'Team'),
-          members: Number(t.members || t._count?.members || 0),
-          status: (t.status || 'active') as any,
-          sport: t.sport || null,
-          season: t.season || null,
-          avatar_url: t.avatar_url || null,
-          my_role: t.my_role || null,
-          organization: t.organization || null,
-        }));
-        setTeams(formattedTeams);
-        hasLoadedTeamsRef.current = true;
-      } catch (e: any) {
-        if (handleCoachAccessError(router, e, 'loading your teams', user)) {
-          return;
-        }
-        if (__DEV__) console.error('Failed to load teams:', e);
-        setError('Unable to load teams. Please try again.');
-        setTeams([]);
-      }
-    },
-    [router, user]
-  );
+  const {
+    data: teams = [],
+    isPending: loading,
+    isError,
+    error: queryError,
+    refetch,
+    isRefetching,
+  } = useManagedTeamsQuery({
+    userId: user?.id,
+    enabled: !!user && canManage && !coachLoading,
+  });
 
+  // If the managed() call failed with a specific coach-access error code,
+  // route via the shared handler instead of showing the generic error card.
+  // `handledByCoachAccess` tracks whether the CURRENT error was already
+  // special-cased so the generic error card doesn't also render underneath
+  // the Alert.
+  const [handledByCoachAccess, setHandledByCoachAccess] = useState(false);
+  const lastHandledErrorRef = useRef<unknown>(null);
   useEffect(() => {
-    void loadTeams()
-      .catch(e => {
-        if (__DEV__) console.warn('[ManageTeams] load error:', e);
-      })
-      .finally(() => setLoading(false)); // VAL-4: .catch() before .finally()
-  }, [loadTeams]);
+    if (!isError || !queryError) {
+      lastHandledErrorRef.current = null;
+      setHandledByCoachAccess(false);
+      return;
+    }
+    if (lastHandledErrorRef.current === queryError) return;
+    lastHandledErrorRef.current = queryError;
+    setHandledByCoachAccess(handleCoachAccessError(router, queryError, 'loading your teams', user));
+  }, [isError, queryError, router, user]);
 
-  // Auto-refresh when screen regains focus (e.g. after creating a team)
+  const error = isError && !handledByCoachAccess ? 'Unable to load teams. Please try again.' : null;
+
+  // Auto-refresh when screen regains focus (e.g. after creating a team).
+  // Skip the very first focus (mount already triggers the initial fetch) by
+  // only refetching once the query already has data — mirrors the old
+  // hasLoadedTeamsRef guard. Background-only: refetch() doesn't flip
+  // isPending once data already exists, so this never re-shows the blocking
+  // spinner.
+  const hasLoadedTeamsRef = useRef(false);
+  hasLoadedTeamsRef.current = hasLoadedTeamsRef.current || !loading;
   useFocusEffect(
     useCallback(() => {
       if (!hasLoadedTeamsRef.current) return undefined;
-      void loadTeams({ silent: true }).catch(e => {
+      void refetch().catch(e => {
         if (__DEV__) console.warn('[ManageTeams] focus reload error:', e);
       });
       return undefined;
-    }, [loadTeams])
+    }, [refetch])
   );
 
   useEffect(() => {
@@ -149,7 +124,7 @@ function ManageTeamsSimpleScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadTeams();
+    await refetch();
     // Re-check payment status on refresh
     try {
       const me: any = await getAuthSnapshot(checkAuth, user);
@@ -172,7 +147,7 @@ function ManageTeamsSimpleScreen() {
       /* ignore */
     }
     setRefreshing(false);
-  }, [checkAuth, loadTeams, user]);
+  }, [checkAuth, refetch, user]);
 
   // Get organization from first team that has one
   const organization = teams.find(t => t.organization)?.organization;
@@ -350,7 +325,9 @@ function ManageTeamsSimpleScreen() {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 20 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing || isRefetching} onRefresh={onRefresh} />
+        }
       >
         {/* League Card - BIG and Prominent */}
         {organization && (
@@ -403,20 +380,12 @@ function ManageTeamsSimpleScreen() {
           </Pressable>
         )}
 
-        {/* Loading State */}
-        {loading && (
-          <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-            <TeamCardSkeleton />
-            <TeamCardSkeleton />
-          </View>
-        )}
-
         {/* Error State */}
         {error && !loading && (
           <View style={styles.errorCard}>
             <MaterialIcons name="error" size={48} color="#EF4444" />
             <Text style={styles.errorText}>{error}</Text>
-            <Pressable style={styles.retryButton} onPress={() => void loadTeams()}>
+            <Pressable style={styles.retryButton} onPress={() => void refetch()}>
               <Text style={styles.retryButtonText}>Try Again</Text>
             </Pressable>
           </View>

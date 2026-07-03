@@ -1,6 +1,7 @@
 import { AppLinks } from '@/utils/links';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -66,11 +67,9 @@ function MessagesScreen() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
   const { user: authUser, checkAuth } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<MiniUser | null>(null);
-  const [messages, setMessages] = useState<UIMsg[]>([]);
   const [query, setQuery] = useState('');
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -121,56 +120,66 @@ function MessagesScreen() {
     };
   }, [composeOpen, suggestedLoaded, me]);
 
-  const load = useCallback(
-    async (options?: { silent?: boolean }) => {
-      if (!options?.silent || !hasLoadedOnceRef.current) {
-        setLoading(true);
-      }
-      setError(null);
+  // `me` powers conversation grouping (mine vs theirs); resolve it once per
+  // auth change, independent of the inbox fetch.
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
       try {
-        try {
-          const u = await getAuthSnapshot(checkAuth, authUser);
-          setMe(u ? ((u as MiniUser) ?? null) : null);
-        } catch (error: any) {
-          if (__DEV__) {
-            if (__DEV__) console.warn('[Messages] Failed to load user:', error?.message || error);
-          }
-          // Continue without user data
-        }
-
-        const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
-          ? Message.list('-created_at', 50)
-          : Message.filter({}, '-created_at'));
-
-        if (result && !('_isNotModified' in result)) {
-          setMessages(Array.isArray(result) ? result : []);
-        }
-        hasLoadedOnceRef.current = true;
-      } catch (e: any) {
-        if (__DEV__) console.error('Failed to load messages', e);
-        setError('Unable to load messages.');
-      } finally {
-        setLoading(false);
+        const u = await getAuthSnapshot(checkAuth, authUser);
+        if (mounted) setMe(u ? ((u as MiniUser) ?? null) : null);
+      } catch (error: any) {
+        if (__DEV__) console.warn('[Messages] Failed to load user:', error?.message || error);
+        // Continue without user data
       }
-    },
-    [authUser, checkAuth]
-  );
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [authUser, checkAuth]);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
+  const inboxQueryKey = ['messages-inbox', authUser?.id];
+  const {
+    data: inboxData,
+    isPending,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: inboxQueryKey,
+    enabled: !!authUser,
+    // Poll only when focused and foregrounded to avoid background
+    // battery/network drain (replaces the old setInterval effect).
+    refetchInterval: isFocused && appState === 'active' ? 60_000 : false,
+    queryFn: async (): Promise<UIMsg[]> => {
       const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
         ? Message.list('-created_at', 50)
         : Message.filter({}, '-created_at'));
       if (result && !('_isNotModified' in result)) {
-        setMessages(Array.isArray(result) ? result : []);
+        return Array.isArray(result) ? result : [];
       }
-    } catch {
-      // Silently ignore pull-to-refresh errors; existing data stays visible
+      // 304 Not Modified from the http client's ETag cache — keep whatever
+      // the query cache already has instead of clobbering it.
+      return queryClient.getQueryData<UIMsg[]>(inboxQueryKey) ?? [];
+    },
+  });
+  const messages = inboxData ?? [];
+  // Guests never fetch (query disabled), so don't let isPending hold the
+  // guest guard behind a spinner. Once data exists, background refetch
+  // failures keep showing the cached inbox — the error card is only for
+  // "never loaded".
+  const loading = !!authUser && isPending;
+  const error = isError && inboxData === undefined ? 'Unable to load messages.' : null;
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // refetch() resolves (never throws); a failed refresh keeps existing
+      // data visible, matching the old silent pull-to-refresh behavior.
+      await refetch();
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [refetch]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextState => {
@@ -179,42 +188,19 @@ function MessagesScreen() {
     return () => subscription.remove();
   }, []);
 
-  // Load on mount
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // Reload when screen comes into focus (after returning from a thread)
+  // Reload when screen comes into focus (after returning from a thread).
+  // Skip the very first focus — mount already triggers the initial fetch.
+  // Background-only: refetch() doesn't flip isPending once data exists.
+  hasLoadedOnceRef.current = hasLoadedOnceRef.current || inboxData !== undefined;
   useFocusEffect(
     useCallback(() => {
       if (!hasLoadedOnceRef.current) return undefined;
-      void load({ silent: true });
+      void refetch().catch(e => {
+        if (__DEV__) console.warn('[Messages] focus reload error:', e);
+      });
       return undefined;
-    }, [load])
+    }, [refetch])
   );
-
-  // Poll only when focused and foregrounded to avoid background battery/network drain.
-  useEffect(() => {
-    if (!isFocused || appState !== 'active') return;
-    let mounted = true;
-    const interval = setInterval(async () => {
-      if (!mounted) return;
-      try {
-        const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
-          ? Message.list('-created_at', 50)
-          : Message.filter({}, '-created_at'));
-        if (mounted && result && !('_isNotModified' in result)) {
-          setMessages(Array.isArray(result) ? result : []);
-        }
-      } catch {
-        // Silently fail - don't disrupt inbox
-      }
-    }, 60000);
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [appState, isFocused]);
 
   // Group messages into conversations
   const conversations = useMemo((): Conversation[] => {
@@ -472,14 +458,39 @@ function MessagesScreen() {
       {!loading && !authUser && (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
           <MaterialIcons name="lock-outline" size={56} color={Colors[colorScheme].tabIconDefault} />
-          <Text style={{ fontSize: 22, fontWeight: '800', color: Colors[colorScheme].text, marginTop: 16, textAlign: 'center' }}>
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: '800',
+              color: Colors[colorScheme].text,
+              marginTop: 16,
+              textAlign: 'center',
+            }}
+          >
             Messages
           </Text>
-          <Text style={{ fontSize: 15, color: Colors[colorScheme].mutedText, marginTop: 8, textAlign: 'center', lineHeight: 22 }}>
+          <Text
+            style={{
+              fontSize: 15,
+              color: Colors[colorScheme].mutedText,
+              marginTop: 8,
+              textAlign: 'center',
+              lineHeight: 22,
+            }}
+          >
             Sign in to send and receive messages.
           </Text>
           <Pressable
-            style={{ marginTop: 24, backgroundColor: Colors[colorScheme].tint, borderRadius: 12, height: 50, paddingHorizontal: 32, alignItems: 'center', justifyContent: 'center', width: '100%' }}
+            style={{
+              marginTop: 24,
+              backgroundColor: Colors[colorScheme].tint,
+              borderRadius: 12,
+              height: 50,
+              paddingHorizontal: 32,
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+            }}
             onPress={() => router.push('/sign-in')}
             accessibilityRole="button"
             accessibilityLabel="Sign in to view messages"
@@ -487,12 +498,25 @@ function MessagesScreen() {
             <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Sign In</Text>
           </Pressable>
           <Pressable
-            style={{ marginTop: 12, borderRadius: 12, height: 50, paddingHorizontal: 32, alignItems: 'center', justifyContent: 'center', width: '100%', borderWidth: 1, borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }}
+            style={{
+              marginTop: 12,
+              borderRadius: 12,
+              height: 50,
+              paddingHorizontal: 32,
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              borderWidth: 1,
+              borderColor: Colors[colorScheme].border,
+              backgroundColor: Colors[colorScheme].surface,
+            }}
             onPress={() => router.push('/sign-up')}
             accessibilityRole="button"
             accessibilityLabel="Create an account"
           >
-            <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Create Account</Text>
+            <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>
+              Create Account
+            </Text>
           </Pressable>
         </View>
       )}
@@ -500,170 +524,52 @@ function MessagesScreen() {
       {/* Authenticated messages UI */}
       {(loading || authUser) && (
         <>
-
-      {/* Enhanced header with gradient and safe area */}
-      <LinearGradient
-        colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
-        style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
-      >
-        <View style={styles.headerRow}>
-          <Pressable
-            onPress={() => {
-              safeGoBack(router);
-            }}
-            style={styles.backButton}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
+          {/* Enhanced header with gradient and safe area */}
+          <LinearGradient
+            colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
+            style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
           >
-            <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].text} />
-          </Pressable>
-          <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Messages</Text>
-          <Pressable
-            onPress={() => setSafetyOpen(true)}
-            style={styles.iconButton}
-            accessibilityLabel="Safety"
-          >
-            <MaterialIcons name="verified-user" size={24} color={Colors[colorScheme].text} />
-          </Pressable>
-        </View>
-
-        {/* Search bar */}
-        <View
-          style={[
-            styles.searchContainer,
-            {
-              backgroundColor:
-                colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-            },
-          ]}
-        >
-          <MaterialIcons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
-          <TextInput
-            placeholder="Search conversations..."
-            placeholderTextColor={Colors[colorScheme].tabIconDefault}
-            value={query}
-            onChangeText={setQuery}
-            style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-          />
-          {query.length > 0 && (
-            <Pressable onPress={() => setQuery('')}>
-              <MaterialIcons name="cancel" size={20} color={Colors[colorScheme].tabIconDefault} />
-            </Pressable>
-          )}
-        </View>
-      </LinearGradient>
-
-      <View style={styles.contentContainer}>
-        {loading && (
-          <View style={styles.center}>
-            <ActivityIndicator color={Colors[colorScheme].tint} />
-          </View>
-        )}
-        {error && !loading && (
-          <View style={styles.errorState}>
-            <MaterialIcons name="error-outline" size={48} color="#DC2626" />
-            <Text style={[styles.errorStateText, { color: Colors[colorScheme].text }]}>
-              {error}
-            </Text>
-            <Pressable
-              style={[styles.retryButton, { backgroundColor: Colors[colorScheme].tint }]}
-              onPress={() => void load()}
-            >
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {!loading && filtered.length === 0 && !error && (
-          <View style={styles.emptyState}>
-            <MaterialIcons name="forum" size={64} color={Colors[colorScheme].tabIconDefault} />
-            <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
-              {query ? 'No conversations found' : 'No conversations yet'}
-            </Text>
-            <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
-              {query ? 'Try a different search term' : 'Start a conversation to get connected'}
-            </Text>
-            {!query && (
+            <View style={styles.headerRow}>
               <Pressable
-                style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]}
-                onPress={() => setComposeOpen(true)}
+                onPress={() => {
+                  safeGoBack(router);
+                }}
+                style={styles.backButton}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
               >
-                <Text style={styles.emptyButtonText}>Start Messaging</Text>
+                <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].text} />
               </Pressable>
-            )}
-          </View>
-        )}
-
-        {!loading && filtered.length > 0 && (
-          <FlatList
-            data={filtered}
-            keyExtractor={item => item.id}
-            renderItem={renderConversation}
-            contentContainerStyle={{ paddingBottom: 80 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          />
-        )}
-      </View>
-
-      {/* Floating compose button */}
-      {!loading && (
-        <Pressable
-          style={[
-            styles.fab,
-            { backgroundColor: Colors[colorScheme].tint, bottom: insets.bottom + 16 },
-          ]}
-          onPress={() => setComposeOpen(true)}
-        >
-          <MaterialIcons name="edit" size={24} color="white" />
-        </Pressable>
-      )}
-
-      {/* Compose Modal */}
-      <Modal
-        visible={composeOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setComposeOpen(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View
-            style={[
-              styles.composeModal,
-              { backgroundColor: Colors[colorScheme].background, paddingTop: insets.top + 16 },
-            ]}
-          >
-            <View style={styles.composeHeader}>
-              <Pressable onPress={() => setComposeOpen(false)} style={styles.modalCloseButton}>
-                <MaterialIcons name="close" size={28} color={Colors[colorScheme].text} />
+              <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Messages</Text>
+              <Pressable
+                onPress={() => setSafetyOpen(true)}
+                style={styles.iconButton}
+                accessibilityLabel="Safety"
+              >
+                <MaterialIcons name="verified-user" size={24} color={Colors[colorScheme].text} />
               </Pressable>
-              <Text style={[styles.composeTitle, { color: Colors[colorScheme].text }]}>
-                New Message
-              </Text>
-              <View style={{ width: 28 }} />
             </View>
 
+            {/* Search bar */}
             <View
               style={[
                 styles.searchContainer,
                 {
                   backgroundColor:
                     colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                  marginHorizontal: 16,
-                  marginBottom: 8,
                 },
               ]}
             >
               <MaterialIcons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
               <TextInput
-                placeholder="Search users by username..."
+                placeholder="Search conversations..."
                 placeholderTextColor={Colors[colorScheme].tabIconDefault}
-                value={searchUserQuery}
-                onChangeText={setSearchUserQuery}
+                value={query}
+                onChangeText={setQuery}
                 style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-                autoFocus
               />
-              {searchUserQuery.length > 0 && (
-                <Pressable onPress={() => setSearchUserQuery('')}>
+              {query.length > 0 && (
+                <Pressable onPress={() => setQuery('')}>
                   <MaterialIcons
                     name="cancel"
                     size={20}
@@ -672,130 +578,263 @@ function MessagesScreen() {
                 </Pressable>
               )}
             </View>
+          </LinearGradient>
 
-            {searchingUsers && (
+          <View style={styles.contentContainer}>
+            {loading && (
               <View style={styles.center}>
                 <ActivityIndicator color={Colors[colorScheme].tint} />
               </View>
             )}
-
-            {!searchingUsers && searchUserQuery.length >= 2 && searchResults.length === 0 && (
-              <View style={styles.emptyState}>
-                <MaterialIcons name="group" size={48} color={Colors[colorScheme].tabIconDefault} />
-                <Text
-                  style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}
-                >
-                  No users found
+            {error && !loading && (
+              <View style={styles.errorState}>
+                <MaterialIcons name="error-outline" size={48} color="#DC2626" />
+                <Text style={[styles.errorStateText, { color: Colors[colorScheme].text }]}>
+                  {error}
                 </Text>
+                <Pressable
+                  style={[styles.retryButton, { backgroundColor: Colors[colorScheme].tint }]}
+                  onPress={() => void refetch()}
+                >
+                  <Text style={styles.retryButtonText}>Try Again</Text>
+                </Pressable>
               </View>
             )}
 
-            {!searchingUsers && searchResults.length > 0 && (
-              <FlatList
-                data={searchResults}
-                keyExtractor={item => item.id}
-                renderItem={renderUserSearchItem}
-              />
-            )}
-
-            {searchUserQuery.length < 2 && suggested.length > 0 && (
-              <FlatList
-                data={suggested}
-                keyExtractor={item => item.id}
-                renderItem={renderUserSearchItem}
-                ListHeaderComponent={
-                  <Text style={[styles.suggestedHeader, { color: Colors[colorScheme].mutedText }]}>
-                    Suggested
-                  </Text>
-                }
-              />
-            )}
-
-            {searchUserQuery.length < 2 && suggested.length === 0 && (
+            {!loading && filtered.length === 0 && !error && (
               <View style={styles.emptyState}>
-                <MaterialIcons
-                  name="mail-outline"
-                  size={48}
-                  color={Colors[colorScheme].tabIconDefault}
-                />
-                <Text
-                  style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}
-                >
-                  Search for someone
+                <MaterialIcons name="forum" size={64} color={Colors[colorScheme].tabIconDefault} />
+                <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
+                  {query ? 'No conversations found' : 'No conversations yet'}
                 </Text>
                 <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
-                  Type a username to find users
+                  {query ? 'Try a different search term' : 'Start a conversation to get connected'}
                 </Text>
+                {!query && (
+                  <Pressable
+                    style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]}
+                    onPress={() => setComposeOpen(true)}
+                  >
+                    <Text style={styles.emptyButtonText}>Start Messaging</Text>
+                  </Pressable>
+                )}
               </View>
             )}
-          </View>
-        </View>
-      </Modal>
 
-      {/* Safety sheet */}
-      <Modal
-        visible={safetyOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSafetyOpen(false)}
-      >
-        <Pressable style={styles.sheetBackdrop} onPress={() => setSafetyOpen(false)}>
-          <Pressable
-            style={[styles.sheet, { backgroundColor: Colors[colorScheme].background }]}
-            onPress={() => {}}
+            {!loading && filtered.length > 0 && (
+              <FlatList
+                data={filtered}
+                keyExtractor={item => item.id}
+                renderItem={renderConversation}
+                contentContainerStyle={{ paddingBottom: 80 }}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+              />
+            )}
+          </View>
+
+          {/* Floating compose button */}
+          {!loading && (
+            <Pressable
+              style={[
+                styles.fab,
+                { backgroundColor: Colors[colorScheme].tint, bottom: insets.bottom + 16 },
+              ]}
+              onPress={() => setComposeOpen(true)}
+            >
+              <MaterialIcons name="edit" size={24} color="white" />
+            </Pressable>
+          )}
+
+          {/* Compose Modal */}
+          <Modal
+            visible={composeOpen}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setComposeOpen(false)}
           >
-            <Text style={[styles.sheetTitle, { color: Colors[colorScheme].text }]}>Safety</Text>
-            <Pressable
-              style={styles.sheetRow}
-              onPress={() => {
-                setSafetyOpen(false);
-                void router.push('/report-abuse');
-              }}
-            >
-              <MaterialIcons name="flag" size={18} color={Colors[colorScheme].text} />
-              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
-                Report a message
-              </Text>
+            <View style={styles.modalBackdrop}>
+              <View
+                style={[
+                  styles.composeModal,
+                  { backgroundColor: Colors[colorScheme].background, paddingTop: insets.top + 16 },
+                ]}
+              >
+                <View style={styles.composeHeader}>
+                  <Pressable onPress={() => setComposeOpen(false)} style={styles.modalCloseButton}>
+                    <MaterialIcons name="close" size={28} color={Colors[colorScheme].text} />
+                  </Pressable>
+                  <Text style={[styles.composeTitle, { color: Colors[colorScheme].text }]}>
+                    New Message
+                  </Text>
+                  <View style={{ width: 28 }} />
+                </View>
+
+                <View
+                  style={[
+                    styles.searchContainer,
+                    {
+                      backgroundColor:
+                        colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                      marginHorizontal: 16,
+                      marginBottom: 8,
+                    },
+                  ]}
+                >
+                  <MaterialIcons
+                    name="search"
+                    size={20}
+                    color={Colors[colorScheme].tabIconDefault}
+                  />
+                  <TextInput
+                    placeholder="Search users by username..."
+                    placeholderTextColor={Colors[colorScheme].tabIconDefault}
+                    value={searchUserQuery}
+                    onChangeText={setSearchUserQuery}
+                    style={[styles.searchInput, { color: Colors[colorScheme].text }]}
+                    autoFocus
+                  />
+                  {searchUserQuery.length > 0 && (
+                    <Pressable onPress={() => setSearchUserQuery('')}>
+                      <MaterialIcons
+                        name="cancel"
+                        size={20}
+                        color={Colors[colorScheme].tabIconDefault}
+                      />
+                    </Pressable>
+                  )}
+                </View>
+
+                {searchingUsers && (
+                  <View style={styles.center}>
+                    <ActivityIndicator color={Colors[colorScheme].tint} />
+                  </View>
+                )}
+
+                {!searchingUsers && searchUserQuery.length >= 2 && searchResults.length === 0 && (
+                  <View style={styles.emptyState}>
+                    <MaterialIcons
+                      name="group"
+                      size={48}
+                      color={Colors[colorScheme].tabIconDefault}
+                    />
+                    <Text
+                      style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}
+                    >
+                      No users found
+                    </Text>
+                  </View>
+                )}
+
+                {!searchingUsers && searchResults.length > 0 && (
+                  <FlatList
+                    data={searchResults}
+                    keyExtractor={item => item.id}
+                    renderItem={renderUserSearchItem}
+                  />
+                )}
+
+                {searchUserQuery.length < 2 && suggested.length > 0 && (
+                  <FlatList
+                    data={suggested}
+                    keyExtractor={item => item.id}
+                    renderItem={renderUserSearchItem}
+                    ListHeaderComponent={
+                      <Text
+                        style={[styles.suggestedHeader, { color: Colors[colorScheme].mutedText }]}
+                      >
+                        Suggested
+                      </Text>
+                    }
+                  />
+                )}
+
+                {searchUserQuery.length < 2 && suggested.length === 0 && (
+                  <View style={styles.emptyState}>
+                    <MaterialIcons
+                      name="mail-outline"
+                      size={48}
+                      color={Colors[colorScheme].tabIconDefault}
+                    />
+                    <Text
+                      style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}
+                    >
+                      Search for someone
+                    </Text>
+                    <Text
+                      style={[styles.emptySubtitle, { color: Colors[colorScheme].tabIconDefault }]}
+                    >
+                      Type a username to find users
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </Modal>
+
+          {/* Safety sheet */}
+          <Modal
+            visible={safetyOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setSafetyOpen(false)}
+          >
+            <Pressable style={styles.sheetBackdrop} onPress={() => setSafetyOpen(false)}>
+              <Pressable
+                style={[styles.sheet, { backgroundColor: Colors[colorScheme].background }]}
+                onPress={() => {}}
+              >
+                <Text style={[styles.sheetTitle, { color: Colors[colorScheme].text }]}>Safety</Text>
+                <Pressable
+                  style={styles.sheetRow}
+                  onPress={() => {
+                    setSafetyOpen(false);
+                    void router.push('/report-abuse');
+                  }}
+                >
+                  <MaterialIcons name="flag" size={18} color={Colors[colorScheme].text} />
+                  <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                    Report a message
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.sheetRow}
+                  onPress={() => {
+                    setSafetyOpen(false);
+                    void router.push('/blocked-users');
+                  }}
+                >
+                  <MaterialIcons name="person-remove" size={18} color={Colors[colorScheme].text} />
+                  <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                    Blocked users
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.sheetRow}
+                  onPress={() => {
+                    setSafetyOpen(false);
+                    void router.push('/dm-restrictions');
+                  }}
+                >
+                  <MaterialIcons name="tune" size={18} color={Colors[colorScheme].text} />
+                  <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                    DM restrictions
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.sheetRow}
+                  onPress={() => {
+                    setSafetyOpen(false);
+                    void router.push('/settings');
+                  }}
+                >
+                  <MaterialIcons name="settings" size={18} color={Colors[colorScheme].text} />
+                  <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                    Privacy & settings
+                  </Text>
+                </Pressable>
+              </Pressable>
             </Pressable>
-            <Pressable
-              style={styles.sheetRow}
-              onPress={() => {
-                setSafetyOpen(false);
-                void router.push('/blocked-users');
-              }}
-            >
-              <MaterialIcons name="person-remove" size={18} color={Colors[colorScheme].text} />
-              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
-                Blocked users
-              </Text>
-            </Pressable>
-            <Pressable
-              style={styles.sheetRow}
-              onPress={() => {
-                setSafetyOpen(false);
-                void router.push('/dm-restrictions');
-              }}
-            >
-              <MaterialIcons name="tune" size={18} color={Colors[colorScheme].text} />
-              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
-                DM restrictions
-              </Text>
-            </Pressable>
-            <Pressable
-              style={styles.sheetRow}
-              onPress={() => {
-                setSafetyOpen(false);
-                void router.push('/settings');
-              }}
-            >
-              <MaterialIcons name="settings" size={18} color={Colors[colorScheme].text} />
-              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
-                Privacy & settings
-              </Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+          </Modal>
         </>
       )}
     </SafeAreaView>

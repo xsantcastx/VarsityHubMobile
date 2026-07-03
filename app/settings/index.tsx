@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Event, User } from '@/api/entities';
+import { User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
@@ -33,13 +33,6 @@ import { safeGoBack } from '@/utils/navigation';
 import { GUEST_HOME_ROUTE } from '@/utils/publicRoutes';
 import { getCanonicalCoachRole } from '@/utils/roleChecks';
 import { captureException } from '@/utils/sentry';
-
-interface PendingHostRequest {
-  id: string;
-  title?: string;
-  event_type?: string;
-  approval_status?: string;
-}
 
 interface UserMeResponse {
   email?: string;
@@ -238,9 +231,6 @@ export default function SettingsScreen() {
   const [role, setRole] = useState<string | null>(null);
   const [showCoachBilling, setShowCoachBilling] = useState(false);
   const [coachUpgradeCta, setCoachUpgradeCta] = useState<CoachUpgradeCta | null>(null);
-  const [_pendingHostRequests, setPendingHostRequests] = useState<PendingHostRequest[]>([]);
-  const [_pendingLoading, setPendingLoading] = useState(false);
-  const [_pendingError, setPendingError] = useState<string | null>(null);
   const [deleteWarningVisible, setDeleteWarningVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
@@ -504,29 +494,6 @@ export default function SettingsScreen() {
         }
         if (!mounted) return;
         applyMeSnapshot(me, mounted);
-        const effectiveRole = getCanonicalCoachRole(me as any);
-
-        // Fetch pending host event requests for coaches
-        if (effectiveRole === 'coach') {
-          setPendingLoading(true);
-          setPendingError(null);
-          try {
-            const events = (await Event.filter({
-              event_type: 'host_request',
-              approval_status: 'pending',
-            })) as PendingHostRequest[] | { items?: PendingHostRequest[] };
-            if (mounted)
-              setPendingHostRequests(
-                Array.isArray(events)
-                  ? events
-                  : (events as { items?: PendingHostRequest[] })?.items || []
-              );
-          } catch (e: any) {
-            if (mounted) setPendingError(e?.message || 'Failed to load event requests');
-          } finally {
-            if (mounted) setPendingLoading(false);
-          }
-        }
       } catch (e: any) {
         if (!mounted) return;
         // Handle authentication errors gracefully - don't show "Unauthorized" to user
