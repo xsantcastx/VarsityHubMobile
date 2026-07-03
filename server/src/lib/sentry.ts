@@ -75,6 +75,13 @@ export function initSentry(app: Express) {
     // never reach Sentry even if captured elsewhere.
     ignoreErrors: [/Failed to decode param/, 'URIError'],
     beforeSend(event: any) {
+      // Drop everything from dev machines. Local runs (e.g. the
+      // stripe-webhook-reconciliation cron with placeholder Stripe keys) share
+      // the prod Sentry project and were flooding it with non-actionable
+      // errors. Mirrors the mobile client's __DEV__ drop in utils/sentry.ts.
+      if (environment === 'development') {
+        return null;
+      }
       // Filter out health checks and non-error requests
       if (event.request?.url?.includes('/health')) {
         return null;

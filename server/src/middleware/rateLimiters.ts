@@ -393,6 +393,19 @@ export const storyCreationLimiter = createLimiter({
 });
 
 /**
+ * Ad impression/click telemetry
+ * 60 per minute per user (IP fallback for safety). These counters are
+ * billing-neutral but feed advertiser analytics; without a limiter a trivial
+ * loop can inflate them. Real usage is a handful of impressions per feed
+ * scroll, so 60/min is far above legitimate bursts while capping abuse.
+ */
+export const adEngagementLimiter = createLimiter({
+  name: 'ad-engagement',
+  windowMs: 60 * 1000, // 1 minute
+  max: rateLimitingDisabled ? 100000 : 60,
+});
+
+/**
  * Ad moderation actions (approve / reject / review)
  * 30 per 15 minutes per admin. Threat model is a compromised or misbehaving
  * admin account spamming moderation; legitimate queue work rarely exceeds
@@ -581,6 +594,7 @@ export const rateLimiters = {
   rsvp: rsvpLimiter,
   vote: voteLimiter,
   adCreation: adCreationLimiter,
+  adEngagement: adEngagementLimiter,
   storyCreation: storyCreationLimiter,
   payment: paymentLimiter,
   promoCode: promoCodeLimiter,

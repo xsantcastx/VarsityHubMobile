@@ -59,6 +59,57 @@ const TABLES_IN_ORDER = [
   'RefreshToken',
 ];
 
+/**
+ * Replay the primary's enum catalog onto the backup.
+ *
+ * The backup Postgres never receives `prisma migrate deploy` (start.sh only
+ * migrates DATABASE_URL), so enum TYPES and VALUES drift: new migrations add
+ * enums the backup has never seen (sync fails with 42704 `type "X" does not
+ * exist`) or add labels to existing enums (22P02 `invalid enum value`).
+ * Idempotent: CREATE TYPE is wrapped in a DO block that swallows
+ * duplicate_object, and each label uses ADD VALUE IF NOT EXISTS.
+ */
+async function reconcileBackupEnums(primary: PrismaClient, backup: PrismaClient): Promise<void> {
+  try {
+    const enumRows = await primary.$queryRaw<Array<{ type_name: string; label: string }>>`
+      SELECT t.typname AS type_name, e.enumlabel AS label
+      FROM pg_type t
+      JOIN pg_enum e ON e.enumtypid = t.oid
+      JOIN pg_namespace n ON n.oid = t.typnamespace
+      WHERE n.nspname = 'public'
+      ORDER BY t.typname ASC, e.enumsortorder ASC
+    `;
+
+    const labelsByType = new Map<string, string[]>();
+    for (const row of enumRows) {
+      if (!labelsByType.has(row.type_name)) labelsByType.set(row.type_name, []);
+      labelsByType.get(row.type_name)!.push(row.label);
+    }
+
+    const quote = (value: string) => `'${value.replace(/'/g, "''")}'`;
+    for (const [typeName, labels] of labelsByType) {
+      // CREATE TYPE has no IF NOT EXISTS — swallow duplicate_object instead.
+      await backup.$executeRawUnsafe(
+        `DO $$ BEGIN CREATE TYPE "${typeName}" AS ENUM (${labels.map(quote).join(', ')}); EXCEPTION WHEN duplicate_object THEN NULL; END $$`
+      );
+      // Type may pre-exist with a stale label set — append any missing values.
+      for (const label of labels) {
+        await backup.$executeRawUnsafe(
+          `ALTER TYPE "${typeName}" ADD VALUE IF NOT EXISTS ${quote(label)}`
+        );
+      }
+    }
+    debugLog(`[db-backup] Enum reconciliation complete: ${labelsByType.size} type(s) checked`);
+  } catch (err: any) {
+    // Degrade gracefully — a failed reconciliation just means enum drift (if
+    // any) surfaces as per-table sync failures below, same as before.
+    console.error(
+      '[db-backup] Enum reconciliation failed — continuing with table sync:',
+      String(err?.message || err).slice(0, 300)
+    );
+  }
+}
+
 export async function syncDatabaseBackup(): Promise<{
   success: boolean;
   tablesSync: number;
@@ -68,7 +119,12 @@ export async function syncDatabaseBackup(): Promise<{
   const backupUrl = process.env.DATABASE_BACKUP_URL;
   if (!backupUrl) {
     debugLog('[db-backup] DATABASE_BACKUP_URL not set, skipping sync');
-    return { success: false, tablesSync: 0, totalRows: 0, error: 'DATABASE_BACKUP_URL not configured' };
+    return {
+      success: false,
+      tablesSync: 0,
+      totalRows: 0,
+      error: 'DATABASE_BACKUP_URL not configured',
+    };
   }
 
   const primary = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
@@ -92,7 +148,12 @@ export async function syncDatabaseBackup(): Promise<{
     const tableNames = await primary.$queryRaw<Array<{ tablename: string }>>`
       SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != '_prisma_migrations'
     `;
-    const existingTables = new Set(tableNames.map((t) => t.tablename));
+    const existingTables = new Set(tableNames.map(t => t.tablename));
+
+    // Bring the backup's enum catalog up to date with the primary before
+    // touching any tables — missing types/values are the root cause of the
+    // recurring 42704/22P02 per-table sync failures.
+    await reconcileBackupEnums(primary, backup);
 
     // Disable FK constraints on backup for clean truncate + insert
     await backup.$executeRawUnsafe('SET session_replication_role = replica');
@@ -105,7 +166,10 @@ export async function syncDatabaseBackup(): Promise<{
     // Enum (USER-DEFINED) columns must be inserted with an explicit ::"<EnumType>"
     // cast — $executeRawUnsafe binds params as text, and Postgres won't implicitly
     // coerce text → enum (error 42804). Maps table → column → {dataType, udtName}.
-    const primaryColumnTypeCache = new Map<string, Map<string, { dataType: string; udtName: string }>>();
+    const primaryColumnTypeCache = new Map<
+      string,
+      Map<string, { dataType: string; udtName: string }>
+    >();
     const enumCastForColumn = (table: string, col: string): string =>
       enumCastTypeName(primaryColumnTypeCache.get(table)?.get(col));
     const resolvePrimaryColumns = async (table: string): Promise<string[]> => {
@@ -114,7 +178,7 @@ export async function syncDatabaseBackup(): Promise<{
       const rows = await primary.$queryRawUnsafe<Array<{ column_name: string }>>(
         `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${table}' ORDER BY ordinal_position ASC`
       );
-      const columns = rows.map((row) => row.column_name);
+      const columns = rows.map(row => row.column_name);
       primaryColumnCache.set(table, columns);
       return columns;
     };
@@ -125,12 +189,19 @@ export async function syncDatabaseBackup(): Promise<{
         WHERE table_schema = 'public'
       `;
       for (const row of backupCols) {
-        if (!backupColumnCache.has(row.table_name)) backupColumnCache.set(row.table_name, new Set());
+        if (!backupColumnCache.has(row.table_name))
+          backupColumnCache.set(row.table_name, new Set());
         backupColumnCache.get(row.table_name)!.add(row.column_name);
       }
 
       const primaryCols = await primary.$queryRaw<
-        Array<{ table_name: string; column_name: string; ordinal_position: number; data_type: string; udt_name: string }>
+        Array<{
+          table_name: string;
+          column_name: string;
+          ordinal_position: number;
+          data_type: string;
+          udt_name: string;
+        }>
       >`
         SELECT table_name, column_name, ordinal_position, data_type, udt_name
         FROM information_schema.columns
@@ -140,11 +211,17 @@ export async function syncDatabaseBackup(): Promise<{
       for (const row of primaryCols) {
         if (!primaryColumnCache.has(row.table_name)) primaryColumnCache.set(row.table_name, []);
         primaryColumnCache.get(row.table_name)!.push(row.column_name);
-        if (!primaryColumnTypeCache.has(row.table_name)) primaryColumnTypeCache.set(row.table_name, new Map());
-        primaryColumnTypeCache.get(row.table_name)!.set(row.column_name, { dataType: row.data_type, udtName: row.udt_name });
+        if (!primaryColumnTypeCache.has(row.table_name))
+          primaryColumnTypeCache.set(row.table_name, new Map());
+        primaryColumnTypeCache
+          .get(row.table_name)!
+          .set(row.column_name, { dataType: row.data_type, udtName: row.udt_name });
       }
     } catch (colErr: any) {
-      console.error('[db-backup] Failed to read backup column info — will attempt sync without column filtering:', colErr.message?.slice(0, 200));
+      console.error(
+        '[db-backup] Failed to read backup column info — will attempt sync without column filtering:',
+        colErr.message?.slice(0, 200)
+      );
     }
 
     for (const table of TABLES_IN_ORDER) {
@@ -164,25 +241,29 @@ export async function syncDatabaseBackup(): Promise<{
         const allPrimaryColumns = await resolvePrimaryColumns(table);
         const backupCols = backupColumnCache.get(table);
         const columns = backupCols
-          ? allPrimaryColumns.filter((c) => backupCols.has(c))
+          ? allPrimaryColumns.filter(c => backupCols.has(c))
           : allPrimaryColumns;
 
         if (columns.length === 0) {
-          console.error(`[db-backup] Table "${table}" has no matching columns in backup — skipping`);
+          console.error(
+            `[db-backup] Table "${table}" has no matching columns in backup — skipping`
+          );
           failedTables.push(table);
           continue;
         }
 
-        const skippedCols = allPrimaryColumns.filter((c) => !columns.includes(c));
+        const skippedCols = allPrimaryColumns.filter(c => !columns.includes(c));
         if (skippedCols.length > 0) {
-          debugLog(`[db-backup] "${table}": skipping ${skippedCols.length} column(s) missing from backup: ${skippedCols.join(', ')}`);
+          debugLog(
+            `[db-backup] "${table}": skipping ${skippedCols.length} column(s) missing from backup: ${skippedCols.join(', ')}`
+          );
         }
 
-        const colList = columns.map((c) => `"${c}"`).join(', ');
-        const orderBy = columns.map((c) => `"${c}"`).join(', ');
-        const [{ count: totalCountRaw }] = await primary.$queryRawUnsafe<Array<{ count: bigint | number | string }>>(
-          `SELECT COUNT(*) AS count FROM "${table}"`
-        );
+        const colList = columns.map(c => `"${c}"`).join(', ');
+        const orderBy = columns.map(c => `"${c}"`).join(', ');
+        const [{ count: totalCountRaw }] = await primary.$queryRawUnsafe<
+          Array<{ count: bigint | number | string }>
+        >(`SELECT COUNT(*) AS count FROM "${table}"`);
         const totalTableRows = Number(totalCountRaw);
 
         if (totalTableRows === 0) {
@@ -202,10 +283,8 @@ export async function syncDatabaseBackup(): Promise<{
           let paramIdx = 1;
 
           for (const row of batch) {
-            const { clause, nextParamIdx } = buildRowValuesClause(
-              columns,
-              paramIdx,
-              (col) => enumCastForColumn(table, col)
+            const { clause, nextParamIdx } = buildRowValuesClause(columns, paramIdx, col =>
+              enumCastForColumn(table, col)
             );
             paramIdx = nextParamIdx;
             valueClauses.push(clause);
@@ -230,9 +309,20 @@ export async function syncDatabaseBackup(): Promise<{
     }
 
     if (failedTables.length > 0) {
-      const backupErr = new Error(`DB backup sync partially failed — ${failedTables.length} table(s) not synced: ${failedTables.join(', ')}`);
+      const backupErr = new Error(
+        `DB backup sync partially failed — ${failedTables.length} table(s) not synced: ${failedTables.join(', ')}`
+      );
       console.error('[db-backup]', backupErr.message);
-      captureException(backupErr, { extra: { failedTables, failedTableReasons, tablesSync, totalRows } });
+      // Stringify the reasons — Sentry flattens raw object arrays in `extra`
+      // to "[Array]", which is how the cause got lost in the first place.
+      captureException(backupErr, {
+        extra: {
+          failedTables,
+          failedTableReasons: JSON.stringify(failedTableReasons),
+          tablesSync,
+          totalRows,
+        },
+      });
     }
 
     // Re-enable FK constraints

@@ -137,6 +137,41 @@ function isExpectedAuthUxError(
   );
 }
 
+// Geofencing business outcomes from the posting flow. The server returns
+// these as `{ error: <CODE>, message }` 403s and every posting screen handles
+// them in-line (Alert + setError), but the rejection also leaks to Sentry via
+// a floated promise. They are expected states, not product bugs.
+const GEOFENCE_BUSINESS_CODES = [
+  'POSTING_WINDOW_CLOSED',
+  'TOO_FAR_FROM_VENUE',
+  'LOCATION_REQUIRED',
+  'NO_EVENT_LOCATION',
+] as const;
+
+export function isExpectedGeofenceBusinessError(
+  error: unknown,
+  event?: {
+    exception?: { values?: Array<{ value?: string }> };
+    tags?: Record<string, unknown>;
+  }
+): boolean {
+  // api/http.ts puts the server's `data.error` code on err.data.error and
+  // usually as the Error message itself — getErrorCode covers the former.
+  const code = getErrorCode(error);
+  if ((GEOFENCE_BUSINESS_CODES as readonly string[]).includes(code)) return true;
+
+  const haystacks: string[] = [getErrorMessage(error)];
+  for (const exceptionValue of event?.exception?.values ?? []) {
+    if (typeof exceptionValue?.value === 'string') haystacks.push(exceptionValue.value);
+  }
+  for (const tagValue of Object.values(event?.tags ?? {})) {
+    if (typeof tagValue === 'string') haystacks.push(tagValue);
+  }
+  return haystacks.some(haystack =>
+    GEOFENCE_BUSINESS_CODES.some(businessCode => haystack.includes(businessCode))
+  );
+}
+
 export function initSentry() {
   const dsn = SENTRY_DSN;
   if (!dsn || dsn === '' || isPlaceholderDsn(dsn)) {
@@ -177,6 +212,11 @@ export function initSentry() {
         // Expected auth UX states (invalid credentials, expired/invalid codes,
         // signup conflicts, rate limits) should not page as exceptions.
         if (isExpectedAuthUxError(originalException, event)) {
+          return null;
+        }
+        // Geofencing business outcomes (posting window closed, too far from
+        // venue, no GPS fix) are expected 403s already handled in-screen.
+        if (isExpectedGeofenceBusinessError(originalException, event)) {
           return null;
         }
         return event;
