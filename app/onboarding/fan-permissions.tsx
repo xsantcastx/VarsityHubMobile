@@ -5,16 +5,8 @@ import Notifications from '@/utils/notifications';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { Stack, useRouter } from 'expo-router';
-import { safeGoBack } from '@/utils/navigation';
 import { useEffect, useRef, useState } from 'react';
-import {
-    ActivityIndicator,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Fan-only permissions screen — the final step of fan onboarding.
@@ -80,13 +72,17 @@ export default function FanPermissions() {
       registerPushToken().catch(() => {});
     } finally {
       setLoading(false);
-      safeGoBack(router, '/(tabs)/feed');
+      // nav-safe: onboarding completion — linear flow; going BACK from here
+      // returns to the step-2 form and re-runs completeOnboarding (signup
+      // loop). The stack must be cleared into the app.
+      router.replace('/(tabs)/feed');
     }
   };
 
   const skip = () => {
     registerPushToken().catch(() => {});
-    safeGoBack(router, '/(tabs)/feed');
+    // nav-safe: onboarding completion — same as requestAndContinue above
+    router.replace('/(tabs)/feed');
   };
 
   return (
@@ -153,7 +149,10 @@ export default function FanPermissions() {
         <Pressable
           onPress={requestAndContinue}
           disabled={loading}
-          style={[styles.primaryBtn, { backgroundColor: loading ? colors.primaryMuted : colors.primary }]}
+          style={[
+            styles.primaryBtn,
+            { backgroundColor: loading ? colors.primaryMuted : colors.primary },
+          ]}
           accessibilityLabel="Enable notifications and location"
           accessibilityRole="button"
         >
@@ -212,7 +211,13 @@ function PermissionCard({
           borderColor,
           ...(Platform.OS === 'web'
             ? { boxShadow: '0px 1px 4px rgba(0,0,0,0.06)' }
-            : { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: isDark ? 0.3 : 0.06, shadowRadius: 4, elevation: 2 }),
+            : {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: isDark ? 0.3 : 0.06,
+                shadowRadius: 4,
+                elevation: 2,
+              }),
         },
       ]}
     >
