@@ -8,6 +8,7 @@ import { recordAppleNotificationReceipt } from '../lib/appleNotificationDedup.js
 import { debugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
 import { sendBillingNoticeEmail } from '../lib/email.js';
+import { resolveGooglePlayUnverifiedFallback } from '../lib/googlePlayVerificationPolicy.js';
 import { redactIdentifier } from '../lib/logRedaction.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
@@ -3595,7 +3596,25 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
       notificationType === 'SUBSCRIBED'
     ) {
       // Renewal or new subscription — activate and extend expiry
-      const plan = APPLE_PRODUCT_TO_PLAN[productId] || getCanonicalPlan(matchedUser as any) || 'veteran';
+      // Security audit 2026-06 #12 (P3): an unmapped product id must never silently
+      // grant or downgrade a paid tier (the old fallback defaulted to 'veteran').
+      // Log loudly, capture to Sentry, and leave the user's current entitlement
+      // untouched. The dedup receipt recorded above makes an Apple redelivery of
+      // this notification a no-op, so acknowledging with 200 is safe.
+      const plan = APPLE_PRODUCT_TO_PLAN[productId];
+      if (!plan) {
+        console.error(
+          `[payments] Apple ${notificationType} notification for unmapped productId '${productId}' — leaving user plan unchanged`,
+          { userId }
+        );
+        captureException(new Error(`apple-s2s: unmapped productId on ${notificationType}`), {
+          context: 'apple_s2s_unmapped_product',
+          notificationType,
+          subtype,
+          productId,
+        });
+        return res.sendStatus(200);
+      }
       const newExpiry = expiresDate ? new Date(expiresDate).toISOString() : prefs.apple_expires_date;
       const nextPrefs = mergeBillingStateIntoPreferences(
         {
@@ -3757,22 +3776,15 @@ const GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY = (process.env.GOOGLE_PLAY_SERVICE
   .replace(/\\n/g, '\n')
   .trim();
 const GOOGLE_PLAY_STRICT_VERIFY = process.env.GOOGLE_PLAY_STRICT_VERIFY === '1';
-const GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK = process.env.GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK === '1';
+// Security audit 2026-06 #4 (P2): the unverified-fallback flag is a hard no-op in
+// production — resolveGooglePlayUnverifiedFallback() ignores it (with a console.warn)
+// when NODE_ENV === 'production', so this constant is always false in prod and the
+// no-credentials path below fails closed with 503. This supersedes the old M3 block
+// that crashed the server at boot when the flag was set in prod without credentials.
+const GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK = resolveGooglePlayUnverifiedFallback(process.env);
 
 function getGooglePurchaseOrderId(purchaseToken: string): string {
   return `google_purchase:${crypto.createHash('sha256').update(String(purchaseToken)).digest('hex')}`;
-}
-
-// M3: Fail loud in production if Google Play verification is not configured and fallback is enabled.
-// A missing env var + fallback flag = anyone can claim a purchase without store verification.
-if (process.env.NODE_ENV === 'production' && GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK) {
-  console.error('[SECURITY] GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK=1 is set in production. ' +
-    'This allows unverified purchase claims. Remove this env var or set GOOGLE_PLAY_STRICT_VERIFY=1.');
-  if (!GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY) {
-    throw new Error('[FATAL] Google Play fallback mode enabled in production without service account credentials. ' +
-      'Either configure GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL + GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY, ' +
-      'or remove GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK.');
-  }
 }
 
 function hasGooglePlayVerifierConfig() {

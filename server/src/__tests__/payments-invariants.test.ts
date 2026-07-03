@@ -309,6 +309,52 @@ describe('payments & subscriptions — structural invariants', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────
+  // Security audit 2026-06 hardening (#4 P2, #12 P3)
+  // ──────────────────────────────────────────────────────────────────────
+
+  describe('Google Play unverified fallback is a production no-op (audit #4)', () => {
+    it('payments.ts derives the flag through resolveGooglePlayUnverifiedFallback, not a raw env parse', () => {
+      expect(payments).toMatch(
+        /const GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK = resolveGooglePlayUnverifiedFallback\(process\.env\);/
+      );
+      expect(payments).not.toMatch(/process\.env\.GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK === '1'/);
+    });
+
+    it('the policy helper forces the flag off in production and warns', () => {
+      const policy = read('lib/googlePlayVerificationPolicy.ts');
+      const prodBlock = policy.match(/NODE_ENV === 'production'[\s\S]{0,400}/)?.[0] || '';
+      expect(prodBlock).toMatch(
+        /\[payments\] GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK ignored in production/
+      );
+      expect(prodBlock).toMatch(/return false;/);
+    });
+  });
+
+  describe('Apple DID_RENEW with unmapped product never changes the plan (audit #12)', () => {
+    it('the renewal branch no longer defaults an unmapped product to veteran', () => {
+      expect(payments).not.toMatch(/APPLE_PRODUCT_TO_PLAN\[productId\]\s*\|\|\s*getCanonicalPlan/);
+    });
+
+    it('an unmapped product logs, captures to Sentry, and returns before any user update', () => {
+      // Anchor on the S2S renewal branch's audit comment — payments.ts has an earlier
+      // APPLE_PRODUCT_TO_PLAN[productId] lookup in the client verify route (400s there).
+      const block = payments.match(/Security audit 2026-06 #12[\s\S]{0,1600}/)?.[0] || '';
+      expect(block).toMatch(/if \(!plan\) \{/);
+      expect(block).toMatch(
+        /\[payments\] Apple \$\{notificationType\} notification for unmapped productId/
+      );
+      expect(block).toMatch(
+        /captureException\(new Error\(`apple-s2s: unmapped productId on \$\{notificationType\}`\)/
+      );
+      // The early return must come BEFORE the prisma user update in this branch.
+      const guardEnd = block.indexOf('return res.sendStatus(200);');
+      const userUpdate = block.indexOf('prisma.user.update');
+      expect(guardEnd).toBeGreaterThan(-1);
+      expect(userUpdate === -1 || guardEnd < userUpdate).toBe(true);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
   // Plan canonicalization (no client-set plan escalation)
   // ──────────────────────────────────────────────────────────────────────
 
