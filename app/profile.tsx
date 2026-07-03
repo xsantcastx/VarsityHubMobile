@@ -666,6 +666,9 @@ export default function ProfileScreen() {
                 { transform: [{ translateY: headerImageFocusY * HEADER_IMAGE_DRAG_LIMIT }] },
               ]}
               contentFit="cover"
+              cachePolicy="memory-disk"
+              recyclingKey={headerBackgroundImage}
+              transition={120}
             />
           ) : (
             <View style={styles.headerBackgroundImage} />
@@ -835,6 +838,9 @@ export default function ProfileScreen() {
                   source={{ uri: String(me?.avatar_url) }}
                   style={styles.avatarImage}
                   contentFit="cover"
+                  cachePolicy="memory-disk"
+                  recyclingKey={String(me?.avatar_url)}
+                  transition={120}
                 />
               ) : (
                 <View
@@ -1354,7 +1360,7 @@ export default function ProfileScreen() {
                 style={
                   isTextOnly
                     ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }]
-                    : styles.gridItem
+                    : [styles.gridItem, { backgroundColor: theme.card }]
                 }
                 onPress={() => {
                   const mapped = (posts || []).map(toFeedPost);
@@ -1391,6 +1397,9 @@ export default function ProfileScreen() {
                           }}
                           style={styles.gridImage}
                           contentFit="cover"
+                          cachePolicy="memory-disk"
+                          recyclingKey={item.id}
+                          transition={120}
                         />
                       )}
                       <View style={styles.gridImageOverlay} />
@@ -1477,7 +1486,7 @@ export default function ProfileScreen() {
                 style={
                   isTextOnly
                     ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }]
-                    : styles.gridItem
+                    : [styles.gridItem, { backgroundColor: theme.card }]
                 }
                 onPress={() => {
                   const mapped = (replies || []).map(unwrapPost).map(toFeedPost);
@@ -1514,6 +1523,9 @@ export default function ProfileScreen() {
                           }}
                           style={styles.gridImage}
                           contentFit="cover"
+                          cachePolicy="memory-disk"
+                          recyclingKey={item.id}
+                          transition={120}
                         />
                       )}
                       <View style={styles.gridImageOverlay} />
@@ -1600,7 +1612,7 @@ export default function ProfileScreen() {
                 style={
                   isTextOnly
                     ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }]
-                    : styles.gridItem
+                    : [styles.gridItem, { backgroundColor: theme.card }]
                 }
                 onPress={() => {
                   const mapped = (upvotes || []).map(unwrapPost).map(toFeedPost);
@@ -1637,6 +1649,9 @@ export default function ProfileScreen() {
                           }}
                           style={styles.gridImage}
                           contentFit="cover"
+                          cachePolicy="memory-disk"
+                          recyclingKey={item.id}
+                          transition={120}
                         />
                       )}
                       <View style={styles.gridImageOverlay} />
