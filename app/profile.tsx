@@ -444,18 +444,30 @@ export default function ProfileScreen() {
 
   // Silent refresh on focus - NEVER show skeleton after first load.
   // Deferred so the return transition isn't competing with the refetch.
+  const activeTabQuery =
+    activeTab === 'posts' ? postsQuery : activeTab === 'replies' ? repliesQuery : upvotesQuery;
+  const refetchActiveTab = activeTabQuery.refetch;
+  const activeTabHasData = activeTabQuery.data !== undefined;
   useFocusEffect(
     useCallback(() => {
       const task = InteractionManager.runAfterInteractions(() => {
         if (hasLoadedOnce.current) {
           void loadProfile({ silent: true });
+          // Background-refresh the active tab list too — the old loadProfile
+          // refreshed it on focus, and react-query has no window-focus concept
+          // on native. Gated on the tab already having data (background-only:
+          // refetch() doesn't flip isPending once data exists) so a fresh
+          // post/reply shows up when returning to the profile.
+          if (profileUserId && activeTabHasData) {
+            void refetchActiveTab();
+          }
         } else if (isInitialMount.current && !profileRequestInFlight.current) {
           void loadProfile();
         }
       });
       return () => task.cancel();
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [loadProfile])
+    }, [loadProfile, profileUserId, activeTabHasData, refetchActiveTab])
   );
 
   // Load organizations separately to avoid blocking profile render

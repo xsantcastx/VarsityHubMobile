@@ -430,7 +430,15 @@ export default function PostDetailScreen() {
 
   const currentQueryIndex = currentPostId ? postIdsArray.indexOf(currentPostId) : -1;
   const currentQuery = currentQueryIndex >= 0 ? postQueries[currentQueryIndex] : undefined;
-  const post = (currentPostId && postsById[currentPostId]) || null;
+  // If the fetch failed but PostCacheContext still has a renderable copy,
+  // show it instead of the error card — the old cache-first path never took
+  // content away on a failed refresh (offline/flaky-network protection).
+  const cachedFallbackPost = useMemo(() => {
+    if (!currentPostId || !currentQuery?.isError) return null;
+    const cached = postCache.get(currentPostId);
+    return cached?.id && cached?.author?.username ? cached : null;
+  }, [currentPostId, currentQuery?.isError, postCache]);
+  const post = (currentPostId && postsById[currentPostId]) || cachedFallbackPost || null;
   const comments = (currentPostId && commentsById[currentPostId]) || [];
   const commentsNextCursor = currentQuery?.data?.nextCursor ?? null;
 
@@ -441,7 +449,7 @@ export default function PostDetailScreen() {
   hasRenderedOnceRef.current = hasRenderedOnceRef.current || !!post || !!currentQuery?.isError;
   const error = !currentPostId
     ? 'No post ID provided'
-    : currentQuery?.isError
+    : currentQuery?.isError && !post
       ? (currentQuery.error as any)?.message || 'Failed to load post'
       : null;
   const loading = !hasRenderedOnceRef.current && !error;
@@ -1691,7 +1699,8 @@ export default function PostDetailScreen() {
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
             renderItem={({ item }) => {
-              const postData = postsById[item];
+              // `post` includes the postCache fallback when the fetch errored
+              const postData = postsById[item] ?? (item === currentPostId ? post : undefined);
               const commentsData = commentsById[item];
               return (
                 <View style={{ width: SCREEN_WIDTH }}>
