@@ -150,13 +150,10 @@ async function fetchTeamData(teamId?: string, teamName?: string): Promise<TeamPa
         const summary: any = await Team.screenSummary(teamId);
         if (summary?.team) {
           teamData = summary.team as LeagueTeam;
-          summaryMembers = Array.isArray(summary.members)
-            ? (summary.members as TeamMember[])
-            : [];
+          summaryMembers = Array.isArray(summary.members) ? (summary.members as TeamMember[]) : [];
           summaryGames = Array.isArray(summary.games) ? (summary.games as GameItem[]) : [];
           canManageTeam =
-            summary?.permissions?.can_manage === true ||
-            summary?.team?.can_manage_team === true;
+            summary?.permissions?.can_manage === true || summary?.team?.can_manage_team === true;
         } else {
           const fullTeamData = await Team.get(teamId);
           if (fullTeamData) {
@@ -375,16 +372,23 @@ function TeamScreen() {
   }, [teamQuery.data]);
 
   // Pick up server-side edits (e.g. renamed team) when the screen regains focus.
-  // Respects staleTime, so it won't refetch on rapid tab switches.
+  // The callback must NOT depend on `teamQuery`: the query result object gets a
+  // new identity on every state transition, so keying the focus effect on it
+  // re-runs the effect (and refetch) after each transition — an infinite
+  // refetch storm when the fetch fails (bogus team id → error → refetch →
+  // pending → error → …). Route refetch through a ref so the effect only runs
+  // on real focus changes.
   const hasLoadedOnce = useRef(false);
+  const refetchTeam = useRef(teamQuery.refetch);
+  refetchTeam.current = teamQuery.refetch;
   useFocusEffect(
     useCallback(() => {
       if (!hasLoadedOnce.current) {
         hasLoadedOnce.current = true;
         return;
       }
-      if (hasIdentifier && teamIdValid) void teamQuery.refetch();
-    }, [hasIdentifier, teamIdValid, teamQuery])
+      if (hasIdentifier && teamIdValid) void refetchTeam.current();
+    }, [hasIdentifier, teamIdValid])
   );
 
   const error = !teamIdValid
@@ -1290,8 +1294,7 @@ function TeamScreen() {
               <Pressable
                 disabled={!gameId}
                 onPress={() =>
-                  gameId &&
-                  router.push({ pathname: '/game/[id]', params: { id: gameId } } as any)
+                  gameId && router.push({ pathname: '/game/[id]', params: { id: gameId } } as any)
                 }
                 accessibilityRole="button"
                 accessibilityLabel={`Open event vs ${opponent} on ${dateStr}`}
