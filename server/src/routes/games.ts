@@ -2693,10 +2693,24 @@ gamesRouter.put(
       // Get the game to check permissions
       const game = await (prisma.game.findUnique as any)({
         where: { id },
-        select: { id: true, home_team_id: true, away_team_id: true, approval_status: true },
+        select: {
+          id: true,
+          home_team_id: true,
+          away_team_id: true,
+          approval_status: true,
+          created_by_id: true,
+        },
       });
 
       if (!game) return sendError(res, 404, 'Event not found');
+
+      // IDOR guard: a reviewer must never approve/reject a game they created,
+      // even with manage rights. Mirrors approveAd + the events guard. Coaches
+      // auto-approve their own games on create, so a pending self-created game
+      // shouldn't arise — this is defense-in-depth against that ever changing.
+      if (game.created_by_id && game.created_by_id === actingUserId) {
+        return sendError(res, 403, 'You cannot review your own event');
+      }
 
       // Check if user is coach/manager of either the home or away team,
       // or an owner/manager of the organization that owns either team.

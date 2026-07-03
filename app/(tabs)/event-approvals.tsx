@@ -393,7 +393,18 @@ export default function EventApprovalsScreen() {
 
     lastHandledLinkRef.current = signature;
     if (action === 'approve') {
-      void handleApproveEvent(matchedEvent.id);
+      // A deep link must not silently approve. Approval is a publish action and
+      // was previously fire-and-forget here (reject already required a modal) —
+      // so a crafted/mistapped link could approve unreviewed content. Require an
+      // explicit confirmation, matching the deliberateness of the reject path.
+      Alert.alert(
+        'Approve event?',
+        `Approve "${matchedEvent.title || 'this event'}"? It will become visible to everyone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Approve', onPress: () => void handleApproveEvent(matchedEvent.id) },
+        ]
+      );
       return;
     }
     handleRejectEvent(matchedEvent.id);

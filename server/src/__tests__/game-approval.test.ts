@@ -251,6 +251,42 @@ describe('Game Approval Flow', () => {
     expect(updatedEvent?.status).toBe('approved');
   });
 
+  it('blocks a coach from approving a game they created (self-approval IDOR)', async () => {
+    // A pending game created BY the coach who also manages the team. Even with
+    // full manage rights, the creator must not review their own submission.
+    const game = await (prisma.game.create as any)({
+      data: {
+        title: `Self-approval game ${ts}`,
+        date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        home_team_id: teamId,
+        approval_status: 'pending',
+        created_by_id: coachId,
+      },
+    });
+
+    const selfRes = await request(app)
+      .put(`/games/${game.id}/approve`)
+      .set('Authorization', `Bearer ${coachToken}`)
+      .send({ approval_status: 'approved' });
+    expect(selfRes.status).toBe(403);
+
+    // The game is still pending, and a different reviewer (org manager) CAN
+    // approve it — proving the block is specific to the creator, not a
+    // blanket denial.
+    const stillPending = await prisma.game.findUnique({ where: { id: game.id } });
+    expect(stillPending?.approval_status).toBe('pending');
+
+    const otherRes = await request(app)
+      .put(`/games/${game.id}/approve`)
+      .set('Authorization', `Bearer ${orgManagerToken}`)
+      .send({ approval_status: 'approved' })
+      .expect(200);
+    expect(otherRes.body.approval_status).toBe('approved');
+
+    await prisma.event.deleteMany({ where: { game_id: game.id } });
+    await prisma.game.delete({ where: { id: game.id } });
+  });
+
   it('should return 400 for invalid approval_status', async () => {
     const { game } = await createPendingGame(`Invalid Status Test ${ts}`);
 

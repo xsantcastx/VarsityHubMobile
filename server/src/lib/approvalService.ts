@@ -1028,6 +1028,11 @@ export async function approveEvent(
   if (event.approval_status === 'approved') return { error: 'Event already approved', status: 400 };
   if (event.approval_status === 'rejected') return { error: 'Event already rejected', status: 400 };
   if (event.approval_status !== 'pending') return { error: 'Invalid state', status: 400 };
+  // IDOR guard: a reviewer must not approve an event they created/pitched.
+  // Mirrors approveAd. Another manager or a platform admin must sign off.
+  if (adminId && event.creator_id === adminId) {
+    return { error: 'You cannot approve your own event', status: 403 as const };
+  }
 
   const guard = await prisma.event.updateMany({
     where: { id: eventId, approval_status: 'pending' },
@@ -1116,6 +1121,10 @@ export async function rejectEvent(
   if (event.approval_status === 'approved') return { error: 'Event already approved', status: 400 };
   if (event.approval_status === 'rejected') return { error: 'Event already rejected', status: 400 };
   if (event.approval_status !== 'pending') return { error: 'Invalid state', status: 400 };
+  // IDOR guard: a reviewer must not reject an event they created/pitched.
+  if (adminId && event.creator_id === adminId) {
+    return { error: 'You cannot reject your own event', status: 403 as const };
+  }
 
   const reason = opts?.reason;
 
