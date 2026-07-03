@@ -49,7 +49,7 @@ jest.mock('@/components/BannerAd', () =>
 jest.mock('@/components/PostCard', () =>
   require('@/test-utils/screenMocks').childSentinelMock('PostCard')()
 );
-jest.mock('../../../../game-details/GameVerticalFeedScreen', () =>
+jest.mock('../game-details/GameVerticalFeedScreen', () =>
   require('@/test-utils/screenMocks').childSentinelMock('GameVerticalFeedScreen')()
 );
 
@@ -63,7 +63,7 @@ jest.mock('@/context/AuthProvider', () => ({
 }));
 jest.mock('@/hooks/useColorScheme', () => ({ useColorScheme: () => 'light' }));
 
-import FeedScreen from '../FeedScreen';
+import FeedScreen from '../feed';
 
 describe('FeedScreen (render smoke)', () => {
   it('mounts and renders a tree without crashing for an empty user', () => {

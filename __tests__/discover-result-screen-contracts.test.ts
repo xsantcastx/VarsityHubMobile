@@ -8,7 +8,7 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 const discoverScreen = read('app/(tabs)/discover/mobile-community.tsx');
 // ProfileScreen.tsx was deleted; app/profile.tsx is the live profile screen.
 const profileScreen = read('app/profile.tsx');
-const feedScreen = read('app/features/navigation/screens/FeedScreen.tsx');
+const feedScreen = read('app/feed.tsx');
 const gameDetailsScreen = read('app/game-details/GameDetailsScreen.tsx');
 const teamScreen = read('app/team-page.tsx');
 const eventDetailScreen = read('app/(tabs)/event-detail.tsx');

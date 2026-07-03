@@ -5,7 +5,7 @@ import { join } from 'node:path';
 const ROOT = join(process.cwd());
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
-const feedScreen = read('app/features/navigation/screens/FeedScreen.tsx');
+const feedScreen = read('app/feed.tsx');
 const gameDetailsScreen = read('app/game-details/GameDetailsScreen.tsx');
 const gameVerticalFeedScreen = read('app/game-details/GameVerticalFeedScreen.tsx');
 
@@ -21,7 +21,9 @@ describe('game/feed auth snapshot contracts', () => {
   it('game details and game vertical feed no longer refetch /me directly for current-user identity', () => {
     expect(gameDetailsScreen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
     expect(gameDetailsScreen).toContain('getAuthSnapshot(checkAuth, user)');
-    expect(gameVerticalFeedScreen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
+    expect(gameVerticalFeedScreen).toContain(
+      "import { getAuthSnapshot } from '@/utils/authState';"
+    );
     expect(gameVerticalFeedScreen).toContain('const { user, checkAuth } = useAuth();');
     expect(gameVerticalFeedScreen).toContain('const resolveMeInfo = useCallback(async () => {');
     expect(gameVerticalFeedScreen).not.toContain('const user = await User.me();');
