@@ -118,6 +118,19 @@ const checks: Check[] = [
     label: 'payments google purchase limiter',
   },
 
+  // Ad telemetry — impression/click counters are inflatable without a limiter
+  {
+    file: 'src/routes/ads.ts',
+    pattern:
+      /adsRouter\.post\(\s*'\/:id\/impression',[\s\S]*?adEngagementLimiter[\s\S]*?asyncHandler/,
+    label: 'ads impression limiter',
+  },
+  {
+    file: 'src/routes/ads.ts',
+    pattern: /adsRouter\.post\(\s*'\/:id\/click',[\s\S]*?adEngagementLimiter[\s\S]*?asyncHandler/,
+    label: 'ads click limiter',
+  },
+
   // Uploads
   {
     file: 'src/routes/uploads.ts',
