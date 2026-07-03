@@ -97,6 +97,11 @@ const toFeedPost = (item: any): FeedPost | null => {
     has_upvoted: Boolean(item?.has_upvoted),
     has_bookmarked: Boolean(item?.has_bookmarked),
     is_following_author: Boolean(item?.is_following_author),
+    // Keep in sync with mapHighlightToFeedPost (Post-mapper Consistency Rule):
+    // carry the denormalized event/game link so tap-through and the context
+    // card resolve from either page.
+    game_id: item?.game_id ?? item?.game?.id ?? null,
+    event_id: item?.event_id ?? item?.event?.id ?? null,
   };
 };
 

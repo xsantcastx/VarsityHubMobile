@@ -2225,7 +2225,11 @@ gamesRouter.get(
       const excludedIds = await getExcludedPrivateAuthorIds(req.user?.id ?? null);
       const posts = await prisma.post.findMany({
         where: {
-          game_id: id,
+          // Match posts tied to the game directly (game_id) OR via any of its
+          // events (event_id). Writes denormalize both columns, so game_id
+          // alone would suffice for new rows — the event relation filter keeps
+          // this correct for any legacy row not yet backfilled.
+          OR: [{ game_id: id }, { event: { game_id: id } }],
           deleted_at: null,
           ...(excludedIds.length ? { author_id: { notIn: excludedIds } } : {}),
         },

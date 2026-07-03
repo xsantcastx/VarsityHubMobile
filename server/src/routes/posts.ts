@@ -318,7 +318,13 @@ postsRouter.get(
       if (/^sample-/i.test(gameId)) {
         where.title = { startsWith: `[SAMPLE_GAME:${gameId}]` };
       } else {
-        where.game_id = gameId;
+        // Match posts tied to the game directly (game_id) OR via one of its
+        // events (event_id). Symmetric with the event_id branch below; keeps
+        // legacy rows that only carry one column visible on the game feed.
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : []),
+          { OR: [{ game_id: gameId }, { event: { game_id: gameId } }] },
+        ];
       }
     }
     if (req.query.team_id) {
@@ -765,6 +771,9 @@ postsRouter.post(
     // Store sample game_id in title field with special marker for querying
     let finalGameId: string | null = null;
     let finalTitle = data.title || null;
+    // Event id derived from the game's primary event during the geofencing
+    // lookup below — reused when denormalizing the link so we don't re-query.
+    let derivedEventIdFromGame: string | null = null;
     if (isSampleGame && gameId) {
       // Store sample game_id in title: [SAMPLE_GAME:sample-warriors-cavaliers] Original Title
       const titlePrefix = `[SAMPLE_GAME:${gameId}]`;
@@ -809,9 +818,15 @@ postsRouter.post(
         if (game) {
           homeTeamId = game.home_team_id ?? null;
           awayTeamId = game.away_team_id ?? null;
-          if (!targetEventId && game.events?.length) {
-            targetEventId = game.events[0].id;
-            debugLog(`✅ Found associated event ${targetEventId} for game ${gameId}`);
+          if (game.events?.length) {
+            // Capture the game's primary event so we can denormalize the link
+            // (post carries both game_id AND event_id) even when the client
+            // only sent game_id.
+            derivedEventIdFromGame = game.events[0].id;
+            if (!targetEventId) {
+              targetEventId = derivedEventIdFromGame;
+              debugLog(`✅ Found associated event ${targetEventId} for game ${gameId}`);
+            }
           }
           // [DEMO_MATCHUP] carve-out — one-off for Duke v UNC + Cavs v Warriors
           // promo content. See server/scripts/seed-demo-matchups.ts. This branch
@@ -883,7 +898,32 @@ postsRouter.post(
     // Attach the post directly to its event (real, non-sample events only) so it
     // associates with event-only pages that have no game, and so its author can
     // qualify for the open-ended post-event upload window via event_id.
-    const finalEventId = eventId && !isSampleEvent ? String(eventId) : null;
+    let finalEventId = eventId && !isSampleEvent ? String(eventId) : null;
+
+    // Denormalize the event/game link in BOTH directions. A post tied to a
+    // game or event must carry game_id AND event_id whenever both exist, so
+    // that game-keyed and event-keyed reads are symmetric and the post-detail
+    // context card always resolves. The server is the single writer of this
+    // link — the client only supplies whichever id it had in hand.
+    if (finalGameId && !finalEventId) {
+      // Reuse the event found during geofencing; only query if we skipped it
+      // (e.g. admin/demo bypass never looked the game up).
+      if (derivedEventIdFromGame) {
+        finalEventId = derivedEventIdFromGame;
+      } else {
+        const g = await prisma.game.findUnique({
+          where: { id: finalGameId },
+          select: { events: { orderBy: { date: 'asc' }, take: 1, select: { id: true } } },
+        });
+        finalEventId = g?.events?.[0]?.id ?? null;
+      }
+    } else if (finalEventId && !finalGameId) {
+      const e = await prisma.event.findUnique({
+        where: { id: finalEventId },
+        select: { game_id: true },
+      });
+      finalGameId = e?.game_id ?? null;
+    }
 
     const post = await prisma.post.create({
       data: {
@@ -1153,6 +1193,7 @@ postsRouter.get(
         include: {
           author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
           game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
+          event: { select: { id: true, title: true, date: true, location: true, game_id: true } },
           _count: { select: { comments: true, bookmarks: true } },
           poll: { include: { options: true } },
         },
@@ -1168,6 +1209,7 @@ postsRouter.get(
         include: {
           author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
           game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
+          event: { select: { id: true, title: true, date: true, location: true, game_id: true } },
           _count: { select: { comments: true, bookmarks: true } },
         },
       });
@@ -1242,6 +1284,18 @@ postsRouter.get(
             home_team: post.game.home_team,
             away_team: post.game.away_team,
             date: post.game.date,
+          }
+        : null,
+      // Event card for the post-detail context row. Present whenever the post
+      // is linked to an event — including event-only posts (no game), so the
+      // "vice versa" tie renders even when there is no game to show.
+      event: post.event
+        ? {
+            id: post.event.id,
+            title: post.event.title,
+            date: post.event.date,
+            location: post.event.location ?? null,
+            game_id: post.event.game_id ?? null,
           }
         : null,
     };
