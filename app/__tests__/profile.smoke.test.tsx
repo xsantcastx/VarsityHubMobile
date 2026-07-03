@@ -57,11 +57,16 @@ jest.mock('@/hooks/useCustomColorScheme', () => ({
 }));
 
 import ProfileScreen from '../profile';
+import { QueryWrapper } from '../../test-utils/screenMocks';
 
 describe('profile.tsx (render smoke)', () => {
   it('mounts and renders a tree without crashing for an empty user', () => {
     mockUser = null;
-    const { toJSON } = render(<ProfileScreen />);
+    const { toJSON } = render(
+      <QueryWrapper>
+        <ProfileScreen />
+      </QueryWrapper>
+    );
     expect(toJSON()).toBeTruthy();
   });
 });

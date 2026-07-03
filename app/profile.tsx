@@ -12,12 +12,13 @@ import { safeGoBack } from '@/utils/navigation';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { getGradientForColor } from '@/utils/theme';
 import { queryClient } from '@/lib/queryClient';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -138,31 +139,7 @@ export default function ProfileScreen() {
       return 'posts';
     }
   });
-  const [posts, setPosts] = useState<any[]>([]);
-  const [postsCursor, setPostsCursor] = useState<string | null>(null);
-  const [postsHasMore, setPostsHasMore] = useState(true);
-  const [postsLoading, setPostsLoading] = useState(false);
-  const postsRequestInFlight = useRef(false);
-
-  const [replies, setReplies] = useState<any[]>([]);
-  const [repliesCursor, setRepliesCursor] = useState<string | null>(null);
-  const [repliesHasMore, setRepliesHasMore] = useState(true);
-  const [repliesLoading, setRepliesLoading] = useState(false);
-  const repliesRequestInFlight = useRef(false);
-
-  const [upvotes, setUpvotes] = useState<any[]>([]);
-  const [upvotesCursor, setUpvotesCursor] = useState<string | null>(null);
-  const [upvotesHasMore, setUpvotesHasMore] = useState(true);
-  const [upvotesLoading, setUpvotesLoading] = useState(false);
-  const upvotesRequestInFlight = useRef(false);
   const [sort, _setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
-  const [_counts, setCounts] = useState<{
-    posts: number;
-    likes: number;
-    comments: number;
-    reposts: number;
-    saves: number;
-  } | null>(null);
   const _rememberingTab = useRef(false);
   const [_organizations, setOrganizations] = useState<any[]>([]);
   const [userThemeColor, setUserThemeColor] = useState<string>('#3B82F6'); // Default color
@@ -185,18 +162,6 @@ export default function ProfileScreen() {
     }>
   >([]);
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
-
-  const setIfDifferent = useCallback((setter: any, next: any) => {
-    setter((prev: any) => {
-      try {
-        if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
-      } catch (error) {
-        // Silently fail - localStorage is optional
-        if (__DEV__) console.warn('[profile] localStorage error:', error);
-      }
-      return next;
-    });
-  }, []);
 
   const handleFollowToggle = useCallback(async () => {
     if (!viewingUserId || followLoading) return;
@@ -279,73 +244,69 @@ export default function ProfileScreen() {
     }
   }, [viewingUserId, isFollowing, followLoading]);
 
-  const refreshPosts = useCallback(
-    async (userId: string) => {
-      if (postsRequestInFlight.current) return;
-      if (!userId || userId === 'undefined' || userId === 'null') return;
-      postsRequestInFlight.current = true;
-      setPostsLoading(true);
-      try {
-        const page = await User.postsForProfile(String(userId), { limit: 10, sort });
-        setIfDifferent(setPosts, page.items || []);
-        setPostsCursor(page.nextCursor || null);
-        setPostsHasMore(Boolean(page.nextCursor));
-        if (page.counts) setCounts(page.counts);
-      } finally {
-        postsRequestInFlight.current = false;
-        setPostsLoading(false);
-      }
-    },
-    [sort, setIfDifferent]
+  // The three tab lists are cursor-paginated infinite queries, keyed per
+  // profile user + sort. Only the ACTIVE tab is enabled (lazy, like the old
+  // per-tab refresh), and a previously-visited tab renders instantly from
+  // cache when switched back to.
+  const profileUserId =
+    me?.id && String(me.id) !== 'undefined' && String(me.id) !== 'null' ? String(me.id) : null;
+
+  const postsQuery = useInfiniteQuery({
+    queryKey: ['profile-posts', profileUserId, sort],
+    enabled: !!profileUserId && activeTab === 'posts',
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      User.postsForProfile(profileUserId as string, {
+        limit: 10,
+        sort,
+        cursor: pageParam || undefined,
+      }),
+    getNextPageParam: (last: any) => last?.nextCursor || undefined,
+  });
+  const repliesQuery = useInfiniteQuery({
+    queryKey: ['profile-replies', profileUserId, sort],
+    enabled: !!profileUserId && activeTab === 'replies',
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      User.interactionsForProfile(profileUserId as string, {
+        limit: 10,
+        type: 'comment',
+        sort,
+        cursor: pageParam || undefined,
+      }),
+    getNextPageParam: (last: any) => last?.nextCursor || undefined,
+  });
+  const upvotesQuery = useInfiniteQuery({
+    queryKey: ['profile-upvotes', profileUserId, sort],
+    enabled: !!profileUserId && activeTab === 'upvotes',
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      User.interactionsForProfile(profileUserId as string, {
+        limit: 10,
+        type: 'like',
+        sort,
+        cursor: pageParam || undefined,
+      }),
+    getNextPageParam: (last: any) => last?.nextCursor || undefined,
+  });
+
+  const posts = useMemo(
+    () => postsQuery.data?.pages.flatMap((p: any) => p?.items || []) ?? [],
+    [postsQuery.data]
+  );
+  const replies = useMemo(
+    () => repliesQuery.data?.pages.flatMap((p: any) => p?.items || []) ?? [],
+    [repliesQuery.data]
+  );
+  const upvotes = useMemo(
+    () => upvotesQuery.data?.pages.flatMap((p: any) => p?.items || []) ?? [],
+    [upvotesQuery.data]
   );
 
-  const refreshReplies = useCallback(
-    async (userId: string) => {
-      if (repliesRequestInFlight.current) return;
-      if (!userId || userId === 'undefined' || userId === 'null') return;
-      repliesRequestInFlight.current = true;
-      setRepliesLoading(true);
-      try {
-        const page = await User.interactionsForProfile(String(userId), {
-          limit: 10,
-          type: 'comment',
-          sort,
-        });
-        setIfDifferent(setReplies, page.items || []);
-        setRepliesCursor(page.nextCursor || null);
-        setRepliesHasMore(Boolean(page.nextCursor));
-        if (page.counts) setCounts(page.counts);
-      } finally {
-        repliesRequestInFlight.current = false;
-        setRepliesLoading(false);
-      }
-    },
-    [sort, setIfDifferent]
-  );
-
-  const refreshUpvotes = useCallback(
-    async (userId: string) => {
-      if (upvotesRequestInFlight.current) return;
-      if (!userId || userId === 'undefined' || userId === 'null') return;
-      upvotesRequestInFlight.current = true;
-      setUpvotesLoading(true);
-      try {
-        const page = await User.interactionsForProfile(String(userId), {
-          limit: 10,
-          type: 'like',
-          sort,
-        });
-        setIfDifferent(setUpvotes, page.items || []);
-        setUpvotesCursor(page.nextCursor || null);
-        setUpvotesHasMore(Boolean(page.nextCursor));
-        if (page.counts) setCounts(page.counts);
-      } finally {
-        upvotesRequestInFlight.current = false;
-        setUpvotesLoading(false);
-      }
-    },
-    [sort, setIfDifferent]
-  );
+  // Footer spinners: first page (isPending) or an in-flight next page.
+  const postsLoading = postsQuery.isPending || postsQuery.isFetchingNextPage;
+  const repliesLoading = repliesQuery.isPending || repliesQuery.isFetchingNextPage;
+  const upvotesLoading = upvotesQuery.isPending || upvotesQuery.isFetchingNextPage;
 
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -421,16 +382,8 @@ export default function ProfileScreen() {
         const themeColor = isCoachOrOrg ? u?.preferences?.theme_color || '#3B82F6' : '#6B7280'; // Default gray for fans
         setUserThemeColor(themeColor);
 
-        // Load first page for active tab (only if initial load or tab changed)
-        if (isInitialLoad || !options?.silent) {
-          if (activeTab === 'posts') {
-            await refreshPosts(u.id);
-          } else if (activeTab === 'replies') {
-            await refreshReplies(u.id);
-          } else if (activeTab === 'upvotes') {
-            await refreshUpvotes(u.id);
-          }
-        }
+        // Tab lists load via their own queries once `me` resolves (see the
+        // useInfiniteQuery block above) — nothing to await here.
       } catch (e: any) {
         if (e?.status !== 404) {
           console.error('[Profile] Failed to load profile:', e);
@@ -459,15 +412,7 @@ export default function ProfileScreen() {
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [
-      activeTab,
-      checkAuth,
-      refreshPosts,
-      refreshReplies,
-      refreshUpvotes,
-      userFromAuth,
-      viewingUserId,
-    ]
+    [checkAuth, userFromAuth, viewingUserId]
   );
 
   // Initial load on mount - only once. Deferred until the push animation
@@ -499,18 +444,30 @@ export default function ProfileScreen() {
 
   // Silent refresh on focus - NEVER show skeleton after first load.
   // Deferred so the return transition isn't competing with the refetch.
+  const activeTabQuery =
+    activeTab === 'posts' ? postsQuery : activeTab === 'replies' ? repliesQuery : upvotesQuery;
+  const refetchActiveTab = activeTabQuery.refetch;
+  const activeTabHasData = activeTabQuery.data !== undefined;
   useFocusEffect(
     useCallback(() => {
       const task = InteractionManager.runAfterInteractions(() => {
         if (hasLoadedOnce.current) {
           void loadProfile({ silent: true });
+          // Background-refresh the active tab list too — the old loadProfile
+          // refreshed it on focus, and react-query has no window-focus concept
+          // on native. Gated on the tab already having data (background-only:
+          // refetch() doesn't flip isPending once data exists) so a fresh
+          // post/reply shows up when returning to the profile.
+          if (profileUserId && activeTabHasData) {
+            void refetchActiveTab();
+          }
         } else if (isInitialMount.current && !profileRequestInFlight.current) {
           void loadProfile();
         }
       });
       return () => task.cancel();
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [loadProfile])
+    }, [loadProfile, profileUserId, activeTabHasData, refetchActiveTab])
   );
 
   // Load organizations separately to avoid blocking profile render
@@ -579,114 +536,26 @@ export default function ProfileScreen() {
     void loadOrganizations();
   }, [me?.id]);
 
-  // Refresh when switching tabs
+  // Clear any stale profile error when switching tabs (the tab queries
+  // themselves fetch lazily via their `enabled` gates; sort changes refetch
+  // automatically because sort is part of each query key)
   useEffect(() => {
-    if (!me?.id) return;
-    setError(null); // Clear any stale errors
-    if (activeTab === 'posts') {
-      void refreshPosts(String(me.id));
-    } else if (activeTab === 'replies') {
-      void refreshReplies(String(me.id));
-    } else if (activeTab === 'upvotes') {
-      void refreshUpvotes(String(me.id));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, me?.id]);
-
-  // When sort changes while on Replies or Upvotes tab, refresh
-  useEffect(() => {
-    if (!me?.id) return;
-    if (activeTab === 'replies') {
-      setError(null);
-      void refreshReplies(String(me.id));
-    } else if (activeTab === 'upvotes') {
-      setError(null);
-      void refreshUpvotes(String(me.id));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort, me?.id]);
+    setError(null);
+  }, [activeTab]);
 
   // Refresh replies when a new comment is created from the viewer
   useEffect(() => {
-    if (!me?.id) return;
+    if (!profileUserId) return;
     const off = events.on('comment:created', () => {
       if (activeTab === 'replies') {
-        void refreshReplies(String(me.id));
+        void repliesQuery.refetch();
       }
     });
     return () => {
       off();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, me?.id]);
-
-  const loadMorePosts = useCallback(
-    async (userId: string) => {
-      if (postsLoading || !postsHasMore) return;
-      if (!userId || userId === 'undefined' || userId === 'null') return;
-      setPostsLoading(true);
-      try {
-        const page = await User.postsForProfile(String(userId), {
-          limit: 10,
-          sort,
-          cursor: postsCursor || undefined,
-        });
-        setPosts(prev => [...prev, ...(page.items || [])]);
-        setPostsCursor(page.nextCursor || null);
-        setPostsHasMore(Boolean(page.nextCursor));
-        if (page.counts) setCounts(page.counts);
-      } finally {
-        setPostsLoading(false);
-      }
-    },
-    [postsCursor, postsHasMore, postsLoading, sort]
-  );
-
-  const loadMoreReplies = useCallback(
-    async (userId: string) => {
-      if (repliesLoading || !repliesHasMore) return;
-      if (!userId || userId === 'undefined' || userId === 'null') return;
-      setRepliesLoading(true);
-      try {
-        const page = await User.interactionsForProfile(String(userId), {
-          limit: 10,
-          sort,
-          type: 'comment',
-          cursor: repliesCursor || undefined,
-        });
-        setReplies(prev => [...prev, ...(page.items || [])]);
-        setRepliesCursor(page.nextCursor || null);
-        setRepliesHasMore(Boolean(page.nextCursor));
-        if (page.counts) setCounts(page.counts);
-      } finally {
-        setRepliesLoading(false);
-      }
-    },
-    [repliesCursor, repliesHasMore, repliesLoading, sort]
-  );
-
-  const loadMoreUpvotes = useCallback(
-    async (userId: string) => {
-      if (upvotesLoading || !upvotesHasMore) return;
-      if (!userId || userId === 'undefined' || userId === 'null') return;
-      setUpvotesLoading(true);
-      try {
-        const page = await User.interactionsForProfile(String(userId), {
-          limit: 10,
-          sort,
-          type: 'like',
-          cursor: upvotesCursor || undefined,
-        });
-        setUpvotes(prev => [...prev, ...(page.items || [])]);
-        setUpvotesCursor(page.nextCursor || null);
-        setUpvotesHasMore(Boolean(page.nextCursor));
-        if (page.counts) setCounts(page.counts);
-      } finally {
-        setUpvotesLoading(false);
-      }
-    },
-    [upvotesCursor, upvotesHasMore, upvotesLoading, sort]
-  );
+  }, [activeTab, profileUserId]);
 
   const preferences = me?.preferences ? (me.preferences as ProfilePreferences) : null;
   const rawRole = preferences?.role ?? (me as any)?.role ?? '';
@@ -1290,15 +1159,22 @@ export default function ProfileScreen() {
     </View>
   );
 
+  // fetchNextPage has a built-in in-flight guard; hasNextPage replaces the
+  // old cursor/hasMore bookkeeping.
   const onEndReachedPosts = useCallback(() => {
-    if (me?.id) void loadMorePosts(String(me.id));
-  }, [me?.id, loadMorePosts]);
+    if (postsQuery.hasNextPage && !postsQuery.isFetchingNextPage) void postsQuery.fetchNextPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postsQuery.hasNextPage, postsQuery.isFetchingNextPage, postsQuery.fetchNextPage]);
   const onEndReachedReplies = useCallback(() => {
-    if (me?.id) void loadMoreReplies(String(me.id));
-  }, [me?.id, loadMoreReplies]);
+    if (repliesQuery.hasNextPage && !repliesQuery.isFetchingNextPage)
+      void repliesQuery.fetchNextPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repliesQuery.hasNextPage, repliesQuery.isFetchingNextPage, repliesQuery.fetchNextPage]);
   const onEndReachedUpvotes = useCallback(() => {
-    if (me?.id) void loadMoreUpvotes(String(me.id));
-  }, [me?.id, loadMoreUpvotes]);
+    if (upvotesQuery.hasNextPage && !upvotesQuery.isFetchingNextPage)
+      void upvotesQuery.fetchNextPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upvotesQuery.hasNextPage, upvotesQuery.isFetchingNextPage, upvotesQuery.fetchNextPage]);
 
   // Some interaction items may wrap a post (e.g., { type, post, created_at })
   const unwrapPost = useCallback((item: any) => {
