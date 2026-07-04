@@ -60,6 +60,72 @@ const withInteractions = (
   has_bookmarked: bookmarkedIds.has(post.id),
 });
 
+const RADIUS_KM = 100; // Wider radius for more posts
+
+function recencyBoost(d: Date) {
+  const ageDays = (Date.now() - new Date(d).getTime()) / 864e5;
+  if (ageDays <= 0.5) return 12; // Super recent
+  if (ageDays <= 1) return 8;
+  if (ageDays <= 3) return 5;
+  if (ageDays <= 7) return 3;
+  if (ageDays <= 14) return 2;
+  return 1;
+}
+
+function engagementBoost(upvotes: number, comments: number) {
+  const totalEngagement = (upvotes || 0) + (comments || 0) * 2; // Comments worth 2x upvotes
+  if (totalEngagement >= 100) return 10;
+  if (totalEngagement >= 50) return 6;
+  if (totalEngagement >= 20) return 4;
+  if (totalEngagement >= 10) return 2;
+  return 1;
+}
+
+function buildIsLocal(lat?: number, lng?: number): (p: any) => boolean {
+  if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
+    return () => false;
+  }
+  const kmPerDegLat = 110.574;
+  const kmPerDegLng = 111.32 * Math.cos((lat * Math.PI) / 180);
+  const dLat = RADIUS_KM / kmPerDegLat;
+  const dLng = RADIUS_KM / kmPerDegLng;
+  return (p: any) =>
+    typeof p.lat === 'number' &&
+    typeof p.lng === 'number' &&
+    p.lat >= lat - dLat &&
+    p.lat <= lat + dLat &&
+    p.lng >= lng - dLng &&
+    p.lng <= lng + dLng;
+}
+
+async function getFollowedSet(
+  userId: string | null | undefined,
+  posts: any[]
+): Promise<Set<string>> {
+  if (!userId || posts.length === 0) return new Set();
+  const authorIds = [...new Set(posts.map((p: any) => p.author_id).filter(Boolean))];
+  if (authorIds.length === 0) return new Set();
+  const follows = await prisma.follows.findMany({
+    where: { follower_id: userId, following_id: { in: authorIds } },
+    select: { following_id: true },
+    take: authorIds.length,
+  });
+  return new Set(follows.map(f => f.following_id));
+}
+
+const scoreHighlightPost = (
+  p: any,
+  followedSet: Set<string>,
+  isLocal: (p: any) => boolean
+): number =>
+  (p.upvotes_count || 0) * 2 +
+  (p._count?.comments || 0) * 3 +
+  (followedSet.has(p.author_id) ? 8 : 0) +
+  (isLocal(p) ? 6 : 0) +
+  recencyBoost(p.created_at) +
+  engagementBoost(p.upvotes_count, p._count?.comments || 0) +
+  (p.media_url ? 4 : 0);
+
 // GET /highlights?zip=90210&country=US&lat=..&lng=..&limit=20
 highlightsRouter.get(
   '/',
@@ -75,7 +141,6 @@ highlightsRouter.get(
       const v2 = String((req.query as any).v2 || '').trim() === '1';
       const SINCE_DAYS = v2 ? 90 : 60; // Longer time window for more posts
       const since = new Date(Date.now() - SINCE_DAYS * 864e5);
-      const RADIUS_KM = 100; // Wider radius for more posts
 
       // Privacy + blocks: exclude private-profile authors and blocked users
       const [excludedIds, blockedIds] = await Promise.all([
@@ -170,66 +235,15 @@ highlightsRouter.get(
 
       // v2 ranked mix
 
-      // Local bbox predicate
-      let isLocal: (p: any) => boolean = () => false;
-      if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
-        const kmPerDegLat = 110.574;
-        const kmPerDegLng = 111.32 * Math.cos((lat * Math.PI) / 180);
-        const dLat = RADIUS_KM / kmPerDegLat;
-        const dLng = RADIUS_KM / kmPerDegLng;
-        isLocal = (p: any) =>
-          typeof p.lat === 'number' &&
-          typeof p.lng === 'number' &&
-          p.lat >= lat - dLat &&
-          p.lat <= lat + dLat &&
-          p.lng >= lng - dLng &&
-          p.lng <= lng + dLng;
-      }
+      const isLocal = buildIsLocal(lat, lng);
 
       // Followed authors (only if authenticated) — bound by authors actually in the pool
-      const currentUserId = req.user?.id;
-      let followedSet = new Set<string>();
-
-      if (currentUserId && pool.length > 0) {
-        const poolAuthorIds = [...new Set(pool.map((p: any) => p.author_id).filter(Boolean))];
-        const follows = await prisma.follows.findMany({
-          where: { follower_id: currentUserId, following_id: { in: poolAuthorIds } },
-          select: { following_id: true },
-          take: poolAuthorIds.length,
-        });
-        followedSet = new Set(follows.map(f => f.following_id));
-      }
-
-      function recencyBoost(d: Date) {
-        const ageDays = (Date.now() - new Date(d).getTime()) / 864e5;
-        if (ageDays <= 0.5) return 12; // Super recent
-        if (ageDays <= 1) return 8;
-        if (ageDays <= 3) return 5;
-        if (ageDays <= 7) return 3;
-        if (ageDays <= 14) return 2;
-        return 1;
-      }
-
-      function engagementBoost(upvotes: number, comments: number) {
-        const totalEngagement = (upvotes || 0) + (comments || 0) * 2; // Comments worth 2x upvotes
-        if (totalEngagement >= 100) return 10;
-        if (totalEngagement >= 50) return 6;
-        if (totalEngagement >= 20) return 4;
-        if (totalEngagement >= 10) return 2;
-        return 1;
-      }
+      const followedSet = await getFollowedSet(req.user?.id, pool);
 
       const ranked = pool
         .map((p: any) => ({
           ...p,
-          _score:
-            (p.upvotes_count || 0) * 2 +
-            (p._count?.comments || 0) * 3 +
-            (followedSet.has(p.author_id) ? 8 : 0) +
-            (isLocal(p) ? 6 : 0) +
-            recencyBoost(p.created_at) +
-            engagementBoost(p.upvotes_count, p._count?.comments || 0) +
-            (p.media_url ? 4 : 0),
+          _score: scoreHighlightPost(p, followedSet, isLocal),
         }))
         .sort((a, b) => b._score - a._score)
         .slice(0, limit);
