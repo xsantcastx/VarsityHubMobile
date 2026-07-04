@@ -5,6 +5,11 @@ name: FIFA World Cup Seed
 # only matches missing from the DB are created.
 
 on:
+  push:
+    branches: [claude/fifa-games-varistyhub-4g56fq]
+    paths:
+      - '.github/workflows/fifa-seed.yml'
+      - 'server/scripts/fifa/**'
   workflow_dispatch:
     inputs:
       date:
