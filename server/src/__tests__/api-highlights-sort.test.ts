@@ -128,3 +128,51 @@ describe('GET /highlights?v2=1&sort=recent — block filter applies (country IS)
     expect(res.body.items.map((p: any) => p.id)).not.toContain(blockedPostId);
   });
 });
+
+describe('GET /highlights?v2=1&sort=top — country FJ', () => {
+  let authorId: string;
+  let commentHeavyPost: string; // 2 upvotes + 4 comments = engagement 8
+  let upvoteOnlyPost: string; // 5 upvotes = engagement 5
+  let tooOldViralPost: string; // 40 days old — outside the 30-day window
+  const cleanup: string[] = [];
+  const commentIds: string[] = [];
+
+  beforeAll(async () => {
+    const author = await createAuthor('top');
+    authorId = author.id;
+    commentHeavyPost = (await createPost(authorId, 'FJ', { upvotes: 2, createdDaysAgo: 10 })).id;
+    upvoteOnlyPost = (await createPost(authorId, 'FJ', { upvotes: 5, createdDaysAgo: 5 })).id;
+    tooOldViralPost = (await createPost(authorId, 'FJ', { upvotes: 900, createdDaysAgo: 40 })).id;
+    cleanup.push(commentHeavyPost, upvoteOnlyPost, tooOldViralPost);
+    for (let i = 0; i < 4; i++) {
+      const c = await prisma.comment.create({
+        data: { post_id: commentHeavyPost, author_id: authorId, content: `comment ${i}` },
+      });
+      commentIds.push(c.id);
+    }
+  });
+
+  afterAll(async () => {
+    await prisma.comment.deleteMany({ where: { id: { in: commentIds } } });
+    await prisma.post.deleteMany({ where: { id: { in: cleanup } } });
+    await prisma.user.delete({ where: { id: authorId } }).catch(() => {});
+  });
+
+  it('ranks by upvotes + comments*1.5 within the last 30 days', async () => {
+    const res = await request(app).get('/highlights?v2=1&country=FJ&sort=top');
+    expect(res.status).toBe(200);
+    const ids = res.body.items.map((p: any) => p.id);
+    // Comment-heavy (engagement 8) beats upvote-only (engagement 5) — Bug D repro
+    expect(ids.indexOf(commentHeavyPost)).toBeLessThan(ids.indexOf(upvoteOnlyPost));
+  });
+
+  it('excludes posts older than 30 days regardless of upvotes', async () => {
+    const res = await request(app).get('/highlights?v2=1&country=FJ&sort=top');
+    expect(res.body.items.map((p: any) => p.id)).not.toContain(tooOldViralPost);
+  });
+
+  it('respects the limit param', async () => {
+    const res = await request(app).get('/highlights?v2=1&country=FJ&sort=top&limit=1');
+    expect(res.body.items.length).toBe(1);
+  });
+});

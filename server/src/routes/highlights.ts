@@ -174,7 +174,34 @@ highlightsRouter.get(
             select: highlightPostSelect,
           });
         }
-        // sort === 'top' and sort === 'trending' are implemented in Tasks 3 and 4.
+        if (sort === 'top') {
+          // Product rule: most engagement (upvotes + comments*1.5) in the last
+          // 30 days. Union of top-by-upvotes and top-by-comment-count so a
+          // comment-heavy post can't be missed by an upvotes-only orderBy.
+          const monthAgo = new Date(Date.now() - 30 * 864e5);
+          const [byUpvotes, byComments] = await Promise.all([
+            prisma.post.findMany({
+              where: { ...baseWhere, created_at: { gte: monthAgo } },
+              orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
+              take: 100,
+              select: highlightPostSelect,
+            }),
+            prisma.post.findMany({
+              where: { ...baseWhere, created_at: { gte: monthAgo } },
+              orderBy: [{ comments: { _count: 'desc' } }, { created_at: 'desc' }],
+              take: 100,
+              select: highlightPostSelect,
+            }),
+          ]);
+          const merged = new Map<string, any>();
+          for (const p of [...byUpvotes, ...byComments]) merged.set(p.id, p);
+          const engagement = (p: any) =>
+            (p.upvotes_count || 0) + (p._count?.comments || 0) * 1.5;
+          items = [...merged.values()]
+            .sort((a, b) => engagement(b) - engagement(a))
+            .slice(0, limit);
+        }
+        // sort === 'trending' is implemented in Task 4.
 
         const { upvotedIds, bookmarkedIds } = await getInteractionSets(
           req.user?.id,
