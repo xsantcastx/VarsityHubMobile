@@ -139,6 +139,11 @@ highlightsRouter.get(
       const lat = (req.query as any).lat != null ? Number((req.query as any).lat) : undefined;
       const lng = (req.query as any).lng != null ? Number((req.query as any).lng) : undefined;
       const v2 = String((req.query as any).v2 || '').trim() === '1';
+      const sortParamRaw = String((req.query as any).sort || '').trim().toLowerCase();
+      const sort =
+        v2 && (sortParamRaw === 'recent' || sortParamRaw === 'top' || sortParamRaw === 'trending')
+          ? sortParamRaw
+          : null;
       const SINCE_DAYS = v2 ? 90 : 60; // Longer time window for more posts
       const since = new Date(Date.now() - SINCE_DAYS * 864e5);
 
@@ -149,6 +154,36 @@ highlightsRouter.get(
       ]);
       const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
       const privacyWhere = allExcluded.length ? { author_id: { notIn: allExcluded } } : {};
+
+      // Per-tab sorted mode (v2 only): each mode runs its own correctly-shaped
+      // query instead of deriving all tabs from one trending-shaped pool.
+      if (sort) {
+        const baseWhere = {
+          country_code: country,
+          media_url: { not: null },
+          deleted_at: null,
+          ...privacyWhere,
+        };
+        let items: any[] = [];
+
+        if (sort === 'recent') {
+          items = await prisma.post.findMany({
+            where: { ...baseWhere, created_at: { gte: since } },
+            orderBy: [{ created_at: 'desc' }],
+            take: limit,
+            select: highlightPostSelect,
+          });
+        }
+        // sort === 'top' and sort === 'trending' are implemented in Tasks 3 and 4.
+
+        const { upvotedIds, bookmarkedIds } = await getInteractionSets(
+          req.user?.id,
+          items.map((p: any) => p.id)
+        );
+        const enrich = withInteractions(upvotedIds, bookmarkedIds);
+        res.set('Cache-Control', 'no-store, private');
+        return res.json({ sort, items: items.map(enrich) });
+      }
 
       // Run nationalTop + pool concurrently — dedup in JS after both resolve.
       const [nationalTopRaw, poolRaw] = await Promise.all([
