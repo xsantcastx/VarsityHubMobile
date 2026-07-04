@@ -1,0 +1,58 @@
+name: FIFA World Cup Seed
+
+# Runs server/scripts/fifa/create-fifa-events.ts against production.
+# The script is idempotent — existing org/teams/games/events are skipped,
+# only matches missing from the DB are created.
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Only process matches kicking off this UTC date (YYYY-MM-DD). Empty = all matches in the data file.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Print the plan without writing anything'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  seed-fifa-events:
+    name: Seed FIFA events
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+
+      - name: Run FIFA event creator
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Missing GitHub secret: PRODUCTION_DATABASE_URL"
+            exit 1
+          fi
+          ARGS=""
+          if [ -n "${{ inputs.date }}" ]; then
+            ARGS="$ARGS --date ${{ inputs.date }}"
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          npx tsx scripts/fifa/create-fifa-events.ts $ARGS
