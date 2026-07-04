@@ -2,8 +2,9 @@
  * FIFA World Cup 2026 — template data. GENERATED from the fixture feed
  * (fixturedownload.com/feed/json/fifa-world-cup-2026) — full group stage.
  *
- * Knockout-round fixtures (matches 73-104) are intentionally absent: teams
- * are TBD until the group stage concludes. Add them here once known, then run:
+ * Knockout-round fixtures are added as their teams become known (group stage
+ * concluded June 27). Round of 16 matches for July 4–5 (89–92) are included;
+ * remaining knockout fixtures are still TBD. Add them here once known, then run:
  *
  *   npx tsx scripts/fifa/create-fifa-events.ts --dry-run
  *
@@ -1286,5 +1287,50 @@ export const MATCHES: MatchDef[] = [
     matchLabel: 'Match 72',
     kickoffLocalNote: 'Kickoff: 7:30 PM EDT.',
     isNeutral: true,
+  },
+  // ── Round of 16 — July 4 ───────────────────────────────────────────────────
+  {
+    home: 'Canada',
+    away: 'Morocco',
+    venue: 'nrg',
+    kickoffUtc: '2026-07-04T17:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 90',
+    kickoffLocalNote: 'Kickoff: 1:00 PM EDT / 12:00 PM CDT.',
+    isNeutral: true,
+    note: 'Canada (Group B winner) meets Morocco after their shootout upset of the Netherlands.',
+  },
+  {
+    home: 'Paraguay',
+    away: 'France',
+    venue: 'lincoln',
+    kickoffUtc: '2026-07-04T21:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 89',
+    kickoffLocalNote: 'Kickoff: 5:00 PM EDT.',
+    isNeutral: true,
+    note: 'Paraguay reach the last 16 after a shootout win over Germany; France arrive as two-time champions.',
+  },
+  // ── Round of 16 — July 5 ───────────────────────────────────────────────────
+  {
+    home: 'Brazil',
+    away: 'Norway',
+    venue: 'metlife',
+    kickoffUtc: '2026-07-05T20:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 91',
+    kickoffLocalNote: 'Kickoff: 4:00 PM EDT.',
+    isNeutral: true,
+  },
+  {
+    home: 'Mexico',
+    away: 'England',
+    venue: 'azteca',
+    kickoffUtc: '2026-07-06T00:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 92',
+    kickoffLocalNote: 'Kickoff: 8:00 PM EDT / 6:00 PM local in Mexico City.',
+    isNeutral: false,
+    note: 'Host nation Mexico take on England at the Azteca.',
   },
 ];
