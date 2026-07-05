@@ -188,6 +188,9 @@ highlightsRouter.get(
             }),
             prisma.post.findMany({
               where: { ...baseWhere, created_at: { gte: monthAgo } },
+              // Unlike byUpvotes (covered by the country/upvotes/created_at
+              // index), this relation-count order runs a per-row correlated
+              // COUNT — accepted cost at single-country/30-day volume.
               orderBy: [{ comments: { _count: 'desc' } }, { created_at: 'desc' }],
               take: 100,
               select: highlightPostSelect,
