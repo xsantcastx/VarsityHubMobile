@@ -491,7 +491,9 @@ function CreatePostScreen() {
         if (fileSize > maxSize) {
           Alert.alert(
             'File Too Large',
-            `The selected ${media} is too large. Maximum size is ${maxSizeMB}MB.`
+            media === 'video'
+              ? `This video is ${Math.round(fileSize / (1024 * 1024))}MB — the limit is ${maxSizeMB}MB. Trim it shorter or record at a lower resolution and try again.`
+              : `The selected ${media} is too large. Maximum size is ${maxSizeMB}MB.`
           );
           return;
         }

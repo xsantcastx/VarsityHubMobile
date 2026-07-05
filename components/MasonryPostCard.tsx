@@ -3,6 +3,7 @@ import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import { resolveMediaType } from '@/utils/media';
 import { prefetchUserProfile } from '@/utils/prefetch';
 import { REPORT_REASONS, usePostInteractions } from '@/hooks/usePostInteractions';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -40,11 +41,9 @@ function MasonryPostCard({
 
   const mediaUrl = post?.media_url || post?.mediaUrl || null;
   const previewUrl = post?.preview_url || post?.thumbnail_url || post?.previewUrl || null;
-  const mediaType = typeof post?.media_type === 'string' ? post.media_type.toLowerCase() : null;
-  const isImage =
-    mediaType === 'image' || (mediaUrl ? /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl) : false);
-  const isVideo =
-    mediaType === 'video' || (mediaUrl ? /\.(mp4|mov|webm|m4v)$/i.test(mediaUrl) : false);
+  const resolvedMediaType = resolveMediaType(mediaUrl, post?.media_type);
+  const isImage = resolvedMediaType === 'image';
+  const isVideo = resolvedMediaType === 'video';
   const caption = useMemo(() => post.caption || post.content || '', [post.caption, post.content]);
   const author = post?.author || null;
   const hasPoll = !!post.poll;

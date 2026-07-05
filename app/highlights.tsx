@@ -44,7 +44,7 @@ import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { getCloudinaryVideoPreviewUrl } from '@/utils/media';
+import { getCloudinaryVideoPreviewUrl, resolveMediaType } from '@/utils/media';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
 type TabType = 'trending' | 'recent' | 'top';
@@ -211,7 +211,7 @@ const HighlightCard = ({
   colorScheme: 'light' | 'dark';
   onUpvote?: (item: HighlightItem) => void;
 }) => {
-  const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
+  const isVideo = resolveMediaType(item.media_url, item.media_type) === 'video';
   const category = getSportCategory(item.sport, item.title, item.content);
   const hasMedia = !!item.media_url;
   const previewUrl =
