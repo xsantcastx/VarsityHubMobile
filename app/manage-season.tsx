@@ -1669,7 +1669,7 @@ function ManageSeasonScreen() {
                       opponent_name:
                         game.homeTeam && game.awayTeam
                           ? `${game.homeTeam} vs ${game.awayTeam}`
-                          : game.opponent_name,
+                          : game.opponent_name || game.opponent,
                       scheduled_date: game.date,
                       scheduled_time: game.time,
                       game_type: game.type,
@@ -1714,7 +1714,7 @@ function ManageSeasonScreen() {
                       opponent_name:
                         game.homeTeam && game.awayTeam
                           ? `${game.homeTeam} vs ${game.awayTeam}`
-                          : game.opponent_name,
+                          : game.opponent_name || game.opponent,
                       scheduled_date: game.date,
                       scheduled_time: game.time,
                       game_type: game.type,
