@@ -252,6 +252,8 @@ function CommunityDiscoverScreen() {
       id: String(p?.id ?? p?.post_id ?? Date.now()),
       media_url: mediaUrl,
       media_type: isVideo ? 'video' : 'image',
+      game_id: p?.game_id ?? p?.game?.id ?? null,
+      event_id: p?.event_id ?? p?.event?.id ?? null,
       caption: p?.caption ?? p?.title ?? null,
       upvotes_count:
         typeof p?.upvotes_count === 'number'

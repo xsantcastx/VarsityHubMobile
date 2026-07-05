@@ -491,6 +491,10 @@ function mapPostForPayload(post: any) {
     media_url: post.media_url ?? null,
     media_type: detectMediaType(post.media_url),
     preview_url: getVideoPreviewUrl(post.media_url),
+    // Event/game linkage — every post surface must be able to offer
+    // "open the event page" (EventChip); mirrors serializeFeedPost.
+    game_id: post.game_id ?? null,
+    event_id: post.event_id ?? null,
     caption: post.content ?? null,
     upvotes_count: post.upvotes_count ?? 0,
     comments_count: post._count?.comments ?? 0,
