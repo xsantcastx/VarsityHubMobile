@@ -62,6 +62,7 @@
     "verify:version": "bash scripts/verify-latest-version.sh",
     "submit:ios": "eas submit --platform ios --profile production",
     "submit:android": "eas submit --platform android --profile production",
+    "update:production": "cross-env SENTRY_DISABLE_AUTO_UPLOAD= eas update --branch production",
     "server:install": "cd server && npm install",
     "server:dev": "cd server && npm run dev",
     "server:db:migrate": "cd server && npx prisma migrate dev --name init",
