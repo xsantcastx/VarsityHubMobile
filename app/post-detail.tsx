@@ -18,7 +18,6 @@ import {
   Alert,
   Dimensions,
   FlatList,
-  InteractionManager,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -347,18 +346,15 @@ export default function PostDetailScreen() {
     void loadUser();
   }, [checkAuth, user]);
 
-  // Defer the fetch of the newly-current post until the navigation/swipe
-  // transition settles so this heavy screen doesn't parse a response
-  // mid-animation. Cached entries render instantly regardless (a disabled
-  // query still serves its cache).
+  // Start fetching the newly-current post immediately. placeholderData
+  // (seeded from PostCacheContext) already renders instantly, so there's no
+  // benefit to delaying the real fetch behind the navigation/swipe
+  // transition — it only pushes back when fresh data arrives.
   const queryClient = useQueryClient();
   const [settledPostId, setSettledPostId] = useState<string | null>(null);
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      setSettledPostId(currentPostId ?? null);
-    });
+    setSettledPostId(currentPostId ?? null);
     setReplyingToComment(null);
-    return () => task.cancel();
   }, [currentPostId]);
 
   // One query per post in the swipe sequence. Only the settled current post
