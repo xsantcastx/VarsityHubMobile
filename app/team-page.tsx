@@ -2,6 +2,7 @@ import { Game, Post, Team } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { gameRowTitle } from '@/utils/eventTitle';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
 import { getGradientForColor } from '@/utils/theme';
@@ -1299,6 +1300,7 @@ function TeamScreen() {
             const gameType = g.game_type || 'Game';
             const hasScore = g.home_score != null || g.away_score != null;
             const gameId = g.id ? String(g.id) : null;
+            const rowTitle = gameRowTitle({ ...g, opponent });
             return (
               <Pressable
                 disabled={!gameId}
@@ -1306,7 +1308,7 @@ function TeamScreen() {
                   gameId && router.push({ pathname: '/game/[id]', params: { id: gameId } } as any)
                 }
                 accessibilityRole="button"
-                accessibilityLabel={`Open event vs ${opponent} on ${dateStr}`}
+                accessibilityLabel={`Open event ${rowTitle} on ${dateStr}`}
                 style={({ pressed }) => [
                   styles.eventRow,
                   { backgroundColor: theme.card, borderColor: theme.border },
@@ -1318,7 +1320,7 @@ function TeamScreen() {
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={[styles.eventTitle, { color: theme.text }]} numberOfLines={1}>
-                    vs {opponent}
+                    {rowTitle}
                   </Text>
                   <Text style={[styles.eventTypeText, { color: theme.mutedText }]}>{gameType}</Text>
                 </View>
