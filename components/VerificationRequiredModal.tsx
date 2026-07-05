@@ -1,5 +1,13 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { ActivityIndicator, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
@@ -38,8 +46,15 @@ export function VerificationRequiredModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.overlay}>
-        <View style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]}>
-          <View style={[styles.iconWrap, { backgroundColor: colorScheme === 'dark' ? 'rgba(96,165,250,0.16)' : '#DBEAFE' }]}>
+        <View
+          style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]}
+        >
+          <View
+            style={[
+              styles.iconWrap,
+              { backgroundColor: colorScheme === 'dark' ? 'rgba(96,165,250,0.16)' : '#DBEAFE' },
+            ]}
+          >
             <MaterialIcons
               name="mark-email-read"
               size={28}
@@ -61,11 +76,13 @@ export function VerificationRequiredModal({
             onChangeText={(value: string) => {
               const next = value.replace(/[^0-9]/g, '').slice(0, 6);
               onChangeCode(next);
-              if (next.length === 6) {
+              // Patient auto-submit: verify when 6 digits are in, but never
+              // dismiss the keyboard first — if the code is wrong the user
+              // keeps their input and can correct it immediately.
+              if (next.length === 6 && !loading) {
                 setTimeout(() => {
-                  Keyboard.dismiss();
-                  if (!loading) void onVerify();
-                }, 120);
+                  void onVerify();
+                }, 150);
               }
             }}
             returnKeyType="done"
@@ -99,7 +116,13 @@ export function VerificationRequiredModal({
             </Pressable>
 
             <Pressable onPress={onCancel} disabled={loading}>
-              <Text style={[styles.cancelText, { color: colors.mutedText }, loading && styles.linkTextDisabled]}>
+              <Text
+                style={[
+                  styles.cancelText,
+                  { color: colors.mutedText },
+                  loading && styles.linkTextDisabled,
+                ]}
+              >
                 Cancel
               </Text>
             </Pressable>
