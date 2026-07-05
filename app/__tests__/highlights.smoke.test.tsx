@@ -1,9 +1,10 @@
 /**
  * Render smoke test for the react-query-migrated Highlights screen
- * (app/highlights.tsx). Verifies the highlights query mounts, the raw
- * nationalTop/ranked buckets map into cards, and a post title renders.
+ * (app/highlights.tsx). Verifies the per-tab highlights query mounts with
+ * the new {sort, items} server shape, tab switches refetch with the right
+ * sort/limit, and a legacy {nationalTop, ranked} payload still renders.
  */
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react-native';
 
 beforeAll(() => jest.useFakeTimers());
 afterAll(() => jest.useRealTimers());
@@ -72,13 +73,13 @@ const samplePost = {
 
 beforeEach(() => {
   mockHighlightsFetch.mockReset().mockResolvedValue({
-    nationalTop: [samplePost],
-    ranked: [],
+    sort: 'trending',
+    items: [samplePost],
   });
 });
 
 describe('HighlightsScreen (react-query render smoke)', () => {
-  it('mounts, runs the highlights query, and renders a highlight card', async () => {
+  it('mounts, fetches the trending tab, and renders a highlight card', async () => {
     render(
       <QueryWrapper>
         <HighlightsScreen />
@@ -86,8 +87,49 @@ describe('HighlightsScreen (react-query render smoke)', () => {
     );
     await waitFor(() =>
       expect(mockHighlightsFetch).toHaveBeenCalledWith(
-        expect.objectContaining({ country: 'US', limit: 50 })
+        expect.objectContaining({ country: 'US', limit: 50, sort: 'trending' })
       )
+    );
+    expect(await screen.findByText('Buzzer beater three')).toBeTruthy();
+  });
+
+  it('switching to the Recent tab fetches sort=recent', async () => {
+    render(
+      <QueryWrapper>
+        <HighlightsScreen />
+      </QueryWrapper>
+    );
+    expect(await screen.findByText('Buzzer beater three')).toBeTruthy();
+    fireEvent.press(screen.getByText('🕐 Recent'));
+    await waitFor(() =>
+      expect(mockHighlightsFetch).toHaveBeenCalledWith(expect.objectContaining({ sort: 'recent' }))
+    );
+  });
+
+  it('switching to the Top tab fetches sort=top with limit 10', async () => {
+    render(
+      <QueryWrapper>
+        <HighlightsScreen />
+      </QueryWrapper>
+    );
+    expect(await screen.findByText('Buzzer beater three')).toBeTruthy();
+    fireEvent.press(screen.getByText('👑 Top'));
+    await waitFor(() =>
+      expect(mockHighlightsFetch).toHaveBeenCalledWith(
+        expect.objectContaining({ sort: 'top', limit: 10 })
+      )
+    );
+  });
+
+  it('still renders cards from a legacy server payload (nationalTop/ranked)', async () => {
+    mockHighlightsFetch.mockReset().mockResolvedValue({
+      nationalTop: [samplePost],
+      ranked: [],
+    });
+    render(
+      <QueryWrapper>
+        <HighlightsScreen />
+      </QueryWrapper>
     );
     expect(await screen.findByText('Buzzer beater three')).toBeTruthy();
   });
