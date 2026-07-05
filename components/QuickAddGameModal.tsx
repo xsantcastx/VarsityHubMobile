@@ -787,11 +787,7 @@ export default function QuickAddGameModal({
             </Pressable>
 
             <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>
-              {initialData
-                ? 'Edit Event'
-                : isCompetitive
-                  ? 'Add Game'
-                  : `Add ${EVENT_TYPES.find(et => et.value === eventType)?.label || 'Event'}`}
+              {initialData ? 'Edit Event' : isCompetitive ? 'Add Game' : 'Add Event'}
             </Text>
 
             <Pressable
