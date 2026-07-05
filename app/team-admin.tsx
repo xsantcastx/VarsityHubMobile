@@ -4,6 +4,7 @@ import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
+import { gameRowTitle } from '@/utils/eventTitle';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery } from '@tanstack/react-query';
@@ -51,6 +52,7 @@ type TeamGame = {
   location?: string | null;
   home_team?: string | null;
   away_team?: string | null;
+  event_type?: string | null;
 };
 
 type TeamInvite = {
@@ -658,9 +660,12 @@ export default function TeamAdminScreen() {
                     >
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.rowTitle, { color: theme.text }]}>
-                          {game.home_team && game.away_team
-                            ? `${game.home_team} vs ${game.away_team}`
-                            : game.title || 'Game'}
+                          {gameRowTitle({
+                            event_type: game.event_type,
+                            title: game.title,
+                            opponent: game.away_team,
+                            away_team: game.away_team,
+                          })}
                         </Text>
                         <Text style={[styles.metaText, { color: theme.mutedText }]}>
                           {formatDate(game.date)}

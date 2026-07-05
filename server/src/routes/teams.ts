@@ -677,6 +677,7 @@ teamsRouter.get(
           home_team_id: true,
           away_team_id: true,
           approval_status: true,
+          event_type: true,
         },
       }),
     ]);
