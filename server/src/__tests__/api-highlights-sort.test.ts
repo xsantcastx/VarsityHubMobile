@@ -176,3 +176,67 @@ describe('GET /highlights?v2=1&sort=top — country FJ', () => {
     expect(res.body.items.length).toBe(1);
   });
 });
+
+describe('GET /highlights?v2=1&sort=trending — country PE', () => {
+  let authorId: string;
+  let engagedPost: string; // 10 upvotes, 5 days old — score ~29
+  let freshEmptyPost: string; // 0 engagement, brand new — score ~17
+  let stalePost: string; // 20 days old — outside the 14-day trending window
+  const cleanup: string[] = [];
+
+  beforeAll(async () => {
+    const author = await createAuthor('trend');
+    authorId = author.id;
+    engagedPost = (await createPost(authorId, 'PE', { upvotes: 10, createdDaysAgo: 5 })).id;
+    freshEmptyPost = (await createPost(authorId, 'PE', { upvotes: 0, createdDaysAgo: 0 })).id;
+    stalePost = (await createPost(authorId, 'PE', { upvotes: 300, createdDaysAgo: 20 })).id;
+    cleanup.push(engagedPost, freshEmptyPost, stalePost);
+  });
+
+  afterAll(async () => {
+    await prisma.post.deleteMany({ where: { id: { in: cleanup } } });
+    await prisma.user.delete({ where: { id: authorId } }).catch(() => {});
+  });
+
+  it('ranks real engagement above fresh zero-engagement posts (Bug A repro)', async () => {
+    const res = await request(app).get('/highlights?v2=1&country=PE&sort=trending');
+    expect(res.status).toBe(200);
+    const ids = res.body.items.map((p: any) => p.id);
+    expect(ids.indexOf(engagedPost)).toBeLessThan(ids.indexOf(freshEmptyPost));
+  });
+
+  it('excludes posts older than 14 days', async () => {
+    const res = await request(app).get('/highlights?v2=1&country=PE&sort=trending');
+    expect(res.body.items.map((p: any) => p.id)).not.toContain(stalePost);
+  });
+
+  it('items carry _score so the client can display it', async () => {
+    const res = await request(app).get('/highlights?v2=1&country=PE&sort=trending');
+    expect(typeof res.body.items[0]._score).toBe('number');
+  });
+});
+
+describe('GET /highlights — legacy shape unchanged when sort is absent', () => {
+  it('v2 without sort still returns nationalTop + ranked (old OTA clients)', async () => {
+    const res = await request(app).get('/highlights?v2=1&country=US');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('nationalTop');
+    expect(res.body).toHaveProperty('ranked');
+    expect(res.body.items).toBeUndefined();
+  });
+
+  it('legacy (no v2) still returns nationalTop + local', async () => {
+    const res = await request(app).get('/highlights?country=US');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('nationalTop');
+    expect(res.body).toHaveProperty('local');
+    expect(res.body.items).toBeUndefined();
+  });
+
+  it('sort without v2 is ignored (legacy shape preserved)', async () => {
+    const res = await request(app).get('/highlights?country=US&sort=recent');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('local');
+    expect(res.body.items).toBeUndefined();
+  });
+});

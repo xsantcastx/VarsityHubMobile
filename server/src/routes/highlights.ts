@@ -204,7 +204,22 @@ highlightsRouter.get(
             .sort((a, b) => engagement(b) - engagement(a))
             .slice(0, limit);
         }
-        // sort === 'trending' is implemented in Task 4.
+        if (sort === 'trending') {
+          // Product rule: trending never surfaces posts older than 14 days.
+          const fortnightAgo = new Date(Date.now() - 14 * 864e5);
+          const pool = await prisma.post.findMany({
+            where: { ...baseWhere, created_at: { gte: fortnightAgo } },
+            orderBy: [{ created_at: 'desc' }],
+            take: 300,
+            select: highlightPostSelect,
+          });
+          const isLocal = buildIsLocal(lat, lng);
+          const followedSet = await getFollowedSet(req.user?.id, pool);
+          items = pool
+            .map((p: any) => ({ ...p, _score: scoreHighlightPost(p, followedSet, isLocal) }))
+            .sort((a: any, b: any) => b._score - a._score)
+            .slice(0, limit);
+        }
 
         const { upvotedIds, bookmarkedIds } = await getInteractionSets(
           req.user?.id,
