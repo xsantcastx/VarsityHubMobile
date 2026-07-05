@@ -747,7 +747,7 @@ function HighlightsScreen() {
       Keyboard.dismiss();
       const eventId = event?.id || event?.event_id;
       if (eventId) {
-        void router.push(buildEventDetailRoute(eventId));
+        void router.push(buildEventDetailRoute(eventId, event?.game_id ?? event?.gameId));
         return;
       }
 

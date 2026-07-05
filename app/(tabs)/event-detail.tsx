@@ -94,6 +94,15 @@ export default function EventDetailScreen() {
         return;
       }
 
+      // Deep links / notifications may land here with only an event id;
+      // game-linked events canonically render on the rich game page, not
+      // this RSVP stub.
+      const linkedGameId = data?.game_id ?? data?.gameId;
+      if (linkedGameId) {
+        router.replace({ pathname: '/game/[id]', params: { id: String(linkedGameId) } }); // nav-safe: game-linked events render on the game page
+        return;
+      }
+
       setEvent(data ?? null);
 
       // Load user and RSVP status in parallel (best-effort, don't block render)
@@ -114,7 +123,7 @@ export default function EventDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [checkAuth, id, user]);
+  }, [checkAuth, id, router, user]);
 
   useEffect(() => {
     void load();

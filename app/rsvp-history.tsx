@@ -91,7 +91,10 @@ function RsvpHistoryScreen() {
         styles.card,
         { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
       ]}
-      onPress={() => item.event?.id && router.push(buildEventDetailRoute(item.event.id))}
+      onPress={() =>
+        item.event?.id &&
+        router.push(buildEventDetailRoute(item.event.id, (item.event as any)?.game_id))
+      }
     >
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
         {item.event?.title || 'Event'}
