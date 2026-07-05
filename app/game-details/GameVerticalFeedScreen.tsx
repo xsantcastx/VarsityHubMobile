@@ -463,7 +463,7 @@ const FeedCard = memo(
           <EventChip gameId={post.game_id} eventId={post.event_id} style={styles.eventChipRow} />
           <ExpandableText
             text={post.caption}
-            maxLines={3}
+            maxLines={1}
             style={styles.captionText}
             expandStyle={styles.captionToggle}
           />
