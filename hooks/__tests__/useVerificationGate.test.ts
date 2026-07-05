@@ -73,6 +73,60 @@ describe('useVerificationGate', () => {
         nowSpy.mockRestore();
       }
     });
+
+    it('collapses two truly-concurrent resend() calls across two hook instances (TOCTOU) into a single requestCode() call', async () => {
+      // Reproduces the real trigger: multiple concurrent API calls each get a
+      // 403 "email verification required" and independently call
+      // openVerificationGate() near app startup, which fires resend() on two
+      // *separate* useVerificationGate instances (e.g. the global
+      // VerificationGateHost gate and a standalone screen's own gate).
+      // Each instance has its own resendInFlightRef, so the per-instance ref
+      // can't dedup across them. Neither call has resolved when the second
+      // starts, so the timestamp-based guard (only written after
+      // requestCode() resolves) can't see the first call yet either — both
+      // read the same stale lastSuccessfulResendAtMs. Only the synchronous
+      // module-level in-flight flag can close this race.
+      const nowSpy = jest.spyOn(Date, 'now');
+      try {
+        // Move further forward than any prior test in this file's mocked
+        // timeline, past the 3s dedup window, so an earlier test's
+        // lastSuccessfulResendAtMs write doesn't itself block this test.
+        const mockedNow = Date.now() + 120_000;
+        nowSpy.mockImplementation(() => mockedNow);
+
+        let resolveRequestCode: (value: { ok: true }) => void;
+        const requestCode = jest.fn().mockImplementation(
+          () =>
+            new Promise(resolve => {
+              resolveRequestCode = resolve;
+            })
+        );
+
+        const first = renderHook(() =>
+          useVerificationGate({
+            requestCode,
+            confirmCode: jest.fn(),
+          })
+        );
+        const second = renderHook(() =>
+          useVerificationGate({
+            requestCode,
+            confirmCode: jest.fn(),
+          })
+        );
+
+        await act(async () => {
+          const firstResend = first.result.current.resend();
+          const secondResend = second.result.current.resend();
+          resolveRequestCode!({ ok: true });
+          await Promise.all([firstResend, secondResend]);
+        });
+
+        expect(requestCode).toHaveBeenCalledTimes(1);
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
   });
 
   describe('verify() non-ok fallthrough', () => {

@@ -55,6 +55,14 @@ function setGateOpener(next: VerificationGateOpener | null) {
 // catches near-simultaneous duplicates.
 const RESEND_DEDUP_WINDOW_MS = 3000;
 let lastSuccessfulResendAtMs = 0;
+// Synchronous cross-instance in-flight guard. The timestamp guard above is
+// only written AFTER requestCode() resolves, so two truly-concurrent
+// resend() calls (e.g. multiple API calls each getting a 403 "email
+// verification required" and calling openVerificationGate() near app
+// startup) can both read the stale timestamp before either has resolved,
+// letting both through. This flag is set synchronously before the first
+// await, so the second concurrent call sees it immediately and bails.
+let resendInFlightGlobal = false;
 
 export function openVerificationGate(options?: VerificationGateOpenOptions): Promise<boolean> {
   if (!gateOpener) return Promise.resolve(false);
@@ -180,6 +188,12 @@ export function useVerificationGate({
     // resendCooldownSeconds, so it never blocks an intentional resend tap.
     const now = Date.now();
     if (now - lastSuccessfulResendAtMs < RESEND_DEDUP_WINDOW_MS) return;
+    // Synchronous cross-instance guard: two truly-concurrent resend() calls
+    // both pass the timestamp check above (neither has resolved yet, so
+    // lastSuccessfulResendAtMs is still stale) — this flag closes that gap
+    // because it's set synchronously, before the network call starts.
+    if (resendInFlightGlobal) return;
+    resendInFlightGlobal = true;
     resendInFlightRef.current = true;
     setLoading(true);
     setError(null);
@@ -208,6 +222,7 @@ export function useVerificationGate({
         setResendCooldown(resendCooldownSeconds);
       }
     } finally {
+      resendInFlightGlobal = false;
       resendInFlightRef.current = false;
       setLoading(false);
     }
