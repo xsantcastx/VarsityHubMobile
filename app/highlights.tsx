@@ -562,6 +562,7 @@ function HighlightsScreen() {
       postCache.setBatch(rawItems ?? [...rawNationalTop, ...rawRanked]);
 
       return {
+        tab: activeTab,
         rawItems,
         rawNationalTop,
         rawRanked,
@@ -575,6 +576,9 @@ function HighlightsScreen() {
   });
 
   const userLocation = highlightsPayload?.userLocation;
+  // Tab the currently-rendered payload belongs to — lags activeTab while a
+  // tab switch is in flight (placeholderData shows the old tab's list).
+  const dataTab = highlightsPayload?.tab ?? activeTab;
   const nationalTop = useMemo(
     () =>
       (highlightsPayload?.rawNationalTop ?? [])
@@ -687,14 +691,16 @@ function HighlightsScreen() {
 
   const getFilteredHighlights = useCallback(() => {
     // New servers return each tab pre-sorted — render their order verbatim.
-    if (serverSorted) return highlights;
+    // Defensive cap: a stale 50-item list must never render under a
+    // Top-labeled payload.
+    if (serverSorted) return dataTab === 'top' ? highlights.slice(0, 10) : highlights;
 
     // Legacy-server fallback: one consistent engagement metric for every
     // post (the old code compared server _score against raw engagement,
     // which are incompatible scales).
     const engagement = (p: HighlightItem) => (p.upvotes_count || 0) + (p._count?.comments || 0) * 2;
     const list = [...highlights];
-    switch (activeTab) {
+    switch (dataTab) {
       case 'trending':
         // Product rule: Trending never shows posts older than 14 days.
         return list
@@ -711,7 +717,7 @@ function HighlightsScreen() {
           .sort((a, b) => engagement(b) - engagement(a))
           .slice(0, 10);
     }
-  }, [highlights, activeTab, serverSorted]);
+  }, [highlights, dataTab, serverSorted]);
 
   const handleHighlightPress = useCallback(
     (item: HighlightItem, index?: number, filtered?: HighlightItem[]) => {
@@ -830,7 +836,7 @@ function HighlightsScreen() {
       <HighlightCard
         item={item}
         index={index}
-        currentTab={activeTab}
+        currentTab={dataTab}
         nationalTop={nationalTop}
         ranked={ranked}
         userLocation={userLocation}
@@ -1226,7 +1232,7 @@ function HighlightsScreen() {
                     key={post.id}
                     item={post}
                     index={idx}
-                    currentTab={activeTab}
+                    currentTab={dataTab}
                     nationalTop={nationalTop}
                     ranked={ranked}
                     userLocation={userLocation}
