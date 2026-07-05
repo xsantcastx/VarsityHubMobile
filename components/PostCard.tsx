@@ -14,6 +14,7 @@ import { Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } 
 
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { prefetchUserProfile } from '@/utils/prefetch';
+import EventChip from './EventChip';
 import ExpandableText from './ExpandableText';
 import RankingBadge from './RankingBadge';
 
@@ -286,6 +287,12 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
               )}
             </View>
           ) : null}
+          <EventChip
+            gameId={(post as any)?.game_id ?? (post as any)?.game?.id}
+            eventId={(post as any)?.event_id ?? (post as any)?.event?.id}
+            variant="card"
+            style={styles.eventChip}
+          />
           {/* Top accent stripe */}
           <LinearGradient
             colors={['#1e293b', '#0f172a']}
@@ -352,7 +359,14 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   </View>
                   <Text style={styles.vsText}>vs</Text>
                   <View style={styles.teamPillAlt}>
-                    <Text style={[styles.teamPillAltText, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>{teamLabels.teamB}</Text>
+                    <Text
+                      style={[
+                        styles.teamPillAltText,
+                        { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' },
+                      ]}
+                    >
+                      {teamLabels.teamB}
+                    </Text>
                   </View>
                 </View>
               ) : null}
@@ -392,7 +406,14 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   </View>
                   <Text style={styles.vsText}>vs</Text>
                   <View style={styles.teamPillAlt}>
-                    <Text style={[styles.teamPillAltText, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>{teamLabels.teamB}</Text>
+                    <Text
+                      style={[
+                        styles.teamPillAltText,
+                        { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' },
+                      ]}
+                    >
+                      {teamLabels.teamB}
+                    </Text>
                   </View>
                 </View>
               ) : null}
@@ -751,6 +772,10 @@ const styles = StyleSheet.create({
   authorAvatar: { width: 28, height: 28, borderRadius: 14 },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
   avatarFallbackText: { fontWeight: '700', fontSize: 12 },
+  eventChip: {
+    marginHorizontal: 12,
+    marginBottom: 8,
+  },
   authorName: { fontWeight: '700', maxWidth: 220 },
   actionsButton: { padding: 4, borderRadius: 12 },
   mediaErrorState: { backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },

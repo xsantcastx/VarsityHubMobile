@@ -1,3 +1,4 @@
+import EventChip from '@/components/EventChip';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { usePostCache } from '@/context/PostCacheContext';
@@ -86,6 +87,8 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
     lng: typeof input.lng === 'number' ? input.lng : undefined,
     country_code: typeof input.country_code === 'string' ? input.country_code : undefined,
     sport: typeof input.sport === 'string' ? input.sport : undefined,
+    game_id: input.game_id ?? input.game?.id ?? null,
+    event_id: input.event_id ?? input.event?.id ?? null,
     _score: typeof input._score === 'number' ? input._score : undefined,
   };
 };
@@ -361,6 +364,13 @@ const HighlightCard = ({
               {timeAgo(item.created_at)}
             </Text>
           </Pressable>
+
+          <EventChip
+            gameId={item.game_id}
+            eventId={item.event_id}
+            variant="card"
+            style={{ marginBottom: 8 }}
+          />
 
           {/* Stats Row */}
           <View style={styles.statsRow}>

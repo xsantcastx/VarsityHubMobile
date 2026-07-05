@@ -24,6 +24,8 @@ export interface HighlightItem {
   lng?: number;
   country_code?: string;
   sport?: string;
+  game_id?: string | null;
+  event_id?: string | null;
   _count?: {
     comments: number;
   };

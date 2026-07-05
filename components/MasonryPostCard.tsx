@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import EventChip from './EventChip';
 import ExpandableText from './ExpandableText';
 import PollCard from './PollCard';
 
@@ -140,6 +141,13 @@ function MasonryPostCard({
         </View>
       ) : null}
 
+      <EventChip
+        gameId={(post as any)?.game_id ?? (post as any)?.game?.id}
+        eventId={(post as any)?.event_id ?? (post as any)?.event?.id}
+        variant="card"
+        style={styles.eventChip}
+      />
+
       {/* Media Section */}
       {(isImage || isVideo) && (
         <View style={[styles.mediaWrap, { height: mediaHeight }]}>
@@ -247,6 +255,10 @@ const styles = StyleSheet.create({
   containerPressed: {
     transform: [{ scale: 0.98 }],
     opacity: 0.9,
+  },
+  eventChip: {
+    marginHorizontal: 10,
+    marginBottom: 8,
   },
   authorRow: {
     flexDirection: 'row',

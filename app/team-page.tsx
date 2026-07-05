@@ -106,6 +106,8 @@ const toFeedPost = (item: any): FeedPost | null => {
     media_url: media,
     media_type,
     preview_url: typeof item?.preview_url === 'string' ? item.preview_url : null,
+    game_id: item?.game_id ?? item?.game?.id ?? null,
+    event_id: item?.event_id ?? item?.event?.id ?? null,
     caption: item?.caption ?? item?.content ?? '',
     upvotes_count: item?.upvotes_count ?? 0,
     comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
@@ -114,7 +116,7 @@ const toFeedPost = (item: any): FeedPost | null => {
     author: item?.author
       ? {
           id: String(item.author.id ?? id),
-          username: (item.author as any).username ?? null,
+          username: item.author.username ?? null,
           display_name: (item.author as any).display_name ?? null,
           avatar_url: item.author.avatar_url ?? null,
         }
