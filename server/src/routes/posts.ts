@@ -744,6 +744,10 @@ postsRouter.post(
         place_name = rev.place_name || null;
       } catch (err: unknown) {
         debugLog('[posts] reverseGeocode failed, using fallback:', (err as Error)?.message ?? err);
+        // Don't let a geocode failure null out the country — fall back to the
+        // user's preferred country so the post still qualifies for the
+        // country-scoped Highlights feed (which hard-filters on country_code).
+        country_code = country_code ?? preferCountry;
       }
     } else if (loc.zip || (prefs?.preferences as any)?.zip_code) {
       try {
@@ -754,6 +758,9 @@ postsRouter.post(
         country_code = gg.country_code || preferCountry;
       } catch (err: unknown) {
         debugLog('[posts] geocodeZip failed, using fallback:', (err as Error)?.message ?? err);
+        // Same fallback as the reverseGeocode branch: a geocode failure must not
+        // null out the country, or the post drops out of the Highlights feed.
+        country_code = country_code ?? preferCountry;
       }
     } else {
       country_code = preferCountry || null;
