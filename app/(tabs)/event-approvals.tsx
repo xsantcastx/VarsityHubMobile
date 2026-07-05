@@ -174,8 +174,17 @@ export default function EventApprovalsScreen() {
           games: [],
         })),
       ]);
+      const pendingGameIds = new Set(
+        asArray<RawPendingGame>((gamesData as { games?: unknown })?.games)
+          .filter(game => game?.approval_status === 'pending')
+          .map(game => String((game as any)?.id))
+      );
+      // Approving a game syncs its linked event in the same transaction, so a
+      // game-linked event row would duplicate the actionable game row.
       const pendingEvents = asArray<RawPendingEvent>(eventsData).filter(
-        event => event?.approval_status === 'pending'
+        event =>
+          event?.approval_status === 'pending' &&
+          (!(event as any)?.game_id || !pendingGameIds.has(String((event as any).game_id)))
       );
       const pendingGames = asArray<RawPendingGame>((gamesData as { games?: unknown })?.games)
         .filter(game => game?.approval_status === 'pending')

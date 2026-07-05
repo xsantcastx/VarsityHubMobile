@@ -118,8 +118,11 @@ function GameMapScreen() {
         });
 
       // Transform events to EventMapData format (never show cancelled events on map)
+      const gameMarkerIds = new Set(gameMarkers.map(g => String(g.id)));
       const eventMarkers: EventMapData[] = eventsList
         .filter((e: any) => e.status !== 'cancelled')
+        // A game-linked event duplicates its game's pin — show the fixture once.
+        .filter((e: any) => !e.game_id || !gameMarkerIds.has(String(e.game_id)))
         // Feed/list views intentionally keep recent past events visible for recap.
         // The map should not: past events should drop off immediately.
         .filter((e: any) => shouldShowEventOnMap(e.date))

@@ -590,6 +590,7 @@ eventsRouter.get(
         created_at: true,
         approved_at: true,
         description: true,
+        game_id: true,
       },
     });
     const page = events.slice(0, limit);
