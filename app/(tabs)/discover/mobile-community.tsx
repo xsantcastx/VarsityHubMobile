@@ -568,12 +568,18 @@ function CommunityDiscoverScreen() {
       try {
         const res = await Search.unified(trimmed, 10);
         if (!mounted) return;
+        const games = res?.games ?? [];
+        const gameIds = new Set(games.map((g: any) => String(g?.id)));
+        // A game-linked event duplicates its game's row — show the fixture once.
+        const events = (res?.events ?? []).filter(
+          (e: any) => !e?.game_id || !gameIds.has(String(e.game_id))
+        );
         setUnifiedSearchResults({
           users: res?.users ?? [],
           teams: res?.teams ?? [],
           organizations: res?.organizations ?? [],
-          games: res?.games ?? [],
-          events: res?.events ?? [],
+          games,
+          events,
         });
         saveRecentSearch(trimmed);
         analytics.track(ANALYTICS_EVENTS.SEARCH_PERFORMED, { query: trimmed });
@@ -1581,7 +1587,7 @@ function CommunityDiscoverScreen() {
                   onPress={() => {
                     setQuery('');
                     setUnifiedSearchResults(null);
-                    void router.push(buildEventDetailRoute(event.id));
+                    void router.push(buildEventDetailRoute(event.id, event.game_id));
                   }}
                   accessibilityRole="button"
                   accessibilityLabel={`View event ${event.title}`}

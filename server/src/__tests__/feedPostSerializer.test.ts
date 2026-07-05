@@ -92,6 +92,10 @@ describe('serializeFeedPost', () => {
       comments_count: 2,
       bookmarks_count: 1,
       created_at: '2026-06-01T12:00:00.000Z',
+      // Event/game linkage is part of the contract — every post surface
+      // (EventChip) depends on these two fields being present.
+      game_id: null,
+      event_id: null,
       author: { id: 'u1', username: 'jane', display_name: 'Jane', avatar_url: 'a.png' },
       team: { id: 't1', name: 'Tigers', logo_url: 'l.png' },
       has_upvoted: false,

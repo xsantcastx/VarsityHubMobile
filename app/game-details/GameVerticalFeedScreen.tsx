@@ -1,4 +1,5 @@
 import CollageView, { type CollageData } from '@/components/CollageView';
+import EventChip from '@/components/EventChip';
 import ExpandableText from '@/components/ExpandableText';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -459,6 +460,7 @@ const FeedCard = memo(
           >
             <Text style={styles.authorNameBottom}>{authorLabel}</Text>
           </Pressable>
+          <EventChip gameId={post.game_id} eventId={post.event_id} style={styles.eventChipRow} />
           <ExpandableText
             text={post.caption}
             maxLines={3}
@@ -1739,6 +1741,10 @@ const styles = StyleSheet.create({
   },
   authorNameButton: {
     alignSelf: 'flex-start',
+  },
+  eventChipRow: {
+    marginTop: 6,
+    marginBottom: 2,
   },
   captionText: {
     color: '#fff',

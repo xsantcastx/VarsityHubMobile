@@ -28,6 +28,9 @@ const LIVE_MAPPERS: Array<{ name: string; path: string }> = [
     name: 'GameVerticalFeedScreen mapHighlightToFeedPost',
     path: join('app', 'game-details', 'GameVerticalFeedScreen.tsx'),
   },
+  // Third live mapper feeding the same viewer — drifted once (missing
+  // game_id/event_id) before it was added here.
+  { name: 'team-page.tsx toFeedPost', path: join('app', 'team-page.tsx') },
 ];
 
 const sources = LIVE_MAPPERS.map(m => ({
@@ -61,5 +64,10 @@ describe('Post-mapper Consistency Rule (live mappers)', () => {
     expect(src).toMatch(/author: item\?\.author/);
     expect(src).toContain('username: item.author.username');
     expect(src).toContain('avatar_url: item.author.avatar_url');
+  });
+
+  it.each(sources)('$name carries the event/game linkage (EventChip depends on it)', ({ src }) => {
+    expect(src).toContain('game_id: item?.game_id ?? item?.game?.id ?? null');
+    expect(src).toContain('event_id: item?.event_id ?? item?.event?.id ?? null');
   });
 });

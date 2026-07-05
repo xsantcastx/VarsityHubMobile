@@ -207,6 +207,8 @@ function serializeOrganizationAdminEvent(event: any) {
     event_type: event.event_type || null,
     status: event.status || null,
     approval_status: event.approval_status || null,
+    // Dedupe key: lets clients collapse a game-linked event onto its game row.
+    game_id: event.game_id || null,
   };
 }
 
