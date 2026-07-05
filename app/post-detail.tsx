@@ -414,17 +414,28 @@ export default function PostDetailScreen() {
     })),
   });
 
-  const { postsById, commentsById } = useMemo(() => {
+  const { postsById, commentsById, commentsPendingById } = useMemo(() => {
     const posts: Record<string, any> = {};
     const commentsMap: Record<string, any[]> = {};
+    const commentsPending: Record<string, boolean> = {};
     postIdsArray.forEach((id, i) => {
-      const d = postQueries[i]?.data;
+      const q = postQueries[i];
+      const d = q?.data;
       if (d?.post) {
         posts[id] = d.post;
         commentsMap[id] = d.comments ?? [];
       }
+      // Comments ride along with the post fetch (fetchPostDetail fetches both
+      // together) — while that combined query is still pending for this post,
+      // the comments array hasn't loaded yet either, so "No comments yet"
+      // would be a lie. Note: react-query flips `status` to "success" (so
+      // isPending is false) the moment placeholderData is seeded — the real
+      // signal that we're only looking at a placeholder (cached post,
+      // comments: []) is isPlaceholderData, which stays true until the real
+      // fetch resolves.
+      commentsPending[id] = !!q?.isPending || !!q?.isPlaceholderData;
     });
-    return { postsById: posts, commentsById: commentsMap };
+    return { postsById: posts, commentsById: commentsMap, commentsPendingById: commentsPending };
     // postQueries is a new array each render but its data refs are stable
   }, [postIdsArray, postQueries]);
 
@@ -1045,13 +1056,22 @@ export default function PostDetailScreen() {
   const currentIsVideo = currentMedia.mediaType === 'video';
 
   // Render single post content (reusable for both single and multi-post views)
-  const renderPostContent = (postData: any, commentsData: any[], isInsidePager = false) => {
+  const renderPostContent = (
+    postData: any,
+    commentsData: any[],
+    isInsidePager = false,
+    commentsPending = false
+  ) => {
     const media = resolvePostMedia(postData);
     const isImage = media.mediaType === 'image';
     const isVideo = media.mediaType === 'video';
     const hasMedia = media.hasMedia;
     const category = getSportCategory(postData.title, postData.content);
     const localComments = Array.isArray(commentsData) ? commentsData : [];
+    // Fall back to the server-authoritative count while the comments fetch
+    // for this post is still in flight — localComments is empty at that
+    // point but that doesn't mean the post HAS zero comments.
+    const displayCommentsCount = localComments.length || postData.comments_count || 0;
     const isActivePost = String(postData.id) === String(currentPostId);
 
     return (
@@ -1241,6 +1261,52 @@ export default function PostDetailScreen() {
             </Pressable>
           )}
 
+          {/* Game/event linkage fallback — some post payloads (e.g. cache-seeded
+              from a lighter list endpoint like Highlights) carry only game_id/
+              event_id and never got the full game/event object hydrated. Without
+              this, a game-linked post silently loses its chip depending on which
+              screen last wrote it into PostCacheContext. Minimal id-only chip so
+              the linkage always surfaces; the two blocks above still win once the
+              full object is available (fresh GET /posts/:id always includes it). */}
+          {!postData.game && !postData.event && (postData.game_id || postData.event_id) && (
+            <Pressable
+              style={[
+                styles.gameInfo,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+              onPress={() => {
+                if (postData.game_id) {
+                  void router.push({
+                    pathname: '/game/[id]',
+                    params: { id: String(postData.game_id) },
+                  });
+                } else if (postData.event_id) {
+                  void router.push({
+                    pathname: '/public-event',
+                    params: { id: String(postData.event_id) },
+                  });
+                }
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={postData.game_id ? 'View linked game' : 'View linked event'}
+            >
+              <Ionicons
+                name={postData.game_id ? 'basketball-outline' : 'calendar-outline'}
+                size={20}
+                color={Colors[colorScheme].tint}
+              />
+              <View style={styles.gameDetails}>
+                <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
+                  {postData.game_id ? 'View game' : 'View event'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+            </Pressable>
+          )}
+
           {/* Team Links */}
           {(postData.team_id || postData.team) && (
             <Pressable
@@ -1328,7 +1394,7 @@ export default function PostDetailScreen() {
                   color={Colors[colorScheme].mutedText}
                 />
                 <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>
-                  {formatCount(localComments.length || 0)}
+                  {formatCount(displayCommentsCount)}
                 </Text>
               </View>
               <View style={styles.stat}>
@@ -1397,7 +1463,7 @@ export default function PostDetailScreen() {
               Comments
             </Text>
             <Text style={[styles.commentsCount, { color: Colors[colorScheme].mutedText }]}>
-              {localComments.length}
+              {displayCommentsCount}
             </Text>
           </View>
 
@@ -1481,7 +1547,19 @@ export default function PostDetailScreen() {
           </View>
 
           {/* Comments List */}
-          {localComments.length === 0 ? (
+          {localComments.length === 0 && commentsPending ? (
+            <View style={styles.emptyComments}>
+              <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+              <Text
+                style={[
+                  styles.emptyCommentsText,
+                  { color: Colors[colorScheme].text, marginTop: 12 },
+                ]}
+              >
+                Loading comments…
+              </Text>
+            </View>
+          ) : localComments.length === 0 ? (
             <View style={styles.emptyComments}>
               <Ionicons
                 name="chatbubbles-outline"
@@ -1740,10 +1818,11 @@ export default function PostDetailScreen() {
               // `post` includes the postCache fallback when the fetch errored
               const postData = postsById[item] ?? (item === currentPostId ? post : undefined);
               const commentsData = commentsById[item];
+              const commentsPending = commentsPendingById[item] ?? false;
               return (
                 <View style={{ width: SCREEN_WIDTH }}>
                   {postData ? (
-                    renderPostContent(postData, commentsData, true)
+                    renderPostContent(postData, commentsData, true, commentsPending)
                   ) : (
                     <View
                       style={[
@@ -1757,7 +1836,12 @@ export default function PostDetailScreen() {
             }}
           />
         ) : post ? (
-          renderPostContent(post, comments, false)
+          renderPostContent(
+            post,
+            comments,
+            false,
+            !!currentQuery?.isPending || !!currentQuery?.isPlaceholderData
+          )
         ) : null}
         {hasOverflowingContent && (
           <View
