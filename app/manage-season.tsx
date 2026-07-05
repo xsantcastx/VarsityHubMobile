@@ -29,7 +29,6 @@ import BulkScheduleModal from '@/components/BulkScheduleModal';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 import { EmptyState, GameCard, SectionHeader } from '@/components/ui';
 import type { Game as GameCardGame } from '@/components/ui/GameCard';
-import { gameRowTitle } from '@/utils/eventTitle';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 type GameStatus = 'upcoming' | 'completed' | 'cancelled' | 'pending' | 'live' | 'in-progress';
@@ -1662,16 +1661,15 @@ function ManageSeasonScreen() {
                     key={game.id}
                     game={{
                       ...game,
-                      // GameCard always renders `vs {opponent_name}`. For
-                      // competitive games keep the existing home/away vs
-                      // composition; non-competitive events (fundraiser,
-                      // watch party, etc.) have no opponent, so surface the
-                      // event's own title/label via gameRowTitle() with the
-                      // "vs " prefix stripped off (GameCard supplies its own).
+                      // GameCard renders the title via gameRowTitle() itself
+                      // (event_type/title are spread through above), so this
+                      // only needs to override the competitive home/away vs
+                      // composition — non-competitive events pass through
+                      // unmodified and GameCard surfaces their own title.
                       opponent_name:
                         game.homeTeam && game.awayTeam
                           ? `${game.homeTeam} vs ${game.awayTeam}`
-                          : gameRowTitle(game).replace(/^vs\s+/, ''),
+                          : game.opponent_name,
                       scheduled_date: game.date,
                       scheduled_time: game.time,
                       game_type: game.type,
@@ -1711,12 +1709,12 @@ function ManageSeasonScreen() {
                     key={game.id}
                     game={{
                       ...game,
-                      // See the Upcoming Games card above for why
-                      // gameRowTitle() replaces the raw opponent fallback.
+                      // See the Upcoming Games card above — GameCard renders
+                      // the title via gameRowTitle() itself.
                       opponent_name:
                         game.homeTeam && game.awayTeam
                           ? `${game.homeTeam} vs ${game.awayTeam}`
-                          : gameRowTitle(game).replace(/^vs\s+/, ''),
+                          : game.opponent_name,
                       scheduled_date: game.date,
                       scheduled_time: game.time,
                       game_type: game.type,

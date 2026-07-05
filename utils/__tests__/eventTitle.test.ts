@@ -13,6 +13,14 @@ describe('gameRowTitle', () => {
     expect(gameRowTitle({ event_type: null, opponent: 'Hawks' })).toBe('vs Hawks');
   });
 
+  it('omitted (undefined) event_type with opponent is treated as competitive', () => {
+    expect(gameRowTitle({ opponent: 'Hawks' })).toBe('vs Hawks');
+  });
+
+  it('omitted (undefined) event_type with no opponent shows "vs TBD"', () => {
+    expect(gameRowTitle({})).toBe('vs TBD');
+  });
+
   it('empty-string event_type with opponent is treated as competitive', () => {
     expect(gameRowTitle({ event_type: '', opponent: 'Hawks' })).toBe('vs Hawks');
   });
