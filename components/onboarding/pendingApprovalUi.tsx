@@ -29,13 +29,9 @@ export function PendingApprovalShell({
           : '#D1FAE5'
         : isDark
           ? 'rgba(218,165,32,0.15)'
-        : '#FEF9C3';
+          : '#FEF9C3';
   const statusIconName =
-    status === 'rejected'
-      ? 'cancel'
-      : status === 'approved'
-        ? 'check-circle'
-        : 'check-circle';
+    status === 'rejected' ? 'cancel' : status === 'approved' ? 'check-circle' : 'check-circle';
   const statusIconColor =
     status === 'rejected'
       ? isDark
@@ -54,7 +50,7 @@ export function PendingApprovalShell({
       <View style={styles.logoRow}>
         <Image
           source={require('../../assets/images/icon.png')}
-          style={{ width: 32, height: 32 }}
+          style={{ width: 32, height: 32, borderRadius: 8 }}
           contentFit="contain"
         />
         <Text style={[styles.logoText, { color: isDark ? '#F9FAFB' : '#111827' }]}>VarsityHub</Text>
@@ -65,7 +61,9 @@ export function PendingApprovalShell({
       </View>
 
       <Text style={[styles.heading, { color: isDark ? '#F9FAFB' : '#111827' }]}>{heading}</Text>
-      <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>{subheading}</Text>
+      <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
+        {subheading}
+      </Text>
       {children}
     </>
   );
@@ -87,10 +85,7 @@ export function PendingApprovalScreenScaffold({
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView
-        contentContainerStyle={styles.screenContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
         <PendingApprovalShell
           isDark={isDark}
           status={status}
@@ -155,7 +150,11 @@ export function PrimaryButton({
   icon?: React.ReactNode;
 }) {
   return (
-    <Pressable style={[styles.primaryButton, disabled && { opacity: 0.6 }, style]} onPress={onPress} disabled={disabled}>
+    <Pressable
+      style={[styles.primaryButton, disabled && { opacity: 0.6 }, style]}
+      onPress={onPress}
+      disabled={disabled}
+    >
       {icon}
       <Text style={styles.primaryButtonText}>{label}</Text>
     </Pressable>
@@ -192,13 +191,17 @@ export function PollingStatus({ isDark }: { isDark: boolean }) {
   return (
     <View style={styles.pollingRow}>
       <ActivityIndicator size="small" color={isDark ? '#6B7280' : '#9CA3AF'} />
-      <Text style={[styles.pollingText, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>Checking status...</Text>
+      <Text style={[styles.pollingText, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
+        Checking status...
+      </Text>
     </View>
   );
 }
 
 export function SupportText({ isDark, children }: { isDark: boolean; children: ReactNode }) {
-  return <Text style={[styles.supportText, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>{children}</Text>;
+  return (
+    <Text style={[styles.supportText, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>{children}</Text>
+  );
 }
 
 export function FanFallbackActions({
@@ -216,7 +219,11 @@ export function FanFallbackActions({
 }) {
   return (
     <>
-      <PrimaryButton label="Continue as Fan" onPress={onProceedAsFan} style={{ marginBottom: 12 }} />
+      <PrimaryButton
+        label="Continue as Fan"
+        onPress={onProceedAsFan}
+        style={{ marginBottom: 12 }}
+      />
       <SecondaryButton
         label="Log Out"
         onPress={onLogout}
@@ -304,8 +311,20 @@ export const pendingApprovalStyles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  heading: { fontSize: 26, fontWeight: '800', textAlign: 'center', marginBottom: 12, letterSpacing: -0.5 },
-  subheading: { fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: 32, paddingHorizontal: 12 },
+  heading: {
+    fontSize: 26,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 12,
+    letterSpacing: -0.5,
+  },
+  subheading: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 32,
+    paddingHorizontal: 12,
+  },
   infoCard: {
     width: '100%',
     borderRadius: 12,
