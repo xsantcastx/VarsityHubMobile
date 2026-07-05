@@ -4,9 +4,9 @@ import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
 import {
-    getBlockedUserIds,
-    getExcludedPrivateAuthorIds,
-    getRequestBlockedCache,
+  getBlockedUserIds,
+  getExcludedPrivateAuthorIds,
+  getRequestBlockedCache,
 } from '../lib/privacyUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -50,10 +50,7 @@ async function getInteractionSets(
   };
 }
 
-const withInteractions = (
-  upvotedIds: Set<string>,
-  bookmarkedIds: Set<string>
-) => (post: any) => ({
+const withInteractions = (upvotedIds: Set<string>, bookmarkedIds: Set<string>) => (post: any) => ({
   ...withMediaPreview(post),
   bookmarks_count: post._count?.bookmarks ?? 0,
   has_upvoted: upvotedIds.has(post.id),
@@ -139,7 +136,9 @@ highlightsRouter.get(
       const lat = (req.query as any).lat != null ? Number((req.query as any).lat) : undefined;
       const lng = (req.query as any).lng != null ? Number((req.query as any).lng) : undefined;
       const v2 = String((req.query as any).v2 || '').trim() === '1';
-      const sortParamRaw = String((req.query as any).sort || '').trim().toLowerCase();
+      const sortParamRaw = String((req.query as any).sort || '')
+        .trim()
+        .toLowerCase();
       const sort =
         v2 && (sortParamRaw === 'recent' || sortParamRaw === 'top' || sortParamRaw === 'trending')
           ? sortParamRaw
@@ -198,8 +197,7 @@ highlightsRouter.get(
           ]);
           const merged = new Map<string, any>();
           for (const p of [...byUpvotes, ...byComments]) merged.set(p.id, p);
-          const engagement = (p: any) =>
-            (p.upvotes_count || 0) + (p._count?.comments || 0) * 1.5;
+          const engagement = (p: any) => (p.upvotes_count || 0) + (p._count?.comments || 0) * 1.5;
           items = [...merged.values()]
             .sort((a, b) => engagement(b) - engagement(a))
             .slice(0, limit);
