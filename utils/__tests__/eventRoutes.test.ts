@@ -1,15 +1,16 @@
 /**
  * buildEventDetailRoute — game-linked events must route to the rich game
- * screen, never the event-detail RSVP stub. Standalone events keep using
- * event-detail. Regression guard for the Discover "duplicate event screen"
- * bug (game events opening a bare RSVP page instead of the game page).
+ * screen, never the retired RSVP stub. Standalone events use the public event
+ * page (the page fans upload posts to). Regression guard for the Discover
+ * "duplicate event screen" bug — the stub route survives only as a
+ * deep-link redirector and must never be a navigation destination.
  */
-import { buildEventDetailRoute, EVENT_DETAIL_PATHNAME } from '../eventRoutes';
+import { buildEventDetailRoute, PUBLIC_EVENT_PATHNAME } from '../eventRoutes';
 
 describe('buildEventDetailRoute', () => {
-  it('routes standalone events (no game_id) to event-detail', () => {
+  it('routes standalone events (no game_id) to the public event page', () => {
     expect(buildEventDetailRoute('evt-1')).toEqual({
-      pathname: EVENT_DETAIL_PATHNAME,
+      pathname: PUBLIC_EVENT_PATHNAME,
       params: { id: 'evt-1' },
     });
   });
@@ -23,15 +24,15 @@ describe('buildEventDetailRoute', () => {
 
   it('treats null/undefined/blank gameId as standalone', () => {
     expect(buildEventDetailRoute('evt-1', null)).toEqual({
-      pathname: EVENT_DETAIL_PATHNAME,
+      pathname: PUBLIC_EVENT_PATHNAME,
       params: { id: 'evt-1' },
     });
     expect(buildEventDetailRoute('evt-1', undefined)).toEqual({
-      pathname: EVENT_DETAIL_PATHNAME,
+      pathname: PUBLIC_EVENT_PATHNAME,
       params: { id: 'evt-1' },
     });
     expect(buildEventDetailRoute('evt-1', '  ')).toEqual({
-      pathname: EVENT_DETAIL_PATHNAME,
+      pathname: PUBLIC_EVENT_PATHNAME,
       params: { id: 'evt-1' },
     });
   });
