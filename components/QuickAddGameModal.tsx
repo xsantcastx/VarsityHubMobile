@@ -1549,7 +1549,11 @@ export default function QuickAddGameModal({
                     {bannerUrl ? (
                       // Show custom uploaded banner
                       <View style={styles.customBannerContainer}>
-                        <Image source={{ uri: bannerUrl }} style={styles.customBannerImage} />
+                        <Image
+                          source={{ uri: bannerUrl }}
+                          style={styles.customBannerImage}
+                          resizeMode="cover"
+                        />
                         <View style={styles.customBannerActions}>
                           <Pressable
                             style={[
