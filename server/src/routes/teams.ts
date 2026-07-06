@@ -9,6 +9,7 @@ import { sendError } from '../lib/http/sendError.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import { getOrganizationState } from '../lib/organizationState.js';
 import { getVeteranTotalTeamAllowance } from '../lib/paymentInternals.js';
+import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { SERVER_ROOKIE_TEAM_LIMIT } from '../lib/planDefinitions.js';
 import { getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
@@ -667,18 +668,7 @@ teamsRouter.get(
         },
         orderBy: { date: 'asc' },
         take: 20,
-        select: {
-          id: true,
-          title: true,
-          date: true,
-          location: true,
-          home_team: true,
-          away_team: true,
-          home_team_id: true,
-          away_team_id: true,
-          approval_status: true,
-          event_type: true,
-        },
+        select: GAME_SUMMARY_SELECT,
       }),
     ]);
 
@@ -762,18 +752,7 @@ teamsRouter.get(
         },
         orderBy: { date: 'desc' },
         take: 20,
-        select: {
-          id: true,
-          title: true,
-          date: true,
-          location: true,
-          home_team: true,
-          away_team: true,
-          home_team_id: true,
-          away_team_id: true,
-          approval_status: true,
-          event_type: true,
-        },
+        select: GAME_SUMMARY_SELECT,
       }),
       viewerId
         ? prisma.teamJoinRequest.findUnique({
