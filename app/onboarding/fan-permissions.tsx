@@ -166,19 +166,19 @@ export default function FanPermissions() {
           />
         </View>
 
-        {/* Fan-only callout */}
+        {/* Welcome note */}
         <View
           style={[
             styles.fanNote,
             {
-              backgroundColor: isDark ? '#1C1917' : '#FFFBEB',
-              borderColor: isDark ? '#92400E' : '#FDE68A',
+              backgroundColor: isDark ? '#0F172A' : '#F1F5F9',
+              borderColor: isDark ? '#334155' : '#E2E8F0',
             },
           ]}
         >
-          <Ionicons name="shield-checkmark" size={16} color="#D97706" />
-          <Text style={[styles.fanNoteText, { color: isDark ? '#FCD34D' : '#92400E' }]}>
-            Fan accounts have full read access. Apply for a coach account in Settings any time.
+          <Ionicons name="sparkles" size={16} color={colors.primary} />
+          <Text style={[styles.fanNoteText, { color: isDark ? '#CBD5E1' : '#475569' }]}>
+            Welcome to VarsityHub — check out highlights and games in your area.
           </Text>
         </View>
       </View>

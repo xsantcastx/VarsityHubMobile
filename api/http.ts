@@ -507,6 +507,23 @@ async function request(
       console.debug(`[http] Request timed out: ${path}`);
     }
 
+    // Only retry non-idempotent methods (POST/PUT/PATCH/DELETE) for a narrow
+    // allowlist of safe auth endpoints. A timed-out or network-failed request
+    // may have already been processed server-side (e.g. a verification email
+    // already sent, a post already created); blindly retrying it duplicates
+    // the mutation. Computed once here so the 502, timeout, and network-error
+    // branches below all share the same classification.
+    const method = (options.method || 'GET').toUpperCase();
+    const isSafeMethod = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+    const isSafeAuthEndpoint =
+      path.includes('/auth/refresh') ||
+      path.includes('/auth/login') ||
+      path.includes('/auth/google') ||
+      path.includes('/auth/apple') ||
+      path === '/auth/me' ||
+      path === '/me';
+    const isRetryable = isSafeMethod || isSafeAuthEndpoint;
+
     // Handle 502 Bad Gateway errors with retry - backend may be temporarily down
     // Railway infrastructure errors show HTML error pages with Correlation Keys
     // Since ALL our API calls go to Railway, ANY 502 error is a Railway infrastructure issue
@@ -552,17 +569,7 @@ async function request(
       // Retrying POST/PUT/DELETE/PATCH mutations on 502 can create duplicate records
       // (posts, payments, RSVPs) because the original request may have succeeded on
       // the server even though Railway returned a 502 to the client.
-      const method = (options.method || 'GET').toUpperCase();
-      const isSafeMethod = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
-      const isSafeAuthEndpoint =
-        path.includes('/auth/refresh') ||
-        path.includes('/auth/login') ||
-        path.includes('/auth/google') ||
-        path.includes('/auth/apple') ||
-        path === '/auth/me' ||
-        path === '/me';
-      const isRetryable = isSafeMethod || isSafeAuthEndpoint;
-
+      // (method/isSafeMethod/isSafeAuthEndpoint/isRetryable are computed once, above.)
       if (!isRetryable) {
         if (__DEV__)
           console.warn(
@@ -633,8 +640,10 @@ async function request(
       if (!isExpectedDevError && !__DEV__) {
         captureException(err, { path, base, timeoutMs, method: options.method || 'GET' });
       }
-      // Retry once on timeout if allowed
-      if (retries > 0) {
+      // Retry once on timeout if allowed — but never for non-idempotent
+      // methods outside the safe auth allowlist: a timed-out request may
+      // have already been processed server-side (see isRetryable above).
+      if (retries > 0 && isRetryable) {
         // Exponential backoff: small delay before retry
         await new Promise(r => setTimeout(r, Math.min(1000, timeoutMs * 0.1)));
         return request(path, options, timeoutMs, retries - 1);
@@ -663,8 +672,10 @@ async function request(
           isNetworkError: true,
         });
       }
-      // Retry network errors with exponential backoff
-      if (retries > 0) {
+      // Retry network errors with exponential backoff — but never for
+      // non-idempotent methods outside the safe auth allowlist: the
+      // request may have already reached and been processed by the server.
+      if (retries > 0 && isRetryable) {
         const delay = Math.min(2000, 500 * Math.pow(2, 1 - retries)); // Exponential backoff
         await new Promise(r => setTimeout(r, delay));
         return request(path, options, timeoutMs, retries - 1);
