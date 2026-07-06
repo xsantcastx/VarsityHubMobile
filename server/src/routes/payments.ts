@@ -357,6 +357,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
           where: { stripe_customer_id: String(invoice.customer) },
         });
         if (failedUser) {
+          // cache-invalidation-exempt: invalidateMeCacheForUser called below
           await prisma.user.update({
             where: { id: failedUser.id },
             data: { subscription_status: 'past_due' },
@@ -422,6 +423,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
           });
           // ATOMIC: downgrade + cancellation log must succeed or fail together
           await prisma.$transaction([
+            // cache-invalidation-exempt: invalidateMeCacheForUser called after this transaction resolves
             prisma.user.update({
               where: { id: canceledUser.id },
               data: {
@@ -562,6 +564,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
                   payment_approved: false,
                 }
               );
+              // cache-invalidation-exempt: invalidateMeCacheForUser called below
               await db.user.update({
                 where: { id: tx.user_id },
                 data: {
@@ -3092,6 +3095,7 @@ paymentsRouter.post(
       delete (normalizedPrefs as any).payment_pending;
       delete (normalizedPrefs as any).payment_approved;
 
+      // cache-invalidation-exempt: invalidateMeCacheForUser called below
       await prisma.user.update({
         where: { id: userId },
         data: {
@@ -3192,6 +3196,7 @@ paymentsRouter.post(
           previousPlan: user.plan,
         });
 
+        // cache-invalidation-exempt: invalidateMeCacheForUsers called below once all updates resolve
         return prisma.user.update({
           where: { id: user.id },
           data: {
@@ -4331,6 +4336,7 @@ paymentsRouter.post(
         );
 
         await prisma.$transaction([
+          // cache-invalidation-exempt: invalidateMeCacheForUser called after this transaction resolves
           prisma.user.update({
             where: { id: userId },
             data: {
@@ -4372,6 +4378,7 @@ paymentsRouter.post(
         const graceExpiresAt = new Date(Date.now() + APPLE_GRACE_PERIOD_MS);
         const updatedPrefs = { ...prefs, grace_period_expires_at: graceExpiresAt.toISOString() };
         await prisma.$transaction([
+          // cache-invalidation-exempt: invalidateMeCacheForUser called after this transaction resolves
           prisma.user.update({
             where: { id: userId },
             data: {
@@ -4419,6 +4426,7 @@ paymentsRouter.post(
         });
 
         await prisma.$transaction([
+          // cache-invalidation-exempt: invalidateMeCacheForUser called after this transaction resolves
           prisma.user.update({
             where: { id: userId },
             data: {
@@ -4717,6 +4725,7 @@ paymentsRouter.post(
       );
 
       await prisma.$transaction([
+        // cache-invalidation-exempt: invalidateMeCacheForUser called after this transaction resolves
         prisma.user.update({
           where: { id: userId },
           data: {
