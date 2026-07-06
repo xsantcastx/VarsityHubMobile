@@ -33,12 +33,12 @@ let signJwt: any;
 
 /* ---------- unique emails per run ---------- */
 const ts = Date.now();
-const FAN_EMAIL         = `test-fan-${ts}@example.com`;
-const ROOKIE_EMAIL      = `test-rookie-${ts}@example.com`;
+const FAN_EMAIL = `test-fan-${ts}@example.com`;
+const ROOKIE_EMAIL = `test-rookie-${ts}@example.com`;
 const ROOKIE_EXTRACURRICULAR_EMAIL = `test-rookie-extracurricular-${ts}@example.com`;
-const VETERAN_EMAIL     = `test-veteran-${ts}@example.com`;
-const LEGEND_EMAIL      = `test-legend-${ts}@example.com`;
-const PASSWORD          = 'TestPassword123!';
+const VETERAN_EMAIL = `test-veteran-${ts}@example.com`;
+const LEGEND_EMAIL = `test-legend-${ts}@example.com`;
+const PASSWORD = 'TestPassword123!';
 
 /* ---------- IDs & tokens filled during setup ---------- */
 let fanId: string, fanToken: string;
@@ -64,7 +64,7 @@ async function createUser(
   displayName: string,
   role: 'fan' | 'coach',
   plan?: 'rookie' | 'veteran' | 'legend',
-  extras?: Record<string, any>,
+  extras?: Record<string, any>
 ) {
   return createTestUser({
     prisma,
@@ -106,7 +106,7 @@ async function createTeamViaApi(
   token: string,
   teamName: string,
   organizationId: string,
-  clubType?: string,
+  clubType?: string
 ) {
   return request(app)
     .post('/teams/create')
@@ -139,9 +139,24 @@ beforeAll(async () => {
 
   // ── create all four accounts ──
   ({ id: fanId, token: fanToken } = await createUser(FAN_EMAIL, 'Test Fan', 'fan'));
-  ({ id: rookieId, token: rookieToken } = await createUser(ROOKIE_EMAIL, 'Rookie Coach', 'coach', 'rookie'));
-  ({ id: veteranId, token: veteranToken } = await createUser(VETERAN_EMAIL, 'Veteran Coach', 'coach', 'veteran'));
-  ({ id: legendId, token: legendToken } = await createUser(LEGEND_EMAIL, 'Legend Coach', 'coach', 'legend'));
+  ({ id: rookieId, token: rookieToken } = await createUser(
+    ROOKIE_EMAIL,
+    'Rookie Coach',
+    'coach',
+    'rookie'
+  ));
+  ({ id: veteranId, token: veteranToken } = await createUser(
+    VETERAN_EMAIL,
+    'Veteran Coach',
+    'coach',
+    'veteran'
+  ));
+  ({ id: legendId, token: legendToken } = await createUser(
+    LEGEND_EMAIL,
+    'Legend Coach',
+    'coach',
+    'legend'
+  ));
   // Separate account so the extracurricular-club check doesn't share the
   // primary rookie user's team-creation rate-limit budget (5/day): that
   // budget is already fully spent verifying the 4-free-teams boundary
@@ -150,7 +165,7 @@ beforeAll(async () => {
     ROOKIE_EXTRACURRICULAR_EMAIL,
     'Rookie Coach (Extracurricular Check)',
     'coach',
-    'rookie',
+    'rookie'
   ));
 
   // ── give each coach an org (league page) so they have org-owner role ──
@@ -159,14 +174,18 @@ beforeAll(async () => {
   legendOrgId = await createOrgForUser(legendId, `Legend League ${ts}`);
   rookieExtracurricularOrgId = await createOrgForUser(
     rookieExtracurricularId,
-    `Rookie Extracurricular League ${ts}`,
+    `Rookie Extracurricular League ${ts}`
   );
 });
 
 afterAll(async () => {
   try {
-    const allUserIds = [fanId, rookieId, veteranId, legendId, rookieExtracurricularId].filter(Boolean);
-    const allOrgIds = [rookieOrgId, veteranOrgId, legendOrgId, rookieExtracurricularOrgId].filter(Boolean);
+    const allUserIds = [fanId, rookieId, veteranId, legendId, rookieExtracurricularId].filter(
+      Boolean
+    );
+    const allOrgIds = [rookieOrgId, veteranOrgId, legendOrgId, rookieExtracurricularOrgId].filter(
+      Boolean
+    );
     const allTeamIds = [...rookieTeamIds, ...veteranTeamIds, ...legendTeamIds].filter(Boolean);
 
     // Clean invites
@@ -183,7 +202,9 @@ afterAll(async () => {
     }
     // Clean org memberships
     if (allOrgIds.length) {
-      await prisma.organizationMembership.deleteMany({ where: { organization_id: { in: allOrgIds } } });
+      await prisma.organizationMembership.deleteMany({
+        where: { organization_id: { in: allOrgIds } },
+      });
     }
     // Clean orgs
     if (allOrgIds.length) {
@@ -226,7 +247,10 @@ describe('Fan account restrictions', () => {
     // Organizations route exists at /organizations, but fan has no coach role.
     // The org POST doesn't explicitly block fans, but the team creation that
     // follows does. We verify the fan role is set correctly.
-    const me = await prisma.user.findUnique({ where: { id: fanId }, select: { preferences: true } });
+    const me = await prisma.user.findUnique({
+      where: { id: fanId },
+      select: { preferences: true },
+    });
     const prefs = me?.preferences as any;
     expect(prefs?.role).toBe('fan');
     expect(prefs?.role).not.toBe('coach');
@@ -235,7 +259,10 @@ describe('Fan account restrictions', () => {
   it('Fan events require approval (not auto-approved like coach events)', async () => {
     // When a fan creates an event via the API, status should be "pending"
     // (coaches get auto-approved). We verify the role isolation.
-    const fanUser = await prisma.user.findUnique({ where: { id: fanId }, select: { preferences: true } });
+    const fanUser = await prisma.user.findUnique({
+      where: { id: fanId },
+      select: { preferences: true },
+    });
     const prefs = fanUser?.preferences as any;
     expect(prefs?.role).toBe('fan');
     // The event creation endpoint checks role and sets status accordingly.
@@ -304,13 +331,21 @@ describe('Rookie Coach plan limits', () => {
 
   it('Rookie can invite authorized users to a team (up to 6)', async () => {
     if (!rookieTeamIds[0]) return;
-    const res = await inviteToTeam(rookieToken, rookieTeamIds[0], `rookie-invite1-${ts}@example.com`);
+    const res = await inviteToTeam(
+      rookieToken,
+      rookieTeamIds[0],
+      `rookie-invite1-${ts}@example.com`
+    );
     expect(res.status).toBe(201);
   });
 
   it('Rookie can invite a 2nd authorized user (within limit of 6)', async () => {
     if (!rookieTeamIds[0]) return;
-    const res = await inviteToTeam(rookieToken, rookieTeamIds[0], `rookie-invite2-${ts}@example.com`);
+    const res = await inviteToTeam(
+      rookieToken,
+      rookieTeamIds[0],
+      `rookie-invite2-${ts}@example.com`
+    );
     expect(res.status).toBe(201);
     expect(res.body.error).toBeUndefined();
   });
@@ -323,7 +358,7 @@ describe('Rookie Coach plan limits', () => {
       rookieExtracurricularToken,
       `Rookie Chess Club ${ts}`,
       rookieExtracurricularOrgId,
-      'extracurricular',
+      'extracurricular'
     );
     // The extracurricular-support check runs before the team-count check
     // server-side, so this is blocked by plan tier regardless of team count.
@@ -356,7 +391,10 @@ describe('Rookie Coach plan limits', () => {
 
 describe('Veteran Coach plan limits', () => {
   it('Veteran plan is correctly stored', async () => {
-    const user = await prisma.user.findUnique({ where: { id: veteranId }, select: { preferences: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: veteranId },
+      select: { preferences: true },
+    });
     const prefs = user?.preferences as any;
     expect(prefs?.plan).toBe('veteran');
     expect(prefs?.role).toBe('coach');
@@ -404,7 +442,12 @@ describe('Veteran Coach plan limits', () => {
   });
 
   it('Veteran CANNOT create extracurricular clubs', async () => {
-    const res = await createTeamViaApi(veteranToken, `Vet Chess Club ${ts}`, veteranOrgId, 'extracurricular');
+    const res = await createTeamViaApi(
+      veteranToken,
+      `Vet Chess Club ${ts}`,
+      veteranOrgId,
+      'extracurricular'
+    );
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('LEGEND_TIER_REQUIRED');
   });
@@ -421,7 +464,10 @@ describe('Veteran Coach plan limits', () => {
 
 describe('Legend Coach plan limits', () => {
   it('Legend plan is correctly stored', async () => {
-    const user = await prisma.user.findUnique({ where: { id: legendId }, select: { preferences: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: legendId },
+      select: { preferences: true },
+    });
     const prefs = user?.preferences as any;
     expect(prefs?.plan).toBe('legend');
     expect(prefs?.role).toBe('coach');
@@ -438,7 +484,12 @@ describe('Legend Coach plan limits', () => {
   });
 
   it('Legend CAN create extracurricular clubs', async () => {
-    const res = await createTeamViaApi(legendToken, `Legend Drama Club ${ts}`, legendOrgId, 'extracurricular');
+    const res = await createTeamViaApi(
+      legendToken,
+      `Legend Drama Club ${ts}`,
+      legendOrgId,
+      'extracurricular'
+    );
     // Legend should pass the extracurricular check (may still fail at Stripe
     // or other middleware, but NOT at LEGEND_TIER_REQUIRED)
     if (res.status === 201) {

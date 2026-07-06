@@ -133,7 +133,7 @@ describe('getAuthorizedUsersOrgLimit', () => {
   });
 
   // Legend: unlimited strategy → null
-  it.each([0, 1, 99])('legend with %d teams → null (unlimited)', (teamCount) => {
+  it.each([0, 1, 99])('legend with %d teams → null (unlimited)', teamCount => {
     expect(getAuthorizedUsersOrgLimit('legend', teamCount)).toBeNull();
   });
 

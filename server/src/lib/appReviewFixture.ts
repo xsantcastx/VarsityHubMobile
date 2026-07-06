@@ -6,10 +6,7 @@ import {
   getPreferencesObject,
   mergeAuthStateIntoPreferences,
 } from './userAuthState.js';
-import {
-  buildBillingStateColumns,
-  mergeBillingStateIntoPreferences,
-} from './userBillingState.js';
+import { buildBillingStateColumns, mergeBillingStateIntoPreferences } from './userBillingState.js';
 
 type PrismaLike = PrismaClient | Prisma.TransactionClient;
 
