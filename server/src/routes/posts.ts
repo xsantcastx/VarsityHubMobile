@@ -734,16 +734,23 @@ postsRouter.post(
     const loc = (data as any).location || {};
     const hasDeviceOriginLocation =
       loc?.source === 'device' && typeof loc.lat === 'number' && typeof loc.lng === 'number';
+    // Never leave country_code null — a null drops the post from the
+    // country-scoped Highlights feed (which hard-filters country_code).
+    // 'US' matches the read-side default in app/highlights.tsx.
     if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
       lat = loc.lat;
       lng = loc.lng;
       try {
         const rev = await reverseGeocode(lat as number, lng as number);
-        country_code = rev.country_code || preferCountry;
+        country_code = rev.country_code || preferCountry || 'US';
         admin1 = rev.admin_area || null;
         place_name = rev.place_name || null;
       } catch (err: unknown) {
         debugLog('[posts] reverseGeocode failed, using fallback:', (err as Error)?.message ?? err);
+        // Don't let a geocode failure null out the country — fall back to the
+        // user's preferred country so the post still qualifies for the
+        // country-scoped Highlights feed (which hard-filters on country_code).
+        country_code = country_code ?? preferCountry ?? 'US';
       }
     } else if (loc.zip || (prefs?.preferences as any)?.zip_code) {
       try {
@@ -751,12 +758,15 @@ postsRouter.post(
         const gg = await geocodeZip(zip, preferCountry);
         lat = gg.lat;
         lng = gg.lng;
-        country_code = gg.country_code || preferCountry;
+        country_code = gg.country_code || preferCountry || 'US';
       } catch (err: unknown) {
         debugLog('[posts] geocodeZip failed, using fallback:', (err as Error)?.message ?? err);
+        // Same fallback as the reverseGeocode branch: a geocode failure must not
+        // null out the country, or the post drops out of the Highlights feed.
+        country_code = country_code ?? preferCountry ?? 'US';
       }
     } else {
-      country_code = preferCountry || null;
+      country_code = preferCountry || 'US';
     }
 
     // ⚠️ GEOFENCING CHECK FOR EVENT POSTS

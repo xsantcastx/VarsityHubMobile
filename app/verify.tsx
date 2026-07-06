@@ -184,6 +184,7 @@ export default function VerifyScreen() {
 
   return (
     <VerificationCodeScreenBase
+      useKeyboardAwareScroll
       subtitle={subtitleText}
       gate={gate}
       screenError={screenError}

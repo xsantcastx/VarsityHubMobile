@@ -1392,7 +1392,7 @@ export default function ProfileScreen() {
                         <Image
                           source={{
                             uri:
-                              optimizeImageUrl(media.displayImageUrl!, 500) ||
+                              optimizeImageUrl(media.previewUrl || media.displayImageUrl!, 500) ||
                               media.displayImageUrl!,
                           }}
                           style={styles.gridImage}
@@ -1518,7 +1518,7 @@ export default function ProfileScreen() {
                         <Image
                           source={{
                             uri:
-                              optimizeImageUrl(media.displayImageUrl!, 500) ||
+                              optimizeImageUrl(media.previewUrl || media.displayImageUrl!, 500) ||
                               media.displayImageUrl!,
                           }}
                           style={styles.gridImage}
@@ -1644,7 +1644,7 @@ export default function ProfileScreen() {
                         <Image
                           source={{
                             uri:
-                              optimizeImageUrl(media.displayImageUrl!, 500) ||
+                              optimizeImageUrl(media.previewUrl || media.displayImageUrl!, 500) ||
                               media.displayImageUrl!,
                           }}
                           style={styles.gridImage}

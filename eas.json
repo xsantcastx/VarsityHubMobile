@@ -28,7 +28,6 @@
       "channel": "staging",
       "env": {
         "NODE_ENV": "production",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "EXPO_PUBLIC_SENTRY_DSN": "https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528.ingest.us.sentry.io/4510445740687360",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "514463516787-dm665i3u3a6un7eties8q73eik17vcs3.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com",
@@ -51,7 +50,6 @@
       "channel": "preview",
       "env": {
         "NODE_ENV": "production",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "EXPO_PUBLIC_SENTRY_DSN": "https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528.ingest.us.sentry.io/4510445740687360",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "514463516787-dm665i3u3a6un7eties8q73eik17vcs3.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com",
@@ -76,7 +74,6 @@
       "env": {
         "NODE_ENV": "production",
         "EAS_SKIP_AUTO_FINGERPRINT": "1",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "EXPO_PUBLIC_SENTRY_DSN": "https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528.ingest.us.sentry.io/4510445740687360",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "514463516787-dm665i3u3a6un7eties8q73eik17vcs3.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com",

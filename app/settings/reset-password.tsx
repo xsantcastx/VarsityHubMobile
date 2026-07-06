@@ -1,4 +1,5 @@
 import auth from '@/api/auth';
+import PasswordInput from '@/components/PasswordInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Stack } from 'expo-router';
@@ -31,40 +32,86 @@ export default function ResetPasswordScreen() {
   const hasGoogle = linked.google;
   let authProvider = userRecord?.auth_provider || userRecord?.preferences?.auth_provider;
   if (!authProvider && userRecord) {
-    authProvider = hasApple && hasGoogle ? 'apple,google' : hasApple ? 'apple' : hasGoogle ? 'google' : undefined;
+    authProvider =
+      hasApple && hasGoogle
+        ? 'apple,google'
+        : hasApple
+          ? 'apple'
+          : hasGoogle
+            ? 'google'
+            : undefined;
   }
   const isOAuthOnly = !hasPassword && (hasApple || hasGoogle);
 
   const onSave = async () => {
     const currentValue = current.trim();
     const p = password.trim();
-    if (!currentValue.length) { Alert.alert('Enter your current password.'); return; }
-    if (p.length < 8) { Alert.alert('Password too short', 'Use at least 8 characters.'); return; }
-    if (p !== confirm.trim()) { Alert.alert('Passwords do not match'); return; }
+    if (!currentValue.length) {
+      Alert.alert('Enter your current password.');
+      return;
+    }
+    if (p.length < 8) {
+      Alert.alert('Password too short', 'Use at least 8 characters.');
+      return;
+    }
+    if (p !== confirm.trim()) {
+      Alert.alert('Passwords do not match');
+      return;
+    }
     setSaving(true);
     try {
       await auth.changePassword(currentValue, p);
-      await checkAuth().catch((e) => { if (__DEV__) console.warn('[reset-password] Auth refresh failed:', e); }); // VAL-2
-      Alert.alert('Password updated', 'Your password has been changed. A confirmation email has been sent to your account.');
+      await checkAuth().catch(e => {
+        if (__DEV__) console.warn('[reset-password] Auth refresh failed:', e);
+      }); // VAL-2
+      Alert.alert(
+        'Password updated',
+        'Your password has been changed. A confirmation email has been sent to your account.'
+      );
       setCurrent('');
       setPassword('');
       setConfirm('');
     } catch (err: any) {
       const message = err?.message || err?.data?.error || 'Unable to update password.';
       Alert.alert('Unable to update password', message);
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Change Password', headerBackTitle: 'Back', headerShown: true }} />
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}
+      edges={['bottom']}
+    >
+      <Stack.Screen
+        options={{ title: 'Change Password', headerBackTitle: 'Back', headerShown: true }}
+      />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {isOAuthOnly ? (
           <View style={{ alignItems: 'center', paddingTop: 32 }}>
-            <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].text, fontSize: 16, textAlign: 'center', marginBottom: 12 }]}>
+            <Text
+              style={[
+                styles.label,
+                {
+                  color: Colors[colorScheme ?? 'light'].text,
+                  fontSize: 16,
+                  textAlign: 'center',
+                  marginBottom: 12,
+                },
+              ]}
+            >
               Password change is not available
             </Text>
-            <Text style={[{ color: Colors[colorScheme ?? 'light'].mutedText, textAlign: 'center', lineHeight: 22 }]}>
+            <Text
+              style={[
+                {
+                  color: Colors[colorScheme ?? 'light'].mutedText,
+                  textAlign: 'center',
+                  lineHeight: 22,
+                },
+              ]}
+            >
               {authProvider === 'apple,google'
                 ? 'Your account can be signed in with Apple or Google. To change your password, manage it through your Apple ID or Google Account settings.'
                 : `Your account was created with ${authProvider === 'apple' ? 'Apple' : 'Google'} Sign-In. To change your password, manage it through your ${authProvider === 'apple' ? 'Apple ID' : 'Google Account'} settings.`}
@@ -72,13 +119,36 @@ export default function ResetPasswordScreen() {
           </View>
         ) : (
           <>
-            <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Current Password</Text>
-            <Input placeholder="Enter current password" value={current} onChangeText={setCurrent} secureTextEntry style={{ marginBottom: 16 }} />
-            <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>New Password</Text>
-            <Input placeholder="At least 8 characters" value={password} onChangeText={setPassword} secureTextEntry style={{ marginBottom: 16 }} />
-            <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Confirm Password</Text>
-            <Input placeholder="Re-enter your password" value={confirm} onChangeText={setConfirm} secureTextEntry style={{ marginBottom: 24 }} />
-            <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Update Password'}</Button>
+            <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+              Current Password
+            </Text>
+            <PasswordInput
+              placeholder="Enter current password"
+              value={current}
+              onChangeText={setCurrent}
+              style={{ marginBottom: 16 }}
+            />
+            <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+              New Password
+            </Text>
+            <PasswordInput
+              placeholder="At least 8 characters"
+              value={password}
+              onChangeText={setPassword}
+              style={{ marginBottom: 16 }}
+            />
+            <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+              Confirm Password
+            </Text>
+            <PasswordInput
+              placeholder="Re-enter your password"
+              value={confirm}
+              onChangeText={setConfirm}
+              style={{ marginBottom: 24 }}
+            />
+            <Button onPress={onSave} disabled={saving}>
+              {saving ? 'Saving…' : 'Update Password'}
+            </Button>
           </>
         )}
       </ScrollView>

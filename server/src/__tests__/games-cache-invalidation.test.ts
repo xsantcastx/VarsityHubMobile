@@ -167,7 +167,9 @@ describe('games list cache invalidation', () => {
       home_team_id: null,
       away_team_id: null,
       approval_status: 'pending',
-      created_by_id: 'admin-1',
+      // Must differ from the acting admin: PR #107's self-approval IDOR
+      // guard 403s reviewers approving their own game.
+      created_by_id: 'creator-1',
       title: 'Cache Games Test Approve',
     });
 

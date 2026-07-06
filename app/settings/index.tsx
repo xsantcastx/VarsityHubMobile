@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import PasswordInput from '@/components/PasswordInput';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
 import { useCustomColorScheme, useThemePreference } from '@/hooks/useCustomColorScheme';
@@ -1296,13 +1297,12 @@ export default function SettingsScreen() {
                   ]}
                 />
                 {deleteRequiresPassword && (
-                  <TextInput
+                  <PasswordInput
                     value={deletePassword}
                     onChangeText={setDeletePassword}
                     editable={!deletingAccount}
                     placeholder="Password"
                     placeholderTextColor={Colors[colorScheme ?? 'light'].mutedText}
-                    secureTextEntry
                     style={[
                       styles.deleteInput,
                       {

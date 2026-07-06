@@ -81,9 +81,10 @@ jest.mock('@/context/AuthProvider', () => ({
     checkAuth: jest.fn().mockResolvedValue({ id: 'u1' }),
   }),
 }));
+const mockPostCacheGet = jest.fn().mockReturnValue(undefined);
 jest.mock('@/context/PostCacheContext', () => ({
   usePostCache: () => ({
-    get: jest.fn().mockReturnValue(undefined),
+    get: (...args: any[]) => mockPostCacheGet(...args),
     set: jest.fn(),
     setBatch: jest.fn(),
     remove: jest.fn(),
@@ -124,6 +125,7 @@ const sampleComment = {
 beforeEach(() => {
   mockPostGet.mockReset().mockResolvedValue(samplePost);
   mockPostComments.mockReset().mockResolvedValue({ items: [sampleComment], nextCursor: null });
+  mockPostCacheGet.mockReset().mockReturnValue(undefined);
 });
 
 describe('PostDetailScreen (react-query render smoke)', () => {
@@ -138,5 +140,62 @@ describe('PostDetailScreen (react-query render smoke)', () => {
     await waitFor(() => expect(mockPostGet).toHaveBeenCalledWith('p1'));
     expect(await screen.findByText('What a finish')).toBeTruthy();
     expect(screen.getByText('Unreal shot!')).toBeTruthy();
+  });
+
+  it('never renders "No comments yet" while a cache-seeded post is still fetching real comments', async () => {
+    // PostCacheContext.placeholderData paints the cached post instantly with
+    // comments: [] while the real query (post+comments together) is still
+    // pending — this is the exact "flips from 0 to N" bug: the placeholder
+    // must not be read as "this post really has zero comments".
+    mockPostCacheGet.mockReturnValue(samplePost);
+    let resolvePost: (v: any) => void = () => {};
+    mockPostGet.mockReset().mockReturnValue(
+      new Promise(resolve => {
+        resolvePost = resolve;
+      })
+    );
+    let resolveComments: (v: any) => void = () => {};
+    mockPostComments.mockReset().mockReturnValue(
+      new Promise(resolve => {
+        resolveComments = resolve;
+      })
+    );
+
+    render(
+      <QueryWrapper>
+        <PostDetailScreen />
+      </QueryWrapper>
+    );
+    jest.runOnlyPendingTimers();
+
+    // Placeholder paints the cached post immediately (query still pending).
+    expect(await screen.findByText('What a finish')).toBeTruthy();
+    expect(screen.queryByText('No comments yet')).toBeNull();
+    expect(screen.getByText('Loading comments…')).toBeTruthy();
+
+    resolvePost(samplePost);
+    resolveComments({ items: [sampleComment], nextCursor: null });
+    expect(await screen.findByText('Unreal shot!')).toBeTruthy();
+    expect(screen.queryByText('Loading comments…')).toBeNull();
+    expect(screen.queryByText('No comments yet')).toBeNull();
+  });
+
+  it('shows a minimal "View game" chip when the post carries only game_id (no full game object)', async () => {
+    mockPostGet.mockReset().mockResolvedValue({
+      ...samplePost,
+      game: null,
+      event: null,
+      game_id: 'g1',
+    });
+
+    render(
+      <QueryWrapper>
+        <PostDetailScreen />
+      </QueryWrapper>
+    );
+    jest.runOnlyPendingTimers();
+    await waitFor(() => expect(mockPostGet).toHaveBeenCalledWith('p1'));
+
+    expect(await screen.findByText('View game')).toBeTruthy();
   });
 });
