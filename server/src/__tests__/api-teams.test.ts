@@ -1178,3 +1178,69 @@ describe('API Team Endpoints', () => {
     });
   });
 });
+
+describe('GET /teams — exclude_demo_leagues opt-in flag', () => {
+  const ts = Date.now();
+  let orgId: string;
+  let realTeamId: string;
+  let demoTeamId: string;
+
+  beforeAll(async () => {
+    ({ prisma } = await import('../lib/prisma.js'));
+    const org = await prisma.organization.create({
+      data: {
+        name: `Demo Flag Org ${ts}`,
+        org_type: 'club',
+        admin_approved: true,
+        status: 'active',
+        updated_at: new Date(),
+      },
+      select: { id: true },
+    });
+    orgId = org.id;
+
+    const realTeam = await prisma.team.create({
+      data: {
+        name: `Demo Flag Real Team ${ts}`,
+        organization_id: orgId,
+        status: 'active',
+      },
+      select: { id: true },
+    });
+    realTeamId = realTeam.id;
+
+    const demoTeam = await prisma.team.create({
+      data: {
+        name: `Demo Flag Fifa Team ${ts}`,
+        organization_id: orgId,
+        status: 'active',
+        league: 'FIFA World Cup 2026',
+      },
+      select: { id: true },
+    });
+    demoTeamId = demoTeam.id;
+  });
+
+  afterAll(async () => {
+    await prisma.team.deleteMany({ where: { id: { in: [realTeamId, demoTeamId] } } }).catch(() => {});
+    await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
+  });
+
+  it('includes the FIFA demo team by default', async () => {
+    const res = await request(app)
+      .get(`/teams?q=${encodeURIComponent(`Demo Flag`)}`)
+      .expect(200);
+    const ids = res.body.map((t: any) => t.id);
+    expect(ids).toContain(realTeamId);
+    expect(ids).toContain(demoTeamId);
+  });
+
+  it('excludes the FIFA demo team when exclude_demo_leagues=1 is passed', async () => {
+    const res = await request(app)
+      .get(`/teams?q=${encodeURIComponent(`Demo Flag`)}&exclude_demo_leagues=1`)
+      .expect(200);
+    const ids = res.body.map((t: any) => t.id);
+    expect(ids).toContain(realTeamId);
+    expect(ids).not.toContain(demoTeamId);
+  });
+});

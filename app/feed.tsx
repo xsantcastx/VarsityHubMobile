@@ -2495,7 +2495,9 @@ const styles = StyleSheet.create({
   },
   singleEventCard: {
     width: '100%',
-    aspectRatio: 4 / 5, // More Instagram-like (taller, similar to 4:5 Instagram posts)
+    // Matches the event detail page's fixed banner height (GameDetailsScreen
+    // bannerHeight) so the same photo isn't cropped differently here vs there.
+    height: 240,
     borderRadius: 18,
     overflow: 'hidden',
     position: 'relative',
