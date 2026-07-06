@@ -13,6 +13,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import { resolveMediaType } from '@/utils/media';
 import { prefetchUserProfile } from '@/utils/prefetch';
 import EventChip from './EventChip';
 import ExpandableText from './ExpandableText';
@@ -121,11 +122,9 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
     currentUser && post.author_id && String(currentUser.id) === String(post.author_id);
   const mediaUrl = post?.media_url || post?.mediaUrl || null;
   const previewUrl = post?.preview_url || post?.thumbnail_url || post?.previewUrl || null;
-  const mediaType = typeof post?.media_type === 'string' ? post.media_type.toLowerCase() : null;
-  const isImage =
-    mediaType === 'image' || (mediaUrl ? /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl) : false);
-  const isVideo =
-    mediaType === 'video' || (mediaUrl ? /\.(mp4|mov|webm|m4v)$/i.test(mediaUrl) : false);
+  const resolvedMediaType = resolveMediaType(mediaUrl, post?.media_type);
+  const isImage = resolvedMediaType === 'image';
+  const isVideo = resolvedMediaType === 'video';
   const caption = useMemo(() => post.caption || post.content || '', [post.caption, post.content]);
   const author = post?.author || null;
 

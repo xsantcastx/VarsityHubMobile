@@ -20,6 +20,7 @@ describeDb('Posts API Endpoints', () => {
   let testEventId: string;
   let adminUser: any;
   let adminToken: string;
+  let reusedAdmin = false;
   let bypassCoachUser: any;
   let bypassCoachToken: string;
   let bypassOrgId: string;
@@ -51,26 +52,34 @@ describeDb('Posts API Endpoints', () => {
     });
     testUserToken = signJwt({ id: testUser.id });
 
-    const priorAdminEmails = process.env.ADMIN_EMAILS;
-    process.env.ADMIN_EMAILS = ['admin-geofence-test@varsityhub.app', priorAdminEmails]
-      .filter(Boolean)
-      .join(',');
-
-    adminUser = await prisma.user.create({
-      data: {
-        email: 'admin-geofence-test@varsityhub.app',
-        password_hash: await bcrypt.hash('TestPassword123!', 10),
-        display_name: 'Geofence Admin',
-        email_verified: true,
-        role: 'fan',
-        onboarding_completed: true,
-        approval_status: 'APPROVED',
-        preferences: {
+    // Admin ACCESS is the hardcoded PLATFORM_ADMIN_EMAILS floor (not ADMIN_EMAILS,
+    // which only drives notification routing). Upsert by that email so we don't
+    // collide with a leftover row, and don't delete a pre-existing admin.
+    const ADMIN_EMAIL = 'emancero@varsityhub.app';
+    const existingAdmin = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
+    if (existingAdmin) {
+      adminUser = await prisma.user.update({
+        where: { id: existingAdmin.id },
+        data: { email_verified: true },
+      });
+      reusedAdmin = true;
+    } else {
+      adminUser = await prisma.user.create({
+        data: {
+          email: ADMIN_EMAIL,
+          password_hash: await bcrypt.hash('TestPassword123!', 10),
+          display_name: 'Geofence Admin',
+          email_verified: true,
           role: 'fan',
           onboarding_completed: true,
+          approval_status: 'APPROVED',
+          preferences: {
+            role: 'fan',
+            onboarding_completed: true,
+          },
         },
-      },
-    });
+      });
+    }
     adminToken = signJwt({ id: adminUser.id });
 
     bypassCoachUser = await prisma.user.create({
@@ -184,7 +193,10 @@ describeDb('Posts API Endpoints', () => {
     await prisma.post.deleteMany({
       where: { author_id: { in: [adminUser?.id, bypassCoachUser?.id].filter(Boolean) } },
     }).catch(() => {});
-    await prisma.user.delete({ where: { id: adminUser?.id } }).catch(() => {});
+    // Only remove the admin if we created it — never delete a pre-existing row.
+    if (!reusedAdmin) {
+      await prisma.user.delete({ where: { id: adminUser?.id } }).catch(() => {});
+    }
     await prisma.user.delete({ where: { id: bypassCoachUser?.id } }).catch(() => {});
     await prisma.user.delete({ where: { id: testUser.id } }).catch(() => {});
   });

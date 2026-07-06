@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { getCanonicalOrganizationId } from '@/utils/authState';
+import { gameRowTitle } from '@/utils/eventTitle';
 import { goBackToTrackedRoute } from '@/utils/navigation';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -67,6 +68,8 @@ type GameItem = {
   opponent_name?: string;
   location?: string;
   game_type?: string;
+  event_type?: string | null;
+  title?: string | null;
 };
 
 type AuthorizedInvite = {
@@ -196,6 +199,8 @@ export default function OrganizationScreen() {
             opponent_name: g.opponent_name,
             location: g.location,
             game_type: g.game_type,
+            event_type: g.event_type,
+            title: g.title,
           }))
           .sort((a: GameItem, b: GameItem) => {
             const dateA = new Date((a.scheduled_date || a.date) as string).getTime();
@@ -865,7 +870,11 @@ export default function OrganizationScreen() {
           ) : (
             upcomingGames.map(game => {
               const dateStr = formatEventDate(game.scheduled_date || game.date);
-              const opponent = game.opponent_name || game.away_team || 'TBD';
+              const rowTitle = gameRowTitle({
+                event_type: game.event_type,
+                title: game.title,
+                opponent: game.opponent_name || game.away_team,
+              });
               return (
                 <Pressable
                   key={game.id}
@@ -877,7 +886,7 @@ export default function OrganizationScreen() {
                   </View>
                   <View style={{ flex: 1, gap: 4 }}>
                     <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
-                      vs {opponent}
+                      {rowTitle}
                     </Text>
                     <View style={styles.eventMetaRow}>
                       <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}>

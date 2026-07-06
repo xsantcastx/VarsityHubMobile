@@ -70,7 +70,9 @@ describe('coach flow structural invariants', () => {
 
     it('NO approval email sends hardcode a personal recipient', () => {
       // Accept customerservice@ as the safe fallback, reject any other hardcoded @gmail / @varsityhub.app
-      const hardcoded = approvalService.match(/['"][\w.+-]+@(gmail\.com|yahoo\.com|hotmail\.com)['"]/gi);
+      const hardcoded = approvalService.match(
+        /['"][\w.+-]+@(gmail\.com|yahoo\.com|hotmail\.com)['"]/gi
+      );
       expect(hardcoded).toBeNull();
     });
   });
@@ -81,14 +83,18 @@ describe('coach flow structural invariants', () => {
 
   describe('approvals are race-safe (updateMany guarded + idempotent)', () => {
     it('approveOrganization uses updateMany guarded by admin_approved:false', () => {
-      const fn = approvalService.match(/export async function approveOrganization[\s\S]*?^\}/m)?.[0];
+      const fn = approvalService.match(
+        /export async function approveOrganization[\s\S]*?^\}/m
+      )?.[0];
       expect(fn).toBeTruthy();
       expect(/updateMany/.test(fn!)).toBe(true);
       expect(/admin_approved:\s*false/.test(fn!)).toBe(true);
     });
 
     it('approveOrganization is idempotent (early return on already-approved)', () => {
-      const fn = approvalService.match(/export async function approveOrganization[\s\S]*?^\}/m)?.[0];
+      const fn = approvalService.match(
+        /export async function approveOrganization[\s\S]*?^\}/m
+      )?.[0];
       expect(/if\s*\(\s*org\.admin_approved\s*\)/.test(fn!)).toBe(true);
       expect(/already:\s*true/.test(fn!)).toBe(true);
     });
@@ -109,7 +115,8 @@ describe('coach flow structural invariants', () => {
       // try/catch OR have a .catch(...) to isolate failures. We require the
       // .catch pattern specifically because it's the one we can statically
       // verify — awaiting wrapped in try/catch is fine but harder to detect.
-      const sendSites = approvalService.match(/send(?:League|Coach|Ad|Event|AdminAction)[A-Za-z]+Email\(/g) || [];
+      const sendSites =
+        approvalService.match(/send(?:League|Coach|Ad|Event|AdminAction)[A-Za-z]+Email\(/g) || [];
       expect(sendSites.length).toBeGreaterThan(0);
       // Count catch handlers in proximity. We require AT LEAST as many .catch
       // usages as send sites (indicates each has error isolation).
@@ -160,7 +167,10 @@ describe('coach flow structural invariants', () => {
 
     it('admin pending-coach query searches both role column and legacy preferences.role', () => {
       const snippet =
-        admin.match(/approval_status:\s*'PENDING'[\s\S]{0,300}preferences:\s*\{\s*path:\s*\['role'\],\s*equals:\s*'coach'\s*\}/)
+        admin
+          .match(
+            /approval_status:\s*'PENDING'[\s\S]{0,300}preferences:\s*\{\s*path:\s*\['role'\],\s*equals:\s*'coach'\s*\}/
+          )
           ?.at(0) || '';
       expect(snippet).toContain("approval_status: 'PENDING'");
       expect(snippet).toContain("{ role: 'coach' as any }");
@@ -169,9 +179,12 @@ describe('coach flow structural invariants', () => {
 
     it('approval-service stale/expired coach queries search both role column and legacy preferences.role', () => {
       const reminderFn =
-        approvalService.match(/export async function remindPendingCoachApprovals[\s\S]*?^\}/m)?.[0] || '';
+        approvalService.match(
+          /export async function remindPendingCoachApprovals[\s\S]*?^\}/m
+        )?.[0] || '';
       const autoExpireFn =
-        approvalService.match(/export async function autoExpirePendingCoaches[\s\S]*?^\}/m)?.[0] || '';
+        approvalService.match(/export async function autoExpirePendingCoaches[\s\S]*?^\}/m)?.[0] ||
+        '';
 
       expect(reminderFn).toContain("{ role: 'coach' as any }");
       expect(reminderFn).toContain("preferences: { path: ['role'], equals: 'coach' }");
@@ -209,9 +222,7 @@ describe('coach flow structural invariants', () => {
 
   describe('server enforces coach approval prerequisites', () => {
     it('requireOnboarded blocks coaches with approval_status !== APPROVED', () => {
-      expect(
-        /approval_status\s*!==?\s*['"]APPROVED['"]/.test(requireOnboarded)
-      ).toBe(true);
+      expect(/approval_status\s*!==?\s*['"]APPROVED['"]/.test(requireOnboarded)).toBe(true);
     });
 
     it('requireOnboarded blocks approved coaches until the coach agreement is accepted', () => {
@@ -250,7 +261,9 @@ describe('coach flow structural invariants', () => {
 
     it('POST /upgrade-to-coach enforces 48h rejection cooldown', () => {
       expect(/REJECTION_COOLDOWN/.test(auth)).toBe(true);
-      expect(/REJECTION_COOLDOWN_MS\s*=\s*48\s*\*\s*60\s*\*\s*60\s*\*\s*1000/.test(auth)).toBe(true);
+      expect(/REJECTION_COOLDOWN_MS\s*=\s*48\s*\*\s*60\s*\*\s*60\s*\*\s*1000/.test(auth)).toBe(
+        true
+      );
     });
 
     it('POST /upgrade-to-coach sets approval_status=PENDING on success', () => {
@@ -326,9 +339,7 @@ describe('coach flow structural invariants', () => {
         true
       );
       expect(/admin_approved:\s*adminApproved/.test(organizations)).toBe(true);
-      expect(/approved_at:\s*adminApproved \? new Date\(\) : null/.test(organizations)).toBe(
-        true
-      );
+      expect(/approved_at:\s*adminApproved \? new Date\(\) : null/.test(organizations)).toBe(true);
     });
 
     it('only approved user plus approved application can skip pending org approval', () => {
@@ -336,7 +347,11 @@ describe('coach flow structural invariants', () => {
       // demoted approved-application coaches to PENDING when they created
       // additional orgs outside the onboarding flow. The coach application
       // is the canonical approval surface; subsequent orgs are workspaces.
-      expect(/String\(params\.approvalStatus \|\| ''\)\.toUpperCase\(\) !== 'APPROVED'/.test(organizations)).toBe(true);
+      expect(
+        /String\(params\.approvalStatus \|\| ''\)\.toUpperCase\(\) !== 'APPROVED'/.test(
+          organizations
+        )
+      ).toBe(true);
       expect(/latestApplication\?\.status !== 'approved'/.test(organizations)).toBe(true);
     });
 
@@ -370,11 +385,16 @@ describe('coach flow structural invariants', () => {
     });
 
     it('coach approval in org path sends sendCoachApprovedEmail', () => {
-      expect(/sendCoachApprovedEmail/.test(organizations)).toBe(true);
+      // The send moved from routes/organizations.ts into approvalService
+      // (thin routes → lib); the route must delegate there and the service
+      // must own the email.
+      expect(/approveOrganization|approvalService/.test(organizations)).toBe(true);
+      expect(/sendCoachApprovedEmail/.test(approvalService)).toBe(true);
     });
 
     it('coach rejection in org path sends sendCoachRejectedEmail', () => {
-      expect(/sendCoachRejectedEmail/.test(organizations)).toBe(true);
+      expect(/rejectOrganization|approvalService/.test(organizations)).toBe(true);
+      expect(/sendCoachRejectedEmail/.test(approvalService)).toBe(true);
     });
   });
 

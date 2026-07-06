@@ -1,5 +1,6 @@
 import { User } from '@/api/entities';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
+import PasswordInput from '@/components/PasswordInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
@@ -11,14 +12,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useRef, useState } from 'react';
-import {
-    ActivityIndicator,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-    useColorScheme,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ResetPasswordScreen() {
@@ -87,10 +81,15 @@ export default function ResetPasswordScreen() {
       setInfo('Password updated! You can sign in with your new password.');
       setResetSuccess(true);
     } catch (e: any) {
-      captureBreadcrumb('Password reset failed', 'auth.password_reset', {
-        code_length: trimmedCode.length,
-        source: 'reset-screen',
-      }, 'warning');
+      captureBreadcrumb(
+        'Password reset failed',
+        'auth.password_reset',
+        {
+          code_length: trimmedCode.length,
+          source: 'reset-screen',
+        },
+        'warning'
+      );
       captureException(e instanceof Error ? e : new Error(String(e)), {
         tags: { context: 'reset_password_screen_submit' },
       });
@@ -114,39 +113,70 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{
-        title: 'Reset Password',
-        headerShown: true,
-        headerLeft: () => (
-          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
-            <MaterialIcons name="chevron-left" size={24} color={palette.tint} />
-          </Pressable>
-        ),
-      }} />
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: palette.background }]}
+      edges={['top', 'bottom']}
+    >
+      <Stack.Screen
+        options={{
+          title: 'Reset Password',
+          headerShown: true,
+          headerLeft: () => (
+            <Pressable
+              onPress={() => {
+                safeGoBack(router);
+              }}
+              style={{ paddingLeft: 8 }}
+            >
+              <MaterialIcons name="chevron-left" size={24} color={palette.tint} />
+            </Pressable>
+          ),
+        }}
+      />
       <KeyboardAwareScreen contentContainerStyle={styles.content}>
-        <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
+        <View
+          style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}
+        >
           <Text style={[styles.title, { color: palette.text }]}>Enter your reset code</Text>
-          <Text style={[styles.subtitle, { color: palette.mutedText }]}>We sent a reset code to your email. Enter it with your new password.</Text>
+          <Text style={[styles.subtitle, { color: palette.mutedText }]}>
+            We sent a reset code to your email. Enter it with your new password.
+          </Text>
 
           {error ? (
             <>
               <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text>
               {(errorCode === 'RESET_CODE_EXPIRED' || errorCode === 'RESET_CODE_INVALID') && (
-                <Pressable onPress={() => router.replace('/forgot-password')} style={{ marginTop: 4, marginBottom: 8 }}>
-                  <Text style={{ color: palette.tint, fontWeight: '600', fontSize: 14 }}>Request a new code</Text>
+                <Pressable
+                  onPress={() => router.replace('/forgot-password')}
+                  style={{ marginTop: 4, marginBottom: 8 }}
+                >
+                  <Text style={{ color: palette.tint, fontWeight: '600', fontSize: 14 }}>
+                    Request a new code
+                  </Text>
                 </Pressable>
               )}
             </>
           ) : null}
-          {info ? <Text style={[styles.info, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>{info}</Text> : null}
+          {info ? (
+            <Text style={[styles.info, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>
+              {info}
+            </Text>
+          ) : null}
 
           {resetSuccess ? (
             <Pressable
               onPress={() => router.replace('/sign-in')}
-              style={{ backgroundColor: palette.tint, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 12 }}
+              style={{
+                backgroundColor: palette.tint,
+                paddingVertical: 14,
+                borderRadius: 10,
+                alignItems: 'center',
+                marginTop: 12,
+              }}
             >
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Back to Sign In</Text>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
+                Back to Sign In
+              </Text>
             </Pressable>
           ) : null}
 
@@ -170,7 +200,7 @@ export default function ResetPasswordScreen() {
           <Input
             placeholder="6-digit code from email"
             value={code}
-            onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
+            onChangeText={t => setCode(t.replace(/\D/g, '').slice(0, 6))}
             keyboardType="number-pad"
             maxLength={6}
             placeholderTextColor={palette.mutedText}
@@ -184,11 +214,10 @@ export default function ResetPasswordScreen() {
             ]}
           />
 
-          <Input
+          <PasswordInput
             placeholder="New password (min 8 characters)"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
             placeholderTextColor={palette.mutedText}
             style={[
               styles.input,
@@ -200,11 +229,10 @@ export default function ResetPasswordScreen() {
             ]}
           />
 
-          <Input
+          <PasswordInput
             placeholder="Confirm new password"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
-            secureTextEntry
             placeholderTextColor={palette.mutedText}
             style={[
               styles.input,

@@ -85,14 +85,13 @@ async function getFollowedPostsPage(
     const followedAuthorIds = followRows.map(r => r.following_id);
     followedFeedMeta = { following_count: followedAuthorIds.length };
 
-    if (followedAuthorIds.length === 0) {
-      return { items: [], nextCursor: null, followed_feed_meta: followedFeedMeta };
-    }
-
+    // A user's own posts always belong in their followed feed — without this,
+    // anyone who follows nobody sees a permanently empty Feed (671d87d3).
+    const authorPool = [...new Set([currentUserId, ...followedAuthorIds])];
     const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
     const allowedAuthorIds = allExcluded.length
-      ? followedAuthorIds.filter(id => !allExcluded.includes(id))
-      : followedAuthorIds;
+      ? authorPool.filter(id => !allExcluded.includes(id))
+      : authorPool;
 
     where.OR = [{ author_id: { in: allowedAuthorIds } }, { type: 'admin_broadcast' }];
   } else {

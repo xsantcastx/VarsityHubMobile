@@ -7,6 +7,7 @@ import {
   Alert,
   FlatList,
   Image as RNImage,
+  InteractionManager,
   Modal,
   Platform,
   Pressable,
@@ -841,8 +842,17 @@ export default function FeedScreen() {
 
   useEffect(() => {
     if (!games.length) return;
-    void preloadVoteSummaries(games.slice(0, 12));
-    void preloadRsvpSummaries(games);
+    // Defer the vote/RSVP badge preloads until after the navigation transition
+    // and first paint settle. These are non-critical badge counts (poll totals,
+    // RSVP state), so running them off the critical path stops them from
+    // contending with the /feed/bundle content fetch for bandwidth on entry —
+    // the "too many calls at once" the user reported. Same deferral pattern as
+    // GameDetailsScreen/profile.
+    const handle = InteractionManager.runAfterInteractions(() => {
+      void preloadVoteSummaries(games.slice(0, 12));
+      void preloadRsvpSummaries(games);
+    });
+    return () => handle.cancel();
   }, [games, preloadVoteSummaries, preloadRsvpSummaries]);
 
   // Refresh feed data + unread counts on focus, then poll every 60s while visible.

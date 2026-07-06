@@ -46,6 +46,10 @@ interface Game extends GameCardGame {
   approval_status?: 'pending' | 'approved' | 'rejected';
   banner_url?: string; // Add banner URL support
   cover_image_url?: string; // Add cover image URL support
+  // event_type/title let non-competitive rows (fundraiser, watch party, etc.)
+  // render their own title instead of "vs TBD" — see utils/eventTitle.ts.
+  event_type?: string | null;
+  title?: string | null;
   score?: {
     team: number;
     opponent: number;
@@ -246,6 +250,8 @@ function ManageSeasonScreen() {
                 : 'upcoming',
           banner_url: game.banner_url || undefined, // Include banner URL from backend
           cover_image_url: game.cover_image_url || undefined, // Include cover image URL from backend
+          event_type: game.event_type ?? null,
+          title: game.title ?? null,
         };
         return converted;
       });
@@ -1575,10 +1581,7 @@ function ManageSeasonScreen() {
                     <GameCard
                       game={{
                         ...game,
-                        opponent_name:
-                          game.homeTeam && game.awayTeam
-                            ? `${game.homeTeam} vs ${game.awayTeam}`
-                            : game.opponent,
+                        opponent_name: game.opponent_name || game.opponent,
                         scheduled_date: game.date,
                         scheduled_time: game.time,
                         game_type: game.type,
@@ -1655,10 +1658,11 @@ function ManageSeasonScreen() {
                     key={game.id}
                     game={{
                       ...game,
-                      opponent_name:
-                        game.homeTeam && game.awayTeam
-                          ? `${game.homeTeam} vs ${game.awayTeam}`
-                          : game.opponent,
+                      // GameCard prepends "vs " via gameRowTitle() and reads
+                      // event_type/title from the spread above, so pass ONLY the
+                      // opponent name — composing "A vs B" here would double the
+                      // "vs". Non-competitive events surface their own title.
+                      opponent_name: game.opponent_name || game.opponent,
                       scheduled_date: game.date,
                       scheduled_time: game.time,
                       game_type: game.type,
@@ -1698,10 +1702,9 @@ function ManageSeasonScreen() {
                     key={game.id}
                     game={{
                       ...game,
-                      opponent_name:
-                        game.homeTeam && game.awayTeam
-                          ? `${game.homeTeam} vs ${game.awayTeam}`
-                          : game.opponent,
+                      // See the Upcoming Games card above — pass only the
+                      // opponent; gameRowTitle() prepends "vs ".
+                      opponent_name: game.opponent_name || game.opponent,
                       scheduled_date: game.date,
                       scheduled_time: game.time,
                       game_type: game.type,

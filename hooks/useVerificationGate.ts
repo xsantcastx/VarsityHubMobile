@@ -44,6 +44,26 @@ function setGateOpener(next: VerificationGateOpener | null) {
   gateOpener = next;
 }
 
+// Module-level (not per-instance) so it collapses duplicate sends across the
+// two live useVerificationGate instances — the global VerificationGateHost
+// gate and a standalone screen's own gate (e.g. app/verify.tsx) — plus
+// remounts of either. A gate `open()` call auto-triggers `resend()`; if two
+// call sites open within this window (double gate-open, remount, fast taps)
+// only the first actually hits the network. This is intentionally far
+// shorter than resendCooldownSeconds (30-60s) so it never blocks a
+// legitimate user-initiated resend after the real cooldown elapses — it only
+// catches near-simultaneous duplicates.
+const RESEND_DEDUP_WINDOW_MS = 3000;
+let lastSuccessfulResendAtMs = 0;
+// Synchronous cross-instance in-flight guard. The timestamp guard above is
+// only written AFTER requestCode() resolves, so two truly-concurrent
+// resend() calls (e.g. multiple API calls each getting a 403 "email
+// verification required" and calling openVerificationGate() near app
+// startup) can both read the stale timestamp before either has resolved,
+// letting both through. This flag is set synchronously before the first
+// await, so the second concurrent call sees it immediately and bails.
+let resendInFlightGlobal = false;
+
 export function openVerificationGate(options?: VerificationGateOpenOptions): Promise<boolean> {
   if (!gateOpener) return Promise.resolve(false);
   return gateOpener(options);
@@ -59,7 +79,10 @@ export function isEmailVerificationRequiredError(status?: number, payload?: any)
 }
 
 function defaultRequestErrorMessage(error: any): string {
-  const { code, message, status } = extractApiError(error, 'Unable to send a verification code right now.');
+  const { code, message, status } = extractApiError(
+    error,
+    'Unable to send a verification code right now.'
+  );
 
   if (code === 'VERIFY_REQUEST_COOLDOWN') {
     return 'Please wait a moment before requesting another code.';
@@ -79,7 +102,10 @@ function defaultRequestErrorMessage(error: any): string {
 }
 
 function defaultConfirmErrorMessage(error: any): string {
-  const { code, message, status } = extractApiError(error, 'Verification failed. Please try again.');
+  const { code, message, status } = extractApiError(
+    error,
+    'Verification failed. Please try again.'
+  );
 
   if (code === 'VERIFY_CODE_EXPIRED') return 'Verification code expired. Request a new code.';
   if (code === 'VERIFY_NO_CODE') return 'No verification code is active. Request a new code.';
@@ -154,12 +180,27 @@ export function useVerificationGate({
 
   const resend = useCallback(async () => {
     if (loading || resendInFlightRef.current || resendCooldown > 0) return;
+    // Short-window duplicate-send guard: two useVerificationGate instances
+    // (global VerificationGateHost + a standalone verify screen) can each
+    // auto-fire resend() on open(), or a remount can re-trigger it. Neither
+    // case is a legitimate second request from the user, so skip the network
+    // call if a send just succeeded moments ago. Far shorter than the real
+    // resendCooldownSeconds, so it never blocks an intentional resend tap.
+    const now = Date.now();
+    if (now - lastSuccessfulResendAtMs < RESEND_DEDUP_WINDOW_MS) return;
+    // Synchronous cross-instance guard: two truly-concurrent resend() calls
+    // both pass the timestamp check above (neither has resolved yet, so
+    // lastSuccessfulResendAtMs is still stale) — this flag closes that gap
+    // because it's set synchronously, before the network call starts.
+    if (resendInFlightGlobal) return;
+    resendInFlightGlobal = true;
     resendInFlightRef.current = true;
     setLoading(true);
     setError(null);
     setInfo(null);
     try {
       const response = await requestCode();
+      lastSuccessfulResendAtMs = Date.now();
       onRequestSuccess?.(response);
       if (response?.already_verified) {
         await handleVerified();
@@ -176,13 +217,12 @@ export function useVerificationGate({
       setResendCooldown(requestState?.cooldownSeconds ?? resendCooldownSeconds);
     } catch (requestError: any) {
       onRequestError?.(requestError);
-      setError(
-        getRequestErrorMessage?.(requestError) ?? defaultRequestErrorMessage(requestError)
-      );
+      setError(getRequestErrorMessage?.(requestError) ?? defaultRequestErrorMessage(requestError));
       if (requestError?.status === 429) {
         setResendCooldown(resendCooldownSeconds);
       }
     } finally {
+      resendInFlightGlobal = false;
       resendInFlightRef.current = false;
       setLoading(false);
     }
@@ -206,28 +246,34 @@ export function useVerificationGate({
     setInfo(null);
     try {
       const response = await confirmCode(code.trim());
+      // An explicit failure payload (e.g. `{ error: ... }` returned with a
+      // 2xx status instead of thrown) must NOT fall through to
+      // handleVerified() — that clears the user's typed code, forcing them
+      // to re-enter it. Only recognized success shapes finish the gate.
+      if (response && response.error) {
+        setError(
+          getConfirmErrorMessage?.(response) ??
+            defaultConfirmErrorMessage({ data: response, status: response.status })
+        );
+        return;
+      }
       if (response?.already_verified || response?.ok) {
         await handleVerified();
         return;
       }
-      await handleVerified();
+      // Unrecognized response shape: don't assume success or wipe the code.
+      setError(
+        getConfirmErrorMessage?.(response) ??
+          defaultConfirmErrorMessage({ data: response, status: response?.status })
+      );
     } catch (confirmError: any) {
       onConfirmError?.(confirmError);
-      setError(
-        getConfirmErrorMessage?.(confirmError) ?? defaultConfirmErrorMessage(confirmError)
-      );
+      setError(getConfirmErrorMessage?.(confirmError) ?? defaultConfirmErrorMessage(confirmError));
     } finally {
       verifyInFlightRef.current = false;
       setLoading(false);
     }
-  }, [
-    code,
-    confirmCode,
-    getConfirmErrorMessage,
-    handleVerified,
-    loading,
-    onConfirmError,
-  ]);
+  }, [code, confirmCode, getConfirmErrorMessage, handleVerified, loading, onConfirmError]);
 
   const cancel = useCallback(() => {
     finish(false);
@@ -253,7 +299,7 @@ export function useVerificationGate({
       setInfo(null);
       setResendCooldown(0);
 
-      const promise = new Promise<boolean>((resolve) => {
+      const promise = new Promise<boolean>(resolve => {
         resolveRef.current = resolve;
       });
       pendingPromiseRef.current = promise;

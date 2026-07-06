@@ -35,6 +35,7 @@ import { getAuthSnapshot, getCanonicalOrganizationId } from '@/utils/authState';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import { resolveMediaType } from '@/utils/media';
 import { getCoachAccessState, getCoachFinishSetupRoute } from '@/utils/roleChecks';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { Calendar } from 'react-native-calendars';
@@ -239,19 +240,15 @@ function CommunityDiscoverScreen() {
         : typeof p?.media?.url === 'string'
           ? p.media.url
           : null;
-    const explicitType =
-      typeof p?.media_type === 'string' ? String(p.media_type).toLowerCase() : null;
-    const isVideo = explicitType
-      ? explicitType === 'video'
-      : typeof mediaUrl === 'string'
-        ? /\.(mp4|mov|webm|m4v|avi)$/i.test(mediaUrl)
-        : false;
+    const isVideo = resolveMediaType(mediaUrl, p?.media_type) === 'video';
     const author = p?.author || null;
     const authorId = author?.id ?? author?.user_id ?? null;
     return {
       id: String(p?.id ?? p?.post_id ?? Date.now()),
       media_url: mediaUrl,
       media_type: isVideo ? 'video' : 'image',
+      game_id: p?.game_id ?? p?.game?.id ?? null,
+      event_id: p?.event_id ?? p?.event?.id ?? null,
       caption: p?.caption ?? p?.title ?? null,
       upvotes_count:
         typeof p?.upvotes_count === 'number'

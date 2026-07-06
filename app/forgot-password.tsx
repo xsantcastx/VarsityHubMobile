@@ -1,5 +1,6 @@
 import { User } from '@/api/entities';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
+import PasswordInput from '@/components/PasswordInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
@@ -10,14 +11,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useRef, useState } from 'react';
-import {
-    ActivityIndicator,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-    useColorScheme,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ForgotPasswordScreen() {
@@ -88,9 +82,14 @@ export default function ForgotPasswordScreen() {
         errMsg.includes('Request timeout') ||
         errMsg.includes('fetch');
       if (isTransportFailure) {
-        captureBreadcrumb('Password reset code request failed', 'auth.password_reset', {
-          result: 'transport-failure',
-        }, 'warning');
+        captureBreadcrumb(
+          'Password reset code request failed',
+          'auth.password_reset',
+          {
+            result: 'transport-failure',
+          },
+          'warning'
+        );
         captureException(e instanceof Error ? e : new Error(String(e)), {
           tags: { context: 'password_reset_code_request' },
         });
@@ -143,9 +142,14 @@ export default function ForgotPasswordScreen() {
       });
       setDone(true);
     } catch (e: any) {
-      captureBreadcrumb('Password reset failed', 'auth.password_reset', {
-        code_length: trimmedCode.length,
-      }, 'warning');
+      captureBreadcrumb(
+        'Password reset failed',
+        'auth.password_reset',
+        {
+          code_length: trimmedCode.length,
+        },
+        'warning'
+      );
       captureException(e instanceof Error ? e : new Error(String(e)), {
         tags: { context: 'password_reset_submit' },
       });
@@ -157,30 +161,46 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top']}>
-      <Stack.Screen options={{
-        title: 'Forgot Password',
-        headerLeft: () => (
-          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
-            <MaterialIcons name="chevron-left" size={24} color={palette.tint} />
-          </Pressable>
-        ),
-      }} />
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: palette.background }]}
+      edges={['top']}
+    >
+      <Stack.Screen
+        options={{
+          title: 'Forgot Password',
+          headerLeft: () => (
+            <Pressable
+              onPress={() => {
+                safeGoBack(router);
+              }}
+              style={{ paddingLeft: 8 }}
+            >
+              <MaterialIcons name="chevron-left" size={24} color={palette.tint} />
+            </Pressable>
+          ),
+        }}
+      />
       <KeyboardAwareScreen contentContainerStyle={styles.scroll}>
-        <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
-
+        <View
+          style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}
+        >
           {done ? (
             // Success state
             <>
-              <MaterialIcons name="check-circle" size={48} color="#10B981" style={{ alignSelf: 'center' }} />
-              <Text style={[styles.title, { color: palette.text, textAlign: 'center' }]}>Password updated!</Text>
+              <MaterialIcons
+                name="check-circle"
+                size={48}
+                color="#10B981"
+                style={{ alignSelf: 'center' }}
+              />
+              <Text style={[styles.title, { color: palette.text, textAlign: 'center' }]}>
+                Password updated!
+              </Text>
               <Text style={[styles.subtitle, { color: palette.mutedText, textAlign: 'center' }]}>
                 You can now sign in with your new password.
               </Text>
               {/* eslint-disable-next-line react-native/no-raw-text */}
-              <Button onPress={() => void router.replace('/sign-in')}>
-                Sign in
-              </Button>
+              <Button onPress={() => void router.replace('/sign-in')}>Sign in</Button>
             </>
           ) : (
             // All fields on one screen
@@ -190,8 +210,12 @@ export default function ForgotPasswordScreen() {
                 Enter your email and we'll send a 6-digit code to reset your password.
               </Text>
 
-              {sendError ? <Text style={[styles.error, { color: palette.destructive }]}>{sendError}</Text> : null}
-              {resetError ? <Text style={[styles.error, { color: palette.destructive }]}>{resetError}</Text> : null}
+              {sendError ? (
+                <Text style={[styles.error, { color: palette.destructive }]}>{sendError}</Text>
+              ) : null}
+              {resetError ? (
+                <Text style={[styles.error, { color: palette.destructive }]}>{resetError}</Text>
+              ) : null}
 
               <Input
                 placeholder="name@school.edu"
@@ -201,7 +225,15 @@ export default function ForgotPasswordScreen() {
                 keyboardType="email-address"
                 editable={!codeSent}
                 placeholderTextColor={palette.mutedText}
-                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text, opacity: codeSent ? 0.5 : 1 }]}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: palette.surface,
+                    borderColor: palette.border,
+                    color: palette.text,
+                    opacity: codeSent ? 0.5 : 1,
+                  },
+                ]}
               />
 
               {!codeSent ? (
@@ -209,7 +241,12 @@ export default function ForgotPasswordScreen() {
                   {sendLoading ? <ActivityIndicator color="white" /> : 'Send reset code'}
                 </Button>
               ) : (
-                <Text style={[styles.subtitle, { color: '#10B981', fontWeight: '600', textAlign: 'center' }]}>
+                <Text
+                  style={[
+                    styles.subtitle,
+                    { color: '#10B981', fontWeight: '600', textAlign: 'center' },
+                  ]}
+                >
                   Code sent to {email.trim()}
                 </Text>
               )}
@@ -217,40 +254,81 @@ export default function ForgotPasswordScreen() {
               <Input
                 placeholder="Enter 6-digit code"
                 value={code}
-                onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
+                onChangeText={t => setCode(t.replace(/\D/g, '').slice(0, 6))}
                 keyboardType="number-pad"
                 maxLength={6}
                 editable={codeSent}
                 placeholderTextColor={palette.mutedText}
-                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text, opacity: codeSent ? 1 : 0.4 }]}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: palette.surface,
+                    borderColor: palette.border,
+                    color: palette.text,
+                    opacity: codeSent ? 1 : 0.4,
+                  },
+                ]}
               />
 
-              <Input
+              <PasswordInput
                 placeholder="New password (min 8 characters)"
                 value={password}
                 onChangeText={setPassword}
-                secureTextEntry
                 editable={codeSent}
                 placeholderTextColor={palette.mutedText}
-                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text, opacity: codeSent ? 1 : 0.4 }]}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: palette.surface,
+                    borderColor: palette.border,
+                    color: palette.text,
+                    opacity: codeSent ? 1 : 0.4,
+                  },
+                ]}
               />
 
-              <Input
+              <PasswordInput
                 placeholder="Confirm new password"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                secureTextEntry
                 editable={codeSent}
                 placeholderTextColor={palette.mutedText}
-                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text, opacity: codeSent ? 1 : 0.4 }]}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: palette.surface,
+                    borderColor: palette.border,
+                    color: palette.text,
+                    opacity: codeSent ? 1 : 0.4,
+                  },
+                ]}
               />
 
-              <Button onPress={codeSent ? onResetPassword : onSendCode} disabled={codeSent ? resetLoading : sendLoading}>
-                {(codeSent ? resetLoading : sendLoading) ? <ActivityIndicator color="white" /> : codeSent ? 'Update password' : 'Send reset code'}
+              <Button
+                onPress={codeSent ? onResetPassword : onSendCode}
+                disabled={codeSent ? resetLoading : sendLoading}
+              >
+                {(codeSent ? resetLoading : sendLoading) ? (
+                  <ActivityIndicator color="white" />
+                ) : codeSent ? (
+                  'Update password'
+                ) : (
+                  'Send reset code'
+                )}
               </Button>
 
               {codeSent ? (
-                <Pressable onPress={() => { setCodeSent(false); setCode(''); setPassword(''); setConfirmPassword(''); setResetError(null); setSendError(null); }} style={styles.linkRow}>
+                <Pressable
+                  onPress={() => {
+                    setCodeSent(false);
+                    setCode('');
+                    setPassword('');
+                    setConfirmPassword('');
+                    setResetError(null);
+                    setSendError(null);
+                  }}
+                  style={styles.linkRow}
+                >
                   <Text style={[styles.link, { color: palette.tint }]}>Wrong email? Change it</Text>
                 </Pressable>
               ) : null}

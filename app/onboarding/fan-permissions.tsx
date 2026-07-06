@@ -6,7 +6,15 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Fan-only permissions screen — the final step of fan onboarding.
@@ -17,8 +25,12 @@ export default function FanPermissions() {
   const isDark = colorScheme === 'dark';
   const palette = Colors[colorScheme];
   const router = useRouter();
-  const { user, registerPushToken } = useAuth();
+  const { user, registerPushToken, checkAuth } = useAuth();
   const [loading, setLoading] = useState(false);
+  // Toggles let the user confirm which permissions to grant instead of firing
+  // both system dialogs unconditionally. Default ON — this screen is opt-out.
+  const [pushEnabled, setPushEnabled] = useState(true);
+  const [locationEnabled, setLocationEnabled] = useState(true);
   const didMount = useRef(false);
 
   // Guard: only fans who have completed onboarding should be on this screen.
@@ -47,10 +59,31 @@ export default function FanPermissions() {
     skip: isDark ? '#6B7280' : '#9CA3AF',
   };
 
+  // Refresh the in-memory auth user, then enter the app. This is the fix for
+  // the onboarding loop: step-2 already called completeOnboarding on the server,
+  // but the client `user` object is never refreshed, so it still reads
+  // onboarding_completed=false. The AuthProvider routing gate keys off that
+  // stale object (not the local hasCompletedOnboarding flag) — so leaving this
+  // screen for /(tabs)/feed made the gate think the fan still needs onboarding
+  // and bounced them back to step-1. checkAuth() re-syncs the user first so the
+  // gate sees the completed state. Mirrors the coach step-3 flow.
+  const finishOnboarding = async () => {
+    try {
+      await checkAuth({ forceRefresh: true });
+    } catch {
+      // Non-fatal — a transient /me refresh failure must not trap the user here.
+    }
+    setLoading(false);
+    // nav-safe: onboarding completion — linear flow; going BACK from here
+    // returns to the step-2 form and re-runs completeOnboarding (signup
+    // loop). The stack must be cleared into the app.
+    router.replace('/(tabs)/feed');
+  };
+
   const requestAndContinue = async () => {
     setLoading(true);
-    try {
-      // Notifications
+    // Notifications — only if the user left the toggle on
+    if (pushEnabled) {
       try {
         const { status: pushStatus } = await Notifications.getPermissionsAsync();
         if (pushStatus !== 'granted') {
@@ -59,7 +92,11 @@ export default function FanPermissions() {
       } catch {
         // Non-fatal — never block navigation on permission failure
       }
-      // Location
+      // Register push token now that permission has been (potentially) granted
+      registerPushToken().catch(() => {});
+    }
+    // Location — only if the user left the toggle on
+    if (locationEnabled) {
       try {
         const { status: locStatus } = await Location.getForegroundPermissionsAsync();
         if (locStatus !== 'granted') {
@@ -68,21 +105,13 @@ export default function FanPermissions() {
       } catch {
         // Non-fatal
       }
-      // Register push token now that permission has been (potentially) granted
-      registerPushToken().catch(() => {});
-    } finally {
-      setLoading(false);
-      // nav-safe: onboarding completion — linear flow; going BACK from here
-      // returns to the step-2 form and re-runs completeOnboarding (signup
-      // loop). The stack must be cleared into the app.
-      router.replace('/(tabs)/feed');
     }
+    await finishOnboarding();
   };
 
   const skip = () => {
-    registerPushToken().catch(() => {});
-    // nav-safe: onboarding completion — same as requestAndContinue above
-    router.replace('/(tabs)/feed');
+    setLoading(true);
+    void finishOnboarding();
   };
 
   return (
@@ -112,6 +141,11 @@ export default function FanPermissions() {
             textColor={colors.text}
             mutedColor={colors.textMuted}
             isDark={isDark}
+            toggleValue={pushEnabled}
+            onToggle={setPushEnabled}
+            toggleTestID="fan-permissions-push-toggle"
+            toggleLabel="Enable game and team notifications"
+            primaryColor={colors.primary}
           />
           <PermissionCard
             icon="location"
@@ -124,22 +158,27 @@ export default function FanPermissions() {
             textColor={colors.text}
             mutedColor={colors.textMuted}
             isDark={isDark}
+            toggleValue={locationEnabled}
+            onToggle={setLocationEnabled}
+            toggleTestID="fan-permissions-location-toggle"
+            toggleLabel="Enable nearby games and events"
+            primaryColor={colors.primary}
           />
         </View>
 
-        {/* Fan-only callout */}
+        {/* Welcome note */}
         <View
           style={[
             styles.fanNote,
             {
-              backgroundColor: isDark ? '#1C1917' : '#FFFBEB',
-              borderColor: isDark ? '#92400E' : '#FDE68A',
+              backgroundColor: isDark ? '#0F172A' : '#F1F5F9',
+              borderColor: isDark ? '#334155' : '#E2E8F0',
             },
           ]}
         >
-          <Ionicons name="shield-checkmark" size={16} color="#D97706" />
-          <Text style={[styles.fanNoteText, { color: isDark ? '#FCD34D' : '#92400E' }]}>
-            Fan accounts have full read access. Apply for a coach account in Settings any time.
+          <Ionicons name="sparkles" size={16} color={colors.primary} />
+          <Text style={[styles.fanNoteText, { color: isDark ? '#CBD5E1' : '#475569' }]}>
+            Welcome to VarsityHub — check out highlights and games in your area.
           </Text>
         </View>
       </View>
@@ -190,6 +229,11 @@ function PermissionCard({
   textColor,
   mutedColor,
   isDark,
+  toggleValue,
+  onToggle,
+  toggleTestID,
+  toggleLabel,
+  primaryColor,
 }: {
   icon: string;
   iconColor: string;
@@ -201,6 +245,11 @@ function PermissionCard({
   textColor: string;
   mutedColor: string;
   isDark: boolean;
+  toggleValue: boolean;
+  onToggle: (next: boolean) => void;
+  toggleTestID: string;
+  toggleLabel: string;
+  primaryColor: string;
 }) {
   return (
     <View
@@ -228,6 +277,15 @@ function PermissionCard({
         <Text style={[styles.cardTitle, { color: textColor }]}>{title}</Text>
         <Text style={[styles.cardDesc, { color: mutedColor }]}>{description}</Text>
       </View>
+      <Switch
+        testID={toggleTestID}
+        value={toggleValue}
+        onValueChange={onToggle}
+        accessibilityLabel={toggleLabel}
+        trackColor={{ false: isDark ? '#374151' : '#D1D5DB', true: primaryColor }}
+        thumbColor="#FFFFFF"
+        ios_backgroundColor={isDark ? '#374151' : '#D1D5DB'}
+      />
     </View>
   );
 }
