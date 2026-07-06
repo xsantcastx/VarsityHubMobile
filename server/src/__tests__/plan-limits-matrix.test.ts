@@ -53,15 +53,15 @@ describe('resolvePlan', () => {
 // ---------------------------------------------------------------------------
 describe('getMaxTeamsForPlan', () => {
   const cases: [string | null | undefined, number | null][] = [
-    ['rookie', 3],
+    ['rookie', 4],
     ['veteran', null],
     ['legend', null],
-    ['free', 3],
+    ['free', 4],
     ['premium', null],
     ['pro', null],
-    [null, 3],
-    [undefined, 3],
-    ['garbage', 3],
+    [null, 4],
+    [undefined, 4],
+    ['garbage', 4],
   ];
 
   it.each(cases)('getMaxTeamsForPlan(%j) → %j', (plan, expected) => {
@@ -133,7 +133,7 @@ describe('getAuthorizedUsersOrgLimit', () => {
   });
 
   // Legend: unlimited strategy → null
-  it.each([0, 1, 99])('legend with %d teams → null (unlimited)', (teamCount) => {
+  it.each([0, 1, 99])('legend with %d teams → null (unlimited)', teamCount => {
     expect(getAuthorizedUsersOrgLimit('legend', teamCount)).toBeNull();
   });
 
