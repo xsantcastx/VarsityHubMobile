@@ -3,8 +3,10 @@
  * (fixturedownload.com/feed/json/fifa-world-cup-2026) — full group stage.
  *
  * Knockout-round fixtures are added as their teams become known (group stage
- * concluded June 27). Round of 16 matches for July 4–5 (89–92) are included;
- * remaining knockout fixtures are still TBD. Add them here once known, then run:
+ * concluded June 27). Included so far: full Round of 16 (matches 89–96) and
+ * quarterfinals 97 (France vs Morocco) + 99 (Norway vs England). Still TBD:
+ * quarterfinals 98 + 100, semifinals, bronze final, and the final — add them
+ * here once their teams are decided, then run:
  *
  *   npx tsx scripts/fifa/create-fifa-events.ts --dry-run
  *
@@ -1332,5 +1334,72 @@ export const MATCHES: MatchDef[] = [
     kickoffLocalNote: 'Kickoff: 8:00 PM EDT / 6:00 PM local in Mexico City.',
     isNeutral: false,
     note: 'Host nation Mexico take on England at the Azteca.',
+  },
+  // ── Round of 16 — July 6 ───────────────────────────────────────────────────
+  {
+    home: 'Portugal',
+    away: 'Spain',
+    venue: 'att',
+    kickoffUtc: '2026-07-06T19:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 93',
+    kickoffLocalNote: 'Kickoff: 3:00 PM EDT / 2:00 PM CDT.',
+    isNeutral: true,
+    note: 'Iberian derby — reigning European champions Spain against Ronaldo’s Portugal.',
+  },
+  {
+    home: 'USA',
+    away: 'Belgium',
+    venue: 'lumen',
+    kickoffUtc: '2026-07-07T00:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 94',
+    kickoffLocalNote: 'Kickoff: 8:00 PM EDT / 5:00 PM PDT.',
+    isNeutral: false,
+    note: 'The hosts play for a quarterfinal spot in front of a packed Lumen Field.',
+  },
+  // ── Round of 16 — July 7 ───────────────────────────────────────────────────
+  {
+    home: 'Argentina',
+    away: 'Egypt',
+    venue: 'mercedesBenz',
+    kickoffUtc: '2026-07-07T16:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 95',
+    kickoffLocalNote: 'Kickoff: 12:00 PM EDT.',
+    isNeutral: true,
+  },
+  {
+    home: 'Switzerland',
+    away: 'Colombia',
+    venue: 'bcPlace',
+    kickoffUtc: '2026-07-07T20:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 96',
+    kickoffLocalNote: 'Kickoff: 4:00 PM EDT / 1:00 PM PDT.',
+    isNeutral: true,
+  },
+  // ── Quarterfinals ──────────────────────────────────────────────────────────
+  {
+    home: 'France',
+    away: 'Morocco',
+    venue: 'gillette',
+    kickoffUtc: '2026-07-09T20:00:00.000Z',
+    group: 'Quarterfinal',
+    matchLabel: 'Match 97',
+    kickoffLocalNote: 'Kickoff: 4:00 PM EDT.',
+    isNeutral: true,
+    note: 'Rematch of the 2022 semifinal.',
+  },
+  {
+    home: 'Norway',
+    away: 'England',
+    venue: 'hardRock',
+    kickoffUtc: '2026-07-11T21:00:00.000Z',
+    group: 'Quarterfinal',
+    matchLabel: 'Match 99',
+    kickoffLocalNote: 'Kickoff: 5:00 PM EDT.',
+    isNeutral: true,
+    note: 'Norway stunned Brazil to get here; England survived Mexico at the Azteca.',
   },
 ];
