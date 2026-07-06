@@ -47,7 +47,7 @@ describe('Veteran billing snapshot', () => {
       where: { user_id: 'user-1', role: 'owner', status: 'active' },
     });
     expect(mockTeamCount).not.toHaveBeenCalled();
-    expect(snapshot).toEqual({ teamCount: 5, billableQuantity: 2 });
+    expect(snapshot).toEqual({ teamCount: 5, billableQuantity: 1 });
   });
 
   it('derives veteran billing from organization teams when org-owned', async () => {
@@ -59,30 +59,30 @@ describe('Veteran billing snapshot', () => {
       where: { organization_id: 'org-1' },
     });
     expect(mockTeamMembershipCount).not.toHaveBeenCalled();
-    expect(snapshot).toEqual({ teamCount: 6, billableQuantity: 3 });
+    expect(snapshot).toEqual({ teamCount: 6, billableQuantity: 2 });
   });
 
   it('converts billable quantity into total team allowance', () => {
-    expect(getVeteranTotalTeamAllowance(0)).toBe(3);
-    expect(getVeteranTotalTeamAllowance(2)).toBe(5);
+    expect(getVeteranTotalTeamAllowance(0)).toBe(4);
+    expect(getVeteranTotalTeamAllowance(2)).toBe(6);
   });
 
   it('only allows quantity updates for the current total or next team', () => {
-    expect(resolveVeteranQuantityUpdate(4, 4)).toMatchObject({
-      minAllowedTotal: 4,
-      maxAllowedTotal: 5,
+    expect(resolveVeteranQuantityUpdate(5, 5)).toMatchObject({
+      minAllowedTotal: 5,
+      maxAllowedTotal: 6,
       billableQuantity: 1,
       allowed: true,
     });
-    expect(resolveVeteranQuantityUpdate(4, 5)).toMatchObject({
-      minAllowedTotal: 4,
-      maxAllowedTotal: 5,
+    expect(resolveVeteranQuantityUpdate(5, 6)).toMatchObject({
+      minAllowedTotal: 5,
+      maxAllowedTotal: 6,
       billableQuantity: 2,
       allowed: true,
     });
-    expect(resolveVeteranQuantityUpdate(4, 6)).toMatchObject({
-      minAllowedTotal: 4,
-      maxAllowedTotal: 5,
+    expect(resolveVeteranQuantityUpdate(5, 7)).toMatchObject({
+      minAllowedTotal: 5,
+      maxAllowedTotal: 6,
       billableQuantity: 3,
       allowed: false,
     });

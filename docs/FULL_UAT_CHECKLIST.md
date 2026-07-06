@@ -149,7 +149,7 @@ Organized by user journey.
 
 ### 4.4 Plan limits (P1)
 
-- [ ] Rookie plan blocks or paywalls the 4th team
+- [ ] Rookie plan blocks or paywalls the 5th team
 - [ ] Veteran plan respects 100-roster and 5-authorized-user limits
 - [ ] Legend plan behaves as unlimited
 
@@ -447,12 +447,12 @@ Validation rule:
 
 ## Test Environment Guide
 
-| Where | What is realistic |
-| --- | --- |
-| Simulator / emulator | Most UI flows, sign-in, onboarding, posts, events |
-| Dev client on real device | Everything above plus push and OAuth |
-| TestFlight build | Device-only flows including IAP sandbox, push, OTA |
-| Production install | Real IAP charges, full OTA flow, real notifications |
+| Where                     | What is realistic                                   |
+| ------------------------- | --------------------------------------------------- |
+| Simulator / emulator      | Most UI flows, sign-in, onboarding, posts, events   |
+| Dev client on real device | Everything above plus push and OAuth                |
+| TestFlight build          | Device-only flows including IAP sandbox, push, OTA  |
+| Production install        | Real IAP charges, full OTA flow, real notifications |
 
 ## Triage Suggestion
 

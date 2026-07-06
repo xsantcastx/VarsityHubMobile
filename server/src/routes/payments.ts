@@ -1077,7 +1077,10 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
       );
     }
     if (billableQuantity === 0) {
-      throw membershipError(400, 'Select at least one billable team (4 total) to use Veteran plan');
+      throw membershipError(
+        400,
+        `Select at least one billable team (${SERVER_VETERAN_MIN_TOTAL_TEAMS} total) to use Veteran plan`
+      );
     }
   }
 
@@ -1693,7 +1696,9 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
         });
       }
       if (billableQuantity === 0) {
-        return res.status(400).json({ error: 'Select at least one billable team (4 total) to use Veteran plan' });
+        return res.status(400).json({
+          error: `Select at least one billable team (${SERVER_VETERAN_MIN_TOTAL_TEAMS} total) to use Veteran plan`,
+        });
       }
     }
 
@@ -2262,7 +2267,13 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
 
     const userId = req.user!.id;
     const updateQuantitySchema = z.object({
-      team_count: z.number().int().min(4, 'Minimum 4 total teams required for Veteran plan.'),
+      team_count: z
+        .number()
+        .int()
+        .min(
+          SERVER_VETERAN_MIN_TOTAL_TEAMS,
+          `Minimum ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams required for Veteran plan.`
+        ),
     });
     const parsed = updateQuantitySchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
@@ -2299,7 +2310,9 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
     const quantityUpdate = resolveVeteranQuantityUpdate(actualTeamCount, team_count);
     const billable = quantityUpdate.billableQuantity;
     if (billable === 0) {
-      return res.status(400).json({ error: 'No billable teams (only 3). Remain on Rookie plan instead.' });
+      return res.status(400).json({
+        error: `No billable teams (only ${SERVER_ROOKIE_TEAM_LIMIT}). Remain on Rookie plan instead.`,
+      });
     }
 
     if (!quantityUpdate.allowed) {

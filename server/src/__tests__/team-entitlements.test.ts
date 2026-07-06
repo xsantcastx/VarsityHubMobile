@@ -285,7 +285,7 @@ describeDb('Team entitlement enforcement', () => {
       .expect(200);
 
     expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body).toHaveLength(3);
+    expect(res.body).toHaveLength(4);
     expect(res.body.map((team: any) => team.id)).not.toContain(lockedTeamId);
   });
 

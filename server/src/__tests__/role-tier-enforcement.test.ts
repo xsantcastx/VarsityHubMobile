@@ -7,8 +7,8 @@
  * ──────────────────────────────────────────────────────────────────────
  *  Plan definitions (shared/plan-definitions.json)
  *
- *  Rookie   – max 3 teams, 6 authorized users/team, no extracurricular
- *  Veteran  – unlimited teams ($0.99/mo per team beyond 3), 5 auth users/team, no extracurricular
+ *  Rookie   – max 4 teams, 6 authorized users/team, no extracurricular
+ *  Veteran  – unlimited teams ($0.99/mo per team beyond 4), 5 auth users/team, no extracurricular
  *  Legend   – unlimited teams ($19.99/yr), unlimited auth users, extracurricular clubs
  * ──────────────────────────────────────────────────────────────────────
  *
@@ -35,6 +35,7 @@ let signJwt: any;
 const ts = Date.now();
 const FAN_EMAIL         = `test-fan-${ts}@example.com`;
 const ROOKIE_EMAIL      = `test-rookie-${ts}@example.com`;
+const ROOKIE_EXTRACURRICULAR_EMAIL = `test-rookie-extracurricular-${ts}@example.com`;
 const VETERAN_EMAIL     = `test-veteran-${ts}@example.com`;
 const LEGEND_EMAIL      = `test-legend-${ts}@example.com`;
 const PASSWORD          = 'TestPassword123!';
@@ -42,11 +43,13 @@ const PASSWORD          = 'TestPassword123!';
 /* ---------- IDs & tokens filled during setup ---------- */
 let fanId: string, fanToken: string;
 let rookieId: string, rookieToken: string;
+let rookieExtracurricularId: string, rookieExtracurricularToken: string;
 let veteranId: string, veteranToken: string;
 let legendId: string, legendToken: string;
 
 /* ---------- org / team ids collected during tests ---------- */
 let rookieOrgId: string;
+let rookieExtracurricularOrgId: string;
 let rookieTeamIds: string[] = [];
 let veteranOrgId: string;
 let veteranTeamIds: string[] = [];
@@ -139,17 +142,31 @@ beforeAll(async () => {
   ({ id: rookieId, token: rookieToken } = await createUser(ROOKIE_EMAIL, 'Rookie Coach', 'coach', 'rookie'));
   ({ id: veteranId, token: veteranToken } = await createUser(VETERAN_EMAIL, 'Veteran Coach', 'coach', 'veteran'));
   ({ id: legendId, token: legendToken } = await createUser(LEGEND_EMAIL, 'Legend Coach', 'coach', 'legend'));
+  // Separate account so the extracurricular-club check doesn't share the
+  // primary rookie user's team-creation rate-limit budget (5/day): that
+  // budget is already fully spent verifying the 4-free-teams boundary
+  // (4 successful creates + 1 blocked create).
+  ({ id: rookieExtracurricularId, token: rookieExtracurricularToken } = await createUser(
+    ROOKIE_EXTRACURRICULAR_EMAIL,
+    'Rookie Coach (Extracurricular Check)',
+    'coach',
+    'rookie',
+  ));
 
   // ── give each coach an org (league page) so they have org-owner role ──
   rookieOrgId = await createOrgForUser(rookieId, `Rookie League ${ts}`);
   veteranOrgId = await createOrgForUser(veteranId, `Veteran League ${ts}`);
   legendOrgId = await createOrgForUser(legendId, `Legend League ${ts}`);
+  rookieExtracurricularOrgId = await createOrgForUser(
+    rookieExtracurricularId,
+    `Rookie Extracurricular League ${ts}`,
+  );
 });
 
 afterAll(async () => {
   try {
-    const allUserIds = [fanId, rookieId, veteranId, legendId].filter(Boolean);
-    const allOrgIds = [rookieOrgId, veteranOrgId, legendOrgId].filter(Boolean);
+    const allUserIds = [fanId, rookieId, veteranId, legendId, rookieExtracurricularId].filter(Boolean);
+    const allOrgIds = [rookieOrgId, veteranOrgId, legendOrgId, rookieExtracurricularOrgId].filter(Boolean);
     const allTeamIds = [...rookieTeamIds, ...veteranTeamIds, ...legendTeamIds].filter(Boolean);
 
     // Clean invites
@@ -237,7 +254,7 @@ describe('Fan account restrictions', () => {
 });
 
 // =============================================================================
-//  2. ROOKIE COACH – 3 FREE TEAMS, 6 AUTHORIZED USERS, NO EXTRACURRICULAR
+//  2. ROOKIE COACH – 4 FREE TEAMS, 6 AUTHORIZED USERS, NO EXTRACURRICULAR
 // =============================================================================
 
 describe('Rookie Coach plan limits', () => {
@@ -262,8 +279,15 @@ describe('Rookie Coach plan limits', () => {
     rookieTeamIds.push(res.body.team.id);
   });
 
-  it('Rookie is BLOCKED on team #4 (exceeds free limit of 3)', async () => {
+  it('Rookie can create team #4 (still within free limit)', async () => {
     const res = await createTeamViaApi(rookieToken, `Rookie Team 4 ${ts}`, rookieOrgId);
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('team');
+    rookieTeamIds.push(res.body.team.id);
+  });
+
+  it('Rookie is BLOCKED on team #5 (exceeds free limit of 4)', async () => {
+    const res = await createTeamViaApi(rookieToken, `Rookie Team 5 ${ts}`, rookieOrgId);
     expect(res.status).toBe(403);
     expect(res.body.error).toMatch(/Team limit|TEAM_LIMIT/i);
     expect(res.body.code || res.body.error).toMatch(/TEAM_LIMIT_EXCEEDED|Team limit/);
@@ -292,8 +316,17 @@ describe('Rookie Coach plan limits', () => {
   });
 
   it('Rookie CANNOT create extracurricular clubs', async () => {
-    const res = await createTeamViaApi(rookieToken, `Rookie Chess Club ${ts}`, rookieOrgId, 'extracurricular');
-    // Should be blocked either by team limit (already at 2) or extracurricular restriction
+    // Uses the dedicated rookieExtracurricularToken account (see beforeAll) so
+    // this assertion doesn't share rookieToken's team-creation rate-limit
+    // budget, which is already fully spent verifying the free-team boundary.
+    const res = await createTeamViaApi(
+      rookieExtracurricularToken,
+      `Rookie Chess Club ${ts}`,
+      rookieExtracurricularOrgId,
+      'extracurricular',
+    );
+    // The extracurricular-support check runs before the team-count check
+    // server-side, so this is blocked by plan tier regardless of team count.
     expect(res.status).toBe(403);
   });
 
@@ -313,7 +346,7 @@ describe('Rookie Coach plan limits', () => {
       where: { user_id: rookieId, role: 'owner', status: 'active' },
     });
     expect(orgMembership).toBeTruthy();
-    expect(teamMemberships.length).toBe(3); // owns 3 teams + the league page
+    expect(teamMemberships.length).toBe(4); // owns 4 teams + the league page
   });
 });
 
@@ -361,7 +394,7 @@ describe('Veteran Coach plan limits', () => {
     const planDefs = (await import('../lib/planLimits.js')).getAllPlanDefinitions();
     const veteran = (planDefs as any).veteran;
     expect(veteran.price).toBe('$0.99');
-    expect(veteran.period).toContain('team over 3');
+    expect(veteran.period).toContain('team over 4');
   });
 
   it('Veteran can have up to 5 authorized users per team', async () => {
@@ -579,10 +612,10 @@ describe('Plan definitions integrity', () => {
     expect(plans).toHaveProperty('legend');
   });
 
-  it('Rookie: max_teams=3, max_authorized_users_per_team=6, supports_extracurricular=false', async () => {
+  it('Rookie: max_teams=4, max_authorized_users_per_team=6, supports_extracurricular=false', async () => {
     const { getAllPlanDefinitions } = await import('../lib/planLimits.js');
     const rookie = (getAllPlanDefinitions() as any).rookie;
-    expect(rookie.max_teams).toBe(3);
+    expect(rookie.max_teams).toBe(4);
     expect(rookie.max_authorized_users_per_team).toBe(6);
     expect(rookie.supports_extracurricular).toBe(false);
   });
@@ -607,7 +640,7 @@ describe('Plan definitions integrity', () => {
     const { getAllPlanDefinitions } = await import('../lib/planLimits.js');
     const veteran = (getAllPlanDefinitions() as any).veteran;
     expect(veteran.price).toBe('$0.99');
-    expect(veteran.period).toContain('team over 3');
+    expect(veteran.period).toContain('team over 4');
   });
 
   it('Legend pricing: $19.99 per year', async () => {
@@ -617,7 +650,7 @@ describe('Plan definitions integrity', () => {
     expect(legend.period).toContain('year');
   });
 
-  it('Rookie pricing: first three teams free', async () => {
+  it('Rookie pricing: first four teams free', async () => {
     const { getAllPlanDefinitions } = await import('../lib/planLimits.js');
     const rookie = (getAllPlanDefinitions() as any).rookie;
     expect(rookie.price.toLowerCase()).toContain('free');

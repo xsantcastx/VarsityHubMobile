@@ -254,7 +254,7 @@ describe('API Team Endpoints', () => {
         },
       });
 
-      const maxTeams = 3;
+      const maxTeams = 4;
 
       // If at limit, should reject
       if (ownedTeamsCount >= maxTeams) {
@@ -396,7 +396,7 @@ describe('API Team Endpoints', () => {
 
       expect(personalOwnerCount).toBe(0);
       expect(response.body.owned_teams).toBe(orgTeamCount);
-      expect(response.body.max_teams).toBe(3);
+      expect(response.body.max_teams).toBe(4);
     });
 
     it('should require authentication', async () => {

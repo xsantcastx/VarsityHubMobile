@@ -129,7 +129,7 @@ describe('Team Creation with Role Validation', () => {
         where: { id: coachUserId },
       });
 
-      const maxTeams = (coach as any)?.max_teams ?? 3;
+      const maxTeams = (coach as any)?.max_teams ?? 4;
 
       // Count existing owned teams
       const ownedTeamsCount = await prisma.teamMembership.count({
