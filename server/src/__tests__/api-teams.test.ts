@@ -1222,7 +1222,9 @@ describe('GET /teams — exclude_demo_leagues opt-in flag', () => {
   });
 
   afterAll(async () => {
-    await prisma.team.deleteMany({ where: { id: { in: [realTeamId, demoTeamId] } } }).catch(() => {});
+    await prisma.team
+      .deleteMany({ where: { id: { in: [realTeamId, demoTeamId] } } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
   });
 

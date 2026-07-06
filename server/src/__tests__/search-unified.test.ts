@@ -127,7 +127,9 @@ describe('Unified search', () => {
   });
 
   afterAll(async () => {
-    await prisma.post.deleteMany({ where: { id: { in: [mediaPostId, textOnlyPostId] } } }).catch(() => {});
+    await prisma.post
+      .deleteMany({ where: { id: { in: [mediaPostId, textOnlyPostId] } } })
+      .catch(() => {});
     await prisma.event.deleteMany({ where: { id: eventId } }).catch(() => {});
     await prisma.game.deleteMany({ where: { id: gameId } }).catch(() => {});
     await prisma.team.deleteMany({ where: { id: { in: [teamId, demoTeamId] } } }).catch(() => {});
@@ -193,6 +195,13 @@ describe('Unified search', () => {
       .get('/search?q=')
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
-    expect(res.body).toEqual({ users: [], teams: [], organizations: [], games: [], events: [], posts: [] });
+    expect(res.body).toEqual({
+      users: [],
+      teams: [],
+      organizations: [],
+      games: [],
+      events: [],
+      posts: [],
+    });
   });
 });
