@@ -1589,19 +1589,39 @@ export default function QuickAddGameModal({
                           >
                             {/* Render MatchBanner so appearance and images are visible in the preview */}
                             <MatchBanner
-                              leftImage={getTeamLogo(getHomeAwayTeams().homeTeam) || undefined}
-                              rightImage={getTeamLogo(getHomeAwayTeams().awayTeam) || undefined}
-                              leftName={getHomeAwayTeams().homeTeam}
-                              rightName={getHomeAwayTeams().awayTeam}
+                              leftImage={
+                                isCompetitive
+                                  ? getTeamLogo(getHomeAwayTeams().homeTeam) || undefined
+                                  : undefined
+                              }
+                              rightImage={
+                                isCompetitive
+                                  ? getTeamLogo(getHomeAwayTeams().awayTeam) || undefined
+                                  : undefined
+                              }
+                              leftName={
+                                isCompetitive
+                                  ? getHomeAwayTeams().homeTeam
+                                  : eventTitle.trim() || 'Event'
+                              }
+                              rightName={
+                                isCompetitive
+                                  ? getHomeAwayTeams().awayTeam
+                                  : EVENT_TYPES.find(t => t.value === eventType)?.label || 'Event'
+                              }
                               height={120}
                               variant="compact"
                               leftColor={
-                                (teams.find(t => t.name === getHomeAwayTeams().homeTeam) as any)
-                                  ?.color
+                                isCompetitive
+                                  ? (teams.find(t => t.name === getHomeAwayTeams().homeTeam) as any)
+                                      ?.color
+                                  : undefined
                               }
                               rightColor={
-                                (teams.find(t => t.name === getHomeAwayTeams().awayTeam) as any)
-                                  ?.color
+                                isCompetitive
+                                  ? (teams.find(t => t.name === getHomeAwayTeams().awayTeam) as any)
+                                      ?.color
+                                  : undefined
                               }
                               appearance={appearance}
                             />
