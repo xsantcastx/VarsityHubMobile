@@ -37,7 +37,7 @@ try {
   /* native module not available */
 }
 // @ts-ignore legacy export shape
-import { Event, Highlights, Organization, Post, Team, User } from '@/api/entities';
+import { Event, Highlights, Organization, Post, Search, Team, User } from '@/api/entities';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
@@ -626,70 +626,60 @@ function HighlightsScreen() {
   }, [refetch]);
 
   // Global search function for teams, events, users, and posts
-  const performGlobalSearch = useCallback(
-    async (query: string) => {
-      if (!query.trim()) {
-        setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
-        setSearching(false);
-        return;
+  const performGlobalSearch = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const [teamsRes, eventsRes, usersRes, orgsRes, unifiedRes] = await Promise.all([
+        Team.list(query, false, { limit: 5 }).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Team search failed:', error?.message || error);
+          return [];
+        }),
+        Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Event search failed:', error?.message || error);
+          return [];
+        }),
+        User.listAll(query, 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] User search failed:', error?.message || error);
+          return [];
+        }),
+        Organization.list(query, 5).catch((error: any) => {
+          if (__DEV__)
+            console.warn('[Highlights] Organization search failed:', error?.message || error);
+          return [];
+        }),
+        // Posts search must go through the server — the local `highlights`
+        // array is only the current tab's already-loaded top 10-50 items
+        // (itself country/media/date filtered), so a real post that isn't
+        // in that small window was unfindable no matter how good the query.
+        Search.unified(query, 10).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Post search failed:', error?.message || error);
+          return null;
+        }),
+      ]);
+
+      const teams = Array.isArray(teamsRes) ? teamsRes.slice(0, 5) : [];
+      const events = Array.isArray(eventsRes) ? eventsRes.slice(0, 5) : [];
+      const users = Array.isArray(usersRes) ? usersRes.slice(0, 5) : [];
+      const organizations = Array.isArray(orgsRes) ? orgsRes.slice(0, 5) : [];
+      const rawPosts = Array.isArray(unifiedRes?.posts) ? unifiedRes.posts : [];
+      const posts = rawPosts.map(mapHighlightItem).filter(Boolean) as HighlightItem[];
+
+      setSearchResults({ teams, events, users, organizations, posts });
+    } catch (err: any) {
+      if (__DEV__) {
+        if (__DEV__) console.error('[Highlights] Search failed:', err?.message || err);
       }
-
-      setSearching(true);
-      try {
-        const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
-          Team.list(query, false, { limit: 5 }).catch((error: any) => {
-            if (__DEV__) console.warn('[Highlights] Team search failed:', error?.message || error);
-            return [];
-          }),
-          Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch((error: any) => {
-            if (__DEV__) console.warn('[Highlights] Event search failed:', error?.message || error);
-            return [];
-          }),
-          User.listAll(query, 5).catch((error: any) => {
-            if (__DEV__) console.warn('[Highlights] User search failed:', error?.message || error);
-            return [];
-          }),
-          Organization.list(query, 5).catch((error: any) => {
-            if (__DEV__)
-              console.warn('[Highlights] Organization search failed:', error?.message || error);
-            return [];
-          }),
-        ]);
-
-        const teams = Array.isArray(teamsRes) ? teamsRes.slice(0, 5) : [];
-        const events = Array.isArray(eventsRes) ? eventsRes.slice(0, 5) : [];
-        const users = Array.isArray(usersRes) ? usersRes.slice(0, 5) : [];
-        const organizations = Array.isArray(orgsRes) ? orgsRes.slice(0, 5) : [];
-
-        // Filter posts
-        const posts = highlights
-          .filter(item => {
-            const title = (item.title || '').toLowerCase();
-            const caption = (item.caption || '').toLowerCase();
-            const content = (item.content || '').toLowerCase();
-            const authorName = (item.author?.display_name || '').toLowerCase();
-            const queryLower = query.toLowerCase();
-            return (
-              title.includes(queryLower) ||
-              caption.includes(queryLower) ||
-              content.includes(queryLower) ||
-              authorName.includes(queryLower)
-            );
-          })
-          .slice(0, 10);
-
-        setSearchResults({ teams, events, users, organizations, posts });
-      } catch (err: any) {
-        if (__DEV__) {
-          if (__DEV__) console.error('[Highlights] Search failed:', err?.message || err);
-        }
-        setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
-      } finally {
-        setSearching(false);
-      }
-    },
-    [highlights]
-  );
+      setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
+    } finally {
+      setSearching(false);
+    }
+  }, []);
 
   // Debounced search
   useEffect(() => {

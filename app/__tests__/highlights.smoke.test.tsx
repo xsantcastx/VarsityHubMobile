@@ -28,6 +28,7 @@ jest.mock('expo-haptics', () => ({
 }));
 
 const mockHighlightsFetch = jest.fn();
+const mockSearchUnified = jest.fn();
 jest.mock('@/api/entities', () => ({
   __esModule: true,
   Highlights: { fetch: (...args: any[]) => mockHighlightsFetch(...args) },
@@ -35,6 +36,7 @@ jest.mock('@/api/entities', () => ({
   Event: { filter: jest.fn().mockResolvedValue([]) },
   User: { listAll: jest.fn().mockResolvedValue([]) },
   Organization: { list: jest.fn().mockResolvedValue([]) },
+  Search: { unified: (...args: any[]) => mockSearchUnified(...args) },
   Post: { toggleUpvote: jest.fn() },
 }));
 jest.mock('@/context/AuthProvider', () => ({
@@ -75,6 +77,14 @@ beforeEach(() => {
   mockHighlightsFetch.mockReset().mockResolvedValue({
     sort: 'trending',
     items: [samplePost],
+  });
+  mockSearchUnified.mockReset().mockResolvedValue({
+    users: [],
+    teams: [],
+    organizations: [],
+    games: [],
+    events: [],
+    posts: [],
   });
 });
 
@@ -119,6 +129,46 @@ describe('HighlightsScreen (react-query render smoke)', () => {
         expect.objectContaining({ sort: 'top', limit: 10 })
       )
     );
+  });
+
+  it('searches posts via the server instead of filtering the loaded tab list', async () => {
+    // Distinct id/title from samplePost, proving this can ONLY have come from
+    // the server search call — not from the already-loaded highlights list.
+    const searchOnlyPost = {
+      id: 'p-search-only',
+      title: 'Overtime buzzer beater',
+      media_url: 'https://example.com/other-clip.jpg',
+      upvotes_count: 1,
+      created_at: new Date().toISOString(),
+      author_id: 'u3',
+      author: { id: 'u3', display_name: 'Jamie Cross', username: 'jcross' },
+      has_upvoted: false,
+      has_bookmarked: false,
+    };
+    mockSearchUnified.mockResolvedValue({
+      users: [],
+      teams: [],
+      organizations: [],
+      games: [],
+      events: [],
+      posts: [searchOnlyPost],
+    });
+
+    render(
+      <QueryWrapper>
+        <HighlightsScreen />
+      </QueryWrapper>
+    );
+    expect(await screen.findByText('Buzzer beater three')).toBeTruthy();
+
+    fireEvent.changeText(
+      screen.getByPlaceholderText('Search users, teams, or organizations by name or username...'),
+      'overtime'
+    );
+    jest.advanceTimersByTime(300);
+
+    await waitFor(() => expect(mockSearchUnified).toHaveBeenCalledWith('overtime', 10));
+    expect(await screen.findByText('Overtime buzzer beater')).toBeTruthy();
   });
 
   it('still renders cards from a legacy server payload (nationalTop/ranked)', async () => {

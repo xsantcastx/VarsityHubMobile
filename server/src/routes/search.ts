@@ -7,6 +7,9 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { getExcludedPrivateAuthorIds, getExcludedPrivateTeamIds } from '../lib/privacyUtils.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { captureMessage } from '../lib/sentry.js';
+import { highlightPostSelect } from '../lib/highlightPostSelect.js';
+import { getInteractionSets, withInteractions } from '../lib/postEnrichment.js';
+import { DEMO_LEAGUE_NAMES } from '../lib/demoContent.js';
 
 export const searchRouter = Router();
 
@@ -29,9 +32,10 @@ searchRouter.get(
       Math.min(parseInt(String((req.query as any).limit || '10'), 10) || 10, 20)
     );
     const currentUserId = req.user?.id ?? null;
+    const excludeDemoLeagues = String((req.query as any).exclude_demo_leagues || '') === '1';
 
     if (!q || q.length < 1) {
-      return res.json({ users: [], teams: [], organizations: [], games: [], events: [] });
+      return res.json({ users: [], teams: [], organizations: [], games: [], events: [], posts: [] });
     }
     // Cap query length to bound the cost of `contains` scans across users,
     // teams, and organizations. A 10k-char q would force three full-table
@@ -103,7 +107,7 @@ searchRouter.get(
     const todayUtcStart = new Date();
     todayUtcStart.setUTCHours(0, 0, 0, 0);
 
-    const [users, teams, organizations, games, events] = await Promise.all([
+    const [users, teams, organizations, games, events, posts] = await Promise.all([
       prisma.user.findMany({
         where: {
           AND: [
@@ -140,6 +144,18 @@ searchRouter.get(
           // back door when its org isn't yet reviewed.
           organization: { admin_approved: true, status: 'active' },
           ...(privateTeamExcludeIds.length > 0 ? { id: { notIn: privateTeamExcludeIds } } : {}),
+          // Opt-in only — see teams.ts's identical flag. FIFA demo teams stay
+          // discoverable in a plain search; opponent-selection callers pass
+          // this. `league` is nullable — NOT/notIn alone would also exclude
+          // every ordinary team (no league set) via SQL 3-valued logic, so
+          // the explicit `league: null` branch keeps them in the results.
+          ...(excludeDemoLeagues
+            ? {
+                AND: [
+                  { OR: [{ league: null }, { league: { notIn: [...DEMO_LEAGUE_NAMES] } }] },
+                ],
+              }
+            : {}),
           OR: [
             { name: { contains: q, mode: 'insensitive' } },
             { city: { contains: q, mode: 'insensitive' } },
@@ -232,6 +248,22 @@ searchRouter.get(
           banner_url: true,
           game_id: true,
         },
+      }),
+      // Media-only, same as /highlights — HighlightCard (the renderer used for
+      // post search results) expects a media post shape.
+      prisma.post.findMany({
+        where: {
+          deleted_at: null,
+          media_url: { not: null },
+          ...(userExcludeIds.length > 0 ? { author_id: { notIn: userExcludeIds } } : {}),
+          OR: [
+            { title: { contains: q, mode: 'insensitive' } },
+            { content: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+        take: limit,
+        orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
+        select: highlightPostSelect,
       }),
     ]);
 
@@ -363,12 +395,19 @@ searchRouter.get(
       game_id: event.game_id,
     }));
 
+    const { upvotedIds, bookmarkedIds } = await getInteractionSets(
+      currentUserId,
+      posts.map(p => p.id)
+    );
+    const postsPayload = posts.map(withInteractions(upvotedIds, bookmarkedIds));
+
     return res.json({
       users: usersPayload,
       teams: teamsPayload,
       organizations: organizationsPayload,
       games: gamesPayload,
       events: eventsPayload,
+      posts: postsPayload,
     });
   })
 );
