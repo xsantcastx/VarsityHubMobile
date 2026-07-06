@@ -55,7 +55,8 @@ export const BIO_MAX_LENGTH = 300;
 export function validateEmail(email: string): ValidationResult {
   if (!email) return { valid: false, error: 'Email is required' };
   // Stricter regex aligned with backend Zod z.string().email() (RFC 5322 subset)
-  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  const emailRegex =
+    /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
   if (!emailRegex.test(email)) {
     return { valid: false, error: 'Please enter a valid email address' };
   }
@@ -65,7 +66,11 @@ export function validateEmail(email: string): ValidationResult {
 /**
  * Validate password strength with comprehensive requirements
  */
-export function validatePassword(password: string, minLength = 8, requireStrong = true): ValidationResult {
+export function validatePassword(
+  password: string,
+  minLength = 8,
+  requireStrong = true
+): ValidationResult {
   if (!password) return { valid: false, error: 'Password is required' };
   if (password.length < minLength) {
     return { valid: false, error: `Password must be at least ${minLength} characters` };
@@ -97,21 +102,21 @@ export function validatePassword(password: string, minLength = 8, requireStrong 
  */
 export function calculatePasswordStrength(password: string): { score: number; feedback: string } {
   if (!password) return { score: 0, feedback: 'Very weak' };
-  
+
   let score = 0;
-  
+
   // Length check
   if (password.length >= 8) score++;
   if (password.length >= 12) score++;
-  
+
   // Character diversity
   if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
   if (/\d/.test(password)) score++;
   if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score++;
-  
+
   // Cap at 4
   score = Math.min(4, score);
-  
+
   const feedback = ['Very weak', 'Weak', 'Fair', 'Good', 'Strong'][score];
   return { score, feedback };
 }
@@ -128,7 +133,10 @@ export function validateUsername(username: string): ValidationResult {
     return { valid: false, error: 'Username must be 20 characters or less' };
   }
   if (!/^[a-z0-9_.]+$/.test(username)) {
-    return { valid: false, error: 'Username can only contain lowercase letters, numbers, dots, and underscores' };
+    return {
+      valid: false,
+      error: 'Username can only contain lowercase letters, numbers, dots, and underscores',
+    };
   }
   return { valid: true };
 }
@@ -182,13 +190,17 @@ export function validateTextField(
 }
 
 /**
- * Validate ZIP code (US format)
+ * Validate a ZIP / postal code. Accepts international formats (US 5-digit,
+ * Canadian "M5V 3L9", UK "SW1A 1AA", etc.), not just US — the same permissive
+ * shape the ad screens already use. A US-only regex here silently blocks every
+ * non-US user from setting a location, which defaults their Highlights viewer
+ * country to 'US' and hides their own country's content.
  */
 export function validateZipCode(zip: string): ValidationResult {
   if (!zip) return { valid: true }; // Optional field
-  const zipRegex = /^\d{5}$/;
-  if (!zipRegex.test(zip)) {
-    return { valid: false, error: 'Please enter a valid 5-digit ZIP code (e.g., 12345)' };
+  const postalRegex = /^[A-Za-z0-9][A-Za-z0-9\s-]{0,10}[A-Za-z0-9]$/;
+  if (!postalRegex.test(zip.trim())) {
+    return { valid: false, error: 'Please enter a valid ZIP / postal code' };
   }
   return { valid: true };
 }
