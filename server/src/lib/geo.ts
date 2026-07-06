@@ -47,8 +47,13 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
 export async function geocodeZip(zip: string, country?: string | null): Promise<{ lat: number | null; lng: number | null; country_code: string | null }>
 {
   const key = getApiKey();
-  const cc = normCountry(country) || 'US';
-  const q = `${zip},${cc}`;
+  // If we KNOW the user's country, bias the lookup with it (disambiguates
+  // short numeric codes). If we DON'T (a non-US user whose country isn't set
+  // yet), geocode the raw postal code and let Google infer the country from
+  // its format — forcing ",US" here would turn a Canadian "M5V 3L9" into an
+  // invalid "M5V 3L9,US" and lose their real country.
+  const cc = normCountry(country);
+  const q = cc ? `${zip},${cc}` : String(zip);
   const ck = `zip:${q}`;
   if (cache.has(ck)) return cache.get(ck);
   if (!key) return { lat: null, lng: null, country_code: cc };

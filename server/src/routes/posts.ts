@@ -724,6 +724,10 @@ postsRouter.post(
     let country_code: string | null = null;
     let admin1: string | null = null;
     let place_name: string | null = null;
+    // The country from an ACTUAL geocode (device GPS or zip lookup), as opposed
+    // to the 'US' fallback. Only this reliable value is learned into the
+    // author's preferences below — never the fallback.
+    let geocodedCountry: string | null = null;
 
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const prefs = await prisma.user.findUnique({
@@ -742,6 +746,7 @@ postsRouter.post(
       lng = loc.lng;
       try {
         const rev = await reverseGeocode(lat as number, lng as number);
+        geocodedCountry = rev.country_code || null;
         country_code = rev.country_code || preferCountry || 'US';
         admin1 = rev.admin_area || null;
         place_name = rev.place_name || null;
@@ -758,6 +763,7 @@ postsRouter.post(
         const gg = await geocodeZip(zip, preferCountry);
         lat = gg.lat;
         lng = gg.lng;
+        geocodedCountry = gg.country_code || null;
         country_code = gg.country_code || preferCountry || 'US';
       } catch (err: unknown) {
         debugLog('[posts] geocodeZip failed, using fallback:', (err as Error)?.message ?? err);
@@ -767,6 +773,30 @@ postsRouter.post(
       }
     } else {
       country_code = preferCountry || 'US';
+    }
+
+    // Learn the author's country from this reliable geocode so the
+    // country-scoped Highlights read stops defaulting them to 'US'. Single
+    // source of truth: preferences.country_code — set once here when the user
+    // has no country yet, read everywhere else (post write default, Highlights
+    // viewer country, geocodeZip). We never persist the 'US' fallback, which
+    // would lock a non-US user (e.g. a Canadian) into the wrong country.
+    if (geocodedCountry && !preferCountry) {
+      try {
+        const basePrefs =
+          prefs?.preferences && typeof prefs.preferences === 'object'
+            ? (prefs.preferences as Record<string, unknown>)
+            : {};
+        await prisma.user.update({
+          where: { id: req.user.id },
+          data: { preferences: { ...basePrefs, country_code: geocodedCountry } },
+        });
+      } catch (err: unknown) {
+        debugLog(
+          '[posts] failed to persist learned country to preferences:',
+          (err as Error)?.message ?? err
+        );
+      }
     }
 
     // ⚠️ GEOFENCING CHECK FOR EVENT POSTS
