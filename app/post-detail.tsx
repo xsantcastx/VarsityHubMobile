@@ -498,6 +498,36 @@ export default function PostDetailScreen() {
     setActiveScrollContentHeight(0);
   }, [currentPostId]);
 
+  // Prefetch the immediate neighbors in the swipe pager (data + image) while
+  // the user reads the current post, so swiping lands on warm content instead
+  // of firing a fresh post+comments fetch and image download on every swipe.
+  useEffect(() => {
+    if (currentQueryIndex < 0) return;
+    const neighborIds = [
+      postIdsArray[currentQueryIndex - 1],
+      postIdsArray[currentQueryIndex + 1],
+    ].filter(Boolean) as string[];
+    for (const id of neighborIds) {
+      // No-op if already fresh within staleTime; cheap and self-deduping.
+      void queryClient.prefetchQuery({
+        queryKey: ['post-detail', id],
+        queryFn: () => fetchPostDetail(id),
+      });
+      // Warm the image disk cache from the list-seeded cached post, if present.
+      const cached = postCache.get(id);
+      if (!cached) continue;
+      const m = resolvePostMedia(cached as any);
+      const uri =
+        m.mediaType === 'image'
+          ? optimizeImageUrl(
+              m.displayImageUrl || m.mediaUrl,
+              Math.max(900, Math.round(SCREEN_WIDTH * 1.5))
+            )
+          : m.previewUrl || undefined;
+      if (uri) void ExpoImage.prefetch(uri, { cachePolicy: 'memory-disk' });
+    }
+  }, [currentQueryIndex, postIdsArray, queryClient, fetchPostDetail, postCache]);
+
   // Handle post change when swiping
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     if (viewableItems && viewableItems.length > 0) {
@@ -1064,10 +1094,15 @@ export default function PostDetailScreen() {
     const hasMedia = media.hasMedia;
     const category = getSportCategory(postData.title, postData.content);
     const localComments = Array.isArray(commentsData) ? commentsData : [];
-    // Fall back to the server-authoritative count while the comments fetch
-    // for this post is still in flight — localComments is empty at that
-    // point but that doesn't mean the post HAS zero comments.
-    const displayCommentsCount = localComments.length || postData.comments_count || 0;
+    // While the comments fetch for this post is still in flight, localComments
+    // is empty but that doesn't mean the post HAS zero comments — fall back to
+    // the server-authoritative count. Once the fetch has resolved, the loaded
+    // list is authoritative (a real 0 is a real 0), so use its length directly.
+    // Using `||` here would mistake a genuine 0 for "unloaded" and show a stale
+    // server count, producing the "1 on one screen, 0 on another" mismatch.
+    const displayCommentsCount = commentsPending
+      ? (postData.comments_count ?? 0)
+      : localComments.length;
     const isActivePost = String(postData.id) === String(currentPostId);
 
     return (
@@ -1118,6 +1153,15 @@ export default function PostDetailScreen() {
                       media.displayImageUrl ||
                       media.mediaUrl!,
                   }}
+                  // Low-res placeholder at the same 600px width the feed's
+                  // PostCard already loaded — an instant memory-disk cache hit
+                  // when arriving from the feed, so the hero paints immediately
+                  // and sharpens to full-res instead of flashing blank.
+                  placeholder={{
+                    uri: optimizeImageUrl(media.displayImageUrl || media.mediaUrl, 600),
+                  }}
+                  placeholderContentFit="cover"
+                  transition={200}
                   style={styles.heroImage}
                   contentFit="cover"
                   cachePolicy="memory-disk"
@@ -1993,6 +2037,17 @@ export default function PostDetailScreen() {
                         currentMedia.displayImageUrl ||
                         post.media_url,
                     }}
+                    // Seed with the hero-resolution image the detail view already
+                    // loaded, so opening fullscreen shows it instantly and then
+                    // sharpens to the 2x version rather than starting from blank.
+                    placeholder={{
+                      uri: optimizeImageUrl(
+                        currentMedia.displayImageUrl || post.media_url,
+                        Math.max(900, Math.round(SCREEN_WIDTH * 1.5))
+                      ),
+                    }}
+                    placeholderContentFit="contain"
+                    transition={150}
                     style={styles.fullscreenImage}
                     contentFit="contain"
                     cachePolicy="memory-disk"
