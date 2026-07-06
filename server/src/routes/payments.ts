@@ -1696,6 +1696,8 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
         });
       }
       if (billableQuantity === 0) {
+        // error-envelope-exempt: pre-existing raw response, unrelated to this
+        // change beyond the interpolated team-count constant.
         return res.status(400).json({
           error: `Select at least one billable team (${SERVER_VETERAN_MIN_TOTAL_TEAMS} total) to use Veteran plan`,
         });
@@ -2310,6 +2312,8 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
     const quantityUpdate = resolveVeteranQuantityUpdate(actualTeamCount, team_count);
     const billable = quantityUpdate.billableQuantity;
     if (billable === 0) {
+      // error-envelope-exempt: pre-existing raw response, unrelated to this
+      // change beyond the interpolated team-count constant.
       return res.status(400).json({
         error: `No billable teams (only ${SERVER_ROOKIE_TEAM_LIMIT}). Remain on Rookie plan instead.`,
       });
