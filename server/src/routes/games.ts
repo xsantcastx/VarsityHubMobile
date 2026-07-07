@@ -11,16 +11,22 @@ import {
   sendEventSubmissionReceivedEmail,
   sendEventUpdatedEmail,
 } from '../lib/email.js';
-import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
+import {
+  getPendingEventReviewRecipients,
+  notifyPendingEventReviewers,
+} from '../lib/eventReviewNotifications.js';
 import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
 import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
+import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import {
   canManageAnyTeam,
   canManageTeam as canManageTeamScoped,
+  ORG_ADMIN_ROLES,
+  TEAM_STAFF_ROLES,
 } from '../lib/teamAuthorization.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authMiddleware, type AuthedRequest } from '../middleware/auth.js';
@@ -821,6 +827,7 @@ const summarizeVotes = async (gameId: string, userId?: string | null) => {
 
 type GameVisibilityRecord = {
   approval_status?: string | null;
+  opponent_approval_status?: string | null;
   created_by_id?: string | null;
   home_team_id?: string | null;
   away_team_id?: string | null;
@@ -830,7 +837,13 @@ async function canViewGameRecord(
   record: GameVisibilityRecord,
   viewerId?: string | null
 ): Promise<boolean> {
-  if (record.approval_status === 'approved') return true;
+  // Public visibility requires BOTH gates: platform-moderation approval AND
+  // (if a real VarsityHub opponent was linked) the opponent's confirmation.
+  // A game awaiting or declined opponent consent is treated the same as a
+  // moderation-pending game — visible only to the privileged viewers below.
+  const opponentBlocksPublic =
+    record.opponent_approval_status === 'pending' || record.opponent_approval_status === 'declined';
+  if (record.approval_status === 'approved' && !opponentBlocksPublic) return true;
   if (!viewerId) return false;
   if (record.created_by_id && record.created_by_id === viewerId) return true;
 
@@ -976,6 +989,16 @@ gamesRouter.get(
         whereClause.approval_status = { in: ['approved', 'pending'] };
       } else {
         whereClause.approval_status = 'approved';
+      }
+
+      // Opponent-approval workflow: a plain 'approved' filter is the PUBLIC
+      // path (unscoped — not gated by canViewNonApproved below), so it must
+      // also exclude games still awaiting/declined opponent consent. The
+      // 'my full schedule' (show_pending) path is already scoped to the
+      // viewer's own managed teams further down, so a not-yet-confirmed game
+      // on THEIR team's calendar correctly still shows there.
+      if (whereClause.approval_status === 'approved') {
+        whereClause.opponent_approval_status = { in: ['not_required', 'approved'] };
       }
 
       // Scope non-approved games to the coach's managed teams/orgs (prevent data leak).
@@ -1372,6 +1395,30 @@ gamesRouter.post(
       const associatedTeamId =
         managedTeamId || parsed.data.home_team_id || parsed.data.away_team_id || null;
 
+      // Opponent-approval workflow: if the game links a REAL VarsityHub team
+      // as opponent that the creator does not manage (and isn't a platform
+      // admin), the game only goes publicly live once that team's staff
+      // confirms it. Admin-created games and games where the creator manages
+      // both sides (intra-org scheduling) skip this — no distinct opponent to
+      // consult. Free-text opponents (away_team_name only) never trigger it.
+      let opponentApprovalTeamId: string | null = null;
+      if (!isAdmin && isCoach) {
+        const otherTeamId =
+          managedTeamId === parsed.data.home_team_id
+            ? (parsed.data.away_team_id ?? null)
+            : managedTeamId === parsed.data.away_team_id
+              ? (parsed.data.home_team_id ?? null)
+              : null;
+        if (otherTeamId && otherTeamId !== managedTeamId) {
+          const opponentManaged = await canManageTeamScoped(req.user.id, otherTeamId);
+          if (!opponentManaged) {
+            opponentApprovalTeamId = otherTeamId;
+          }
+        }
+      }
+      gameData.opponent_approval_status = opponentApprovalTeamId ? 'pending' : 'not_required';
+      gameData.opponent_approval_team_id = opponentApprovalTeamId;
+
       // Auto-approve if coach/admin, otherwise set to pending
       gameData.approval_status = isCoach || isAdmin ? 'approved' : 'pending';
       gameData.created_by_id = req.user.id;
@@ -1509,6 +1556,53 @@ gamesRouter.post(
         });
       }
 
+      if (opponentApprovalTeamId) {
+        void (async () => {
+          try {
+            const recipients = await getPendingEventReviewRecipients(prisma, {
+              teamId: opponentApprovalTeamId,
+            });
+            const userIds = recipients.map(r => r.userId).filter((id): id is string => Boolean(id));
+            if (userIds.length === 0) return;
+
+            await prisma.notification.createMany({
+              data: userIds.map(uid => ({
+                user_id: uid,
+                actor_id: req.user!.id,
+                type: 'GAME_OPPONENT_APPROVAL_REQUESTED' as any,
+                meta: {
+                  game_id: game.id,
+                  event_id: event.id,
+                  title: game.title,
+                  proposing_team_name:
+                    managedTeamId === game.homeTeam?.id ? game.homeTeam?.name : game.awayTeam?.name,
+                },
+              })),
+            });
+
+            const { sendPushNotification } = await import('../lib/notifications.js');
+            for (const uid of userIds) {
+              sendPushNotification(
+                uid,
+                'Game request awaiting your approval',
+                `${currentUser?.display_name || 'A coach'} proposed "${game.title}" against your team.`,
+                { type: 'game_opponent_approval_requested', game_id: game.id }
+              ).catch(err => {
+                console.warn(
+                  '[games] opponent approval push failed:',
+                  (err as any)?.message || err
+                );
+              });
+            }
+          } catch (err) {
+            console.warn(
+              '[games] opponent approval notification failed:',
+              (err as any)?.message || err
+            );
+          }
+        })();
+      }
+
       await invalidateGamesListCache();
       res.status(201).json(response);
     } catch (error) {
@@ -1587,10 +1681,37 @@ gamesRouter.post(
     }
 
     try {
+      // Resolve, per row, whether an opponent-approval is triggered (real
+      // VarsityHub team on the other side that the caller doesn't manage).
+      // Done outside the transaction since it only reads.
+      const opponentTeamIdByIndex: Array<string | null> = [];
+      if (!isAdmin) {
+        for (const g of parsed.data.games) {
+          const [managesHome, managesAway] = await Promise.all([
+            g.home_team_id ? canManageTeamScoped(userId, g.home_team_id) : Promise.resolve(false),
+            g.away_team_id ? canManageTeamScoped(userId, g.away_team_id) : Promise.resolve(false),
+          ]);
+          const otherTeamId = managesHome
+            ? (g.away_team_id ?? null)
+            : managesAway
+              ? (g.home_team_id ?? null)
+              : null;
+          const opponentManaged =
+            otherTeamId && (managesHome || managesAway)
+              ? await canManageTeamScoped(userId, otherTeamId)
+              : true;
+          opponentTeamIdByIndex.push(otherTeamId && !opponentManaged ? otherTeamId : null);
+        }
+      } else {
+        parsed.data.games.forEach(() => opponentTeamIdByIndex.push(null));
+      }
+
       // All-or-nothing: one failure rolls back the whole batch.
       const created = await prisma.$transaction(async tx => {
         const rows: any[] = [];
-        for (const g of parsed.data.games) {
+        for (let i = 0; i < parsed.data.games.length; i++) {
+          const g = parsed.data.games[i];
+          const opponentApprovalTeamId = opponentTeamIdByIndex[i];
           const row = await tx.game.create({
             data: {
               title: stripHtml(g.title),
@@ -1605,6 +1726,10 @@ gamesRouter.post(
               is_neutral: g.is_neutral ?? false,
               created_by_id: userId,
               approval_status: 'approved' as any, // coaches creating for their own team auto-approve (mirrors single endpoint)
+              opponent_approval_status: (opponentApprovalTeamId
+                ? 'pending'
+                : 'not_required') as any,
+              opponent_approval_team_id: opponentApprovalTeamId,
             },
             select: { id: true, title: true, date: true, location: true },
           });
@@ -1612,6 +1737,48 @@ gamesRouter.post(
         }
         return rows;
       });
+
+      const triggeredOpponents = created
+        .map((row, i) => ({ row, teamId: opponentTeamIdByIndex[i] }))
+        .filter((entry): entry is { row: (typeof created)[number]; teamId: string } =>
+          Boolean(entry.teamId)
+        );
+      if (triggeredOpponents.length > 0) {
+        void (async () => {
+          try {
+            const { sendPushNotification } = await import('../lib/notifications.js');
+            for (const { row, teamId } of triggeredOpponents) {
+              const recipients = await getPendingEventReviewRecipients(prisma, { teamId });
+              const userIds = recipients
+                .map(r => r.userId)
+                .filter((id): id is string => Boolean(id));
+              if (userIds.length === 0) continue;
+              await prisma.notification.createMany({
+                data: userIds.map(uid => ({
+                  user_id: uid,
+                  actor_id: userId,
+                  type: 'GAME_OPPONENT_APPROVAL_REQUESTED' as any,
+                  meta: { game_id: row.id, title: row.title },
+                })),
+              });
+              for (const uid of userIds) {
+                sendPushNotification(
+                  uid,
+                  'Game request awaiting your approval',
+                  `A coach proposed "${row.title}" against your team.`,
+                  { type: 'game_opponent_approval_requested', game_id: row.id }
+                ).catch(() => {});
+              }
+            }
+          } catch (err) {
+            console.warn(
+              '[games/bulk] opponent approval notification failed:',
+              (err as any)?.message || err
+            );
+          }
+        })();
+      }
+
       await invalidateGamesListCache();
       return res.status(201).json({ ok: true, created_count: created.length, games: created });
     } catch (err: any) {
@@ -1793,6 +1960,68 @@ gamesRouter.get(
       console.error('[games] votes-summary error:', err);
       return sendError(res, 500, 'Internal server error');
     }
+  })
+);
+
+// Opponent-pending list: games awaiting a decision from a team the caller
+// manages (canManageTeam — same "authorized user" boundary as deciding).
+// Registered before the bare `/:id` route below so it isn't shadowed.
+gamesRouter.get(
+  '/opponent-pending',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
+
+    const managedTeams = await prisma.teamMembership.findMany({
+      where: {
+        user_id: req.user.id,
+        role: { in: [...TEAM_STAFF_ROLES] },
+        status: 'active',
+      },
+      select: { team_id: true },
+      take: 100,
+    });
+    const managedTeamIds = managedTeams.map(m => m.team_id);
+
+    const orgMemberships = await prisma.organizationMembership.findMany({
+      where: {
+        user_id: req.user.id,
+        role: { in: [...ORG_ADMIN_ROLES] },
+        status: 'active',
+      },
+      select: { organization_id: true },
+      take: 100,
+    });
+    const orgIds = orgMemberships.map(m => m.organization_id);
+    const orgTeams = orgIds.length
+      ? await prisma.team.findMany({
+          where: { organization_id: { in: orgIds } },
+          select: { id: true },
+          take: 500,
+        })
+      : [];
+
+    const teamIds = [...new Set([...managedTeamIds, ...orgTeams.map(t => t.id)])];
+    if (teamIds.length === 0) return res.json([]);
+
+    const games = await prisma.game.findMany({
+      where: {
+        opponent_approval_status: 'pending',
+        opponent_approval_team_id: { in: teamIds },
+      },
+      // GAME_SUMMARY_SELECT plus the opponent-decision fields this endpoint
+      // needs — per serializeGame.ts's own guidance, extend locally rather
+      // than mutate the shared constant other endpoints depend on.
+      select: {
+        ...GAME_SUMMARY_SELECT,
+        opponent_approval_status: true,
+        opponent_approval_team_id: true,
+        created_by_id: true,
+      },
+      orderBy: { date: 'asc' },
+      take: 50,
+    });
+    return res.json(games);
   })
 );
 
@@ -2758,4 +2987,118 @@ gamesRouter.post(
   asyncHandler(async (req: AuthedRequest, res: Response) =>
     handleGameTokenReview(req, res, 'reject')
   )
+);
+
+// Opponent-approval decision: the opposing team's staff (canManageTeam — the
+// authorized-user "approve/deny events" function) confirms or declines a game
+// a coach proposed against their team. Independent of approval_status
+// (platform moderation); see OpponentApprovalStatus in schema.prisma.
+gamesRouter.post(
+  '/:id/opponent-approval',
+  requireAuth as any,
+  requireVerified as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
+    const actingUserId = req.user.id;
+    const id = String(req.params.id);
+
+    const schema = z.object({
+      decision: z.enum(['approve', 'decline']),
+      reason: z.string().trim().max(2000).optional(),
+    });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) return sendError(res, 400, 'Invalid payload', { details: parsed.error });
+
+    const game = await prisma.game.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        date: true,
+        created_by_id: true,
+        opponent_approval_status: true,
+        opponent_approval_team_id: true,
+      },
+    });
+    if (!game) return sendError(res, 404, 'Game not found');
+    if (!game.opponent_approval_team_id) {
+      return sendError(res, 400, 'This game does not require opponent approval');
+    }
+
+    // IDOR guard: the proposing coach can never decide their own proposal —
+    // canManageTeam against the OPPONENT team already excludes them by
+    // construction (they don't manage the opponent side), but this is
+    // defense-in-depth in case a user manages both teams somehow.
+    if (game.created_by_id && game.created_by_id === actingUserId) {
+      return sendError(res, 403, 'You cannot review your own game request');
+    }
+
+    const canDecide = await canManageTeamScoped(actingUserId, game.opponent_approval_team_id);
+    if (!canDecide) {
+      return sendError(res, 403, 'Only the opponent team staff can review this game request');
+    }
+
+    const isApprove = parsed.data.decision === 'approve';
+    const decidedAt = new Date();
+    const updatedGame = await prisma.$transaction(async tx => {
+      const transition = await tx.game.updateMany({
+        where: { id, opponent_approval_status: 'pending' },
+        data: {
+          opponent_approval_status: (isApprove ? 'approved' : 'declined') as any,
+          opponent_approved_by_id: isApprove ? actingUserId : null,
+          opponent_approved_at: isApprove ? decidedAt : null,
+          opponent_declined_reason: isApprove ? null : parsed.data.reason || null,
+        },
+      });
+      if (transition.count === 0) return null;
+      return tx.game.findUnique({ where: { id } });
+    });
+
+    if (!updatedGame) {
+      return sendError(res, 409, 'This game request was already decided');
+    }
+    await invalidateGamesListCache();
+
+    if (game.created_by_id) {
+      try {
+        const { sendPushNotification } = await import('../lib/notifications.js');
+        if (isApprove) {
+          await prisma.notification.create({
+            data: {
+              user_id: game.created_by_id,
+              actor_id: actingUserId,
+              type: 'GAME_OPPONENT_APPROVED' as any,
+              meta: { game_id: id, title: game.title },
+            },
+          });
+          sendPushNotification(
+            game.created_by_id,
+            'Game confirmed!',
+            `Your opponent confirmed "${game.title}" — it's now live.`,
+            { type: 'game_opponent_approved', game_id: id }
+          ).catch(() => {});
+        } else {
+          await prisma.notification.create({
+            data: {
+              user_id: game.created_by_id,
+              actor_id: actingUserId,
+              type: 'GAME_OPPONENT_DECLINED' as any,
+              meta: { game_id: id, title: game.title, reason: parsed.data.reason || undefined },
+            },
+          });
+          sendPushNotification(
+            game.created_by_id,
+            'Game declined',
+            `Your opponent declined "${game.title}".${parsed.data.reason ? ` Reason: ${parsed.data.reason}` : ''}`,
+            { type: 'game_opponent_declined', game_id: id }
+          ).catch(() => {});
+        }
+      } catch (notifErr) {
+        console.warn('[games] opponent-approval decision notification failed:', notifErr);
+      }
+    }
+
+    return res.json(updatedGame);
+  })
 );

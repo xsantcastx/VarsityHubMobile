@@ -204,6 +204,9 @@ searchRouter.get(
       prisma.game.findMany({
         where: {
           approval_status: 'approved',
+          // Opponent-approval workflow: exclude games still awaiting/declined
+          // opponent consent from public search results.
+          opponent_approval_status: { in: ['not_required', 'approved'] },
           date: { gte: todayUtcStart },
           OR: [
             { title: { contains: q, mode: 'insensitive' } },

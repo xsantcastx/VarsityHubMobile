@@ -243,9 +243,9 @@ function ManageSeasonScreen() {
           type: game.home_team && game.home_team !== 'Away Team' ? 'home' : 'away',
           status: game.winner
             ? 'completed'
-            : game.approval_status === 'rejected'
+            : game.approval_status === 'rejected' || game.opponent_approval_status === 'declined'
               ? 'cancelled'
-              : game.approval_status === 'pending'
+              : game.approval_status === 'pending' || game.opponent_approval_status === 'pending'
                 ? 'pending'
                 : 'upcoming',
           banner_url: game.banner_url || undefined, // Include banner URL from backend
