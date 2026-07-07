@@ -597,6 +597,7 @@ export async function uploadFile(
     );
     videoUploadErr.code = 'VIDEO_DIRECT_UPLOAD_FAILED';
     videoUploadErr.cause = directErr;
+    if (typeof directErr?.status === 'number') videoUploadErr.status = directErr.status;
     // Video has no server fallback, so this is the ONLY place the failure can
     // be observed in production. Tag with the underlying message so signature
     // vs network vs timeout failures are distinguishable in Sentry.
@@ -692,6 +693,7 @@ export async function uploadFileWithProgress(
     );
     videoUploadErr.code = 'VIDEO_DIRECT_UPLOAD_FAILED';
     videoUploadErr.cause = directErr;
+    if (typeof directErr?.status === 'number') videoUploadErr.status = directErr.status;
     // Video has no server fallback, so this is the ONLY place the failure can
     // be observed in production. Tag with the underlying message so signature
     // vs network vs timeout failures are distinguishable in Sentry.
