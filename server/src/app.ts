@@ -7,10 +7,10 @@ import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
 import {
-    startAdGoLiveCheck,
-    startMessageCleanup,
-    startOvernightMonitoring,
-    startQueueCleanup,
+  startAdGoLiveCheck,
+  startMessageCleanup,
+  startOvernightMonitoring,
+  startQueueCleanup,
 } from './cron/overnightTasks.js';
 import { debugLog } from './lib/debugLog.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
@@ -25,6 +25,7 @@ import { requireParentalConsent } from './middleware/requireParentalConsent.js';
 import adminRouter from './routes/admin.js';
 import { adminReportsRouter } from './routes/adminReports.js';
 import { adsRouter } from './routes/ads.js';
+import { ogRouter } from './routes/og.js';
 import { authRouter } from './routes/auth.js';
 import { consentRouter, handleConsentResend } from './routes/consent.js';
 import { dataExportRouter } from './routes/dataExport.js';
@@ -376,6 +377,7 @@ function mountApiRoutes(parent: any) {
   parent.use('/group-chats', noStore, groupChatsRouter);
   parent.use('/uploads', uploadsRouter);
   parent.use('/ads', adsRouter);
+  parent.use('/og', ogRouter);
   parent.use('/payments', paymentsRouter);
   parent.use('/webhooks/sendgrid', sendgridWebhookRouter);
   parent.use('/admin/reports', noStore, adminReportsRouter);
