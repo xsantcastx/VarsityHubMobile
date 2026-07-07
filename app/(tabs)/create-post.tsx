@@ -26,6 +26,7 @@ import SwipeBackContainer from '@/components/SwipeBackContainer';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import { Colors } from '@/constants/Colors';
+import { MAX_VIDEO_SIZE_BYTES, MAX_VIDEO_SIZE_MB, VIDEO_CAPTURE_PRESET } from '@/constants/video';
 import { useAuth } from '@/context/AuthProvider';
 import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -82,7 +83,6 @@ const ALLOWED_IMAGE_TYPES = [
 ];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
 
 // Validation helpers
 const validateMediaType = (mimeType: string | undefined, mediaType: 'image' | 'video'): boolean => {
@@ -465,8 +465,7 @@ function CreatePostScreen() {
         allowsEditing: false, // Don't crop - preserve original photo
         quality: media === 'image' ? 0.85 : undefined,
         exif: false,
-        videoMaxDuration: 30,
-        videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
+        videoExportPreset: VIDEO_CAPTURE_PRESET,
       } as any);
       if (!r.canceled && r.assets && r.assets[0]) {
         const a = { ...r.assets[0], uri: await materializeICloudAssetIfNeeded(r.assets[0].uri) };
@@ -485,8 +484,8 @@ function CreatePostScreen() {
 
         // Validate file size
         const fileSize = await getFileSizeFromUri(a.uri);
-        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
-        const maxSizeMB = media === 'image' ? 10 : 100;
+        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE_BYTES;
+        const maxSizeMB = media === 'image' ? 10 : MAX_VIDEO_SIZE_MB;
 
         if (fileSize > maxSize) {
           Alert.alert(
@@ -563,8 +562,7 @@ function CreatePostScreen() {
         allowsEditing: false,
         quality: 0.85,
         exif: false,
-        videoMaxDuration: 30,
-        videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
+        videoExportPreset: VIDEO_CAPTURE_PRESET,
         legacy: false,
       } as any);
       if (!r.canceled && r.assets && r.assets[0]) {
@@ -588,8 +586,8 @@ function CreatePostScreen() {
 
         // Validate file size
         const fileSize = await getFileSizeFromUri(a.uri);
-        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
-        const maxSizeMB = media === 'image' ? 10 : 100;
+        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE_BYTES;
+        const maxSizeMB = media === 'image' ? 10 : MAX_VIDEO_SIZE_MB;
 
         if (fileSize > maxSize) {
           Alert.alert(
