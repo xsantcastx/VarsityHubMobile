@@ -51,6 +51,41 @@ type Msg = {
   recipient?: MiniUser | null;
 };
 
+const MESSAGE_GROUP_GAP_MS = 5 * 60 * 1000;
+
+function parseMessageDate(value?: string) {
+  if (!value) return null;
+  const next = new Date(value);
+  return Number.isNaN(next.getTime()) ? null : next;
+}
+
+function isSameCalendarDay(a: Date | null, b: Date | null) {
+  if (!a || !b) return false;
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function formatMessageDay(value?: string) {
+  const date = parseMessageDate(value);
+  if (!date) return '';
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function formatMessageTime(value?: string) {
+  const date = parseMessageDate(value);
+  if (!date) return '';
+  return date.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function MessageThreadScreen() {
   const {
     conversation_id,
@@ -347,49 +382,97 @@ function MessageThreadScreen() {
 
     // Check if we should show avatar (show for first message in a sequence from same sender)
     const prevMsg = index > 0 ? msgs[index - 1] : null;
+    const nextMsg = index < msgs.length - 1 ? msgs[index + 1] : null;
     const prevMine =
       prevMsg && me?.id && String(prevMsg.sender_id || prevMsg.sender?.id || '') === String(me.id);
+    const nextMine =
+      nextMsg && me?.id && String(nextMsg.sender_id || nextMsg.sender?.id || '') === String(me.id);
     const showAvatar = !mine && (prevMine === true || !prevMsg);
+    const currentDate = parseMessageDate(item.created_at);
+    const prevDate = parseMessageDate(prevMsg?.created_at);
+    const nextDate = parseMessageDate(nextMsg?.created_at);
+    const showDateDivider = !prevMsg || !isSameCalendarDay(prevDate, currentDate);
+    const showMeta =
+      !nextMsg ||
+      nextMine !== mine ||
+      !currentDate ||
+      !nextDate ||
+      Math.abs(nextDate.getTime() - currentDate.getTime()) >= MESSAGE_GROUP_GAP_MS;
 
     return (
-      <View style={[styles.messageRow, mine && styles.messageRowMine]}>
-        {!mine && (
-          <View style={styles.avatarContainer}>
-            {showAvatar ? (
-              sender?.avatar_url ? (
-                <Image source={{ uri: sender.avatar_url }} style={styles.avatar} />
-              ) : (
-                <View
-                  style={[
-                    styles.avatarPlaceholder,
-                    { backgroundColor: Colors[colorScheme].border },
-                  ]}
-                >
-                  <MaterialIcons name="person" size={16} color={Colors[colorScheme].mutedText} />
-                </View>
-              )
-            ) : (
-              <View style={styles.avatarSpacer} />
-            )}
+      <View>
+        {showDateDivider ? (
+          <View style={styles.dateDivider}>
+            <View
+              style={[
+                styles.dateDividerChip,
+                {
+                  backgroundColor: colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.14)' : '#E2E8F0',
+                },
+              ]}
+            >
+              <Text style={[styles.dateDividerText, { color: Colors[colorScheme].mutedText }]}>
+                {formatMessageDay(item.created_at)}
+              </Text>
+            </View>
           </View>
-        )}
-        <View
-          style={[
-            styles.bubble,
-            mine
-              ? styles.bubbleMine
-              : [
-                  styles.bubbleTheirs,
+        ) : null}
+        <View style={[styles.messageRow, mine && styles.messageRowMine]}>
+          {!mine && (
+            <View style={styles.avatarContainer}>
+              {showAvatar ? (
+                sender?.avatar_url ? (
+                  <Image source={{ uri: sender.avatar_url }} style={styles.avatar} />
+                ) : (
+                  <View
+                    style={[
+                      styles.avatarPlaceholder,
+                      { backgroundColor: Colors[colorScheme].border },
+                    ]}
+                  >
+                    <MaterialIcons name="person" size={16} color={Colors[colorScheme].mutedText} />
+                  </View>
+                )
+              ) : (
+                <View style={styles.avatarSpacer} />
+              )}
+            </View>
+          )}
+          <View style={[styles.bubbleStack, mine && styles.bubbleStackMine]}>
+            <View
+              style={[
+                styles.bubble,
+                mine
+                  ? styles.bubbleMine
+                  : [
+                      styles.bubbleTheirs,
+                      {
+                        backgroundColor: Colors[colorScheme].card,
+                        borderColor: Colors[colorScheme].border,
+                      },
+                    ],
+              ]}
+            >
+              <Text
+                style={[styles.bubbleText, { color: mine ? '#FFFFFF' : Colors[colorScheme].text }]}
+              >
+                {item.content || ''}
+              </Text>
+            </View>
+            {showMeta ? (
+              <Text
+                style={[
+                  styles.messageMeta,
                   {
-                    backgroundColor: Colors[colorScheme].card,
-                    borderColor: Colors[colorScheme].border,
+                    color: Colors[colorScheme].mutedText,
+                    textAlign: mine ? 'right' : 'left',
                   },
-                ],
-          ]}
-        >
-          <Text style={[styles.bubbleText, { color: mine ? '#FFFFFF' : Colors[colorScheme].text }]}>
-            {item.content || ''}
-          </Text>
+                ]}
+              >
+                {formatMessageTime(item.created_at)}
+              </Text>
+            ) : null}
+          </View>
         </View>
       </View>
     );
@@ -473,7 +556,14 @@ function MessageThreadScreen() {
             </View>
 
             {/* Chat content */}
-            <View style={styles.chatContent}>
+            <View
+              style={[
+                styles.chatContent,
+                {
+                  backgroundColor: colorScheme === 'dark' ? 'rgba(15, 23, 42, 0.96)' : '#F8FAFC',
+                },
+              ]}
+            >
               {loading && (
                 <View style={styles.center}>
                   <ActivityIndicator color={Colors[colorScheme].tint} />
@@ -529,6 +619,8 @@ function MessageThreadScreen() {
                   keyExtractor={m => String(m.id)}
                   renderItem={renderItem}
                   contentContainerStyle={styles.messagesList}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
                 />
               )}
             </View>
@@ -540,31 +632,44 @@ function MessageThreadScreen() {
                 {
                   backgroundColor: Colors[colorScheme].card,
                   borderTopColor: Colors[colorScheme].border,
+                  paddingBottom: 10,
                 },
               ]}
             >
-              <TextInput
+              <View
                 style={[
-                  styles.input,
+                  styles.inputShell,
                   {
-                    backgroundColor:
-                      colorScheme === 'dark' ? Colors[colorScheme].surface : '#F3F4F6',
-                    color: Colors[colorScheme].text,
+                    backgroundColor: colorScheme === 'dark' ? 'rgba(30, 41, 59, 0.92)' : '#FFFFFF',
+                    borderColor: Colors[colorScheme].border,
                   },
                 ]}
-                placeholder="Message"
-                placeholderTextColor={Colors[colorScheme].mutedText}
-                value={text}
-                onChangeText={setText}
-                multiline
-                maxLength={1000}
-              />
+              >
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      color: Colors[colorScheme].text,
+                    },
+                  ]}
+                  placeholder="Write a message"
+                  placeholderTextColor={Colors[colorScheme].mutedText}
+                  value={text}
+                  onChangeText={setText}
+                  multiline
+                  maxLength={1000}
+                />
+              </View>
               <Pressable
                 onPress={send}
                 style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
                 disabled={!text.trim() || sending}
               >
-                <MaterialIcons name="send" size={18} color="white" />
+                {sending ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <MaterialIcons name="send" size={18} color="white" />
+                )}
               </Pressable>
             </View>
 
@@ -787,12 +892,12 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: '700', marginTop: 12, marginBottom: 6 },
   emptySubtitle: { fontSize: 14, textAlign: 'center' },
   messagesList: {
-    paddingVertical: 16,
-    paddingHorizontal: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 14,
   },
   messageRow: {
     flexDirection: 'row',
-    marginBottom: 4,
+    marginBottom: 10,
     alignItems: 'flex-end',
   },
   messageRowMine: {
@@ -818,48 +923,78 @@ const styles = StyleSheet.create({
   avatarSpacer: {
     width: 32,
   },
+  bubbleStack: {
+    maxWidth: '78%',
+  },
+  bubbleStackMine: {
+    alignItems: 'flex-end',
+  },
   bubble: {
-    maxWidth: '70%',
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
+    paddingVertical: 11,
+    borderRadius: 20,
     marginVertical: 2,
   },
   bubbleMine: {
     backgroundColor: '#2563EB',
-    borderBottomRightRadius: 4,
+    borderTopRightRadius: 8,
+    borderBottomRightRadius: 6,
   },
   bubbleTheirs: {
-    borderBottomLeftRadius: 4,
+    borderTopLeftRadius: 8,
+    borderBottomLeftRadius: 6,
     borderWidth: 1,
   },
   bubbleText: {
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 21,
   },
-  bubbleTextMine: {
-    color: '#FFFFFF',
+  dateDivider: {
+    alignItems: 'center',
+    marginBottom: 14,
+    marginTop: 6,
+  },
+  dateDividerChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  dateDividerText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  messageMeta: {
+    marginTop: 4,
+    fontSize: 11,
+    fontWeight: '600',
   },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
     gap: 10,
   },
+  inputShell: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 22,
+    paddingHorizontal: 2,
+  },
   input: {
     flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
+    minHeight: 44,
+    maxHeight: 120,
     borderRadius: 20,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 11,
     fontSize: 15,
   },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',

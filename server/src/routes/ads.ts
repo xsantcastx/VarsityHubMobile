@@ -1580,11 +1580,7 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
           ad_id: id,
           method: req.method,
         });
-        return res
-          .status(401)
-          .send(
-            confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false)
-          );
+        return res.status(200).send(adReviewHandoffPage(id, 'approve'));
       }
       addBreadcrumb('Ad approval confirmation page rendered', 'approval.ad_route', 'info', {
         action: 'approve',
@@ -1760,15 +1756,7 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
           ad_id: id,
           method: req.method,
         });
-        return res
-          .status(401)
-          .send(
-            confirmationPage(
-              'Invalid Link',
-              'This rejection link is invalid or has expired.',
-              false
-            )
-          );
+        return res.status(200).send(adReviewHandoffPage(id, 'reject'));
       }
       addBreadcrumb('Ad rejection confirmation page rendered', 'approval.ad_route', 'info', {
         action: 'reject',
