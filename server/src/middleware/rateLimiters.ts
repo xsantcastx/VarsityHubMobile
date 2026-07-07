@@ -331,12 +331,12 @@ export const inviteLimiter = createLimiter({
 
 /**
  * File uploads
- * 30 per hour per user
+ * 60 per hour per user
  */
 export const uploadLimiter = createLimiter({
   name: 'upload',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: rateLimitingDisabled ? 100000 : 30,
+  max: rateLimitingDisabled ? 100000 : 60, // was 30 — each failed video burns 2 signature calls
 });
 
 // ============================================
