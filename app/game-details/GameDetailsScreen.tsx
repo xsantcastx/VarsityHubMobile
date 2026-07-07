@@ -2004,12 +2004,12 @@ const GameDetailsScreen = () => {
     // team-logo hero. Demo matchups set banner_url to a specific Cloudinary
     // asset that should render as the event page background.
     const isHero = Boolean(leftLogo && rightLogo) && !finalsBanner && !bannerUrl;
+    // Same fixed landscape height for every non-hero banner — a real photo,
+    // the auto-generated matchup graphic, and the placeholder gradient all
+    // render at the same size, matching the Add-Event modal preview (which
+    // uses the same value) so the crop the user sees while creating the
+    // event matches what ships to the detail page.
     const bannerHeight = isHero ? 320 : 240;
-    // A real banner image is a photo (feed card + Add-Event modal preview both
-    // render it at 4:5, cover). Match that aspect ratio here instead of the
-    // fixed-pixel landscape height so the detail page doesn't crop the same
-    // source image differently than where the user first saw it.
-    const hasImageBanner = Boolean(bannerImageUrl) && !isHero;
 
     const heroBanner =
       bannerImageUrl && !isHero ? (
@@ -2051,12 +2051,7 @@ const GameDetailsScreen = () => {
       );
 
     return (
-      <View
-        style={[
-          styles.bannerWrapper,
-          hasImageBanner ? styles.bannerWrapperImage : { height: bannerHeight },
-        ]}
-      >
+      <View style={[styles.bannerWrapper, { height: bannerHeight }]}>
         {heroBanner}
         {/* Shade the banner less when this is a hero image so logos are visible */}
         <LinearGradient
@@ -3532,12 +3527,6 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
       position: 'relative',
       height: 260,
       backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#eff6ff',
-    },
-    // Real banner photos: match the feed card + Add-Event modal preview's 4:5
-    // cover crop instead of the fixed-pixel landscape height above.
-    bannerWrapperImage: {
-      height: undefined,
-      aspectRatio: 4 / 5,
     },
     bannerImage: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
     bannerShade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0 },

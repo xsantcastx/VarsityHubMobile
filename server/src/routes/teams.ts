@@ -8,6 +8,7 @@ import { sendStaffMemberJoinedEmail, sendTeamInviteEmail } from '../lib/email.js
 import { sendError } from '../lib/http/sendError.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import { getOrganizationState } from '../lib/organizationState.js';
+import { DEMO_LEAGUE_NAMES } from '../lib/demoContent.js';
 import { getVeteranTotalTeamAllowance } from '../lib/paymentInternals.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { SERVER_ROOKIE_TEAM_LIMIT } from '../lib/planDefinitions.js';
@@ -801,6 +802,7 @@ teamsRouter.get(
     const mine = String((req.query as any).mine || '') === '1';
     const directory = String((req.query as any).directory || '') === '1'; // Team directory search
     const orgIdFilter = String((req.query as any).organization_id || '').trim() || null;
+    const excludeDemoLeagues = String((req.query as any).exclude_demo_leagues || '') === '1';
     const limitRaw = Number.parseInt(String((req.query as any).limit ?? ''), 10);
     const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
 
@@ -817,6 +819,18 @@ teamsRouter.get(
       !all && !isAdmin ? await getExcludedPrivateTeamIds(currentUserId) : [];
     if (privateTeamExcludeIds.length > 0) {
       where.id = { notIn: privateTeamExcludeIds };
+    }
+    // Opt-in only — the FIFA demo bracket stays fully discoverable everywhere
+    // else (feed, general search); this flag exists for opponent-selection
+    // flows where the result must be a real, challengeable VarsityHub team.
+    // `league` is nullable, and Prisma's NOT/notIn on a nullable field
+    // excludes null rows too (SQL 3-valued logic) — the explicit `league: null`
+    // branch keeps every ordinary team (no league set) in the results.
+    if (excludeDemoLeagues) {
+      where.AND = [
+        ...(where.AND ?? []),
+        { OR: [{ league: null }, { league: { notIn: [...DEMO_LEAGUE_NAMES] } }] },
+      ];
     }
 
     // Directory search: search across name, city, league, sport

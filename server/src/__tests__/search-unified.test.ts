@@ -16,6 +16,9 @@ describe('Unified search', () => {
   let teamId: string;
   let gameId: string;
   let eventId: string;
+  let mediaPostId: string;
+  let textOnlyPostId: string;
+  let demoTeamId: string;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -63,6 +66,17 @@ describe('Unified search', () => {
     });
     teamId = team.id;
 
+    const demoTeam = await prisma.team.create({
+      data: {
+        name: `Search Team Demo ${ts}`,
+        organization_id: organizationId,
+        status: 'active',
+        league: 'FIFA World Cup 2026',
+      },
+      select: { id: true },
+    });
+    demoTeamId = demoTeam.id;
+
     const game = await prisma.game.create({
       data: {
         title: `Search Showcase ${ts}`,
@@ -88,12 +102,37 @@ describe('Unified search', () => {
       },
     });
     eventId = event.id;
+
+    const mediaPost = await prisma.post.create({
+      data: {
+        author_id: userId,
+        title: `Search Highlight ${ts}`,
+        content: 'Great game recap',
+        media_url: 'https://example.com/search-post.jpg',
+      },
+      select: { id: true },
+    });
+    mediaPostId = mediaPost.id;
+
+    // Text-only — must NOT appear in post search results (media-only, same as /highlights).
+    const textOnlyPost = await prisma.post.create({
+      data: {
+        author_id: userId,
+        title: `Search TextOnly ${ts}`,
+        content: 'No media here',
+      },
+      select: { id: true },
+    });
+    textOnlyPostId = textOnlyPost.id;
   });
 
   afterAll(async () => {
+    await prisma.post
+      .deleteMany({ where: { id: { in: [mediaPostId, textOnlyPostId] } } })
+      .catch(() => {});
     await prisma.event.deleteMany({ where: { id: eventId } }).catch(() => {});
     await prisma.game.deleteMany({ where: { id: gameId } }).catch(() => {});
-    await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
+    await prisma.team.deleteMany({ where: { id: { in: [teamId, demoTeamId] } } }).catch(() => {});
     await prisma.organization.deleteMany({ where: { id: organizationId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: userId } }).catch(() => {});
   });
@@ -109,5 +148,60 @@ describe('Unified search', () => {
     expect(res.body?.organizations?.some((row: any) => row.id === organizationId)).toBe(true);
     expect(res.body?.games?.some((row: any) => row.id === gameId)).toBe(true);
     expect(res.body?.events?.some((row: any) => row.id === eventId)).toBe(true);
+    expect(res.body?.posts?.some((row: any) => row.id === mediaPostId)).toBe(true);
+  });
+
+  it('returns matching posts with the shape HighlightCard expects, media-only', async () => {
+    const res = await request(app)
+      .get('/search?q=Search Highlight')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    const post = res.body?.posts?.find((row: any) => row.id === mediaPostId);
+    expect(post).toBeTruthy();
+    expect(post.media_url).toBe('https://example.com/search-post.jpg');
+    expect(post.has_upvoted).toBe(false);
+    expect(post.has_bookmarked).toBe(false);
+    expect(typeof post.bookmarks_count).toBe('number');
+    expect(post.author?.id).toBe(userId);
+
+    // Text-only post matching the same query must not appear — posts search
+    // is media-only, same restriction as /highlights.
+    const res2 = await request(app)
+      .get('/search?q=Search TextOnly')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(res2.body?.posts?.some((row: any) => row.id === textOnlyPostId)).toBe(false);
+  });
+
+  it('exclude_demo_leagues=1 drops the FIFA demo team but keeps the real one (null league)', async () => {
+    const withoutFlag = await request(app)
+      .get('/search?q=Search Team')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(withoutFlag.body?.teams?.some((row: any) => row.id === teamId)).toBe(true);
+    expect(withoutFlag.body?.teams?.some((row: any) => row.id === demoTeamId)).toBe(true);
+
+    const withFlag = await request(app)
+      .get('/search?q=Search Team&exclude_demo_leagues=1')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(withFlag.body?.teams?.some((row: any) => row.id === teamId)).toBe(true);
+    expect(withFlag.body?.teams?.some((row: any) => row.id === demoTeamId)).toBe(false);
+  });
+
+  it('empty query returns an empty posts array alongside the other empty buckets', async () => {
+    const res = await request(app)
+      .get('/search?q=')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(res.body).toEqual({
+      users: [],
+      teams: [],
+      organizations: [],
+      games: [],
+      events: [],
+      posts: [],
+    });
   });
 });

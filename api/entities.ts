@@ -690,7 +690,12 @@ export const Team = {
   list: (
     q?: string,
     mine?: boolean,
-    options?: { directory?: boolean; limit?: number; organization_id?: string }
+    options?: {
+      directory?: boolean;
+      limit?: number;
+      organization_id?: string;
+      excludeDemoLeagues?: boolean;
+    }
   ): Promise<any> => {
     const params: string[] = [];
     if (q) params.push(`q=${encodeURIComponent(q)}`);
@@ -699,6 +704,7 @@ export const Team = {
     if (typeof options?.limit === 'number') params.push(`limit=${String(options.limit)}`);
     if (options?.organization_id)
       params.push(`organization_id=${encodeURIComponent(options.organization_id)}`);
+    if (options?.excludeDemoLeagues) params.push('exclude_demo_leagues=1');
     const qs = params.length ? '?' + params.join('&') : '';
     return httpGet('/teams' + qs).then(data => validateTeamArray('teams.list', data));
   },
@@ -1028,10 +1034,11 @@ export const Advertisement = {
 };
 
 export const Search = {
-  unified: (q: string, limit: number = 10) => {
+  unified: (q: string, limit: number = 10, options?: { excludeDemoLeagues?: boolean }) => {
     const params = new URLSearchParams();
     params.set('q', q);
     if (limit) params.set('limit', String(limit));
+    if (options?.excludeDemoLeagues) params.set('exclude_demo_leagues', '1');
     return httpGet('/search?' + params.toString());
   },
 };

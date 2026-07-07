@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
@@ -457,7 +458,7 @@ export default function QuickAddGameModal({
     setOpponentSearchLoading(true);
     opponentSearchTimerRef.current = setTimeout(async () => {
       try {
-        const res = await Team.list(q, false, { limit: 20 });
+        const res = await Team.list(q, false, { limit: 20, excludeDemoLeagues: true });
         const results: TeamOption[] = (Array.isArray(res) ? res : [])
           .filter((t: any) => t.name !== currentTeam)
           .map((t: any) => ({
@@ -1609,7 +1610,7 @@ export default function QuickAddGameModal({
                                   ? getHomeAwayTeams().awayTeam
                                   : EVENT_TYPES.find(t => t.value === eventType)?.label || 'Event'
                               }
-                              height={120}
+                              height={240}
                               variant="compact"
                               leftColor={
                                 isCompetitive
@@ -1790,7 +1791,10 @@ export default function QuickAddGameModal({
               if (opponentSearchTimerRef.current) clearTimeout(opponentSearchTimerRef.current);
             }}
           >
-            <View style={styles.pickerOverlay}>
+            <KeyboardAvoidingView
+              style={styles.pickerOverlay}
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
               <View
                 style={[
                   styles.pickerContainer,
@@ -1948,7 +1952,7 @@ export default function QuickAddGameModal({
                   )}
                 </ScrollView>
               </View>
-            </View>
+            </KeyboardAvoidingView>
           </Modal>
         </View>
       </Modal>
@@ -2268,9 +2272,10 @@ const styles = StyleSheet.create({
   },
   customBannerImage: {
     width: '100%',
-    // Preview the uploaded photo at the same 4:5 ratio the event card displays,
-    // so what the user sees here is what actually ships to the feed.
-    aspectRatio: 4 / 5,
+    // Preview the uploaded photo at the same fixed height the event detail
+    // page renders it at (GameDetailsScreen bannerHeight), so what the user
+    // sees here is the size that actually ships.
+    height: 240,
     borderRadius: 12,
     backgroundColor: '#D1D5DB',
   },

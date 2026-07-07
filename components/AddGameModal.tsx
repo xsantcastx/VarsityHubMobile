@@ -142,7 +142,7 @@ export default function AddGameModal({
     setOpponentSearching(true);
     opponentTimerRef.current = setTimeout(async () => {
       try {
-        const res: any = await Search.unified(text, 10);
+        const res: any = await Search.unified(text, 10, { excludeDemoLeagues: true });
         setOpponentSearchResults(Array.isArray(res?.teams) ? res.teams : []);
       } catch {
         setOpponentSearchResults([]);
@@ -701,7 +701,7 @@ export default function AddGameModal({
                     }
                     leftName={formData.currentTeam}
                     rightName={formData.opponent}
-                    height={140}
+                    height={240}
                     variant="compact"
                   />
                   <Pressable
@@ -884,7 +884,10 @@ export default function AddGameModal({
           setOpponentSearchResults([]);
         }}
       >
-        <View style={styles.pickerOverlay}>
+        <KeyboardAvoidingView
+          style={styles.pickerOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View
             style={[styles.pickerContainer, { backgroundColor: Colors[colorScheme].background }]}
           >
@@ -1025,7 +1028,7 @@ export default function AddGameModal({
               )}
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
