@@ -5,6 +5,7 @@ import {
   InviteIdentifierError,
   resolveInviteIdentifier,
 } from '../lib/inviteIdentifier.js';
+import { sendError } from '../lib/http/sendError.js';
 import { prisma } from '../lib/prisma.js';
 import {
   canManageTeam as canManageTeamScoped,
@@ -58,10 +59,7 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
     resolvedIdentifier = await resolveInviteIdentifier(prisma, identifier || email || '');
   } catch (e: any) {
     if (e instanceof InviteIdentifierError) {
-      return res.status(e.statusCode).json({
-        error: e.code,
-        message: e.message,
-      });
+      return sendError(res, e.statusCode, e.message, e.code);
     }
     throw e;
   }
@@ -97,10 +95,7 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
       select: { id: true },
     });
     if (existingMembership) {
-      return res.status(409).json({
-        error: 'ALREADY_MEMBER',
-        message: 'That user is already on this team.',
-      });
+      return sendError(res, 409, 'That user is already on this team.', 'ALREADY_MEMBER');
     }
   }
 

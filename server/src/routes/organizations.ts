@@ -1280,10 +1280,12 @@ organizationsRouter.post(
           select: { id: true },
         });
         if (existingMembership) {
-          return res.status(409).json({
-            error: 'ALREADY_MEMBER',
-            message: 'That user is already a member of this organization.',
-          });
+          return sendError(
+            res,
+            409,
+            'That user is already a member of this organization.',
+            'ALREADY_MEMBER'
+          );
         }
       }
       // PLAN LIMITS: Enforce authorized user caps based on ORG OWNER's plan (Rule B).
@@ -1423,10 +1425,7 @@ organizationsRouter.post(
       return res.status(201).json(invite);
     } catch (err: any) {
       if (err instanceof InviteIdentifierError) {
-        return res.status(err.statusCode).json({
-          error: err.code,
-          message: err.message,
-        });
+        return sendError(res, err.statusCode, err.message, err.code);
       }
       if (err?.status && err?.body) {
         return res.status(err.status).json(err.body);
