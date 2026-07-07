@@ -33,11 +33,13 @@ jest.mock('@/api/entities', () => ({
   },
 }));
 jest.mock('@/hooks/useCustomColorScheme', () => ({ useCustomColorScheme: () => 'light' }));
-// Staff-only screen is gated by useRequireCoach; mock it to "allowed" so this
-// smoke test exercises the react-query list/approve behavior it targets rather
-// than the redirect placeholder.
-jest.mock('@/hooks/useRequireCoach', () => ({
-  useRequireCoach: () => ({ canAccessCoachTools: true, loading: false }),
+// Staff-only screen is gated by the membership-aware useRequireTeamManagement
+// (role-barrier model: reviewing join requests is an authorized-user function,
+// so manager/assistant_coach memberships are admitted, not just coaches).
+// Mock it to "allowed" so this smoke test exercises the react-query
+// list/approve behavior it targets rather than the redirect placeholder.
+jest.mock('@/hooks/useRequireTeamManagement', () => ({
+  useRequireTeamManagement: () => ({ canManage: true, loading: false }),
 }));
 
 import TeamJoinRequestsScreen from '../team-join-requests';
