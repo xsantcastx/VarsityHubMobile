@@ -202,7 +202,8 @@
         "enabled": true,
         "exclude": [
           "react-native-iap",
-          "lottie-ios"
+          "lottie-ios",
+          "react-native-compressor"
         ],
         "listUnknownPackages": false
       },
