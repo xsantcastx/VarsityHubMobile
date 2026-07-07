@@ -36,10 +36,11 @@ describe('video capture parity', () => {
   }
 
   it('no file outside the allowlist accepts video from the picker', () => {
-    // Both idioms that admit video: MediaTypeOptions.All / .Videos and the
-    // SDK-54 array form MediaType.Videos / 'videos'.
+    // Idioms that admit video: MediaTypeOptions.All / .Videos, SDK-54 array form
+    // MediaType.Videos / 'videos', and helper forms pickerAllMediaTypesProp() and
+    // pickerMediaTypeFor('video').
     const videoPickerPattern =
-      /MediaTypeOptions\.(All|Videos)|MediaType\.Videos|mediaTypes:\s*\[[^\]]*['"]videos['"]/;
+      /MediaTypeOptions\.(All|Videos)|MediaType\.Videos|mediaTypes:\s*\[[^\]]*['"]videos['"]|pickerAllMediaTypesProp\s*\(|pickerMediaTypeFor\s*\(\s*['"]video['"]/;
     const offenders: string[] = [];
     const walk = (dir: string) => {
       for (const entry of readdirSync(join(ROOT, dir))) {
