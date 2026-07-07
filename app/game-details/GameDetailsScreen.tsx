@@ -1,5 +1,7 @@
 import { Colors } from '@/constants/Colors';
+import { VIDEO_CAPTURE_PRESET } from '@/constants/video';
 import { queryClient } from '@/lib/queryClient';
+import { compressVideoSafe } from '@/utils/compressVideo';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useShareLink } from '@/hooks/useShareLink';
@@ -1217,7 +1219,7 @@ const GameDetailsScreen = () => {
       const pickerOptions: ImagePicker.ImagePickerOptions = {
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         quality: 0.8,
-        videoMaxDuration: 30,
+        videoExportPreset: VIDEO_CAPTURE_PRESET,
       };
       // Demo matchups (Duke v UNC, Cavs v Warriors) let fans upload from the
       // camera roll as well — they're not physically at Chase Center or Cameron
@@ -1379,7 +1381,10 @@ const GameDetailsScreen = () => {
     setStoryBusy(true);
     try {
       const base = getApiBaseUrl();
-      const uploadUri = storyTrimmedUri || storyPreview.uri;
+      // This callback only handles videos (images upload inline in the picker
+      // handler). Compress first; falls back to the original URI on failure.
+      const rawUri = storyTrimmedUri || storyPreview.uri;
+      const uploadUri = await compressVideoSafe(rawUri);
       const ensured = await (
         await import('../../utils/ensureUploadableUri')
       ).ensureUploadableUri(uploadUri, storyPreview.mimeType);
