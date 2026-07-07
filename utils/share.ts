@@ -1,17 +1,18 @@
 /**
  * Share Utilities
- * 
+ *
  * Provides cross-platform sharing functionality with:
  * - Native share sheet integration
  * - Clipboard fallback for failed shares
  * - Deep link generation for content
  * - UTM tracking for attribution
- * 
+ *
  * @module utils/share
  */
 
 import { Alert, Platform, Share } from 'react-native';
 import { getConfig } from '@/config/env';
+import { buildNativeSharePayload } from '@/utils/links';
 
 type ShareOptions = Parameters<typeof Share.share>[1];
 
@@ -43,7 +44,7 @@ export function generateShareUrl(
     utm_medium: options?.medium || 'social',
     ...(options?.campaign && { utm_campaign: options.campaign }),
   });
-  
+
   return `${SHARE_BASE_URL}?${params.toString()}`;
 }
 
@@ -96,7 +97,7 @@ export async function shareContent(
   customMessage?: string
 ): Promise<{ shared: boolean; method?: string }> {
   const url = generateShareUrl(content);
-  
+
   // Build the share message
   let message = customMessage || '';
   if (content.title) {
@@ -108,20 +109,16 @@ export async function shareContent(
   message = message ? `${message}\n\n${url}` : url;
 
   try {
-    const result = await Share.share(
-      {
-        message,
-        url: Platform.OS === 'ios' ? url : undefined, // iOS can handle URL separately
-        title: content.title,
-      },
-      {
-        dialogTitle: content.title || 'Share',
-        subject: content.title,
-      }
-    );
+    const result = await Share.share(buildNativeSharePayload(message, url), {
+      dialogTitle: content.title || 'Share',
+      subject: content.title,
+    });
 
     if (result.action === Share.sharedAction) {
-      if (__DEV__) console.log(`[Share] Content shared: ${content.type}/${content.id} via ${result.activityType || 'unknown'}`);
+      if (__DEV__)
+        console.log(
+          `[Share] Content shared: ${content.type}/${content.id} via ${result.activityType || 'unknown'}`
+        );
       return { shared: true, method: result.activityType || 'share' };
     } else if (result.action === Share.dismissedAction) {
       if (__DEV__) console.log('[Share] User dismissed share sheet');
@@ -131,7 +128,7 @@ export async function shareContent(
     return { shared: false };
   } catch (error) {
     if (__DEV__) console.error('[Share] Native share failed:', error);
-    
+
     // Fallback to clipboard
     try {
       await copyToClipboard(url);
@@ -174,7 +171,7 @@ export async function shareGame(
   let description = '';
   if (date) description += `📅 ${date}`;
   if (location) description += description ? ` · 📍 ${location}` : `📍 ${location}`;
-  
+
   return shareContent(
     {
       type: 'game',
@@ -242,7 +239,9 @@ export async function copyToClipboard(text: string) {
     await Share.share({ message: text });
   } catch (e) {
     // Silent failure fallback
-    try { await Share.share({ message: text }); } catch (shareError) {
+    try {
+      await Share.share({ message: text });
+    } catch (shareError) {
       if (__DEV__) console.warn('[Share] Final fallback share failed:', shareError);
     }
   }

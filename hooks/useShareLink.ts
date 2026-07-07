@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import AppLinks, { ShareableLink } from '@/utils/links';
+import AppLinks, { buildNativeSharePayload, ShareableLink } from '@/utils/links';
 
 export type ShareLinkKind =
   | 'post'
@@ -48,10 +48,7 @@ const formatLink = (options: ShareLinkOptions): ShareableLink | null => {
 export function useShareLink(options: ShareLinkOptions) {
   const { caption, id, kind, title, contextLines, onShareSuccess } = options;
 
-  const link = useMemo(
-    () => formatLink({ caption, id, kind, title }),
-    [caption, id, kind, title],
-  );
+  const link = useMemo(() => formatLink({ caption, id, kind, title }), [caption, id, kind, title]);
 
   const contextMessage = useMemo(() => {
     if (!link) return '';
@@ -74,7 +71,7 @@ export function useShareLink(options: ShareLinkOptions) {
         if (!silent) Alert.alert('Copy failed', 'Unable to copy the link right now.');
       }
     },
-    [link],
+    [link]
   );
 
   const share = useCallback(async () => {
@@ -83,11 +80,9 @@ export function useShareLink(options: ShareLinkOptions) {
       return;
     }
     try {
-      const result = await Share.share({
-        message: contextMessage || link.shareMessage,
-        url: link.webUrl,
-        title: title || link.webUrl,
-      });
+      const result = await Share.share(
+        buildNativeSharePayload(contextMessage || link.shareMessage, link.webUrl)
+      );
       if (result.action === Share.sharedAction && kind === 'post' && id && onShareSuccess) {
         onShareSuccess(String(id));
       }
