@@ -215,6 +215,17 @@ npm run audit:navigation        # classify all router.replace calls; flag REVIEW
 - Run `npx tsc --noEmit --project server/tsconfig.json` after backend changes
 - Test scripts go in `server/scripts/` — never in `src/`
 
+## Team Role-Barrier Model (2026-07-06)
+
+Team/org authorization is split into two tiers by `server/src/lib/teamAuthorization.ts`:
+
+- **Full administration** — `canAdministerTeam()` (team owner/coach, or org owner): team settings edit, invite create/cancel, roster member add/remove/role-change, ownership transfer, moving a team to another org. `canArchiveTeam` is an alias.
+- **Authorized user** — `canManageTeam()`/`canManageAnyTeam()` (team owner/manager/coach/assistant_coach, or org owner/manager): roster join-request approve/deny, event/game create + approve/deny. This is the ONLY power managers/assistant_coaches have — they must never pass `canAdministerTeam`.
+- **Organization management is owner-only** — `isOrgOwner()` gates org edit and org invite create/revoke; org managers have zero admin power at the org level (see Security Invariants below).
+- Athletes/parents/members have no admin functions at all.
+
+New team/org mutation endpoints must pick the correct tier explicitly — don't default to the older undifferentiated `canManageTeam` for anything beyond roster/event approvals.
+
 ## Security Invariants (Do Not Break)
 
 - **No client-controlled security-critical state** — payment status, approval state, role, and plan are always server-authoritative
@@ -225,7 +236,7 @@ npm run audit:navigation        # classify all router.replace calls; flag REVIEW
 - **Deep link params use allowlist** — `buildRouteParams()` in `utils/deepLinks.ts` enforces per-route key allowlists; do not bypass
 - **Webhook lock failures return 503** (not 500) so Stripe retries instead of marking failed
 - **Apple IAP cert chain must pin to `CN=Apple Root CA - G3`** exactly — loose substring match is not acceptable
-- **Org invite role escalation**: only owners can invite at `manager` role; managers may only invite `member`
+- **Org invite creation is owner-only** (role-barrier model, 2026-07-06): only the organization owner may create or revoke org invites — org managers have no invite power at all (superseded the older "managers may invite at member level" rule)
 - **Payment-success inner catch must surface non-auth errors on final retry** — no silent swallowing
 
 ## PR Checklist (Run Before Each PR)
