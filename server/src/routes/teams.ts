@@ -19,10 +19,9 @@ import { sendPushNotification } from '../lib/pushNotifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
 import {
-  canManageTeam as canManageTeamScoped,
+  canAdministerTeam as canAdministerTeamScoped,
   canAssignTeamRole as canAssignTeamRoleScoped,
   canArchiveTeam as canArchiveTeamScoped,
-  isOrgAdmin as isOrgAdminScoped,
   TEAM_STAFF_ROLES,
 } from '../lib/teamAuthorization.js';
 import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
@@ -1728,11 +1727,11 @@ teamsRouter.put(
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
     const isAdmin = await getIsAdmin(req as any);
-    const canManage = await canManageTeamScoped(req.user.id, teamId);
+    const canManage = await canAdministerTeamScoped(req.user.id, teamId);
     if (!isAdmin && !canManage) {
       return res.status(403).json({
         error:
-          'Only team staff, organization admins, or platform admins can update team information',
+          'Only the team owner, head coach, organization owner, or platform admins can update team information',
       });
     }
 
@@ -1784,9 +1783,11 @@ teamsRouter.put(
         });
       }
 
-      // Moving a team across organizations is stronger than ordinary team edits:
-      // the requester must control the team on the source side AND be an org admin
-      // on the destination side. Plain membership in the target org is not enough.
+      // Moving a team across organizations is stronger than ordinary team edits
+      // (it rehomes billing/administration) — role-barrier model requires
+      // admin-tier control on the source side and the ORG OWNER (not manager)
+      // on the destination side. The base canAdministerTeam gate above already
+      // excludes team managers from reaching this handler at all.
       if (!isAdmin && targetOrganizationId !== team.organization_id) {
         const sourceTeamMembership = await prisma.teamMembership.findUnique({
           where: {
@@ -1797,27 +1798,27 @@ teamsRouter.put(
           } as any,
           select: { role: true, status: true },
         });
+        const { isOrgOwner: isOrgOwnerScoped } = await import('../lib/teamAuthorization.js');
         const canAdminSourceOrg = team.organization_id
-          ? await isOrgAdminScoped(req.user.id, team.organization_id)
+          ? await isOrgOwnerScoped(req.user.id, team.organization_id)
           : false;
         const canControlSourceTeam =
           (sourceTeamMembership?.status === 'active' &&
-            (sourceTeamMembership.role === 'owner' || sourceTeamMembership.role === 'manager')) ||
+            (sourceTeamMembership.role === 'owner' || sourceTeamMembership.role === 'coach')) ||
           canAdminSourceOrg;
         if (!canControlSourceTeam) {
           return res.status(403).json({
             error: 'TEAM_TRANSFER_ADMIN_REQUIRED',
             message:
-              'Only the team owner, a team manager, or a league admin can move a team to another organization.',
+              'Only the team owner, the head coach, or the organization owner can move a team to another organization.',
           });
         }
 
-        const canAdminTargetOrg = await isOrgAdminScoped(req.user.id, targetOrganizationId);
+        const canAdminTargetOrg = await isOrgOwnerScoped(req.user.id, targetOrganizationId);
         if (!canAdminTargetOrg) {
           return res.status(403).json({
             error: 'ORGANIZATION_ADMIN_REQUIRED',
-            message:
-              'You must be an owner or manager of the target organization to move this team.',
+            message: 'You must be the owner of the target organization to move this team.',
           });
         }
       }
@@ -2091,18 +2092,21 @@ teamsRouter.post(
     if (!team) return res.status(404).json({ error: 'Team not found' });
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    // CRITICAL: Verify requester is team owner/manager/coach (can invite members)
-    const canManage = await canManageTeamScoped(req.user.id, id);
+    // Role-barrier model: invite creation is a full-administration action —
+    // authorized users (managers/assistant_coaches) only approve/deny incoming
+    // join requests, they don't send invites. Reserved for owner/coach/org owner.
+    const canManage = await canAdministerTeamScoped(req.user.id, id);
 
     if (!canManage) {
       return res.status(403).json({
         error: 'PERMISSION_DENIED',
-        message: 'Only team staff or organization admins can invite members to teams.',
+        message: 'Only the team owner, head coach, or organization owner can invite members.',
       });
     }
 
-    // Role-tier guard (single source of truth). canManage above admits
-    // coaches/assistant_coaches, who must NOT be able to invite at manager level.
+    // Role-tier guard (single source of truth). Even administrators default to
+    // non-manager roles here; only a team owner (or org owner, already
+    // admitted above) may invite at manager level.
     if (!(await canAssignTeamRoleScoped(req.user.id, id, assignedRole))) {
       return res.status(403).json({
         error: 'INSUFFICIENT_ROLE',
@@ -2304,11 +2308,11 @@ teamsRouter.post(
       return res.status(404).json({ error: 'Invite not found' });
     }
 
-    const canManage = await canManageTeamScoped(userId, teamId);
+    const canManage = await canAdministerTeamScoped(userId, teamId);
     if (!canManage) {
       return res.status(403).json({
         error: 'PERMISSION_DENIED',
-        message: 'Only team staff or organization admins can cancel invites.',
+        message: 'Only the team owner, head coach, or organization owner can cancel invites.',
       });
     }
 
@@ -2579,9 +2583,10 @@ teamsRouter.post(
     const { new_owner_id } = parsed.data;
 
     // Transfer-ownership is deliberately MORE restrictive than canManageTeam.
-    // Team staff like coach / assistant_coach shouldn't be able to hand off
-    // ownership, but the current owner and the parent league's owner/manager
-    // can. Two-layer check: direct team owner OR org admin of the team's org.
+    // Role-barrier model (2026-07-06): only the team owner, the team's head
+    // coach, or the ORG OWNER (not org manager) may hand off ownership.
+    // Team managers/assistant_coaches pass canManageTeam but must NOT be able
+    // to transfer ownership.
     const team = await prisma.team.findUnique({
       where: { id: teamId },
       select: { organization_id: true },
@@ -2591,14 +2596,16 @@ teamsRouter.post(
     const currentMembership = await prisma.teamMembership.findFirst({
       where: { team_id: teamId, user_id: req.user.id, status: 'active' },
     });
-    const isDirectOwner = currentMembership?.role === 'owner';
-    const { isOrgAdmin } = await import('../lib/teamAuthorization.js');
-    const isLeagueAdmin = team.organization_id
-      ? await isOrgAdmin(req.user.id, team.organization_id)
+    const isDirectOwnerOrCoach =
+      currentMembership?.role === 'owner' || currentMembership?.role === 'coach';
+    const { isOrgOwner } = await import('../lib/teamAuthorization.js');
+    const isLeagueOwner = team.organization_id
+      ? await isOrgOwner(req.user.id, team.organization_id)
       : false;
-    if (!isDirectOwner && !isLeagueAdmin) {
+    if (!isDirectOwnerOrCoach && !isLeagueOwner) {
       return res.status(403).json({
-        error: 'Only the team owner or a league admin can transfer ownership',
+        error:
+          'Only the team owner, the head coach, or the organization owner can transfer ownership',
       });
     }
 
