@@ -76,11 +76,41 @@ const MIME_MAP: Record<string, string> = {
   mkv: 'video/x-matroska',
 };
 
+function inferMimeFromPath(pathLike?: string): string | null {
+  if (!pathLike) return null;
+  const match = pathLike
+    .toLowerCase()
+    .match(/\.(jpg|jpeg|png|gif|webp|heic|heif|mp4|mov|avi|mkv)(?:[?#].*)?$/);
+  const ext = match?.[1];
+  return (ext && MIME_MAP[ext]) || null;
+}
+
+function normalizeLocalUploadUri(uri: string): string {
+  const trimmed = String(uri || '').trim();
+  if (!trimmed) return trimmed;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith('/')) return `file://${trimmed}`;
+  return trimmed;
+}
+
 function detectMime(mimeType?: string, filename?: string, uri?: string): string {
-  if (mimeType && mimeType !== 'application/octet-stream') return mimeType;
-  const name = filename || uri || '';
-  const ext = name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|heic|heif|mp4|mov|avi|mkv)$/)?.[1];
-  return (ext && MIME_MAP[ext]) || 'image/jpeg';
+  const inferredFromUri = inferMimeFromPath(uri);
+  const inferredFromFilename = inferMimeFromPath(filename);
+
+  if (mimeType && mimeType !== 'application/octet-stream') {
+    const normalizedMime = mimeType.toLowerCase();
+    const inferred = inferredFromUri || inferredFromFilename;
+    if (
+      inferred &&
+      inferred.split('/')[0] === normalizedMime.split('/')[0] &&
+      inferred !== normalizedMime
+    ) {
+      return inferred;
+    }
+    return mimeType;
+  }
+
+  return inferredFromUri || inferredFromFilename || 'image/jpeg';
 }
 
 function buildUploadFormData(
@@ -192,16 +222,16 @@ async function prepareUploadInput(
   mimeType?: string
 ): Promise<PreparedUploadInput> {
   const finalBase = computeBase(baseUrl);
-  let finalMimeType = detectMime(mimeType, filename, uri);
-  const finalFilename = filename || 'upload';
-  let finalUri = uri;
+  let finalUri = normalizeLocalUploadUri(uri);
+  const finalFilename = filename || finalUri.split('/').pop() || 'upload';
+  let finalMimeType = detectMime(mimeType, finalFilename, finalUri);
   const isMedia = finalMimeType.startsWith('image/') || finalMimeType.startsWith('video/');
 
   if (finalMimeType.startsWith('image/')) {
     try {
       const compressed = await compressImageForUpload(finalUri, finalMimeType);
-      finalUri = compressed.uri;
-      if (compressed.mimeType) finalMimeType = compressed.mimeType;
+      finalUri = normalizeLocalUploadUri(compressed.uri);
+      finalMimeType = detectMime(compressed.mimeType || finalMimeType, finalFilename, finalUri);
     } catch (e) {
       if (__DEV__) console.warn('[upload] Image compression failed, uploading original:', e);
     }
@@ -375,13 +405,30 @@ async function getCloudinarySignature(
         }
         if (__DEV__)
           console.warn('[upload] Cloudinary signature failed:', res.status, data || res.statusText);
-        return null;
+        const signatureErr: any = new Error(
+          data?.error || data?.message || res.statusText || 'Cloudinary signature request failed'
+        );
+        signatureErr.status = res.status;
+        signatureErr.data = data;
+        throw signatureErr;
       }
       const sig = data as any;
       _sigCache = { sig, fetchedAt: Date.now() };
       return sig;
-    } catch {
-      return null;
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        const timeoutErr: any = new Error(
+          'Upload service timed out before video upload could begin.'
+        );
+        timeoutErr.code = 'UPLOAD_SIGNATURE_TIMEOUT';
+        throw timeoutErr;
+      }
+      if (error instanceof TypeError && error.message === 'Network request failed') {
+        const networkErr: any = new Error('Network error while preparing video upload.');
+        networkErr.code = 'UPLOAD_SIGNATURE_NETWORK';
+        throw networkErr;
+      }
+      throw error;
     }
   }
 
@@ -451,7 +498,20 @@ async function uploadDirectToCloudinary(
           reject(new Error('Cloudinary returned invalid response'));
         }
       } else {
-        reject(new Error(`Cloudinary upload failed: HTTP ${xhr.status}`));
+        // Surface Cloudinary's actual error (e.g. "Invalid Signature", "Stale
+        // request", "Unsupported video format"). The server never sees this
+        // rejection — the upload goes phone→Cloudinary directly — so discarding
+        // the body here is how a signature outage stayed invisible. Keep the
+        // detail so the next failure is diagnosable from the error/Sentry alone.
+        let detail = '';
+        try {
+          const parsed = JSON.parse(xhr.responseText);
+          detail = parsed?.error?.message ? ` — ${parsed.error.message}` : '';
+        } catch {
+          const raw = String(xhr.responseText || '').trim();
+          if (raw) detail = ` — ${raw.slice(0, 200)}`;
+        }
+        reject(new Error(`Cloudinary upload failed: HTTP ${xhr.status}${detail}`));
       }
     };
 
@@ -532,7 +592,7 @@ export async function uploadFile(
         console.warn('[upload] Video direct upload retry also failed:', retryErr?.message);
     }
     const videoUploadErr: any = new Error(
-      'Video upload failed. Please check your connection and try again.'
+      directErr?.message || 'Video upload failed. Please check your connection and try again.'
     );
     videoUploadErr.code = 'VIDEO_DIRECT_UPLOAD_FAILED';
     videoUploadErr.cause = directErr;
@@ -617,7 +677,7 @@ export async function uploadFileWithProgress(
         console.warn('[upload] Video direct upload retry also failed:', retryErr?.message);
     }
     const videoUploadErr: any = new Error(
-      'Video upload failed. Please check your connection and try again.'
+      directErr?.message || 'Video upload failed. Please check your connection and try again.'
     );
     videoUploadErr.code = 'VIDEO_DIRECT_UPLOAD_FAILED';
     videoUploadErr.cause = directErr;

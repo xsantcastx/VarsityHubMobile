@@ -29,4 +29,23 @@ describe('video upload size limit parity', () => {
   it('150MB in bytes is 157286400 (sanity)', () => {
     expect(150 * 1024 * 1024).toBe(157286400);
   });
+
+  // Regression guard for the "Invalid Signature → HTTP 401" outage: Cloudinary
+  // does NOT recognize `max_bytes` as an upload param, so it strips it from its
+  // own signature string. Signing it server-side makes our SHA1 diverge from
+  // Cloudinary's and rejects EVERY signed direct upload (videos have no proxy
+  // fallback, so the whole video system breaks). `max_bytes` may be returned to
+  // the client, but it must never enter the signed `params` object.
+  it('cloudinary-signature does NOT sign max_bytes (Cloudinary strips it)', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'server', 'src', 'routes', 'uploads.ts'), 'utf8');
+    // Isolate the signed params object feeding `toSign`.
+    const paramsBlock = src.match(
+      /const params: Record<string, string> = \{([\s\S]*?)\};[\s\S]*?const toSign =/
+    );
+    expect(paramsBlock).not.toBeNull();
+    const signedParams = paramsBlock![1];
+    expect(signedParams).not.toMatch(/max_bytes/);
+    // Positive control: allowed_formats IS a real signed Cloudinary param.
+    expect(signedParams).toMatch(/allowed_formats/);
+  });
 });

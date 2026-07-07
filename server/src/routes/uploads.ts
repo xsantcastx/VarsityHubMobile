@@ -252,11 +252,18 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, requireVerifiedUn
     // The signature ties these constraints into the request so clients can't weaken them.
     const allowedFormats = 'jpg,jpeg,png,gif,webp,heic,heif,mp4,mov';
     const maxBytes = '157286400'; // 150 MB — must equal client MAX_VIDEO_SIZE_BYTES (constants/video.ts)
+    // IMPORTANT: `max_bytes` is NOT a recognized Cloudinary upload parameter, so
+    // Cloudinary strips it from its own signature string. Including it here made
+    // our SHA1 diverge from Cloudinary's, producing "Invalid Signature" → HTTP 401
+    // on EVERY signed direct upload (videos have no proxy fallback, so the whole
+    // video system broke). Verified against prod: signing without max_bytes → 200.
+    // Keep `allowed_formats` (a real, signed param that enforces file types) and
+    // still RETURN max_bytes below so the client contract is unchanged; just never
+    // sign it. Do not re-add max_bytes to this signed set.
     const params: Record<string, string> = {
       folder,
       timestamp: String(timestamp),
       allowed_formats: allowedFormats,
-      max_bytes: maxBytes,
     };
     // Cloudinary requires alphabetically-sorted params for signature
     const toSign = Object.keys(params)
