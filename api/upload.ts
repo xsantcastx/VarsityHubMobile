@@ -4,6 +4,7 @@ import {
 } from '@/hooks/useVerificationGate';
 import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { emitSessionExpired } from '@/utils/sessionEvents';
+import { captureException } from '@/utils/sentry';
 import auth from './auth';
 import {
   getAccessTokenForRequest,
@@ -596,6 +597,16 @@ export async function uploadFile(
     );
     videoUploadErr.code = 'VIDEO_DIRECT_UPLOAD_FAILED';
     videoUploadErr.cause = directErr;
+    // Video has no server fallback, so this is the ONLY place the failure can
+    // be observed in production. Tag with the underlying message so signature
+    // vs network vs timeout failures are distinguishable in Sentry.
+    captureException(directErr instanceof Error ? directErr : videoUploadErr, {
+      tags: {
+        context: 'video_upload',
+        stage: 'direct_upload_failed',
+        code: String(directErr?.code || 'unknown'),
+      },
+    });
     throw videoUploadErr;
   }
 
@@ -681,6 +692,16 @@ export async function uploadFileWithProgress(
     );
     videoUploadErr.code = 'VIDEO_DIRECT_UPLOAD_FAILED';
     videoUploadErr.cause = directErr;
+    // Video has no server fallback, so this is the ONLY place the failure can
+    // be observed in production. Tag with the underlying message so signature
+    // vs network vs timeout failures are distinguishable in Sentry.
+    captureException(directErr instanceof Error ? directErr : videoUploadErr, {
+      tags: {
+        context: 'video_upload',
+        stage: 'direct_upload_failed',
+        code: String(directErr?.code || 'unknown'),
+      },
+    });
     throw videoUploadErr;
   }
 
