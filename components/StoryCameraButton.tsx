@@ -1,6 +1,6 @@
 /**
  * Story Camera Component
- * 
+ *
  * Quick camera capture for Stories (24-hour ephemeral content)
  * Opens camera directly, not gallery, for immediate capture
  */
@@ -9,19 +9,13 @@ import CustomActionModal from '@/components/CustomActionModal';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import { Colors } from '@/constants/Colors';
+import { STORY_MAX_DURATION_S, VIDEO_CAPTURE_PRESET } from '@/constants/video';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { compressVideoSafe } from '@/utils/compressVideo';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useState } from 'react';
-import {
-    ActivityIndicator,
-    Linking,
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
+import { ActivityIndicator, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface StoryCameraButtonProps {
   onCapture: (mediaUri: string, mediaType: 'photo' | 'video') => void;
@@ -51,7 +45,7 @@ export function StoryCameraButton({
 
   const requestCameraPermission = async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    
+
     if (status !== 'granted') {
       setModal({
         visible: true,
@@ -59,12 +53,19 @@ export function StoryCameraButton({
         message: 'Please enable camera access in your device settings to capture Stories.',
         options: [
           { label: 'Cancel', onPress: () => setModal(null) },
-          { label: 'Open Settings', onPress: () => { setModal(null); void Linking.openSettings(); }, color: '#2563EB' },
+          {
+            label: 'Open Settings',
+            onPress: () => {
+              setModal(null);
+              void Linking.openSettings();
+            },
+            color: '#2563EB',
+          },
         ],
       });
       return false;
     }
-    
+
     return true;
   };
 
@@ -72,7 +73,7 @@ export function StoryCameraButton({
     if (disabled || capturing) return;
 
     setCapturing(true);
-    
+
     try {
       // Request camera permission
       const hasPermission = await requestCameraPermission();
@@ -87,8 +88,8 @@ export function StoryCameraButton({
         allowsEditing: false,
         quality: 0.9,
         exif: false,
-        videoMaxDuration: 60, // 60 second max for Stories
-        videoExportPreset: ImagePicker.VideoExportPreset.H264_960x540, // Force transcode
+        videoMaxDuration: STORY_MAX_DURATION_S,
+        videoExportPreset: VIDEO_CAPTURE_PRESET,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -107,18 +108,20 @@ export function StoryCameraButton({
         visible: true,
         title: 'Camera Error',
         message: 'Unable to open camera. Please try again.',
-        options: [
-          { label: 'OK', onPress: () => setModal(null), color: '#DC2626' },
-        ],
+        options: [{ label: 'OK', onPress: () => setModal(null), color: '#DC2626' }],
       });
     } finally {
       setCapturing(false);
     }
   };
 
-  const confirmVideoTrim = useCallback(() => {
+  const confirmVideoTrim = useCallback(async () => {
     if (!videoToTrim) return;
-    onCapture(trimmedUri ?? videoToTrim, 'video');
+    const sourceUri = trimmedUri ?? videoToTrim;
+    // Compress before handing off; falls back to the original URI on any
+    // failure, so this can never block the story.
+    const uri = await compressVideoSafe(sourceUri);
+    onCapture(uri, 'video');
     setVideoToTrim(null);
     setTrimmedUri(null);
   }, [videoToTrim, trimmedUri, onCapture]);
@@ -134,7 +137,7 @@ export function StoryCameraButton({
         <VideoPlayer uri={trimmedUri ?? videoToTrim} style={styles.trimPreview} />
         <VideoTrimmer
           uri={videoToTrim}
-          onTrimComplete={(u) => setTrimmedUri(u)}
+          onTrimComplete={u => setTrimmedUri(u)}
           onTrimReset={() => setTrimmedUri(null)}
         />
         <View style={styles.trimActions}>
@@ -247,7 +250,6 @@ export function StoryCameraButton({
     </>
   );
 }
-
 
 const styles = StyleSheet.create({
   button: {
