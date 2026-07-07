@@ -1,0 +1,63 @@
+name: One-off Events Seed
+
+# Runs server/scripts/one-off/create-one-off-events.ts against production.
+# The script is idempotent — events are matched by title + exact date, so
+# already-created entries are skipped and only new entries get written.
+
+on:
+  push:
+    branches: [claude/fifa-games-varistyhub-4g56fq]
+    paths:
+      - '.github/workflows/one-off-events-seed.yml'
+      - 'server/scripts/one-off/**'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Only process entries starting this UTC date (YYYY-MM-DD). Empty = all entries in the data file.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Print the plan without writing anything'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  seed-one-off-events:
+    name: Seed one-off events
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+
+      - name: Run one-off event creator
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Missing GitHub secret: PRODUCTION_DATABASE_URL"
+            exit 1
+          fi
+          ARGS=""
+          if [ -n "${{ inputs.date }}" ]; then
+            ARGS="$ARGS --date ${{ inputs.date }}"
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          npx tsx scripts/one-off/create-one-off-events.ts $ARGS
