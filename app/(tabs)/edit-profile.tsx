@@ -1025,79 +1025,9 @@ export default function EditProfileScreen() {
               </Text>
             </View>
 
-            {/* Theme Color Section - Only for coach/organization accounts */}
-            {(userRole === 'coach' || userRole === 'admin' || userRole === 'organization') && (
-              <View
-                style={[
-                  styles.section,
-                  {
-                    backgroundColor: Colors[colorScheme].card,
-                    borderColor: Colors[colorScheme].border,
-                  },
-                ]}
-              >
-                <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                  <MaterialIcons name="palette" size={20} color={Colors[colorScheme].tint} />{' '}
-                  Profile Theme Color
-                </Text>
-                <Text style={[styles.sectionNote, { color: Colors[colorScheme].mutedText }]}>
-                  Choose a color that represents you
-                </Text>
-
-                <View style={styles.colorGrid}>
-                  {THEME_COLORS.map(color => (
-                    <Pressable
-                      key={color.value}
-                      style={[
-                        styles.colorOption,
-                        {
-                          borderColor:
-                            themeColor === color.value ? color.value : Colors[colorScheme].border,
-                          borderWidth: themeColor === color.value ? 3 : 1,
-                        },
-                      ]}
-                      onPress={() => setThemeColor(color.value)}
-                    >
-                      <View style={[styles.colorSwatch, { backgroundColor: color.value }]}>
-                        {themeColor === color.value && (
-                          <MaterialIcons name="check-circle" size={24} color="#FFFFFF" />
-                        )}
-                      </View>
-                      <Text
-                        style={[
-                          styles.colorName,
-                          {
-                            color: Colors[colorScheme].text,
-                            fontWeight: themeColor === color.value ? '700' : '500',
-                          },
-                        ]}
-                      >
-                        {color.name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <View
-                  style={[
-                    styles.colorPreview,
-                    {
-                      backgroundColor: Colors[colorScheme].surface,
-                      borderColor: Colors[colorScheme].border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[styles.colorPreviewLabel, { color: Colors[colorScheme].mutedText }]}
-                  >
-                    Preview:
-                  </Text>
-                  <View style={[styles.colorPreviewBox, { backgroundColor: themeColor }]}>
-                    <Text style={styles.colorPreviewText}>Your Profile</Text>
-                  </View>
-                </View>
-              </View>
-            )}
+            {/* Profile Theme Color editor removed (July 6 notes) — existing
+                saved theme_color values still render on the profile; users just
+                no longer pick a color here. */}
 
             {/* Team Member Section */}
             {isTeamMember && (
