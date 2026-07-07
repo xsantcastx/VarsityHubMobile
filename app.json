@@ -3,7 +3,7 @@
     "name": "VarsityHub",
     "slug": "varsityhub",
     "owner": "varsity-hub",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -26,7 +26,7 @@
       }
     },
     "ios": {
-      "buildNumber": "51",
+      "buildNumber": "52",
       "supportsTablet": true,
       "appleTeamId": "B5H8F69RW5",
       "bundleIdentifier": "com.varsithub.varsityhub-ios",
@@ -57,7 +57,7 @@
       },
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
-      "versionCode": 38,
+      "versionCode": 39,
       "package": "com.xsantcastx.varsityhub",
       "intentFilters": [
         {

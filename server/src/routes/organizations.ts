@@ -14,6 +14,10 @@ import {
   sendStaffMemberJoinedEmail,
 } from '../lib/email.js';
 import { sendError } from '../lib/http/sendError.js';
+import {
+  InviteIdentifierError,
+  resolveInviteIdentifier,
+} from '../lib/inviteIdentifier.js';
 import { redactEmail } from '../lib/logRedaction.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import {
@@ -1214,10 +1218,16 @@ organizationsRouter.post(
   })
 );
 
-const inviteUserSchema = z.object({
-  email: z.string().email(),
-  role: z.string().optional(),
-});
+const inviteUserSchema = z
+  .object({
+    identifier: z.string().trim().min(1).optional(),
+    email: z.string().trim().email().optional(),
+    role: z.string().optional(),
+  })
+  .refine(data => Boolean(data.identifier || data.email), {
+    message: 'Username or email is required',
+    path: ['identifier'],
+  });
 
 // Invite user to organization
 // Rule B: No plan gate on the inviting user — authorized users are covered by the org owner's plan.
@@ -1234,8 +1244,12 @@ organizationsRouter.post(
       const parsed = inviteUserSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
-      const { email, role } = parsed.data;
-      const inviteEmail = email.trim().toLowerCase();
+      const { identifier, email, role } = parsed.data;
+      const resolvedIdentifier = await resolveInviteIdentifier(
+        prisma,
+        identifier || email || ''
+      );
+      const inviteEmail = resolvedIdentifier.email;
 
       // Validate role against allowed org roles
       if (role && !isValidOrganizationInviteRole(role)) {
@@ -1255,6 +1269,22 @@ organizationsRouter.post(
       // Only owners can elevate someone to manager role.
       if (role === 'manager' && membership.role !== 'owner') {
         return res.status(403).json({ error: 'Only organization owners can invite managers.' });
+      }
+      if (resolvedIdentifier.resolvedUserId) {
+        const existingMembership = await prisma.organizationMembership.findFirst({
+          where: {
+            organization_id: id,
+            user_id: resolvedIdentifier.resolvedUserId,
+            status: 'active',
+          },
+          select: { id: true },
+        });
+        if (existingMembership) {
+          return res.status(409).json({
+            error: 'ALREADY_MEMBER',
+            message: 'That user is already a member of this organization.',
+          });
+        }
       }
       // PLAN LIMITS: Enforce authorized user caps based on ORG OWNER's plan (Rule B).
       // Authorized users are covered by the coach's plan — never charged individually.
@@ -1392,6 +1422,12 @@ organizationsRouter.post(
 
       return res.status(201).json(invite);
     } catch (err: any) {
+      if (err instanceof InviteIdentifierError) {
+        return res.status(err.statusCode).json({
+          error: err.code,
+          message: err.message,
+        });
+      }
       if (err?.status && err?.body) {
         return res.status(err.status).json(err.body);
       }

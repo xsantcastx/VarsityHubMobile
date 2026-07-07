@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { sendTeamInviteEmail } from '../lib/email.js';
+import {
+  InviteIdentifierError,
+  resolveInviteIdentifier,
+} from '../lib/inviteIdentifier.js';
 import { prisma } from '../lib/prisma.js';
 import {
   canManageTeam as canManageTeamScoped,
@@ -26,24 +30,42 @@ const VALID_INVITE_ROLES = ['manager', 'coach', 'assistant_coach', 'player', 'pa
 
 // POST /team-invites { team_id, email, role }
 // SECURITY: Same permission checks as POST /teams/:id/invite
-const createInviteSchema = z.object({
-  team_id: z.string().min(1),
-  email: z.string().email(),
-  role: z.string().optional(),
-});
+const createInviteSchema = z
+  .object({
+    team_id: z.string().min(1),
+    identifier: z.string().trim().min(1).optional(),
+    email: z.string().trim().email().optional(),
+    role: z.string().optional(),
+  })
+  .refine(data => Boolean(data.identifier || data.email), {
+    message: 'Username or email is required',
+    path: ['identifier'],
+  });
 
 teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireOnboarded as any, inviteLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = createInviteSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
-  const { team_id, email, role } = parsed.data;
+  const { team_id, identifier, email, role } = parsed.data;
 
   // Validate role against whitelist to prevent injection of arbitrary roles
   const assignedRole = String(role || 'member');
   if (!(VALID_INVITE_ROLES as readonly string[]).includes(assignedRole)) {
     return res.status(400).json({ error: 'Invalid role', valid_roles: VALID_INVITE_ROLES });
   }
-  const emailLower = email.toLowerCase();
+  let resolvedIdentifier;
+  try {
+    resolvedIdentifier = await resolveInviteIdentifier(prisma, identifier || email || '');
+  } catch (e: any) {
+    if (e instanceof InviteIdentifierError) {
+      return res.status(e.statusCode).json({
+        error: e.code,
+        message: e.message,
+      });
+    }
+    throw e;
+  }
+  const emailLower = resolvedIdentifier.email;
   const teamId = team_id;
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
@@ -63,6 +85,23 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
       error: 'INSUFFICIENT_ROLE',
       message: 'Only team owners can invite at manager level.',
     });
+  }
+
+  if (resolvedIdentifier.resolvedUserId) {
+    const existingMembership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: teamId,
+        user_id: resolvedIdentifier.resolvedUserId,
+        status: 'active',
+      },
+      select: { id: true },
+    });
+    if (existingMembership) {
+      return res.status(409).json({
+        error: 'ALREADY_MEMBER',
+        message: 'That user is already on this team.',
+      });
+    }
   }
 
   let invite;

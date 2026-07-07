@@ -2014,7 +2014,7 @@ const GameDetailsScreen = () => {
     // render at the same size, matching the Add-Event modal preview (which
     // uses the same value) so the crop the user sees while creating the
     // event matches what ships to the detail page.
-    const bannerHeight = isHero ? 320 : 240;
+    const bannerHeight = 240;
 
     const heroBanner =
       bannerImageUrl && !isHero ? (

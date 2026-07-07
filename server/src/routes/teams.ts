@@ -6,6 +6,10 @@ import { debugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
 import { sendStaffMemberJoinedEmail, sendTeamInviteEmail } from '../lib/email.js';
 import { sendError } from '../lib/http/sendError.js';
+import {
+  InviteIdentifierError,
+  resolveInviteIdentifier,
+} from '../lib/inviteIdentifier.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import { getOrganizationState } from '../lib/organizationState.js';
 import { DEMO_LEAGUE_NAMES } from '../lib/demoContent.js';
@@ -2048,7 +2052,16 @@ teamsRouter.post(
 );
 
 // Invite user by email to a team
-const inviteSchema = z.object({ email: z.string().email(), role: z.string().optional() });
+const inviteSchema = z
+  .object({
+    identifier: z.string().trim().min(1).optional(),
+    email: z.string().trim().email().optional(),
+    role: z.string().optional(),
+  })
+  .refine(data => Boolean(data.identifier || data.email), {
+    message: 'Username or email is required',
+    path: ['identifier'],
+  });
 const VALID_TEAM_INVITE_ROLES = [
   'manager',
   'coach',
@@ -2075,8 +2088,20 @@ teamsRouter.post(
         issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
       });
     }
-    const { email, role } = parsed.data;
-    const inviteEmail = email.trim().toLowerCase();
+    const { identifier, email, role } = parsed.data;
+    let resolvedIdentifier;
+    try {
+      resolvedIdentifier = await resolveInviteIdentifier(prisma, identifier || email || '');
+    } catch (e: any) {
+      if (e instanceof InviteIdentifierError) {
+        return res.status(e.statusCode).json({
+          error: e.code,
+          message: e.message,
+        });
+      }
+      throw e;
+    }
+    const inviteEmail = resolvedIdentifier.email;
     const assignedRole = String(role || 'member');
     if (!(VALID_TEAM_INVITE_ROLES as readonly string[]).includes(assignedRole)) {
       return res.status(400).json({
@@ -2108,6 +2133,23 @@ teamsRouter.post(
         error: 'INSUFFICIENT_ROLE',
         message: 'Only team owners can invite at manager level.',
       });
+    }
+
+    if (resolvedIdentifier.resolvedUserId) {
+      const existingMembership = await prisma.teamMembership.findFirst({
+        where: {
+          team_id: id,
+          user_id: resolvedIdentifier.resolvedUserId,
+          status: 'active',
+        },
+        select: { id: true },
+      });
+      if (existingMembership) {
+        return res.status(409).json({
+          error: 'ALREADY_MEMBER',
+          message: 'That user is already on this team.',
+        });
+      }
     }
 
     // PLAN LIMITS: Enforce authorized user caps based on TEAM OWNER's plan (Rule B).

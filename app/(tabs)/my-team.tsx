@@ -181,7 +181,7 @@ function MyTeamScreen() {
 
   // Invite modal
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteIdentifier, setInviteIdentifier] = useState('');
   const [inviteRole, setInviteRole] = useState<Role>('player');
   const [inviting, setInviting] = useState(false);
   const [memberActionLoading, setMemberActionLoading] = useState(false);
@@ -362,13 +362,13 @@ function MyTeamScreen() {
   }, [selectedMember, selectedTeamId, refetchMembers, memberActionLoading, router, user]);
 
   const handleInvite = useCallback(async () => {
-    if (!selectedTeamId || !inviteEmail.trim()) return;
+    if (!selectedTeamId || !inviteIdentifier.trim()) return;
     setInviting(true);
     try {
-      await TeamApi.invite(selectedTeamId, inviteEmail.trim(), inviteRole);
-      Alert.alert('Invited', `Invitation sent to ${inviteEmail.trim()}`);
+      await TeamApi.invite(selectedTeamId, inviteIdentifier.trim(), inviteRole);
+      Alert.alert('Invited', `Invitation sent to ${inviteIdentifier.trim()}`);
       setShowInviteModal(false);
-      setInviteEmail('');
+      setInviteIdentifier('');
       setInviteRole('player');
       await refetchMembers();
     } catch (error: unknown) {
@@ -376,11 +376,11 @@ function MyTeamScreen() {
       if (handleCoachAccessError(router, e, 'sending team invites', user)) {
         return;
       }
-      Alert.alert('Error', e?.message || 'Failed to send invitation.');
+      Alert.alert('Error', (e as any)?.data?.message || e?.message || 'Failed to send invitation.');
     } finally {
       setInviting(false);
     }
-  }, [selectedTeamId, inviteEmail, inviteRole, refetchMembers, router, user]);
+  }, [selectedTeamId, inviteIdentifier, inviteRole, refetchMembers, router, user]);
 
   const selectedTeam = teams.find(t => t.id === selectedTeamId);
 
@@ -811,13 +811,14 @@ function MyTeamScreen() {
               Send an invitation to join {selectedTeam?.name || 'your team'}.
             </Text>
 
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Email</Text>
+            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>
+              Username or Email
+            </Text>
             <TextInput
-              value={inviteEmail}
-              onChangeText={setInviteEmail}
-              placeholder="player@example.com"
+              value={inviteIdentifier}
+              onChangeText={setInviteIdentifier}
+              placeholder="@playername or player@example.com"
               placeholderTextColor={Colors[colorScheme].mutedText}
-              keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
               style={[
@@ -874,7 +875,7 @@ function MyTeamScreen() {
               <Pressable
                 onPress={() => {
                   setShowInviteModal(false);
-                  setInviteEmail('');
+                  setInviteIdentifier('');
                   setInviteRole('player');
                 }}
                 style={[styles.modalActionBtn, { borderColor: Colors[colorScheme].border }]}
@@ -885,11 +886,11 @@ function MyTeamScreen() {
               </Pressable>
               <Pressable
                 onPress={handleInvite}
-                disabled={inviting || !inviteEmail.trim()}
+                disabled={inviting || !inviteIdentifier.trim()}
                 style={[
                   styles.modalActionBtn,
                   {
-                    backgroundColor: !inviteEmail.trim()
+                    backgroundColor: !inviteIdentifier.trim()
                       ? Colors[colorScheme].border
                       : Colors[colorScheme].tint,
                   },

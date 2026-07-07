@@ -103,6 +103,19 @@ describe('API Authentication Endpoints', () => {
       expect(response.body.error).toContain('already registered');
     });
 
+    it('should reject duplicate registration when the email casing differs', async () => {
+      const response = await request(app)
+        .post('/auth/register')
+        .send({
+          email: TEST_EMAIL.toUpperCase(),
+          password: 'AnotherPassword123!',
+          display_name: 'Another User',
+        })
+        .expect(409);
+
+      expect(response.body.error).toContain('already registered');
+    });
+
     it('should reject invalid email format', async () => {
       const response = await request(app)
         .post('/auth/register')

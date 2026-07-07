@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useEventListener } from 'expo';
 import { Image } from 'expo-image';
+import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -40,12 +41,40 @@ import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getAuthSnapshot } from '@/utils/authState';
 import events from '@/utils/events';
-import { optimizeImageUrl } from '@/utils/imageUrl';
+import { optimizeImageUrl, optimizeVideoUrl } from '@/utils/imageUrl';
 import { AppLinks } from '@/utils/links';
 import { resolveMediaType } from '@/utils/media';
 import { promptForSignIn } from '@/utils/requireSignIn';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
+const VIDEO_SHARE_CACHE_DIR = `${FileSystem.cacheDirectory || ''}shared-videos/`;
+
+function getVideoShareExtension(url: string) {
+  const cleanUrl = url.split('#')[0]?.split('?')[0] || url;
+  const match = cleanUrl.match(/\.([a-z0-9]{2,5})$/i);
+  return match ? `.${match[1].toLowerCase()}` : '.mp4';
+}
+
+async function getCachedShareableVideoUri(post: FeedPost) {
+  if (!post.media_url) {
+    throw new Error('Missing video URL');
+  }
+  if (!FileSystem.cacheDirectory) {
+    throw new Error('Video cache unavailable');
+  }
+
+  const localUri = `${VIDEO_SHARE_CACHE_DIR}${post.id}${getVideoShareExtension(post.media_url)}`;
+  const existing = await FileSystem.getInfoAsync(localUri);
+  if (existing.exists) {
+    return localUri;
+  }
+
+  await FileSystem.makeDirectoryAsync(VIDEO_SHARE_CACHE_DIR, { intermediates: true }).catch(
+    () => {}
+  );
+  await FileSystem.downloadAsync(optimizeVideoUrl(post.media_url) || post.media_url, localUri);
+  return localUri;
+}
 
 const FastImage = ({ source, style, resizeMode }: any) => (
   <Image
@@ -211,7 +240,10 @@ const FeedCard = memo(
     // a JPEG. Combined with the FlatList window that was enough memory
     // pressure to blank expo-image bitmaps app-wide (white grids/avatars).
     const videoSource = useMemo(
-      () => (post.media_type === 'video' && post.media_url ? { uri: post.media_url } : null),
+      () =>
+        post.media_type === 'video' && post.media_url
+          ? { uri: optimizeVideoUrl(post.media_url) || post.media_url }
+          : null,
       [post.media_type, post.media_url]
     );
     const imageSource = useMemo(
@@ -1203,7 +1235,21 @@ function GameVerticalFeedScreen({
     [router]
   );
 
-  const handleShare = useCallback((post: FeedPost) => {
+  const handleShare = useCallback(async (post: FeedPost) => {
+    if (post.media_type === 'video' && post.media_url) {
+      try {
+        const localUri = await getCachedShareableVideoUri(post);
+        await Share.share({ url: localUri });
+        return;
+      } catch (error) {
+        if (__DEV__) {
+          console.warn(
+            '[GameVerticalFeed] Video file share failed, falling back to link share:',
+            error
+          );
+        }
+      }
+    }
     const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
     Share.share({ message: shareLink.shareMessage, url: shareLink.webUrl }).catch(() => {});
   }, []);

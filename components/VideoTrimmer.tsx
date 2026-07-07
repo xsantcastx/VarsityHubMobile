@@ -90,7 +90,13 @@ let trim:
   | ((
       uri: string,
       options: { startTime: number; endTime: number }
-    ) => Promise<{ success: boolean; outputPath?: string }>)
+    ) => Promise<{
+      success: boolean;
+      outputPath?: string;
+      startTime?: number;
+      endTime?: number;
+      duration?: number;
+    }>)
   | null = null;
 try {
   trim = require('react-native-video-trim').trim;
@@ -306,6 +312,31 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
       });
 
       if (result.success && result.outputPath) {
+        // The native module reports the duration it actually cut to. Compare
+        // against what we requested — if the native trim silently no-ops
+        // (e.g. ffmpeg -to being ignored as an input option on some builds),
+        // "success" is still true but the output is the untrimmed length.
+        const requestedMs = endMs - startMs;
+        const actualMs =
+          typeof result.duration === 'number'
+            ? result.duration
+            : typeof result.endTime === 'number' && typeof result.startTime === 'number'
+              ? result.endTime - result.startTime
+              : null;
+        if (actualMs !== null && Math.abs(actualMs - requestedMs) > 500) {
+          if (__DEV__) {
+            console.warn(
+              `[VideoTrimmer] Native trim duration mismatch — requested ${requestedMs}ms, got ${actualMs}ms`
+            );
+          }
+          reportTrimFailure(
+            'trim_duration_mismatch',
+            new Error(
+              `Native trim returned success but output duration (${actualMs}ms) does not match requested range (${requestedMs}ms, start=${startMs} end=${endMs})`
+            ),
+            processableUri ?? undefined
+          );
+        }
         onTrimComplete(result.outputPath);
       } else {
         Alert.alert('Trim Failed', 'Could not trim the video. Please try again.');

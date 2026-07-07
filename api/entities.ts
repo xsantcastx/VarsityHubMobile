@@ -642,8 +642,12 @@ export const Organization = {
     onboarding?: boolean;
   }) => httpPost(data.onboarding === true ? '/organizations/create' : '/organizations', data),
   createWithTeams: (data: any) => httpPost('/organizations/create', data),
-  invite: (organizationId: string, email: string, role?: string) =>
-    httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),
+  invite: (organizationId: string, identifier: string, role?: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, {
+      identifier,
+      email: identifier,
+      role,
+    }),
   transferOwnership: (organizationId: string, newOwnerId: string) =>
     httpPost(`/organizations/${encodeURIComponent(organizationId)}/transfer-ownership`, {
       new_owner_id: newOwnerId,
@@ -792,8 +796,12 @@ export const Team = {
     });
     return httpPut('/teams/' + encodeURIComponent(id), payload);
   },
-  invite: (teamId: string, email: string, role?: string) =>
-    httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, { email, role }),
+  invite: (teamId: string, identifier: string, role?: string) =>
+    httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, {
+      identifier,
+      email: identifier,
+      role,
+    }),
   cancelInvite: (teamId: string, inviteId: string) =>
     httpPost(
       `/teams/${encodeURIComponent(teamId)}/invites/${encodeURIComponent(inviteId)}/cancel`,
@@ -943,8 +951,11 @@ export const TeamMemberships = {
 };
 
 export const TeamInvites = {
-  create: (data: { team_id: string; email: string; role?: string }) =>
-    httpPost('/team-invites', data),
+  create: (data: { team_id: string; identifier?: string; email?: string; role?: string }) =>
+    httpPost('/team-invites', {
+      ...data,
+      identifier: data.identifier || data.email,
+    }),
 };
 
 export const Notification = {

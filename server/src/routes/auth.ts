@@ -649,7 +649,10 @@ authRouter.post(
     // Prevent duplicate accounts - check if email already exists
     // Users can create multiple accounts with different emails, but not duplicate the same email
     debugLog('[register] Checking for existing user');
-    const exists = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
+    const exists = await prisma.user.findFirst({
+      where: { email: { equals: sanitizedEmail, mode: 'insensitive' } },
+      select: { id: true },
+    });
     if (exists) {
       throw new ConflictError('Email already registered', {
         errorCode: 'EMAIL_ALREADY_REGISTERED',
@@ -691,20 +694,36 @@ authRouter.post(
     const codeHash = hashRefreshToken(code);
 
     debugLog('[register] Creating user record');
-    const user = await prisma.user.create({
-      data: {
-        email: sanitizedEmail,
-        password_hash,
-        display_name,
-        email_verified: false,
-        email_verification_code: codeHash,
-        email_verification_expires: exp,
-        preferences: initialPreferences,
-        ...buildAuthStateColumns(authStatePatch),
-        ...(dobColumnWrite ? deriveParentalConsentFields(dobColumnWrite.date_of_birth) : {}),
-        ...(dobColumnWrite ?? {}),
-      },
-    });
+    let user;
+    try {
+      user = await prisma.user.create({
+        data: {
+          email: sanitizedEmail,
+          password_hash,
+          display_name,
+          email_verified: false,
+          email_verification_code: codeHash,
+          email_verification_expires: exp,
+          preferences: initialPreferences,
+          ...buildAuthStateColumns(authStatePatch),
+          ...(dobColumnWrite ? deriveParentalConsentFields(dobColumnWrite.date_of_birth) : {}),
+          ...(dobColumnWrite ?? {}),
+        },
+      });
+    } catch (createErr: any) {
+      if (createErr?.code === 'P2002') {
+        const existingUser = await prisma.user.findFirst({
+          where: { email: { equals: sanitizedEmail, mode: 'insensitive' } },
+          select: { id: true },
+        });
+        if (existingUser) {
+          throw new ConflictError('Email already registered', {
+            errorCode: 'EMAIL_ALREADY_REGISTERED',
+          });
+        }
+      }
+      throw createErr;
+    }
     if (process.env.NODE_ENV === 'development')
       debugLog(
         `[verify-code] [register] Code hash stored in DB for user ${user.id} (expires ${exp.toISOString()})`

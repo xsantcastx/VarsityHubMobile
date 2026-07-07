@@ -41,27 +41,34 @@ New code composes with these single patterns; never stack a parallel mechanism:
 ## Available Agent Types
 
 ### Explore
+
 **When to use:** Finding files by pattern, searching code for keywords, answering "how does X work" questions.
 **Example tasks:**
+
 - "Where are all the places we call `sendPushNotification`?"
 - "How does the refresh token flow work end to end?"
 - "Find all screens that use `useLocalSearchParams`"
 
 ### Plan
+
 **When to use:** Before any non-trivial feature or refactor. Use this to design the approach before touching code.
 **Example tasks:**
+
 - "Plan how to add a game scheduling feature"
 - "How should I restructure the onboarding flow to support a new role type?"
 - "What's the safest way to migrate the ad booking logic?"
 
 ### general-purpose (default)
+
 **When to use:** Multi-step tasks that involve reading, editing, and running commands together.
 **Example tasks:**
+
 - "Fix the coach approval flow end to end"
 - "Debug why push notifications aren't arriving"
 - "Audit the admin dashboard for security gaps"
 
 ### claude-code-guide
+
 **When to use:** Questions about Claude Code itself — hooks, slash commands, MCP servers, plugins, settings.
 
 ---
@@ -69,30 +76,35 @@ New code composes with these single patterns; never stack a parallel mechanism:
 ## VarsityHub-Specific Agent Patterns
 
 ### Debugging a server issue
+
 1. Start with Explore to find the relevant route (`server/src/routes/`)
 2. Trace the full data flow: client call → middleware → handler → Prisma → response
 3. Check Railway logs for the relevant log prefix (`[org-get]`, `[notif]`, etc.)
 4. Test with a real API payload — don't rely on static analysis
 
 ### Adding a new screen
+
 1. Use Plan agent first to decide: tab screen or sub-screen? root Stack or hiddenTab?
 2. Register in `app/_layout.tsx` (root Stack) AND `app/(tabs)/_layout.tsx` (hiddenTab) if it's a sub-screen
 3. Use `safeGoBack` for back navigation, never raw `router.back()`
 4. Add `headerShown: false` and implement your own back button
 
 ### Touching the server (Express routes)
+
 - Server is at `server/src/routes/`
 - Middleware: `authMiddleware` (JWT + DB lookup), `requireAuth`, `requireVerified`, `requireOnboarded`
 - Business rules are enforced server-side — don't bypass with client flags
 - Railway auto-deploys from `main` — test locally first with `railway run npm run dev`
 
 ### Touching the email system
+
 - Do not rely on hardcoded template-count summaries in docs; check `TEMPLATE_IDS`, `REQUIRED_TEMPLATE_KEYS`, and `RECOMMENDED_TEMPLATE_KEYS` in `server/src/lib/email.ts`
 - All other templates degrade silently — always add a plain-text fallback
 - Email functions are in `server/src/lib/email.ts`
 - BullMQ queue with concurrency 5, max 20/sec
 
 ### Touching release/readiness flow
+
 - Canonical release path is `docs/release/RELEASE_WORKFLOW.md`
 - Use `npm run release:verify:local` for code, regression, approval, and local gates
 - Use `npm run release:verify:build` for EAS/build-readiness gates
@@ -100,6 +112,7 @@ New code composes with these single patterns; never stack a parallel mechanism:
 - Final launch sign-off lives in `docs/release/LAUNCH_READINESS_GATE.md`
 
 ### Payment changes
+
 - iOS: Apple IAP only — never add Stripe links on iOS paths
 - Android subscriptions: Google Play Billing via `react-native-iap`, server-verified at `POST /payments/google/verify-purchase` — never route Android subscription checkout to Stripe (Play policy)
 - Android ads: Stripe PaymentSheet (ads use Stripe on Android + web; only subscriptions use Play Billing)
@@ -108,6 +121,7 @@ New code composes with these single patterns; never stack a parallel mechanism:
 - Ad booking horizon is 56 days max — enforced server-side
 
 ### Push notification changes
+
 - `sendPushNotification(userId, title, body, data)` in `server/src/lib/notifications.ts`
 - Always `.catch(() => {})` — push failure must never block the main response
 - Check `[notif]` log prefix in Railway for delivery confirmation
@@ -128,6 +142,7 @@ New code composes with these single patterns; never stack a parallel mechanism:
 ## Post-mapper Consistency Rule
 
 Two post mapper functions exist and MUST stay in sync:
+
 - `mapHighlightToFeedPost` in `app/game-details/GameVerticalFeedScreen.tsx` — used for highlights API data
 - `toFeedPost` in `app/profile.tsx` and `app/features/navigation/screens/ProfileScreen.tsx` — used for profile post data
 
@@ -167,8 +182,8 @@ npm run verify:error-envelope
 
 > Canonical full version lives in `CLAUDE.md` (`## Security & Architecture Audit Standard`), including the per-rule `Verify:` clauses. This section mirrors it for Codex; keep the two aligned when either changes.
 
-Every audit rule is one of four types — **[AUDIT]** what a reviewer checks, **[ENG]** how code must be structured, **[BIZ]** VarsityHub-specific logic, **[GATE]** objective pass/fail. Every rule must be testable (state how we know it passed). Classify findings by **exploitability × blast radius × recoverability**, not bare severity. Every finding ships with proof (files, repro, expected vs actual, fix); every fix ships with verification (typecheck, test, before/after repro, release risk).
+Every audit rule is one of four types — **[AUDIT]** what a reviewer checks, **[ENG]** how code must be structured, **[BIZ]** VarsityHub-specific logic, **[GATE]** objective pass/fail. Every rule must be testable (state how we know it passed). Run the threat-model phase first: auth bypass, privilege escalation, payment spoofing, IDOR, webhook replay, stale-cache abuse, and deep-link injection. Classify findings by **exploitability × blast radius × recoverability**, not bare severity. Every finding ships with proof (files, repro, expected vs actual, fix); every fix ships with verification (typecheck, test, before/after repro, release risk).
 
-**Commandments:** Thin routes, thick features · Backend validation is law, frontend is guidance · No client-controlled security-critical state · One source of truth per domain object · Every protected action checks auth/role/plan/ownership server-side · Every async flow is idempotent · No silent failures in user or payment flows · No duplicate logic across routes/features · Every screen handles loading/error/success/empty · Every deep link fails gracefully and safely · Every admin action is auditable · Every release change is testable and reversible.
+**Commandments:** Thin routes, logic one layer down · Backend validation is law, frontend is guidance · No client-controlled security-critical state · One source of truth per domain object · Every protected action checks auth/role/plan/ownership server-side · Every async flow is idempotent · No silent failures and no fallback that changes security posture · No duplicate logic across routes/features · Every screen handles loading/error/success/empty · Every deep link fails gracefully and safely · Every admin action is auditable · Coordinate cross-replica via Redis, never in-process · Every release change is testable and reversible.
 
-**PR gate (must all pass):** client + server `tsc` 0 new errors · no unbounded `findMany` · no `req.user` without `requireAuth` · no `sgMail.send` outside providers · no hardcoded dark text colors · screens don't call `fetch` directly · `npm run audit:navigation` shows 0 REVIEW · validation parity frontend↔Zod (or `// intent:` note) · four UI states on async screens · no silent `catch {}` in auth/payment flows · webhooks/jobs idempotent · admin actions emit `AdminActivityLog` · security fix has before/after repro · schema change has migration status + rollback note.
+**PR gate (must all pass):** client + server `tsc` 0 new errors · no unbounded `findMany` · no `req.user` without `requireAuth` · no `sgMail.send` outside providers · no hardcoded dark text colors · screens don't call `fetch` directly · `npm run audit:navigation` shows 0 REVIEW · validation parity frontend↔Zod (or `// intent:` note) · four UI states on async screens · no silent `catch {}` in auth/payment flows · no fallback that changes security posture · webhooks/jobs idempotent · admin actions emit `AdminActivityLog` · security fix has before/after repro · schema change has migration status + rollback note.
