@@ -1284,7 +1284,7 @@ organizationsRouter.post(
             res,
             409,
             'That user is already a member of this organization.',
-            'ALREADY_MEMBER'
+            { code: 'ALREADY_MEMBER' }
           );
         }
       }
@@ -1425,7 +1425,7 @@ organizationsRouter.post(
       return res.status(201).json(invite);
     } catch (err: any) {
       if (err instanceof InviteIdentifierError) {
-        return sendError(res, err.statusCode, err.message, err.code);
+        return sendError(res, err.statusCode, err.message, { code: err.code });
       }
       if (err?.status && err?.body) {
         return res.status(err.status).json(err.body);

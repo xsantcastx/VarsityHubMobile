@@ -59,7 +59,7 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
     resolvedIdentifier = await resolveInviteIdentifier(prisma, identifier || email || '');
   } catch (e: any) {
     if (e instanceof InviteIdentifierError) {
-      return sendError(res, e.statusCode, e.message, e.code);
+      return sendError(res, e.statusCode, e.message, { code: e.code });
     }
     throw e;
   }
@@ -95,7 +95,9 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
       select: { id: true },
     });
     if (existingMembership) {
-      return sendError(res, 409, 'That user is already on this team.', 'ALREADY_MEMBER');
+      return sendError(res, 409, 'That user is already on this team.', {
+        code: 'ALREADY_MEMBER',
+      });
     }
   }
 
