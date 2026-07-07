@@ -1,10 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const createFanEventSrc = readFileSync(
-  join(process.cwd(), 'app', 'create-fan-event.tsx'),
-  'utf8'
-);
+const createFanEventSrc = readFileSync(join(process.cwd(), 'app', 'create-fan-event.tsx'), 'utf8');
 
 const quickAddGameModalSrc = readFileSync(
   join(process.cwd(), 'components', 'QuickAddGameModal.tsx'),
@@ -21,7 +18,10 @@ describe('PDF regression — standalone event creator persists banner images', (
 
   it('keeps the custom-photo affordance visible on create-fan-event', () => {
     expect(createFanEventSrc).toMatch(/Upload Custom Photo/);
-    expect(createFanEventSrc).toMatch(/Generated fallback style/);
+    // The in-form appearance/style picker was removed (commit a3789416); the
+    // generated banner now falls back to a fixed 'classic' appearance, and the
+    // custom-photo upload affordance remains the primary override.
+    expect(createFanEventSrc).toMatch(/useState<AppearancePreset>\('classic'\)/);
   });
 });
 

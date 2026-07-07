@@ -12,6 +12,9 @@ const feedScreen = read('app/feed.tsx');
 const gameDetailsScreen = read('app/game-details/GameDetailsScreen.tsx');
 const teamScreen = read('app/team-page.tsx');
 const eventDetailScreen = read('app/(tabs)/event-detail.tsx');
+// RSVP/posting auth prompts moved to the public-event page when event-detail
+// became a legacy redirector (2026-07-05).
+const publicEventScreen = read('app/public-event.tsx');
 
 describe('discover result screen contracts', () => {
   it('discover result taps route to the canonical user, team, organization, game, and event screens', () => {
@@ -21,12 +24,14 @@ describe('discover result screen contracts', () => {
     expect(discoverScreen).toContain('void router.push(`/user-profile?id=${u.id}`);');
     expect(discoverScreen).toContain('void router.push(`/team-page?id=${t.id}`);');
     expect(discoverScreen).toMatch(
-      /void router\.push\(\{\s*pathname: '\/organizations\/\[id\]',\s*params: \{ id: String\(o\.id\) \},\s*\}\);/
+      /void router\.push\(\{\s*pathname: '\/organization',\s*params: \{ id: String\(o\.id\) \},\s*\} as any\);/
     );
     expect(discoverScreen).toContain(
       "void router.push({ pathname: '/game/[id]', params: { id: String(game.id) } });"
     );
-    expect(discoverScreen).toContain('void router.push(buildEventDetailRoute(event.id));');
+    expect(discoverScreen).toContain(
+      'void router.push(buildEventDetailRoute(event.id, event.game_id));'
+    );
   });
 
   it('profile screen fails closed with retryable error states instead of a permanent loading spinner', () => {
@@ -73,10 +78,14 @@ describe('discover result screen contracts', () => {
     expect(teamScreen).toContain('Ionicons name="business-outline"');
   });
 
-  it('event detail replaces into sign-in for RSVP auth prompts instead of stacking auth over the detail screen', () => {
-    expect(eventDetailScreen).toContain('const routeToSignIn = useCallback(() => {');
-    expect(eventDetailScreen).toContain("router.replace('/sign-in');");
-    expect(eventDetailScreen).not.toContain("void router.push('/sign-in')");
+  it('public-event gates RSVP posting behind the shared sign-in prompt', () => {
+    // event-detail is now a legacy redirector (no RSVP UI); the standalone-event
+    // posting flow lives on public-event and gates guests through the shared
+    // promptForSignIn helper (the app-wide guest-UX convention).
+    expect(eventDetailScreen).toContain('LEGACY REDIRECTOR');
+    expect(publicEventScreen).toContain("import { promptForSignIn } from '@/utils/requireSignIn';");
+    expect(publicEventScreen).toContain("void router.push('/sign-in');");
+    expect(publicEventScreen).toContain("message: 'Sign in to post to this event.',");
   });
 
   it('feed and game details keep explicit sign-in entry points for gated actions', () => {

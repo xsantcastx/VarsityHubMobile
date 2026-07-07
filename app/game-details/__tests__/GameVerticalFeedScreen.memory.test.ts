@@ -38,7 +38,9 @@ describe('GameVerticalFeedScreen memory guards', () => {
 
 describe('profile grid thumbnails', () => {
   it('requests downsized Cloudinary transforms, not original uploads', () => {
-    const optimized = profileSource.match(/optimizeImageUrl\(media\.displayImageUrl!, 500\)/g);
+    const optimized = profileSource.match(
+      /optimizeImageUrl\(media\.previewUrl \|\| media\.displayImageUrl!, 500\)/g
+    );
     expect(optimized?.length).toBe(3); // posts, replies, upvotes grids
     expect(profileSource).not.toContain('source={{ uri: media.displayImageUrl! }}');
   });

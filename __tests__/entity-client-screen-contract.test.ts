@@ -60,8 +60,8 @@ describe('entity client screen contract', () => {
       "import { Event, Game, Organization, Team } from '@/api/entities';"
     );
     expect(eventApprovals).toContain('Event.pending().catch(() => [])');
-    expect(eventApprovals).toContain(
-      'Game.list(undefined, { showPending: true, limit: 50 }).catch(() => ({ games: [] }))'
+    expect(eventApprovals).toMatch(
+      /Game\.list\(undefined, \{ approvalStatus: 'pending', limit: 50 \}\)\.catch\(\(\) => \(\{\s*games: \[\],\s*\}\)\)/
     );
     expect(eventApprovals).toContain('const data = await Team.myInvites()');
     expect(eventApprovals).toContain('const data = await Organization.myJoinRequests()');
