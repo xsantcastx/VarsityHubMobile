@@ -249,11 +249,19 @@ async function main() {
   }
   console.log(`Using admin: ${admin.email} (${admin.id})\n`);
 
+  let failures = 0;
   for (const def of events) {
-    await ensureOneOffEvent(def, admin, dryRun);
+    try {
+      await ensureOneOffEvent(def, admin, dryRun);
+    } catch (err) {
+      failures++;
+      console.error(`❌ Failed to process "${def.title}": ${err instanceof Error ? err.message : err}`);
+    }
   }
 
-  console.log('\n✅ One-off events template run complete.\n');
+  console.log(
+    `\n✅ One-off events template run complete.${failures ? ` (${failures} entr${failures === 1 ? 'y' : 'ies'} failed — see errors above)` : ''}\n`
+  );
 }
 
 main()
