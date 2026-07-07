@@ -130,6 +130,61 @@ export const EVENTS: OneOffEventDef[] = [
         'https://ui-avatars.com/api/?name=San+Antonio+Spurs&length=3&background=0C0C0C&color=C4CED4&size=512&bold=true&format=png',
     },
   },
+  // ── MLB — Yankees @ Rays (created 2026-07-06) ──────────────────────────────
+  {
+    title: 'New York Yankees at Tampa Bay Rays',
+    description:
+      'MLB regular season. Series opener at Tropicana Field — the Rays have taken four of five meetings from the Yankees this year. First pitch 6:40 PM ET.',
+    eventType: 'game',
+    dateUtc: '2026-07-06T22:40:00.000Z', // Mon Jul 6, 6:40 PM EDT
+    location: 'Tropicana Field, St. Petersburg, FL',
+    lat: 27.768284,
+    lng: -82.653961,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Tropicana_field_from_air.JPG',
+    linkedLeague: 'MLB',
+    game: {
+      homeTeam: 'Tampa Bay Rays',
+      awayTeam: 'New York Yankees',
+      isNeutral: false,
+    },
+  },
+  // ── MLB — Brewers @ Cardinals (created 2026-07-06) ─────────────────────────
+  {
+    title: 'Milwaukee Brewers at St. Louis Cardinals',
+    description:
+      'MLB regular season. Tuesday doubleheader nightcap at Busch Stadium — a May 5 rainout makeup turns this into a rare five-game series. First pitch 6:45 PM CT.',
+    eventType: 'game',
+    dateUtc: '2026-07-07T23:45:00.000Z', // Tue Jul 7, 6:45 PM CDT (DH game 2)
+    location: 'Busch Stadium, St. Louis, MO',
+    lat: 38.62278,
+    lng: -90.193329,
+    bannerUrl:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Busch_Stadium_III_(16180972535).jpg',
+    linkedLeague: 'MLB',
+    game: {
+      homeTeam: 'St. Louis Cardinals',
+      awayTeam: 'Milwaukee Brewers',
+      isNeutral: false,
+    },
+  },
+  // ── MLB — Mariners @ Marlins (created 2026-07-06) ──────────────────────────
+  {
+    title: 'Seattle Mariners at Miami Marlins',
+    description:
+      "MLB regular season interleague series opener at loanDepot Park — the clubs' only meeting of 2026. First pitch 6:40 PM ET.",
+    eventType: 'game',
+    dateUtc: '2026-07-07T22:40:00.000Z', // Tue Jul 7, 6:40 PM EDT
+    location: 'loanDepot Park, Miami, FL',
+    lat: 25.778301,
+    lng: -80.220352,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/LoanDepot_Park_2024.jpg',
+    linkedLeague: 'MLB',
+    game: {
+      homeTeam: 'Miami Marlins',
+      awayTeam: 'Seattle Mariners',
+      isNeutral: false,
+    },
+  },
   // ── EXAMPLE: standalone watch party (no game record) — replace me ─────────
   {
     title: 'Riverside Hawks Watch Party',
