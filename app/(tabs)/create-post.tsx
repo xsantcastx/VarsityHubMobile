@@ -26,14 +26,19 @@ import SwipeBackContainer from '@/components/SwipeBackContainer';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import { Colors } from '@/constants/Colors';
-import { MAX_VIDEO_SIZE_BYTES, MAX_VIDEO_SIZE_MB, VIDEO_CAPTURE_PRESET } from '@/constants/video';
+import {
+  isNativeVideoTrimSupported,
+  MAX_VIDEO_SIZE_BYTES,
+  MAX_VIDEO_SIZE_MB,
+  VIDEO_CAPTURE_PRESET,
+} from '@/constants/video';
 import { useAuth } from '@/context/AuthProvider';
 import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getAuthSnapshot } from '@/utils/authState';
-import { compressVideoSafe } from '@/utils/compressVideo';
+import { prepareVideoForUpload, uploadTimeoutMsForSize } from '@/utils/compressVideo';
 import { sanitizeText } from '@/utils/formUtils';
 import { ICLOUD_ERROR_MESSAGE, ICLOUD_ERROR_TITLE, isICloudError } from '@/utils/isICloudError';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
@@ -42,32 +47,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-let VideoThumbnails: any = null;
-try {
-  VideoThumbnails = require('expo-video-thumbnails');
-} catch {
-  /* native module not available */
-}
-
-// Retry thumbnail generation at multiple timestamps
-const generateVideoThumbnail = async (
-  videoUri: string,
-  setVideoThumbnailUri: (uri: string) => void
-) => {
-  const times = [0, 1000, 3000];
-  for (const time of times) {
-    try {
-      const thumb = await VideoThumbnails?.getThumbnailAsync?.(videoUri, { time, quality: 0.7 });
-      if (thumb?.uri) {
-        setVideoThumbnailUri(thumb.uri);
-        return;
-      }
-    } catch (e) {
-      if (__DEV__) console.warn(`[CreatePost] Thumbnail failed at time=${time}:`, e);
-    }
-  }
-  if (__DEV__) console.warn('[CreatePost] All thumbnail attempts failed');
-};
 
 // Media validation constants
 const ALLOWED_IMAGE_TYPES = [
@@ -156,7 +135,6 @@ function CreatePostScreen() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [postSuccess, setPostSuccess] = useState(false);
   const [trimmedUri, setTrimmedUri] = useState<string | null>(null);
-  const [videoThumbnailUri, setVideoThumbnailUri] = useState<string | null>(null);
   const showPrecisionWarning =
     Platform.OS === 'android' &&
     permissionGranted &&
@@ -164,6 +142,7 @@ function CreatePostScreen() {
     !precisionBannerDismissed;
   const locationReady =
     typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
+  const canTrimVideo = isNativeVideoTrimSupported(Platform.OS);
   const [draftReady, setDraftReady] = useState(false);
   const [contentConsent, setContentConsent] = useState(false);
   const draftLoadedRef = useRef(false);
@@ -179,7 +158,6 @@ function CreatePostScreen() {
   // Reset trim state and content consent when media changes
   useEffect(() => {
     setTrimmedUri(null);
-    setVideoThumbnailUri(null);
     setContentConsent(false);
   }, [picked?.uri]);
 
@@ -516,15 +494,8 @@ function CreatePostScreen() {
                 );
             }
           }
-        } else {
-          // Compress video before upload (falls back silently if native module unavailable)
-          uri = await compressVideoSafe(uri);
         }
         setPicked({ uri, type: media, mime: mimeType });
-        // Generate thumbnail for video preview immediately
-        if (media === 'video') {
-          void generateVideoThumbnail(uri, setVideoThumbnailUri);
-        }
       }
     } catch (error: any) {
       if (__DEV__) console.error('[CreatePost] Image picker error:', error);
@@ -616,14 +587,8 @@ function CreatePostScreen() {
                 );
             }
           }
-        } else {
-          // Compress video before upload (falls back silently if native module unavailable)
-          uri = await compressVideoSafe(uri);
         }
         setPicked({ uri, type: media, mime: mimeType });
-        if (media === 'video') {
-          void generateVideoThumbnail(uri, setVideoThumbnailUri);
-        }
       }
     } catch (error: any) {
       if (__DEV__) console.error('[CreatePost] Camera error:', error);
@@ -762,17 +727,21 @@ function CreatePostScreen() {
 
     try {
       let finalMediaUrl = '';
-      let finalThumbnailUrl = '';
       if (picked?.uri) {
         if (__DEV__) console.warn('[CreatePost] Uploading media...');
         const { getApiBaseUrl } = await import('@/api/http');
         const base = getApiBaseUrl();
         const name = picked.type === 'image' ? 'image.jpg' : 'video.mp4';
         const mime = picked.mime || (picked.type === 'image' ? 'image/jpeg' : 'video/mp4');
-        const uploadUri = picked.type === 'video' && trimmedUri ? trimmedUri : picked.uri;
-        // Upload main file and thumbnail in parallel for speed
+        const sourceUri = picked.type === 'video' && trimmedUri ? trimmedUri : picked.uri;
+        const prepared = picked.type === 'video' ? await prepareVideoForUpload(sourceUri) : null;
+        const uploadUri = prepared ? prepared.uri : sourceUri;
+        // Video previews are derived client-side from the Cloudinary media URL,
+        // so we upload a single canonical video asset instead of a second
+        // thumbnail file and extra signature/upload call.
         const mainUpload = uploadFile(base, uploadUri, name, mime, {
           onProgress: pct => setUploadProgress(pct),
+          ...(prepared ? { timeoutMs: uploadTimeoutMsForSize(prepared.finalSizeBytes) } : {}),
         }).catch((uploadErr: any) => {
           const msg: string = uploadErr?.message || '';
           console.error('[CreatePost] Media upload failed:', msg);
@@ -782,24 +751,15 @@ function CreatePostScreen() {
           // Surface the actual underlying error so it's debuggable
           throw new Error(msg || 'Media upload failed. Please try again.');
         });
-        const thumbUpload =
-          picked.type === 'video' && videoThumbnailUri
-            ? uploadFile(base, videoThumbnailUri, 'thumbnail.jpg', 'image/jpeg').catch(e => {
-                if (__DEV__) console.warn('[CreatePost] Thumbnail upload failed:', e);
-                return null;
-              })
-            : Promise.resolve(null);
-
-        const [res, thumbRes] = await Promise.all([mainUpload, thumbUpload]);
+        const res = await mainUpload;
         finalMediaUrl = res?.url || '';
         if (!finalMediaUrl) {
           throw new Error('Media upload succeeded but returned no URL. Please try again.');
         }
-        if (thumbRes) finalThumbnailUrl = thumbRes?.url || '';
         if (__DEV__) console.warn('[CreatePost] Upload complete:', finalMediaUrl);
-        // Clean up temp files (trimmed video, thumbnail) after successful upload
+        // Clean up temp trimmed files after successful upload
         try {
-          const filesToClean = [trimmedUri, videoThumbnailUri].filter(
+          const filesToClean = [trimmedUri].filter(
             (f): f is string => !!f && f.startsWith(LegacyFileSystem.cacheDirectory || '')
           );
           for (const f of filesToClean) {
@@ -818,7 +778,6 @@ function CreatePostScreen() {
       const payload: Record<string, any> = {
         content: trimmedContent,
         media_url: finalMediaUrl || undefined,
-        preview_url: finalThumbnailUrl || undefined,
         type: postType,
         location: locationPayload,
       };
@@ -870,7 +829,7 @@ function CreatePostScreen() {
             caption: trimmedContent,
             media_url: finalMediaUrl || null,
             media_type: isVideo ? 'video' : picked?.type === 'image' ? 'image' : null,
-            preview_url: isVideo ? finalThumbnailUrl || null : null,
+            preview_url: null,
             created_at: new Date().toISOString(),
             upvotes_count: 0,
             comments_count: 0,
@@ -1120,13 +1079,17 @@ function CreatePostScreen() {
                 ) : (
                   <>
                     <VideoPlayer uri={trimmedUri ?? picked.uri} style={styles.previewMedia} />
-                    <VideoTrimmer
-                      uri={picked.uri}
-                      onTrimComplete={u => setTrimmedUri(u)}
-                      onTrimReset={() => setTrimmedUri(null)}
-                    />
+                    {canTrimVideo ? (
+                      <VideoTrimmer
+                        uri={picked.uri}
+                        onTrimComplete={u => setTrimmedUri(u)}
+                        onTrimReset={() => setTrimmedUri(null)}
+                      />
+                    ) : null}
                     <Text style={[styles.cropHint, { color: Colors[colorScheme].mutedText }]}>
-                      Trim your video using the handles above.
+                      {canTrimVideo
+                        ? 'Trim your video using the handles above.'
+                        : 'Web uploads the selected video as-is. Trimming is available in the iOS and Android app.'}
                     </Text>
                   </>
                 )}

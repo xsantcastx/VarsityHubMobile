@@ -6,7 +6,11 @@ import {
   VIDEO_CAPTURE_PRESET,
 } from '@/constants/video';
 import { queryClient } from '@/lib/queryClient';
-import { getVideoFileSize, prepareVideoForUpload } from '@/utils/compressVideo';
+import {
+  getVideoFileSize,
+  prepareVideoForUpload,
+  uploadTimeoutMsForSize,
+} from '@/utils/compressVideo';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useShareLink } from '@/hooks/useShareLink';
@@ -1403,7 +1407,8 @@ const GameDetailsScreen = () => {
       // This callback only handles videos (images upload inline in the picker
       // handler). Prepare the final asset once, right before upload.
       const rawUri = storyTrimmedUri || storyPreview.uri;
-      const uploadUri = (await prepareVideoForUpload(rawUri)).uri;
+      const prepared = await prepareVideoForUpload(rawUri);
+      const uploadUri = prepared.uri;
       const ensured = await (
         await import('../../utils/ensureUploadableUri')
       ).ensureUploadableUri(uploadUri, storyPreview.mimeType);
@@ -1411,7 +1416,8 @@ const GameDetailsScreen = () => {
         base,
         ensured.uri,
         storyPreview.fileName,
-        ensured.mimeType || storyPreview.mimeType
+        ensured.mimeType || storyPreview.mimeType,
+        { timeoutMs: uploadTimeoutMsForSize(prepared.finalSizeBytes) }
       );
       const mediaUrl = uploaded?.path || uploaded?.url;
       if (!mediaUrl) throw new Error('Upload failed');

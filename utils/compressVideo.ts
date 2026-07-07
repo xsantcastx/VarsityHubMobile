@@ -140,4 +140,15 @@ export async function prepareVideoForUpload(
   };
 }
 
+/**
+ * Size-aware upload timeout: 6s per MB (≈1.4 Mbps sustained), floored at the
+ * historical 5-minute default and capped at 15 minutes. A fixed 5-minute
+ * timeout made 150MB uploads mathematically impossible on slow cellular.
+ */
+export function uploadTimeoutMsForSize(sizeBytes: number): number {
+  if (!sizeBytes || sizeBytes <= 0) return 300_000;
+  const scaled = Math.round(sizeBytes / (1024 * 1024)) * 6_000;
+  return Math.min(900_000, Math.max(300_000, scaled));
+}
+
 export { VIDEO_COMPRESSION_THRESHOLD_MB };

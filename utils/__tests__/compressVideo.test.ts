@@ -24,6 +24,7 @@ import { captureException } from '@/utils/sentry';
 import {
   compressVideoSafe,
   prepareVideoForUpload,
+  uploadTimeoutMsForSize,
   VIDEO_COMPRESSION_THRESHOLD_MB,
 } from '../compressVideo';
 
@@ -153,5 +154,20 @@ describe('compression hardening', () => {
     jest.dontMock('react-native-compressor');
     jest.dontMock('@/utils/sentry');
     jest.dontMock('expo-file-system/legacy');
+  });
+});
+
+describe('uploadTimeoutMsForSize', () => {
+  it('keeps the 5-minute floor for small files', () => {
+    expect(uploadTimeoutMsForSize(8 * 1024 * 1024)).toBe(300_000);
+  });
+  it('scales ~6s per MB for large files', () => {
+    expect(uploadTimeoutMsForSize(100 * 1024 * 1024)).toBe(600_000);
+  });
+  it('caps at 15 minutes', () => {
+    expect(uploadTimeoutMsForSize(500 * 1024 * 1024)).toBe(900_000);
+  });
+  it('falls back to the floor when size is unknown (0)', () => {
+    expect(uploadTimeoutMsForSize(0)).toBe(300_000);
   });
 });
