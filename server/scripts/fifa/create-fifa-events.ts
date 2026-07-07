@@ -20,7 +20,7 @@ import { MATCHES, ORGANIZATION, TEAMS, VENUES, type MatchDef } from './worldcup-
 
 const prisma = new PrismaClient();
 
-const ADMIN_EMAIL = 'varsityhub00@gmail.com';
+const ADMIN_EMAIL = 'emancero@varsityhub.app';
 
 // Each team's tournament group, derived from the fixture list. Stored in the
 // team description ("Group B — FIFA World Cup 2026") — the org page sections

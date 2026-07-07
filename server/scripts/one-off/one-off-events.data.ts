@@ -130,6 +130,42 @@ export const EVENTS: OneOffEventDef[] = [
         'https://ui-avatars.com/api/?name=San+Antonio+Spurs&length=3&background=0C0C0C&color=C4CED4&size=512&bold=true&format=png',
     },
   },
+  // ── FIBA World Cup 2027 Qualifiers — Switzerland vs Serbia (created 2026-07-07) ──
+  {
+    title: 'Switzerland vs Serbia — FIBA World Cup 2027 Qualifiers',
+    description:
+      "FIBA Basketball World Cup 2027 European Qualifiers, First Round, Group C. Serbia won 97-73 behind captain Nikola Jokić's 22 points, 14 rebounds and 7 assists, clinching Second Round qualification.",
+    eventType: 'game',
+    dateUtc: '2026-07-02T18:00:00.000Z', // Thu Jul 2, 6:00 PM UTC / 8:00 PM CEST
+    location: 'BCF Arena, Fribourg, Switzerland',
+    lat: 46.81737,
+    lng: 7.15554,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/BCF-Arena_Fribourg.jpg',
+    linkedLeague: 'FIBA World Cup Qualifiers',
+    game: {
+      homeTeam: 'Switzerland',
+      awayTeam: 'Serbia',
+      isNeutral: false,
+    },
+  },
+  // ── FIBA World Cup 2027 Qualifiers — Slovenia vs Sweden (created 2026-07-07) ─────
+  {
+    title: 'Slovenia vs Sweden — FIBA World Cup 2027 Qualifiers',
+    description:
+      "FIBA Basketball World Cup 2027 European Qualifiers, First Round, Group H decider. Sweden won 88-79 on Pelle Larsson's 31 points, advancing to the Second Round to face Finland, France and Hungary.",
+    eventType: 'game',
+    dateUtc: '2026-07-06T18:00:00.000Z', // Mon Jul 6, 8:00 PM CEST
+    location: 'Arena Stožice, Ljubljana, Slovenia',
+    lat: 46.0753,
+    lng: 14.5195,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Sto%C5%BEice_Arena.jpg',
+    linkedLeague: 'FIBA World Cup Qualifiers',
+    game: {
+      homeTeam: 'Slovenia',
+      awayTeam: 'Sweden',
+      isNeutral: false,
+    },
+  },
   // ── MLB — Yankees @ Rays (created 2026-07-06) ──────────────────────────────
   {
     title: 'New York Yankees at Tampa Bay Rays',

@@ -20,7 +20,7 @@ import { EVENTS, type OneOffEventDef } from './one-off-events.data';
 
 const prisma = new PrismaClient();
 
-const ADMIN_EMAIL = 'varsityhub00@gmail.com';
+const ADMIN_EMAIL = 'emancero@varsityhub.app';
 
 interface Admin {
   id: string;
