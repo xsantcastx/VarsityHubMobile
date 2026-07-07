@@ -146,6 +146,17 @@ enum GameApprovalStatus {
   rejected
 }
 
+// Opponent-approval workflow (2026-07-06): when a coach links a real
+// VarsityHub team as opponent that they do NOT manage, the game only becomes
+// publicly visible once that opponent team's staff confirms it. Independent
+// of GameApprovalStatus, which is the platform moderation gate.
+enum OpponentApprovalStatus {
+  not_required
+  pending
+  approved
+  declined
+}
+
 // ===========================
 // Minors / Parental Consent
 // ===========================
@@ -194,18 +205,18 @@ model User {
   preferences                Json      @default("{}")
 
   // ── Canonical auth / onboarding state (replaces hot-path JSON reads) ──
-  role                         UserRole  @default(fan)
-  onboarding_completed         Boolean   @default(false)
-  organization_id              String?
-  proceeding_as_fan            Boolean   @default(false)
-  coach_agreement_accepted_at  DateTime?
-  coach_agreement_version      Int?
+  role                        UserRole  @default(fan)
+  onboarding_completed        Boolean   @default(false)
+  organization_id             String?
+  proceeding_as_fan           Boolean   @default(false)
+  coach_agreement_accepted_at DateTime?
+  coach_agreement_version     Int?
 
   // ── Canonical billing/onboarding state (replaces payment JSON reads) ──
-  plan              MembershipPlan @default(rookie)
-  pending_plan      MembershipPlan?
-  payment_pending   Boolean        @default(false)
-  payment_approved  Boolean        @default(false)
+  plan             MembershipPlan  @default(rookie)
+  pending_plan     MembershipPlan?
+  payment_pending  Boolean         @default(false)
+  payment_approved Boolean         @default(false)
 
   // ── Canonical date of birth (replaces preferences.dob) ──
   // Stored as DATE, not DATETIME, because the relevant precision is day-level.
@@ -219,23 +230,23 @@ model User {
   // `parent_email` is captured at signup / first minor detection. The actual
   // consent-verification flow is a follow-up; these fields exist now so the
   // data model doesn't have to churn again when the flow lands.
-  parent_email                   String?                @db.VarChar(320)
-  parental_consent_status        ParentalConsentStatus  @default(not_required)
-  parental_consent_at            DateTime?
+  parent_email                  String?               @db.VarChar(320)
+  parental_consent_status       ParentalConsentStatus @default(not_required)
+  parental_consent_at           DateTime?
   // When the parent was emailed (starts the 14-day expiry clock). Null outside
   // an active consent request.
-  parental_consent_requested_at  DateTime?
+  parental_consent_requested_at DateTime?
   // SHA-256 hash of the single-use consent-link token. Storing the hash (not
   // the raw token) matches the pattern used for refresh_token and password
   // reset codes — a DB leak doesn't expose active consent links.
-  parental_consent_token_hash    String?                @db.VarChar(128)
+  parental_consent_token_hash   String?               @db.VarChar(128)
 
   // ── Account deletion (soft-delete + anonymize) ──
   // Self-serve deletion anonymizes PII immediately and sets `deleted_at`; a
   // scheduled job hard-deletes the row after the retention window (to preserve
   // downstream referential integrity in the meantime).
-  deleted_at           DateTime?
-  deletion_anonymized  Boolean   @default(false)
+  deleted_at          DateTime?
+  deletion_anonymized Boolean   @default(false)
 
   // Coach approval status — APPROVED for fans, PENDING for new coaches until league owner approves
   approval_status  ApprovalStatus @default(APPROVED)
@@ -252,21 +263,21 @@ model User {
   paid_by_owner           Boolean   @default(false) // true if coach's plan is covered by league owner
 
   // Relations
-  refreshTokens    RefreshToken[]
-  coachApplications CoachApplication[] @relation("coach_applicant")
-  memberships      TeamMembership[]
-  orgMemberships   OrganizationMembership[]
-  orgJoinRequests  OrganizationJoinRequest[]
-  teamJoinRequests TeamJoinRequest[]
-  organization     Organization?            @relation("user_active_organization", fields: [organization_id], references: [id], onDelete: SetNull)
-  rsvps            EventRsvp[]
-  createdEvents    Event[]
-  stories          Story[]
-  ads              Ad[]
-  posts            Post[]
-  categoryFollows  CategoryFollow[]
-  promoRedemptions PromoRedemption[]
-  transactionLogs  TransactionLog[]
+  refreshTokens     RefreshToken[]
+  coachApplications CoachApplication[]        @relation("coach_applicant")
+  memberships       TeamMembership[]
+  orgMemberships    OrganizationMembership[]
+  orgJoinRequests   OrganizationJoinRequest[]
+  teamJoinRequests  TeamJoinRequest[]
+  organization      Organization?             @relation("user_active_organization", fields: [organization_id], references: [id], onDelete: SetNull)
+  rsvps             EventRsvp[]
+  createdEvents     Event[]
+  stories           Story[]
+  ads               Ad[]
+  posts             Post[]
+  categoryFollows   CategoryFollow[]
+  promoRedemptions  PromoRedemption[]
+  transactionLogs   TransactionLog[]
 
   // Follows (self-relation)
   following           Follows[]            @relation("following")
@@ -297,8 +308,9 @@ model User {
   actions       Notification[] @relation("notification_actor")
 
   // Games (approval workflow)
-  createdGames  Game[] @relation("created_games")
-  approvedGames Game[] @relation("approved_games")
+  createdGames          Game[] @relation("created_games")
+  approvedGames         Game[] @relation("approved_games")
+  opponentApprovedGames Game[] @relation("opponent_approved_games")
 
   // League ownership (organizations this user owns)
   ownedOrganizations Organization[] @relation("league_owner")
@@ -314,7 +326,7 @@ model User {
   parentalConsentAuditsAsSubject ParentalConsentAudit[] @relation("consent_audit_user")
   parentalConsentAuditsAsActor   ParentalConsentAudit[] @relation("consent_audit_actor")
 
-  dataExports                    DataExport[]
+  dataExports DataExport[]
 
   @@index([subscription_status])
   @@index([banned])
@@ -340,24 +352,24 @@ model User {
 //   pending  → building → ready → expired
 //                       → failed
 model DataExport {
-  id                  String    @id @default(cuid())
-  user_id             String
-  status              String    // pending | building | ready | expired | failed
-  requested_at        DateTime  @default(now())
-  started_at          DateTime?
-  completed_at        DateTime?
-  expires_at          DateTime?
+  id                 String    @id @default(cuid())
+  user_id            String
+  status             String // pending | building | ready | expired | failed
+  requested_at       DateTime  @default(now())
+  started_at         DateTime?
+  completed_at       DateTime?
+  expires_at         DateTime?
   // Storage backend key/path (e.g. S3 object key). Null before build and
   // after expiry cleanup. Never contains PII.
-  storage_key         String?
-  size_bytes          Int?
+  storage_key        String?
+  size_bytes         Int?
   // Coarse error category only — no raw stack or message. Keeps the row
   // safe to log/surface to admins.
-  error_category      String?
-  download_count      Int       @default(0)
-  last_downloaded_at  DateTime?
+  error_category     String?
+  download_count     Int       @default(0)
+  last_downloaded_at DateTime?
 
-  user                User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id, requested_at])
   @@index([status, requested_at])
@@ -367,13 +379,13 @@ model DataExport {
 // override (approve/deny/reset) writes a new row. Use for COPPA compliance
 // records — never UPDATE or DELETE rows here.
 model ParentalConsentAudit {
-  id              String                @id @default(cuid())
-  user_id         String
-  actor_admin_id  String
-  from_state      ParentalConsentStatus
-  to_state        ParentalConsentStatus
-  reason          String                @db.Text
-  created_at      DateTime              @default(now())
+  id             String                @id @default(cuid())
+  user_id        String
+  actor_admin_id String
+  from_state     ParentalConsentStatus
+  to_state       ParentalConsentStatus
+  reason         String                @db.Text
+  created_at     DateTime              @default(now())
 
   user        User @relation("consent_audit_user", fields: [user_id], references: [id], onDelete: Cascade)
   actor_admin User @relation("consent_audit_actor", fields: [actor_admin_id], references: [id], onDelete: Restrict)
@@ -458,6 +470,14 @@ model Game {
   approved_by     User?              @relation("approved_games", fields: [approved_by_id], references: [id], onDelete: SetNull)
   approved_at     DateTime?
 
+  // Opponent-approval workflow — see OpponentApprovalStatus above.
+  opponent_approval_status  OpponentApprovalStatus @default(not_required)
+  opponent_approval_team_id String?
+  opponent_approved_by_id   String?
+  opponent_approved_by      User?                  @relation("opponent_approved_games", fields: [opponent_approved_by_id], references: [id], onDelete: SetNull)
+  opponent_approved_at      DateTime?
+  opponent_declined_reason  String?                @db.VarChar(2000)
+
   // Game result (set by coaches/owners via PATCH /games/:id/result)
   home_score Int? // Home team score
   away_score Int? // Away team score
@@ -478,6 +498,8 @@ model Game {
   @@index([approval_status])
   @@index([approval_status, date])
   @@index([approval_status, created_at])
+  @@index([opponent_approval_status])
+  @@index([opponent_approval_team_id, opponent_approval_status])
 }
 
 model Post {
@@ -794,36 +816,36 @@ model AdReservation {
 }
 
 model Ad {
-  id                  String          @id @default(cuid())
-  user_id             String?
-  user                User?           @relation(fields: [user_id], references: [id], onDelete: SetNull)
-  contact_name        String?         @db.VarChar(200)
-  contact_email       String?         @db.VarChar(320)
-  business_name       String?         @db.VarChar(200)
-  banner_url          String?         @db.VarChar(2048)
-  banner_fit_mode     String?         @default("fill") // cover | contain | fill (CSS object-fit)
-  target_url          String?         @db.VarChar(2048) // URL to open when ad is clicked
-  target_zip_code     String?         @db.VarChar(12)
-  target_lat          Float? // Latitude of target_zip_code (populated on create/update)
-  target_lng          Float? // Longitude of target_zip_code (populated on create/update)
-  radius              Int             @default(45) // non-null with default
-  description         String?         @db.VarChar(1000)
-  status              AdStatus        @default(draft)
-  payment_status      AdPaymentStatus @default(unpaid)
-  admin_note          String?         @db.VarChar(2000) // Note from admin when approving/rejecting
-  impression_count    Int             @default(0)
-  click_count         Int             @default(0)
-  last_impression_at  DateTime?
-  last_click_at       DateTime?
+  id                         String                    @id @default(cuid())
+  user_id                    String?
+  user                       User?                     @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  contact_name               String?                   @db.VarChar(200)
+  contact_email              String?                   @db.VarChar(320)
+  business_name              String?                   @db.VarChar(200)
+  banner_url                 String?                   @db.VarChar(2048)
+  banner_fit_mode            String?                   @default("fill") // cover | contain | fill (CSS object-fit)
+  target_url                 String?                   @db.VarChar(2048) // URL to open when ad is clicked
+  target_zip_code            String?                   @db.VarChar(12)
+  target_lat                 Float? // Latitude of target_zip_code (populated on create/update)
+  target_lng                 Float? // Longitude of target_zip_code (populated on create/update)
+  radius                     Int                       @default(45) // non-null with default
+  description                String?                   @db.VarChar(1000)
+  status                     AdStatus                  @default(draft)
+  payment_status             AdPaymentStatus           @default(unpaid)
+  admin_note                 String?                   @db.VarChar(2000) // Note from admin when approving/rejecting
+  impression_count           Int                       @default(0)
+  click_count                Int                       @default(0)
+  last_impression_at         DateTime?
+  last_click_at              DateTime?
   banner_moderation_status   AdBannerModerationStatus?
   banner_moderation_labels   Json?
   banner_moderation_score    Float?
-  banner_moderation_provider String?   @db.VarChar(50)
-  banner_moderation_error    String?   @db.VarChar(500)
+  banner_moderation_provider String?                   @db.VarChar(50)
+  banner_moderation_error    String?                   @db.VarChar(500)
   banner_moderated_at        DateTime?
-  go_live_notified_at DateTime? // Set after go-live email sent to prevent duplicates
-  created_at          DateTime        @default(now())
-  updated_at          DateTime        @updatedAt
+  go_live_notified_at        DateTime? // Set after go-live email sent to prevent duplicates
+  created_at                 DateTime                  @default(now())
+  updated_at                 DateTime                  @updatedAt
 
   reservations AdReservation[]
 
@@ -953,6 +975,9 @@ enum NotificationType {
   TEAM_JOIN_REQUEST
   TEAM_JOIN_APPROVED
   TEAM_JOIN_REJECTED
+  GAME_OPPONENT_APPROVAL_REQUESTED
+  GAME_OPPONENT_APPROVED
+  GAME_OPPONENT_DECLINED
 }
 
 model Notification {
@@ -1016,17 +1041,17 @@ model CoachApplication {
 // ===========================
 
 model Team {
-  id                       String    @id @default(cuid())
-  name                     String    @db.VarChar(100)
-  description              String?   @db.VarChar(1000)
+  id                       String     @id @default(cuid())
+  name                     String     @db.VarChar(100)
+  description              String?    @db.VarChar(1000)
   // Logo and optional avatar URL for backward compatibility with front-end
   logo_url                 String?
   avatar_url               String?
-  sport                    String?   @db.VarChar(100)
-  club_type                String    @default("sport") // "sport" or "extracurricular"
-  extracurricular_category String?   @db.VarChar(100) // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
-  season                   String?   @db.VarChar(50) // "Fall" | "Spring" | "Winter" | "Summer"
-  primary_color            String?   @db.VarChar(20) // hex color for team branding
+  sport                    String?    @db.VarChar(100)
+  club_type                String     @default("sport") // "sport" or "extracurricular"
+  extracurricular_category String?    @db.VarChar(100) // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
+  season                   String?    @db.VarChar(50) // "Fall" | "Spring" | "Winter" | "Summer"
+  primary_color            String?    @db.VarChar(20) // hex color for team branding
   season_start             DateTime?
   season_end               DateTime?
   organization_id          String
@@ -1035,7 +1060,7 @@ model Team {
   // members, followers, and org admins (owner/manager) can list the roster
   // or pull the full profile. Set via the team-update endpoint by team staff
   // or org admins.
-  is_private               Boolean   @default(false)
+  is_private               Boolean    @default(false)
 
   // Venue information
   venue_place_id   String?   @db.VarChar(255)
@@ -1051,7 +1076,7 @@ model Team {
 
   created_at DateTime @default(now())
 
-  organization Organization     @relation(fields: [organization_id], references: [id], onDelete: Restrict)
+  organization Organization      @relation(fields: [organization_id], references: [id], onDelete: Restrict)
   memberships  TeamMembership[]
   invites      TeamInvite[]
   joinRequests TeamJoinRequest[]
@@ -1074,21 +1099,21 @@ model Team {
 }
 
 model Organization {
-  id                  String    @id @default(cuid())
-  name                String    @db.VarChar(255)
-  description         String?   @db.VarChar(2000)
-  logo_url            String?   @db.VarChar(2000)
-  profile_picture_url String?   @db.VarChar(2000)
-  background_url      String?   @db.VarChar(2000)
-  sport               String?   @db.VarChar(100)
-  org_type            String?   @db.VarChar(100) // school | club | league | other
-  location            String?   @db.VarChar(500) // City, State format
-  zip_code            String?   @db.VarChar(20) // For nearby search
+  id                  String             @id @default(cuid())
+  name                String             @db.VarChar(255)
+  description         String?            @db.VarChar(2000)
+  logo_url            String?            @db.VarChar(2000)
+  profile_picture_url String?            @db.VarChar(2000)
+  background_url      String?            @db.VarChar(2000)
+  sport               String?            @db.VarChar(100)
+  org_type            String?            @db.VarChar(100) // school | club | league | other
+  location            String?            @db.VarChar(500) // City, State format
+  zip_code            String?            @db.VarChar(20) // For nearby search
   season_start        DateTime?
   season_end          DateTime?
   status              OrganizationStatus @default(active)
-  created_at          DateTime  @default(now())
-  updated_at          DateTime  @default(now()) @updatedAt
+  created_at          DateTime           @default(now())
+  updated_at          DateTime           @default(now()) @updatedAt
 
   // Super admin approval — every league page owner must be approved by emancero@varsityhub.app
   admin_approved   Boolean   @default(false)
@@ -1124,13 +1149,13 @@ model Organization {
 }
 
 model OrganizationJoinRequest {
-  id               String    @id @default(cuid())
+  id               String                        @id @default(cuid())
   organization_id  String
   user_id          String
   status           OrganizationJoinRequestStatus @default(pending)
   message          String? // Optional message from user
   rejection_reason String? // Reason provided by admin when denying
-  created_at       DateTime  @default(now())
+  created_at       DateTime                      @default(now())
   reviewed_at      DateTime?
   reviewed_by      String? // user_id of admin who reviewed
 
@@ -1150,7 +1175,7 @@ model OrganizationMembership {
 
   role       OrganizationRole @default(member)
   status     MembershipStatus @default(active)
-  created_at DateTime @default(now())
+  created_at DateTime         @default(now())
 
   organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -1162,12 +1187,12 @@ model OrganizationMembership {
 }
 
 model OrganizationInvite {
-  id              String   @id @default(cuid())
+  id              String           @id @default(cuid())
   organization_id String
   email           String
   role            OrganizationRole @default(member)
-  status          InviteStatus @default(pending)
-  created_at      DateTime @default(now())
+  status          InviteStatus     @default(pending)
+  created_at      DateTime         @default(now())
 
   organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
 
@@ -1419,14 +1444,14 @@ model AppleTransactionClaim {
 }
 
 model ProcessedStripeEvent {
-  id                   String    @id @default(cuid())
-  event_id             String    @unique
-  event_type           String
-  processed            Boolean   @default(false)
+  id                    String    @id @default(cuid())
+  event_id              String    @unique
+  event_type            String
+  processed             Boolean   @default(false)
   processing_started_at DateTime?
-  processed_at         DateTime?
-  last_error           String?
-  created_at           DateTime  @default(now())
+  processed_at          DateTime?
+  last_error            String?
+  created_at            DateTime  @default(now())
 
   @@index([created_at])
   @@index([processed])

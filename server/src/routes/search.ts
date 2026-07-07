@@ -97,8 +97,9 @@ searchRouter.get(
     const eighteenYearsAgo = new Date();
     eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
 
-    const userExcludeIds = Array.from(new Set([...blockedIds, ...privateExcludeIds]))
-      .filter(id => id !== currentUserId);
+    const userExcludeIds = Array.from(new Set([...blockedIds, ...privateExcludeIds])).filter(
+      id => id !== currentUserId
+    );
 
     const todayUtcStart = new Date();
     todayUtcStart.setUTCHours(0, 0, 0, 0);
@@ -110,10 +111,7 @@ searchRouter.get(
             { banned: false },
             ...(userExcludeIds.length > 0 ? [{ id: { notIn: userExcludeIds } }] : []),
             {
-              OR: [
-                { date_of_birth: null },
-                { date_of_birth: { lte: eighteenYearsAgo } },
-              ],
+              OR: [{ date_of_birth: null }, { date_of_birth: { lte: eighteenYearsAgo } }],
             } as any,
             {
               OR: [
@@ -185,6 +183,9 @@ searchRouter.get(
       prisma.game.findMany({
         where: {
           approval_status: 'approved',
+          // Opponent-approval workflow: exclude games still awaiting/declined
+          // opponent consent from public search results.
+          opponent_approval_status: { in: ['not_required', 'approved'] },
           date: { gte: todayUtcStart },
           OR: [
             { title: { contains: q, mode: 'insensitive' } },
@@ -342,7 +343,7 @@ searchRouter.get(
       is_following: orgFollowSet.has(o.id),
     }));
 
-    const gamesPayload = games.map((game) => ({
+    const gamesPayload = games.map(game => ({
       id: game.id,
       title: game.title,
       date: game.date instanceof Date ? game.date.toISOString() : game.date,
@@ -353,7 +354,7 @@ searchRouter.get(
       banner_url: game.banner_url || game.cover_image_url,
     }));
 
-    const eventsPayload = events.map((event) => ({
+    const eventsPayload = events.map(event => ({
       id: event.id,
       title: event.title,
       date: event.date instanceof Date ? event.date.toISOString() : event.date,

@@ -663,6 +663,9 @@ teamsRouter.get(
       prisma.game.findMany({
         where: {
           approval_status: 'approved',
+          // Opponent-approval workflow: exclude games still awaiting/declined
+          // opponent consent from this team's public upcoming-games list.
+          opponent_approval_status: { in: ['not_required', 'approved'] },
           date: { gte: new Date() },
           OR: [{ home_team_id: teamId }, { away_team_id: teamId }],
         },
@@ -748,6 +751,9 @@ teamsRouter.get(
       prisma.game.findMany({
         where: {
           approval_status: 'approved',
+          // Opponent-approval workflow: exclude games still awaiting/declined
+          // opponent consent from this team's public game list.
+          opponent_approval_status: { in: ['not_required', 'approved'] },
           OR: [{ home_team_id: teamId }, { away_team_id: teamId }],
         },
         orderBy: { date: 'desc' },
