@@ -1251,7 +1251,7 @@ organizationsRouter.post(
       const membership = await getOrganizationMembership(req.user!.id, id);
 
       if (!membership || membership.role !== 'owner') {
-        return res.status(403).json({ error: 'Only the organization owner can invite members.' });
+        return sendError(res, 403, 'Only the organization owner can invite members.');
       }
       // PLAN LIMITS: Enforce authorized user caps based on ORG OWNER's plan (Rule B).
       // Authorized users are covered by the coach's plan — never charged individually.
@@ -1437,8 +1437,7 @@ organizationsRouter.post(
     }
 
     if (!isPlatformAdmin && (!membership || membership.role !== 'owner')) {
-      return res.status(403).json({
-        error: 'PERMISSION_DENIED',
+      return sendError(res, 403, 'PERMISSION_DENIED', {
         message: 'Only the organization owner can cancel invites.',
       });
     }
