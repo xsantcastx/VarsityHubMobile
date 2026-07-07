@@ -139,17 +139,19 @@ describe('coach approval UI guards', () => {
     }
   );
 
-  it('event approvals is coach-gated through useRequireCoach with a redirecting fallback', () => {
-    expect(eventApprovalsScreen).toContain(
-      'const loaders: Promise<void>[] = [loadEvents(), loadTeamInvites(), loadOrgRequests()];'
-    );
+  it('event approvals is staff-gated through useRequireTeamManagement with a redirecting fallback', () => {
+    // Substring deliberately omits the array prefix so adding another loader
+    // (e.g. the opponent-approval game requests) doesn't break this contract.
+    expect(eventApprovalsScreen).toContain('loadEvents(), loadTeamInvites(), loadOrgRequests()');
     expect(eventApprovalsScreen).toContain('useAuth');
-    // The screen is the coach review hub: useRequireCoach owns the redirect
-    // (approved-but-blocked coaches go to coach-agreement, never a pending
-    // screen) and CoachAccessRedirecting renders while it happens. Roster
-    // invites for non-coaches live on app/team-invites.tsx.
+    // Role-barrier model: reviewing approvals is an "authorized user"
+    // function, so the screen gates on the membership-aware
+    // useRequireTeamManagement (admits manager/assistant_coach memberships,
+    // not just coaches) and CoachAccessRedirecting renders while it redirects
+    // users with nothing to manage. Roster invites for non-coaches live on
+    // app/team-invites.tsx.
     expect(eventApprovalsScreen).toContain(
-      'const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();'
+      'const { canManage, loading: coachLoading } = useRequireTeamManagement();'
     );
     expect(eventApprovalsScreen).toContain('return <CoachAccessRedirecting');
   });

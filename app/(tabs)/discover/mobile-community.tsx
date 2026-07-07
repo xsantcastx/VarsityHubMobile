@@ -218,6 +218,35 @@ function CommunityDiscoverScreen() {
   // fan actions) and keeps the branch fresh when auth state changes, without
   // refetching on every focus.
   const coachAccess = useMemo(() => getCoachAccessState((user ?? me) as any), [user, me]);
+  // Role-barrier model: non-coach "authorized users" (team manager /
+  // assistant_coach memberships) get exactly one quick action — Approvals
+  // (roster + event approve/deny). Probe managed teams only when the coach
+  // branches don't apply; fail closed to the fan actions on error.
+  const [hasStaffTeams, setHasStaffTeams] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const isSignedIn = !!(user ?? me);
+    if (!isSignedIn || coachAccess.canAccessCoachTools || coachAccess.isApprovedCoach) {
+      setHasStaffTeams(false);
+      return;
+    }
+    (async () => {
+      try {
+        const teams = await Team.managed();
+        const arr = Array.isArray(teams)
+          ? teams
+          : Array.isArray((teams as any)?.items)
+            ? (teams as any).items
+            : [];
+        if (!cancelled) setHasStaffTeams(arr.length > 0);
+      } catch {
+        if (!cancelled) setHasStaffTeams(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, me, coachAccess.canAccessCoachTools, coachAccess.isApprovedCoach]);
   const showPrecisionBanner =
     Platform.OS === 'android' &&
     permissionGranted &&
@@ -1989,6 +2018,43 @@ function CommunityDiscoverScreen() {
               </Text>
               <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>
                 Complete setup to unlock coach tools
+              </Text>
+            </Pressable>
+          ) : hasStaffTeams ? (
+            /* Role-barrier model: non-coach authorized users (team manager /
+               assistant_coach) get ONLY Approvals — roster + event
+               approve/deny is their entire admin surface. No Manage Teams,
+               Team Schedule, or Manage Org. */
+            <Pressable
+              style={[
+                styles.coachActionCard,
+                {
+                  backgroundColor: Colors[colorScheme].tint + '10',
+                  borderColor: Colors[colorScheme].tint + '30',
+                },
+              ]}
+              onPress={() => {
+                analytics.track(ANALYTICS_EVENTS.COACH_QUICK_ACTION_TAPPED, {
+                  action: 'approvals',
+                  actor: 'authorized_user',
+                });
+                void router.push({
+                  pathname: '/event-approvals',
+                  params: {
+                    from: 'discover-quick-actions',
+                    fallback: '/(tabs)/discover',
+                  },
+                } as any);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Review pending approvals"
+            >
+              <MaterialIcons name="done-all" size={24} color={Colors[colorScheme].tint} />
+              <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>
+                Approvals
+              </Text>
+              <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>
+                Review roster and event requests
               </Text>
             </Pressable>
           ) : (
