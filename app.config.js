@@ -104,7 +104,7 @@ module.exports = ({ config }) => {
         NSPhotoLibraryUsageDescription:
           'VarsityHub uses your photo library so you can select existing photos and videos to share in team posts or set as your profile picture.',
         NSLocationWhenInUseUsageDescription:
-          'VarsityHub uses your location to display nearby games, tournaments, and team events on the map.',
+          'VarsityHub uses your location to display nearby games, tournaments, and team events on the map, and to confirm you are at the venue when you post from a live event.',
         NSPrivacyPolicyURL: 'https://varsityhub.app/privacy-policy',
         CFBundleURLTypes: [
           {

@@ -12,64 +12,104 @@ export default function PrivacyPolicyScreen() {
   return (
     <LegalDocumentScreen title="Privacy Policy" colorScheme={colorScheme}>
       <Text style={[sharedStyles.updatedAt, { color: Colors[colorScheme].mutedText }]}>
-          Last updated: March 25, 2026
+        Last updated: July 6, 2026
       </Text>
 
       <LegalSectionCard
-          colorScheme={colorScheme}
-          title="What We Collect"
-          body={
-            'We collect: email, username, profile info, posts, photos, videos, messages, team/game data, event RSVPs, device info, usage data, product analytics events (screen views, taps, feature usage), crash diagnostics, and approximate location (when enabled). Payments are processed by Apple, Google Play, or Stripe depending on platform — we never store full card numbers.'
-          }
-        />
+        colorScheme={colorScheme}
+        title="1. Introduction"
+        body={
+          'This Privacy Policy describes how Lime Productions ("VarsityHub," "we," "us," or "our") collects, uses, and discloses information in connection with the VarsityHub application and related services (the "Service"). By using the Service, you agree to the practices described in this Policy.'
+        }
+      />
 
       <LegalSectionCard
-          colorScheme={colorScheme}
-          title="How We Use It"
-          body={
-            'To run VarsityHub: deliver the service, process payments, send notifications, show nearby events, personalize your experience, and prevent abuse.'
-          }
-        />
+        colorScheme={colorScheme}
+        title="2. Information We Collect"
+        body={
+          'Account Information. Information you provide when creating or maintaining an account, such as your email address, username, and profile details. You may sign in using your email address or a supported third-party sign-in service.\n\nContent You Submit. Posts, photographs, videos, messages, team and event information, and other materials you choose to upload or share through the Service.\n\nTransaction Information. Records of purchases and subscriptions. Payments are processed by the applicable app store or our third-party payment processor; we do not receive or store full payment card numbers.\n\nTechnical and Usage Information. Device and diagnostic information, identifiers, and information about how you interact with the Service, collected to operate, secure, and improve the Service.\n\nLocation Information. With your permission, approximate location to surface nearby games and events, and, at the moment you use certain location-based posting features, precise device location solely to verify eligibility to use that feature. We do not track your location in the background.'
+        }
+      />
 
       <LegalSectionCard
-          colorScheme={colorScheme}
-          title="Who We Share With"
-          body={
-            'We do not sell your data. We share only with: service providers (Stripe, Cloudinary, Railway, Google, Sentry for crash diagnostics, PostHog for product analytics, SendGrid for email), when you post publicly, or when required by law. We do not share data with sports leagues or universities.'
-          }
-        />
+        colorScheme={colorScheme}
+        title="3. How We Use Information"
+        body={
+          'We use the information we collect to provide, maintain, and improve the Service; process transactions; deliver notifications and communications; personalize your experience; verify eligibility for certain features; maintain the safety and integrity of the Service, including fraud and abuse prevention; and comply with legal obligations.'
+        }
+      />
 
       <LegalSectionCard
-          colorScheme={colorScheme}
-          title="Your Rights"
-          body={
-            'You can access, correct, delete, or export your data. Delete your account in Settings — we anonymize your data immediately. Contact customerservice@varsityhub.app for account requests or support@varsityhub.app to report content.'
-          }
-        />
+        colorScheme={colorScheme}
+        title="4. How We Share Information"
+        body={
+          'We do not sell your personal information. We disclose information only: (a) to service providers performing services on our behalf — such as cloud hosting, media storage, payment processing, analytics, diagnostics, and communications delivery — under obligations limiting their use of that information; (b) when you choose to share content publicly or with other users; (c) as required by law, legal process, or to protect the rights, property, or safety of VarsityHub, our users, or others; and (d) in connection with a merger, acquisition, or sale of assets, in which case this Policy will continue to apply to your information.'
+        }
+      />
 
       <LegalSectionCard
-          colorScheme={colorScheme}
-          title="Children"
-          body={
-            'You must be 13+ to use VarsityHub. Users 13-17 need parental consent. We deny accounts for users under 13 and delete under-13 data immediately upon discovery.'
-          }
-        />
+        colorScheme={colorScheme}
+        title="5. User Content and Sporting Events"
+        body={
+          'VarsityHub is an independent platform and is not affiliated with, endorsed by, or sponsored by any sports league, conference, team, venue, broadcaster, or governing body. Content shared through the Service is created and submitted by users. Each user is solely responsible for the content they record, upload, or share — including recordings made at sporting events — and for complying with applicable laws, venue policies, and third-party rights. Content you share publicly may be viewed, and further shared, by others. Please review our Terms of Service for the rules governing user content.'
+        }
+      />
 
       <LegalSectionCard
-          colorScheme={colorScheme}
-          title="Security & Storage"
-          body={
-            'Data encrypted in transit (HTTPS), stored on Railway (PostgreSQL). We use industry-standard security. VarsityHub is US-based; by using the app you consent to US data transfer.'
-          }
-        />
+        colorScheme={colorScheme}
+        title="6. Data Retention and Deletion"
+        body={
+          'We retain personal information for as long as your account is active or as needed to provide the Service and meet legal obligations. You may delete your account at any time in Settings. Upon deletion, personal data associated with your account is anonymized, and residual copies are removed from backup systems within 90 days.'
+        }
+      />
 
       <LegalSectionCard
-          colorScheme={colorScheme}
-          title="Changes & Contact"
-          body={
-            'We may update this policy and will notify you of material changes. Questions? Email customerservice@varsityhub.app.'
-          }
-        />
+        colorScheme={colorScheme}
+        title="7. Your Rights and Choices"
+        body={
+          'Subject to applicable law, you may request access to, correction of, deletion of, or a portable copy of your personal information. You may manage location and notification permissions in your device settings at any time. To exercise your rights, contact customerservice@varsityhub.app.'
+        }
+      />
+
+      <LegalSectionCard
+        colorScheme={colorScheme}
+        title="8. Children's Privacy"
+        body={
+          'The Service is not directed to children under 13, and we do not knowingly collect personal information from children under 13. Users between 13 and 17 must have parental or guardian consent to use the Service. If we learn that information has been collected from a child under 13, we will delete it promptly.'
+        }
+      />
+
+      <LegalSectionCard
+        colorScheme={colorScheme}
+        title="9. Security"
+        body={
+          'We use commercially reasonable administrative, technical, and physical safeguards designed to protect your information, including encryption of data in transit. No method of transmission or storage is completely secure, and we cannot guarantee absolute security.'
+        }
+      />
+
+      <LegalSectionCard
+        colorScheme={colorScheme}
+        title="10. International Users"
+        body={
+          'The Service is operated from the United States. If you access the Service from outside the United States, you understand that your information will be transferred to, stored, and processed in the United States.'
+        }
+      />
+
+      <LegalSectionCard
+        colorScheme={colorScheme}
+        title="11. Changes to This Policy"
+        body={
+          'We may update this Policy from time to time. If we make material changes, we will provide notice through the Service or by other reasonable means. Your continued use of the Service after changes take effect constitutes acceptance of the revised Policy.'
+        }
+      />
+
+      <LegalSectionCard
+        colorScheme={colorScheme}
+        title="12. Contact"
+        body={
+          'Questions about this Policy or requests concerning your information: customerservice@varsityhub.app. To report content: support@varsityhub.app.'
+        }
+      />
 
       <Text style={[sharedStyles.footer, { color: Colors[colorScheme].mutedText }]}>
         © 2025 Lime Productions. All rights reserved.
