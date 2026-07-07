@@ -86,6 +86,14 @@ function reportTrimFailure(stage: string, error: unknown, uri?: string) {
   );
 }
 
+function getTrimFailureMessage(error: unknown) {
+  const rawMessage = String((error as any)?.message || error || '').trim();
+  if (/Command failed with rc .*1/i.test(rawMessage)) {
+    return 'Video trimming failed in the native module. Please try again.';
+  }
+  return rawMessage || 'An error occurred while trimming the video.';
+}
+
 let trim:
   | ((
       uri: string,
@@ -196,6 +204,7 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
           })
           .catch(e => {
             if (__DEV__) console.warn('[VideoTrimmer] Thumbnail generation failed:', e);
+            reportTrimFailure('thumbnail_gen', e, uri);
             setLoading(false);
           });
       }
@@ -336,6 +345,17 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
             ),
             processableUri ?? undefined
           );
+          // Do NOT silently deliver an untrimmed clip — let the user decide.
+          const outputPath = result.outputPath;
+          Alert.alert(
+            'Trim May Not Have Applied',
+            'The trimmed clip does not match the length you selected. Use it anyway, or try trimming again.',
+            [
+              { text: 'Try Again', style: 'cancel' },
+              { text: 'Use Anyway', onPress: () => onTrimComplete(outputPath) },
+            ]
+          );
+          return;
         }
         onTrimComplete(result.outputPath);
       } else {
@@ -348,7 +368,7 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
         );
       }
     } catch (e: any) {
-      Alert.alert('Trim Failed', e?.message || 'An error occurred while trimming the video.');
+      Alert.alert('Trim Failed', getTrimFailureMessage(e));
       if (__DEV__) console.warn('[VideoTrimmer] Trim error:', e);
       reportTrimFailure('trim_error', e, processableUri ?? undefined);
     } finally {
