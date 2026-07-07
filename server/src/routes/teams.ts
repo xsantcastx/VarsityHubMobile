@@ -2054,8 +2054,18 @@ teamsRouter.post(
   })
 );
 
-// Invite user by email to a team
-const inviteSchema = z.object({ email: z.string().email(), role: z.string().optional() });
+// Invite user by email OR username to a team. Username is resolved to the
+// target's canonical account email at invite time, so a person already on
+// VarsityHub is never sent an invite that could spawn a duplicate account.
+const inviteSchema = z
+  .object({
+    email: z.string().email().optional(),
+    username: z.string().trim().min(1).max(30).optional(),
+    role: z.string().optional(),
+  })
+  .refine(d => Boolean(d.email) || Boolean(d.username), {
+    message: 'Provide an email address or a username to invite.',
+  });
 const VALID_TEAM_INVITE_ROLES = [
   'manager',
   'coach',
@@ -2082,8 +2092,7 @@ teamsRouter.post(
         issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
       });
     }
-    const { email, role } = parsed.data;
-    const inviteEmail = email.trim().toLowerCase();
+    const { email, username, role } = parsed.data;
     const assignedRole = String(role || 'member');
     if (!(VALID_TEAM_INVITE_ROLES as readonly string[]).includes(assignedRole)) {
       return res.status(400).json({
@@ -2118,6 +2127,29 @@ teamsRouter.post(
         error: 'INSUFFICIENT_ROLE',
         message: 'Only team owners can invite at manager level.',
       });
+    }
+
+    // Resolve the invite target to a canonical account email. Done AFTER the
+    // authorization checks so an unauthorized caller can't probe which
+    // usernames exist. Inviting by username looks up the existing account and
+    // keys the invite to that user's real email — no duplicate account can be
+    // spawned for someone already on VarsityHub. Inviting by email that
+    // already belongs to an account is likewise normalized to that account.
+    let inviteEmail: string;
+    if (username) {
+      const target = await prisma.user.findUnique({
+        where: { username: username.trim() },
+        select: { email: true, deleted_at: true },
+      });
+      if (!target?.email || target.deleted_at) {
+        return res.status(404).json({
+          error: 'USER_NOT_FOUND',
+          message: 'No active user found with that username.',
+        });
+      }
+      inviteEmail = target.email.trim().toLowerCase();
+    } else {
+      inviteEmail = email!.trim().toLowerCase();
     }
 
     // PLAN LIMITS: Enforce authorized user caps based on TEAM OWNER's plan (Rule B).
@@ -2353,7 +2385,11 @@ teamsRouter.post(
       return res.status(404).json({ error: 'Invite not found' });
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase())
-      return res.status(403).json({ error: 'Invite not for this user' });
+      return res.status(403).json({
+        error: 'INVITE_EMAIL_MISMATCH',
+        message:
+          'This invite was sent to a different email address. Sign in with the email that received the invite to accept it.',
+      });
     const existingMembership = await prisma.teamMembership.findUnique({
       where: {
         team_id_user_id: {

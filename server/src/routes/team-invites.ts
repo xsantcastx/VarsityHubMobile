@@ -35,11 +35,16 @@ const VALID_INVITE_ROLES = [
 
 // POST /team-invites { team_id, email, role }
 // SECURITY: Same permission checks as POST /teams/:id/invite
-const createInviteSchema = z.object({
-  team_id: z.string().min(1),
-  email: z.string().email(),
-  role: z.string().optional(),
-});
+const createInviteSchema = z
+  .object({
+    team_id: z.string().min(1),
+    email: z.string().email().optional(),
+    username: z.string().trim().min(1).max(30).optional(),
+    role: z.string().optional(),
+  })
+  .refine(d => Boolean(d.email) || Boolean(d.username), {
+    message: 'Provide an email address or a username to invite.',
+  });
 
 teamInvitesRouter.post(
   '/',
@@ -54,14 +59,13 @@ teamInvitesRouter.post(
       return res
         .status(400)
         .json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
-    const { team_id, email, role } = parsed.data;
+    const { team_id, email, username, role } = parsed.data;
 
     // Validate role against whitelist to prevent injection of arbitrary roles
     const assignedRole = String(role || 'member');
     if (!(VALID_INVITE_ROLES as readonly string[]).includes(assignedRole)) {
       return res.status(400).json({ error: 'Invalid role', valid_roles: VALID_INVITE_ROLES });
     }
-    const emailLower = email.toLowerCase();
     const teamId = team_id;
     const team = await prisma.team.findUnique({ where: { id: teamId } });
     if (!team) return res.status(404).json({ error: 'Team not found' });
@@ -81,6 +85,27 @@ teamInvitesRouter.post(
         error: 'INSUFFICIENT_ROLE',
         message: 'Only team owners can invite at manager level.',
       });
+    }
+
+    // Resolve username → the target's canonical account email (after auth, so
+    // callers can't probe usernames). Keeps the invite keyed to the real
+    // account so an existing user is never sent an invite that could create a
+    // duplicate account. Mirrors POST /teams/:id/invite.
+    let emailLower: string;
+    if (username) {
+      const target = await prisma.user.findUnique({
+        where: { username: username.trim() },
+        select: { email: true, deleted_at: true },
+      });
+      if (!target?.email || target.deleted_at) {
+        return res.status(404).json({
+          error: 'USER_NOT_FOUND',
+          message: 'No active user found with that username.',
+        });
+      }
+      emailLower = target.email.trim().toLowerCase();
+    } else {
+      emailLower = email!.toLowerCase();
     }
 
     let invite;

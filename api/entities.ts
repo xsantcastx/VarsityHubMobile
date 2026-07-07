@@ -800,8 +800,15 @@ export const Team = {
     });
     return httpPut('/teams/' + encodeURIComponent(id), payload);
   },
-  invite: (teamId: string, email: string, role?: string) =>
-    httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, { email, role }),
+  // Accepts an email OR a @username. An identifier containing '@' that also
+  // has a domain part is treated as email; otherwise it's sent as a username
+  // for the server to resolve to the person's canonical account.
+  invite: (teamId: string, identifier: string, role?: string) => {
+    const value = identifier.trim().replace(/^@/, '');
+    const looksLikeEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);
+    const body = looksLikeEmail ? { email: value, role } : { username: value, role };
+    return httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, body);
+  },
   cancelInvite: (teamId: string, inviteId: string) =>
     httpPost(
       `/teams/${encodeURIComponent(teamId)}/invites/${encodeURIComponent(inviteId)}/cancel`,
