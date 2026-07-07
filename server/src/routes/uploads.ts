@@ -251,7 +251,7 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, requireVerifiedUn
     // a signed request lets the client upload any file type (executable, script, etc.).
     // The signature ties these constraints into the request so clients can't weaken them.
     const allowedFormats = 'jpg,jpeg,png,gif,webp,heic,heif,mp4,mov';
-    const maxBytes = '52428800'; // 50 MB — videos are the largest legitimate uploads
+    const maxBytes = '157286400'; // 150 MB — must equal client MAX_VIDEO_SIZE_BYTES (constants/video.ts)
     const params: Record<string, string> = {
       folder,
       timestamp: String(timestamp),
