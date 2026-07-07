@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { sendTeamInviteEmail } from '../lib/email.js';
+import { sendError } from '../lib/http/sendError.js';
 import { prisma } from '../lib/prisma.js';
 import {
   canAdministerTeam as canAdministerTeamScoped,
@@ -98,8 +99,7 @@ teamInvitesRouter.post(
         select: { email: true, deleted_at: true },
       });
       if (!target?.email || target.deleted_at) {
-        return res.status(404).json({
-          error: 'USER_NOT_FOUND',
+        return sendError(res, 404, 'USER_NOT_FOUND', {
           message: 'No active user found with that username.',
         });
       }

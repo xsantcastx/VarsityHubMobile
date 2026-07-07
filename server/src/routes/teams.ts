@@ -2142,8 +2142,7 @@ teamsRouter.post(
         select: { email: true, deleted_at: true },
       });
       if (!target?.email || target.deleted_at) {
-        return res.status(404).json({
-          error: 'USER_NOT_FOUND',
+        return sendError(res, 404, 'USER_NOT_FOUND', {
           message: 'No active user found with that username.',
         });
       }
@@ -2385,8 +2384,7 @@ teamsRouter.post(
       return res.status(404).json({ error: 'Invite not found' });
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase())
-      return res.status(403).json({
-        error: 'INVITE_EMAIL_MISMATCH',
+      return sendError(res, 403, 'INVITE_EMAIL_MISMATCH', {
         message:
           'This invite was sent to a different email address. Sign in with the email that received the invite to accept it.',
       });
