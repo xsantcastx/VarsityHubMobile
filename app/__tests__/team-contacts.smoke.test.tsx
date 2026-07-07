@@ -21,7 +21,10 @@ jest.mock('expo-router', () => ({
   ...require('@/test-utils/screenMocks').expoRouterOverrides(),
   useLocalSearchParams: () => ({ id: 't1' }),
 }));
-jest.mock('expo-image-picker', () => require('@/test-utils/screenMocks').expoImagePickerMock());
+jest.mock('expo-image-picker', () => ({
+  ...require('@/test-utils/screenMocks').expoImagePickerMock(),
+  VideoExportPreset: { MediumQuality: 1 },
+}));
 jest.mock('expo-document-picker', () => ({
   getDocumentAsync: jest.fn().mockResolvedValue({ canceled: true }),
 }));

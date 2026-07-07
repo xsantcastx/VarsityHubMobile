@@ -1,6 +1,13 @@
 import CustomActionModal from '@/components/CustomActionModal';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
+import {
+  isNativeVideoTrimSupported,
+  MAX_VIDEO_SIZE_BYTES,
+  MAX_VIDEO_SIZE_MB,
+  VIDEO_CAPTURE_PRESET,
+} from '@/constants/video';
+import { prepareVideoForUpload } from '@/utils/compressVideo';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { useTeamMembersQuery } from '@/hooks/useTeamMembersQuery';
@@ -191,6 +198,7 @@ export default function TeamChatScreen() {
     size: number;
   } | null>(null);
   const [videoTrimmedUri, setVideoTrimmedUri] = useState<string | null>(null);
+  const canTrimVideo = isNativeVideoTrimSupported(Platform.OS);
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -1107,17 +1115,26 @@ export default function TeamChatScreen() {
             mediaTypes: ImagePicker.MediaTypeOptions.All,
             allowsEditing: false,
             quality: 0.8,
+            videoExportPreset: VIDEO_CAPTURE_PRESET,
           });
 
           if (!result.canceled && result.assets[0]) {
             if (result.assets[0].type === 'image') {
               await sendImageMessage(result.assets[0]);
             } else {
+              const pickedSize = result.assets[0].fileSize || 0;
+              if (pickedSize > MAX_VIDEO_SIZE_BYTES) {
+                showToast(
+                  `Video is too large (${Math.round(pickedSize / (1024 * 1024))}MB). The limit is ${MAX_VIDEO_SIZE_MB}MB.`,
+                  'error'
+                );
+                return;
+              }
               // Show trim preview for video files
               setVideoToTrim({
                 uri: result.assets[0].uri,
                 name: `video_${Date.now()}.mp4`,
-                size: result.assets[0].fileSize || 0,
+                size: pickedSize,
               });
               setVideoTrimmedUri(null);
               return; // Upload happens via confirmVideoSend
@@ -1140,14 +1157,15 @@ export default function TeamChatScreen() {
     if (!videoToTrim) return;
     setIsUploadingFile(true);
     try {
+      const prepared = await prepareVideoForUpload(videoTrimmedUri ?? videoToTrim.uri);
       await sendFileMessage({
-        uri: videoTrimmedUri ?? videoToTrim.uri,
+        uri: prepared.uri,
         name: videoToTrim.name,
-        size: videoToTrim.size,
+        size: prepared.finalSizeBytes || videoToTrim.size,
         mimeType: 'video/mp4',
       });
-    } catch {
-      showToast('Failed to send video', 'error');
+    } catch (e: any) {
+      showToast(e?.message || 'Failed to send video', 'error');
     } finally {
       setIsUploadingFile(false);
       setVideoToTrim(null);
@@ -2280,11 +2298,25 @@ export default function TeamChatScreen() {
                   maxHeight: 300,
                 }}
               />
-              <VideoTrimmer
-                uri={videoToTrim.uri}
-                onTrimComplete={u => setVideoTrimmedUri(u)}
-                onTrimReset={() => setVideoTrimmedUri(null)}
-              />
+              {canTrimVideo ? (
+                <VideoTrimmer
+                  uri={videoToTrim.uri}
+                  onTrimComplete={u => setVideoTrimmedUri(u)}
+                  onTrimReset={() => setVideoTrimmedUri(null)}
+                />
+              ) : (
+                <Text
+                  style={{
+                    color: '#E5E7EB',
+                    textAlign: 'center',
+                    marginTop: 12,
+                    marginHorizontal: 8,
+                  }}
+                >
+                  Web uploads the selected video as-is. Trimming is available in the iOS and Android
+                  app.
+                </Text>
+              )}
               <View
                 style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 12 }}
               >
