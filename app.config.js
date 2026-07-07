@@ -13,7 +13,7 @@
 //   EAS_PROJECT_ID
 
 module.exports = ({ config }) => {
-  const isTruthy = (value) =>
+  const isTruthy = value =>
     typeof value === 'string' && ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
   const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || '64489ed7-a8c0-41de-91ec-5846ea79a27f';
   const packageVersion = require('./package.json').version;
@@ -89,7 +89,7 @@ module.exports = ({ config }) => {
       },
     },
     ios: {
-      buildNumber: '51',
+      buildNumber: '52',
       supportsTablet: true,
       appleTeamId: 'B5H8F69RW5',
       bundleIdentifier: 'com.varsithub.varsityhub-ios',
@@ -130,7 +130,7 @@ module.exports = ({ config }) => {
       },
       softwareKeyboardLayoutMode: 'pan',
       edgeToEdgeEnabled: true,
-      versionCode: 38,
+      versionCode: 39,
       package: 'com.xsantcastx.varsityhub',
       intentFilters: [
         {
@@ -241,6 +241,7 @@ module.exports = ({ config }) => {
         },
       ],
       'react-native-iap',
+      'react-native-compressor',
     ],
     // Expo Router typed routes are required in this app.
     // Route safety should fail in two layers:
