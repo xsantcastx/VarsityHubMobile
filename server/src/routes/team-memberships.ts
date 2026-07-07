@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import {
   canManageTeam as canManageTeamShared,
+  canAdministerTeam as canAdministerTeamShared,
   canAssignTeamRole,
 } from '../lib/teamAuthorization.js';
 import { guardTeamMembershipMutation } from '../lib/teamEntitlements.js';
@@ -40,6 +41,13 @@ async function canManageTeam(req: AuthedRequest, teamId: string): Promise<boolea
   return canManageTeamShared(req.user?.id ?? null, teamId);
 }
 
+// Role-barrier model: full team administration (add/remove members, change
+// roles, search candidates to invite) is reserved for owner/coach/org owner.
+// Managers/assistant_coaches keep `canManageTeam` for roster approve/deny.
+async function canAdministerTeam(req: AuthedRequest, teamId: string): Promise<boolean> {
+  return canAdministerTeamShared(req.user?.id ?? null, teamId);
+}
+
 // POST /team-memberships { team_id, user_id, role }
 // CRITICAL: Only team owners/managers/coaches can add members to their teams
 const createMembershipSchema = z.object({
@@ -63,10 +71,10 @@ teamMembershipsRouter.post(
           .json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
       const { team_id, user_id, role } = parsed.data;
 
-      const canManage = await canManageTeam(req, String(team_id));
+      const canManage = await canAdministerTeam(req, String(team_id));
       if (!canManage) {
         return sendError(res, 403, 'PERMISSION_DENIED', {
-          message: 'Only team staff or organization admins can add members to teams.',
+          message: 'Only the team owner, head coach, or organization owner can add members.',
         });
       }
 
@@ -161,10 +169,10 @@ teamMembershipsRouter.patch(
       const membership = await prisma.teamMembership.findUnique({ where: { id } });
       if (!membership) return sendError(res, 404, 'Membership not found');
 
-      const canManage = await canManageTeam(req, membership.team_id);
+      const canManage = await canAdministerTeam(req, membership.team_id);
       if (!canManage) {
         return sendError(res, 403, 'PERMISSION_DENIED', {
-          message: 'Only team staff or organization admins can update roles.',
+          message: 'Only the team owner, head coach, or organization owner can update roles.',
         });
       }
 
@@ -274,11 +282,11 @@ teamMembershipsRouter.delete(
       const membership = await prisma.teamMembership.findUnique({ where: { id } });
       if (!membership) return sendError(res, 404, 'Membership not found');
 
-      const canManage = await canManageTeam(req, membership.team_id);
+      const canManage = await canAdministerTeam(req, membership.team_id);
       const isSelf = req.user.id === membership.user_id;
       if (!canManage && !isSelf) {
         return sendError(res, 403, 'PERMISSION_DENIED', {
-          message: 'Only team staff or organization admins can remove members.',
+          message: 'Only the team owner, head coach, or organization owner can remove members.',
         });
       }
 
@@ -475,7 +483,7 @@ teamMembershipsRouter.get(
     if (!teamId) return sendError(res, 400, 'teamId is required');
     if (!q || q.length < 2) return sendError(res, 400, 'q must be at least 2 characters');
 
-    const canManage = await canManageTeam(req, teamId);
+    const canManage = await canAdministerTeam(req, teamId);
     if (!canManage) return sendError(res, 403, 'PERMISSION_DENIED');
 
     // Users already on the team (any status) — exclude from results
@@ -582,7 +590,9 @@ teamMembershipsRouter.post(
 
     // IDOR-001: Prevent self-approval — a manager cannot approve their own join request
     if (joinRequest.user_id === req.user.id) {
-      return sendError(res, 403, 'PERMISSION_DENIED', { message: 'You cannot approve your own join request.' });
+      return sendError(res, 403, 'PERMISSION_DENIED', {
+        message: 'You cannot approve your own join request.',
+      });
     }
 
     // Approve atomically: update request + create membership
@@ -663,7 +673,9 @@ teamMembershipsRouter.post(
 
     // IDOR-001: Prevent self-rejection — a manager cannot reject their own join request
     if (joinRequest.user_id === req.user.id) {
-      return sendError(res, 403, 'PERMISSION_DENIED', { message: 'You cannot reject your own join request.' });
+      return sendError(res, 403, 'PERMISSION_DENIED', {
+        message: 'You cannot reject your own join request.',
+      });
     }
 
     await prisma.teamJoinRequest.update({
