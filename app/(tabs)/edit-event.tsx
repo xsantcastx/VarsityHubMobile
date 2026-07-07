@@ -16,6 +16,7 @@ import { handleCoachAccessError } from '@/utils/coachAccess';
 import { buildEventDetailHref } from '@/utils/eventRoutes';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
@@ -185,7 +186,7 @@ export default function EditEventScreen() {
       permissionMessage: 'Photo library permission is needed to upload an event photo.',
       launchPicker: () =>
         ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          ...pickerMediaTypesProp(),
           allowsEditing: true,
           // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
           // crop at the displayed ratio so uploads aren't re-cropped at render time.
@@ -202,7 +203,7 @@ export default function EditEventScreen() {
       permissionMessage: 'Camera permission is needed to take an event photo.',
       launchPicker: () =>
         ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          ...pickerMediaTypesProp(),
           allowsEditing: true,
           // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
           // crop at the displayed ratio so uploads aren't re-cropped at render time.

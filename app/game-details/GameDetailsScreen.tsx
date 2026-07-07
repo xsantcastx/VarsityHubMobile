@@ -22,6 +22,7 @@ import {
 } from '@/utils/eventPresentation';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
+import { pickerAllMediaTypesProp } from '@/utils/picker';
 import { promptForSignIn } from '@/utils/requireSignIn';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
@@ -1232,7 +1233,7 @@ const GameDetailsScreen = () => {
     try {
       setStoryBusy(true);
       const pickerOptions: ImagePicker.ImagePickerOptions = {
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        ...pickerAllMediaTypesProp(),
         quality: 0.8,
         videoExportPreset: VIDEO_CAPTURE_PRESET,
       };

@@ -16,6 +16,7 @@ import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { pickerMediaTypesProp } from '@/utils/picker';
 
 type Props = {
   value?: string | null;
@@ -81,7 +82,7 @@ export default function EventPreviewImageField({
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      ...pickerMediaTypesProp(),
       allowsEditing: true,
       // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
       // crop at the displayed ratio so uploads aren't re-cropped at render time.
@@ -106,7 +107,7 @@ export default function EventPreviewImageField({
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      ...pickerMediaTypesProp(),
       allowsEditing: true,
       // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
       // crop at the displayed ratio so uploads aren't re-cropped at render time.

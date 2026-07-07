@@ -37,6 +37,7 @@ import {
 } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
+import { pickerMediaTypesProp } from '@/utils/picker';
 
 // Field validation errors
 interface FieldErrors {
@@ -272,7 +273,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      ...pickerMediaTypesProp(),
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -295,7 +296,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      ...pickerMediaTypesProp(),
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -368,7 +369,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      ...pickerMediaTypesProp(),
       allowsEditing: true,
       // Profile background renders full width x 200px (~2:1) — crop to match.
       aspect: [2, 1],

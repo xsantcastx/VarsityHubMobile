@@ -10,6 +10,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ensureUploadableUri } from '@/utils/ensureUploadableUri';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -97,7 +98,7 @@ export function BannerUpload({
       // hand us a proper local file (not a ph:// cloud reference). On iCloud-optimized
       // devices the first read may still fail — the catch below handles that gracefully.
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        ...pickerMediaTypesProp(),
         allowsEditing: false, // Allow full image without cropping
         allowsMultipleSelection: false,
         quality: 0.8,

@@ -9,6 +9,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -205,7 +206,7 @@ function EditTeamScreen() {
       permissionMessage: 'Please allow access to your photos to upload a team logo.',
       launchPicker: () =>
         ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          ...pickerMediaTypesProp(),
           allowsEditing: true,
           aspect: [1, 1],
           quality: 0.8,

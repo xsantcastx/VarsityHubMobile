@@ -42,7 +42,7 @@ import { prepareVideoForUpload, uploadTimeoutMsForSize } from '@/utils/compressV
 import { sanitizeText } from '@/utils/formUtils';
 import { ICLOUD_ERROR_MESSAGE, ICLOUD_ERROR_TITLE, isICloudError } from '@/utils/isICloudError';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
-import { pickerMediaTypeFor } from '@/utils/picker';
+import { pickerAllMediaTypesProp, pickerMediaTypeFor } from '@/utils/picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -522,14 +522,8 @@ function CreatePostScreen() {
         ]);
         return;
       }
-      // Version-safe mediaTypes: new SDK uses MediaType array, old SDK uses MediaTypeOptions
-      const anyIP = ImagePicker as any;
-      const cameraMediaTypes = anyIP?.MediaType
-        ? [anyIP.MediaType.Images, anyIP.MediaType.Videos]
-        : anyIP.MediaTypeOptions?.All;
-
       const r = await ImagePicker.launchCameraAsync({
-        mediaTypes: cameraMediaTypes,
+        ...pickerAllMediaTypesProp(),
         allowsEditing: false,
         quality: 0.85,
         exif: false,

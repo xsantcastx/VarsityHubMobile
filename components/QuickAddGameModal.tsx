@@ -9,6 +9,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { formatGameTime, isPastGameDate } from '@/utils/gameFormHelpers';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -671,7 +672,7 @@ export default function QuickAddGameModal({
       }
 
       const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        ...pickerMediaTypesProp(),
         allowsEditing: true,
         // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
         // crop at the displayed ratio so uploads aren't re-cropped at render time.
@@ -701,7 +702,7 @@ export default function QuickAddGameModal({
       }
 
       const pickerResult = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        ...pickerMediaTypesProp(),
         allowsEditing: true,
         // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
         // crop at the displayed ratio so uploads aren't re-cropped at render time.

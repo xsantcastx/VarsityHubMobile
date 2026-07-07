@@ -42,6 +42,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '@/utils/uploadUtils';
 import { safeGoBack } from '@/utils/navigation';
+import { pickerAllMediaTypesProp, pickerMediaTypesProp } from '@/utils/picker';
 
 // Pre-generated waveform bar heights — avoids Array allocation + Math.random() on every render
 const VOICE_WAVE_HEIGHTS = Array.from({ length: 20 }, (_, i) => {
@@ -751,7 +752,7 @@ export default function TeamChatScreen() {
   const pickImage = useCallback(async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        ...pickerMediaTypesProp(),
         allowsEditing: false,
         quality: 0.8,
       });
@@ -1112,7 +1113,7 @@ export default function TeamChatScreen() {
         if (type === 'media') {
           // Use image picker for media
           const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.All,
+            ...pickerAllMediaTypesProp(),
             allowsEditing: false,
             quality: 0.8,
             videoExportPreset: VIDEO_CAPTURE_PRESET,
