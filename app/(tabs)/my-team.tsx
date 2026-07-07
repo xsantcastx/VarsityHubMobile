@@ -811,13 +811,14 @@ function MyTeamScreen() {
               Send an invitation to join {selectedTeam?.name || 'your team'}.
             </Text>
 
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Email</Text>
+            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>
+              Email or username
+            </Text>
             <TextInput
               value={inviteEmail}
               onChangeText={setInviteEmail}
-              placeholder="player@example.com"
+              placeholder="player@example.com or @username"
               placeholderTextColor={Colors[colorScheme].mutedText}
-              keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
               style={[
