@@ -38,7 +38,7 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>52</string>
+    <string>55</string>
     <key>GMSApiKey</key>
     <string>$(GOOGLE_MAPS_API_KEY)</string>
     <key>ITSAppUsesNonExemptEncryption</key>
