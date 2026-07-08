@@ -51,7 +51,7 @@ export default function PrivacyPolicyScreen() {
         colorScheme={colorScheme}
         title="5. User Content and Sporting Events"
         body={
-          'VarsityHub is an independent platform and is not affiliated with, endorsed by, or sponsored by any sports league, conference, team, venue, broadcaster, or governing body. Content shared through the Service is created and submitted by users. Each user is solely responsible for the content they record, upload, or share — including recordings made at sporting events — and for complying with applicable laws, venue policies, and third-party rights. Content you share publicly may be viewed, and further shared, by others. Please review our Terms of Service for the rules governing user content.'
+          'VarsityHub is an independent platform and is not affiliated with, endorsed by, or sponsored by any sports league, conference, team, venue, broadcaster, or governing body. Content shared through the Service is created and submitted by users. Each user is solely responsible for the content they record, upload, or share — including recordings made at sporting events — and for complying with applicable laws, venue policies, and third-party rights. Content you share publicly may be viewed, and further shared, by others.'
         }
       />
 

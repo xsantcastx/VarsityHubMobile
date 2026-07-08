@@ -5,14 +5,13 @@ reality and were archived to `docs/archive/legal-2025-01/`. Do not edit or link 
 
 The live legal pages are code, not standalone documents:
 
-| Document         | Canonical source (edit here)        | Public URL                              |
-| ---------------- | ----------------------------------- | --------------------------------------- |
-| Privacy Policy   | `app/settings/privacy-policy.tsx`   | https://varsityhub.app/privacy-policy   |
-| Terms of Service | `app/settings/terms-of-service.tsx` | https://varsityhub.app/terms            |
-| Account Deletion | `app/account-deletion.tsx`          | https://varsityhub.app/account-deletion |
+| Document         | Canonical source (edit here)      | Public URL                              |
+| ---------------- | --------------------------------- | --------------------------------------- |
+| Privacy Policy   | `app/settings/privacy-policy.tsx` | https://varsityhub.app/privacy-policy   |
+| Account Deletion | `app/account-deletion.tsx`        | https://varsityhub.app/account-deletion |
 
-The public URLs are Expo Router bridge routes (`app/privacy-policy.tsx`, `app/terms.tsx`)
-re-exporting the settings screens — one implementation, rendered in-app and on the web
+The privacy policy public URL is an Expo Router bridge route (`app/privacy-policy.tsx`)
+re-exporting the settings screen so one implementation renders in-app and on the web
 export that Vercel serves.
 
 `server/src/routes/publicSite.ts` carries fallback HTML copies of the same content for

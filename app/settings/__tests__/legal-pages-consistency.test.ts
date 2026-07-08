@@ -63,13 +63,13 @@ describe('privacy policy consistency (app screen vs server fallback)', () => {
 });
 
 describe('public web routes bridge the settings screens', () => {
-  it.each([
-    ['app/privacy-policy.tsx', './settings/privacy-policy'],
-    ['app/terms.tsx', './settings/terms-of-service'],
-  ])('%s re-exports %s', (bridgeFile, target) => {
-    const bridge = fs.readFileSync(path.join(repoRoot, bridgeFile), 'utf8');
-    expect(bridge).toContain(`export { default } from '${target}'`);
-  });
+  it.each([['app/privacy-policy.tsx', './settings/privacy-policy']])(
+    '%s re-exports %s',
+    (bridgeFile, target) => {
+      const bridge = fs.readFileSync(path.join(repoRoot, bridgeFile), 'utf8');
+      expect(bridge).toContain(`export { default } from '${target}'`);
+    }
+  );
 
   it('account-deletion web route exists for the Play data-deletion listing', () => {
     expect(fs.existsSync(path.join(repoRoot, 'app/account-deletion.tsx'))).toBe(true);
