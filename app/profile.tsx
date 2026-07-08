@@ -1290,9 +1290,22 @@ export default function ProfileScreen() {
           >
             Sign in to create your profile, post highlights, and connect with your community.
           </Text>
-          <Button onPress={() => router.push('/sign-in')} style={{ width: '100%', marginTop: 8 }}>
+          <Pressable
+            onPress={() => router.push('/sign-in')}
+            style={{
+              width: '100%',
+              marginTop: 8,
+              backgroundColor: theme.tint,
+              paddingVertical: 14,
+              borderRadius: 12,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Sign In"
+          >
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Sign In</Text>
-          </Button>
+          </Pressable>
           <Pressable
             onPress={() => router.push('/sign-up')}
             style={{ paddingVertical: 12, width: '100%', alignItems: 'center' }}

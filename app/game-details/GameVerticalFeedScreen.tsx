@@ -43,7 +43,7 @@ import { getAuthSnapshot } from '@/utils/authState';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import events from '@/utils/events';
 import { optimizeImageUrl, optimizeVideoUrl } from '@/utils/imageUrl';
-import { AppLinks } from '@/utils/links';
+import { AppLinks, buildNativeSharePayload } from '@/utils/links';
 import { resolveMediaType } from '@/utils/media';
 import { promptForSignIn } from '@/utils/requireSignIn';
 
@@ -1296,7 +1296,7 @@ function GameVerticalFeedScreen({
       }
     }
     const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
-    Share.share({ message: shareLink.shareMessage, url: shareLink.webUrl }).catch(() => {});
+    Share.share(buildNativeSharePayload(shareLink.shareMessage, shareLink.webUrl)).catch(() => {});
   }, []);
 
   const handleCopyLink = useCallback(async (post: FeedPost) => {

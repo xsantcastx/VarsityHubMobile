@@ -305,6 +305,14 @@ export const Game = {
       `/games/${encodeURIComponent(id)}/approve`,
       reason ? { approval_status: approval, reason } : { approval_status: approval }
     ),
+  // Opponent-approval workflow: games awaiting a decision from a team the
+  // caller manages, and the accept/decline action itself.
+  opponentPending: () => httpGet('/games/opponent-pending', {}, 15000, 1),
+  decideOpponentApproval: (id: string, decision: 'approve' | 'decline', reason?: string) =>
+    httpPost(
+      `/games/${encodeURIComponent(id)}/opponent-approval`,
+      reason ? { decision, reason } : { decision }
+    ),
   stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`, {}, 15000, 1),
   // Story creation can be slower under server load; allow a longer timeout but avoid retries to prevent duplicates.
   addStory: (
@@ -796,12 +804,15 @@ export const Team = {
     });
     return httpPut('/teams/' + encodeURIComponent(id), payload);
   },
-  invite: (teamId: string, identifier: string, role?: string) =>
-    httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, {
-      identifier,
-      email: identifier,
-      role,
-    }),
+  // Accepts an email OR a @username. An identifier containing '@' that also
+  // has a domain part is treated as email; otherwise it's sent as a username
+  // for the server to resolve to the person's canonical account.
+  invite: (teamId: string, identifier: string, role?: string) => {
+    const value = identifier.trim().replace(/^@/, '');
+    const looksLikeEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);
+    const body = looksLikeEmail ? { email: value, role } : { username: value, role };
+    return httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, body);
+  },
   cancelInvite: (teamId: string, inviteId: string) =>
     httpPost(
       `/teams/${encodeURIComponent(teamId)}/invites/${encodeURIComponent(inviteId)}/cancel`,

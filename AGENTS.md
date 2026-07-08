@@ -167,6 +167,10 @@ npx tsc --noEmit --project server/tsconfig.json
 npm run verify:error-envelope
 ```
 
+## Team Role-Barrier Model (2026-07-06)
+
+`server/src/lib/teamAuthorization.ts` splits team/org authorization into two tiers: `canAdministerTeam()` (team owner/coach, or org owner — settings, invites, roster add/remove/role-change, ownership transfer) vs `canManageTeam()`/`canManageAnyTeam()` (also admits team manager/assistant_coach and org manager — roster join-request approve/deny, event/game create + approve/deny ONLY). Organization management (`isOrgOwner()`) is owner-only — org managers have zero admin power. Athletes/parents/members have no admin functions. New mutation endpoints must pick the correct tier explicitly.
+
 ## Security Invariants (Do Not Break)
 
 - **No client-controlled security-critical state** — payment status, approval state, role, and plan are always server-authoritative
@@ -175,7 +179,7 @@ npm run verify:error-envelope
 - **Deep link params use allowlist** — `buildRouteParams()` in `utils/deepLinks.ts` enforces per-route key allowlists
 - **Webhook lock failures return 503** (not 500) so Stripe retries
 - **Apple IAP cert chain pins to `CN=Apple Root CA - G3`** exactly
-- **Org invite role escalation** — only owners can invite at `manager` role
+- **Org invite creation is owner-only** — only the organization owner creates/revokes org invites; org managers have no invite power
 - **Payment-success non-auth errors surface on final retry** — no silent swallowing
 
 ## Security & Architecture Audit Standard

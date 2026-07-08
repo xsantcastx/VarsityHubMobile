@@ -29,9 +29,11 @@ import { prisma } from './prisma.js';
 
 export const TEAM_STAFF_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
 export const ORG_ADMIN_ROLES = ['owner', 'manager'] as const;
-// Deliberately stricter than TEAM_STAFF_ROLES: only team leadership may perform
-// destructive, cascading team actions (archive/delete). See canArchiveTeam.
-export const TEAM_LEADERSHIP_ROLES = ['owner', 'manager'] as const;
+// Role-barrier model (2026-07-06): full team administration is reserved for the
+// team owner and head coach; managers/assistant coaches are "authorized users"
+// whose ONLY admin functions are approve/deny roster and create/approve/deny
+// events (they keep canManageTeam, which now gates only those functions).
+export const TEAM_ADMIN_ROLES = ['owner', 'coach'] as const;
 
 /**
  * Can `userId` manage members + settings of `teamId`?
@@ -39,7 +41,10 @@ export const TEAM_LEADERSHIP_ROLES = ['owner', 'manager'] as const;
  * Direct check: user has an active team-staff membership on the team.
  * Fallback: user is an active owner/manager of the team's organization.
  */
-export async function canManageTeam(userId: string | null | undefined, teamId: string): Promise<boolean> {
+export async function canManageTeam(
+  userId: string | null | undefined,
+  teamId: string
+): Promise<boolean> {
   return canManageAnyTeam(userId, [teamId]);
 }
 
@@ -84,36 +89,25 @@ export async function canManageAnyTeam(
  * Can `userId` archive/delete `teamId`?
  *
  * Deliberately STRICTER than canManageTeam: archiving a team cascades
- * (memberships, invites, follows, chat unlinks), so only team leadership
- * (owner/manager) OR an org admin of the team's org may do it. Coaches and
- * assistant_coaches pass canManageTeam but MUST NOT be able to archive teams.
- * Fails closed on null user; same org-admin fallback as the other helpers.
+ * (memberships, invites, follows, chat unlinks) — a full-administration
+ * action. Same boundary as `canAdministerTeam` (team owner/coach, or org
+ * owner). Managers pass `canManageTeam` but MUST NOT be able to archive
+ * teams under the role-barrier model.
  */
-export async function canArchiveTeam(userId: string | null | undefined, teamId: string): Promise<boolean> {
-  if (!userId) return false;
-
-  const membership = await prisma.teamMembership.findFirst({
-    where: {
-      team_id: teamId,
-      user_id: userId,
-      role: { in: [...TEAM_LEADERSHIP_ROLES] },
-      status: 'active',
-    },
-    select: { id: true },
-  });
-  if (membership) return true;
-
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: { organization_id: true },
-  });
-  return isOrgAdmin(userId, team?.organization_id ?? null);
+export async function canArchiveTeam(
+  userId: string | null | undefined,
+  teamId: string
+): Promise<boolean> {
+  return canAdministerTeam(userId, teamId);
 }
 
 /**
  * Is `userId` an active admin (owner OR manager) of `orgId`?
  */
-export async function isOrgAdmin(userId: string | null | undefined, orgId: string | null | undefined): Promise<boolean> {
+export async function isOrgAdmin(
+  userId: string | null | undefined,
+  orgId: string | null | undefined
+): Promise<boolean> {
   if (!userId || !orgId) return false;
   const membership = await prisma.organizationMembership.findFirst({
     where: {
@@ -128,12 +122,71 @@ export async function isOrgAdmin(userId: string | null | undefined, orgId: strin
 }
 
 /**
+ * Is `userId` the OWNER (not manager) of `orgId`? Stricter than `isOrgAdmin`
+ * — used for the org-level actions the role-barrier model reserves for the
+ * owner alone (org edit, org invite create/revoke, team-admin-tier fallback).
+ */
+export async function isOrgOwner(
+  userId: string | null | undefined,
+  orgId: string | null | undefined
+): Promise<boolean> {
+  if (!userId || !orgId) return false;
+  const membership = await prisma.organizationMembership.findFirst({
+    where: {
+      organization_id: orgId,
+      user_id: userId,
+      role: 'owner',
+      status: 'active',
+    },
+    select: { id: true },
+  });
+  return Boolean(membership);
+}
+
+/**
+ * Can `userId` ADMINISTER `teamId` — team settings, invite creation, roster
+ * add/remove/role-change, ownership transfer?
+ *
+ * Role-barrier model (2026-07-06, user-directed): full team administration —
+ * billing, exclusive info, settings, transfers — is reserved for the team
+ * owner and head coach (or the org owner). Managers and assistant_coaches
+ * remain "authorized users": they pass `canManageTeam` (so they keep roster
+ * approve/deny and event approve/deny + create) but MUST NOT pass this
+ * stricter check. Fails closed on null user.
+ */
+export async function canAdministerTeam(
+  userId: string | null | undefined,
+  teamId: string
+): Promise<boolean> {
+  if (!userId) return false;
+  const membership = await prisma.teamMembership.findFirst({
+    where: {
+      team_id: teamId,
+      user_id: userId,
+      role: { in: [...TEAM_ADMIN_ROLES] },
+      status: 'active',
+    },
+    select: { id: true },
+  });
+  if (membership) return true;
+
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { organization_id: true },
+  });
+  return isOrgOwner(userId, team?.organization_id ?? null);
+}
+
+/**
  * Can `userId` approve a game involving `teamId`?
  *
  * Same boundary as `canManageTeam` — team staff OR org admin. Provided as a
  * named helper so call sites read clearly at the approval endpoint.
  */
-export async function canApproveTeamGame(userId: string | null | undefined, teamId: string): Promise<boolean> {
+export async function canApproveTeamGame(
+  userId: string | null | undefined,
+  teamId: string
+): Promise<boolean> {
   return canManageTeam(userId, teamId);
 }
 
@@ -189,7 +242,10 @@ export async function canAssignTeamRole(
  * Returns false for unauthenticated viewers attempting to access a private
  * team, and false for any user not on the access list above.
  */
-export async function canViewTeam(userId: string | null | undefined, teamId: string): Promise<boolean> {
+export async function canViewTeam(
+  userId: string | null | undefined,
+  teamId: string
+): Promise<boolean> {
   const team = await prisma.team.findUnique({
     where: { id: teamId },
     select: { is_private: true, organization_id: true } as any,
@@ -224,7 +280,10 @@ export async function canViewTeam(userId: string | null | undefined, teamId: str
  * Convenience: check whether `userId` is admin (owner or manager) in ANY of
  * the supplied org IDs. Used by game-approval to check across home/away orgs.
  */
-export async function isAdminOfAnyOrg(userId: string | null | undefined, orgIds: string[]): Promise<boolean> {
+export async function isAdminOfAnyOrg(
+  userId: string | null | undefined,
+  orgIds: string[]
+): Promise<boolean> {
   if (!userId || orgIds.length === 0) return false;
   const filtered = orgIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
   if (filtered.length === 0) return false;

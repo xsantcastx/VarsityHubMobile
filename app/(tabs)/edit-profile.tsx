@@ -1006,6 +1006,10 @@ export default function EditProfileScreen() {
               </Text>
             </View>
 
+            {/* Profile Theme Color editor removed (July 6 notes) — existing
+                saved theme_color values still render on the profile; users just
+                no longer pick a color here. */}
+
             {/* Team Member Section */}
             {isTeamMember && (
               <View

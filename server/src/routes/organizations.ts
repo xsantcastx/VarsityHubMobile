@@ -1258,17 +1258,14 @@ organizationsRouter.post(
           .json({ error: `Invalid role. Must be one of: ${VALID_ORG_INVITE_ROLES.join(', ')}` });
       }
 
-      // Check if user is a member of the organization
+      // Role-barrier model (2026-07-06): the organization owner is the ONLY
+      // one who manages the organization — org managers no longer get invite
+      // power (superseding the old "managers may invite at member level"
+      // rule; managers/coaches still keep team-level roster+event approvals).
       const membership = await getOrganizationMembership(req.user!.id, id);
 
-      if (!membership || !isOrganizationAdmin(membership.role)) {
-        return res.status(403).json({ error: 'Insufficient permissions' });
-      }
-
-      // PERMISSION-001: Managers can invite members but not other managers.
-      // Only owners can elevate someone to manager role.
-      if (role === 'manager' && membership.role !== 'owner') {
-        return res.status(403).json({ error: 'Only organization owners can invite managers.' });
+      if (!membership || membership.role !== 'owner') {
+        return sendError(res, 403, 'Only the organization owner can invite members.');
       }
       if (resolvedIdentifier.resolvedUserId) {
         const existingMembership = await prisma.organizationMembership.findFirst({
@@ -1474,10 +1471,9 @@ organizationsRouter.post(
       return res.status(404).json({ error: 'Invite not found' });
     }
 
-    if (!isPlatformAdmin && (!membership || !isOrganizationAdmin(membership.role))) {
-      return res.status(403).json({
-        error: 'PERMISSION_DENIED',
-        message: 'Only organization admins can cancel invites.',
+    if (!isPlatformAdmin && (!membership || membership.role !== 'owner')) {
+      return sendError(res, 403, 'PERMISSION_DENIED', {
+        message: 'Only the organization owner can cancel invites.',
       });
     }
 

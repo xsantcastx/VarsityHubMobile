@@ -11,7 +11,7 @@ import {
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { buildEventDetailHref } from '@/utils/eventRoutes';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
@@ -40,7 +40,11 @@ import { Event } from '@/api/entities';
 
 export default function EditEventScreen() {
   const { user } = useAuth();
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  // Role-barrier model: event create/edit/approve-deny is an "authorized
+  // user" function (manager/assistant_coach included) — gate on the
+  // membership-aware hook, not the coach-role-only useRequireCoach that
+  // wrongly bounced non-coach staff. Server still authorizes per-event.
+  const { canManage: canAccessCoachTools, loading: coachLoading } = useRequireTeamManagement();
   const router = useRouter();
   const { id, fallback } = useLocalSearchParams<{ id?: string; fallback?: string }>();
   const colorScheme = useColorScheme() ?? 'light';

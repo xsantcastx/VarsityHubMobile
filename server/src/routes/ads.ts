@@ -1394,8 +1394,13 @@ function confirmationForm(
     ? `<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:8px 12px;margin:8px 0;text-align:left;color:#991B1B;font-size:13px;">${escapeHtml(errorBanner)}</div>`
     : '';
 
-  // The submit handler builds a JSON body including the override fields when
-  // present and POSTs to the same URL with the token still in the query string.
+  // Native HTML form POST — no JavaScript. The app-wide Helmet CSP
+  // (script-src 'self' + hash allowlist, script-src-attr 'none') blocks inline
+  // scripts and on* attributes on this server-rendered page, so a JS submit
+  // handler never runs in email in-app browsers. A method="POST" form with the
+  // token preserved in the action query string works under any CSP; the
+  // urlencoded body parser populates override_* on the server.
+  const safeFormAction = escapeHtml(`?token=${encodeURIComponent(token)}`);
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${verb} Ad</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:540px;margin:60px auto;padding:20px;text-align:center;">
 <h2>${verb} this ad?</h2>
@@ -1403,45 +1408,11 @@ function confirmationForm(
 ${topErrorHtml}
 ${flaggedHtml}
 ${scanErrorHtml}
-<form id="moderation-form" onsubmit="return submitModeration(event)">
+<form id="moderation-form" method="POST" action="${safeFormAction}">
+  ${isFlagged ? '<input type="hidden" name="override_banner_flag" value="1">' : ''}
   <button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;margin-top:16px;">${verb} Ad</button>
 </form>
-<p id="moderation-status" style="margin-top:16px;color:#6B7280;font-size:13px;"></p>
 <p style="margin-top:24px;color:#9CA3AF;font-size:12px;">Click the button to confirm.</p>
-<script>
-async function submitModeration(event) {
-  event.preventDefault();
-  const statusEl = document.getElementById('moderation-status');
-  statusEl.textContent = 'Submitting...';
-  const body = {};
-  const reasonEl = document.getElementById('override_reason');
-  if (reasonEl) {
-    const reason = reasonEl.value.trim();
-    if (!reason || reason.length < 10) {
-      statusEl.textContent = 'Override reason must be at least 10 characters.';
-      statusEl.style.color = '#DC2626';
-      return false;
-    }
-    body.override_banner_flag = true;
-    body.override_reason = reason;
-  }
-  try {
-    const res = await fetch(window.location.pathname + window.location.search, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'text/html' },
-      body: JSON.stringify(body),
-    });
-    const html = await res.text();
-    document.open();
-    document.write(html);
-    document.close();
-  } catch (err) {
-    statusEl.textContent = 'Network error. Please retry.';
-    statusEl.style.color = '#DC2626';
-  }
-  return false;
-}
-</script>
 </body></html>`;
 }
 

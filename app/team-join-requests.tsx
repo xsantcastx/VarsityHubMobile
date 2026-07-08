@@ -2,7 +2,7 @@ import { TeamMemberships } from '@/api/entities';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { safeGoBack } from '@/utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -40,11 +40,12 @@ export default function TeamJoinRequestsScreen() {
   const theme = Colors[colorScheme];
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  // Staff-only screen. Mirror team-admin's guard: useRequireCoach redirects a
-  // non-coach fan to /(tabs)/feed instead of letting them reach the API, get a
-  // 403, and see a generic "Failed to load requests" error. Per-team
-  // authorization stays server-enforced on the approve/reject calls below.
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  // Staff-only screen. Role-barrier model: reviewing join requests is an
+  // "authorized user" function (manager/assistant_coach included), so gate on
+  // the membership-aware useRequireTeamManagement — the old useRequireCoach
+  // guard wrongly bounced non-coach staff whose ONLY admin function this is.
+  // Per-team authorization stays server-enforced on the approve/reject calls.
+  const { canManage: canAccessCoachTools, loading: coachLoading } = useRequireTeamManagement();
 
   const queryClient = useQueryClient();
 

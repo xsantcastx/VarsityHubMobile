@@ -6,10 +6,6 @@ import { debugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
 import { sendStaffMemberJoinedEmail, sendTeamInviteEmail } from '../lib/email.js';
 import { sendError } from '../lib/http/sendError.js';
-import {
-  InviteIdentifierError,
-  resolveInviteIdentifier,
-} from '../lib/inviteIdentifier.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import { getOrganizationState } from '../lib/organizationState.js';
 import { DEMO_LEAGUE_NAMES } from '../lib/demoContent.js';
@@ -23,10 +19,9 @@ import { sendPushNotification } from '../lib/pushNotifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
 import {
-  canManageTeam as canManageTeamScoped,
+  canAdministerTeam as canAdministerTeamScoped,
   canAssignTeamRole as canAssignTeamRoleScoped,
   canArchiveTeam as canArchiveTeamScoped,
-  isOrgAdmin as isOrgAdminScoped,
   TEAM_STAFF_ROLES,
 } from '../lib/teamAuthorization.js';
 import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
@@ -668,6 +663,9 @@ teamsRouter.get(
       prisma.game.findMany({
         where: {
           approval_status: 'approved',
+          // Opponent-approval workflow: exclude games still awaiting/declined
+          // opponent consent from this team's public upcoming-games list.
+          opponent_approval_status: { in: ['not_required', 'approved'] },
           date: { gte: new Date() },
           OR: [{ home_team_id: teamId }, { away_team_id: teamId }],
         },
@@ -753,6 +751,9 @@ teamsRouter.get(
       prisma.game.findMany({
         where: {
           approval_status: 'approved',
+          // Opponent-approval workflow: exclude games still awaiting/declined
+          // opponent consent from this team's public game list.
+          opponent_approval_status: { in: ['not_required', 'approved'] },
           OR: [{ home_team_id: teamId }, { away_team_id: teamId }],
         },
         orderBy: { date: 'desc' },
@@ -1732,11 +1733,11 @@ teamsRouter.put(
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
     const isAdmin = await getIsAdmin(req as any);
-    const canManage = await canManageTeamScoped(req.user.id, teamId);
+    const canManage = await canAdministerTeamScoped(req.user.id, teamId);
     if (!isAdmin && !canManage) {
       return res.status(403).json({
         error:
-          'Only team staff, organization admins, or platform admins can update team information',
+          'Only the team owner, head coach, organization owner, or platform admins can update team information',
       });
     }
 
@@ -1788,9 +1789,11 @@ teamsRouter.put(
         });
       }
 
-      // Moving a team across organizations is stronger than ordinary team edits:
-      // the requester must control the team on the source side AND be an org admin
-      // on the destination side. Plain membership in the target org is not enough.
+      // Moving a team across organizations is stronger than ordinary team edits
+      // (it rehomes billing/administration) — role-barrier model requires
+      // admin-tier control on the source side and the ORG OWNER (not manager)
+      // on the destination side. The base canAdministerTeam gate above already
+      // excludes team managers from reaching this handler at all.
       if (!isAdmin && targetOrganizationId !== team.organization_id) {
         const sourceTeamMembership = await prisma.teamMembership.findUnique({
           where: {
@@ -1801,27 +1804,27 @@ teamsRouter.put(
           } as any,
           select: { role: true, status: true },
         });
+        const { isOrgOwner: isOrgOwnerScoped } = await import('../lib/teamAuthorization.js');
         const canAdminSourceOrg = team.organization_id
-          ? await isOrgAdminScoped(req.user.id, team.organization_id)
+          ? await isOrgOwnerScoped(req.user.id, team.organization_id)
           : false;
         const canControlSourceTeam =
           (sourceTeamMembership?.status === 'active' &&
-            (sourceTeamMembership.role === 'owner' || sourceTeamMembership.role === 'manager')) ||
+            (sourceTeamMembership.role === 'owner' || sourceTeamMembership.role === 'coach')) ||
           canAdminSourceOrg;
         if (!canControlSourceTeam) {
           return res.status(403).json({
             error: 'TEAM_TRANSFER_ADMIN_REQUIRED',
             message:
-              'Only the team owner, a team manager, or a league admin can move a team to another organization.',
+              'Only the team owner, the head coach, or the organization owner can move a team to another organization.',
           });
         }
 
-        const canAdminTargetOrg = await isOrgAdminScoped(req.user.id, targetOrganizationId);
+        const canAdminTargetOrg = await isOrgOwnerScoped(req.user.id, targetOrganizationId);
         if (!canAdminTargetOrg) {
           return res.status(403).json({
             error: 'ORGANIZATION_ADMIN_REQUIRED',
-            message:
-              'You must be an owner or manager of the target organization to move this team.',
+            message: 'You must be the owner of the target organization to move this team.',
           });
         }
       }
@@ -2051,16 +2054,17 @@ teamsRouter.post(
   })
 );
 
-// Invite user by email to a team
+// Invite user by email OR username to a team. Username is resolved to the
+// target's canonical account email at invite time, so a person already on
+// VarsityHub is never sent an invite that could spawn a duplicate account.
 const inviteSchema = z
   .object({
-    identifier: z.string().trim().min(1).optional(),
-    email: z.string().trim().email().optional(),
+    email: z.string().email().optional(),
+    username: z.string().trim().min(1).max(30).optional(),
     role: z.string().optional(),
   })
-  .refine(data => Boolean(data.identifier || data.email), {
-    message: 'Username or email is required',
-    path: ['identifier'],
+  .refine(d => Boolean(d.email) || Boolean(d.username), {
+    message: 'Provide an email address or a username to invite.',
   });
 const VALID_TEAM_INVITE_ROLES = [
   'manager',
@@ -2088,17 +2092,7 @@ teamsRouter.post(
         issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
       });
     }
-    const { identifier, email, role } = parsed.data;
-    let resolvedIdentifier;
-    try {
-      resolvedIdentifier = await resolveInviteIdentifier(prisma, identifier || email || '');
-    } catch (e: any) {
-      if (e instanceof InviteIdentifierError) {
-        return sendError(res, e.statusCode, e.message, { code: e.code });
-      }
-      throw e;
-    }
-    const inviteEmail = resolvedIdentifier.email;
+    const { email, username, role } = parsed.data;
     const assignedRole = String(role || 'member');
     if (!(VALID_TEAM_INVITE_ROLES as readonly string[]).includes(assignedRole)) {
       return res.status(400).json({
@@ -2113,18 +2107,21 @@ teamsRouter.post(
     if (!team) return res.status(404).json({ error: 'Team not found' });
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    // CRITICAL: Verify requester is team owner/manager/coach (can invite members)
-    const canManage = await canManageTeamScoped(req.user.id, id);
+    // Role-barrier model: invite creation is a full-administration action —
+    // authorized users (managers/assistant_coaches) only approve/deny incoming
+    // join requests, they don't send invites. Reserved for owner/coach/org owner.
+    const canManage = await canAdministerTeamScoped(req.user.id, id);
 
     if (!canManage) {
       return res.status(403).json({
         error: 'PERMISSION_DENIED',
-        message: 'Only team staff or organization admins can invite members to teams.',
+        message: 'Only the team owner, head coach, or organization owner can invite members.',
       });
     }
 
-    // Role-tier guard (single source of truth). canManage above admits
-    // coaches/assistant_coaches, who must NOT be able to invite at manager level.
+    // Role-tier guard (single source of truth). Even administrators default to
+    // non-manager roles here; only a team owner (or org owner, already
+    // admitted above) may invite at manager level.
     if (!(await canAssignTeamRoleScoped(req.user.id, id, assignedRole))) {
       return res.status(403).json({
         error: 'INSUFFICIENT_ROLE',
@@ -2132,11 +2129,38 @@ teamsRouter.post(
       });
     }
 
-    if (resolvedIdentifier.resolvedUserId) {
+    // Resolve the invite target to a canonical account email. Done AFTER the
+    // authorization checks so an unauthorized caller can't probe which
+    // usernames exist. Inviting by username looks up the existing account and
+    // keys the invite to that user's real email — no duplicate account can be
+    // spawned for someone already on VarsityHub. Inviting by email that
+    // already belongs to an account is likewise normalized to that account.
+    let inviteEmail: string;
+    if (username) {
+      const target = await prisma.user.findUnique({
+        where: { username: username.trim() },
+        select: { email: true, deleted_at: true },
+      });
+      if (!target?.email || target.deleted_at) {
+        return sendError(res, 404, 'USER_NOT_FOUND', {
+          message: 'No active user found with that username.',
+        });
+      }
+      inviteEmail = target.email.trim().toLowerCase();
+    } else {
+      inviteEmail = email!.trim().toLowerCase();
+    }
+
+    // Reject inviting someone who is already an active member of this team.
+    const existingUserForInvite = await prisma.user.findFirst({
+      where: { email: { equals: inviteEmail, mode: 'insensitive' } } as any,
+      select: { id: true },
+    });
+    if (existingUserForInvite) {
       const existingMembership = await prisma.teamMembership.findFirst({
         where: {
           team_id: id,
-          user_id: resolvedIdentifier.resolvedUserId,
+          user_id: existingUserForInvite.id,
           status: 'active',
         },
         select: { id: true },
@@ -2342,11 +2366,11 @@ teamsRouter.post(
       return res.status(404).json({ error: 'Invite not found' });
     }
 
-    const canManage = await canManageTeamScoped(userId, teamId);
+    const canManage = await canAdministerTeamScoped(userId, teamId);
     if (!canManage) {
       return res.status(403).json({
         error: 'PERMISSION_DENIED',
-        message: 'Only team staff or organization admins can cancel invites.',
+        message: 'Only the team owner, head coach, or organization owner can cancel invites.',
       });
     }
 
@@ -2381,7 +2405,10 @@ teamsRouter.post(
       return res.status(404).json({ error: 'Invite not found' });
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase())
-      return res.status(403).json({ error: 'Invite not for this user' });
+      return sendError(res, 403, 'INVITE_EMAIL_MISMATCH', {
+        message:
+          'This invite was sent to a different email address. Sign in with the email that received the invite to accept it.',
+      });
     const existingMembership = await prisma.teamMembership.findUnique({
       where: {
         team_id_user_id: {
@@ -2617,9 +2644,10 @@ teamsRouter.post(
     const { new_owner_id } = parsed.data;
 
     // Transfer-ownership is deliberately MORE restrictive than canManageTeam.
-    // Team staff like coach / assistant_coach shouldn't be able to hand off
-    // ownership, but the current owner and the parent league's owner/manager
-    // can. Two-layer check: direct team owner OR org admin of the team's org.
+    // Role-barrier model (2026-07-06): only the team owner, the team's head
+    // coach, or the ORG OWNER (not org manager) may hand off ownership.
+    // Team managers/assistant_coaches pass canManageTeam but must NOT be able
+    // to transfer ownership.
     const team = await prisma.team.findUnique({
       where: { id: teamId },
       select: { organization_id: true },
@@ -2629,14 +2657,16 @@ teamsRouter.post(
     const currentMembership = await prisma.teamMembership.findFirst({
       where: { team_id: teamId, user_id: req.user.id, status: 'active' },
     });
-    const isDirectOwner = currentMembership?.role === 'owner';
-    const { isOrgAdmin } = await import('../lib/teamAuthorization.js');
-    const isLeagueAdmin = team.organization_id
-      ? await isOrgAdmin(req.user.id, team.organization_id)
+    const isDirectOwnerOrCoach =
+      currentMembership?.role === 'owner' || currentMembership?.role === 'coach';
+    const { isOrgOwner } = await import('../lib/teamAuthorization.js');
+    const isLeagueOwner = team.organization_id
+      ? await isOrgOwner(req.user.id, team.organization_id)
       : false;
-    if (!isDirectOwner && !isLeagueAdmin) {
+    if (!isDirectOwnerOrCoach && !isLeagueOwner) {
       return res.status(403).json({
-        error: 'Only the team owner or a league admin can transfer ownership',
+        error:
+          'Only the team owner, the head coach, or the organization owner can transfer ownership',
       });
     }
 

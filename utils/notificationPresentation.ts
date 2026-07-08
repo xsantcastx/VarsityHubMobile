@@ -44,6 +44,9 @@ const SYSTEM_NOTIFICATION_TYPES = new Set([
   'COACH_REJECTED',
   'JOIN_REQUEST_APPROVED',
   'JOIN_REQUEST_DENIED',
+  'GAME_OPPONENT_APPROVAL_REQUESTED',
+  'GAME_OPPONENT_APPROVED',
+  'GAME_OPPONENT_DECLINED',
 ]);
 
 export const getNotificationActorLabel = (item: NotificationItem, fallback = 'Someone') => {
@@ -113,6 +116,15 @@ export function getNotificationTitle(item: NotificationItem) {
   if (type === 'COACH_REJECTED') {
     return `Your application to join ${item.meta?.organization_name || 'the league'} was not approved.${item.meta?.reason ? ` ${item.meta.reason}` : ''}`;
   }
+  if (type === 'GAME_OPPONENT_APPROVAL_REQUESTED') {
+    return `${item.meta?.proposing_team_name ? `${item.meta.proposing_team_name} proposed` : 'A coach proposed'}${item.meta?.title ? ` "${item.meta.title}"` : ' a game'} against your team.`;
+  }
+  if (type === 'GAME_OPPONENT_APPROVED') {
+    return `Your opponent confirmed${item.meta?.title ? ` "${item.meta.title}"` : ' the game'} — it's now live!`;
+  }
+  if (type === 'GAME_OPPONENT_DECLINED') {
+    return `Your opponent declined${item.meta?.title ? ` "${item.meta.title}"` : ' the game'}.${item.meta?.reason ? ` ${item.meta.reason}` : ''}`;
+  }
 
   // v1.0.3: previously unknown/missing types showed a bare "Notification"
   // label — useless for the user and indistinguishable from other items.
@@ -146,6 +158,13 @@ export function getNotificationSubtitle(item: NotificationItem) {
       ? normalizePreview(
           (meta.organization_name as string | null | undefined) ||
             (meta.reason as string | null | undefined)
+        )
+      : null) ||
+    (type === 'GAME_OPPONENT_APPROVAL_REQUESTED' ||
+    type === 'GAME_OPPONENT_APPROVED' ||
+    type === 'GAME_OPPONENT_DECLINED'
+      ? normalizePreview(
+          (meta.title as string | null | undefined) || (meta.reason as string | null | undefined)
         )
       : null) ||
     null
@@ -221,6 +240,15 @@ export function getNotificationHrefForUser(
   }
   if (type === 'COACH_REJECTED') {
     return '/(tabs)/feed';
+  }
+  if (type === 'GAME_OPPONENT_APPROVAL_REQUESTED') {
+    return '/event-approvals';
+  }
+  if (
+    (type === 'GAME_OPPONENT_APPROVED' || type === 'GAME_OPPONENT_DECLINED') &&
+    item.meta?.game_id
+  ) {
+    return `/game/${encodeURIComponent(String(item.meta.game_id))}`;
   }
 
   return item.actor?.id ? `/user-profile?id=${encodeURIComponent(item.actor.id)}` : null;

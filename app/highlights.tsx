@@ -5,7 +5,7 @@ import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { getAuthSnapshot } from '@/utils/authState';
-import AppLinks from '@/utils/links';
+import AppLinks, { buildNativeSharePayload } from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image as ExpoImage } from 'expo-image';
@@ -421,11 +421,7 @@ const HighlightCard = ({
                     String(item.id),
                     item.caption || (sanitizeTitle(item.title) ?? undefined)
                   );
-                  await Share.share({
-                    message: link.shareMessage,
-                    url: link.webUrl,
-                    title: sanitizeTitle(item.title) || 'VarsityHub Highlight',
-                  });
+                  await Share.share(buildNativeSharePayload(link.shareMessage, link.webUrl));
                 } catch {
                   try {
                     const mod = await import('expo-clipboard').catch(() => null);
