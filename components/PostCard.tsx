@@ -328,13 +328,14 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   <Text style={styles.mediaErrorText}>Image unavailable</Text>
                   <Text style={styles.mediaRetryText}>Tap to retry</Text>
                 </Pressable>
-              ) : isVideo && previewUrl ? (
+              ) : isVideo && previewUrl && !mediaError ? (
                 <Image
                   source={{ uri: optimizeImageUrl(previewUrl, 600) }}
                   style={styles.media}
                   contentFit="cover"
                   cachePolicy="memory-disk"
                   recyclingKey={String(post.id)}
+                  onError={() => setMediaError(true)}
                 />
               ) : isVideo && mediaUrl ? (
                 <View

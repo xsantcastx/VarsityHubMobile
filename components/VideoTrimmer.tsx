@@ -86,11 +86,25 @@ function reportTrimFailure(stage: string, error: unknown, uri?: string) {
   );
 }
 
+function getTrimFailureMessage(error: unknown) {
+  const rawMessage = String((error as any)?.message || error || '').trim();
+  if (/Command failed with rc .*1/i.test(rawMessage)) {
+    return 'Video trimming failed in the native module. Please try again.';
+  }
+  return rawMessage || 'An error occurred while trimming the video.';
+}
+
 let trim:
   | ((
       uri: string,
       options: { startTime: number; endTime: number }
-    ) => Promise<{ success: boolean; outputPath?: string }>)
+    ) => Promise<{
+      success: boolean;
+      outputPath?: string;
+      startTime?: number;
+      endTime?: number;
+      duration?: number;
+    }>)
   | null = null;
 try {
   trim = require('react-native-video-trim').trim;
@@ -190,6 +204,7 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
           })
           .catch(e => {
             if (__DEV__) console.warn('[VideoTrimmer] Thumbnail generation failed:', e);
+            reportTrimFailure('thumbnail_gen', e, uri);
             setLoading(false);
           });
       }
@@ -306,6 +321,42 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
       });
 
       if (result.success && result.outputPath) {
+        // The native module reports the duration it actually cut to. Compare
+        // against what we requested — if the native trim silently no-ops
+        // (e.g. ffmpeg -to being ignored as an input option on some builds),
+        // "success" is still true but the output is the untrimmed length.
+        const requestedMs = endMs - startMs;
+        const actualMs =
+          typeof result.duration === 'number'
+            ? result.duration
+            : typeof result.endTime === 'number' && typeof result.startTime === 'number'
+              ? result.endTime - result.startTime
+              : null;
+        if (actualMs !== null && Math.abs(actualMs - requestedMs) > 500) {
+          if (__DEV__) {
+            console.warn(
+              `[VideoTrimmer] Native trim duration mismatch — requested ${requestedMs}ms, got ${actualMs}ms`
+            );
+          }
+          reportTrimFailure(
+            'trim_duration_mismatch',
+            new Error(
+              `Native trim returned success but output duration (${actualMs}ms) does not match requested range (${requestedMs}ms, start=${startMs} end=${endMs})`
+            ),
+            processableUri ?? undefined
+          );
+          // Do NOT silently deliver an untrimmed clip — let the user decide.
+          const outputPath = result.outputPath;
+          Alert.alert(
+            'Trim May Not Have Applied',
+            'The trimmed clip does not match the length you selected. Use it anyway, or try trimming again.',
+            [
+              { text: 'Try Again', style: 'cancel' },
+              { text: 'Use Anyway', onPress: () => onTrimComplete(outputPath) },
+            ]
+          );
+          return;
+        }
         onTrimComplete(result.outputPath);
       } else {
         Alert.alert('Trim Failed', 'Could not trim the video. Please try again.');
@@ -317,7 +368,7 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
         );
       }
     } catch (e: any) {
-      Alert.alert('Trim Failed', e?.message || 'An error occurred while trimming the video.');
+      Alert.alert('Trim Failed', getTrimFailureMessage(e));
       if (__DEV__) console.warn('[VideoTrimmer] Trim error:', e);
       reportTrimFailure('trim_error', e, processableUri ?? undefined);
     } finally {

@@ -185,8 +185,6 @@ function renderLanding(meta: LandingMeta, legalBaseUrl: string): string {
 
   <div class="footer">
     <a href="${safeLegalBaseUrl}/privacy-policy">Privacy</a>
-    &nbsp;·&nbsp;
-    <a href="${safeLegalBaseUrl}/terms">Terms</a>
   </div>
 </body>
 </html>`;

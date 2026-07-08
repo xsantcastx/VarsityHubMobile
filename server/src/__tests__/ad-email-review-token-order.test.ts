@@ -33,4 +33,18 @@ describe('ad email review token order', () => {
     expect(src).toContain("const currentState = describeAdModerationState(summary.status, 'reject');");
     expect(src).toContain('already_final: true,');
   });
+
+  it('falls back to the native app handoff when GET email links arrive without a valid token', () => {
+    const approveSlice = getFunctionSlice(
+      'async function handleAdApprove',
+      "adsRouter.get('/:id([a-z0-9]{15,50})/approve'"
+    );
+    const rejectSlice = getFunctionSlice(
+      'async function handleAdReject',
+      "adsRouter.get('/:id([a-z0-9]{15,50})/reject'"
+    );
+
+    expect(approveSlice).toContain("return res.status(200).send(adReviewHandoffPage(id, 'approve'));");
+    expect(rejectSlice).toContain("return res.status(200).send(adReviewHandoffPage(id, 'reject'));");
+  });
 });

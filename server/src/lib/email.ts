@@ -146,7 +146,6 @@ const CONSENT_API_BASE_URL = resolveEmailBaseUrlWithDiagnostics(
 ).value;
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
 const PRIVACY_POLICY_URL = `${APP_BASE_URL}/privacy-policy`;
-const TERMS_URL = `${APP_BASE_URL}/terms`;
 const SUPPORT_URL = `${APP_BASE_URL}/support`;
 const REVIEW_LINK_TTL = '30d';
 
@@ -159,14 +158,14 @@ const getCommonTemplateData = () => ({
   hero_image_url:
     'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
   privacy_policy_url: PRIVACY_POLICY_URL,
-  community_guidelines_url: TERMS_URL,
+  community_guidelines_url: PRIVACY_POLICY_URL,
   instagram_url: 'https://www.instagram.com/varsityhubapp/',
   tiktok_url: 'https://www.tiktok.com/@varsityhubapp',
   youtube_url: 'https://www.youtube.com/@varsityhubapp',
   facebook_url: 'https://www.facebook.com/varsityhubapp/',
   x_url: 'https://x.com/varsityhub00',
   website_url: APP_BASE_URL,
-  communityGuidelinesUrl: TERMS_URL,
+  communityGuidelinesUrl: PRIVACY_POLICY_URL,
   privacyPolicyUrl: PRIVACY_POLICY_URL,
   support_url: SUPPORT_URL,
   supportUrl: SUPPORT_URL,

@@ -4,7 +4,15 @@
       "package": "com.lime_prod.varsityhubserver"
     },
     "ios": {
-      "bundleIdentifier": "com.lime-prod.varsityhubserver"
+      "bundleIdentifier": "com.lime-prod.varsityhubserver",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "cfc8983a-1d59-4dbc-a041-d8d2548e144e"
+      }
     }
   }
 }

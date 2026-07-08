@@ -83,6 +83,7 @@ describe('GET /highlights — block filter', () => {
       data: {
         author_id: blockedAuthorId,
         content: 'HL blocked post',
+        type: 'highlight',
         media_url: 'https://res.cloudinary.com/test/image/upload/blocked.jpg',
         country_code: 'US',
         upvotes_count: 100,
@@ -95,6 +96,7 @@ describe('GET /highlights — block filter', () => {
       data: {
         author_id: visibleAuthorId,
         content: 'HL visible post',
+        type: 'highlight',
         media_url: 'https://res.cloudinary.com/test/image/upload/visible.jpg',
         country_code: 'US',
         upvotes_count: 100,
@@ -194,6 +196,7 @@ describe('GET /highlights — privacy filter', () => {
       data: {
         author_id: privateAuthorId,
         content: 'HL private post',
+        type: 'highlight',
         media_url: 'https://res.cloudinary.com/test/image/upload/private.jpg',
         country_code: 'US',
         upvotes_count: 200,
@@ -220,5 +223,79 @@ describe('GET /highlights — privacy filter', () => {
     ];
     const postIds = allPosts.map((p: any) => p.id);
     expect(postIds).not.toContain(privatePostId);
+  });
+});
+
+describe('GET /highlights — type filter', () => {
+  let authorId: string;
+  let highlightPostId: string;
+  let regularPostId: string;
+
+  beforeAll(async () => {
+    const hash = await bcrypt.hash(PASSWORD, 10);
+
+    const author = await prisma.user.create({
+      data: {
+        email: `hl-type-${Date.now()}@test.com`,
+        password_hash: hash,
+        display_name: 'Type Author',
+        email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
+        preferences: { role: 'fan', onboarding_completed: true },
+      },
+    });
+    authorId = author.id;
+
+    const highlightPost = await prisma.post.create({
+      data: {
+        author_id: authorId,
+        content: 'Real highlight',
+        type: 'highlight',
+        media_url: 'https://res.cloudinary.com/test/image/upload/highlight-type.jpg',
+        country_code: 'US',
+        upvotes_count: 75,
+        deleted_at: null,
+      },
+    });
+    highlightPostId = highlightPost.id;
+
+    const regularPost = await prisma.post.create({
+      data: {
+        author_id: authorId,
+        content: 'Regular media post',
+        type: 'post',
+        media_url: 'https://res.cloudinary.com/test/image/upload/post-type.jpg',
+        country_code: 'US',
+        upvotes_count: 999,
+        deleted_at: null,
+      },
+    });
+    regularPostId = regularPost.id;
+  });
+
+  afterAll(async () => {
+    await prisma.post
+      .deleteMany({ where: { id: { in: [highlightPostId, regularPostId] } } })
+      .catch(() => {});
+    await prisma.user.delete({ where: { id: authorId } }).catch(() => {});
+  });
+
+  // REGRESSION GUARD: Highlights must NOT filter on `post.type`.
+  //
+  // `Post.type` is nullable with no default and has no backfill, and the main
+  // create-post surface tags normal uploads `type: 'post'` (create-post.tsx:100
+  // only sends 'highlight' when routed from a game's add-highlight button).
+  // A `type: 'highlight'` WHERE clause therefore hides every regular media post
+  // AND every legacy (type: null) post from Highlights forever — the recurring
+  // "posted but not showing: it's a filter, not a save failure" incident.
+  // Highlights is scoped by media_url + country + recency + privacy. Not by type.
+  it('includes BOTH highlight-typed and generic media posts (no type filter)', async () => {
+    const res = await request(app).get('/highlights?country=US&v2=1&sort=recent');
+
+    expect(res.status).toBe(200);
+    const ids = (res.body.items ?? []).map((p: any) => p.id);
+    expect(ids).toContain(highlightPostId);
+    expect(ids).toContain(regularPostId);
   });
 });

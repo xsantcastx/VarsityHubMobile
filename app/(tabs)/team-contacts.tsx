@@ -1,6 +1,13 @@
 import CustomActionModal from '@/components/CustomActionModal';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
+import {
+  isNativeVideoTrimSupported,
+  MAX_VIDEO_SIZE_BYTES,
+  MAX_VIDEO_SIZE_MB,
+  VIDEO_CAPTURE_PRESET,
+} from '@/constants/video';
+import { prepareVideoForUpload, uploadTimeoutMsForSize } from '@/utils/compressVideo';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { useTeamMembersQuery } from '@/hooks/useTeamMembersQuery';
@@ -34,7 +41,9 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '@/utils/uploadUtils';
+import type { UploadOptions } from '@/api/upload';
 import { safeGoBack } from '@/utils/navigation';
+import { pickerAllMediaTypesProp, pickerMediaTypesProp } from '@/utils/picker';
 
 // Pre-generated waveform bar heights — avoids Array allocation + Math.random() on every render
 const VOICE_WAVE_HEIGHTS = Array.from({ length: 20 }, (_, i) => {
@@ -191,6 +200,7 @@ export default function TeamChatScreen() {
     size: number;
   } | null>(null);
   const [videoTrimmedUri, setVideoTrimmedUri] = useState<string | null>(null);
+  const canTrimVideo = isNativeVideoTrimSupported(Platform.OS);
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -743,7 +753,7 @@ export default function TeamChatScreen() {
   const pickImage = useCallback(async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        ...pickerMediaTypesProp(),
         allowsEditing: false,
         quality: 0.8,
       });
@@ -962,7 +972,7 @@ export default function TeamChatScreen() {
   }, []);
 
   const sendFileMessage = useCallback(
-    async (fileAsset: any) => {
+    async (fileAsset: any, uploadOptions?: UploadOptions) => {
       try {
         // Create initial message with uploading status
         const message: ChatMessage = {
@@ -1006,9 +1016,9 @@ export default function TeamChatScreen() {
         let uploadResponse: UploadResponse;
 
         if (fileAsset.mimeType?.startsWith('image/')) {
-          uploadResponse = await uploadImage(fileToUpload);
+          uploadResponse = await uploadImage(fileToUpload, uploadOptions);
         } else {
-          uploadResponse = await uploadDocument(fileToUpload);
+          uploadResponse = await uploadDocument(fileToUpload, uploadOptions);
         }
 
         // Update message with server URL and success status
@@ -1074,7 +1084,14 @@ export default function TeamChatScreen() {
           return updated;
         });
 
-        showModal('Error', 'Failed to upload file to server');
+        if ((error as any)?.status === 429) {
+          showModal(
+            'Too Many Uploads',
+            'You have hit the hourly upload limit. Wait a few minutes and try again.'
+          );
+        } else {
+          showModal('Error', 'Failed to upload file to server');
+        }
       }
     },
     [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]
@@ -1104,20 +1121,29 @@ export default function TeamChatScreen() {
         if (type === 'media') {
           // Use image picker for media
           const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.All,
+            ...pickerAllMediaTypesProp(),
             allowsEditing: false,
             quality: 0.8,
+            videoExportPreset: VIDEO_CAPTURE_PRESET,
           });
 
           if (!result.canceled && result.assets[0]) {
             if (result.assets[0].type === 'image') {
               await sendImageMessage(result.assets[0]);
             } else {
+              const pickedSize = result.assets[0].fileSize || 0;
+              if (pickedSize > MAX_VIDEO_SIZE_BYTES) {
+                showToast(
+                  `Video is too large (${Math.round(pickedSize / (1024 * 1024))}MB). The limit is ${MAX_VIDEO_SIZE_MB}MB.`,
+                  'error'
+                );
+                return;
+              }
               // Show trim preview for video files
               setVideoToTrim({
                 uri: result.assets[0].uri,
                 name: `video_${Date.now()}.mp4`,
-                size: result.assets[0].fileSize || 0,
+                size: pickedSize,
               });
               setVideoTrimmedUri(null);
               return; // Upload happens via confirmVideoSend
@@ -1140,14 +1166,23 @@ export default function TeamChatScreen() {
     if (!videoToTrim) return;
     setIsUploadingFile(true);
     try {
-      await sendFileMessage({
-        uri: videoTrimmedUri ?? videoToTrim.uri,
-        name: videoToTrim.name,
-        size: videoToTrim.size,
-        mimeType: 'video/mp4',
-      });
-    } catch {
-      showToast('Failed to send video', 'error');
+      const prepared = await prepareVideoForUpload(videoTrimmedUri ?? videoToTrim.uri);
+      await sendFileMessage(
+        {
+          uri: prepared.uri,
+          name: videoToTrim.name,
+          size: prepared.finalSizeBytes || videoToTrim.size,
+          mimeType: 'video/mp4',
+        },
+        { timeoutMs: uploadTimeoutMsForSize(prepared.finalSizeBytes) }
+      );
+    } catch (e: any) {
+      showToast(
+        e?.status === 429
+          ? 'Too many uploads — wait a few minutes and try again.'
+          : e?.message || 'Failed to send video',
+        'error'
+      );
     } finally {
       setIsUploadingFile(false);
       setVideoToTrim(null);
@@ -2280,11 +2315,25 @@ export default function TeamChatScreen() {
                   maxHeight: 300,
                 }}
               />
-              <VideoTrimmer
-                uri={videoToTrim.uri}
-                onTrimComplete={u => setVideoTrimmedUri(u)}
-                onTrimReset={() => setVideoTrimmedUri(null)}
-              />
+              {canTrimVideo ? (
+                <VideoTrimmer
+                  uri={videoToTrim.uri}
+                  onTrimComplete={u => setVideoTrimmedUri(u)}
+                  onTrimReset={() => setVideoTrimmedUri(null)}
+                />
+              ) : (
+                <Text
+                  style={{
+                    color: '#E5E7EB',
+                    textAlign: 'center',
+                    marginTop: 12,
+                    marginHorizontal: 8,
+                  }}
+                >
+                  Web uploads the selected video as-is. Trimming is available in the iOS and Android
+                  app.
+                </Text>
+              )}
               <View
                 style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 12 }}
               >

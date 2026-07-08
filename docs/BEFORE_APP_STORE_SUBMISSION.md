@@ -47,7 +47,7 @@ Fix any **errors** from these before building. Warnings are acceptable if you’
 ## 3. Legal & App Store requirements (already in place)
 
 - **Privacy Policy URL**: `https://varsityhub.app/privacy-policy` (in app.json `NSPrivacyPolicyURL`).
-- **Terms**: In-app screens at Settings → Privacy Policy / Terms of Service; docs in `docs/release/`.
+- **Privacy policy**: In-app screen at Settings → Privacy Policy and public URL `https://varsityhub.app/privacy-policy`.
 - **Encryption**: `ITSAppUsesNonExemptEncryption: false` in app.json.
 - **Usage descriptions**: Camera, microphone, photo library, location present in app.json.
 - **Apple Sign In**: `usesAppleSignIn: true`.

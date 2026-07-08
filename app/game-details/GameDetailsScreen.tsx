@@ -1,5 +1,16 @@
 import { Colors } from '@/constants/Colors';
+import {
+  isNativeVideoTrimSupported,
+  MAX_VIDEO_SIZE_BYTES,
+  MAX_VIDEO_SIZE_MB,
+  VIDEO_CAPTURE_PRESET,
+} from '@/constants/video';
 import { queryClient } from '@/lib/queryClient';
+import {
+  getVideoFileSize,
+  prepareVideoForUpload,
+  uploadTimeoutMsForSize,
+} from '@/utils/compressVideo';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useShareLink } from '@/hooks/useShareLink';
@@ -11,6 +22,7 @@ import {
 } from '@/utils/eventPresentation';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
+import { pickerAllMediaTypesProp } from '@/utils/picker';
 import { promptForSignIn } from '@/utils/requireSignIn';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
@@ -229,6 +241,7 @@ const GameDetailsScreen = () => {
     type: 'photo' | 'video';
   } | null>(null);
   const [storyTrimmedUri, setStoryTrimmedUri] = useState<string | null>(null);
+  const canTrimStoryVideo = isNativeVideoTrimSupported(Platform.OS);
   const [verticalFeedOpen, setVerticalFeedOpen] = useState(false);
   const [storiesViewer, setStoriesViewer] = useState<{
     visible: boolean;
@@ -1215,9 +1228,9 @@ const GameDetailsScreen = () => {
     try {
       setStoryBusy(true);
       const pickerOptions: ImagePicker.ImagePickerOptions = {
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        ...pickerAllMediaTypesProp(),
         quality: 0.8,
-        videoMaxDuration: 30,
+        videoExportPreset: VIDEO_CAPTURE_PRESET,
       };
       // Demo matchups (Duke v UNC, Cavs v Warriors) let fans upload from the
       // camera roll as well — they're not physically at Chase Center or Cameron
@@ -1259,6 +1272,14 @@ const GameDetailsScreen = () => {
 
       // For videos, show trim preview before uploading
       if (asset.type === 'video') {
+        const pickedSize = asset.fileSize || (await getVideoFileSize(materializedUri));
+        if (pickedSize > MAX_VIDEO_SIZE_BYTES) {
+          Alert.alert(
+            'File Too Large',
+            `This video is ${Math.round(pickedSize / (1024 * 1024))}MB — the limit is ${MAX_VIDEO_SIZE_MB}MB. Record a shorter clip and try again.`
+          );
+          return;
+        }
         setStoryPreview({ uri: materializedUri, mimeType, fileName, type: 'video' });
         setStoryTrimmedUri(null);
         return; // Upload will happen via confirmStoryUpload
@@ -1379,7 +1400,11 @@ const GameDetailsScreen = () => {
     setStoryBusy(true);
     try {
       const base = getApiBaseUrl();
-      const uploadUri = storyTrimmedUri || storyPreview.uri;
+      // This callback only handles videos (images upload inline in the picker
+      // handler). Prepare the final asset once, right before upload.
+      const rawUri = storyTrimmedUri || storyPreview.uri;
+      const prepared = await prepareVideoForUpload(rawUri);
+      const uploadUri = prepared.uri;
       const ensured = await (
         await import('../../utils/ensureUploadableUri')
       ).ensureUploadableUri(uploadUri, storyPreview.mimeType);
@@ -1387,7 +1412,8 @@ const GameDetailsScreen = () => {
         base,
         ensured.uri,
         storyPreview.fileName,
-        ensured.mimeType || storyPreview.mimeType
+        ensured.mimeType || storyPreview.mimeType,
+        { timeoutMs: uploadTimeoutMsForSize(prepared.finalSizeBytes) }
       );
       const mediaUrl = uploaded?.path || uploaded?.url;
       if (!mediaUrl) throw new Error('Upload failed');
@@ -1457,6 +1483,11 @@ const GameDetailsScreen = () => {
         Alert.alert(
           'Cannot Verify Location',
           'This game has no event location set yet, so story uploads are disabled until the venue is configured.'
+        );
+      } else if (status === 429) {
+        Alert.alert(
+          'Too Many Uploads',
+          'You have hit the hourly upload limit. Wait a few minutes and try again.'
         );
       } else {
         Alert.alert('Unable to add story', err?.message || 'Please try again.');
@@ -2676,10 +2707,11 @@ const GameDetailsScreen = () => {
                         );
                         return;
                       }
-                      // Directly navigate to create-post with gameId - defaults to 'post' type
+                      // Game detail highlights must create highlight posts so they
+                      // show up in the game highlight surfaces and filters.
                       void router.push({
                         pathname: '/create-post',
-                        params: { gameId: String(targetGameId), type: 'post' },
+                        params: { gameId: String(targetGameId), type: 'highlight' },
                       } as any);
                     }}
                   >
@@ -2988,11 +3020,25 @@ const GameDetailsScreen = () => {
                   maxHeight: 400,
                 }}
               />
-              <VideoTrimmer
-                uri={storyPreview.uri}
-                onTrimComplete={u => setStoryTrimmedUri(u)}
-                onTrimReset={() => setStoryTrimmedUri(null)}
-              />
+              {canTrimStoryVideo ? (
+                <VideoTrimmer
+                  uri={storyPreview.uri}
+                  onTrimComplete={u => setStoryTrimmedUri(u)}
+                  onTrimReset={() => setStoryTrimmedUri(null)}
+                />
+              ) : (
+                <Text
+                  style={{
+                    color: '#E5E7EB',
+                    textAlign: 'center',
+                    marginTop: 12,
+                    marginHorizontal: 8,
+                  }}
+                >
+                  Web uploads the selected video as-is. Trimming is available in the iOS and Android
+                  app.
+                </Text>
+              )}
               <View
                 style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 12 }}
               >

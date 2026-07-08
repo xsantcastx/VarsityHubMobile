@@ -32,7 +32,7 @@ import {
 } from '@/utils/formUtils';
 import { useAuth } from '@/context/AuthProvider';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
-import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
+import { PUBLIC_PRIVACY_POLICY_URL } from '@/constants/legal';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { openExternalUrl } from '@/utils/openExternalUrl';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
@@ -152,7 +152,7 @@ export default function SignUpScreen() {
         activeOpacity={0.7}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: agreedToTerms }}
-        accessibilityLabel="I agree to the Terms of Service and Privacy Policy"
+        accessibilityLabel="I agree to the Privacy Policy"
         accessibilityHint="Double tap to toggle"
       >
         <Ionicons
@@ -162,17 +162,6 @@ export default function SignUpScreen() {
         />
         <Text style={[styles.checkboxText, { color: Colors[colorScheme].text }]}>
           I agree to the{' '}
-          <Text
-            style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-            onPress={() =>
-              void openExternalUrl(PUBLIC_TERMS_URL, {
-                context: 'sign_up_terms_link',
-              })
-            }
-          >
-            Terms of Service
-          </Text>{' '}
-          and{' '}
           <Text
             style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
             onPress={() =>

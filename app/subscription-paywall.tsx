@@ -36,7 +36,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
+import { PUBLIC_PRIVACY_POLICY_URL } from '@/constants/legal';
 import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
 import { SubscriptionDisclosureCard } from '@/components/subscription/SubscriptionDisclosureCard';
 import { getFreshAuthSnapshot } from '@/utils/authState';
@@ -786,22 +786,8 @@ function SubscriptionPaywallScreen() {
 
                 <View style={styles.legalLinksRow}>
                   <Text style={[styles.legalLinksIntro, { color: theme.mutedText }]}>
-                    By subscribing, you agree to our{' '}
+                    By subscribing, you acknowledge our{' '}
                   </Text>
-                  <Pressable
-                    accessibilityRole="link"
-                    accessibilityLabel="Open Terms of Service"
-                    onPress={() =>
-                      void openExternalUrl(PUBLIC_TERMS_URL, {
-                        context: 'subscription_paywall_terms_link',
-                      })
-                    }
-                  >
-                    <Text style={[styles.legalLinkText, { color: theme.tint }]}>
-                      Terms of Service
-                    </Text>
-                  </Pressable>
-                  <Text style={[styles.legalLinksIntro, { color: theme.mutedText }]}> and </Text>
                   <Pressable
                     accessibilityRole="link"
                     accessibilityLabel="Open Privacy Policy"

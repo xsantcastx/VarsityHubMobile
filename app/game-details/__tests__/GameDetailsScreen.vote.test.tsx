@@ -16,7 +16,7 @@ jest.mock('react-native/Libraries/Animated/Animated', () => {
     parallel: (animations: any[]) => {
       return {
         start: (cb?: () => void) => {
-          animations.forEach((anim) => anim.start && anim.start());
+          animations.forEach(anim => anim.start && anim.start());
           if (cb) cb();
         },
       };
@@ -24,7 +24,7 @@ jest.mock('react-native/Libraries/Animated/Animated', () => {
     sequence: (animations: any[]) => {
       return {
         start: (cb?: () => void) => {
-          animations.forEach((anim) => anim.start && anim.start());
+          animations.forEach(anim => anim.start && anim.start());
           if (cb) cb();
         },
       };
@@ -34,7 +34,8 @@ jest.mock('react-native/Libraries/Animated/Animated', () => {
 
 // Mock requestAnimationFrame and cancelAnimationFrame for React Native animations
 beforeAll(() => {
-  globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => setTimeout(cb, 16) as unknown as number;
+  globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number =>
+    setTimeout(cb, 16) as unknown as number;
   globalThis.cancelAnimationFrame = (id: number) => clearTimeout(id);
 });
 
@@ -43,8 +44,6 @@ afterAll(() => {
   (globalThis as any).cancelAnimationFrame = undefined;
 });
 // Use fake timers for all tests in this file
-
-
 
 import { Game } from '@/api/entities';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
@@ -56,7 +55,12 @@ let mockParams: { id?: string; eventId?: string } = { id: 'game-1', eventId: 'ev
 
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    back: jest.fn(),
+    canGoBack: () => true,
+  }),
   useLocalSearchParams: () => mockParams,
 }));
 
@@ -74,10 +78,14 @@ jest.mock('expo-image', () => {
 
 jest.mock('expo-linear-gradient', () => {
   const React = require('react');
-  return { LinearGradient: (props: any) => React.createElement('LinearGradient', props, props.children) };
+  return {
+    LinearGradient: (props: any) => React.createElement('LinearGradient', props, props.children),
+  };
 });
 
-jest.mock('expo-image-picker', () => ({}));
+jest.mock('expo-image-picker', () => ({
+  VideoExportPreset: { MediumQuality: 2 },
+}));
 
 jest.mock('expo-video', () => ({
   VideoView: 'VideoView',
@@ -167,7 +175,18 @@ jest.mock('@/api/entities', () => ({
     feedForGame: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
   },
   Event: {
-    get: jest.fn().mockResolvedValue({ id: 'event-1', title: 'Event', date: new Date(Date.now() + 60 * 60 * 1000).toISOString(), location: 'Test Field', banner_url: null, cover_image_url: null, capacity: 100, attendees_count: 0 }),
+    get: jest
+      .fn()
+      .mockResolvedValue({
+        id: 'event-1',
+        title: 'Event',
+        date: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        location: 'Test Field',
+        banner_url: null,
+        cover_image_url: null,
+        capacity: 100,
+        attendees_count: 0,
+      }),
     rsvp: jest.fn(),
     rsvpStatus: jest.fn().mockResolvedValue({ count: 0, capacity: 100, going: false }),
   },

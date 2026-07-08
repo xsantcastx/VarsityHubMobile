@@ -43,6 +43,7 @@ async function createPost(
     data: {
       author_id: authorId,
       content: opts.content ?? 'hl sort test post',
+      type: 'highlight',
       media_url: 'https://res.cloudinary.com/test/image/upload/sort.jpg',
       country_code: country,
       upvotes_count: opts.upvotes ?? 0,

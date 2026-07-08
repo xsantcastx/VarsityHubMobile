@@ -111,13 +111,6 @@ if exist "docs\release\PRIVACY_POLICY.md" (
     set /a ERRORS+=1
 )
 
-if exist "docs\release\TERMS_OF_SERVICE.md" (
-    echo ✅ Terms of Service exists
-) else (
-    echo ❌ ERROR: Terms of Service missing
-    set /a ERRORS+=1
-)
-
 echo.
 echo [7/10] Checking build scripts...
 if exist "scripts\build-production.bat" (

@@ -3,7 +3,7 @@
     "name": "VarsityHub",
     "slug": "varsityhub",
     "owner": "varsity-hub",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -26,7 +26,7 @@
       }
     },
     "ios": {
-      "buildNumber": "51",
+      "buildNumber": "54",
       "supportsTablet": true,
       "appleTeamId": "B5H8F69RW5",
       "bundleIdentifier": "com.varsithub.varsityhub-ios",
@@ -37,7 +37,7 @@
         "NSCameraUsageDescription": "VarsityHub uses your camera to take photos and videos for team posts, profile pictures, and game highlights.",
         "NSMicrophoneUsageDescription": "VarsityHub uses your microphone to capture audio when recording game-day videos and highlight clips.",
         "NSPhotoLibraryUsageDescription": "VarsityHub uses your photo library so you can select existing photos and videos to share in team posts or set as your profile picture.",
-        "NSLocationWhenInUseUsageDescription": "VarsityHub uses your location to display nearby games, tournaments, and team events on the map.",
+        "NSLocationWhenInUseUsageDescription": "VarsityHub uses your location to display nearby games, tournaments, and team events on the map, and to confirm you are at the venue when you post from a live event.",
         "NSPrivacyPolicyURL": "https://varsityhub.app/privacy-policy",
         "CFBundleURLTypes": [
           {
@@ -57,7 +57,7 @@
       },
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
-      "versionCode": 38,
+      "versionCode": 39,
       "package": "com.xsantcastx.varsityhub",
       "intentFilters": [
         {

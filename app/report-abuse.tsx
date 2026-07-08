@@ -26,6 +26,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAuthSnapshot } from '@/utils/authState';
 import { safeGoBack } from '@/utils/navigation';
+import { pickerMediaTypesProp } from '@/utils/picker';
 
 export default function ReportAbuseScreen() {
   const router = useRouter();
@@ -82,7 +83,7 @@ export default function ReportAbuseScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        ...pickerMediaTypesProp(),
         allowsMultipleSelection: true,
         quality: 0.8,
         selectionLimit: 5,

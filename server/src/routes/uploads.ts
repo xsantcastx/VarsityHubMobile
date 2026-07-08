@@ -251,7 +251,7 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, requireVerifiedUn
     // a signed request lets the client upload any file type (executable, script, etc.).
     // The signature ties these constraints into the request so clients can't weaken them.
     const allowedFormats = 'jpg,jpeg,png,gif,webp,heic,heif,mp4,mov';
-    const maxBytes = '52428800'; // 50 MB — videos are the largest legitimate uploads
+    const maxBytes = '157286400'; // 150 MB — must equal client MAX_VIDEO_SIZE_BYTES (constants/video.ts)
     // IMPORTANT: `max_bytes` is NOT a recognized Cloudinary upload parameter, so
     // Cloudinary strips it from its own signature string. Including it here made
     // our SHA1 diverge from Cloudinary's, producing "Invalid Signature" → HTTP 401
@@ -633,7 +633,10 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
   
   // Multer errors
   if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ error: 'File too large. Maximum size is 100MB.' });
+    return res.status(413).json({
+      error:
+        'File too large. Images up to 25MB upload through the app; videos upload directly and support up to 150MB.',
+    });
   }
   
   if (err.message?.startsWith('Only image') || err.message?.startsWith('File type not allowed')) {

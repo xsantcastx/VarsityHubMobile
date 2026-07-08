@@ -7,9 +7,11 @@
 
 import { uploadFile } from '@/api/upload';
 import { Colors } from '@/constants/Colors';
+import { MAX_IMAGE_SIZE_BYTES } from '@/constants/video';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ensureUploadableUri } from '@/utils/ensureUploadableUri';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -97,7 +99,7 @@ export function BannerUpload({
       // hand us a proper local file (not a ph:// cloud reference). On iCloud-optimized
       // devices the first read may still fail — the catch below handles that gracefully.
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        ...pickerMediaTypesProp(),
         allowsEditing: false, // Allow full image without cropping
         allowsMultipleSelection: false,
         quality: 0.8,
@@ -163,7 +165,7 @@ export function BannerUpload({
           // Continue upload without size validation
         }
 
-        if (fileSize && fileSize > 10 * 1024 * 1024) {
+        if (fileSize && fileSize > MAX_IMAGE_SIZE_BYTES) {
           Alert.alert(
             'File Too Large',
             'Banner images must be under 10MB. Accepted formats: JPEG, PNG.'

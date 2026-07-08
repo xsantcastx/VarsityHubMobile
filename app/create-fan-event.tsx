@@ -36,6 +36,7 @@ import { handleCoachAccessError } from '@/utils/coachAccess';
 import { sanitizeText } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { buildOpponentLink } from '@/utils/gameOpponent';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import { AppearancePreset } from './components/AppearancePicker';
@@ -459,7 +460,7 @@ function CreateFanEventScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      ...pickerMediaTypesProp(),
       allowsEditing: true,
       // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
       // crop at the displayed ratio so uploads aren't re-cropped at render time.
@@ -492,7 +493,7 @@ function CreateFanEventScreen() {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      ...pickerMediaTypesProp(),
       allowsEditing: true,
       aspect: [16, 9],
       quality: 0.9,

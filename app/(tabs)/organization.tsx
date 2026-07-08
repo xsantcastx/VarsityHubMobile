@@ -106,7 +106,7 @@ export default function OrganizationScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteIdentifier, setInviteIdentifier] = useState('');
 
   const queryClient = useQueryClient();
   const orgPageQueryKey = ['org-page', params.id?.trim() || 'mine', user?.id];
@@ -461,7 +461,7 @@ export default function OrganizationScreen() {
             ) : null}
             <Pressable
               onPress={() => {
-                setInviteEmail('');
+                setInviteIdentifier('');
                 setInviteModalVisible(true);
               }}
               style={[
@@ -926,18 +926,17 @@ export default function OrganizationScreen() {
           >
             <Text style={[styles.modalTitle, { color: theme.text }]}>Invite Coach</Text>
             <Text style={[styles.modalSubtitle, { color: theme.mutedText }]}>
-              Enter the email address of the coach to invite:
+              Enter the coach's username or email address:
             </Text>
             <TextInput
               style={[
                 styles.modalInput,
                 { backgroundColor: theme.background, borderColor: theme.border, color: theme.text },
               ]}
-              placeholder="coach@example.com"
+              placeholder="@coachname or coach@example.com"
               placeholderTextColor={theme.mutedText}
-              value={inviteEmail}
-              onChangeText={setInviteEmail}
-              keyboardType="email-address"
+              value={inviteIdentifier}
+              onChangeText={setInviteIdentifier}
               autoCapitalize="none"
               autoCorrect={false}
               autoFocus
@@ -952,16 +951,19 @@ export default function OrganizationScreen() {
               <Pressable
                 style={[styles.modalButton, { backgroundColor: theme.tint }]}
                 onPress={async () => {
-                  if (!inviteEmail.trim() || !organization) return;
+                  if (!inviteIdentifier.trim() || !organization) return;
                   try {
-                    await Organization.invite(organization.id, inviteEmail.trim(), 'member');
+                    await Organization.invite(organization.id, inviteIdentifier.trim(), 'member');
                     setInviteModalVisible(false);
                     await refreshAll();
-                    Alert.alert('Invited', `Invitation sent to ${inviteEmail.trim()}`);
+                    Alert.alert('Invited', `Invitation sent to ${inviteIdentifier.trim()}`);
                   } catch (err: any) {
                     Alert.alert(
                       'Error',
-                      err?.data?.error || err?.message || 'Failed to send invite'
+                      err?.data?.message ||
+                        err?.data?.error ||
+                        err?.message ||
+                        'Failed to send invite'
                     );
                   }
                 }}

@@ -37,7 +37,7 @@ import {
 } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
-import { getThemeColorName, THEME_COLOR_GRADIENTS } from '@/utils/theme';
+import { pickerMediaTypesProp } from '@/utils/picker';
 
 // Field validation errors
 interface FieldErrors {
@@ -61,12 +61,6 @@ const SPORTS_OPTIONS = [
   'Wrestling',
   'Other',
 ];
-
-const THEME_COLORS = Object.entries(THEME_COLOR_GRADIENTS).map(([value, gradient]) => ({
-  name: getThemeColorName(value),
-  value,
-  gradient,
-}));
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -93,9 +87,6 @@ export default function EditProfileScreen() {
 
   // Sports interests
   const [sportsInterests, setSportsInterests] = useState<string[]>([]);
-
-  // Theme color
-  const [themeColor, setThemeColor] = useState<string>('#3B82F6'); // Default VarsityHub Blue
 
   // Team member fields
   const [position, setPosition] = useState('');
@@ -185,9 +176,6 @@ export default function EditProfileScreen() {
       // Handle sports interests - check preferences first, then direct field, then legacy location
       const interests = prefs?.sports_interests || me?.sports_interests || [];
       setSportsInterests(Array.isArray(interests) ? interests : []);
-
-      // Theme color from preferences
-      setThemeColor(prefs?.theme_color || '#3B82F6');
 
       // Team member fields from preferences
       setPosition(prefs?.position || me?.position || '');
@@ -285,7 +273,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      ...pickerMediaTypesProp(),
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -308,7 +296,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      ...pickerMediaTypesProp(),
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -381,7 +369,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      ...pickerMediaTypesProp(),
       allowsEditing: true,
       // Profile background renders full width x 200px (~2:1) — crop to match.
       aspect: [2, 1],
@@ -523,13 +511,6 @@ export default function EditProfileScreen() {
       preferences.zip_code = zipCode.trim() || null;
       if (dateOfBirth) preferences.dob = formatDateForAPI(dateOfBirth);
       preferences.sports_interests = sportsInterests.length > 0 ? sportsInterests : [];
-      // Only save theme_color for coach/organization accounts
-      if (
-        themeColor &&
-        (userRole === 'coach' || userRole === 'admin' || userRole === 'organization')
-      ) {
-        preferences.theme_color = themeColor;
-      }
       if (headerImageTouched) {
         preferences.header_image_url = headerImageUrl || null;
       }
@@ -1375,79 +1356,6 @@ const styles = StyleSheet.create({
   selectedCount: {
     fontSize: 12,
     textAlign: 'center',
-  },
-  colorGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 16,
-  },
-  colorOption: {
-    width: '47%',
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
-    alignItems: 'center',
-  },
-  colorSwatch: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginBottom: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.2)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.2,
-          shadowRadius: 4,
-        }),
-    elevation: 3,
-  },
-  colorName: {
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  colorPreview: {
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  colorPreviewLabel: {
-    fontSize: 13,
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  colorPreviewBox: {
-    width: '100%',
-    height: 80,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.3)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-        }),
-    elevation: 4,
-  },
-  colorPreviewText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    ...(Platform.OS === 'web'
-      ? { textShadow: '0px 1px 3px rgba(0, 0, 0, 0.3)' }
-      : {
-          textShadowColor: 'rgba(0, 0, 0, 0.3)',
-          textShadowOffset: { width: 0, height: 1 },
-          textShadowRadius: 3,
-        }),
   },
   saveSection: {
     marginTop: 8,

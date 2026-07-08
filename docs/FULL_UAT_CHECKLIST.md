@@ -14,7 +14,7 @@ Organized by user journey.
 
 - [ ] ⚡ Email/password sign-up creates account, sends verification email from `noreply@varsityhub.app`
 - [ ] Google OAuth sign-up on Android and iOS
-- [ ] 📱 Apple Sign-In sign-up
+- [ ] 📱 Apple Sign-In sign-up on iOS and remains visible on Android per Apple guideline
 - [ ] Verification email arrives, 6-digit code works, code expires after window
 - [ ] Resend verification works and is rate-limited
 - [ ] Duplicate email is blocked with a clear error
@@ -25,8 +25,8 @@ Organized by user journey.
 - [ ] Google OAuth sign-in
 - [ ] 📱 Apple Sign-In sign-in
 - [ ] Wrong password shows an error and does not leak whether the email exists
-- [ ] ⚡ Signed-in user attempting to sign in as another user is blocked with `Sign out before signing in to a different account`
-- [ ] ⚡ All four paths enforce the account-boundary guard
+- [ ] ⚡ Account boundary: signed-in user attempting to sign in as another user is blocked with `Sign out before signing in to a different account`
+- [ ] ⚡ All four paths, email plus three OAuth routes, enforce the account-boundary guard
 
 ### 1.3 Sign-out (P0)
 
@@ -66,7 +66,7 @@ Organized by user journey.
 
 ### 2.3 Coach path: join existing league (P0) ⚡
 
-- [ ] Zero-org empty state renders correctly on `Join existing`
+- [ ] `Join existing` with zero orgs in production renders the empty-state copy correctly
 - [ ] Search for an existing org returns results
 - [ ] Request to join submits successfully
 - [ ] User reaches pending-approval screen
@@ -96,7 +96,7 @@ Organized by user journey.
 ### 3.1 Profile (P0)
 
 - [ ] View own profile with avatar, display name, bio, posts, and teams
-- [ ] Edit profile, including avatar upload, display name, bio, and persistence
+- [ ] Edit profile, including Cloudinary-direct avatar upload, display name, bio, and persistence
 - [ ] View another user's profile at `/user-profile`
 - [ ] Follow and unfollow another user
 - [ ] Followers and Following lists load and paginate
@@ -106,8 +106,8 @@ Organized by user journey.
 - [ ] Settings index renders all sections
 - [ ] Manage subscription works
 - [ ] Billing history loads past charges
-- [ ] Notification toggles persist
-- [ ] Privacy Policy, Terms, DMCA, and Core Values open correctly
+- [ ] Push-category notification toggles persist
+- [ ] Privacy Policy, account deletion, and Core Values open correctly
 - [ ] Username edit enforces uniqueness
 - [ ] Reset password from inside settings requires re-auth
 - [ ] Zip code change updates feed scope
@@ -120,7 +120,7 @@ Organized by user journey.
 ### 3.3 Account deletion (P0)
 
 - [ ] Delete account requires re-auth
-- [ ] Deleted account can no longer sign in
+- [ ] Account is soft-deleted or hard-deleted per policy and can no longer sign in
 - [ ] Push tokens are cleared
 
 ## 4. Teams & Organizations
@@ -149,8 +149,8 @@ Organized by user journey.
 
 ### 4.4 Plan limits (P1)
 
-- [ ] Rookie plan blocks or paywalls the 5th team
-- [ ] Veteran plan respects 100-roster and 5-authorized-user limits
+- [ ] Rookie plan enforces 3 teams, 50 roster slots, and 6 authorized users, blocking or paywalling the 4th team
+- [ ] Veteran plan enforces 100 roster slots and 5 authorized users
 - [ ] Legend plan behaves as unlimited
 
 ## 5. Posts & Feed
@@ -190,7 +190,7 @@ Organized by user journey.
 
 - [ ] Coach can create an event with team context and RSVP enabled
 - [ ] Fan can create a community event
-- [ ] Geocoding fills `lat/lng` from address
+- [ ] Geocoding fills `lat/lng` from address and requires `GOOGLE_MAPS_API_KEY`
 - [ ] Event approval flow works end to end, including approval email, rejection email, and in-app visibility
 
 ### 6.2 Event interactions (P0)
@@ -198,7 +198,7 @@ Organized by user journey.
 - [ ] RSVP `yes/no/maybe` persists
 - [ ] RSVP history appears in profile
 - [ ] Event detail loads with map, RSVPs, and comments
-- [ ] Event polls work on event-only events and do not fall back incorrectly to `eventId`
+- [ ] Event polls work on event-only events with no incorrect `gameId` fallback to `eventId`
 - [ ] Event-canceled email reaches RSVP'd users
 
 ### 6.3 Games (P0)
@@ -220,7 +220,7 @@ Organized by user journey.
 
 - [ ] Paywall appears for the right user states
 - [ ] iOS shows Apple IAP only and no Stripe links
-- [ ] Android uses Stripe PaymentSheet
+- [ ] Android subscription checkout uses Google Play Billing (`react-native-iap`), server-verified at `POST /payments/google/verify-purchase` — never Stripe (Play policy)
 
 ### 7.2 Apple IAP (P0) 📱
 
@@ -229,26 +229,14 @@ Organized by user journey.
 - [ ] Receipt validation is enforced server-side through Apple
 - [ ] Restore purchases works across install or device
 
-### 7.3 Stripe on Android (P0)
+### 7.3 Stripe subscription fallback — web / non-mobile only (P0)
 
-- [ ] PaymentSheet opens and completes
+- [ ] PaymentSheet opens and completes on web (Android subscriptions use Play Billing, not this path)
 - [ ] Webhook updates subscription state server-side
 - [ ] Failed payment sends `sendBillingNoticeEmail(payment_failed)` from `noreply@`
 - [ ] Trial ending sends `sendBillingNoticeEmail(trial_ending)` from `noreply@`
 
 ### 7.4 Subscription management (P1)
-
-### 7.5 Ad booking (P0) 📱
-
-- [ ] Draft ad can be submitted for approval and moves to pending review
-- [ ] Approved ad can be booked again without re-entering the approval flow
-- [ ] Archived but previously approved ad can be booked again
-- [ ] Past dates are rejected before checkout starts
-- [ ] Fully booked dates are blocked with a clear error
-- [ ] iOS ad checkout uses Apple IAP only for `MOND_THURS` and `FRI_SUN`
-- [ ] Android ad checkout uses Stripe PaymentSheet and does not depend on Play ad IAP SKUs
-- [ ] Successful payment activates the ad and reserves the selected dates
-- [ ] Failed or canceled payment releases held dates back to available inventory
 
 - [ ] Manage subscription shows current plan and renewal date
 - [ ] Cancel works on iOS through App Store sub page and on Android in-app
@@ -256,6 +244,8 @@ Organized by user journey.
 
 ### 7.5 Ad payments (P0)
 
+- [ ] iOS ad checkout uses Apple IAP only for `MOND_THURS` and `FRI_SUN`
+- [ ] Android ad checkout uses Stripe PaymentSheet and does not depend on Play ad IAP SKUs
 - [ ] Failed checkout holds are fatal with no partial bookings
 - [ ] Successful ad payment routes to `/payment-success` and creates booking
 
@@ -447,12 +437,12 @@ Validation rule:
 
 ## Test Environment Guide
 
-| Where                     | What is realistic                                   |
-| ------------------------- | --------------------------------------------------- |
-| Simulator / emulator      | Most UI flows, sign-in, onboarding, posts, events   |
-| Dev client on real device | Everything above plus push and OAuth                |
-| TestFlight build          | Device-only flows including IAP sandbox, push, OTA  |
-| Production install        | Real IAP charges, full OTA flow, real notifications |
+| Where                     | What's possible                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Simulator / emulator      | Most UI flows, sign-in, onboarding, posts, and events. Cannot cover push, IAP, and OAuth is sometimes flaky. |
+| Dev client on real device | Everything in simulator plus push and OAuth. Cannot cover production OTA and real IAP charges.               |
+| TestFlight build          | Device-only flows including IAP sandbox, push, and OTA.                                                      |
+| Production install        | Real IAP charges, full OTA flow, and real notifications.                                                     |
 
 ## Triage Suggestion
 

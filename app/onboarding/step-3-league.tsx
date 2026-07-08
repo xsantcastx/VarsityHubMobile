@@ -35,6 +35,7 @@ import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import { getFreshPostAuthState } from '@/utils/postMutationAuth';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
@@ -1429,7 +1430,7 @@ function Step3League() {
                           return;
                         }
                         const result = await ImagePicker.launchImageLibraryAsync({
-                          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                          ...pickerMediaTypesProp(),
                           allowsEditing: false,
                           quality: 0.9,
                         });

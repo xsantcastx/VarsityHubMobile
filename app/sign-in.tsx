@@ -766,7 +766,11 @@ export default function SignInScreen() {
                 accessibilityLabel={authBusy ? 'Signing in' : 'Sign In'}
                 accessibilityHint="Double tap to sign in with email and password"
               >
-                {loading ? <ActivityIndicator color="white" /> : 'Sign In'}
+                {loading ? (
+                  <ActivityIndicator color={palette.background} />
+                ) : (
+                  <Text style={{ color: palette.background, fontWeight: '700' }}>Sign In</Text>
+                )}
               </Button>
             </>
           ) : null}

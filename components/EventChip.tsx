@@ -20,6 +20,7 @@ export default function EventChip({
   label,
   variant = 'overlay',
   style,
+  onPress,
 }: {
   gameId?: string | null;
   eventId?: string | null;
@@ -28,6 +29,7 @@ export default function EventChip({
   /** overlay = translucent pill for media overlays; card = subtle bordered pill for cards. */
   variant?: 'overlay' | 'card';
   style?: StyleProp<ViewStyle>;
+  onPress?: () => void;
 }) {
   const router = useRouter();
   const hasGame = !!(gameId && String(gameId).trim());
@@ -36,7 +38,11 @@ export default function EventChip({
 
   const text = label?.trim() || (hasGame ? 'View game' : 'View event');
 
-  const onPress = () => {
+  const handlePress = () => {
+    if (onPress) {
+      onPress();
+      return;
+    }
     if (hasGame) {
       void router.push({ pathname: '/game/[id]', params: { id: String(gameId).trim() } });
       return;
@@ -46,7 +52,7 @@ export default function EventChip({
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       hitSlop={6}
       style={[styles.chip, variant === 'card' ? styles.card : styles.overlay, style]}
       accessibilityRole="button"

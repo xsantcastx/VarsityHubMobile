@@ -12,19 +12,45 @@ export default function HelpScreen() {
   const theme = Colors[colorScheme];
 
   const helpItems = [
-    { icon: 'email' as const, label: 'Customer Service', subtitle: 'customerservice@varsityhub.app', onPress: () => void Linking.openURL('mailto:customerservice@varsityhub.app') },
-    { icon: 'bug-report' as const, label: 'Report a Bug', subtitle: 'Let us know what went wrong', onPress: () => router.push('/report-abuse') },
-    { icon: 'description' as const, label: 'Terms of Service', subtitle: 'Review our terms', onPress: () => router.push('/settings/terms-of-service') },
-    { icon: 'privacy-tip' as const, label: 'Privacy Policy', subtitle: 'How we handle your data', onPress: () => router.push('/settings/privacy-policy') },
+    {
+      icon: 'email' as const,
+      label: 'Customer Service',
+      subtitle: 'customerservice@varsityhub.app',
+      onPress: () => void Linking.openURL('mailto:customerservice@varsityhub.app'),
+    },
+    {
+      icon: 'bug-report' as const,
+      label: 'Report a Bug',
+      subtitle: 'Let us know what went wrong',
+      onPress: () => router.push('/report-abuse'),
+    },
+    {
+      icon: 'privacy-tip' as const,
+      label: 'Privacy Policy',
+      subtitle: 'How we handle your data',
+      onPress: () => router.push('/settings/privacy-policy'),
+    },
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      edges={['top', 'bottom']}
+    >
       <Stack.Screen options={{ headerShown: false }} />
-      <BackHeader title="Help & Support" backgroundColor={theme.background} textColor={theme.text} borderColor={theme.border} />
+      <BackHeader
+        title="Help & Support"
+        backgroundColor={theme.background}
+        textColor={theme.text}
+        borderColor={theme.border}
+      />
       <ScrollView contentContainerStyle={styles.content}>
         {helpItems.map((item, i) => (
-          <Pressable key={i} style={[styles.row, { borderColor: theme.border }]} onPress={item.onPress}>
+          <Pressable
+            key={i}
+            style={[styles.row, { borderColor: theme.border }]}
+            onPress={item.onPress}
+          >
             <MaterialIcons name={item.icon} size={24} color={theme.tint} />
             <View style={styles.rowText}>
               <Text style={[styles.rowLabel, { color: theme.text }]}>{item.label}</Text>

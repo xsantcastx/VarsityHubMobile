@@ -28,13 +28,13 @@ standard.
 
 ## Architecture Standards
 
-| Commandment                     | Pass signal                                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------------------- |
-| Thin routes, thick modules      | `app/` stays wrapper-oriented; logic lives in shared, feature, API, hook, or server modules |
-| Shared logic stays shared       | No new duplicated policy logic when a helper or middleware already exists                   |
-| Screens do not call raw `fetch` | Network calls route through `api/*` clients                                                 |
-| Use repo aliases consistently   | No deep relative imports across feature boundaries                                          |
-| Global state stays narrow       | Cross-cutting concerns only; no convenience global state for feature-local logic            |
+| Commandment                       | Pass signal                                                                                         |
+| --------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Thin routes, logic one layer down | `app/` stays wrapper-oriented; logic lives in `api/*`, shared client modules, or `server/src/lib/*` |
+| Shared logic stays shared         | No new duplicated policy logic when a helper or middleware already exists                           |
+| Screens do not call raw `fetch`   | Network calls route through `api/*` clients                                                         |
+| Use repo aliases consistently     | No deep relative imports across feature boundaries                                                  |
+| Global state stays narrow         | Cross-cutting concerns only; no convenience global state for feature-local logic                    |
 
 ## Validation And Data Integrity
 
@@ -106,9 +106,9 @@ standard.
 5. **Ownership and team authority come from persisted server state.**
 6. **Every protected action checks auth, role, plan, and ownership on the server.**
 7. **Every async critical flow is idempotent.**
-8. **No silent fallback that weakens security posture.**
+8. **No silent failures and no fallback that changes security posture.**
 9. **Every finding needs proof; every fix needs verification.**
-10. **Every risky release must be testable and reversible.**
+10. **Coordinate cross-replica via Redis, never in-process, and keep risky releases testable and reversible.**
 
 ## Related
 

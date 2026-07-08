@@ -2151,6 +2151,27 @@ teamsRouter.post(
       inviteEmail = email!.trim().toLowerCase();
     }
 
+    // Reject inviting someone who is already an active member of this team.
+    const existingUserForInvite = await prisma.user.findFirst({
+      where: { email: { equals: inviteEmail, mode: 'insensitive' } } as any,
+      select: { id: true },
+    });
+    if (existingUserForInvite) {
+      const existingMembership = await prisma.teamMembership.findFirst({
+        where: {
+          team_id: id,
+          user_id: existingUserForInvite.id,
+          status: 'active',
+        },
+        select: { id: true },
+      });
+      if (existingMembership) {
+        return sendError(res, 409, 'That user is already on this team.', {
+          code: 'ALREADY_MEMBER',
+        });
+      }
+    }
+
     // PLAN LIMITS: Enforce authorized user caps based on TEAM OWNER's plan (Rule B).
     // Authorized users are covered by the coach's plan — never charged individually.
     // CRITICAL: Use transaction to prevent race condition bypassing user limits.
