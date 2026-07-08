@@ -6,18 +6,15 @@ const approvalService = readFileSync(
   join(process.cwd(), 'src', 'lib', 'approvalService.ts'),
   'utf8'
 );
-const organizations = readFileSync(
-  join(process.cwd(), 'src', 'routes', 'organizations.ts'),
+// Join-request approval/denial was extracted out of routes/organizations.ts into
+// this lib module. routes/organizations.ts still imports and calls the reporter,
+// but no longer declares it — assert against the declaration site.
+const organizationJoinRequests = readFileSync(
+  join(process.cwd(), 'src', 'lib', 'organizationJoinRequests.ts'),
   'utf8'
 );
-const events = readFileSync(
-  join(process.cwd(), 'src', 'routes', 'events.ts'),
-  'utf8'
-);
-const games = readFileSync(
-  join(process.cwd(), 'src', 'routes', 'games.ts'),
-  'utf8'
-);
+const events = readFileSync(join(process.cwd(), 'src', 'routes', 'events.ts'), 'utf8');
+const games = readFileSync(join(process.cwd(), 'src', 'routes', 'games.ts'), 'utf8');
 
 const extractFunctionBody = (source: string, name: string): string => {
   const match = source.match(new RegExp(`export async function ${name}[\\s\\S]*?^\\}`, 'm'));
@@ -40,7 +37,7 @@ describe('approval notification guards', () => {
     'rejectAd',
     'approveEvent',
     'rejectEvent',
-  ])('%s awaits the in-app notification helper instead of fire-and-forget create', (fnName) => {
+  ])('%s awaits the in-app notification helper instead of fire-and-forget create', fnName => {
     const body = extractFunctionBody(approvalService, fnName);
     expect(body).toMatch(/await createApprovalNotification\(prisma,\s*\{/);
   });
@@ -51,14 +48,14 @@ describe('approval notification guards', () => {
   });
 
   it('join-request approval routes notification failures through the shared reporter', () => {
-    expect(organizations).toMatch(/function reportApprovalNotificationFailure/);
-    expect(organizations).toMatch(/coach_join_request_approved_email_failed/);
-    expect(organizations).toMatch(/join_request_approval_push_failed/);
-    expect(organizations).toMatch(/join_request_approval_notification_failed/);
+    expect(organizationJoinRequests).toMatch(/function reportApprovalNotificationFailure/);
+    expect(organizationJoinRequests).toMatch(/coach_join_request_approved_email_failed/);
+    expect(organizationJoinRequests).toMatch(/join_request_approval_push_failed/);
+    expect(organizationJoinRequests).toMatch(/join_request_approval_notification_failed/);
   });
 
   it('join-request denial captures in-app notification failures to Sentry', () => {
-    expect(organizations).toMatch(
+    expect(organizationJoinRequests).toMatch(
       /JOIN_REQUEST_DENIED[\s\S]*?captureException\(notifErr as Error,\s*\{[\s\S]*?context:\s*'join_request_denial_notification_failed'/
     );
   });
