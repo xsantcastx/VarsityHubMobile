@@ -11,6 +11,11 @@ const organizationsSrc = readFileSync(
   join(process.cwd(), 'src', 'routes', 'organizations.ts'),
   'utf8'
 );
+// Email canonicalization for invites lives here now, not inline in the route.
+const inviteIdentifierSrc = readFileSync(
+  join(process.cwd(), 'src', 'lib', 'inviteIdentifier.ts'),
+  'utf8'
+);
 
 describe('organization invite guards', () => {
   it('accept route compares emails case-insensitively and only transitions pending invites', () => {
@@ -42,7 +47,14 @@ describe('organization invite guards', () => {
   });
 
   it('direct org invites normalize the stored recipient email before lookup and write', () => {
-    expect(organizationsSrc).toMatch(/const inviteEmail = email\.trim\(\)\.toLowerCase\(\)/);
+    // Normalization used to be an inline `email.trim().toLowerCase()` in this route.
+    // The username-or-email invite work moved it into resolveInviteIdentifier(), which
+    // is now the single canonicalization point. Assert the invariant (the address that
+    // reaches the DB is lowercased by the resolver), not the old literal.
+    expect(organizationsSrc).toMatch(/const resolvedIdentifier = await resolveInviteIdentifier\(/);
+    expect(organizationsSrc).toMatch(/const inviteEmail = resolvedIdentifier\.email;/);
+    expect(inviteIdentifierSrc).toMatch(/email:\s*identifier\.toLowerCase\(\)/);
+    expect(inviteIdentifierSrc).toMatch(/email:\s*user\.email\.toLowerCase\(\)/);
     expect(organizationsSrc).toMatch(
       /organizationInvite\.findFirst\(\{[\s\S]*?email:\s*\{\s*equals:\s*inviteEmail,\s*mode:\s*'insensitive'\s*\}/
     );

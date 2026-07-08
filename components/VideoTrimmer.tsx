@@ -146,6 +146,14 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
   const leftCtx = useSharedValue(0);
   const rightCtx = useSharedValue(trackWidth);
   const durationRef = useRef(0);
+  // Synchronous re-entrancy guard. `trimming` is React state, so the button's
+  // `disabled` prop only engages on the NEXT render — a fast double-tap fires
+  // handleTrim twice, the two native ffmpeg sessions collide, and one returns
+  // "Command failed with rc 1", surfacing a spurious "Trim Failed" alert.
+  const trimInFlightRef = useRef(false);
+  // Range of the last successfully applied trim. Re-tapping Apply Trim without
+  // moving the handles is a no-op, not a failure.
+  const appliedRangeRef = useRef<{ startMs: number; endMs: number } | null>(null);
 
   // Prepare URI for ffmpeg (handle ph:// iOS PhotoKit URIs)
   const [processableUri, setProcessableUri] = useState<string | null>(null);
@@ -284,6 +292,7 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
     leftX.value = 0;
     rightX.value = trackWidth;
     setHasMoved(false);
+    appliedRangeRef.current = null;
     setStartLabel('0:00');
     setEndLabel(formatTime(durationRef.current));
     onTrimReset();
@@ -306,13 +315,35 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
       return;
     }
 
-    setTrimming(true);
+    // Bail out synchronously on a double-tap. `trimming` state (and the button's
+    // `disabled`) only takes effect after a re-render, so without this a rapid
+    // second tap starts a concurrent native ffmpeg session and one of them dies
+    // with "Command failed with rc 1" — a spurious "Trim Failed" alert.
+    if (trimInFlightRef.current) return;
 
     const startSec = (leftX.value / trackWidth) * dur;
     const endSec = (rightX.value / trackWidth) * dur;
     // react-native-video-trim expects milliseconds
     const startMs = Math.round(startSec * 1000);
     const endMs = Math.round(endSec * 1000);
+
+    // Re-tapping Apply Trim on a range that was already applied is a no-op, not
+    // a failure. Tolerance absorbs sub-pixel handle rounding.
+    const applied = appliedRangeRef.current;
+    if (
+      applied &&
+      Math.abs(applied.startMs - startMs) <= 50 &&
+      Math.abs(applied.endMs - endMs) <= 50
+    ) {
+      Alert.alert(
+        'Already Trimmed',
+        'This clip is already trimmed to the selected range. Move the handles to trim it differently, or tap Reset to start over.'
+      );
+      return;
+    }
+
+    trimInFlightRef.current = true;
+    setTrimming(true);
 
     try {
       const result = await trim(processableUri, {
@@ -352,11 +383,18 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
             'The trimmed clip does not match the length you selected. Use it anyway, or try trimming again.',
             [
               { text: 'Try Again', style: 'cancel' },
-              { text: 'Use Anyway', onPress: () => onTrimComplete(outputPath) },
+              {
+                text: 'Use Anyway',
+                onPress: () => {
+                  appliedRangeRef.current = { startMs, endMs };
+                  onTrimComplete(outputPath);
+                },
+              },
             ]
           );
           return;
         }
+        appliedRangeRef.current = { startMs, endMs };
         onTrimComplete(result.outputPath);
       } else {
         Alert.alert('Trim Failed', 'Could not trim the video. Please try again.');
@@ -372,6 +410,9 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
       if (__DEV__) console.warn('[VideoTrimmer] Trim error:', e);
       reportTrimFailure('trim_error', e, processableUri ?? undefined);
     } finally {
+      // Runs on every path (success, mismatch early-return, throw), so a failed
+      // trim never wedges the button.
+      trimInFlightRef.current = false;
       setTrimming(false);
     }
   }, [processableUri, duration, leftX, rightX, trackWidth, onTrimComplete]);

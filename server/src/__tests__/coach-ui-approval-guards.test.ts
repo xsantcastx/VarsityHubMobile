@@ -140,9 +140,15 @@ describe('coach approval UI guards', () => {
   );
 
   it('event approvals is staff-gated through useRequireTeamManagement with a redirecting fallback', () => {
-    // Substring deliberately omits the array prefix so adding another loader
-    // (e.g. the opponent-approval game requests) doesn't break this contract.
-    expect(eventApprovalsScreen).toContain('loadEvents(), loadTeamInvites(), loadOrgRequests()');
+    // Deliberately omits the array prefix so adding another loader (e.g. the
+    // opponent-approval game requests) doesn't break this contract. Matched as a
+    // whitespace-tolerant regex, not a literal substring: Prettier reflowed the
+    // Promise.all onto one loader per line, which silently broke the old
+    // `toContain('loadEvents(), loadTeamInvites(), loadOrgRequests()')` even
+    // though the behavior never changed.
+    expect(eventApprovalsScreen).toMatch(
+      /loadEvents\(\),\s*loadTeamInvites\(\),\s*loadOrgRequests\(\)/
+    );
     expect(eventApprovalsScreen).toContain('useAuth');
     // Role-barrier model: reviewing approvals is an "authorized user"
     // function, so the screen gates on the membership-aware
@@ -194,10 +200,13 @@ describe('coach approval UI guards', () => {
     expect(step3LeagueScreen).toMatch(/\{canSearchForExistingOrganization && showSearch \?/);
   });
 
-  it('join-existing onboarding copy points to the league owner as decision maker', () => {
-    expect(step3LeagueScreen).toContain("ownerName: 'the league owner'");
-    expect(step3LeagueScreen).toContain('Optional message to league owner');
-    expect(pendingApprovalScreen).toContain("params.ownerName || 'the league owner'");
+  it('join-existing onboarding copy points to the organization owner as decision maker', () => {
+    // The invariant is that the owner is named as the decision maker, not the exact
+    // noun. Product renamed "league owner" -> "organization owner" across all three
+    // sites; the copy is consistent, so assert the current noun in one place.
+    expect(step3LeagueScreen).toContain("ownerName: 'the organization owner'");
+    expect(step3LeagueScreen).toContain('Optional message to organization owner');
+    expect(pendingApprovalScreen).toContain("params.ownerName || 'the organization owner'");
   });
 
   it('client admin access requires a verified admin account before showing admin screens', () => {

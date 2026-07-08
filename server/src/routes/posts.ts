@@ -33,6 +33,7 @@ import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+import { sendError } from '../lib/http/sendError.js';
 
 export const postsRouter = Router();
 registerIdValidation(postsRouter);
@@ -1789,7 +1790,15 @@ postsRouter.post(
 postsRouter.delete(
   '/:id',
   requireAuth as any,
-  requireOnboarded as any,
+  // NO requireOnboarded here — on purpose.
+  //
+  // Deleting your own content is a data right, not a "coach feature". This route
+  // used to sit behind requireOnboarded, which 403s a coach whose approval is
+  // PENDING/REJECTED, and a coach whose accepted agreement version is stale
+  // (requireOnboarded.ts:134-149). Those users could delete their own COMMENT
+  // (that route has only requireAuth) but not their own POST — an inconsistency,
+  // not a policy. Authorization is still fully enforced below: author, team coach,
+  // or admin only.
   asyncHandler(async (req: AuthedRequest, res) => {
     const postId = String(req.params.id);
     const userId = req.user!.id;
@@ -1801,7 +1810,29 @@ postsRouter.delete(
       });
 
       if (!post) {
-        return res.status(404).json({ error: 'Post not found' });
+        // Idempotent retry path (2026-07-08 incident): a client that timed out and
+        // retried after the delete actually landed must get a fast success, not a 404
+        // it surfaces as "Failed to delete post". Authorization is re-checked so an
+        // unauthorized caller still sees the same 404 as a nonexistent post.
+        const alreadyDeleted = await prisma.post.findFirst({
+          where: { id: postId, deleted_at: { not: null } },
+          select: { id: true, author_id: true, team_id: true, game_id: true, deleted_at: true },
+        });
+        if (alreadyDeleted) {
+          const retryIsAuthor = alreadyDeleted.author_id === userId;
+          const retryIsCoach = retryIsAuthor
+            ? false
+            : await isCoachOfPostTeam(userId, alreadyDeleted);
+          const retryIsAdmin = retryIsAuthor || retryIsCoach ? false : await getIsAdmin(req as any);
+          if (retryIsAuthor || retryIsCoach || retryIsAdmin) {
+            return res.json({
+              message: 'Post deleted successfully',
+              deleted_at: alreadyDeleted.deleted_at!.toISOString(),
+              already_deleted: true,
+            });
+          }
+        }
+        return sendError(res, 404, 'Post not found');
       }
 
       const isAuthor = post.author_id === userId;
@@ -1813,10 +1844,22 @@ postsRouter.delete(
           .json({ error: 'You can only delete your own posts or posts on your team page' });
       }
 
+      // Soft-delete FIRST, as a single autocommit statement — deliberately NOT an
+      // interactive transaction. 2026-07-08 incident: a ~70s Postgres WAL/disk stall
+      // left the old $transaction's COMMIT hanging past its 5s budget while it held
+      // the Post row lock, so 23 client retries piled up behind it, all failed with
+      // P2028, and the stuck transactions exhausted the connection pool (broke
+      // unrelated auth checks). The notification cleanup below is cosmetic and must
+      // not gate or share fate with the user-visible delete.
       const deletedAt = new Date();
-      await prisma.$transaction(async tx => {
+      await prisma.post.update({ where: { id: postId }, data: { deleted_at: deletedAt } });
+
+      // Best-effort cleanup: remove notifications pointing at the deleted post and
+      // its comments. A failure here leaves only stale notifications (their taps
+      // already handle missing posts); never fail the delete over it.
+      try {
         // audit-allow unbounded: delete must enumerate every comment id on the post to clear linked notifications
-        const commentIds = await tx.comment.findMany({
+        const commentIds = await prisma.comment.findMany({
           where: { post_id: postId },
           select: { id: true },
         });
@@ -1829,9 +1872,14 @@ postsRouter.delete(
           delete notificationWhere.post_id;
         }
 
-        await tx.notification.deleteMany({ where: notificationWhere });
-        await tx.post.update({ where: { id: postId }, data: { deleted_at: deletedAt } });
-      });
+        await prisma.notification.deleteMany({ where: notificationWhere });
+      } catch (cleanupErr) {
+        console.warn(
+          '[posts] notification cleanup after delete failed for post',
+          postId,
+          cleanupErr
+        );
+      }
 
       // Destroy the Cloudinary asset so deleted media doesn't stay publicly
       // retrievable by URL. Fire-and-forget — we don't want a Cloudinary hiccup

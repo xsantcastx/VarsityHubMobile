@@ -27,7 +27,14 @@ export const queryClient = new QueryClient({
       gcTime: 5 * 60_000,
       // The HTTP client (api/http.ts) already retries with backoff; don't
       // stack a second retry layer on top.
-      retry: 1,
+      //
+      // This said `retry: 1`, which contradicted the line above: api/http.ts
+      // gives a non-critical GET 3 retries, so react-query's extra attempt made
+      // it 8 requests and ~4 minutes of wall-clock before `isError` flipped.
+      // Worse, an aborted request closes the RN socket but does NOT cancel the
+      // in-flight Postgres query, so a marginally slow endpoint got 8x server-side
+      // amplification per tab tap — turning slow into down.
+      retry: 0,
       // No window-focus concept on native; avoid spurious refetches.
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
