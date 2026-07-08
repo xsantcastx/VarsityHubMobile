@@ -1489,6 +1489,11 @@ const GameDetailsScreen = () => {
           'Cannot Verify Location',
           'This game has no event location set yet, so story uploads are disabled until the venue is configured.'
         );
+      } else if (status === 429) {
+        Alert.alert(
+          'Too Many Uploads',
+          'You have hit the hourly upload limit. Wait a few minutes and try again.'
+        );
       } else {
         Alert.alert('Unable to add story', err?.message || 'Please try again.');
       }

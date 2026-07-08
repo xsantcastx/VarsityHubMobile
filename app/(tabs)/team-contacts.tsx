@@ -7,7 +7,7 @@ import {
   MAX_VIDEO_SIZE_MB,
   VIDEO_CAPTURE_PRESET,
 } from '@/constants/video';
-import { prepareVideoForUpload } from '@/utils/compressVideo';
+import { prepareVideoForUpload, uploadTimeoutMsForSize } from '@/utils/compressVideo';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { useTeamMembersQuery } from '@/hooks/useTeamMembersQuery';
@@ -41,6 +41,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '@/utils/uploadUtils';
+import type { UploadOptions } from '@/api/upload';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerAllMediaTypesProp, pickerMediaTypesProp } from '@/utils/picker';
 
@@ -971,7 +972,7 @@ export default function TeamChatScreen() {
   }, []);
 
   const sendFileMessage = useCallback(
-    async (fileAsset: any) => {
+    async (fileAsset: any, uploadOptions?: UploadOptions) => {
       try {
         // Create initial message with uploading status
         const message: ChatMessage = {
@@ -1015,9 +1016,9 @@ export default function TeamChatScreen() {
         let uploadResponse: UploadResponse;
 
         if (fileAsset.mimeType?.startsWith('image/')) {
-          uploadResponse = await uploadImage(fileToUpload);
+          uploadResponse = await uploadImage(fileToUpload, uploadOptions);
         } else {
-          uploadResponse = await uploadDocument(fileToUpload);
+          uploadResponse = await uploadDocument(fileToUpload, uploadOptions);
         }
 
         // Update message with server URL and success status
@@ -1159,14 +1160,22 @@ export default function TeamChatScreen() {
     setIsUploadingFile(true);
     try {
       const prepared = await prepareVideoForUpload(videoTrimmedUri ?? videoToTrim.uri);
-      await sendFileMessage({
-        uri: prepared.uri,
-        name: videoToTrim.name,
-        size: prepared.finalSizeBytes || videoToTrim.size,
-        mimeType: 'video/mp4',
-      });
+      await sendFileMessage(
+        {
+          uri: prepared.uri,
+          name: videoToTrim.name,
+          size: prepared.finalSizeBytes || videoToTrim.size,
+          mimeType: 'video/mp4',
+        },
+        { timeoutMs: uploadTimeoutMsForSize(prepared.finalSizeBytes) }
+      );
     } catch (e: any) {
-      showToast(e?.message || 'Failed to send video', 'error');
+      showToast(
+        e?.status === 429
+          ? 'Too many uploads — wait a few minutes and try again.'
+          : e?.message || 'Failed to send video',
+        'error'
+      );
     } finally {
       setIsUploadingFile(false);
       setVideoToTrim(null);

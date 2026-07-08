@@ -741,10 +741,16 @@ function CreatePostScreen() {
           const msg: string = uploadErr?.message || '';
           console.error('[CreatePost] Media upload failed:', msg);
           if (msg.includes('timeout') || msg.includes('Timeout')) {
-            throw new Error('Upload timed out. Please check your connection and try again.');
+            const timeoutErr: any = new Error(
+              'Upload timed out. Please check your connection and try again.'
+            );
+            timeoutErr.status = uploadErr?.status;
+            throw timeoutErr;
           }
           // Surface the actual underlying error so it's debuggable
-          throw new Error(msg || 'Media upload failed. Please try again.');
+          const rewrapped: any = new Error(msg || 'Media upload failed. Please try again.');
+          rewrapped.status = uploadErr?.status;
+          throw rewrapped;
         });
         const res = await mainUpload;
         finalMediaUrl = res?.url || '';
@@ -930,7 +936,11 @@ function CreatePostScreen() {
             );
           }
         } else {
-          setError(e?.message || 'Failed to create post. Please try again.');
+          setError(
+            e?.status === 429
+              ? 'You have hit the hourly upload limit. Wait a few minutes and try again.'
+              : e?.message || 'Failed to create post. Please try again.'
+          );
         }
       }
     } finally {
