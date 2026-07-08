@@ -130,11 +130,11 @@ export const EVENTS: OneOffEventDef[] = [
         'https://ui-avatars.com/api/?name=San+Antonio+Spurs&length=3&background=0C0C0C&color=C4CED4&size=512&bold=true&format=png',
     },
   },
-  // ── Fanatics Fest NYC 2026 — festival hub (created 2026-07-07) ───────────────────
+  // ── Fanatics Fest NYC 2026 — Day 1: Thursday, July 16 (created 2026-07-08) ───────
   {
-    title: 'Fanatics Fest NYC 2026',
+    title: 'Fanatics Fest NYC 2026 — Day 1: Thursday, July 16',
     description:
-      "The sports fan festival's expanded four-day return to the Javits Center (Jul 16-19), timed to the FIFA World Cup Final weekend. Confirmed guests include Aaron Judge, Kevin Durant, Tom Brady, Freddie Freeman, Diana Taurasi, Jalen Brunson, and WWE stars Cody Rhodes and Rhea Ripley, plus Jay-Z, Kevin Hart and Travis Scott. Hours: Thu 1-8pm, Fri/Sat 10am-7pm, Sun 10am-5pm.",
+      'Opening day of the four-day festival at the Javits Center, 1-8pm. Headliner: LeBron James & Tyrese Haliburton tape a live "Mind the Game" podcast episode on the Center Stage at 1:15pm (releases July 21 on YouTube/Prime Video) — James returns for a second day Friday. Also today: the Disney x NFL "Fan Draft" with commissioner Roger Goodell, the $2M multi-day Fanatics Games competition kicks off (Tom Brady, Rob Gronkowski, WWE stars), and athlete autograph signings begin (Aaron Judge, Tom Brady, Freddie Freeman, Jalen Brunson and more).',
     eventType: 'other',
     dateUtc: '2026-07-16T17:00:00.000Z', // Thu Jul 16, 1:00 PM EDT (doors)
     location: 'Javits Center, 429 11th Ave, New York, NY 10001',
@@ -143,40 +143,43 @@ export const EVENTS: OneOffEventDef[] = [
     bannerUrl:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
     linkedLeague: 'Fanatics Fest',
+    contactInfo: 'customerservice@varsityhub.app',
   },
-  // ── Fanatics Fest — LeBron James & Tyrese Haliburton podcast (created 2026-07-07) ─
+  // ── Fanatics Fest NYC 2026 — Day 2: Friday, July 17 (created 2026-07-08) ─────────
   {
-    title: 'LeBron James & Tyrese Haliburton — Live "Mind the Game" Taping',
+    title: 'Fanatics Fest NYC 2026 — Day 2: Friday, July 17',
     description:
-      'Headliner session at Fanatics Fest NYC 2026. LeBron James and Pacers guard Tyrese Haliburton tape a live episode of the "Mind the Game" podcast on the Center Stage, releasing July 21 on YouTube and Prime Video. James is at the festival for two days, Thursday and Friday.',
+      "Javits Center, 10am-7pm. Headliner: the official FIFA World Cup Final pre-match press conferences — both finalist teams take the Fanatics Fest stage days before Sunday's Final at MetLife Stadium (finalists and exact stage time still TBA as the knockout rounds continue). LeBron James makes his second and final festival appearance today. Fanatics Games competition and autograph signings continue.",
     eventType: 'other',
-    dateUtc: '2026-07-16T17:15:00.000Z', // Thu Jul 16, 1:15 PM EDT, Center Stage
-    location: 'Javits Center — Center Stage, 429 11th Ave, New York, NY 10001',
-    lat: 40.75687,
-    lng: -74.001762,
-    bannerUrl:
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
-    linkedLeague: 'Fanatics Fest',
-  },
-  // ── Fanatics Fest — FIFA World Cup Final pre-match press conferences (created 2026-07-07) ─
-  {
-    title: 'FIFA World Cup Final Pre-Match Press Conferences',
-    description:
-      "Headliner session at Fanatics Fest NYC 2026. Official FIFA World Cup Final pre-match press conferences — both finalist teams take the Fanatics Fest stage days before Sunday's Final at MetLife Stadium. Finalists and exact stage time are still TBA as the knockout rounds continue; check fanaticsfest.com closer to the date.",
-    eventType: 'other',
-    dateUtc: '2026-07-17T14:00:00.000Z', // Fri Jul 17, 10:00 AM EDT (doors; session time TBA)
+    dateUtc: '2026-07-17T14:00:00.000Z', // Fri Jul 17, 10:00 AM EDT (doors)
     location: 'Javits Center, 429 11th Ave, New York, NY 10001',
     lat: 40.75687,
     lng: -74.001762,
     bannerUrl:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
     linkedLeague: 'Fanatics Fest',
+    contactInfo: 'customerservice@varsityhub.app',
   },
-  // ── Fanatics Fest — FIFA World Cup Final watch party (created 2026-07-07) ────────
+  // ── Fanatics Fest NYC 2026 — Day 3: Saturday, July 18 (created 2026-07-08) ───────
   {
-    title: 'FIFA World Cup 2026 Final Watch Party at Fanatics Fest',
+    title: 'Fanatics Fest NYC 2026 — Day 3: Saturday, July 18',
     description:
-      "Headliner session at Fanatics Fest NYC 2026, closing out the festival. Billed as NYC's largest indoor FIFA World Cup Final watch party, with pop-up bar viewing and a seated family theater option, running through the Final's kickoff at MetLife Stadium. Finalists TBD.",
+      'Javits Center, 10am-7pm. Headliner: WWE takes over the weekend — Roman Reigns, Cody Rhodes, John Cena, Rhea Ripley, Liv Morgan and Jey Uso compete in the Fanatics Games, with Cody Rhodes, Rhea Ripley, IYO SKY, Randy Orton, Charlotte Flair, Bianca Belair and more on-site for signings. The same night, WWE\'s "Saturday Night\'s Main Event" airs live from Madison Square Garden — a separate ticketed WWE show elsewhere in NYC, not part of Fanatics Fest itself, but timed to the same weekend. Exclusive Topps Chrome x Cactus Jack releases continue at the Topps booth.',
+    eventType: 'other',
+    dateUtc: '2026-07-18T14:00:00.000Z', // Sat Jul 18, 10:00 AM EDT (doors)
+    location: 'Javits Center, 429 11th Ave, New York, NY 10001',
+    lat: 40.75687,
+    lng: -74.001762,
+    bannerUrl:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
+    linkedLeague: 'Fanatics Fest',
+    contactInfo: 'customerservice@varsityhub.app',
+  },
+  // ── Fanatics Fest NYC 2026 — Day 4: Sunday, July 19 (created 2026-07-08) ─────────
+  {
+    title: 'Fanatics Fest NYC 2026 — Day 4: Sunday, July 19',
+    description:
+      "Javits Center, 10am-5pm, closing day. Headliner: billed as NYC's largest indoor FIFA World Cup Final watch party, with pop-up bar viewing and a seated family theater option, running through the Final's kickoff at MetLife Stadium (finalists TBD). The multi-day, $2M Fanatics Games competition also wraps up during the festival's four days.",
     eventType: 'watch_party',
     dateUtc: '2026-07-19T14:00:00.000Z', // Sun Jul 19, 10:00 AM EDT (doors)
     location: 'Javits Center, 429 11th Ave, New York, NY 10001',
@@ -185,6 +188,7 @@ export const EVENTS: OneOffEventDef[] = [
     bannerUrl:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
     linkedLeague: 'Fanatics Fest',
+    contactInfo: 'customerservice@varsityhub.app',
   },
   // ── FIBA World Cup 2027 Qualifiers — Switzerland vs Serbia (created 2026-07-07) ──
   {

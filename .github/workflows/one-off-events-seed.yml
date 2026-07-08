@@ -44,6 +44,21 @@ jobs:
         working-directory: server
         run: npx prisma generate
 
+      - name: Run one-off event deletions
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Missing GitHub secret: PRODUCTION_DATABASE_URL"
+            exit 1
+          fi
+          ARGS=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          npx tsx scripts/one-off/delete-one-off-events.ts $ARGS
+
       - name: Run one-off event creator
         working-directory: server
         env:
