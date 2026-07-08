@@ -543,6 +543,60 @@ describeDb('Posts API Endpoints', () => {
       }
     });
 
+    it('should link event_id posts to the event game_id so they count for the grace window', async () => {
+      const game = await prisma.game.create({
+        data: {
+          title: `Grace-link game ${Date.now()}`,
+          date: new Date(Date.now() + 60 * 60 * 1000),
+          location: 'VarsityHub Stadium',
+          approval_status: 'approved',
+          home_team_id: bypassHomeTeamId,
+          away_team_id: bypassAwayTeamId,
+        },
+      });
+
+      const event = await prisma.event.create({
+        data: {
+          title: `Grace-link event ${Date.now()}`,
+          date: new Date(Date.now() + 60 * 60 * 1000),
+          location: 'VarsityHub Stadium',
+          latitude: 40.7128,
+          longitude: -74.006,
+          game_id: game.id,
+          status: 'approved',
+          approval_status: 'approved',
+          creator_id: testUser.id,
+          creator_role: 'coach',
+        },
+      });
+
+      let postId: string | undefined;
+      try {
+        const res = await request(app)
+          .post('/posts')
+          .set('Authorization', `Bearer ${testUserToken}`)
+          .send({
+            title: 'Event-page post via event_id',
+            content: 'Posting to the event page should attribute the post to the game',
+            event_id: event.id, // note: NO game_id sent — mirrors the event-page client
+            location: { lat: 40.7128, lng: -74.006, source: 'device' },
+          });
+
+        expect(res.statusCode).toBe(201);
+        postId = res.body.id;
+
+        const created = await prisma.post.findUnique({
+          where: { id: res.body.id },
+          select: { game_id: true },
+        });
+        expect(created?.game_id).toBe(game.id);
+      } finally {
+        if (postId) await prisma.post.delete({ where: { id: postId } }).catch(() => {});
+        await prisma.event.delete({ where: { id: event.id } }).catch(() => {});
+        await prisma.game.delete({ where: { id: game.id } }).catch(() => {});
+      }
+    });
+
     it('should reject game-linked event posts when venue coordinates are missing', async () => {
       const game = await prisma.game.create({
         data: {

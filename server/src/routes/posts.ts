@@ -825,6 +825,21 @@ postsRouter.post(
       finalGameId = null;
     } else if (gameId) {
       finalGameId = gameId;
+    } else if (eventId && !isSampleEvent) {
+      // Posting to an event page sends event_id, not game_id. If that event is
+      // linked to a game, attribute the post to the game so it (a) shows on the
+      // game feed and (b) counts as a prior live post for the post-event grace
+      // window — verifyEventPostingPermission keys the grace check on game_id.
+      // Without this, event-page posts land with game_id=null and their authors
+      // can never qualify for grace even though they posted while it was live.
+      const linkedEvent = await prisma.event.findUnique({
+        where: { id: String(eventId) },
+        select: { game_id: true },
+      });
+      if (linkedEvent?.game_id) {
+        finalGameId = linkedEvent.game_id;
+        debugLog(`✅ Linked event ${eventId} post to game ${finalGameId}`);
+      }
     }
 
     // Allow posting to sample events/games without geofencing
