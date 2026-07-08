@@ -195,12 +195,11 @@ else
 fi
 
 if rg -q "/privacy-policy" server/src/routes/publicSite.ts &&
-   rg -q "/terms" server/src/routes/publicSite.ts &&
    rg -q "/support" server/src/routes/publicSite.ts &&
    rg -q "/account-deletion" server/src/routes/publicSite.ts; then
-  pass "Public privacy, terms, support, and account-deletion routes exist"
+  pass "Public privacy, support, and account-deletion routes exist"
 else
-  fail "Public legal/support/account-deletion routes are incomplete"
+  fail "Public privacy/support/account-deletion routes are incomplete"
 fi
 
 if rg -q "Delete Account" app/settings/index.tsx &&

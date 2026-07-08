@@ -5,6 +5,7 @@ PDF Note 4/9 — visual confirmation that every user-facing screen is readable i
 ## How to use
 
 For each screen:
+
 1. Open it in the dev client.
 2. Toggle device appearance: light, then dark.
 3. Tick the box only if BOTH modes are readable AND emphasis (titles, errors, states) pops.
@@ -101,7 +102,6 @@ Screens are grouped by user journey. Skip screens you don't normally visit; this
 - [ ] settings/feedback.tsx
 - [ ] settings/dmca.tsx
 - [ ] settings/privacy-policy.tsx
-- [ ] settings/terms-of-service.tsx
 - [ ] settings/request-host-event.tsx
 - [ ] settings/reset-password.tsx
 
@@ -140,11 +140,13 @@ Screens are grouped by user journey. Skip screens you don't normally visit; this
 ## Reporting back
 
 For each unchecked box, paste back to me as:
+
 ```
 - [screen]: [specific element], [light|dark], [what's wrong]
 ```
 
 Example:
+
 ```
 - (tabs)/event-detail.tsx: location subtitle, dark, gray-on-darker-gray, illegible
 - ad-confirmation.tsx: "Awaiting payment" badge text, light, white-on-light-yellow, washed out

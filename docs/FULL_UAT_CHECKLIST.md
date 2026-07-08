@@ -107,7 +107,7 @@ Organized by user journey.
 - [ ] Manage subscription works
 - [ ] Billing history loads past charges
 - [ ] Push-category notification toggles persist
-- [ ] Privacy Policy, Terms, DMCA, and Core Values open correctly
+- [ ] Privacy Policy, account deletion, and Core Values open correctly
 - [ ] Username edit enforces uniqueness
 - [ ] Reset password from inside settings requires re-auth
 - [ ] Zip code change updates feed scope
@@ -220,7 +220,7 @@ Organized by user journey.
 
 - [ ] Paywall appears for the right user states
 - [ ] iOS shows Apple IAP only and no Stripe links
-- [ ] Android uses Stripe PaymentSheet
+- [ ] Android subscription checkout uses Google Play Billing (`react-native-iap`), server-verified at `POST /payments/google/verify-purchase` — never Stripe (Play policy)
 
 ### 7.2 Apple IAP (P0) 📱
 
@@ -229,9 +229,9 @@ Organized by user journey.
 - [ ] Receipt validation is enforced server-side through Apple
 - [ ] Restore purchases works across install or device
 
-### 7.3 Stripe on Android (P0)
+### 7.3 Stripe subscription fallback — web / non-mobile only (P0)
 
-- [ ] PaymentSheet opens and completes
+- [ ] PaymentSheet opens and completes on web (Android subscriptions use Play Billing, not this path)
 - [ ] Webhook updates subscription state server-side
 - [ ] Failed payment sends `sendBillingNoticeEmail(payment_failed)` from `noreply@`
 - [ ] Trial ending sends `sendBillingNoticeEmail(trial_ending)` from `noreply@`
@@ -244,6 +244,8 @@ Organized by user journey.
 
 ### 7.5 Ad payments (P0)
 
+- [ ] iOS ad checkout uses Apple IAP only for `MOND_THURS` and `FRI_SUN`
+- [ ] Android ad checkout uses Stripe PaymentSheet and does not depend on Play ad IAP SKUs
 - [ ] Failed checkout holds are fatal with no partial bookings
 - [ ] Successful ad payment routes to `/payment-success` and creates booking
 

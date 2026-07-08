@@ -1,4 +1,4 @@
-app/(tabs)/_layout.tsx
+app/(tabs)/\_layout.tsx
 app/(tabs)/ad-calendar.tsx
 app/(tabs)/admin-ads.tsx
 app/(tabs)/admin-messages.tsx
@@ -26,8 +26,8 @@ app/(tabs)/notifications/index.tsx
 app/(tabs)/profile/index.tsx
 app/(tabs)/submit-ad.tsx
 app/+not-found.tsx
-app/_error.tsx
-app/_layout.tsx
+app/\_error.tsx
+app/\_layout.tsx
 app/ad-calendar.tsx
 app/ad-confirmation.tsx
 app/admin-activity-log.tsx
@@ -89,7 +89,7 @@ app/message-thread.tsx
 app/messages.tsx
 app/my-ads.tsx
 app/my-team.tsx
-app/onboarding/_layout.tsx
+app/onboarding/\_layout.tsx
 app/onboarding/components/OnboardingLayout.tsx
 app/onboarding/finish.tsx
 app/onboarding/index.tsx
@@ -128,7 +128,6 @@ app/settings/request-host-event.tsx
 app/settings/reset-password.tsx
 app/settings/rsvp-history.tsx
 app/settings/safe-zone-policy.tsx
-app/settings/terms-of-service.tsx
 app/settings/zip-code.tsx
 app/sign-in.tsx
 app/sign-up.tsx

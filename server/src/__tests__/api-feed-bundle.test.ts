@@ -263,6 +263,50 @@ describeDb('GET /feed/bundle', () => {
     expect(viewerRow?.id).toBe(viewerId);
   });
 
+  it('returns only highlight-typed posts in the bundled highlights section', async () => {
+    const bundleHighlightId = `feed-bundle-highlight-${ts}`;
+    const bundleRegularId = `feed-bundle-regular-${ts}`;
+
+    await prisma.post.create({
+      data: {
+        id: bundleHighlightId,
+        author_id: userIds[1],
+        title: 'Bundle highlight',
+        content: 'Should appear in highlights bundle',
+        type: 'highlight',
+        media_url: 'https://example.com/bundle-highlight.jpg',
+        country_code: 'CA',
+      },
+    });
+    postIds.push(bundleHighlightId);
+
+    await prisma.post.create({
+      data: {
+        id: bundleRegularId,
+        author_id: userIds[2],
+        title: 'Bundle regular post',
+        content: 'Should not appear in highlights bundle',
+        type: 'post',
+        media_url: 'https://example.com/bundle-regular.jpg',
+        country_code: 'CA',
+      },
+    });
+    postIds.push(bundleRegularId);
+
+    const res = await request(app)
+      .get('/feed/bundle')
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .query({ country: 'CA' });
+
+    expect(res.status).toBe(200);
+    const highlightIds = [
+      ...(res.body?.highlights?.nationalTop ?? []),
+      ...(res.body?.highlights?.ranked ?? []),
+    ].map((item: any) => item.id);
+    expect(highlightIds).toContain(bundleHighlightId);
+    expect(highlightIds).not.toContain(bundleRegularId);
+  });
+
   it('includes followed-user posts even after the viewer follows more than 1000 users', async () => {
     const overflowUserIds = Array.from({ length: 1001 }, (_, index) => `feed-overflow-user-${ts}-${index}`);
     const overflowPostId = `feed-overflow-post-${ts}`;

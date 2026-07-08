@@ -115,7 +115,7 @@ The bare `varsityhub.app` domain still serves these from the API server — they
 - `/.well-known/assetlinks.json` — Android App Links registration
 - `/verify`, `/reset-password` — handoff pages (token pre-validation, manual fallback)
 - `/consent/<token>` — parental consent landing
-- `/privacy-policy`, `/terms`, `/support` — legal pages
+- `/privacy-policy`, `/support` — public pages
 - All `/auth/*`, `/posts/*`, `/teams/*` etc. API endpoints
 
 If you ever move any of these to `www.varsityhub.app`, Universal Links and email handoffs will break. Keep the split.

@@ -1,5 +1,5 @@
 import { Colors } from '@/constants/Colors';
-import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
+import { PUBLIC_PRIVACY_POLICY_URL } from '@/constants/legal';
 import { Plan, PLAN_DEFINITIONS, ROOKIE_TEAM_LIMIT } from '@/constants/plans';
 import { openExternalUrl } from '@/utils/openExternalUrl';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -62,18 +62,6 @@ export function SubscriptionDisclosureCard({
       </Text>
 
       <View style={styles.linksRow}>
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel="Open Terms of Use"
-          onPress={() =>
-            void openExternalUrl(PUBLIC_TERMS_URL, {
-              context: 'subscription_disclosure_terms_link',
-            })
-          }
-        >
-          <Text style={[styles.linkText, { color: theme.tint }]}>Terms of Use</Text>
-        </Pressable>
-        <Text style={[styles.linkDivider, { color: theme.mutedText }]}>•</Text>
         <Pressable
           accessibilityRole="link"
           accessibilityLabel="Open Privacy Policy"
@@ -176,9 +164,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     textDecorationLine: 'underline',
-  },
-  linkDivider: {
-    fontSize: 14,
-    fontWeight: '700',
   },
 });

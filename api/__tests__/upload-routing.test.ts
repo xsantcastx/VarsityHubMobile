@@ -2,15 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 
 const mockAuth = {
   getToken: jest.fn(async () => 'test-token'),
-  refreshToken: jest.fn(async () => ({ accessToken: 'refreshed-token', reason: 'success' as const })),
+  refreshToken: jest.fn(async () => ({
+    accessToken: 'refreshed-token',
+    reason: 'success' as const,
+  })),
   clearTokensOnly: jest.fn(async () => undefined),
 };
 
 const openVerificationGateMock = jest.fn(async () => false);
 const getAccessTokenForRequestMock = jest.fn(async () => 'test-token');
-const refreshAccessTokenWithCacheMock = jest.fn(
-  async () => ({ accessToken: 'refreshed-token', reason: 'success' as const })
-);
+const refreshAccessTokenWithCacheMock = jest.fn(async () => ({
+  accessToken: 'refreshed-token',
+  reason: 'success' as const,
+}));
 
 jest.mock('@/utils/ensureUploadableUri', () => ({
   compressImageForUpload: jest.fn(async (uri: string, mimeType: string) => ({ uri, mimeType })),
@@ -31,8 +35,9 @@ jest.mock('@/hooks/useVerificationGate', () => ({
   openVerificationGate: openVerificationGateMock,
   isEmailVerificationRequiredError: (status: number, payload: any) =>
     status === 403 &&
-    String(payload?.error || payload?.message || '').trim().toLowerCase() ===
-      'email verification required',
+    String(payload?.error || payload?.message || '')
+      .trim()
+      .toLowerCase() === 'email verification required',
 }));
 
 class MockXHR {
@@ -40,7 +45,11 @@ class MockXHR {
   static nextStatus = 200;
   static nextResponseText = JSON.stringify({ secure_url: 'https://cloudinary.test/image.jpg' });
 
-  upload = { onprogress: null as ((event: { lengthComputable: boolean; loaded: number; total: number }) => void) | null };
+  upload = {
+    onprogress: null as
+      | ((event: { lengthComputable: boolean; loaded: number; total: number }) => void)
+      | null,
+  };
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
   ontimeout: (() => void) | null = null;
@@ -49,6 +58,7 @@ class MockXHR {
   responseText = MockXHR.nextResponseText;
   method = '';
   url = '';
+  requestBody: any = null;
 
   constructor() {
     MockXHR.instances.push(this);
@@ -59,13 +69,15 @@ class MockXHR {
     this.url = url;
   }
 
-  send() {
+  send(body?: any) {
+    this.requestBody = body;
     this.onload?.();
   }
 }
 
 describe('uploadFile routing', () => {
   const fetchMock = jest.fn() as any;
+  const originalFormData = (global as any).FormData;
   const mockSignatureThenFallbackUpload = () =>
     fetchMock
       .mockResolvedValueOnce({
@@ -118,28 +130,40 @@ describe('uploadFile routing', () => {
   afterEach(() => {
     delete (global as any).fetch;
     delete (global as any).XMLHttpRequest;
+    (global as any).FormData = originalFormData;
   });
 
   it('routes PDFs to /uploads/files instead of the media-only upload path', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' }),
+      text: async () =>
+        JSON.stringify({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' }),
     });
 
     const { uploadFile } = await import('../upload');
-    const result = await uploadFile('https://api.test', 'file:///tmp/doc.pdf', 'doc.pdf', 'application/pdf');
+    const result = await uploadFile(
+      'https://api.test',
+      'file:///tmp/doc.pdf',
+      'doc.pdf',
+      'application/pdf'
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://api.test/uploads/files');
-    expect(result).toEqual({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' });
+    expect(result).toEqual({
+      url: 'https://cdn.test/doc.pdf',
+      type: 'raw',
+      mime: 'application/pdf',
+    });
   });
 
   it('mirrors onboarding upload context into the query string for server uploads', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' }),
+      text: async () =>
+        JSON.stringify({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' }),
     });
 
     const { uploadFile } = await import('../upload');
@@ -165,16 +189,26 @@ describe('uploadFile routing', () => {
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
-        text: async () => JSON.stringify({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' }),
+        text: async () =>
+          JSON.stringify({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' }),
       });
 
     const { uploadFile } = await import('../upload');
-    const result = await uploadFile('https://api.test', 'file:///tmp/doc.pdf', 'doc.pdf', 'application/pdf');
+    const result = await uploadFile(
+      'https://api.test',
+      'file:///tmp/doc.pdf',
+      'doc.pdf',
+      'application/pdf'
+    );
 
     expect(refreshAccessTokenWithCacheMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1]?.[1]?.headers?.Authorization).toBe('Bearer refreshed-token');
-    expect(result).toEqual({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' });
+    expect(result).toEqual({
+      url: 'https://cdn.test/doc.pdf',
+      type: 'raw',
+      mime: 'application/pdf',
+    });
   });
 
   it('uses the token resolved by the HTTP auth helper for PDF uploads', async () => {
@@ -197,7 +231,11 @@ describe('uploadFile routing', () => {
     expect(refreshAccessTokenWithCacheMock).toHaveBeenCalledTimes(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[1]?.headers?.Authorization).toBe('Bearer recovered-token');
-    expect(result).toEqual({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' });
+    expect(result).toEqual({
+      url: 'https://cdn.test/doc.pdf',
+      type: 'raw',
+      mime: 'application/pdf',
+    });
   });
 
   it('opens the verification gate and retries PDF uploads after email-verification-required', async () => {
@@ -214,16 +252,26 @@ describe('uploadFile routing', () => {
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
-        text: async () => JSON.stringify({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' }),
+        text: async () =>
+          JSON.stringify({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' }),
       });
 
     const { uploadFile } = await import('../upload');
-    const result = await uploadFile('https://api.test', 'file:///tmp/doc.pdf', 'doc.pdf', 'application/pdf');
+    const result = await uploadFile(
+      'https://api.test',
+      'file:///tmp/doc.pdf',
+      'doc.pdf',
+      'application/pdf'
+    );
 
     expect(openVerificationGateMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1]?.[1]?.headers?.Authorization).toBe('Bearer verified-token');
-    expect(result).toEqual({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' });
+    expect(result).toEqual({
+      url: 'https://cdn.test/doc.pdf',
+      type: 'raw',
+      mime: 'application/pdf',
+    });
   });
 
   it('routes images through the Cloudinary signature flow before upload', async () => {
@@ -240,17 +288,86 @@ describe('uploadFile routing', () => {
     });
 
     const { uploadFile } = await import('../upload');
-    const result = await uploadFile('https://api.test', 'file:///tmp/pic.jpg', 'pic.jpg', 'image/jpeg');
+    const result = await uploadFile(
+      'https://api.test',
+      'file:///tmp/pic.jpg',
+      'pic.jpg',
+      'image/jpeg'
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://api.test/uploads/cloudinary-signature');
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://api.test/uploads/cloudinary-signature'
+    );
     expect(MockXHR.instances).toHaveLength(1);
-    expect(MockXHR.instances[0]?.url).toBe('https://api.cloudinary.com/v1_1/varsityhub/image/upload');
+    expect(MockXHR.instances[0]?.url).toBe(
+      'https://api.cloudinary.com/v1_1/varsityhub/image/upload'
+    );
     expect(result).toEqual({
       url: 'https://cloudinary.test/image.jpg',
       type: 'image',
       mime: 'image/jpeg',
     });
+  });
+
+  it('normalizes trimmed local video paths and refreshes mime from the final asset extension', async () => {
+    class MockFormData {
+      private readonly parts = new Map<string, any>();
+
+      append(key: string, value: any) {
+        this.parts.set(key, value);
+      }
+
+      get(key: string) {
+        return this.parts.get(key);
+      }
+    }
+
+    (global as any).FormData = MockFormData as any;
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        cloudName: 'varsityhub',
+        apiKey: 'key',
+        signature: 'sig',
+        timestamp: 123,
+        folder: 'uploads',
+      }),
+    });
+
+    const { uploadFile } = await import('../upload');
+    await uploadFile('https://api.test', '/tmp/trimmed-output.mp4', 'clip.mov', 'video/quicktime');
+
+    const filePart = MockXHR.instances[0]?.requestBody?.get('file');
+    expect(filePart).toEqual({
+      uri: 'file:///tmp/trimmed-output.mp4',
+      name: 'clip.mov',
+      type: 'video/mp4',
+    });
+  });
+
+  it('mirrors signed Cloudinary constraints into the direct-upload form body', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        cloudName: 'varsityhub',
+        apiKey: 'key',
+        signature: 'sig',
+        timestamp: 123,
+        folder: 'uploads',
+        allowed_formats: 'jpg,mp4',
+        max_bytes: '157286400',
+      }),
+    });
+
+    const { uploadFile } = await import('../upload');
+    await uploadFile('https://api.test', 'file:///tmp/pic.jpg', 'pic.jpg', 'image/jpeg');
+
+    const form = MockXHR.instances[0]?.requestBody as FormData;
+    expect(form?.get('allowed_formats')).toBe('jpg,mp4');
+    expect(form?.get('max_bytes')).toBe('157286400');
   });
 
   it('falls back to the server proxy when Cloudinary rejects the direct upload', async () => {
@@ -259,10 +376,17 @@ describe('uploadFile routing', () => {
     mockSignatureThenFallbackUpload();
 
     const { uploadFile } = await import('../upload');
-    const result = await uploadFile('https://api.test', 'file:///tmp/pic.jpg', 'pic.jpg', 'image/jpeg');
+    const result = await uploadFile(
+      'https://api.test',
+      'file:///tmp/pic.jpg',
+      'pic.jpg',
+      'image/jpeg'
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://api.test/uploads/cloudinary-signature');
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://api.test/uploads/cloudinary-signature'
+    );
     expect(String(fetchMock.mock.calls[1]?.[0])).toBe('https://api.test/uploads');
     expect(result).toEqual({
       url: 'https://api.test/uploads/fallback.jpg',
@@ -270,6 +394,21 @@ describe('uploadFile routing', () => {
       mime: 'image/jpeg',
       storage: 'cloudinary',
     });
+  });
+
+  it('surfaces signature-endpoint failures for video uploads instead of a generic message', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: 'Direct upload not available — Cloudinary not configured' }),
+      statusText: 'Service Unavailable',
+    });
+
+    const { uploadFile } = await import('../upload');
+
+    await expect(
+      uploadFile('https://api.test', 'file:///tmp/clip.mp4', 'clip.mp4', 'video/mp4')
+    ).rejects.toThrow('Direct upload not available');
   });
 
   it('carries onboarding upload context into the media fallback query string', async () => {

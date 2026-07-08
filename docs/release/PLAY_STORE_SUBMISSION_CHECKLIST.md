@@ -11,7 +11,6 @@ Use this after `npm run verify:play-store`.
 - Package name, asset links, and deep links are aligned.
 - Public legal pages exist:
   - `/privacy-policy`
-  - `/terms`
   - `/support`
   - `/account-deletion`
 - In-app account deletion exists in Settings.

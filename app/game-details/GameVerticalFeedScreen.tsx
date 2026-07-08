@@ -12,7 +12,7 @@ import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as MediaLibrary from 'expo-media-library';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -40,6 +40,7 @@ import { httpGet } from '@/api/http';
 import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getAuthSnapshot } from '@/utils/authState';
+import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import events from '@/utils/events';
 import { optimizeImageUrl, optimizeVideoUrl } from '@/utils/imageUrl';
 import { AppLinks } from '@/utils/links';
@@ -196,6 +197,7 @@ const FeedCard = memo(
     onSharePost,
     onToggleFollow: _onToggleFollow,
     onOpenAuthorProfile,
+    onOpenLinkedContext,
     onDoubleTap,
     onDeletePost,
     onEditPost,
@@ -214,6 +216,7 @@ const FeedCard = memo(
     onSharePost: () => void;
     onToggleFollow: () => void;
     onOpenAuthorProfile: () => void;
+    onOpenLinkedContext: () => void;
     onDoubleTap: () => void;
     onDeletePost?: () => void;
     onEditPost?: (caption: string) => void;
@@ -484,7 +487,10 @@ const FeedCard = memo(
           )}
         </Pressable>
 
-        <View style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}
+        >
           <Pressable
             onPress={post.author?.id ? onOpenAuthorProfile : undefined}
             disabled={!post.author?.id}
@@ -492,7 +498,12 @@ const FeedCard = memo(
           >
             <Text style={styles.authorNameBottom}>{authorLabel}</Text>
           </Pressable>
-          <EventChip gameId={post.game_id} eventId={post.event_id} style={styles.eventChipRow} />
+          <EventChip
+            gameId={post.game_id}
+            eventId={post.event_id}
+            onPress={onOpenLinkedContext}
+            style={styles.eventChipRow}
+          />
           <ExpandableText
             text={post.caption}
             maxLines={1}
@@ -501,7 +512,10 @@ const FeedCard = memo(
           />
         </View>
 
-        <View style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 24, 96) }]}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 24, 96) }]}
+        >
           {/* Avatar tap opens the poster profile. The previous "+" follow
               badge overlay (red-on-avatar) was removed in v1.0.3 at user
               request — it cluttered the viewer and duplicated the follow
@@ -748,6 +762,23 @@ function GameVerticalFeedScreen({
     }
   }, [onClose, router]);
 
+  const navigateFromViewer = useCallback(
+    (target: Href) => {
+      const runNavigation = () => {
+        void router.push(target);
+      };
+
+      if (onClose) {
+        onClose();
+        requestAnimationFrame(runNavigation);
+        return;
+      }
+
+      runNavigation();
+    },
+    [onClose, router]
+  );
+
   const [game, setGame] = useState<GameSummary | null>(null);
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -960,11 +991,12 @@ function GameVerticalFeedScreen({
 
       const currentCursor = reset ? null : cursorRef.current;
       try {
-        const page = await Post.feedForGame(gameId, {
-          cursor: currentCursor,
-          limit: 6,
-          sort: 'trending',
-        });
+        const page = await Post.filterPage(
+          { game_id: gameId, type: 'highlight' },
+          currentCursor,
+          6,
+          'trending'
+        );
         const items = Array.isArray(page?.items) ? page.items : [];
         const filtered = items.filter(p => {
           const n = normalizeUrl((p as any)?.media_url);
@@ -1105,7 +1137,7 @@ function GameVerticalFeedScreen({
       if (!user) {
         promptForSignIn(
           () => {
-            void router.push('/sign-in');
+            navigateFromViewer('/sign-in');
           },
           {
             message: 'Sign in to upvote posts.',
@@ -1146,7 +1178,7 @@ function GameVerticalFeedScreen({
         }));
       }
     },
-    [router, updatePost, user]
+    [navigateFromViewer, updatePost, user]
   );
 
   const handleToggleBookmark = useCallback(
@@ -1154,7 +1186,7 @@ function GameVerticalFeedScreen({
       if (!user) {
         promptForSignIn(
           () => {
-            void router.push('/sign-in');
+            navigateFromViewer('/sign-in');
           },
           {
             message: 'Sign in to save posts.',
@@ -1184,7 +1216,7 @@ function GameVerticalFeedScreen({
         }));
       }
     },
-    [router, updatePost, user]
+    [navigateFromViewer, updatePost, user]
   );
 
   const handleToggleFollow = useCallback(
@@ -1192,7 +1224,7 @@ function GameVerticalFeedScreen({
       if (!user) {
         promptForSignIn(
           () => {
-            void router.push('/sign-in');
+            navigateFromViewer('/sign-in');
           },
           {
             message: 'Sign in to follow creators.',
@@ -1223,16 +1255,29 @@ function GameVerticalFeedScreen({
         }));
       }
     },
-    [optimisticUpdateAllFromAuthor, router, user]
+    [navigateFromViewer, optimisticUpdateAllFromAuthor, user]
   );
 
   const handleOpenAuthorProfile = useCallback(
     (post: FeedPost) => {
       const authorId = post.author?.id;
       if (!authorId) return;
-      void router.push(`/user-profile?id=${encodeURIComponent(String(authorId))}`);
+      navigateFromViewer(`/user-profile?id=${encodeURIComponent(String(authorId))}`);
     },
-    [router]
+    [navigateFromViewer]
+  );
+
+  const navigateToLinkedContext = useCallback(
+    (post: FeedPost) => {
+      if (post.game_id && String(post.game_id).trim()) {
+        navigateFromViewer({ pathname: '/game/[id]', params: { id: String(post.game_id).trim() } });
+        return;
+      }
+      if (post.event_id && String(post.event_id).trim()) {
+        navigateFromViewer(buildEventDetailRoute(String(post.event_id).trim()));
+      }
+    },
+    [navigateFromViewer]
   );
 
   const handleShare = useCallback(async (post: FeedPost) => {
@@ -1363,7 +1408,7 @@ function GameVerticalFeedScreen({
     if (!user) {
       promptForSignIn(
         () => {
-          void router.push('/sign-in');
+          navigateFromViewer('/sign-in');
         },
         {
           message: 'Sign in to comment on posts.',
@@ -1401,7 +1446,7 @@ function GameVerticalFeedScreen({
     } finally {
       setCommentSending(false);
     }
-  }, [commentInput, commentSending, commentTarget, updatePost, meInfo, router, user]);
+  }, [commentInput, commentSending, commentTarget, updatePost, meInfo, navigateFromViewer, user]);
 
   const handleDoubleTap = useCallback(
     (post: FeedPost) => {
@@ -1424,6 +1469,7 @@ function GameVerticalFeedScreen({
         onSharePost={() => handleShare(item)}
         onToggleFollow={() => handleToggleFollow(item)}
         onOpenAuthorProfile={() => handleOpenAuthorProfile(item)}
+        onOpenLinkedContext={() => navigateToLinkedContext(item)}
         onDoubleTap={() => handleDoubleTap(item)}
         onDeletePost={() => handleDeletePost(item)}
         onEditPost={(newCaption: string) => handleEditPost(item, newCaption)}
@@ -1442,6 +1488,7 @@ function GameVerticalFeedScreen({
       handleDeletePost,
       handleEditPost,
       handleOpenAuthorProfile,
+      navigateToLinkedContext,
       handleReportPost,
       handleShare,
       handleToggleBookmark,
@@ -1541,12 +1588,14 @@ function GameVerticalFeedScreen({
           ) : (
             <View style={styles.emptyState}>
               <Text style={[styles.emptyStateTitle, { color: Colors[colorScheme].text }]}>
-                No posts yet
+                {gameId ? 'No highlights yet' : 'No posts yet'}
               </Text>
               <Text
                 style={[styles.emptyStateCaption, { color: Colors[colorScheme].tabIconDefault }]}
               >
-                Be the first to create a post for this game.
+                {gameId
+                  ? 'Be the first to share a highlight for this game.'
+                  : 'Be the first to create a post for this game.'}
               </Text>
             </View>
           )
@@ -1554,7 +1603,10 @@ function GameVerticalFeedScreen({
       />
 
       {showHeader && !usingInitial ? (
-        <View style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}
+        >
           <Pressable style={styles.backBtn} onPress={handleBack}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </Pressable>
@@ -1566,7 +1618,10 @@ function GameVerticalFeedScreen({
           </View>
         </View>
       ) : usingInitial ? (
-        <View style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}
+        >
           <Pressable style={styles.backBtn} onPress={handleBack}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </Pressable>
@@ -1771,6 +1826,9 @@ const styles = StyleSheet.create({
     left: 16,
     right: 88,
     bottom: 12,
+    zIndex: 20,
+    elevation: 20,
+    pointerEvents: 'box-none',
   },
   authorNameBottom: {
     color: '#fff',
@@ -1842,6 +1900,9 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 24,
     alignItems: 'center',
+    zIndex: 20,
+    elevation: 20,
+    pointerEvents: 'box-none',
   },
   railAvatarWrap: {
     marginBottom: 28,
@@ -1875,6 +1936,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    zIndex: 30,
+    elevation: 30,
     pointerEvents: 'box-none',
   },
   backBtn: {

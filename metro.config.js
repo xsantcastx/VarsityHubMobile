@@ -38,7 +38,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === 'split-on-first') {
     return {
       type: 'sourceFile',
-      filePath: path.resolve(__dirname, 'node_modules/split-on-first/index.js'),
+      filePath: path.resolve(__dirname, 'shims/split-on-first.js'),
     };
   }
   if (moduleName === 'expo-modules-core') {
