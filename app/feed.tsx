@@ -80,6 +80,7 @@ type FeedItem =
   | { _t: 'location_prompt' }
   | { _t: 'seed_banner' }
   | { _t: 'game'; data: GameItem; idx: number }
+  | { _t: 'game_pair'; dataA: GameItem; dataB: GameItem; idx: number }
   | { _t: 'ad'; ad: any | null; idx: number }
   | { _t: 'section_header'; title: string; key: string }
   | { _t: 'followed_post'; data: any; idx: number }
@@ -1117,15 +1118,28 @@ export default function FeedScreen() {
       items.push({ _t: 'seed_banner' });
     }
 
-    // Add upcoming games and ads
+    // Add upcoming games and ads — adjacent game cards pair up two-per-row
+    // (matches the dormant masonryContainer/masonryItem styles below; ads
+    // and lone trailing games still render full width via the 'game' case).
     if (upcomingWithAds.length > 0) {
+      const sectionItems: FeedItem[] = [];
       upcomingWithAds.forEach((item, idx) => {
         if ('type' in item && item.type === 'ad') {
-          items.push({ _t: 'ad', ad: item.ad, idx });
+          sectionItems.push({ _t: 'ad', ad: item.ad, idx });
         } else {
-          items.push({ _t: 'game', data: item as GameItem, idx });
+          sectionItems.push({ _t: 'game', data: item as GameItem, idx });
         }
       });
+      for (let i = 0; i < sectionItems.length; i++) {
+        const current = sectionItems[i];
+        const next = sectionItems[i + 1];
+        if (current._t === 'game' && next?._t === 'game') {
+          items.push({ _t: 'game_pair', dataA: current.data, dataB: next.data, idx: current.idx });
+          i++;
+        } else {
+          items.push(current);
+        }
+      }
     }
 
     // Add followed posts section
@@ -1332,6 +1346,8 @@ export default function FeedScreen() {
         return 'seed_banner';
       case 'game':
         return `game-${item.data.id}`;
+      case 'game_pair':
+        return `game_pair-${item.dataA.id}-${item.dataB.id}`;
       case 'ad':
         return `ad-${item.idx}`;
       case 'section_header':
@@ -1436,6 +1452,24 @@ export default function FeedScreen() {
           return (
             <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
               {renderGameCard(item.data, isLive, 'feed')}
+            </View>
+          );
+        }
+
+        case 'game_pair': {
+          const nowMs = Date.now();
+          const isLiveFor = (g: GameItem) => {
+            const startMs = g.date ? new Date(g.date).getTime() : null;
+            return startMs != null && startMs <= nowMs && nowMs - startMs <= LIVE_WINDOW_MS;
+          };
+          return (
+            <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginBottom: 20, gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                {renderGameCard(item.dataA, isLiveFor(item.dataA), 'feed')}
+              </View>
+              <View style={{ flex: 1 }}>
+                {renderGameCard(item.dataB, isLiveFor(item.dataB), 'feed')}
+              </View>
             </View>
           );
         }
