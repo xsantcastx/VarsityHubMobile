@@ -51,14 +51,16 @@ const FALLBACK_PROJECT_FULL_NAME = '@lime_prod/VarsityHubMobile';
 const expoConfig: any = Constants.expoConfig ?? {};
 const expoSlug: string | undefined = expoConfig.slug || expoConfig.name;
 const expoOwner: string | undefined = expoConfig.owner;
-const expoOriginalFullName: string | undefined = (expoConfig as any)?.extra?.expoGo?.projectFullName;
+const expoOriginalFullName: string | undefined = (expoConfig as any)?.extra?.expoGo
+  ?.projectFullName;
 const derivedProjectFullName =
   typeof expoOriginalFullName === 'string'
     ? expoOriginalFullName
     : typeof expoSlug === 'string'
       ? `${expoOwner ? `@${expoOwner}` : '@anonymous'}/${expoSlug}`
       : undefined;
-const PROJECT_FULL_NAME = appConfig.expoProjectFullName || derivedProjectFullName || FALLBACK_PROJECT_FULL_NAME;
+const PROJECT_FULL_NAME =
+  appConfig.expoProjectFullName || derivedProjectFullName || FALLBACK_PROJECT_FULL_NAME;
 
 export function useGoogleAuth() {
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +88,9 @@ export function useGoogleAuth() {
       return Boolean(clients.webClientId);
     }
     // Fallback: any client ID configured
-    return Boolean(clients.androidClientId || clients.iosClientId || clients.webClientId || clients.expoClientId);
+    return Boolean(
+      clients.androidClientId || clients.iosClientId || clients.webClientId || clients.expoClientId
+    );
   }, [clients]);
 
   const redirectUri = useMemo(() => {
@@ -136,9 +140,10 @@ export function useGoogleAuth() {
 
   useEffect(() => {
     if (proxyRequested && !PROJECT_FULL_NAME) {
-      if (__DEV__) console.warn(
-        '[google-auth] Proxy requested but project full name could not be resolved. Falling back to custom scheme.',
-      );
+      if (__DEV__)
+        console.warn(
+          '[google-auth] Proxy requested but project full name could not be resolved. Falling back to custom scheme.'
+        );
     }
     if (!isConfigured) {
       console.warn('[google-auth] NOT configured', {
@@ -165,6 +170,13 @@ export function useGoogleAuth() {
         iosClientId: clients.iosClientId,
         webClientId: clients.webClientId,
         clientId: clients.expoClientId || '',
+        // Web only: the provider defaults to the implicit ResponseType.Token
+        // flow on web, which returns just an access_token — but the server
+        // exchange needs an id_token. IdToken makes Google return it directly
+        // (provider auto-adds the nonce; TokenResponse maps id_token →
+        // authentication.idToken, so the existing Path 1 handles it).
+        // Native iOS/Android keep the provider's default code flow untouched.
+        ...(Platform.OS === 'web' ? { responseType: AuthSession.ResponseType.IdToken } : {}),
       };
     }
 
@@ -225,9 +237,10 @@ export function useGoogleAuth() {
         else if (response.params?.code) {
           // CRITICAL: Use the REAL platform client ID from config, not from `clients`
           // which may have been swapped to the web client ID for proxy flows.
-          const exchangeClientId = Platform.OS === 'ios'
-            ? (appConfig.google.iosClientId || clients.iosClientId || '')
-            : (appConfig.google.androidClientId || clients.androidClientId || '');
+          const exchangeClientId =
+            Platform.OS === 'ios'
+              ? appConfig.google.iosClientId || clients.iosClientId || ''
+              : appConfig.google.androidClientId || clients.androidClientId || '';
           const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -241,7 +254,9 @@ export function useGoogleAuth() {
           });
           const tokenData = await tokenResponse.json();
           if (!tokenResponse.ok || !tokenData.id_token) {
-            throw new Error(tokenData.error_description || tokenData.error || 'Token exchange failed');
+            throw new Error(
+              tokenData.error_description || tokenData.error || 'Token exchange failed'
+            );
           }
           idToken = tokenData.id_token;
         }
