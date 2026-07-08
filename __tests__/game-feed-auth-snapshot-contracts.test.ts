@@ -19,13 +19,20 @@ describe('game/feed auth snapshot contracts', () => {
   });
 
   it('game details and game vertical feed no longer refetch /me directly for current-user identity', () => {
-    expect(gameDetailsScreen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
-    expect(gameDetailsScreen).toContain('getAuthSnapshot(checkAuth, user)');
+    // GameDetailsScreen resolves identity from the AuthProvider user and passes
+    // it down as a prop (currentUserId={authUser?.id ?? null}) — no /me refetch.
+    expect(gameDetailsScreen).toContain("import { useAuth } from '@/context/AuthProvider';");
+    expect(gameDetailsScreen).toContain('currentUserId={authUser?.id ?? null}');
+    expect(gameDetailsScreen).not.toContain('User.me()');
+    // GameVerticalFeedScreen resolves the viewer through the shared snapshot.
     expect(gameVerticalFeedScreen).toContain(
       "import { getAuthSnapshot } from '@/utils/authState';"
     );
     expect(gameVerticalFeedScreen).toContain('const { user, checkAuth } = useAuth();');
     expect(gameVerticalFeedScreen).toContain('const resolveMeInfo = useCallback(async () => {');
+    expect(gameVerticalFeedScreen).toContain(
+      'const me: any = await getAuthSnapshot(checkAuth, user)'
+    );
     expect(gameVerticalFeedScreen).not.toContain('const user = await User.me();');
     expect(gameVerticalFeedScreen).not.toContain('const me: any = await User.me();');
   });

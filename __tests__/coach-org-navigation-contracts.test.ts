@@ -101,9 +101,15 @@ describe('coach/org navigation contracts', () => {
 
   it('my-team uses one focus loader and keeps member loading keyed to the selected team', () => {
     expect(myTeam.match(/useFocusEffect\(/g) || []).toHaveLength(1);
-    expect(myTeam).toContain('resolveNextSelectedTeamId(formatted, routeTeamId, selectedTeamId)');
-    expect(myTeam).toContain('setSelectedTeamId(nextSelectedTeamId);');
-    expect(myTeam).toContain('void loadMembers(selectedTeamId)');
+    // Team selection is resolved through the shared helper and applied via a
+    // functional setState so `selectedTeamId` stays out of the effect deps.
+    expect(myTeam).toContain(
+      'setSelectedTeamId(prev => resolveNextSelectedTeamId(teams, routeTeamId, prev));'
+    );
+    // Member loading is keyed to the selected team via react-query, not an
+    // imperative loadMembers call.
+    expect(myTeam).toContain('useTeamMembersQuery({');
+    expect(myTeam).toContain('teamId: selectedTeamId,');
   });
 
   it('manage-users stays coach-scoped and never falls back to the admin-only allMembers endpoint', () => {
@@ -181,9 +187,12 @@ describe('coach/org navigation contracts', () => {
     expect(editEvent).toContain('fallback');
     expect(editEvent).toContain("import { buildEventDetailHref } from '@/utils/eventRoutes';");
     expect(editEvent).toContain('buildEventDetailHref(String(id))');
-    expect(eventDetail).toContain("pathname: '/edit-event'");
-    expect(eventDetail).toContain("import { buildEventDetailHref } from '@/utils/eventRoutes';");
-    expect(eventDetail).toContain('fallback: buildEventDetailHref(String(event.id))');
+    // event-detail.tsx is now a LEGACY REDIRECTOR (2026-07-05): the edit
+    // affordance moved to the canonical game/public-event pages. It must never
+    // dead-end — it forwards to /game/[id] or /public-event and offers a Go Back.
+    expect(eventDetail).toContain('LEGACY REDIRECTOR');
+    expect(eventDetail).toContain("pathname: '/game/[id]'");
+    expect(eventDetail).toContain("safeGoBack(router, '/(tabs)/feed')");
   });
 
   it('organization members tooling exposes the authorized-user invite path and pending invite state', () => {

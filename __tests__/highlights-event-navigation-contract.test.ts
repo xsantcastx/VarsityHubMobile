@@ -10,7 +10,9 @@ describe('highlights event navigation contract', () => {
     expect(highlightsScreen).toContain(
       "import { buildEventDetailRoute } from '@/utils/eventRoutes';"
     );
-    expect(highlightsScreen).toContain('router.push(buildEventDetailRoute(eventId))');
+    expect(highlightsScreen).toContain(
+      'router.push(buildEventDetailRoute(eventId, event?.game_id ?? event?.gameId))'
+    );
     expect(highlightsScreen).not.toContain(
       "pathname: '/game', params: { eventId: String(eventId) }"
     );

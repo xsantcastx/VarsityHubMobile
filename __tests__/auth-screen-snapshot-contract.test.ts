@@ -36,7 +36,11 @@ describe('auth screen snapshot contract', () => {
     const createTeam = read('app', '(tabs)', 'create-team.tsx');
     const gameDetails = read('app', 'game-details', 'GameDetailsScreen.tsx');
 
-    expect(eventDetail).toContain("import { getAuthSnapshot } from '@/utils/authState';");
+    // event-detail.tsx is now a LEGACY REDIRECTOR (2026-07-05): it resolves the
+    // event and forwards to /game/[id] or /public-event and renders no event UI,
+    // so it never resolves viewer identity. The invariant it must still honor is
+    // "no ad-hoc User.me() refetch."
+    expect(eventDetail).toContain('LEGACY REDIRECTOR');
     expect(eventDetail).not.toContain('User.me()');
 
     expect(createTeam).toContain("import { useAuth } from '@/context/AuthProvider';");

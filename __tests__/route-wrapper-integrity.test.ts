@@ -14,20 +14,16 @@ describe('route wrapper integrity', () => {
     expect(routeFile).not.toContain('const userPromise = User.me()');
   });
 
-  it('keeps the dual profile implementations aligned (documented in CLAUDE.md)', () => {
+  it('keeps profile on the canonical implementation with its live post mapper', () => {
     const routeFile = read('app', 'profile.tsx');
     const aliasFile = read('app', 'user-profile.tsx');
-    const featureFile = read('app', 'features', 'navigation', 'screens', 'ProfileScreen.tsx');
 
-    // app/profile.tsx is a full implementation (not a thin wrapper) and
-    // ProfileScreen.tsx is its feature-screen sibling. CLAUDE.md's
-    // post-mapper rule requires the two to stay in sync — pin the shared
-    // mapper so a one-sided removal fails loudly.
+    // app/profile.tsx is the single full implementation; the orphaned
+    // app/features/navigation/screens/ProfileScreen.tsx copy was deleted
+    // (documented in CLAUDE.md). toFeedPost must stay here — its parity with
+    // mapHighlightToFeedPost is enforced by post-mapper-consistency.test.ts.
     expect(routeFile).toContain('toFeedPost');
-    expect(featureFile).toContain('toFeedPost');
     expect(aliasFile.trim()).toBe("export { default } from './profile';");
-    expect(featureFile).toContain('goBackToTrackedRoute');
-    expect(featureFile).toContain('handleAvatarPress');
-    expect(featureFile).not.toContain('const currentUser: any = await User.me()');
+    expect(routeFile).not.toContain('const currentUser: any = await User.me()');
   });
 });

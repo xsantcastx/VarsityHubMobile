@@ -21,10 +21,14 @@ describe('event auth snapshot contracts', () => {
     }
   });
 
-  it('event-detail resolves viewer state through the shared auth snapshot helper', () => {
-    expect(eventDetailScreen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
-    expect(eventDetailScreen).toContain('const { user, checkAuth } = useAuth();');
-    expect(eventDetailScreen).toContain('getAuthSnapshot(checkAuth, user).catch(() => null)');
-    expect(eventDetailScreen).not.toContain('User.me().catch(() => null)');
+  it('event-detail is a legacy redirector that forwards to canonical event pages', () => {
+    // As of 2026-07-05 event-detail.tsx is a pure redirector: it resolves the
+    // event id and forwards game-linked events to /game/[id] and standalone
+    // events to /public-event. It renders no event UI, so it never resolves
+    // viewer identity — the surviving invariant is "no ad-hoc User.me() refetch."
+    expect(eventDetailScreen).toContain('LEGACY REDIRECTOR');
+    expect(eventDetailScreen).toContain("pathname: '/game/[id]'");
+    expect(eventDetailScreen).toContain('pathname: PUBLIC_EVENT_PATHNAME');
+    expect(eventDetailScreen).not.toContain('User.me()');
   });
 });
