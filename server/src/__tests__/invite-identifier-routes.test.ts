@@ -105,17 +105,29 @@ describe('invite identifier routes', () => {
 
   afterAll(async () => {
     if (createdTeamIds.length) {
-      await prisma.teamInvite.deleteMany({ where: { team_id: { in: createdTeamIds } } }).catch(() => {});
-      await prisma.teamMembership.deleteMany({ where: { team_id: { in: createdTeamIds } } }).catch(() => {});
+      await prisma.teamInvite
+        .deleteMany({ where: { team_id: { in: createdTeamIds } } })
+        .catch(() => {});
+      await prisma.teamMembership
+        .deleteMany({ where: { team_id: { in: createdTeamIds } } })
+        .catch(() => {});
       await prisma.team.deleteMany({ where: { id: { in: createdTeamIds } } }).catch(() => {});
     }
     if (createdOrgIds.length) {
-      await prisma.organizationInvite.deleteMany({ where: { organization_id: { in: createdOrgIds } } }).catch(() => {});
-      await prisma.organizationMembership.deleteMany({ where: { organization_id: { in: createdOrgIds } } }).catch(() => {});
-      await prisma.organization.deleteMany({ where: { id: { in: createdOrgIds } } }).catch(() => {});
+      await prisma.organizationInvite
+        .deleteMany({ where: { organization_id: { in: createdOrgIds } } })
+        .catch(() => {});
+      await prisma.organizationMembership
+        .deleteMany({ where: { organization_id: { in: createdOrgIds } } })
+        .catch(() => {});
+      await prisma.organization
+        .deleteMany({ where: { id: { in: createdOrgIds } } })
+        .catch(() => {});
     }
     if (createdUserIds.length) {
-      await prisma.refreshToken.deleteMany({ where: { user_id: { in: createdUserIds } } }).catch(() => {});
+      await prisma.refreshToken
+        .deleteMany({ where: { user_id: { in: createdUserIds } } })
+        .catch(() => {});
       await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } }).catch(() => {});
     }
   });
@@ -176,20 +188,32 @@ describe('invite identifier routes', () => {
       .send({ identifier: `@${member?.username}`, role: 'member' })
       .expect(409);
 
-    expect(response.body.error).toBe('ALREADY_MEMBER');
+    // buildErrorEnvelope(error, { code }) puts the machine-readable token in
+    // `code`/`errorCode` and leaves `error` as user-facing prose. Clients switch
+    // on `code`; asserting `error === 'ALREADY_MEMBER'` was asserting that we
+    // render a raw enum to the user.
+    expect(response.body.code).toBe('ALREADY_MEMBER');
+    expect(response.body.error).toMatch(/already a member/i);
   });
 
+  // NOTE: `identifier` is the ORGANIZATION invite contract (organizations.ts calls
+  // resolveInviteIdentifier). The TEAM routes take `email | username` and the live
+  // client splits before sending (api/entities.ts Team.invite). These tests were
+  // copy-pasted from the org suite and posted `identifier` to team routes, which
+  // fails the zod refine -> 400. Server and shipped client are correct; the tests
+  // weren't. (The unused TeamInvites.create helper in api/entities.ts DOES send
+  // `identifier` and would 400 — it has zero callers. Tracked separately.)
   it('supports team username and email invites across both public routes with canonical-email dedup', async () => {
     const first = await request(app)
       .post(`/teams/${teamId}/invite`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ identifier: targetUsername, role: 'member' })
+      .send({ username: targetUsername, role: 'member' })
       .expect(201);
 
     const second = await request(app)
       .post('/team-invites')
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ team_id: teamId, identifier: targetEmail.toUpperCase(), role: 'member' })
+      .send({ team_id: teamId, email: targetEmail.toUpperCase(), role: 'member' })
       .expect(201);
 
     expect(second.body.id).toBe(first.body.id);
@@ -206,7 +230,7 @@ describe('invite identifier routes', () => {
     await request(app)
       .post(`/teams/${teamId}/invite`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ identifier: email, role: 'member' })
+      .send({ email, role: 'member' })
       .expect(201);
 
     const invite = await prisma.teamInvite.findFirst({
@@ -218,7 +242,7 @@ describe('invite identifier routes', () => {
     await request(app)
       .post('/team-invites')
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ team_id: teamId, identifier: '@does-not-exist-user', role: 'member' })
+      .send({ team_id: teamId, username: 'does-not-exist-user', role: 'member' })
       .expect(404);
 
     const member = await prisma.user.findUnique({
@@ -229,9 +253,11 @@ describe('invite identifier routes', () => {
     const response = await request(app)
       .post(`/teams/${teamId}/invite`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ identifier: `@${member?.username}`, role: 'member' })
+      .send({ username: member?.username, role: 'member' })
       .expect(409);
 
-    expect(response.body.error).toBe('ALREADY_MEMBER');
+    // See the org-invite note above: `code` is the machine token, `error` is prose.
+    expect(response.body.code).toBe('ALREADY_MEMBER');
+    expect(response.body.error).toMatch(/already on this team/i);
   });
 });

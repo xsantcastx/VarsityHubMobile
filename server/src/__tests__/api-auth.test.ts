@@ -632,6 +632,8 @@ describe('API Authentication Endpoints', () => {
       const adminEmail = `test-api-auth-admin-${Date.now()}@example.com`;
       const targetEmail = `test-api-auth-target-${Date.now()}@example.com`;
       process.env.ADMIN_EMAILS = adminEmail;
+      // Admin ACCESS comes from the hardcoded floor; this is the test-only seam.
+      process.env.TEST_PLATFORM_ADMIN_EMAILS = adminEmail;
 
       try {
         const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
@@ -702,6 +704,7 @@ describe('API Authentication Endpoints', () => {
       } finally {
         accessToken = originalAccessToken;
         process.env.ADMIN_EMAILS = originalAdminEmails;
+        delete process.env.TEST_PLATFORM_ADMIN_EMAILS;
       }
     });
   });
