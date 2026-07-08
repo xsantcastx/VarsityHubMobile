@@ -85,11 +85,16 @@ highlightsRouter.get(
       const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
       const privacyWhere = allExcluded.length ? { author_id: { notIn: allExcluded } } : {};
 
+      // Highlights is a GLOBAL feed — every user's media post is eligible regardless
+      // of country. `country` is kept only as a soft ranking signal below (same-country
+      // posts score a little higher), never as a hard filter. Previously this required
+      // country_code === country exact-match, which permanently hid every post with a
+      // null/mismatched country_code (e.g. authors who never set a country pref, or whose
+      // geocode failed) from the feed entirely.
       // Run nationalTop + pool concurrently — dedup in JS after both resolve.
       const [nationalTopRaw, poolRaw] = await Promise.all([
         prisma.post.findMany({
           where: {
-            country_code: country,
             created_at: { gte: since },
             media_url: { not: null },
             deleted_at: null,
@@ -101,7 +106,6 @@ highlightsRouter.get(
         }),
         prisma.post.findMany({
           where: {
-            country_code: country,
             created_at: { gte: since },
             media_url: { not: null },
             deleted_at: null,
@@ -139,7 +143,6 @@ highlightsRouter.get(
           local = await prisma.post.findMany({
             where: {
               created_at: { gte: since },
-              country_code: country,
               lat: { gte: lat - dLat, lte: lat + dLat },
               lng: { gte: lng - dLng, lte: lng + dLng },
               media_url: { not: null },
@@ -227,6 +230,7 @@ highlightsRouter.get(
             (p._count?.comments || 0) * 3 +
             (followedSet.has(p.author_id) ? 8 : 0) +
             (isLocal(p) ? 6 : 0) +
+            (country && p.country_code === country ? 5 : 0) + // soft same-country boost (not a filter)
             recencyBoost(p.created_at) +
             engagementBoost(p.upvotes_count, p._count?.comments || 0) +
             (p.media_url ? 4 : 0),

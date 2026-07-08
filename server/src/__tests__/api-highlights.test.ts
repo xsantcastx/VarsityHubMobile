@@ -222,3 +222,120 @@ describe('GET /highlights — privacy filter', () => {
     expect(postIds).not.toContain(privatePostId);
   });
 });
+
+/**
+ * Global-feed regression: Highlights must NOT hard-filter on country_code.
+ * Previously a post whose country_code was null or a different country than the
+ * viewer's was permanently invisible in Highlights — the root cause of
+ * "I only ever see some users' posts". These two posts must now be reachable
+ * for a US viewer.
+ */
+describe('GET /highlights — global feed (no country hard-filter)', () => {
+  let viewerId: string;
+  let viewerToken: string;
+  let foreignAuthorId: string;
+  let nullCountryAuthorId: string;
+  let foreignPostId: string;
+  let nullCountryPostId: string;
+
+  beforeAll(async () => {
+    const hash = await bcrypt.hash(PASSWORD, 10);
+
+    const viewer = await prisma.user.create({
+      data: {
+        email: `hl-global-viewer-${Date.now()}@test.com`,
+        password_hash: hash,
+        display_name: 'Global Viewer',
+        email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
+        preferences: { role: 'fan', onboarding_completed: true, country_code: 'US' },
+      },
+    });
+    viewerId = viewer.id;
+    viewerToken = signJwt({ id: viewerId });
+
+    const foreignAuthor = await prisma.user.create({
+      data: {
+        email: `hl-foreign-${Date.now()}@test.com`,
+        password_hash: hash,
+        display_name: 'Foreign Author',
+        email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
+        preferences: { role: 'fan', onboarding_completed: true },
+      },
+    });
+    foreignAuthorId = foreignAuthor.id;
+
+    const nullCountryAuthor = await prisma.user.create({
+      data: {
+        email: `hl-nullcountry-${Date.now()}@test.com`,
+        password_hash: hash,
+        display_name: 'Null Country Author',
+        email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
+        preferences: { role: 'fan', onboarding_completed: true },
+      },
+    });
+    nullCountryAuthorId = nullCountryAuthor.id;
+
+    const foreignPost = await prisma.post.create({
+      data: {
+        author_id: foreignAuthorId,
+        content: 'HL foreign-country post',
+        media_url: 'https://res.cloudinary.com/test/image/upload/foreign.jpg',
+        country_code: 'GB',
+        upvotes_count: 5,
+        deleted_at: null,
+      },
+    });
+    foreignPostId = foreignPost.id;
+
+    const nullCountryPost = await prisma.post.create({
+      data: {
+        author_id: nullCountryAuthorId,
+        content: 'HL null-country post',
+        media_url: 'https://res.cloudinary.com/test/image/upload/nullcountry.jpg',
+        country_code: null,
+        upvotes_count: 5,
+        deleted_at: null,
+      },
+    });
+    nullCountryPostId = nullCountryPost.id;
+  });
+
+  afterAll(async () => {
+    await prisma.post.deleteMany({ where: { id: { in: [foreignPostId, nullCountryPostId] } } });
+    await prisma.user.deleteMany({
+      where: { id: { in: [viewerId, foreignAuthorId, nullCountryAuthorId] } },
+    });
+  });
+
+  it('includes a post from a different country for a US viewer', async () => {
+    const res = await request(app)
+      .get('/highlights?country=US&v2=1&limit=100')
+      .set('Authorization', `Bearer ${viewerToken}`);
+
+    expect(res.status).toBe(200);
+    const postIds = [
+      ...(res.body.nationalTop ?? []),
+      ...(res.body.ranked ?? []),
+    ].map((p: any) => p.id);
+    expect(postIds).toContain(foreignPostId);
+  });
+
+  it('includes a post with a null country_code for a US viewer', async () => {
+    const res = await request(app)
+      .get('/highlights?country=US&v2=1&limit=100')
+      .set('Authorization', `Bearer ${viewerToken}`);
+
+    expect(res.status).toBe(200);
+    const postIds = [
+      ...(res.body.nationalTop ?? []),
+      ...(res.body.ranked ?? []),
+    ].map((p: any) => p.id);
+    expect(postIds).toContain(nullCountryPostId);
+  });
+});

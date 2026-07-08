@@ -224,11 +224,13 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
   const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
   const privacyWhere = allExcluded.length ? { author_id: { notIn: allExcluded } } : {};
 
+  // Highlights bundle is a GLOBAL feed (mirrors routes/highlights.ts). `country` is a
+  // soft ranking boost below, NOT a hard filter — a country_code hard-match permanently
+  // hid every null/mismatched-country post. Keep this in sync with highlights.ts.
   // Run nationalTop and pool concurrently — dedup in JS after both resolve.
   const [nationalTopRaw, poolRaw] = await Promise.all([
     prisma.post.findMany({
       where: {
-        country_code: country,
         created_at: { gte: since },
         media_url: { not: null },
         deleted_at: null,
@@ -240,7 +242,6 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
     }),
     prisma.post.findMany({
       where: {
-        country_code: country,
         created_at: { gte: since },
         media_url: { not: null },
         deleted_at: null,
@@ -323,6 +324,7 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
         (post._count?.comments || 0) * 3 +
         (followedSet.has(post.author_id) ? 8 : 0) +
         (isLocal(post) ? 6 : 0) +
+        (country && post.country_code === country ? 5 : 0) + // soft same-country boost (not a filter)
         recencyBoost(post.created_at) +
         engagementBoost(post.upvotes_count, post._count?.comments || 0) +
         (post.media_url ? 4 : 0),
