@@ -52,6 +52,12 @@ android/app/*.keystore
 .metro-health-check*
 metro.pid
 
+# Generated QR assets (referenced by no source; regenerate as needed).
+# Left untracked they make the tree "dirty", which blocks the OTA publish guard
+# (scripts/guard-ota-clean-tree.js) — published bundles must map to a commit.
+varsityhub-qr.png
+varsityhub-qr.svg
+
 # debug
 npm-debug.*
 yarn-debug.*
