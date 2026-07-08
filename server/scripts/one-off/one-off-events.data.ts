@@ -41,12 +41,15 @@ export interface OneOffEventDef {
   /** Optional league/school label */
   linkedLeague?: string;
   /**
-   * Only for eventType 'game': also creates a Game record and links the event
-   * to it (game pages, scores, polls). Omit for all other event types.
+   * Provide this to also create a linked Game record — needed for the entry
+   * to show up in the main feed's "upcoming" section, which reads ONLY from
+   * Game.list(), never from standalone Events. Omit homeTeam/awayTeam for
+   * non-matchup entries (festivals, watch parties with no "vs") — the feed
+   * card never renders team names, so a teamless Game displays fine.
    */
   game?: {
-    homeTeam: string;
-    awayTeam: string;
+    homeTeam?: string;
+    awayTeam?: string;
     expectedAttendance?: number;
     isNeutral?: boolean;
     /**
@@ -144,6 +147,10 @@ export const EVENTS: OneOffEventDef[] = [
       'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
     linkedLeague: 'Fanatics Fest',
     contactInfo: 'customerservice@varsityhub.app',
+    // Teamless game record — required for this to appear in the main feed's
+    // "upcoming" section (Game.list()-only; see file header). No confirmed
+    // attendance figure, so expectedAttendance is intentionally omitted.
+    game: { isNeutral: true },
   },
   // ── Fanatics Fest NYC 2026 — Day 2: Friday, July 17 (created 2026-07-08) ─────────
   {
@@ -159,6 +166,7 @@ export const EVENTS: OneOffEventDef[] = [
       'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
     linkedLeague: 'Fanatics Fest',
     contactInfo: 'customerservice@varsityhub.app',
+    game: { isNeutral: true },
   },
   // ── Fanatics Fest NYC 2026 — Day 3: Saturday, July 18 (created 2026-07-08) ───────
   {
@@ -174,6 +182,7 @@ export const EVENTS: OneOffEventDef[] = [
       'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
     linkedLeague: 'Fanatics Fest',
     contactInfo: 'customerservice@varsityhub.app',
+    game: { isNeutral: true },
   },
   // ── Fanatics Fest NYC 2026 — Day 4: Sunday, July 19 (created 2026-07-08) ─────────
   {
@@ -189,6 +198,7 @@ export const EVENTS: OneOffEventDef[] = [
       'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
     linkedLeague: 'Fanatics Fest',
     contactInfo: 'customerservice@varsityhub.app',
+    game: { isNeutral: true },
   },
   // ── FIBA World Cup 2027 Qualifiers — Switzerland vs Serbia (created 2026-07-07) ──
   {

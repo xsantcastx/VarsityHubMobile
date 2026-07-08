@@ -2,8 +2,9 @@
  * One-off events — template-driven creator.
  *
  * Reads event definitions from one-off-events.data.ts and idempotently creates
- * each one (plus a linked Game record for eventType 'game'). Existing events
- * are matched by title + exact date and skipped.
+ * each one (plus a linked Game record whenever `game` is provided — required
+ * for the entry to show up in the app's main feed, which reads only from
+ * Game.list()). Existing events are matched by title + exact date and skipped.
  *
  * Usage:
  *   npx tsx scripts/one-off/create-one-off-events.ts                 # all entries
@@ -88,12 +89,16 @@ async function ensureOneOffEvent(def: OneOffEventDef, admin: Admin, dryRun: bool
   const date = new Date(def.dateUtc);
 
   // Teams + game record first — runs even when the event already exists, so
-  // team logos and game↔team links get backfilled on re-runs
+  // team logos and game↔team links get backfilled on re-runs. Gated on
+  // def.game being present, NOT on eventType — the feed's "upcoming" list
+  // only reads Game.list(), so even a non-matchup entry (festival, watch
+  // party) needs a Game row to appear there. Game.event_type carries the
+  // real semantics; def.eventType stays on the linked Event as before.
   let gameId: string | undefined;
-  if (def.eventType === 'game' && def.game) {
+  if (def.game) {
     let homeTeamId: string | undefined;
     let awayTeamId: string | undefined;
-    if (def.game.teamOrgName) {
+    if (def.game.teamOrgName && def.game.homeTeam && def.game.awayTeam) {
       const org = await prisma.organization.findFirst({
         where: { name: def.game.teamOrgName },
         select: { id: true, sport: true },
@@ -159,7 +164,7 @@ async function ensureOneOffEvent(def: OneOffEventDef, admin: Admin, dryRun: bool
           away_team: def.game.awayTeam,
           home_team_id: homeTeamId,
           away_team_id: awayTeamId,
-          event_type: 'game',
+          event_type: def.eventType,
           approval_status: 'approved',
           approved_at: new Date(),
           approved_by_id: admin.id,
@@ -177,10 +182,21 @@ async function ensureOneOffEvent(def: OneOffEventDef, admin: Admin, dryRun: bool
 
   const existing = await prisma.event.findFirst({
     where: { title: def.title, date },
-    select: { id: true, title: true, banner_url: true },
+    select: { id: true, title: true, banner_url: true, game_id: true },
   });
   if (existing) {
     console.log(`ℹ️  Event already exists: "${existing.title}" (${existing.id})`);
+    if (gameId && !existing.game_id) {
+      if (dryRun) {
+        console.log(`   [dry-run] Would link existing event to game ${gameId}`);
+      } else {
+        await prisma.event.update({
+          where: { id: existing.id },
+          data: { game_id: gameId },
+        });
+        console.log(`   ✅ Linked existing event to game ${gameId}`);
+      }
+    }
     if (!existing.banner_url && def.bannerUrl) {
       if (dryRun) {
         console.log(`   [dry-run] Would backfill venue banner`);
@@ -195,9 +211,14 @@ async function ensureOneOffEvent(def: OneOffEventDef, admin: Admin, dryRun: bool
     return;
   }
   if (dryRun) {
+    const gameNote = def.game
+      ? def.game.homeTeam && def.game.awayTeam
+        ? ` (+ game record ${def.game.homeTeam} vs ${def.game.awayTeam})`
+        : ' (+ teamless game record, for feed visibility)'
+      : '';
     console.log(
       `[dry-run] Would create ${def.eventType} "${def.title}" @ ${def.location} on ${def.dateUtc}` +
-        (def.game ? ` (+ game record ${def.game.homeTeam} vs ${def.game.awayTeam})` : '')
+        gameNote
     );
     return;
   }
