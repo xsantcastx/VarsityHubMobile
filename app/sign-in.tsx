@@ -309,11 +309,17 @@ export default function SignInScreen() {
         setError('Sign-in succeeded but we could not load your profile. Please try again.');
       }
     } catch (e: any) {
-      // Silently ignore user cancellation
+      // Silently ignore user cancellation (native). On web, a "dismiss" also
+      // covers the popup closing on an OAuth error page (e.g. a Google config
+      // problem) — indistinguishable from a user cancel — so surface a soft
+      // retry message instead of failing invisibly.
       if (e?.code === 'CANCELLED' || e?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
         captureBreadcrumb('Sign-in cancelled', 'auth.sign_in', {
           method: 'google',
         });
+        if (Platform.OS === 'web') {
+          setError('Google sign-in was closed before completing. Please try again.');
+        }
         return;
       }
 
