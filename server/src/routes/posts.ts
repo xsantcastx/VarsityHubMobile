@@ -1790,7 +1790,15 @@ postsRouter.post(
 postsRouter.delete(
   '/:id',
   requireAuth as any,
-  requireOnboarded as any,
+  // NO requireOnboarded here — on purpose.
+  //
+  // Deleting your own content is a data right, not a "coach feature". This route
+  // used to sit behind requireOnboarded, which 403s a coach whose approval is
+  // PENDING/REJECTED, and a coach whose accepted agreement version is stale
+  // (requireOnboarded.ts:134-149). Those users could delete their own COMMENT
+  // (that route has only requireAuth) but not their own POST — an inconsistency,
+  // not a policy. Authorization is still fully enforced below: author, team coach,
+  // or admin only.
   asyncHandler(async (req: AuthedRequest, res) => {
     const postId = String(req.params.id);
     const userId = req.user!.id;
