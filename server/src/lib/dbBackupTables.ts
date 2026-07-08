@@ -1,0 +1,77 @@
+/**
+ * Table sync order + cycle-breaking column config for the DB backup sync.
+ *
+ * Kept in a pure, DB-free module (like dbBackupSql.ts) so
+ * db-backup-table-order.test.ts can verify it against prisma/schema.prisma
+ * without a database connection. That test enforces:
+ *   - every Prisma model appears here exactly once
+ *   - every FK parent is listed strictly before its children
+ *   - every DEFERRED_FK_COLUMNS entry is a real, nullable FK column
+ */
+
+// Tables in dependency order (parents strictly before children). The old
+// order listed Post before Game/Event and Notification before Message, and
+// omitted five models entirely — see db-backup-table-order.test.ts.
+export const TABLES_IN_ORDER = [
+  // No FK dependencies
+  'Category',
+  'PromoCode',
+  'ProcessedStripeEvent',
+  'AdminActivityLog',
+  'AppleTransactionClaim',
+  // User <-> Organization cycle: User.organization_id is deferred, so User
+  // can lead and Organization only needs User.
+  'User',
+  'Organization',
+  'Team',
+  'Game',
+  'Event',
+  'Post',
+  'Ad',
+  'Message',
+  'GroupChat',
+  'Comment', // parent_id (self-FK) is deferred
+  'Poll',
+  'PollOption',
+  'PollVote',
+  'Story',
+  'GameVote',
+  'PostUpvote',
+  'PostBookmark',
+  'CategoryAssignment',
+  'CategoryFollow',
+  'EventRsvp',
+  'AdReservation',
+  'GroupChatMember',
+  'GroupChatMessage',
+  'Notification', // needs User, Post, Comment, Message
+  'Follows',
+  'BlockedUser',
+  'TeamMembership',
+  'TeamFollow',
+  'TeamInvite',
+  'TeamJoinRequest',
+  'OrganizationMembership',
+  'OrganizationFollow',
+  'OrganizationInvite',
+  'OrganizationJoinRequest',
+  'CoachApplication',
+  'DataExport',
+  'ParentalConsentAudit',
+  'RefreshToken',
+  'PromoRedemption',
+  'TransactionLog',
+  'AbuseReport',
+  'UserWarning',
+];
+
+// FK columns excluded from the main INSERT pass and back-filled with UPDATEs
+// after every table is inserted. These break the two FK shapes a single
+// parents-first insert order cannot satisfy:
+//   - User.organization_id <-> Organization.league_owner_id (cycle)
+//   - Comment.parent_id (self-referential replies)
+// Every column listed here must be nullable — the main pass inserts NULL.
+export const DEFERRED_FK_COLUMNS: Record<string, string[]> = {
+  User: ['organization_id'],
+  Comment: ['parent_id'],
+};
