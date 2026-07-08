@@ -1084,7 +1084,14 @@ export default function TeamChatScreen() {
           return updated;
         });
 
-        showModal('Error', 'Failed to upload file to server');
+        if ((error as any)?.status === 429) {
+          showModal(
+            'Too Many Uploads',
+            'You have hit the hourly upload limit. Wait a few minutes and try again.'
+          );
+        } else {
+          showModal('Error', 'Failed to upload file to server');
+        }
       }
     },
     [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]
