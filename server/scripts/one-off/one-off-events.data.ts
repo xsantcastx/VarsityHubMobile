@@ -130,6 +130,62 @@ export const EVENTS: OneOffEventDef[] = [
         'https://ui-avatars.com/api/?name=San+Antonio+Spurs&length=3&background=0C0C0C&color=C4CED4&size=512&bold=true&format=png',
     },
   },
+  // ── Fanatics Fest NYC 2026 — festival hub (created 2026-07-07) ───────────────────
+  {
+    title: 'Fanatics Fest NYC 2026',
+    description:
+      "The sports fan festival's expanded four-day return to the Javits Center (Jul 16-19), timed to the FIFA World Cup Final weekend. Confirmed guests include Aaron Judge, Kevin Durant, Tom Brady, Freddie Freeman, Diana Taurasi, Jalen Brunson, and WWE stars Cody Rhodes and Rhea Ripley, plus Jay-Z, Kevin Hart and Travis Scott. Hours: Thu 1-8pm, Fri/Sat 10am-7pm, Sun 10am-5pm.",
+    eventType: 'other',
+    dateUtc: '2026-07-16T17:00:00.000Z', // Thu Jul 16, 1:00 PM EDT (doors)
+    location: 'Javits Center, 429 11th Ave, New York, NY 10001',
+    lat: 40.75687,
+    lng: -74.001762,
+    bannerUrl:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
+    linkedLeague: 'Fanatics Fest',
+  },
+  // ── Fanatics Fest — LeBron James & Tyrese Haliburton podcast (created 2026-07-07) ─
+  {
+    title: 'LeBron James & Tyrese Haliburton — Live "Mind the Game" Taping',
+    description:
+      'Headliner session at Fanatics Fest NYC 2026. LeBron James and Pacers guard Tyrese Haliburton tape a live episode of the "Mind the Game" podcast on the Center Stage, releasing July 21 on YouTube and Prime Video. James is at the festival for two days, Thursday and Friday.',
+    eventType: 'other',
+    dateUtc: '2026-07-16T17:15:00.000Z', // Thu Jul 16, 1:15 PM EDT, Center Stage
+    location: 'Javits Center — Center Stage, 429 11th Ave, New York, NY 10001',
+    lat: 40.75687,
+    lng: -74.001762,
+    bannerUrl:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
+    linkedLeague: 'Fanatics Fest',
+  },
+  // ── Fanatics Fest — FIFA World Cup Final pre-match press conferences (created 2026-07-07) ─
+  {
+    title: 'FIFA World Cup Final Pre-Match Press Conferences',
+    description:
+      "Headliner session at Fanatics Fest NYC 2026. Official FIFA World Cup Final pre-match press conferences — both finalist teams take the Fanatics Fest stage days before Sunday's Final at MetLife Stadium. Finalists and exact stage time are still TBA as the knockout rounds continue; check fanaticsfest.com closer to the date.",
+    eventType: 'other',
+    dateUtc: '2026-07-17T14:00:00.000Z', // Fri Jul 17, 10:00 AM EDT (doors; session time TBA)
+    location: 'Javits Center, 429 11th Ave, New York, NY 10001',
+    lat: 40.75687,
+    lng: -74.001762,
+    bannerUrl:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
+    linkedLeague: 'Fanatics Fest',
+  },
+  // ── Fanatics Fest — FIFA World Cup Final watch party (created 2026-07-07) ────────
+  {
+    title: 'FIFA World Cup 2026 Final Watch Party at Fanatics Fest',
+    description:
+      "Headliner session at Fanatics Fest NYC 2026, closing out the festival. Billed as NYC's largest indoor FIFA World Cup Final watch party, with pop-up bar viewing and a seated family theater option, running through the Final's kickoff at MetLife Stadium. Finalists TBD.",
+    eventType: 'watch_party',
+    dateUtc: '2026-07-19T14:00:00.000Z', // Sun Jul 19, 10:00 AM EDT (doors)
+    location: 'Javits Center, 429 11th Ave, New York, NY 10001',
+    lat: 40.75687,
+    lng: -74.001762,
+    bannerUrl:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Javits_Center_-_Full_Front_(49052081016).jpg',
+    linkedLeague: 'Fanatics Fest',
+  },
   // ── FIBA World Cup 2027 Qualifiers — Switzerland vs Serbia (created 2026-07-07) ──
   {
     title: 'Switzerland vs Serbia — FIBA World Cup 2027 Qualifiers',
