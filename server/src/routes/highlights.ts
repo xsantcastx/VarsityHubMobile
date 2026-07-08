@@ -114,7 +114,6 @@ highlightsRouter.get(
       // query instead of deriving all tabs from one trending-shaped pool.
       if (sort) {
         const baseWhere = {
-          type: 'highlight',
           country_code: country,
           media_url: { not: null },
           deleted_at: null,
@@ -189,7 +188,6 @@ highlightsRouter.get(
       const [nationalTopRaw, poolRaw] = await Promise.all([
         prisma.post.findMany({
           where: {
-            type: 'highlight',
             country_code: country,
             created_at: { gte: since },
             media_url: { not: null },
@@ -202,7 +200,6 @@ highlightsRouter.get(
         }),
         prisma.post.findMany({
           where: {
-            type: 'highlight',
             country_code: country,
             created_at: { gte: since },
             media_url: { not: null },
@@ -240,7 +237,6 @@ highlightsRouter.get(
           const dLng = RADIUS_KM / kmPerDegLng;
           local = await prisma.post.findMany({
             where: {
-              type: 'highlight',
               created_at: { gte: since },
               country_code: country,
               lat: { gte: lat - dLat, lte: lat + dLat },

@@ -659,12 +659,7 @@ const GameDetailsScreen = () => {
       let samplePosts: any[] = [];
       let serverPostsLoaded = false;
       try {
-        const res: any = await Post.filterPage(
-          { game_id: gameIdValue, type: 'highlight' },
-          null,
-          100,
-          'newest'
-        );
+        const res: any = await Post.feedForGame(gameIdValue, { limit: 100, sort: 'newest' });
         if (Array.isArray(res?.items)) {
           samplePosts = res.items;
           serverPostsLoaded = true;
@@ -936,7 +931,7 @@ const GameDetailsScreen = () => {
       // a swallowed network blip used to leave past-event pages stuck on
       // "No highlights yet" even when the game had posts.
       deferredPostsPromise = retryWithBackoff(
-        () => Post.filterPage({ game_id: gameIdValue, type: 'highlight' }, null, 20, 'newest'),
+        () => Post.feedForGame(gameIdValue, { limit: 20, sort: 'newest' }),
         {
           maxRetries: 2,
           initialDelayMs: 800,

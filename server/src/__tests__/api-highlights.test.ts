@@ -281,12 +281,21 @@ describe('GET /highlights — type filter', () => {
     await prisma.user.delete({ where: { id: authorId } }).catch(() => {});
   });
 
-  it('includes highlight posts and excludes generic media posts', async () => {
+  // REGRESSION GUARD: Highlights must NOT filter on `post.type`.
+  //
+  // `Post.type` is nullable with no default and has no backfill, and the main
+  // create-post surface tags normal uploads `type: 'post'` (create-post.tsx:100
+  // only sends 'highlight' when routed from a game's add-highlight button).
+  // A `type: 'highlight'` WHERE clause therefore hides every regular media post
+  // AND every legacy (type: null) post from Highlights forever — the recurring
+  // "posted but not showing: it's a filter, not a save failure" incident.
+  // Highlights is scoped by media_url + country + recency + privacy. Not by type.
+  it('includes BOTH highlight-typed and generic media posts (no type filter)', async () => {
     const res = await request(app).get('/highlights?country=US&v2=1&sort=recent');
 
     expect(res.status).toBe(200);
     const ids = (res.body.items ?? []).map((p: any) => p.id);
     expect(ids).toContain(highlightPostId);
-    expect(ids).not.toContain(regularPostId);
+    expect(ids).toContain(regularPostId);
   });
 });

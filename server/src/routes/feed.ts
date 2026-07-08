@@ -231,7 +231,6 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
   const [nationalTopRaw, poolRaw] = await Promise.all([
     prisma.post.findMany({
       where: {
-        type: 'highlight',
         country_code: country,
         created_at: { gte: since },
         media_url: { not: null },
@@ -244,7 +243,6 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
     }),
     prisma.post.findMany({
       where: {
-        type: 'highlight',
         country_code: country,
         created_at: { gte: since },
         media_url: { not: null },
