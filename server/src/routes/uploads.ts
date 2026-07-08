@@ -633,7 +633,10 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
   
   // Multer errors
   if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ error: 'File too large. Maximum size is 100MB.' });
+    return res.status(413).json({
+      error:
+        'File too large. Images up to 25MB upload through the app; videos upload directly and support up to 150MB.',
+    });
   }
   
   if (err.message?.startsWith('Only image') || err.message?.startsWith('File type not allowed')) {

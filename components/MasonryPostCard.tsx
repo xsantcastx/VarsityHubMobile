@@ -38,6 +38,7 @@ function MasonryPostCard({
     tag: 'MasonryPostCard',
   });
   const [pressed, setPressed] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
 
   const mediaUrl = post?.media_url || post?.mediaUrl || null;
   const previewUrl = post?.preview_url || post?.thumbnail_url || post?.previewUrl || null;
@@ -159,13 +160,14 @@ function MasonryPostCard({
               recyclingKey={String(post.id)}
               transition={150}
             />
-          ) : isVideo && previewUrl ? (
+          ) : isVideo && previewUrl && !previewError ? (
             <Image
               source={{ uri: optimizeImageUrl(previewUrl, 600) }}
               style={styles.media}
               contentFit="cover"
               cachePolicy="memory-disk"
               recyclingKey={String(post.id)}
+              onError={() => setPreviewError(true)}
             />
           ) : isVideo && mediaUrl ? (
             <View

@@ -7,6 +7,7 @@
 
 import { uploadFile } from '@/api/upload';
 import { Colors } from '@/constants/Colors';
+import { MAX_IMAGE_SIZE_BYTES } from '@/constants/video';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ensureUploadableUri } from '@/utils/ensureUploadableUri';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
@@ -164,7 +165,7 @@ export function BannerUpload({
           // Continue upload without size validation
         }
 
-        if (fileSize && fileSize > 10 * 1024 * 1024) {
+        if (fileSize && fileSize > MAX_IMAGE_SIZE_BYTES) {
           Alert.alert(
             'File Too Large',
             'Banner images must be under 10MB. Accepted formats: JPEG, PNG.'
