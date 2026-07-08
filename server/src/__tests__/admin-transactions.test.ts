@@ -19,6 +19,8 @@ describe('admin transactions route', () => {
     originalAdminEmails = process.env.ADMIN_EMAILS || '';
     const adminEmail = `admin-transactions-${ts}@varsityhub.app`;
     process.env.ADMIN_EMAILS = adminEmail;
+    // Admin ACCESS comes from the hardcoded floor; this is the test-only seam.
+    process.env.TEST_PLATFORM_ADMIN_EMAILS = adminEmail;
 
     const adminUser = await prisma.user.create({
       data: {
@@ -37,6 +39,7 @@ describe('admin transactions route', () => {
 
   afterAll(async () => {
     process.env.ADMIN_EMAILS = originalAdminEmails;
+    delete process.env.TEST_PLATFORM_ADMIN_EMAILS;
     if (adminUserId) {
       await prisma.user.deleteMany({ where: { id: adminUserId } });
     }

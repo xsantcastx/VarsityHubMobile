@@ -98,14 +98,26 @@ describe('League review routes', () => {
 
     savedAdminEmails = process.env.ADMIN_EMAILS || '';
     process.env.ADMIN_EMAILS = [admin.email, savedAdminEmails].filter(Boolean).join(',');
+    // ADMIN_EMAILS drives notification routing only; admin ACCESS comes from the
+    // hardcoded floor (adminEmails.ts). Widen it for this suite via the test-only seam.
+    process.env.TEST_PLATFORM_ADMIN_EMAILS = admin.email;
   });
 
   afterAll(async () => {
     process.env.ADMIN_EMAILS = savedAdminEmails;
-    await prisma.notification.deleteMany({ where: { user_id: { in: [adminId, unverifiedAdminId, ownerId, secondOwnerId] } } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+    delete process.env.TEST_PLATFORM_ADMIN_EMAILS;
+    await prisma.notification
+      .deleteMany({
+        where: { user_id: { in: [adminId, unverifiedAdminId, ownerId, secondOwnerId] } },
+      })
+      .catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [adminId, unverifiedAdminId, ownerId, secondOwnerId] } } }).catch(() => {});
+    await prisma.user
+      .deleteMany({ where: { id: { in: [adminId, unverifiedAdminId, ownerId, secondOwnerId] } } })
+      .catch(() => {});
   });
 
   it('keeps organization.league_owner_id in sync when ownership is transferred', async () => {
@@ -254,9 +266,11 @@ describe('League review routes', () => {
         rejection_reason: null,
       } as any,
     });
-    await prisma.organizationMembership.create({
-      data: { organization_id: orgId, user_id: ownerId, role: 'owner', status: 'active' },
-    }).catch(() => {});
+    await prisma.organizationMembership
+      .create({
+        data: { organization_id: orgId, user_id: ownerId, role: 'owner', status: 'active' },
+      })
+      .catch(() => {});
     await prisma.user.update({
       where: { id: ownerId },
       data: {

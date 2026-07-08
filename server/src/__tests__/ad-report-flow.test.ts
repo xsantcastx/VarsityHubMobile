@@ -66,6 +66,8 @@ describe('Ad Report Flow', () => {
 
     originalAdminEmails = process.env.ADMIN_EMAILS || '';
     process.env.ADMIN_EMAILS = [admin.email, originalAdminEmails].filter(Boolean).join(',');
+    // Admin ACCESS comes from the hardcoded floor; this is the test-only seam.
+    process.env.TEST_PLATFORM_ADMIN_EMAILS = admin.email;
 
     const ad = await prisma.ad.create({
       data: {
@@ -87,23 +89,30 @@ describe('Ad Report Flow', () => {
 
   afterAll(async () => {
     process.env.ADMIN_EMAILS = originalAdminEmails;
+    delete process.env.TEST_PLATFORM_ADMIN_EMAILS;
 
     try {
-      await prisma.notification.deleteMany({
-        where: { user_id: { in: [ownerId, reporterId, adminId].filter(Boolean) } },
-      }).catch(() => {});
-      await prisma.abuseReport.deleteMany({
-        where: {
-          OR: [
-            { reporter_id: { in: [ownerId, reporterId].filter(Boolean) } },
-            { subject: { contains: `[ad:${adId}]` } },
-          ],
-        },
-      }).catch(() => {});
+      await prisma.notification
+        .deleteMany({
+          where: { user_id: { in: [ownerId, reporterId, adminId].filter(Boolean) } },
+        })
+        .catch(() => {});
+      await prisma.abuseReport
+        .deleteMany({
+          where: {
+            OR: [
+              { reporter_id: { in: [ownerId, reporterId].filter(Boolean) } },
+              { subject: { contains: `[ad:${adId}]` } },
+            ],
+          },
+        })
+        .catch(() => {});
       await prisma.ad.deleteMany({ where: { id: adId } }).catch(() => {});
-      await prisma.user.deleteMany({
-        where: { id: { in: [ownerId, reporterId, adminId].filter(Boolean) } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: [ownerId, reporterId, adminId].filter(Boolean) } },
+        })
+        .catch(() => {});
     } catch (e) {
       console.warn('Cleanup error (non-critical):', e);
     }
