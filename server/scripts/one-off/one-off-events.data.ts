@@ -64,70 +64,46 @@ export interface OneOffEventDef {
 }
 
 export const EVENTS: OneOffEventDef[] = [
-  // ── NBA Finals 2026 — Game 5 in San Antonio (created 2026-06-10) ──────────
+  // ── EXAMPLE: championship game (fictional) — replace before a real run ─────
   {
-    title: 'San Antonio Spurs vs New York Knicks — NBA Finals Game 5',
+    title: 'Harbor City Hawks vs Summit Storm — Championship Game 5',
     description:
-      '2026 NBA Finals, Game 5. The series returns to San Antonio at the Frost Bank Center. Tip-off: 7:30 PM CDT / 8:30 PM EDT on ABC.',
+      'Championship series, Game 5. The series returns home for a decisive matchup. Tip-off: 7:30 PM local time.',
     eventType: 'game',
-    dateUtc: '2026-06-14T00:30:00.000Z', // Sat Jun 13, 7:30 PM CDT
-    location: 'Frost Bank Center, San Antonio, TX',
-    lat: 29.427,
-    lng: -98.4375,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/Texasdd.JPG/960px-Texasdd.JPG',
-    linkedLeague: 'NBA',
+    dateUtc: '2026-06-14T00:30:00.000Z',
+    location: 'Harbor City Arena, Harbor City, OH',
+    lat: 41.4965,
+    lng: -81.6882,
+    // Placeholder venue image — replace with a photo YOU own before a real run.
+    bannerUrl: 'https://placehold.co/960x400?text=Venue+Photo',
+    linkedLeague: 'Demo League',
     game: {
-      homeTeam: 'San Antonio Spurs',
-      awayTeam: 'New York Knicks',
-      expectedAttendance: 18418,
+      homeTeam: 'Harbor City Hawks',
+      awayTeam: 'Summit Storm',
+      expectedAttendance: 5000,
       isNeutral: false,
       teamOrgName: 'LIME PRODUCTIONS',
     },
   },
-  // ── NBA Finals 2026 — Game 6, if necessary (created 2026-06-10) ───────────
+  // ── EXAMPLE: championship game 6, if necessary (fictional) — replace me ────
   {
-    title: 'New York Knicks vs San Antonio Spurs — NBA Finals Game 6',
+    title: 'Summit Storm vs Harbor City Hawks — Championship Game 6',
     description:
-      '2026 NBA Finals, Game 6 (if necessary) at Madison Square Garden. Tip-off: 8:30 PM EDT on ABC.',
+      'Championship series, Game 6 (if necessary). Tip-off: 8:30 PM local time.',
     eventType: 'game',
-    dateUtc: '2026-06-17T00:30:00.000Z', // Tue Jun 16, 8:30 PM EDT
-    location: 'Madison Square Garden, New York, NY',
-    lat: 40.7505,
-    lng: -73.9934,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg/960px-Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg',
-    linkedLeague: 'NBA',
+    dateUtc: '2026-06-17T00:30:00.000Z',
+    location: 'Summit Pavilion, Summit City, CA',
+    lat: 37.7680,
+    lng: -122.3877,
+    // Placeholder venue image — replace with a photo YOU own before a real run.
+    bannerUrl: 'https://placehold.co/960x400?text=Venue+Photo',
+    linkedLeague: 'Demo League',
     game: {
-      homeTeam: 'New York Knicks',
-      awayTeam: 'San Antonio Spurs',
-      expectedAttendance: 19812,
+      homeTeam: 'Summit Storm',
+      awayTeam: 'Harbor City Hawks',
+      expectedAttendance: 6000,
       isNeutral: false,
       teamOrgName: 'LIME PRODUCTIONS',
-    },
-  },
-  // ── NBA Finals 2026 — Game 4 (real event, created 2026-06-09) ─────────────
-  {
-    title: 'New York Knicks vs San Antonio Spurs — NBA Finals Game 4',
-    description:
-      '2026 NBA Finals, Game 4. The Knicks lead the series 2-1 after the Spurs took Game 3 at Madison Square Garden. Tip-off: 8:30 PM EDT on ABC.',
-    eventType: 'game',
-    dateUtc: '2026-06-11T00:30:00.000Z', // Wed Jun 10, 8:30 PM EDT
-    location: 'Madison Square Garden, New York, NY',
-    lat: 40.7505,
-    lng: -73.9934,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg/960px-Madison_Square_Garden_%28MSG%29_-_Full_%2848124330357%29.jpg',
-    linkedLeague: 'NBA',
-    game: {
-      homeTeam: 'New York Knicks',
-      awayTeam: 'San Antonio Spurs',
-      expectedAttendance: 19812,
-      isNeutral: false,
-      teamOrgName: 'LIME PRODUCTIONS', // org the existing Knicks team lives under
-      // Spurs: team-colors monogram (official NBA logos are trademarked — not used)
-      awayTeamLogoUrl:
-        'https://ui-avatars.com/api/?name=San+Antonio+Spurs&length=3&background=0C0C0C&color=C4CED4&size=512&bold=true&format=png',
     },
   },
   // ── EXAMPLE: standalone watch party (no game record) — replace me ─────────
@@ -140,9 +116,8 @@ export const EVENTS: OneOffEventDef[] = [
     location: '120 Main Street, Greenwich, CT 06830',
     lat: 41.0262,
     lng: -73.6282,
-    // Example venue photo — replace with a picture of YOUR venue
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Toronto_BMO_Field_in_2024.jpg/960px-Toronto_BMO_Field_in_2024.jpg',
+    // Placeholder venue image — replace with a photo YOU own of YOUR venue.
+    bannerUrl: 'https://placehold.co/960x400?text=Venue+Photo',
     maxAttendees: 150,
     contactInfo: 'events@varsityhub.app',
   },
@@ -156,9 +131,8 @@ export const EVENTS: OneOffEventDef[] = [
     location: '750 Stadium Drive, Stamford, CT 06902',
     lat: 41.0534,
     lng: -73.5387,
-    // Example venue photo — replace with a picture of YOUR venue
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/SoFi_Stadium_2023.jpg/960px-SoFi_Stadium_2023.jpg',
+    // Placeholder venue image — replace with a photo YOU own of YOUR venue.
+    bannerUrl: 'https://placehold.co/960x400?text=Venue+Photo',
     game: {
       homeTeam: 'Northside Eagles',
       awayTeam: 'Southpoint Wolves',

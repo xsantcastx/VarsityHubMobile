@@ -1280,8 +1280,12 @@ postsRouter.get(
       user_vote = pollVote?.poll_option_id || null;
     }
 
+    // Drop precise capture coordinates: `post` comes from an `include:` query
+    // (all scalar columns), and lat/lng must never reach clients — they expose
+    // where a user (often a minor) was filmed. country_code stays; it is coarse.
+    const { lat: _lat, lng: _lng, ...postForResponse } = post;
     const response = {
-      ...post,
+      ...postForResponse,
       title: stripSampleGameTitle(post.title), // Clean sample game marker from title
       has_upvoted,
       has_bookmarked,

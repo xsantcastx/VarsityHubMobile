@@ -45,7 +45,7 @@ describe('privacy policy consistency (app screen vs server fallback)', () => {
     'not affiliated with, endorsed by, or sponsored by any sports league',
     'solely responsible for the content they record, upload, or share',
     'removed from backup systems within 90 days',
-    'parental or guardian consent',
+    'Users aged 13 and older may create and use an account on their own',
     'cannot guarantee absolute security',
     'transferred to, stored, and processed in the United States',
     'customerservice@varsityhub.app',

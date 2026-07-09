@@ -1,5 +1,5 @@
 /**
- * One-off: rename the FIFA World Cup 2026 team "Côte d'Ivoire" → "Ivory Coast"
+ * One-off: rename the International Cup 2026 team "Côte d'Ivoire" → "Ivory Coast"
  * across already-seeded rows. The seed source (worldcup-2026.data.ts) has been
  * updated, but existing DB records keep the old display name, so this backfills
  * them. Idempotent — safe to re-run; rows already showing the new name are

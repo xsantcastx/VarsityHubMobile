@@ -71,7 +71,7 @@ describe('Unified search', () => {
         name: `Search Team Demo ${ts}`,
         organization_id: organizationId,
         status: 'active',
-        league: 'FIFA World Cup 2026',
+        league: 'International Cup 2026',
       },
       select: { id: true },
     });

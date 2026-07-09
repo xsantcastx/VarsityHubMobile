@@ -15,14 +15,14 @@ export default function AccountDeletionScreen() {
   return (
     <LegalDocumentScreen title="Account Deletion" colorScheme={colorScheme}>
       <Text style={[sharedStyles.updatedAt, { color: Colors[colorScheme].mutedText }]}>
-        Last updated: July 6, 2026
+        Last updated: July 9, 2026
       </Text>
 
       <LegalSectionCard
         colorScheme={colorScheme}
         title="How to Delete Your Account"
         body={
-          'Open the VarsityHub app, go to Settings, tap Account, then tap Delete Account and confirm. Your personal data (email, display name, username, profile, preferences) is anonymized immediately, and your comments and social connections are removed. Residual backup copies are purged within 90 days.'
+          'Open the VarsityHub app, go to Settings, tap Account, then tap Delete Account and confirm. Your personal data (email, display name, username, profile, preferences) is anonymized immediately, and your follows, blocks, saved posts, and notifications are removed. Posts and comments you created remain visible but are no longer linked to your identity. Your anonymized account is permanently deleted within 30 days, and residual backup copies are purged within 90 days.'
         }
       />
 
