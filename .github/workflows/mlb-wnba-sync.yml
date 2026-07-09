@@ -9,8 +9,8 @@ name: MLB & WNBA Schedule Sync
 # raw API shape, zero DB writes) -> dry-run (plan only) -> live (writes).
 
 env:
-  MLB_MODE: '--dry-run'
-  WNBA_MODE: '--dry-run'
+  MLB_MODE: ''
+  WNBA_MODE: ''
   FROM_DATE: '2026-07-09'
   TO_DATE: '2026-07-31'
 
