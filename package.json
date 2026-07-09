@@ -50,6 +50,7 @@
     "verify:error-envelope": "node scripts/check-error-envelope-usage.js",
     "verify:user-cache": "node scripts/check-user-cache-invalidation.js",
     "verify:secrets": "node scripts/check-secret-literals.js",
+    "verify:template-images": "node scripts/check-template-images.js",
     "verify:guardrails": "bash scripts/verify-guardrails.sh",
     "verify:confidence": "bash scripts/verify-confidence.sh",
     "verify:production-ready": "bash scripts/verify-production-ready.sh",
