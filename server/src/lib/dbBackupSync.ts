@@ -12,7 +12,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { debugLog } from './debugLog.js';
 import { captureException } from './sentry.js';
 import { buildRowValuesClause, enumCastTypeName } from './dbBackupSql.js';
-import { TABLES_IN_ORDER, DEFERRED_FK_COLUMNS } from './dbBackupTables.js';
+import { TABLES_IN_ORDER, DEFERRED_FK_COLUMNS, BACKUP_EXCLUDED_TABLES } from './dbBackupTables.js';
 
 /**
  * Replay the primary's enum catalog onto the backup.
@@ -187,7 +187,9 @@ export async function syncDatabaseBackup(): Promise<{
     // (and, if anything references it, gets wiped by the TRUNCATE CASCADE
     // below) — alarm instead of skipping silently. New models are caught in
     // CI by db-backup-table-order.test.ts; this guards live schema drift.
-    const unlistedTables = [...existingTables].filter(t => !TABLES_IN_ORDER.includes(t)).sort();
+    const unlistedTables = [...existingTables]
+      .filter(t => !TABLES_IN_ORDER.includes(t) && !BACKUP_EXCLUDED_TABLES.has(t))
+      .sort();
     if (unlistedTables.length > 0) {
       const msg = `DB backup sync: ${unlistedTables.length} primary table(s) not in TABLES_IN_ORDER, not backed up: ${unlistedTables.join(', ')}`;
       console.error('[db-backup]', msg);
