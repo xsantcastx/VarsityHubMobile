@@ -4256,6 +4256,19 @@ paymentsRouter.post(
         return res.sendStatus(200);
       }
 
+      if (receiptState === null) {
+        // The dedup WRITE itself failed (transient DB error, caught above → null).
+        // We can't prove this notification isn't a redelivery, so processing it
+        // could double-apply a lifecycle event. Return 503 so Apple retries once
+        // the dedup path recovers, rather than processing it un-deduplicated.
+        console.warn('[apple-s2s] Dedup write failed — 503 for Apple retry rather than process');
+        captureException(new Error('apple-s2s: dedup write failed'), {
+          context: 'apple_s2s_dedup_write_failed',
+          notificationType,
+        });
+        return res.sendStatus(503);
+      }
+
       if (!originalTransactionId) {
         console.warn('[apple-s2s] No originalTransactionId — cannot match user');
         return res.sendStatus(200);

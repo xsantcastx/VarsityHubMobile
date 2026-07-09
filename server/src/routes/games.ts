@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { isAdminEmail } from '../lib/adminEmails.js';
+import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { renderReviewPage, renderResultPage, renderFinalStatePage } from '../lib/reviewPage.js';
 import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
 import { debugLog } from '../lib/debugLog.js';
@@ -647,6 +648,24 @@ async function handleGameTokenReview(
     }
     return res.status(result.status!).send(renderGameResultPage('Error', result.error!, false));
   }
+
+  // Central audit trail (parity with coach/org/ad approvals). The game record
+  // also carries approved_by_id/approved_at inline, but every privileged
+  // approval must also land in AdminActivityLog.
+  const reviewerEmail = reviewerUserId
+    ? (await prisma.user.findUnique({ where: { id: reviewerUserId }, select: { email: true } }))
+        ?.email || 'unknown'
+    : 'email-token';
+  await logAdminActivity(
+    reviewerUserId || 'email-token',
+    reviewerEmail,
+    action === 'approve' ? 'APPROVE_GAME' : 'REJECT_GAME',
+    'game',
+    id,
+    `${action === 'approve' ? 'Approved' : 'Rejected'} game: ${game.title || id}${
+      reason ? ` — ${reason}` : ''
+    }`
+  ).catch(err => console.error('[games] AdminActivityLog write failed:', err));
 
   if (tokenValid && token && payload) {
     const consumeResult = await consumeReviewToken(token, payload);
