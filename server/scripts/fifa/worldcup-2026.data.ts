@@ -4,9 +4,8 @@
  *
  * Knockout-round fixtures are added as their teams become known (group stage
  * concluded June 27). Included so far: full Round of 16 (matches 89–96) and
- * quarterfinals 97 (France vs Morocco) + 99 (Norway vs England). Still TBD:
- * quarterfinals 98 + 100, semifinals, bronze final, and the final — add them
- * here once their teams are decided, then run:
+ * all 4 quarterfinals (97–100). Still TBD: semifinals, bronze final, and the
+ * final — add them here once their teams are decided, then run:
  *
  *   npx tsx scripts/fifa/create-fifa-events.ts --dry-run
  *
@@ -1401,5 +1400,27 @@ export const MATCHES: MatchDef[] = [
     kickoffLocalNote: 'Kickoff: 5:00 PM EDT.',
     isNeutral: true,
     note: 'Norway stunned Brazil to get here; England survived Mexico at the Azteca.',
+  },
+  {
+    home: 'Spain',
+    away: 'Belgium',
+    venue: 'sofi',
+    kickoffUtc: '2026-07-10T19:00:00.000Z',
+    group: 'Quarterfinal',
+    matchLabel: 'Match 98',
+    kickoffLocalNote: 'Kickoff: 3:00 PM EDT / 12:00 PM PDT.',
+    isNeutral: true,
+    note: 'Third World Cup meeting between these two — Spain beat Portugal 1-0, Belgium routed host USA 4-1 to get here.',
+  },
+  {
+    home: 'Argentina',
+    away: 'Switzerland',
+    venue: 'arrowhead',
+    kickoffUtc: '2026-07-12T01:00:00.000Z',
+    group: 'Quarterfinal',
+    matchLabel: 'Match 100',
+    kickoffLocalNote: 'Kickoff: 9:00 PM EDT / 8:00 PM CDT.',
+    isNeutral: true,
+    note: "Argentina completed a stunning comeback to beat Egypt 3-2; Switzerland outlasted Colombia 4-3 on penalties.",
   },
 ];
