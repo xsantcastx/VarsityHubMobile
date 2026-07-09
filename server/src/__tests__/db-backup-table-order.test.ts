@@ -1,6 +1,10 @@
 import { readFileSync } from 'fs';
 import path from 'path';
-import { TABLES_IN_ORDER, DEFERRED_FK_COLUMNS } from '../lib/dbBackupTables.js';
+import {
+  TABLES_IN_ORDER,
+  DEFERRED_FK_COLUMNS,
+  BACKUP_EXCLUDED_TABLES,
+} from '../lib/dbBackupTables.js';
 
 /**
  * Guards the DB backup sync's table order against prisma/schema.prisma.
@@ -115,5 +119,15 @@ describe('db-backup TABLES_IN_ORDER vs prisma/schema.prisma', () => {
   it('defers the FK shapes that no insert order can satisfy (User<->Organization cycle, Comment self-FK)', () => {
     expect(DEFERRED_FK_COLUMNS['User']).toContain('organization_id');
     expect(DEFERRED_FK_COLUMNS['Comment']).toContain('parent_id');
+  });
+
+  it('intentionally-excluded tables are never also in the backup order (no contradiction)', () => {
+    // A table must not be both "back this up" and "deliberately skip" — that would
+    // be self-contradictory and hide the drift alarm. PushTicket is the ephemeral,
+    // non-Prisma push-receipt table the runtime alarm flagged (2026-07-09).
+    expect([...BACKUP_EXCLUDED_TABLES]).toContain('PushTicket');
+    for (const excluded of BACKUP_EXCLUDED_TABLES) {
+      expect(TABLES_IN_ORDER).not.toContain(excluded);
+    }
   });
 });

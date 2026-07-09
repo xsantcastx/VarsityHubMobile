@@ -75,3 +75,12 @@ export const DEFERRED_FK_COLUMNS: Record<string, string[]> = {
   User: ['organization_id'],
   Comment: ['parent_id'],
 };
+
+// Primary-DB tables that are INTENTIONALLY not replicated to the DR backup.
+// The sync alarms on any public table missing from TABLES_IN_ORDER (live schema
+// drift guard). These are deliberately absent — excluded from that alarm so the
+// signal stays meaningful:
+//   - PushTicket: ephemeral Expo push-delivery receipts (expire ~24h), created
+//     out-of-band (not a Prisma model, no schema.prisma entry), worthless to
+//     restore. Never referenced by a backed-up table, so no CASCADE risk.
+export const BACKUP_EXCLUDED_TABLES: ReadonlySet<string> = new Set(['PushTicket']);
