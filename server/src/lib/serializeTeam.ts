@@ -52,8 +52,11 @@ export interface SerializeTeamOptions {
   /** Whether the viewer follows this team (pre-resolved). */
   isFollowing?: boolean | null;
 
-  /** Whether the viewer can manage the team. */
+  /** Whether the viewer can manage the team (staff tier: also managers/assistant coaches). */
   canManageTeam?: boolean;
+
+  /** Whether the viewer can fully ADMINISTER the team (owner/coach/org-owner tier). */
+  canAdministerTeam?: boolean;
 
   /** Whether the viewer is an org admin for the team's org. */
   isOrgAdmin?: boolean;
@@ -195,6 +198,7 @@ export function serializeTeam(team: any, opts: SerializeTeamOptions = {}) {
     base.my_role = opts.viewerRole ?? null;
     base.is_following = opts.isFollowing ?? null;
     base.can_manage_team = opts.canManageTeam === true;
+    base.can_administer_team = opts.canAdministerTeam === true;
     base.is_org_admin = opts.isOrgAdmin === true;
     base.viewer_join_request_status = opts.viewerJoinRequestStatus ?? null;
   }

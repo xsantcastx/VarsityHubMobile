@@ -26,8 +26,10 @@ describe('team-membership role-tier + sole-owner guards', () => {
   let ownerId = '';
   let coachId = '';
   let targetId = '';
+  let managerId = '';
   let ownerToken = '';
   let coachToken = '';
+  let managerToken = '';
   let orgId = '';
   let teamId = '';
   let ownerMembershipId = '';
@@ -93,10 +95,18 @@ describe('team-membership role-tier + sole-owner guards', () => {
     await prisma.teamMembership.create({
       data: { team_id: team.id, user_id: coach.id, role: 'coach', status: 'active' },
     });
+
+    // A team MANAGER — staff tier (can_manage) but NOT administer tier.
+    const manager = await mkUser('manager', 'coach');
+    managerId = manager.id;
+    managerToken = signJwt({ id: manager.id });
+    await prisma.teamMembership.create({
+      data: { team_id: team.id, user_id: manager.id, role: 'manager', status: 'active' },
+    });
   });
 
   afterAll(async () => {
-    const ids = [ownerId, coachId, targetId].filter(Boolean);
+    const ids = [ownerId, coachId, managerId, targetId].filter(Boolean);
     await prisma.teamMembership.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
     await prisma.organizationMembership
@@ -152,5 +162,33 @@ describe('team-membership role-tier + sole-owner guards', () => {
     expect(res.body.error).toBe('SOLE_OWNER');
     const still = await prisma.teamMembership.findUnique({ where: { id: ownerMembershipId } });
     expect(still.status).toBe('active');
+  });
+
+  // ── admin-summary tier flags (drives client button gating) ────────────────
+  it('exposes can_administer=true for the owner and head coach, false for a manager', async () => {
+    const forOwner = await request(app)
+      .get(`/teams/${teamId}/admin-summary`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+    expect(forOwner.body.permissions.can_administer).toBe(true);
+    expect(forOwner.body.permissions.can_transfer).toBe(true);
+    expect(forOwner.body.team.can_administer_team).toBe(true);
+
+    const forCoach = await request(app)
+      .get(`/teams/${teamId}/admin-summary`)
+      .set('Authorization', `Bearer ${coachToken}`)
+      .expect(200);
+    expect(forCoach.body.permissions.can_administer).toBe(true);
+
+    const forManager = await request(app)
+      .get(`/teams/${teamId}/admin-summary`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .expect(200);
+    // The manager is staff (can view the summary) but NOT administer tier — this
+    // is exactly the flag the client uses to hide add/archive/invite/settings.
+    expect(forManager.body.permissions.can_manage).toBe(true);
+    expect(forManager.body.permissions.can_administer).toBe(false);
+    expect(forManager.body.permissions.can_transfer).toBe(false);
+    expect(forManager.body.team.can_administer_team).toBe(false);
   });
 });
