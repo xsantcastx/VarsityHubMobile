@@ -398,11 +398,23 @@ function MyTeamScreen() {
     [myTeamRole, user]
   );
 
+  // Roster management (edit role/position, remove, invite) is FULL administration
+  // (owner/head coach/org owner), NOT the staff tier this screen admits via
+  // useRequireTeamManagement. Managers/assistant_coaches must not see these
+  // actions — the server 403s them. Derived from the viewer's direct team role
+  // (owner|coach) or platform admin. (Org-owner-without-a-team-role is a known
+  // minor gap — they'd need a direct role or admin-summary to be admitted here.)
+  const canAdministerRoster = useMemo(
+    () => myTeamRole === 'owner' || myTeamRole === 'coach' || (user as any)?.is_admin === true,
+    [myTeamRole, user]
+  );
+
   const renderMember = ({ item }: { item: TeamMember }) => {
     const badge = getRoleBadgeColor(item.role);
     return (
       <Pressable
         onLongPress={() => {
+          if (!canAdministerRoster) return;
           setSelectedMember(item);
           setShowActionModal(true);
         }}
@@ -502,13 +514,15 @@ function MyTeamScreen() {
         <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
           Roster ({members.length})
         </Text>
-        <Pressable
-          onPress={() => setShowInviteModal(true)}
-          style={[styles.inviteButton, { backgroundColor: Colors[colorScheme].tint }]}
-        >
-          <MaterialIcons name="person-add" size={16} color="#FFFFFF" />
-          <Text style={styles.inviteButtonText}>Invite</Text>
-        </Pressable>
+        {canAdministerRoster && (
+          <Pressable
+            onPress={() => setShowInviteModal(true)}
+            style={[styles.inviteButton, { backgroundColor: Colors[colorScheme].tint }]}
+          >
+            <MaterialIcons name="person-add" size={16} color="#FFFFFF" />
+            <Text style={styles.inviteButtonText}>Invite</Text>
+          </Pressable>
+        )}
       </View>
       {members.length > 0 && (
         <Text style={[styles.longPressHint, { color: Colors[colorScheme].mutedText }]}>

@@ -152,6 +152,10 @@ async function loadTeamViewerAccess(teamId: string, viewerId: string | null) {
 
   let membership: { role: string } | null = null;
   let isOrgAdmin = false;
+  // Org OWNER is a stronger tier than org admin (owner|manager). Full team
+  // administration (settings, roster role-change, invites, archive, transfer)
+  // requires org OWNER, not just org admin — so track it distinctly.
+  let isOrgOwner = false;
   if (viewerId) {
     const [resolvedMembership, orgMembership] = await Promise.all([
       prisma.teamMembership.findFirst({
@@ -166,12 +170,13 @@ async function loadTeamViewerAccess(teamId: string, viewerId: string | null) {
               role: { in: ['owner', 'manager'] },
               status: 'active',
             },
-            select: { id: true },
+            select: { role: true },
           })
         : Promise.resolve(null),
     ]);
     membership = resolvedMembership;
     isOrgAdmin = !!orgMembership;
+    isOrgOwner = orgMembership?.role === 'owner';
   }
 
   return {
@@ -182,6 +187,7 @@ async function loadTeamViewerAccess(teamId: string, viewerId: string | null) {
     membership,
     isAdmin,
     isOrgAdmin,
+    isOrgOwner,
   };
 }
 
@@ -625,6 +631,18 @@ teamsRouter.get(
       });
     }
 
+    // Full-administration tier (canAdministerTeam): team owner/head coach, org
+    // OWNER, or platform admin. This is the authority for settings edit, roster
+    // add/remove/role-change, invite create/cancel, and archive — distinct from
+    // canManage (the staff tier that also admits managers/assistant_coaches for
+    // roster + event approvals only). Exposed so clients stop rendering
+    // admin-only buttons to the staff tier (which the server then 403s).
+    const teamRole = String(access.membership?.role ?? '');
+    const canAdminister =
+      access.isAdmin || access.isOrgOwner || teamRole === 'owner' || teamRole === 'coach';
+    // Ownership transfer: team owner/coach or org owner (matches the transfer route).
+    const canTransfer = access.isOrgOwner || teamRole === 'owner' || teamRole === 'coach';
+
     const entitlement = await getTeamEntitlementState(prisma, teamId);
     if (entitlement.teamLocked) {
       return res.status(403).json(buildTeamPlanLockedError(entitlement));
@@ -686,12 +704,17 @@ teamsRouter.get(
         includeViewerState: true,
         viewerRole: access.membership?.role ?? null,
         canManageTeam: canManage,
+        canAdministerTeam: canAdminister,
         isOrgAdmin: access.isOrgAdmin,
       }),
       permissions: {
         can_manage: canManage,
+        can_administer: canAdminister,
+        can_archive: canAdminister,
+        can_transfer: canTransfer,
         membership_role: access.membership?.role ?? null,
         via_org_admin: access.isOrgAdmin && !isManagementRole(access.membership?.role),
+        via_org_owner: access.isOrgOwner,
       },
       counts: {
         members: memberships.length,

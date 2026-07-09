@@ -84,6 +84,16 @@ teamMembershipsRouter.post(
         return sendError(res, 400, 'Invalid role', { details: { valid_roles: VALID_ROLES } });
       }
 
+      // Role-tier guard (single source of truth). canAdministerTeam above admits
+      // head coaches, who must NOT assign the manager role — the same rule the
+      // PATCH, teams.ts invite, and team-invites paths already enforce. Without
+      // this a coach could add a user directly as `manager` via this route.
+      if (!(await canAssignTeamRole(req.user.id, String(team_id), assignedRole))) {
+        return sendError(res, 403, 'INSUFFICIENT_ROLE', {
+          message: 'Only team owners can assign the manager role.',
+        });
+      }
+
       const team = await prisma.team.findUnique({
         where: { id: String(team_id) },
         select: { id: true },
@@ -102,6 +112,24 @@ teamMembershipsRouter.post(
             where: { team_id_user_id: { team_id: teamIdStr, user_id: userIdStr } } as any,
             select: { role: true, status: true },
           });
+          // Sole-owner guard: `owner` is not an assignable role here, so upserting
+          // an existing owner's row always demotes it. Don't let that strand the
+          // team ownerless.
+          if (existingMembership?.role === 'owner') {
+            const activeOwnerCount = await tx.teamMembership.count({
+              where: { team_id: teamIdStr, role: 'owner', status: 'active' },
+            });
+            if (activeOwnerCount <= 1) {
+              const error = new Error('SOLE_OWNER');
+              (error as any).status = 400;
+              (error as any).body = {
+                error: 'SOLE_OWNER',
+                message:
+                  'Cannot demote the only owner. Transfer ownership to another member first.',
+              };
+              throw error;
+            }
+          }
           const guard = await guardTeamMembershipMutation(tx, {
             teamId: teamIdStr,
             nextRole: assignedRole,
@@ -223,6 +251,25 @@ teamMembershipsRouter.patch(
       }
       if (custom_position !== undefined)
         data.custom_position = custom_position === null ? null : stripHtml(String(custom_position));
+
+      // ORG-5 parity: a role change or archive must not strand the team without
+      // an owner. DELETE already guards this; role-change/archive did not, so a
+      // coach (who passes canAdministerTeam) could demote or archive the only
+      // owner — after which transfer-ownership permanently 403s ("no active
+      // owner"). Block the sole owner from being demoted or deactivated here.
+      const demotesOwner = membership.role === 'owner' && data.role && data.role !== 'owner';
+      const deactivatesOwner = membership.role === 'owner' && data.status === 'archived';
+      if (demotesOwner || deactivatesOwner) {
+        const activeOwnerCount = await prisma.teamMembership.count({
+          where: { team_id: membership.team_id, role: 'owner', status: 'active' },
+        });
+        if (activeOwnerCount <= 1) {
+          return sendError(res, 400, 'SOLE_OWNER', {
+            message:
+              'Cannot demote or deactivate the only owner. Transfer ownership to another member first.',
+          });
+        }
+      }
 
       const updated = await prisma.teamMembership.update({
         where: { id },

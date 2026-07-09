@@ -61,10 +61,14 @@ function EditTeamScreen() {
   const [members, setMembers] = useState<any[]>([]);
   const [memberSearch, setMemberSearch] = useState('');
   const [transferring, setTransferring] = useState(false);
-  // Archive is gated to team leadership (owner/manager) or an org admin — the
-  // same boundary the server enforces in canArchiveTeam. Coaches/assistant_coaches
-  // can edit the team but must not archive it.
+  // Editing the team is FULL administration (canAdministerTeam: owner/head
+  // coach/org owner) — NOT the staff tier. Managers/assistant_coaches can view
+  // team tools but must not edit settings or archive; the load path below bounces
+  // them (the server 403s them anyway), so the form never renders for them.
+  // Archive uses the same boundary as canArchiveTeam (== canAdministerTeam).
   const [canArchive, setCanArchive] = useState(false);
+  // Transfer: team owner/head coach or org owner.
+  const [canTransfer, setCanTransfer] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const fallbackRoute = team?.organization_id
     ? `/organization?id=${encodeURIComponent(team.organization_id)}&tab=teams`
@@ -109,21 +113,23 @@ function EditTeamScreen() {
       setExistingLogoUrl(teamData.logo_url || teamData.avatar_url || null);
       setIsPrivate(!!teamData.is_private);
 
-      if (!teamData?.can_manage_team) {
+      // Editing requires the FULL-administration tier, not staff. The server is
+      // authoritative via permissions.can_administer / team.can_administer_team.
+      const perms = summary?.permissions ?? {};
+      const administer = perms.can_administer === true || teamData?.can_administer_team === true;
+      if (!administer) {
         Alert.alert(
           'Access Denied',
-          'You must be team staff or an organization admin to edit this team.'
+          'Only the team owner, head coach, or organization owner can edit this team.'
         );
         safeGoBack(router, fallbackRoute);
         return;
       }
-      const membershipRole = summary?.permissions?.membership_role;
+      const membershipRole = perms.membership_role;
       setIsOwner(membershipRole === 'owner' || teamData?.my_role === 'owner');
-      setCanArchive(
-        membershipRole === 'owner' ||
-          membershipRole === 'manager' ||
-          summary?.permissions?.via_org_admin === true
-      );
+      // Archive == administer; transfer is its own (owner/coach/org-owner) flag.
+      setCanArchive(perms.can_archive === true || administer);
+      setCanTransfer(perms.can_transfer === true);
       setMembers(Array.isArray(summary?.members) ? summary.members : []);
 
       const orgFromResponse = (teamData as any).organization;
@@ -685,11 +691,11 @@ function EditTeamScreen() {
           </View>
         </View>
 
-        {/* Danger Zone — Transfer (owner only) + Archive (owner/manager/org admin) */}
-        {(isOwner || canArchive) && (
+        {/* Danger Zone — Transfer (owner/head coach/org owner) + Archive (== administer tier) */}
+        {(canTransfer || canArchive) && (
           <View style={styles.formSection}>
             <Text style={[styles.sectionTitle, { color: '#DC2626' }]}>Danger Zone</Text>
-            {isOwner && (
+            {canTransfer && (
               <>
                 <Pressable
                   style={[styles.transferButton, { borderColor: '#DC2626' }]}
@@ -708,7 +714,7 @@ function EditTeamScreen() {
                 <Pressable
                   style={[
                     styles.transferButton,
-                    { borderColor: '#DC2626', marginTop: isOwner ? 16 : 0 },
+                    { borderColor: '#DC2626', marginTop: canTransfer ? 16 : 0 },
                   ]}
                   onPress={handleArchiveTeam}
                   disabled={archiving}
