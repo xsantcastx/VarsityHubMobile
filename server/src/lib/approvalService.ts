@@ -48,7 +48,7 @@ import { getOrganizationJoinRequestStateForUser } from './organizationWorkflowSt
 function reportEmailFailure(
   emailType: string,
   err: unknown,
-  extra?: Record<string, unknown>,
+  extra?: Record<string, unknown>
 ): void {
   console.warn(`[approvalService] ${emailType} email failed:`, (err as any)?.message || err);
   captureException(err instanceof Error ? err : new Error(String(err)), {
@@ -67,7 +67,7 @@ function reportEmailFailure(
 function reportPushFailure(
   notificationType: string,
   err: unknown,
-  extra?: Record<string, unknown>,
+  extra?: Record<string, unknown>
 ): void {
   console.warn(`[approvalService] ${notificationType} push failed:`, (err as any)?.message || err);
   captureException(err instanceof Error ? err : new Error(String(err)), {
@@ -83,7 +83,7 @@ function reportPushFailure(
  */
 export async function isOrganizationApproved(
   orgId: string,
-  prisma: PrismaClient,
+  prisma: PrismaClient
 ): Promise<boolean> {
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
@@ -103,7 +103,7 @@ async function notifyAllAdminsOfLeagueAction(params: {
   const adminEmails = getAllAdminEmails();
 
   await Promise.all(
-    adminEmails.map((to) =>
+    adminEmails.map(to =>
       sendAdminActionConfirmationEmail({
         to,
         action: params.action,
@@ -111,7 +111,7 @@ async function notifyAllAdminsOfLeagueAction(params: {
         ownerName: params.ownerName,
         ownerEmail: params.ownerEmail,
         reason: params.reason,
-      }).catch((err) => {
+      }).catch(err => {
         console.error(
           `[approvalService] Admin confirmation email failed (${params.action}) for ${to}:`,
           (err as any)?.message || err
@@ -130,7 +130,7 @@ async function notifyAllAdminsOfAdAction(params: {
   const adminEmails = getAllAdminEmails();
 
   await Promise.all(
-    adminEmails.map((to) =>
+    adminEmails.map(to =>
       sendAdminActionConfirmationEmail({
         to,
         action: params.action,
@@ -138,7 +138,7 @@ async function notifyAllAdminsOfAdAction(params: {
         // ad moderation gets the same admin confirmation fan-out as leagues.
         leagueName: params.adName,
         reason: params.reason,
-      }).catch((err) => {
+      }).catch(err => {
         console.error(
           `[approvalService] Admin confirmation email failed (${params.action}) for ${to}:`,
           (err as any)?.message || err
@@ -155,7 +155,7 @@ async function createApprovalNotification(
     errorMessage: string;
     sentryContext: string;
     extra?: Record<string, any>;
-  },
+  }
 ) {
   try {
     await prisma.notification.create({ data: params.data });
@@ -179,7 +179,7 @@ async function resolveOrganizationOwner(
     display_name?: string | null;
     email?: string | null;
     preferences?: unknown;
-  } | null,
+  } | null
 ) {
   const ownerMembership = await prisma.organizationMembership.findFirst({
     where: { organization_id: orgId, role: 'owner', status: 'active' },
@@ -241,7 +241,7 @@ export async function approveOrganization(
   orgId: string,
   adminId: string | null,
   prisma: PrismaClient,
-  opts?: { note?: string },
+  opts?: { note?: string }
 ) {
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
@@ -257,7 +257,12 @@ export async function approveOrganization(
     },
   });
   if (!org) return { error: 'Organization not found', status: 404 };
-  if (org.status === 'rejected') return { error: 'Organization already rejected', status: 409 as const, finalState: 'rejected' as const };
+  if (org.status === 'rejected')
+    return {
+      error: 'Organization already rejected',
+      status: 409 as const,
+      finalState: 'rejected' as const,
+    };
   if (org.admin_approved) return { already: true };
   const owner = await resolveOrganizationOwner(prisma, orgId, org.leagueOwner);
 
@@ -284,10 +289,10 @@ export async function approveOrganization(
           approval_status: 'APPROVED',
           rejected_at: null,
           rejection_reason: null,
-          preferences: buildOrganizationOwnerApprovedPreferences(
-            owner?.preferences,
-            { id: orgId, name: org.name }
-          ),
+          preferences: buildOrganizationOwnerApprovedPreferences(owner?.preferences, {
+            id: orgId,
+            name: org.name,
+          }),
           ...buildAuthStateColumns({
             role: 'coach',
             organization_id: orgId,
@@ -296,7 +301,7 @@ export async function approveOrganization(
             coach_agreement_version: Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1),
           }),
         },
-      }),
+      })
     );
   }
   const [updated] = await prisma.$transaction(txOps);
@@ -311,7 +316,11 @@ export async function approveOrganization(
       select: { admin_approved: true, status: true },
     });
     if (current?.status === 'rejected') {
-      return { error: 'Organization already rejected', status: 409 as const, finalState: 'rejected' as const };
+      return {
+        error: 'Organization already rejected',
+        status: 409 as const,
+        finalState: 'rejected' as const,
+      };
     }
     return { already: true };
   }
@@ -323,7 +332,9 @@ export async function approveOrganization(
       ownerName: owner.display_name || 'League Owner',
       leagueName: org.name,
       note: opts?.note,
-    }).catch((err) => reportEmailFailure('league_approved', err, { user_id: owner?.id, org_id: org.id }));
+    }).catch(err =>
+      reportEmailFailure('league_approved', err, { user_id: owner?.id, org_id: org.id })
+    );
   }
 
   if (owner?.id) {
@@ -342,10 +353,8 @@ export async function approveOrganization(
       owner.id,
       'Organization Approved!',
       `Your organization "${org.name}" has been approved on VarsityHub.`,
-      { type: 'org_approved', organization_id: orgId },
-    ).catch((err) =>
-      reportPushFailure('org_approved', err, { user_id: owner?.id, org_id: orgId })
-    );
+      { type: 'org_approved', organization_id: orgId }
+    ).catch(err => reportPushFailure('org_approved', err, { user_id: owner?.id, org_id: orgId }));
   }
 
   await notifyAllAdminsOfLeagueAction({
@@ -362,7 +371,7 @@ export async function rejectOrganization(
   orgId: string,
   adminId: string | null,
   prisma: PrismaClient,
-  opts?: { reason?: string },
+  opts?: { reason?: string }
 ) {
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
@@ -379,13 +388,18 @@ export async function rejectOrganization(
   });
   if (!org) return { error: 'Organization not found', status: 404 };
   if (org.status === 'rejected') return { already: true };
-  if (org.admin_approved) return { error: 'Organization already approved', status: 409 as const, finalState: 'approved' as const };
+  if (org.admin_approved)
+    return {
+      error: 'Organization already approved',
+      status: 409 as const,
+      finalState: 'approved' as const,
+    };
   const owner = await resolveOrganizationOwner(prisma, orgId, org.leagueOwner);
 
   const reason = opts?.reason || null;
 
   // Cascade: reject org, unlink teams, revoke memberships, reject owner
-  const didReject = await prisma.$transaction(async (tx) => {
+  const didReject = await prisma.$transaction(async tx => {
     const updated = await tx.organization.updateMany({
       where: { id: orgId, status: { not: 'rejected' }, admin_approved: false },
       data: {
@@ -431,7 +445,11 @@ export async function rejectOrganization(
       select: { admin_approved: true, status: true },
     });
     if (current?.admin_approved) {
-      return { error: 'Organization already approved', status: 409 as const, finalState: 'approved' as const };
+      return {
+        error: 'Organization already approved',
+        status: 409 as const,
+        finalState: 'approved' as const,
+      };
     }
     return { already: true };
   }
@@ -458,8 +476,8 @@ export async function rejectOrganization(
       owner.id,
       'League Not Approved',
       `Your league "${org.name}" was not approved.${reason ? ` Reason: ${reason}` : ''}`,
-      { type: 'org_rejected', organization_id: orgId },
-    ).catch((err) =>
+      { type: 'org_rejected', organization_id: orgId }
+    ).catch(err =>
       reportPushFailure('org_rejected', err, {
         user_id: owner?.id,
         org_id: orgId,
@@ -474,7 +492,9 @@ export async function rejectOrganization(
       ownerName: owner.display_name || 'League Owner',
       leagueName: org.name,
       reason: reason || undefined,
-    }).catch((err) => reportEmailFailure('league_rejected', err, { user_id: owner?.id, org_id: org.id }));
+    }).catch(err =>
+      reportEmailFailure('league_rejected', err, { user_id: owner?.id, org_id: org.id })
+    );
   }
 
   await notifyAllAdminsOfLeagueAction({
@@ -501,22 +521,34 @@ export async function approveCoach(
   userId: string,
   adminId: string | null,
   prisma: PrismaClient,
-  opts?: { note?: string },
+  opts?: { note?: string }
 ) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, display_name: true, username: true, approval_status: true, preferences: true },
+    select: {
+      id: true,
+      email: true,
+      display_name: true,
+      username: true,
+      approval_status: true,
+      preferences: true,
+    },
   });
   if (!user) return { error: 'User not found', status: 404 };
-  if (user.approval_status !== 'PENDING') return { error: 'User is not pending approval', status: 400 };
+  if (user.approval_status !== 'PENDING')
+    return { error: 'User is not pending approval', status: 400 };
 
   // Check org prerequisite: if coach has an org, it must be admin_approved
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const prefs =
+    user.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
   const orgId = getCanonicalOrganizationId(user as any);
   if (orgId) {
     const orgApproved = await isOrganizationApproved(orgId, prisma);
     if (!orgApproved) {
-      return { error: 'Organization must be approved by VarsityHub before approving coaches.', status: 403 };
+      return {
+        error: 'Organization must be approved by VarsityHub before approving coaches.',
+        status: 403,
+      };
     }
   }
 
@@ -562,7 +594,7 @@ export async function approveCoach(
           reviewed_by: adminId,
           review_note: opts?.note || null,
         },
-      }),
+      })
     );
   }
 
@@ -574,7 +606,7 @@ export async function approveCoach(
         update: { role: 'coach', status: 'active' },
         create: { organization_id: orgId, user_id: userId, role: 'coach', status: 'active' },
         select: { id: true },
-      }),
+      })
     );
 
     // If there's a pending join request, mark it approved
@@ -584,7 +616,7 @@ export async function approveCoach(
         prisma.organizationJoinRequest.updateMany({
           where: { id: pendingJoinRequest.id, status: 'pending' },
           data: { status: 'approved', reviewed_at: new Date(), reviewed_by: adminId },
-        }),
+        })
       );
     }
   }
@@ -596,7 +628,7 @@ export async function approveCoach(
         where: { team_id_user_id: { team_id: teamId, user_id: userId } as any },
         update: { role: 'coach', status: 'active' },
         create: { team_id: teamId, user_id: userId, role: 'coach', status: 'active' },
-      }),
+      })
     );
   }
 
@@ -619,7 +651,7 @@ export async function approveCoach(
       leagueName: orgName,
       note: note || undefined,
       destination: orgId ? 'organization' : 'coach_agreement',
-    }).catch((err) => reportEmailFailure('coach_approved', err, { user_id: user.id }));
+    }).catch(err => reportEmailFailure('coach_approved', err, { user_id: user.id }));
   }
 
   await createApprovalNotification(prisma, {
@@ -637,8 +669,8 @@ export async function approveCoach(
     userId,
     'Congratulations!',
     `Congratulations on being accepted as a coach! Tap to complete your setup.${note ? ` Note: ${note}` : ''}`,
-    { type: 'coach_approved', screen: 'onboarding' },
-  ).catch((err) => reportPushFailure('coach_approved', err, { user_id: userId, admin_id: adminId }));
+    { type: 'coach_approved', screen: 'onboarding' }
+  ).catch(err => reportPushFailure('coach_approved', err, { user_id: userId, admin_id: adminId }));
 
   return { ok: true, user };
 }
@@ -650,14 +682,22 @@ export async function rejectCoach(
   userId: string,
   adminId: string | null,
   prisma: PrismaClient,
-  opts?: { reason?: string },
+  opts?: { reason?: string }
 ) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, display_name: true, username: true, approval_status: true, preferences: true },
+    select: {
+      id: true,
+      email: true,
+      display_name: true,
+      username: true,
+      approval_status: true,
+      preferences: true,
+    },
   });
   if (!user) return { error: 'User not found', status: 404 };
-  if (user.approval_status !== 'PENDING') return { error: 'User is not pending approval', status: 400 };
+  if (user.approval_status !== 'PENDING')
+    return { error: 'User is not pending approval', status: 400 };
 
   const reason = opts?.reason;
   const rejectedAt = new Date();
@@ -710,14 +750,15 @@ export async function rejectCoach(
 
   // Email and push are best-effort — in-app above is the canonical record.
   if (user.email) {
-    const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    const prefs =
+      user.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
     const orgName = prefs?.organization_name || 'VarsityHub';
     sendCoachRejectedEmail({
       to: user.email,
       coachName: user.display_name || user.username || 'Coach',
       leagueName: orgName,
       reason: reason || undefined,
-    }).catch((err) => {
+    }).catch(err => {
       console.error('[approvalService] coach rejected email failed:', err);
       captureException(err as Error, { context: 'coach_rejection_email_failed', userId });
     });
@@ -727,8 +768,8 @@ export async function rejectCoach(
     userId,
     'Application Update',
     `Your coach application was not approved.${reason ? ` Reason: ${reason}` : ''}`,
-    { type: 'coach_rejected', screen: 'onboarding' },
-  ).catch((err) =>
+    { type: 'coach_rejected', screen: 'onboarding' }
+  ).catch(err =>
     reportPushFailure('coach_rejected', err, {
       user_id: userId,
       admin_id: adminId,
@@ -755,11 +796,12 @@ export async function approveAd(
      * decision is auditable after the fact.
      */
     bannerOverride?: { reason: string };
-  },
+  }
 ) {
   const ad = await prisma.ad.findUnique({ where: { id: adId } });
   if (!ad) return { error: 'Ad not found', status: 404 };
-  if (ad.status !== 'pending') return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
+  if (ad.status !== 'pending')
+    return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
   // IDOR guard: an admin must not approve an ad they personally own.
   if (adminId && ad.user_id === adminId) {
     return { error: 'You cannot approve your own ad', status: 403 as const };
@@ -776,7 +818,7 @@ export async function approveAd(
     | null;
   const rawLabels = (ad as any).banner_moderation_labels;
   const moderationLabels: Array<{ name: string; confidence: number }> = Array.isArray(rawLabels)
-    ? (rawLabels as any[]).filter((l) => l && typeof l === 'object' && typeof l.name === 'string')
+    ? (rawLabels as any[]).filter(l => l && typeof l === 'object' && typeof l.name === 'string')
     : [];
   const moderationScore = (ad as any).banner_moderation_score as number | null;
   const moderationError = (ad as any).banner_moderation_error as string | null;
@@ -798,7 +840,7 @@ export async function approveAd(
     }
     const topLabels = moderationLabels
       .slice(0, 3)
-      .map((l) => `${l.name} (${Math.round(l.confidence)}%)`)
+      .map(l => `${l.name} (${Math.round(l.confidence)}%)`)
       .join(', ');
     const overrideLine = `[moderation override] reason: ${reason} | top labels: ${topLabels || 'none captured'} | admin: ${adminId || 'unknown'}`;
     derivedAdminNote = derivedAdminNote ? `${overrideLine}\n${derivedAdminNote}` : overrideLine;
@@ -832,8 +874,11 @@ export async function approveAd(
 
   // ── Fire-and-forget notifications ──
   if (ad.contact_email) {
-    sendAdApprovedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined, note: opts?.note || undefined })
-      .catch((err) => reportEmailFailure('ad_approved', err, { ad_id: adId, user_id: ad.user_id }));
+    sendAdApprovedEmail({
+      to: ad.contact_email,
+      businessName: ad.business_name || undefined,
+      note: opts?.note || undefined,
+    }).catch(err => reportEmailFailure('ad_approved', err, { ad_id: adId, user_id: ad.user_id }));
   }
   if (ad.user_id) {
     await createApprovalNotification(prisma, {
@@ -851,8 +896,8 @@ export async function approveAd(
       ad.user_id,
       'Ad Approved!',
       `Your ad for "${ad.business_name || 'your business'}" has been approved. Tap to complete payment.`,
-      { type: 'ad_approved', ad_id: adId },
-    ).catch((err) =>
+      { type: 'ad_approved', ad_id: adId }
+    ).catch(err =>
       reportPushFailure('ad_approved', err, { ad_id: adId, user_id: ad.user_id, admin_id: adminId })
     );
   }
@@ -865,21 +910,82 @@ export async function approveAd(
   return { ad: updated };
 }
 
+/**
+ * Issue a Stripe refund for a paid, rejected ad — IDEMPOTENTLY. A stable
+ * idempotency key (`ad-refund-<adId>`) means Stripe returns the existing refund
+ * instead of double-refunding, so both the reject path AND the reconciliation
+ * sweep can call this safely. On success the AD_PURCHASE tx is marked REFUNDED.
+ * Returns { ok:false, error } for the caller to alarm on — a failed refund must
+ * never be silent (it strands a real charge in payment_status:'refund_pending').
+ */
+async function issueAdRefund(
+  prisma: PrismaClient,
+  ad: { id: string; user_id: string | null }
+): Promise<{ ok: boolean; amount?: number; refund_id?: string; error?: string }> {
+  if (!ad.user_id) return { ok: false, error: 'no_user' };
+  const tx = await prisma.transactionLog.findFirst({
+    where: {
+      user_id: ad.user_id,
+      order_id: ad.id,
+      transaction_type: 'AD_PURCHASE',
+      status: 'COMPLETED',
+    },
+    orderBy: { created_at: 'desc' },
+  });
+  if (!tx?.stripe_payment_intent_id) {
+    return { ok: false, error: 'no_payment_intent_found' };
+  }
+  const Stripe = (await import('stripe')).default;
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+    apiVersion: '2024-06-20' as any,
+    timeout: 20000,
+    maxNetworkRetries: 2,
+  });
+  // Metadata is kept stable (no per-caller fields) so the idempotency key never
+  // conflicts between the reject path and the sweep. Attribution lives in
+  // AdminActivityLog, not here.
+  const refund = await stripe.refunds.create(
+    {
+      payment_intent: tx.stripe_payment_intent_id,
+      reason: 'requested_by_customer',
+      metadata: { reason: 'admin_rejected_ad', ad_id: ad.id },
+    },
+    { idempotencyKey: `ad-refund-${ad.id}` }
+  );
+  await prisma.transactionLog
+    .update({
+      where: { id: tx.id },
+      data: {
+        status: 'REFUNDED' as any,
+        metadata: {
+          ...((tx.metadata as any) || {}),
+          refund_reason: 'admin_rejected_ad',
+          stripe_refund_id: refund.id,
+          refunded_amount_cents: refund.amount ?? tx.total_cents,
+          refunded_at: new Date().toISOString(),
+        },
+      },
+    })
+    .catch((e: any) => console.error('[approvalService] failed to update tx log on ad refund:', e));
+  return { ok: true, amount: refund.amount ?? tx.total_cents ?? undefined, refund_id: refund.id };
+}
+
 export async function rejectAd(
   adId: string,
   adminId: string | null,
   prisma: PrismaClient,
-  opts?: { reason?: string },
+  opts?: { reason?: string }
 ) {
   const ad = await prisma.ad.findUnique({ where: { id: adId } });
   if (!ad) return { error: 'Ad not found', status: 404 };
-  if (ad.status !== 'pending') return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
+  if (ad.status !== 'pending')
+    return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
   // IDOR guard: an admin must not reject an ad they personally own.
   if (adminId && ad.user_id === adminId) {
     return { error: 'You cannot reject your own ad', status: 403 as const };
   }
 
-  const guard = await prisma.$transaction(async (tx) => {
+  const guard = await prisma.$transaction(async tx => {
     const transition = await tx.ad.updateMany({
       where: { id: adId, status: 'pending' },
       data: {
@@ -902,80 +1008,41 @@ export async function rejectAd(
 
   // Refund only after the pending row has been claimed, so concurrent
   // moderator actions cannot issue a refund for an ad that another admin approved.
-  let refundResult: { ok: boolean; amount?: number; refund_id?: string; error?: string } | null = null;
+  let refundResult: { ok: boolean; amount?: number; refund_id?: string; error?: string } | null =
+    null;
   if (ad.payment_status === 'paid' && ad.user_id) {
     try {
-      const tx = await prisma.transactionLog.findFirst({
-        where: {
-          user_id: ad.user_id,
-          order_id: adId,
-          transaction_type: 'AD_PURCHASE',
-          status: 'COMPLETED',
-        },
-        orderBy: { created_at: 'desc' },
-      });
-      if (tx?.stripe_payment_intent_id) {
-        const Stripe = (await import('stripe')).default;
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-          apiVersion: '2024-06-20' as any,
-          timeout: 20000,
-          maxNetworkRetries: 2,
-        });
-        const refund = await stripe.refunds.create({
-          payment_intent: tx.stripe_payment_intent_id,
-          reason: 'requested_by_customer',
-          metadata: { reason: 'admin_rejected_ad', ad_id: adId, admin_id: adminId || 'unknown' },
-        });
-        refundResult = {
-          ok: true,
-          amount: refund.amount ?? tx.total_cents ?? undefined,
-          refund_id: refund.id,
-        };
-        await prisma.transactionLog
-          .update({
-            where: { id: tx.id },
-            data: {
-              status: 'REFUNDED' as any,
-              metadata: {
-                ...((tx.metadata as any) || {}),
-                refund_reason: 'admin_rejected_ad',
-                stripe_refund_id: refund.id,
-                refunded_amount_cents: refund.amount ?? tx.total_cents,
-                refunded_at: new Date().toISOString(),
-              },
-            },
-          })
-          .catch((e: any) =>
-            console.error('[approvalService] failed to update tx log on ad reject refund:', e)
-          );
-      } else {
-        refundResult = { ok: false, error: 'no_payment_intent_found' };
-        console.error(
-          '[approvalService] CRITICAL: ad rejected after payment but no payment_intent found to refund',
-          { adId, userId: ad.user_id }
-        );
-      }
+      refundResult = await issueAdRefund(prisma, ad);
     } catch (refundErr: any) {
       refundResult = { ok: false, error: refundErr?.message || 'refund_api_failed' };
-      console.error('[approvalService] CRITICAL: ad reject refund FAILED — manual intervention needed', {
+    }
+    if (refundResult.ok) {
+      await prisma.ad.update({ where: { id: adId }, data: { payment_status: 'refunded' } });
+    } else {
+      // A failed refund leaves the ad in payment_status:'refund_pending' with a
+      // real charge outstanding. This MUST be loud — alarm to Sentry so ops see
+      // it, and the ad-refund-reconcile sweep re-attempts it hourly (idempotent).
+      console.error(
+        '[approvalService] CRITICAL: ad reject refund not completed — left in refund_pending',
+        { adId, error: refundResult.error }
+      );
+      captureException(new Error(`Ad reject refund failed: ${refundResult.error}`), {
+        context: 'ad_reject_refund_failed',
         adId,
-        error: refundErr?.message,
+        userId: ad.user_id,
+        error: refundResult.error,
       });
     }
-  }
-
-  if (refundResult?.ok) {
-    await prisma.ad.update({
-      where: { id: adId },
-      data: { payment_status: 'refunded' },
-    });
   }
 
   // ── Fire-and-forget notifications ──
   const reason = opts?.reason;
   if (ad.contact_email) {
-    sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined, reason: reason || undefined })
-      .catch((err) => reportEmailFailure('ad_rejected', err, { ad_id: adId, user_id: ad.user_id }));
+    sendAdRejectedEmail({
+      to: ad.contact_email,
+      businessName: ad.business_name || undefined,
+      reason: reason || undefined,
+    }).catch(err => reportEmailFailure('ad_rejected', err, { ad_id: adId, user_id: ad.user_id }));
   }
   if (ad.user_id) {
     await createApprovalNotification(prisma, {
@@ -993,8 +1060,8 @@ export async function rejectAd(
       ad.user_id,
       'Ad Needs Changes',
       `Your ad for "${ad.business_name || 'your business'}" was not approved.${reason ? ` Reason: ${reason}` : ' Please review and resubmit.'}`,
-      { type: 'ad_rejected', ad_id: adId },
-    ).catch((err) =>
+      { type: 'ad_rejected', ad_id: adId }
+    ).catch(err =>
       reportPushFailure('ad_rejected', err, {
         ad_id: adId,
         user_id: ad.user_id,
@@ -1018,11 +1085,7 @@ export async function rejectAd(
 // Event approval
 // ────────────────────────────────────────────────────────────────────────────
 
-export async function approveEvent(
-  eventId: string,
-  adminId: string | null,
-  prisma: PrismaClient,
-) {
+export async function approveEvent(eventId: string, adminId: string | null, prisma: PrismaClient) {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return { error: 'Event not found', status: 404 };
   if (event.approval_status === 'approved') return { error: 'Event already approved', status: 400 };
@@ -1071,8 +1134,8 @@ export async function approveEvent(
       updated.creator_id,
       'Event Approved',
       `Your event "${updated.title}" has been approved and is now visible to everyone!`,
-      { type: 'event_approved', event_id: eventId, screen: 'event-detail', event_id_param: eventId },
-    ).catch((err) =>
+      { type: 'event_approved', event_id: eventId, screen: 'event-detail', event_id_param: eventId }
+    ).catch(err =>
       reportPushFailure('event_approved', err, {
         event_id: eventId,
         user_id: updated.creator_id,
@@ -1099,11 +1162,18 @@ export async function approveEvent(
         to: creator.email,
         recipientName: creator.display_name || 'Fan',
         eventTitle: updated.title,
-        eventDate: eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+        eventDate: eventDate.toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        }),
         eventTime: eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
         eventLocation: updated.location || '',
         eventId,
-      }).catch((err) => reportEmailFailure('event_approved', err, { event_id: eventId, user_id: creator?.id }));
+      }).catch(err =>
+        reportEmailFailure('event_approved', err, { event_id: eventId, user_id: creator?.id })
+      );
     }
   }
 
@@ -1114,7 +1184,7 @@ export async function rejectEvent(
   eventId: string,
   adminId: string | null,
   prisma: PrismaClient,
-  opts?: { reason?: string },
+  opts?: { reason?: string }
 ) {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return { error: 'Event not found', status: 404 };
@@ -1167,8 +1237,14 @@ export async function rejectEvent(
       updated.creator_id,
       'Event Not Approved',
       `Your event "${updated.title}" was not approved.${reasonText}`,
-      { type: 'event_rejected', event_id: eventId, reason: reason || null, screen: 'event-detail', event_id_param: eventId },
-    ).catch((err) =>
+      {
+        type: 'event_rejected',
+        event_id: eventId,
+        reason: reason || null,
+        screen: 'event-detail',
+        event_id_param: eventId,
+      }
+    ).catch(err =>
       reportPushFailure('event_rejected', err, {
         event_id: eventId,
         user_id: updated.creator_id,
@@ -1195,7 +1271,9 @@ export async function rejectEvent(
         recipientName: creator.display_name || 'User',
         eventTitle: updated.title,
         reason: reason || undefined,
-      }).catch((err) => reportEmailFailure('event_denied', err, { event_id: eventId, user_id: creator?.id }));
+      }).catch(err =>
+        reportEmailFailure('event_denied', err, { event_id: eventId, user_id: creator?.id })
+      );
     }
   }
 
@@ -1216,10 +1294,7 @@ export async function remindPendingCoachApprovals(prisma: PrismaClient): Promise
   const staleCoaches = await prisma.user.findMany({
     where: {
       approval_status: 'PENDING',
-      OR: [
-        { role: 'coach' as any },
-        { preferences: { path: ['role'], equals: 'coach' } },
-      ],
+      OR: [{ role: 'coach' as any }, { preferences: { path: ['role'], equals: 'coach' } }],
       created_at: { lt: sevenDaysAgo },
     },
     select: { id: true, display_name: true, email: true, created_at: true },
@@ -1243,10 +1318,7 @@ export async function autoExpirePendingCoaches(prisma: PrismaClient): Promise<nu
   const expiredCoaches = await prisma.user.findMany({
     where: {
       approval_status: 'PENDING',
-      OR: [
-        { role: 'coach' as any },
-        { preferences: { path: ['role'], equals: 'coach' } },
-      ],
+      OR: [{ role: 'coach' as any }, { preferences: { path: ['role'], equals: 'coach' } }],
       created_at: { lt: thirtyDaysAgo },
     },
     select: { id: true, display_name: true, email: true },
@@ -1256,7 +1328,7 @@ export async function autoExpirePendingCoaches(prisma: PrismaClient): Promise<nu
   for (const coach of expiredCoaches) {
     await rejectCoach(coach.id, 'system', prisma, {
       reason: 'Application expired after 30 days without admin review. Please re-apply.',
-    }).catch((err) => {
+    }).catch(err => {
       console.error(`[auto-expire] Failed to expire coach ${coach.id}:`, err);
     });
   }
@@ -1291,4 +1363,51 @@ export async function autoExpireStaleEvents(prisma: PrismaClient): Promise<numbe
   }
 
   return result.count;
+}
+
+/**
+ * Reconcile ads stranded in payment_status:'refund_pending' — a rejected paid
+ * ad whose refund didn't confirm (Stripe error, missing payment_intent, or a DB
+ * write that failed after Stripe succeeded). Re-issues the refund idempotently
+ * (safe: `ad-refund-<id>` key means Stripe returns any existing refund rather
+ * than double-refunding), marks 'refunded' on success, and ALARMS to Sentry on
+ * anything still stuck so a real charge can never be silently stranded.
+ * Called by the scheduler. Returns the number recovered.
+ */
+export async function reconcileStuckAdRefunds(prisma: PrismaClient): Promise<number> {
+  // Give the immediate reject-path attempt time to land before sweeping.
+  const cutoff = new Date(Date.now() - 15 * 60 * 1000);
+  const stuck = await prisma.ad.findMany({
+    where: { payment_status: 'refund_pending', updated_at: { lt: cutoff } },
+    select: { id: true, user_id: true },
+    take: 50,
+  });
+
+  let recovered = 0;
+  for (const ad of stuck) {
+    try {
+      const res = await issueAdRefund(prisma, ad);
+      if (res.ok) {
+        await prisma.ad.update({ where: { id: ad.id }, data: { payment_status: 'refunded' } });
+        recovered++;
+      } else {
+        captureException(new Error(`Stuck ad refund unrecovered: ${res.error}`), {
+          context: 'ad_refund_reconcile_stuck',
+          adId: ad.id,
+          userId: ad.user_id,
+          error: res.error,
+        });
+      }
+    } catch (err) {
+      captureException(err instanceof Error ? err : new Error(String(err)), {
+        context: 'ad_refund_reconcile_error',
+        adId: ad.id,
+      });
+    }
+  }
+
+  if (stuck.length > 0) {
+    console.log(`[ad-refund-reconcile] ${stuck.length} stuck, ${recovered} recovered`);
+  }
+  return recovered;
 }
