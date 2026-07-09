@@ -67,6 +67,152 @@ export interface OneOffEventDef {
 }
 
 export const EVENTS: OneOffEventDef[] = [
+  // ── Wimbledon 2026 — Women's Semifinal 2 (created 2026-07-09) ────────────────────
+  {
+    title: "Wimbledon Women's Semifinal: Kostyuk vs Noskova",
+    description:
+      "The day's second Centre Court semifinal, following Karolína Muchová's 7-6(4) 6-4 win over Coco Gauff earlier in the session. The winner faces Muchová in Saturday's final. Centre Court play begins 1:30 PM BST; second-match start time depends on how the first match runs.",
+    eventType: 'game',
+    dateUtc: '2026-07-09T12:30:00.000Z', // Thu Jul 9, 1:30 PM BST (Centre Court session start)
+    location: 'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
+    lat: 51.4336,
+    lng: -0.2144,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Centre_Court_at_Wimbledon.jpg',
+    linkedLeague: 'Wimbledon',
+    contactInfo: 'customerservice@varsityhub.app',
+    game: { homeTeam: 'Marta Kostyuk', awayTeam: 'Linda Nosková', isNeutral: true },
+  },
+  // ── Wimbledon 2026 — Men's Semifinal 1 (created 2026-07-09) ──────────────────────
+  {
+    title: "Wimbledon Men's Semifinal: Sinner vs Djokovic",
+    description:
+      'Defending champion and World No. 1 Jannik Sinner faces seven-time champion Novak Djokovic, who survived a 5-hour, 15-minute epic over Félix Auger-Aliassime in the quarterfinal. First Centre Court match of the day.',
+    eventType: 'game',
+    dateUtc: '2026-07-10T12:30:00.000Z', // Fri Jul 10, 1:30 PM BST (Centre Court session start)
+    location: 'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
+    lat: 51.4336,
+    lng: -0.2144,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Centre_Court_at_Wimbledon.jpg',
+    linkedLeague: 'Wimbledon',
+    contactInfo: 'customerservice@varsityhub.app',
+    game: { homeTeam: 'Jannik Sinner', awayTeam: 'Novak Djokovic', isNeutral: true },
+  },
+  // ── Wimbledon 2026 — Men's Semifinal 2 (created 2026-07-09) ──────────────────────
+  {
+    title: "Wimbledon Men's Semifinal: Zverev vs Fery",
+    description:
+      "Roland Garros champion Alexander Zverev takes on British wildcard Arthur Fery. The day's second Centre Court match, following Sinner vs Djokovic — exact start time depends on how the first match runs.",
+    eventType: 'game',
+    dateUtc: '2026-07-10T14:30:00.000Z', // Fri Jul 10, ~3:30 PM BST (second match, approximate)
+    location: 'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
+    lat: 51.4336,
+    lng: -0.2144,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Centre_Court_at_Wimbledon.jpg',
+    linkedLeague: 'Wimbledon',
+    contactInfo: 'customerservice@varsityhub.app',
+    game: { homeTeam: 'Alexander Zverev', awayTeam: 'Arthur Fery', isNeutral: true },
+  },
+  // ── Wimbledon 2026 — Ladies' Singles Final (created 2026-07-09) ──────────────────
+  {
+    title: "Wimbledon Ladies' Singles Final",
+    description:
+      "Karolína Muchová reached the final by beating Coco Gauff; her opponent is the winner of Thursday's Kostyuk–Nosková semifinal, still TBD. Reported start time varies by source (~2 PM BST) — check wimbledon.com closer to the date for the confirmed time.",
+    eventType: 'game',
+    dateUtc: '2026-07-11T13:00:00.000Z', // Sat Jul 11, ~2:00 PM BST (approximate, sources vary)
+    location: 'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
+    lat: 51.4336,
+    lng: -0.2144,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Centre_Court_at_Wimbledon.jpg',
+    linkedLeague: 'Wimbledon',
+    contactInfo: 'customerservice@varsityhub.app',
+  },
+  // ── Wimbledon 2026 — Gentlemen's Singles Final (created 2026-07-09) ──────────────
+  {
+    title: "Wimbledon Gentlemen's Singles Final",
+    description:
+      'Both finalists TBD until the Friday semifinals (Sinner/Djokovic, Zverev/Fery) conclude. Note: Carlos Alcaraz withdrew from the 2026 tournament due to a wrist injury and is not in contention.',
+    eventType: 'game',
+    dateUtc: '2026-07-12T15:00:00.000Z', // Sun Jul 12, 4:00 PM BST
+    location: 'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
+    lat: 51.4336,
+    lng: -0.2144,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Centre_Court_at_Wimbledon.jpg',
+    linkedLeague: 'Wimbledon',
+    contactInfo: 'customerservice@varsityhub.app',
+  },
+  // ── MLB — All-Star Game (created 2026-07-09) ──────────────────────────────────────
+  {
+    title: 'MLB All-Star Game',
+    description:
+      "The 2026 MLB All-Star Game in Philadelphia. Gates open 5:00 PM ET, FOX coverage begins 7:00 PM ET, first pitch 8:00 PM ET.",
+    eventType: 'game',
+    dateUtc: '2026-07-15T00:00:00.000Z', // Tue Jul 14, 8:00 PM EDT
+    location: 'Citizens Bank Park, 1 Citizens Bank Way, Philadelphia, PA 19148',
+    lat: 39.9035,
+    lng: -75.1598,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Citizens_Bank_Park_-_Wide_View.jpg',
+    linkedLeague: 'MLB',
+    contactInfo: 'customerservice@varsityhub.app',
+    game: { homeTeam: 'National League', awayTeam: 'American League', isNeutral: true },
+  },
+  // ── WNBA — Liberty vs Lynx (created 2026-07-09) ───────────────────────────────────
+  {
+    title: 'New York Liberty vs Minnesota Lynx',
+    description: 'WNBA regular season, nationally televised on ABC. Tip-off 1:00 PM ET.',
+    eventType: 'game',
+    dateUtc: '2026-07-11T17:00:00.000Z', // Sat Jul 11, 1:00 PM EDT
+    location: 'Barclays Center, 620 Atlantic Ave, Brooklyn, NY 11217',
+    lat: 40.682732,
+    lng: -73.975876,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Barclays_Center_3.jpg',
+    linkedLeague: 'WNBA',
+    contactInfo: 'customerservice@varsityhub.app',
+    game: { homeTeam: 'New York Liberty', awayTeam: 'Minnesota Lynx', isNeutral: false },
+  },
+  // ── WNBA — Aces vs Mercury (created 2026-07-09) ───────────────────────────────────
+  {
+    title: 'Las Vegas Aces vs Phoenix Mercury',
+    description: 'WNBA regular season, streaming on Peacock. Tip-off 6:00 PM ET / 3:00 PM PT.',
+    eventType: 'game',
+    dateUtc: '2026-07-11T22:00:00.000Z', // Sat Jul 11, 6:00 PM EDT
+    location: 'Michelob ULTRA Arena, 3950 S Las Vegas Blvd, Las Vegas, NV 89119',
+    lat: 36.090622,
+    lng: -115.179115,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Mandalay_Bay_Resort_and_Casino.jpg',
+    linkedLeague: 'WNBA',
+    contactInfo: 'customerservice@varsityhub.app',
+    game: { homeTeam: 'Las Vegas Aces', awayTeam: 'Phoenix Mercury', isNeutral: false },
+  },
+  // ── WNBA — Fever at Aces (created 2026-07-09) ─────────────────────────────────────
+  {
+    title: 'Indiana Fever at Las Vegas Aces',
+    description: 'WNBA regular season, nationally televised on NBC. Tip-off 9:00 PM ET / 6:00 PM PT.',
+    eventType: 'game',
+    dateUtc: '2026-07-13T01:00:00.000Z', // Sun Jul 12, 9:00 PM EDT
+    location: 'Michelob ULTRA Arena, 3950 S Las Vegas Blvd, Las Vegas, NV 89119',
+    lat: 36.090622,
+    lng: -115.179115,
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Mandalay_Bay_Resort_and_Casino.jpg',
+    linkedLeague: 'WNBA',
+    contactInfo: 'customerservice@varsityhub.app',
+    game: { homeTeam: 'Las Vegas Aces', awayTeam: 'Indiana Fever', isNeutral: false },
+  },
+  // ── UFC 329 — McGregor vs Holloway 2 (created 2026-07-09) ─────────────────────────
+  {
+    title: 'UFC 329: McGregor vs Holloway 2',
+    description:
+      "Headliner of UFC International Fight Week (Jul 9-12, Las Vegas). Former featherweight/lightweight champion Conor McGregor rematches former featherweight champion Max Holloway. Prelims 5:00 PM ET; main card 9:00 PM ET.",
+    eventType: 'game',
+    dateUtc: '2026-07-12T01:00:00.000Z', // Sat Jul 11, 9:00 PM EDT (main card)
+    location: 'T-Mobile Arena, 3780 S Las Vegas Blvd, Las Vegas, NV 89158',
+    lat: 36.102982,
+    lng: -115.178726,
+    bannerUrl:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/T_Mobile_Arena_The_Strip_Las_Vegas_(29798246202).jpg',
+    linkedLeague: 'UFC',
+    contactInfo: 'customerservice@varsityhub.app',
+    game: { homeTeam: 'Conor McGregor', awayTeam: 'Max Holloway', isNeutral: true },
+  },
   // ── NBA Finals 2026 — Game 5 in San Antonio (created 2026-06-10) ──────────
   {
     title: 'San Antonio Spurs vs New York Knicks — NBA Finals Game 5',
