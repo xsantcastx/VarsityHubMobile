@@ -745,7 +745,10 @@ const generateMapsLink = (
   return null;
 };
 
-const serializePost = (post: any) => ({
+// lat/lng are dropped here: this post row comes from an `include:` query (all
+// scalar columns), and precise capture coordinates must never reach clients —
+// they expose where a user (often a minor) was filmed.
+const serializePost = ({ lat: _lat, lng: _lng, ...post }: any) => ({
   ...post,
   created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
   media_type: detectMediaType(post.media_url),

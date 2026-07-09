@@ -1,5 +1,5 @@
 /**
- * FIFA World Cup 2026 — template data. GENERATED from the fixture feed
+ * International Cup 2026 — template data. GENERATED from the fixture feed
  * (fixturedownload.com/feed/json/fifa-world-cup-2026) — full group stage.
  *
  * Knockout-round fixtures (matches 73-104) are intentionally absent: teams
@@ -15,9 +15,9 @@
  */
 
 export const ORGANIZATION = {
-  name: 'FIFA World Cup 2026',
+  name: 'International Cup 2026',
   description:
-    'The 23rd FIFA World Cup, co-hosted by Canada, Mexico, and the United States from June 11 – July 19, 2026. Featuring 48 nations across 16 host cities.',
+    'The 23rd International Cup, co-hosted by Canada, Mexico, and the United States from June 11 – July 19, 2026. Featuring 48 nations across 16 host cities.',
   sport: 'Soccer',
   org_type: 'league',
   location: 'United States, Canada & Mexico',
@@ -43,7 +43,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -99.1506,
     capacity: 87523,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Vista_a%C3%A9rea_del_Estadio_Azteca_-_2026_-_02.jpg/960px-Vista_a%C3%A9rea_del_Estadio_Azteca_-_2026_-_02.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   akron: {
     name: 'Estadio Akron, Zapopan, Guadalajara, Mexico',
@@ -52,7 +52,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -103.4667,
     capacity: 46732,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Estadio_Akron_02-07-2022_cabecera_sur_lado_derecho_%283%29.jpg/960px-Estadio_Akron_02-07-2022_cabecera_sur_lado_derecho_%283%29.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   bbva: {
     name: 'Estadio BBVA, Guadalupe, Monterrey, Mexico',
@@ -61,7 +61,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -100.2447,
     capacity: 53500,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Mexico_Guadalupe_Monterrey_Estadio_BBVA_Bancomer_fifa_world_cup_2026_6.JPG/960px-Mexico_Guadalupe_Monterrey_Estadio_BBVA_Bancomer_fifa_world_cup_2026_6.JPG',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   bmoField: {
     name: 'BMO Field, Toronto, Canada',
@@ -70,7 +70,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -79.4186,
     capacity: 45736,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Toronto_BMO_Field_in_2024.jpg/960px-Toronto_BMO_Field_in_2024.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   bcPlace: {
     name: 'BC Place, Vancouver, Canada',
@@ -79,7 +79,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -123.1119,
     capacity: 54500,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/BC_Place_2015_Women%27s_FIFA_World_Cup.jpg/960px-BC_Place_2015_Women%27s_FIFA_World_Cup.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   lumen: {
     name: 'Lumen Field, Seattle, Washington, USA',
@@ -88,7 +88,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -122.3316,
     capacity: 68740,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/2025_FIFA_Club_World_Cup_-_Seattle_Sounders_FC_vs._Atl%C3%A9tico_Madrid_-_05.jpg/960px-2025_FIFA_Club_World_Cup_-_Seattle_Sounders_FC_vs._Atl%C3%A9tico_Madrid_-_05.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   levis: {
     name: "Levi's Stadium, Santa Clara, California, USA",
@@ -97,7 +97,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -121.97,
     capacity: 68500,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Levi%27s_Stadium_in_February_2016_prior_to_Super_Bowl_50_%2824398261729%29.jpg/960px-Levi%27s_Stadium_in_February_2016_prior_to_Super_Bowl_50_%2824398261729%29.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   sofi: {
     name: 'SoFi Stadium, Inglewood, California, USA',
@@ -106,7 +106,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -118.3392,
     capacity: 70240,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/SoFi_Stadium_2023.jpg/960px-SoFi_Stadium_2023.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   att: {
     name: 'AT&T Stadium, Arlington, Texas, USA',
@@ -115,7 +115,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -97.0945,
     capacity: 80000,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Arlington_June_2020_4_%28AT%26T_Stadium%29.jpg/960px-Arlington_June_2020_4_%28AT%26T_Stadium%29.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   nrg: {
     name: 'NRG Stadium, Houston, Texas, USA',
@@ -124,7 +124,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -95.4107,
     capacity: 72220,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Nrg_stadium.jpg/960px-Nrg_stadium.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   arrowhead: {
     name: 'Arrowhead Stadium, Kansas City, Missouri, USA',
@@ -133,7 +133,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -94.4839,
     capacity: 76416,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Aerial_view_of_Arrowhead_Stadium_08-31-2013.jpg/960px-Aerial_view_of_Arrowhead_Stadium_08-31-2013.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   mercedesBenz: {
     name: 'Mercedes-Benz Stadium, Atlanta, Georgia, USA',
@@ -142,7 +142,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -84.401,
     capacity: 71000,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Mercedes_Benz_Stadium_time_lapse_capture_2017-08-13.jpg/960px-Mercedes_Benz_Stadium_time_lapse_capture_2017-08-13.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   hardRock: {
     name: 'Hard Rock Stadium, Miami Gardens, Florida, USA',
@@ -151,7 +151,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -80.2389,
     capacity: 64767,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/Hard_Rock_Stadium_for_Super_Bowl_LIV_%2849606710103%29.jpg/960px-Hard_Rock_Stadium_for_Super_Bowl_LIV_%2849606710103%29.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   gillette: {
     name: 'Gillette Stadium, Foxborough, Massachusetts, USA',
@@ -160,7 +160,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -71.2643,
     capacity: 64628,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Gillette_Stadium_%28Top_View%29.jpg/960px-Gillette_Stadium_%28Top_View%29.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   lincoln: {
     name: 'Lincoln Financial Field, Philadelphia, Pennsylvania, USA',
@@ -169,7 +169,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -75.1675,
     capacity: 69596,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Lincoln_Financial_Field_%28Aerial_view%29.jpg/960px-Lincoln_Financial_Field_%28Aerial_view%29.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
   metlife: {
     name: 'MetLife Stadium, East Rutherford, New Jersey, USA',
@@ -178,7 +178,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -74.0745,
     capacity: 82500,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Metlife_stadium_%28Aerial_view%29.jpg/960px-Metlife_stadium_%28Aerial_view%29.jpg',
+      'https://placehold.co/960x400?text=Venue+Photo',
   },
 };
 

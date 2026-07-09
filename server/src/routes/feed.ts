@@ -28,11 +28,17 @@ const isMissingPollSchemaError = (error: any): boolean => {
   return /Poll/i.test(table) || /Poll/i.test(column) || /Poll/i.test(message);
 };
 
-const withMediaPreview = (post: any) => ({
-  ...post,
-  media_type: detectMediaType(post.media_url),
-  preview_url: getVideoPreviewUrl(post.media_url),
-});
+const withMediaPreview = (post: any) => {
+  // Strip precise capture coordinates: lat/lng feed the isLocal ranking boost
+  // above and must never reach clients — they expose where a user (often a
+  // minor) was filmed. country_code stays; it is coarse.
+  const { lat: _lat, lng: _lng, ...rest } = post;
+  return {
+    ...rest,
+    media_type: detectMediaType(rest.media_url),
+    preview_url: getVideoPreviewUrl(rest.media_url),
+  };
+};
 
 async function getZipCoordinatesWithFallback(
   zipCode: string

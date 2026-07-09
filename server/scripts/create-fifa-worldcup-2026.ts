@@ -1,5 +1,5 @@
 /**
- * Create FIFA World Cup 2026 organization and Group A games (June 11)
+ * Create International Cup 2026 organization and Group A games (June 11)
  *
  * Games:
  *   Match 1 — Mexico vs South Africa, Estadio Azteca, Mexico City, 3:00 PM EDT
@@ -39,9 +39,9 @@ async function main() {
   }
   console.log(`Using admin: ${admin.email} (${admin.id})\n`);
 
-  // ── 1. Create or reuse FIFA World Cup 2026 organization ──────────────────
+  // ── 1. Create or reuse International Cup 2026 organization ──────────────────
   let org = await prisma.organization.findFirst({
-    where: { name: 'FIFA World Cup 2026' },
+    where: { name: 'International Cup 2026' },
     select: { id: true, name: true },
   });
 
@@ -51,9 +51,9 @@ async function main() {
     org = await prisma.$transaction(async tx => {
       const created = await tx.organization.create({
         data: {
-          name: 'FIFA World Cup 2026',
+          name: 'International Cup 2026',
           description:
-            'The 23rd FIFA World Cup, co-hosted by Canada, Mexico, and the United States from June 11 – July 19, 2026. Featuring 48 nations across 16 host cities.',
+            'The 23rd International Cup, co-hosted by Canada, Mexico, and the United States from June 11 – July 19, 2026. Featuring 48 nations across 16 host cities.',
           sport: 'Soccer',
           org_type: 'league',
           location: 'United States, Canada & Mexico',
@@ -104,7 +104,7 @@ async function main() {
           organization_id: org.id,
           city: def.city,
           state: def.state,
-          league: 'FIFA World Cup 2026',
+          league: 'International Cup 2026',
         },
         select: { id: true, name: true },
       });
@@ -131,7 +131,7 @@ async function main() {
       data: {
         title: 'Mexico vs South Africa',
         description:
-          'FIFA World Cup 2026 — Group A, Match 1. The opening match of the tournament. Estadio Azteca becomes the first venue to host three World Cup opening matches.',
+          'International Cup 2026 — Group A, Match 1. The opening match of the tournament. Estadio Azteca becomes the first venue to host three International Cup opening matches.',
         date: match1Date,
         location: 'Estadio Azteca, Mexico City, Mexico',
         latitude: AZTECA_LAT,
@@ -165,9 +165,9 @@ async function main() {
   if (!existingEvent1) {
     const event1 = await prisma.event.create({
       data: {
-        title: 'Mexico vs South Africa — FIFA World Cup 2026',
+        title: 'Mexico vs South Africa — International Cup 2026',
         description:
-          'World Cup 2026 Group A opener at Estadio Azteca in Mexico City. Mexico takes on South Africa in the first match of the tournament. Kickoff: 3:00 PM EDT / 2:00 PM CDT.',
+          'International Cup 2026 Group A opener at Estadio Azteca in Mexico City. Mexico takes on South Africa in the first match of the tournament. Kickoff: 3:00 PM EDT / 2:00 PM CDT.',
         date: match1Date,
         location: 'Estadio Azteca, Mexico City, Mexico',
         latitude: AZTECA_LAT,
@@ -180,7 +180,7 @@ async function main() {
         status: 'approved',
         approved_at: new Date(),
         approved_by: admin.id,
-        linked_league: 'FIFA World Cup 2026',
+        linked_league: 'International Cup 2026',
       },
     });
     console.log(`   Event created: ${event1.id}`);
@@ -204,7 +204,7 @@ async function main() {
       data: {
         title: 'South Korea vs Czechia',
         description:
-          'FIFA World Cup 2026 — Group A, Match 2. Estadio Akron in Guadalajara, Mexico. Kickoff at 8:00 PM local time.',
+          'International Cup 2026 — Group A, Match 2. Estadio Akron in Guadalajara, Mexico. Kickoff at 8:00 PM local time.',
         date: match2Date,
         location: 'Estadio Akron, Zapopan, Guadalajara, Mexico',
         latitude: AKRON_LAT,
@@ -237,9 +237,9 @@ async function main() {
   if (!existingEvent2) {
     const event2 = await prisma.event.create({
       data: {
-        title: 'South Korea vs Czechia — FIFA World Cup 2026',
+        title: 'South Korea vs Czechia — International Cup 2026',
         description:
-          'World Cup 2026 Group A at Estadio Akron in Guadalajara. South Korea faces Czechia in their opening match. Kickoff: 10:00 PM EDT / 8:00 PM MDT.',
+          'International Cup 2026 Group A at Estadio Akron in Guadalajara. South Korea faces Czechia in their opening match. Kickoff: 10:00 PM EDT / 8:00 PM MDT.',
         date: match2Date,
         location: 'Estadio Akron, Zapopan, Guadalajara, Mexico',
         latitude: AKRON_LAT,
@@ -252,7 +252,7 @@ async function main() {
         status: 'approved',
         approved_at: new Date(),
         approved_by: admin.id,
-        linked_league: 'FIFA World Cup 2026',
+        linked_league: 'International Cup 2026',
       },
     });
     console.log(`   Event created: ${event2.id}`);
@@ -260,7 +260,7 @@ async function main() {
     console.log(`   ℹ️  Event already linked to game`);
   }
 
-  console.log('\n🏆 FIFA World Cup 2026 setup complete.\n');
+  console.log('\n🏆 International Cup 2026 setup complete.\n');
   console.log(`Organization: ${org.id}`);
   console.log(`Match 1 (Mexico vs South Africa): ${game1.id}`);
   console.log(`Match 2 (South Korea vs Czechia):  ${game2.id}`);

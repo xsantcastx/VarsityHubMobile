@@ -1,5 +1,5 @@
 /**
- * FIFA World Cup 2026 — template-driven event creator.
+ * International Cup 2026 — template-driven event creator.
  *
  * Reads match definitions from worldcup-2026.data.ts and idempotently ensures:
  *   organization → teams → game → linked event
@@ -23,7 +23,7 @@ const prisma = new PrismaClient();
 const ADMIN_EMAIL = 'varsityhub00@gmail.com';
 
 // Each team's tournament group, derived from the fixture list. Stored in the
-// team description ("Group B — FIFA World Cup 2026") — the org page sections
+// team description ("Group B — International Cup 2026") — the org page sections
 // its team list by this prefix.
 const TEAM_GROUPS: Record<string, string> = {};
 for (const m of MATCHES) {
@@ -236,7 +236,7 @@ async function ensureMatch(
   const event = await prisma.event.create({
     data: {
       title: `${title} — ${ORGANIZATION.name}`,
-      description: `World Cup 2026 ${match.group} at ${venue.name}. ${match.home} takes on ${match.away}. ${match.kickoffLocalNote}`,
+      description: `International Cup 2026 ${match.group} at ${venue.name}. ${match.home} takes on ${match.away}. ${match.kickoffLocalNote}`,
       date: kickoff,
       location: venue.name,
       latitude: venue.lat,
@@ -291,7 +291,7 @@ async function main() {
     await ensureMatch(match, teamIds, admin, dryRun);
   }
 
-  console.log('\n🏆 FIFA World Cup 2026 template run complete.\n');
+  console.log('\n🏆 International Cup 2026 template run complete.\n');
 }
 
 main()

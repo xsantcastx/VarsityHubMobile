@@ -1,11 +1,17 @@
 import { detectMediaType, getVideoPreviewUrl } from './mediaUtils.js';
 import { prisma } from './prisma.js';
 
-export const withMediaPreview = (post: any) => ({
-  ...post,
-  media_type: detectMediaType(post.media_url),
-  preview_url: getVideoPreviewUrl(post.media_url),
-});
+export const withMediaPreview = (post: any) => {
+  // Strip precise capture coordinates: lat/lng are selected for server-side
+  // radius ranking only and must never reach clients — they expose where a
+  // user (often a minor) was filmed. country_code stays; it is coarse.
+  const { lat: _lat, lng: _lng, ...rest } = post;
+  return {
+    ...rest,
+    media_type: detectMediaType(rest.media_url),
+    preview_url: getVideoPreviewUrl(rest.media_url),
+  };
+};
 
 /**
  * Per-user interaction state for a set of posts. Without this a post payload

@@ -1214,7 +1214,7 @@ describe('GET /teams — exclude_demo_leagues opt-in flag', () => {
         name: `Demo Flag Fifa Team ${ts}`,
         organization_id: orgId,
         status: 'active',
-        league: 'FIFA World Cup 2026',
+        league: 'International Cup 2026',
       },
       select: { id: true },
     });

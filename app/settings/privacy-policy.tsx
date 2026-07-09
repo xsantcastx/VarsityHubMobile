@@ -12,7 +12,7 @@ export default function PrivacyPolicyScreen() {
   return (
     <LegalDocumentScreen title="Privacy Policy" colorScheme={colorScheme}>
       <Text style={[sharedStyles.updatedAt, { color: Colors[colorScheme].mutedText }]}>
-        Last updated: July 6, 2026
+        Last updated: July 9, 2026
       </Text>
 
       <LegalSectionCard
@@ -27,7 +27,7 @@ export default function PrivacyPolicyScreen() {
         colorScheme={colorScheme}
         title="2. Information We Collect"
         body={
-          'Account Information. Information you provide when creating or maintaining an account, such as your email address, username, and profile details. You may sign in using your email address or a supported third-party sign-in service.\n\nContent You Submit. Posts, photographs, videos, messages, team and event information, and other materials you choose to upload or share through the Service.\n\nTransaction Information. Records of purchases and subscriptions. Payments are processed by the applicable app store or our third-party payment processor; we do not receive or store full payment card numbers.\n\nTechnical and Usage Information. Device and diagnostic information, identifiers, and information about how you interact with the Service, collected to operate, secure, and improve the Service.\n\nLocation Information. With your permission, approximate location to surface nearby games and events, and, at the moment you use certain location-based posting features, precise device location solely to verify eligibility to use that feature. We do not track your location in the background.'
+          'Account Information. Information you provide when creating or maintaining an account, such as your email address, username, and profile details. You may sign in using your email address or a supported third-party sign-in service.\n\nContent You Submit. Posts, photographs, videos, messages, team and event information, and other materials you choose to upload or share through the Service.\n\nTransaction Information. Records of purchases and subscriptions. Payments are processed by the applicable app store or our third-party payment processor; we do not receive or store full payment card numbers.\n\nTechnical and Usage Information. Device and diagnostic information, identifiers, IP address, and browser or device user-agent, along with information about how you interact with the Service, collected to operate, secure, and improve the Service.\n\nLocation Information. With your permission, approximate location to surface nearby games and events, and, at the moment you use certain location-based posting features, precise device location solely to verify eligibility to use that feature. We do not track your location in the background.'
         }
       />
 
@@ -43,7 +43,7 @@ export default function PrivacyPolicyScreen() {
         colorScheme={colorScheme}
         title="4. How We Share Information"
         body={
-          'We do not sell your personal information. We disclose information only: (a) to service providers performing services on our behalf — such as cloud hosting, media storage, payment processing, analytics, diagnostics, and communications delivery — under obligations limiting their use of that information; (b) when you choose to share content publicly or with other users; (c) as required by law, legal process, or to protect the rights, property, or safety of VarsityHub, our users, or others; and (d) in connection with a merger, acquisition, or sale of assets, in which case this Policy will continue to apply to your information.'
+          'We do not sell your personal information. We disclose information only: (a) to service providers performing services on our behalf — such as cloud hosting, media storage, payment processing, analytics, diagnostics, communications delivery, and content safety and automated moderation — under obligations limiting their use of that information; (b) when you choose to share content publicly or with other users; (c) as required by law, legal process, or to protect the rights, property, or safety of VarsityHub, our users, or others; and (d) in connection with a merger, acquisition, or sale of assets, in which case this Policy will continue to apply to your information.'
         }
       />
 
