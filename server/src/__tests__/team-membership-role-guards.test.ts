@@ -130,11 +130,11 @@ describe('team-membership role-tier + sole-owner guards', () => {
     expect(created).toBeNull();
   });
 
-  it('still lets a head coach add a plain member (the barrier only blocks manager)', async () => {
+  it('still lets a head coach add a non-manager staffer (the barrier only blocks manager)', async () => {
     await request(app)
       .post('/team-memberships')
       .set('Authorization', `Bearer ${coachToken}`)
-      .send({ team_id: teamId, user_id: targetId, role: 'member' })
+      .send({ team_id: teamId, user_id: targetId, role: 'assistant_coach' })
       .expect(201);
     await prisma.teamMembership
       .deleteMany({ where: { team_id: teamId, user_id: targetId } })
@@ -146,7 +146,7 @@ describe('team-membership role-tier + sole-owner guards', () => {
     const res = await request(app)
       .patch(`/team-memberships/${ownerMembershipId}`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ role: 'member' })
+      .send({ role: 'coach' })
       .expect(400);
     expect(res.body.error).toBe('SOLE_OWNER');
     const still = await prisma.teamMembership.findUnique({ where: { id: ownerMembershipId } });

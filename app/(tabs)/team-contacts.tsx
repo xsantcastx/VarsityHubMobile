@@ -140,7 +140,7 @@ const selectChatMembers = (membersData: any[]): TeamMember[] =>
           avatar_url: m.user.avatar_url,
         }
       : undefined,
-    role: m.role || 'player',
+    role: m.role || 'member',
     status: 'offline' as 'online' | 'offline' | 'away',
     lastSeen: undefined,
   }));

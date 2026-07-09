@@ -145,7 +145,7 @@ describeDb('Team entitlement enforcement', () => {
         data: {
           team_id: lockedTeamId,
           email: `team-entitlement-locked-invitee-${ts}@example.com`,
-          role: 'member',
+          role: 'assistant_coach',
         },
       })
     ).id;
@@ -156,7 +156,7 @@ describeDb('Team entitlement enforcement', () => {
         data: {
           team_id: unlockedTeamId,
           email: `team-entitlement-roster-invitee-${ts}@example.com`,
-          role: 'member',
+          role: 'assistant_coach',
         },
       })
     ).id;
@@ -318,7 +318,7 @@ describeDb('Team entitlement enforcement', () => {
     const inviteRes = await request(app)
       .post(`/teams/${lockedTeamId}/invite`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ email: `new-locked-invite-${ts}@example.com`, role: 'member' })
+      .send({ email: `new-locked-invite-${ts}@example.com`, role: 'assistant_coach' })
       .expect(403);
 
     expect(inviteRes.body.error).toBe('TEAM_PLAN_LOCKED');

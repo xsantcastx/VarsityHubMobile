@@ -17,13 +17,12 @@ import { requirePlan } from '../middleware/subscription.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 
 // 'owner' is intentionally excluded — ownership can only be assigned through org creation or transfer-ownership endpoint
+// 2026-07-09: player/parent/member retired — teams hold staff only (coaches +
+// authorized users). Athletes connect by following, never by membership.
 const VALID_ROLES = [
   'manager',
   'coach',
   'assistant_coach',
-  'player',
-  'parent',
-  'member',
   'equipment',
   'health_wellness',
 ] as const;

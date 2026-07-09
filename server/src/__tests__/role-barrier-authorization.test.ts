@@ -152,7 +152,7 @@ describe('Role-barrier authorization boundaries', () => {
       await request(app)
         .post(`/teams/${teamId}/invite`)
         .set('Authorization', `Bearer ${managerToken}`)
-        .send({ email: `invitee-blocked-${ts}@example.com`, role: 'member' })
+        .send({ email: `invitee-blocked-${ts}@example.com`, role: 'assistant_coach' })
         .expect(403);
     });
 
@@ -160,7 +160,7 @@ describe('Role-barrier authorization boundaries', () => {
       const res = await request(app)
         .post(`/teams/${teamId}/invite`)
         .set('Authorization', `Bearer ${ownerToken}`)
-        .send({ email: `invitee-allowed-${ts}@example.com`, role: 'member' });
+        .send({ email: `invitee-allowed-${ts}@example.com`, role: 'assistant_coach' });
       expect(res.status).toBe(201);
     });
   });

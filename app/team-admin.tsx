@@ -319,8 +319,8 @@ export default function TeamAdminScreen() {
     async (user: UserSearchResult) => {
       if (!selectedTeamId) return;
       Alert.alert(
-        'Add to roster',
-        `Add ${user.display_name || user.username || 'this user'} as a player?`,
+        'Add to staff',
+        `Add ${user.display_name || user.username || 'this user'} as an assistant coach? You can change their role afterwards from My Team.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -330,14 +330,14 @@ export default function TeamAdminScreen() {
                 await TeamMemberships.create({
                   team_id: selectedTeamId,
                   user_id: user.id,
-                  role: 'player',
+                  role: 'assistant_coach',
                 });
                 setSearchQuery('');
                 setSearchResults([]);
                 await refetch();
               } catch (err: unknown) {
-                const message = err instanceof Error ? err.message : 'Failed to add player';
-                Alert.alert('Unable to add player', message);
+                const message = err instanceof Error ? err.message : 'Failed to add staff member';
+                Alert.alert('Unable to add staff member', message);
               }
             },
           },
@@ -535,7 +535,7 @@ export default function TeamAdminScreen() {
               >
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Roster</Text>
 
-                {/* Add player by search — full-administration only (server 403s the staff tier) */}
+                {/* Add staff by search — full-administration only (server 403s the staff tier) */}
                 {canAdminister && (
                   <>
                     <TextInput
