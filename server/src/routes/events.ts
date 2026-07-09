@@ -4,6 +4,7 @@ import {
   approveEvent as approveEventService,
   rejectEvent as rejectEventService,
 } from '../lib/approvalService.js';
+import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import {
   sendEventCanceledEmail,
   sendEventRsvpConfirmedEmail,
@@ -210,6 +211,24 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
       .status(result.status || 400)
       .send(renderEventResultPage('Error', result.error, false));
   }
+
+  // Central audit trail (parity with coach/org/ad approvals). The event record
+  // also carries approved_by/approved_at inline, but every privileged approval
+  // must also land in AdminActivityLog.
+  const reviewerEmail = reviewerUserId
+    ? (await prisma.user.findUnique({ where: { id: reviewerUserId }, select: { email: true } }))
+        ?.email || 'unknown'
+    : 'email-token';
+  await logAdminActivity(
+    reviewerUserId || 'email-token',
+    reviewerEmail,
+    action === 'approve' ? 'APPROVE_EVENT' : 'REJECT_EVENT',
+    'event',
+    eventId,
+    `${action === 'approve' ? 'Approved' : 'Rejected'} event: ${event.title || eventId}${
+      reason ? ` — ${reason}` : ''
+    }`
+  ).catch(err => console.error('[events] AdminActivityLog write failed:', err));
 
   // Only consume the token when it was used (admin session path has no token to consume)
   if (tokenValid && token && payload) {
