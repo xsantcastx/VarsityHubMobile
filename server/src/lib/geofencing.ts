@@ -216,6 +216,13 @@ async function verifyClientCoordsVsIp(
     // Local/private IP — skip check (dev / VPN through corporate net are common false positives)
     return { ok: true };
   }
+  // Defense-in-depth: `ipAddress` derives from the client-controllable
+  // X-Forwarded-For header behind the proxy. Only interpolate values that look
+  // like a bare IPv4/IPv6 address (digits, hex, dots, colons) into the lookup
+  // URL — reject anything else rather than pass it through to the fetch.
+  if (!/^[0-9a-fA-F.:]+$/.test(ipAddress)) {
+    return { ok: true };
+  }
   try {
     // ipapi.co is free for ~1k req/day; fall through silently if it fails so we don't break the feature
     const resp = await fetch(`https://ipapi.co/${ipAddress}/json/`, {
