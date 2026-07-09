@@ -75,7 +75,7 @@ export default function PrivacyPolicyScreen() {
         colorScheme={colorScheme}
         title="8. Children's Privacy"
         body={
-          'The Service is not directed to children under 13, and we do not knowingly collect personal information from children under 13. Users between 13 and 17 must have parental or guardian consent to use the Service. If we learn that information has been collected from a child under 13, we will delete it promptly.'
+          'The Service is not directed to and may not be used by children under 13, and we do not knowingly collect personal information from anyone under 13. Users aged 13 and older may create and use an account on their own. If we learn that we have collected personal information from a child under 13, we will delete it promptly.'
         }
       />
 
