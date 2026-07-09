@@ -47,9 +47,7 @@ describe('coach-mutating routes require onboarding (C1/C2)', () => {
   });
 
   it('group-chat REMOVE MEMBER runs requireOnboarded', () => {
-    expect(routeGuards(groupChatsSrc, "'/:chatId/members/:userId'")).toContain(
-      'requireOnboarded'
-    );
+    expect(routeGuards(groupChatsSrc, "'/:chatId/members/:userId'")).toContain('requireOnboarded');
   });
 
   it('group-chats imports the requireOnboarded middleware', () => {
