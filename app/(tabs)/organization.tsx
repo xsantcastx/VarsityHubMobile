@@ -440,7 +440,10 @@ export default function OrganizationScreen() {
         </Pressable>
 
         {/* Admin: View Join Requests */}
-        {organization?.id && (canReviewCoachRequests || isOrgAdmin) && (
+        {/* Coach Requests: any reviewer. Invite Coach: OWNER ONLY — org invite
+            creation is owner-only server-side (organizations.ts:1267); showing it
+            to an org manager just 403s. */}
+        {organization?.id && (canReviewCoachRequests || isOrgOwner) && (
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
             {canReviewCoachRequests ? (
               <Pressable
@@ -459,24 +462,26 @@ export default function OrganizationScreen() {
                 <Text style={styles.adminButtonText}>Coach Requests</Text>
               </Pressable>
             ) : null}
-            <Pressable
-              onPress={() => {
-                setInviteIdentifier('');
-                setInviteModalVisible(true);
-              }}
-              style={[
-                styles.adminButton,
-                {
-                  backgroundColor: theme.card,
-                  borderWidth: 1,
-                  borderColor: theme.border,
-                  flex: canReviewCoachRequests ? 1 : undefined,
-                },
-              ]}
-            >
-              <Ionicons name="person-add-outline" size={20} color={theme.text} />
-              <Text style={[styles.adminButtonText, { color: theme.text }]}>Invite Coach</Text>
-            </Pressable>
+            {isOrgOwner ? (
+              <Pressable
+                onPress={() => {
+                  setInviteIdentifier('');
+                  setInviteModalVisible(true);
+                }}
+                style={[
+                  styles.adminButton,
+                  {
+                    backgroundColor: theme.card,
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    flex: canReviewCoachRequests ? 1 : undefined,
+                  },
+                ]}
+              >
+                <Ionicons name="person-add-outline" size={20} color={theme.text} />
+                <Text style={[styles.adminButtonText, { color: theme.text }]}>Invite Coach</Text>
+              </Pressable>
+            ) : null}
           </View>
         )}
 
@@ -734,30 +739,35 @@ export default function OrganizationScreen() {
                       {String(invite.role || 'member').replace(/_/g, ' ')}
                     </Text>
                   </View>
-                  <Pressable
-                    onPress={async () => {
-                      if (!organization?.id) return;
-                      try {
-                        await Organization.cancelInvite(organization.id, invite.id);
-                        await refreshAll();
-                      } catch (err: any) {
-                        Alert.alert('Error', err?.message || 'Failed to cancel invite.');
-                      }
-                    }}
-                    style={[
-                      styles.actionBtn,
-                      {
-                        backgroundColor: 'transparent',
-                        borderColor: theme.border,
-                        borderWidth: 1,
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
-                        minHeight: 0,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.actionBtnText, { color: theme.text }]}>Cancel</Text>
-                  </Pressable>
+                  {/* Managers may VIEW pending invites (server allows) but only the
+                      OWNER may revoke them (organizations.ts:1474) — hide Cancel for
+                      non-owners so it doesn't 403. */}
+                  {isOrgOwner ? (
+                    <Pressable
+                      onPress={async () => {
+                        if (!organization?.id) return;
+                        try {
+                          await Organization.cancelInvite(organization.id, invite.id);
+                          await refreshAll();
+                        } catch (err: any) {
+                          Alert.alert('Error', err?.message || 'Failed to cancel invite.');
+                        }
+                      }}
+                      style={[
+                        styles.actionBtn,
+                        {
+                          backgroundColor: 'transparent',
+                          borderColor: theme.border,
+                          borderWidth: 1,
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          minHeight: 0,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.actionBtnText, { color: theme.text }]}>Cancel</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               ))
             )}

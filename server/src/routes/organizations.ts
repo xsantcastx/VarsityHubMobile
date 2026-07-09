@@ -14,10 +14,7 @@ import {
   sendStaffMemberJoinedEmail,
 } from '../lib/email.js';
 import { sendError } from '../lib/http/sendError.js';
-import {
-  InviteIdentifierError,
-  resolveInviteIdentifier,
-} from '../lib/inviteIdentifier.js';
+import { InviteIdentifierError, resolveInviteIdentifier } from '../lib/inviteIdentifier.js';
 import { redactEmail } from '../lib/logRedaction.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import {
@@ -1245,10 +1242,7 @@ organizationsRouter.post(
       if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
       const { identifier, email, role } = parsed.data;
-      const resolvedIdentifier = await resolveInviteIdentifier(
-        prisma,
-        identifier || email || ''
-      );
+      const resolvedIdentifier = await resolveInviteIdentifier(prisma, identifier || email || '');
       const inviteEmail = resolvedIdentifier.email;
 
       // Validate role against allowed org roles
@@ -1262,9 +1256,8 @@ organizationsRouter.post(
       // one who manages the organization — org managers no longer get invite
       // power (superseding the old "managers may invite at member level"
       // rule; managers/coaches still keep team-level roster+event approvals).
-      const membership = await getOrganizationMembership(req.user!.id, id);
-
-      if (!membership || membership.role !== 'owner') {
+      // Owner-only, incl. legacy league_owner_id owners (isOrganizationOwnerScoped).
+      if (!(await isOrganizationOwnerScoped(req.user!.id, id))) {
         return sendError(res, 403, 'Only the organization owner can invite members.');
       }
       if (resolvedIdentifier.resolvedUserId) {
@@ -1277,12 +1270,9 @@ organizationsRouter.post(
           select: { id: true },
         });
         if (existingMembership) {
-          return sendError(
-            res,
-            409,
-            'That user is already a member of this organization.',
-            { code: 'ALREADY_MEMBER' }
-          );
+          return sendError(res, 409, 'That user is already a member of this organization.', {
+            code: 'ALREADY_MEMBER',
+          });
         }
       }
       // PLAN LIMITS: Enforce authorized user caps based on ORG OWNER's plan (Rule B).
@@ -1458,8 +1448,9 @@ organizationsRouter.post(
     const userId = req.user?.id || null;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const [membership, isPlatformAdmin, invite] = await Promise.all([
-      getOrganizationMembership(userId, organizationId),
+    // Owner-only (incl. legacy league_owner_id owners) or platform admin.
+    const [isOwner, isPlatformAdmin, invite] = await Promise.all([
+      isOrganizationOwnerScoped(userId, organizationId),
       isCurrentUserPlatformAdmin(req),
       prisma.organizationInvite.findUnique({
         where: { id: inviteId },
@@ -1471,7 +1462,7 @@ organizationsRouter.post(
       return res.status(404).json({ error: 'Invite not found' });
     }
 
-    if (!isPlatformAdmin && (!membership || membership.role !== 'owner')) {
+    if (!isPlatformAdmin && !isOwner) {
       return sendError(res, 403, 'PERMISSION_DENIED', {
         message: 'Only the organization owner can cancel invites.',
       });
@@ -2014,8 +2005,7 @@ organizationsRouter.get(
     // admin (org-scoped god-override), matching the canReviewCoachRequests
     // flag GET /organizations/:id already advertises to admins.
     const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
-    const membership = await getOrganizationMembership(req.user!.id, id);
-    if (!isPlatformAdmin && (!membership || membership.role !== 'owner')) {
+    if (!isPlatformAdmin && !(await isOrganizationOwnerScoped(req.user!.id, id))) {
       return sendError(res, 403, 'Only the organization owner can review coach requests');
     }
 
@@ -2060,11 +2050,11 @@ organizationsRouter.post(
       // Coach admission is decided by the organization owner — or a platform
       // admin (org-scoped god-override). The self-approval IDOR guard above
       // still applies to admins.
+      // Owner-only (incl. legacy league_owner_id owners) or platform admin.
       const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
-      const membership = await getOrganizationMembership(req.user!.id, joinRequest.organization_id);
       if (
         !isPlatformAdmin &&
-        (!membership || membership.status !== 'active' || membership.role !== 'owner')
+        !(await isOrganizationOwnerScoped(req.user!.id, joinRequest.organization_id))
       ) {
         return sendError(res, 403, 'Only the organization owner can approve coach requests');
       }
@@ -2110,13 +2100,11 @@ organizationsRouter.post(
         return res.status(404).json({ error: 'Join request not found' });
       }
 
-      // Coach admission is decided by the organization owner — or a platform
-      // admin (org-scoped god-override).
+      // Owner-only (incl. legacy league_owner_id owners) or platform admin.
       const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
-      const membership = await getOrganizationMembership(req.user!.id, joinRequest.organization_id);
       if (
         !isPlatformAdmin &&
-        (!membership || membership.status !== 'active' || membership.role !== 'owner')
+        !(await isOrganizationOwnerScoped(req.user!.id, joinRequest.organization_id))
       ) {
         return sendError(res, 403, 'Only the organization owner can reject coach requests');
       }
@@ -2443,7 +2431,10 @@ organizationsRouter.post(
       where: { organization_id: orgId, user_id: req.user.id, role: 'owner', status: 'active' },
       select: { id: true },
     });
-    if (!currentOwnership) {
+    // A legacy owner (league_owner_id pointer, no membership row) is still the
+    // owner and may transfer. currentOwnership stays null for them — the
+    // demotion step below is skipped since there's no row to demote.
+    if (!currentOwnership && !(await isOrganizationOwnerScoped(req.user.id, orgId))) {
       return res.status(403).json({ error: 'Only the current owner can transfer ownership' });
     }
 
@@ -2470,11 +2461,17 @@ organizationsRouter.post(
         data: { league_owner_id: new_owner_id },
         select: { id: true },
       }),
-      prisma.organizationMembership.update({
-        where: { id: currentOwnership.id },
-        data: { role: 'manager' },
-        select: { id: true },
-      }),
+      // Demote the old owner's membership row — skipped for a legacy owner who
+      // never had one (they simply stop being the league_owner_id pointer).
+      ...(currentOwnership
+        ? [
+            prisma.organizationMembership.update({
+              where: { id: currentOwnership.id },
+              data: { role: 'manager' },
+              select: { id: true },
+            }),
+          ]
+        : []),
       prisma.organizationMembership.update({
         where: { id: newOwnerMembership.id },
         data: { role: 'owner' },
