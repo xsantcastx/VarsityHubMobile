@@ -5,6 +5,12 @@
  * landing for shared event URLs (varsityhub.app/public-event?id=...). Pinned
  * as a guest-browseable public route by web-auth-gate, routingConvergence,
  * and guest-create-entry contract tests. Do not delete as "dead code".
+ *
+ * 2026-07-09: rebuilt into a real in-app event page. It used to render
+ * web-share framing ("hosted on the VarsityHub event hub… share that link")
+ * plus a raw "Event ID: <cuid>", which looked like a placeholder/broken screen
+ * inside the native app. Now it shows the event's real title, date/time,
+ * venue, description, and a working RSVP — consistent with the rest of the app.
  */
 import MasonryGrid from '@/components/MasonryGrid';
 import MasonryPostCard from '@/components/MasonryPostCard';
@@ -13,7 +19,15 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Event, Post } from '@/api/entities';
@@ -31,6 +45,9 @@ function PublicEventScreen() {
   const [loading, setLoading] = useState(false);
   const [event, setEvent] = useState<any>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [rsvpGoing, setRsvpGoing] = useState(false);
+  const [rsvpCount, setRsvpCount] = useState(0);
+  const [rsvpBusy, setRsvpBusy] = useState(false);
   const loadEventData = useCallback(async () => {
     if (!params.id) return;
     setLoading(true);
@@ -150,9 +167,54 @@ function PublicEventScreen() {
     }
   }, [params?.id]);
 
+  // RSVP status is readable by guests (returns going:false); posting requires auth.
+  const loadRsvp = useCallback(async () => {
+    if (!params.id || /^sample-/i.test(String(params.id))) return;
+    try {
+      const status: any = await Event.rsvpStatus(String(params.id)).catch(() => null);
+      if (status) {
+        setRsvpGoing(Boolean(status.going ?? status.attending));
+        setRsvpCount(Number(status.count ?? 0));
+      }
+    } catch {
+      // non-fatal — RSVP is a secondary affordance
+    }
+  }, [params?.id]);
+
+  const toggleRsvp = useCallback(async () => {
+    if (!params.id) return;
+    if (!user) {
+      promptForSignIn(
+        () => {
+          void router.push('/sign-in');
+        },
+        { message: 'Sign in to RSVP to this event.' }
+      );
+      return;
+    }
+    const next = !rsvpGoing;
+    setRsvpBusy(true);
+    // Optimistic update, reverted on failure.
+    setRsvpGoing(next);
+    setRsvpCount(c => Math.max(0, c + (next ? 1 : -1)));
+    try {
+      const res: any = await Event.rsvp(String(params.id), next);
+      if (res && typeof res.count === 'number') setRsvpCount(res.count);
+      if (res && typeof (res.going ?? res.attending) === 'boolean')
+        setRsvpGoing(Boolean(res.going ?? res.attending));
+    } catch {
+      setRsvpGoing(!next);
+      setRsvpCount(c => Math.max(0, c + (next ? -1 : 1)));
+      Alert.alert('RSVP failed', 'We could not update your RSVP. Please try again.');
+    } finally {
+      setRsvpBusy(false);
+    }
+  }, [user, rsvpGoing, params?.id, router]);
+
   useEffect(() => {
     if (params?.id) {
       void loadEventData();
+      void loadRsvp();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params?.id]);
@@ -166,6 +228,23 @@ function PublicEventScreen() {
     }, [params?.id, loadEventData])
   );
 
+  const eventDate = event?.date ? new Date(String(event.date)) : null;
+  const validDate = eventDate && !isNaN(eventDate.getTime()) ? eventDate : null;
+  const dateLabel = validDate
+    ? validDate.toLocaleDateString(undefined, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : null;
+  const timeLabel = validDate
+    ? validDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    : null;
+  const rsvpLabelSuffix = `${rsvpCount > 0 ? ` · ${rsvpCount}` : ''}${
+    event?.max_attendees ? ` / ${event.max_attendees}` : ''
+  }`;
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
@@ -173,7 +252,7 @@ function PublicEventScreen() {
     >
       <Stack.Screen
         options={{
-          title: 'Public Event',
+          title: event?.title || 'Event',
           headerShown: true,
           headerLeft: () => (
             <Pressable
@@ -191,16 +270,62 @@ function PublicEventScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.headerSection}>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-            {event?.title || 'Public Event'}
+            {event?.title || 'Event'}
           </Text>
-          <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-            Public event pages are hosted on the VarsityHub event hub (varsityhub.app/events). Share
-            that link to give fans the full schedule and RSVP options.
-          </Text>
-          {params?.id && (
-            <Text style={[styles.eventId, { color: Colors[colorScheme].mutedText }]}>
-              Event ID: {params.id}
+
+          {(dateLabel || timeLabel) && (
+            <View style={styles.metaRow}>
+              <MaterialIcons name="event" size={18} color={Colors[colorScheme].tint} />
+              <Text style={[styles.metaText, { color: Colors[colorScheme].text }]}>
+                {[dateLabel, timeLabel].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+          )}
+
+          {!!event?.location && (
+            <View style={styles.metaRow}>
+              <MaterialIcons name="place" size={18} color={Colors[colorScheme].tint} />
+              <Text style={[styles.metaText, { color: Colors[colorScheme].text }]}>
+                {event.location}
+              </Text>
+            </View>
+          )}
+
+          {!!event?.description && (
+            <Text style={[styles.description, { color: Colors[colorScheme].mutedText }]}>
+              {event.description}
             </Text>
+          )}
+
+          {!!event && !/^sample-/i.test(String(params?.id)) && (
+            <Pressable
+              onPress={() => {
+                void toggleRsvp();
+              }}
+              disabled={rsvpBusy}
+              style={[
+                styles.rsvpButton,
+                {
+                  backgroundColor: rsvpGoing ? Colors[colorScheme].tint : 'transparent',
+                  borderColor: Colors[colorScheme].tint,
+                  opacity: rsvpBusy ? 0.6 : 1,
+                },
+              ]}
+            >
+              <MaterialIcons
+                name={rsvpGoing ? 'check-circle' : 'add-circle-outline'}
+                size={18}
+                color={rsvpGoing ? '#FFFFFF' : Colors[colorScheme].tint}
+              />
+              <Text
+                style={[
+                  styles.rsvpButtonText,
+                  { color: rsvpGoing ? '#FFFFFF' : Colors[colorScheme].tint },
+                ]}
+              >
+                {(rsvpGoing ? "You're going" : 'RSVP') + rsvpLabelSuffix}
+              </Text>
+            </Pressable>
           )}
         </View>
 
@@ -306,19 +431,41 @@ const styles = StyleSheet.create({
   headerSection: {
     padding: 16,
     paddingBottom: 8,
+    gap: 8,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
-    marginBottom: 8,
   },
-  subtitle: {
-    marginBottom: 12,
-    lineHeight: 20,
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  eventId: {
-    fontSize: 13,
-    marginTop: 4,
+  metaText: {
+    fontSize: 15,
+    fontWeight: '500',
+    flexShrink: 1,
+  },
+  description: {
+    fontSize: 15,
+    lineHeight: 21,
+    marginTop: 2,
+  },
+  rsvpButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    marginTop: 6,
+  },
+  rsvpButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
   postsSection: {
     marginTop: 8,
