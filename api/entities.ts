@@ -943,22 +943,6 @@ export const TeamMemberships = {
     httpGet(
       `/team-memberships/search-users?teamId=${encodeURIComponent(teamId)}&q=${encodeURIComponent(q)}`
     ),
-  // Team join requests
-  requestToJoin: (teamId: string, message?: string) =>
-    httpPost('/team-memberships/join-requests', { team_id: teamId, message }),
-  getJoinRequests: (teamId: string) =>
-    httpGet(`/team-memberships/join-requests?teamId=${encodeURIComponent(teamId)}`),
-  myJoinRequests: () => httpGet('/team-memberships/join-requests/my'),
-  approveJoinRequest: (requestId: string) =>
-    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
-  rejectJoinRequest: (requestId: string, reason?: string) =>
-    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/reject`, {
-      rejection_reason: reason,
-    }),
-  cancelJoinRequest: (requestId: string) =>
-    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/reject`, {
-      rejection_reason: 'Cancelled by requester',
-    }),
 };
 
 export const TeamInvites = {

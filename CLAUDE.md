@@ -220,11 +220,11 @@ npm run audit:navigation        # classify all router.replace calls; flag REVIEW
 Team/org authorization is split into two tiers by `server/src/lib/teamAuthorization.ts`:
 
 - **Full administration** — `canAdministerTeam()` (team owner/coach, or org owner): team settings edit, invite create/cancel, roster member add/remove/role-change, ownership transfer, moving a team to another org. `canArchiveTeam` is an alias.
-- **Authorized user** — `canManageTeam()`/`canManageAnyTeam()` (team owner/manager/coach/assistant_coach, or org owner/manager): roster join-request approve/deny, event/game create + approve/deny. This is the ONLY power managers/assistant_coaches have — they must never pass `canAdministerTeam`.
+- **Authorized user** — `canManageTeam()`/`canManageAnyTeam()` (team owner/manager/coach/assistant_coach, or org owner/manager): event/game create + approve/deny. This is the ONLY power managers/assistant_coaches have — they must never pass `canAdministerTeam`. (Athlete self-service team join requests were removed 2026-07-09 — rosters are coach-invite/direct-add only; the `TeamJoinRequest` table remains in the DB but nothing writes to it.)
 - **Organization management is owner-only** — `isOrgOwner()` gates org edit and org invite create/revoke; org managers have zero admin power at the org level (see Security Invariants below).
 - Athletes/parents/members have no admin functions at all.
 
-New team/org mutation endpoints must pick the correct tier explicitly — don't default to the older undifferentiated `canManageTeam` for anything beyond roster/event approvals.
+New team/org mutation endpoints must pick the correct tier explicitly — don't default to the older undifferentiated `canManageTeam` for anything beyond event/game approvals.
 
 ## Security Invariants (Do Not Break)
 

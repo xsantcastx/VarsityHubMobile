@@ -169,7 +169,7 @@ npm run verify:error-envelope
 
 ## Team Role-Barrier Model (2026-07-06)
 
-`server/src/lib/teamAuthorization.ts` splits team/org authorization into two tiers: `canAdministerTeam()` (team owner/coach, or org owner — settings, invites, roster add/remove/role-change, ownership transfer) vs `canManageTeam()`/`canManageAnyTeam()` (also admits team manager/assistant_coach and org manager — roster join-request approve/deny, event/game create + approve/deny ONLY). Organization management (`isOrgOwner()`) is owner-only — org managers have zero admin power. Athletes/parents/members have no admin functions. New mutation endpoints must pick the correct tier explicitly.
+`server/src/lib/teamAuthorization.ts` splits team/org authorization into two tiers: `canAdministerTeam()` (team owner/coach, or org owner — settings, invites, roster add/remove/role-change, ownership transfer) vs `canManageTeam()`/`canManageAnyTeam()` (also admits team manager/assistant_coach and org manager — event/game create + approve/deny ONLY). Organization management (`isOrgOwner()`) is owner-only — org managers have zero admin power. Athletes/parents/members have no admin functions. New mutation endpoints must pick the correct tier explicitly. Athlete self-service team join requests were removed 2026-07-09 (rosters are coach-invite/direct-add only; the `TeamJoinRequest` table remains in the DB but nothing writes to it).
 
 ## Security Invariants (Do Not Break)
 

@@ -462,19 +462,6 @@ export default function TeamAdminScreen() {
                     >
                       <Text style={styles.primaryButtonText}>Manage Roster</Text>
                     </Pressable>
-                    <Pressable
-                      onPress={() =>
-                        router.push({
-                          pathname: '/team-join-requests',
-                          params: { teamId: selectedTeamId, teamName: team?.name || '' },
-                        } as any)
-                      }
-                      style={[styles.secondaryButton, { borderColor: theme.border }]}
-                    >
-                      <Text style={[styles.secondaryButtonText, { color: theme.text }]}>
-                        Join Requests
-                      </Text>
-                    </Pressable>
                   </>
                 ) : null}
               </View>
