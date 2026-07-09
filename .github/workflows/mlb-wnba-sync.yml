@@ -1,0 +1,87 @@
+name: MLB & WNBA Schedule Sync
+
+# Pulls the real MLB Stats API / ESPN WNBA scoreboard and idempotently
+# creates Game + Event rows for each game in the date range. No Team or
+# Organization records are created. See server/scripts/mlb/ and
+# server/scripts/wnba/ for the sync scripts themselves.
+#
+# MODE is edited directly in this file between iterations: inspect (dump
+# raw API shape, zero DB writes) -> dry-run (plan only) -> live (writes).
+
+env:
+  MLB_MODE: '--inspect'
+  WNBA_MODE: '--inspect'
+  FROM_DATE: '2026-07-09'
+  TO_DATE: '2026-07-31'
+
+on:
+  push:
+    branches: [claude/fifa-games-varistyhub-4g56fq]
+    paths:
+      - '.github/workflows/mlb-wnba-sync.yml'
+      - 'server/scripts/mlb/**'
+      - 'server/scripts/wnba/**'
+  workflow_dispatch:
+
+jobs:
+  sync-mlb:
+    name: Sync MLB schedule
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+      - name: Run MLB sync
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ] && [ "${{ env.MLB_MODE }}" != "--inspect" ]; then
+            echo "Missing GitHub secret: PRODUCTION_DATABASE_URL"
+            exit 1
+          fi
+          if [ "${{ env.MLB_MODE }}" = "--inspect" ]; then
+            npx tsx scripts/mlb/sync-mlb-schedule.ts --inspect
+          else
+            npx tsx scripts/mlb/sync-mlb-schedule.ts --from "${{ env.FROM_DATE }}" --to "${{ env.TO_DATE }}" ${{ env.MLB_MODE }}
+          fi
+
+  sync-wnba:
+    name: Sync WNBA schedule
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+      - name: Run WNBA sync
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ] && [ "${{ env.WNBA_MODE }}" != "--inspect" ]; then
+            echo "Missing GitHub secret: PRODUCTION_DATABASE_URL"
+            exit 1
+          fi
+          if [ "${{ env.WNBA_MODE }}" = "--inspect" ]; then
+            npx tsx scripts/wnba/sync-wnba-schedule.ts --inspect
+          else
+            npx tsx scripts/wnba/sync-wnba-schedule.ts --from "${{ env.FROM_DATE }}" --to "${{ env.TO_DATE }}" ${{ env.WNBA_MODE }}
+          fi
