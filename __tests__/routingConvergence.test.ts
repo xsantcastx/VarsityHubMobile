@@ -51,7 +51,7 @@ describe('routing convergence', () => {
   it('keeps guest-browseable content routes stable for anonymous users', () => {
     for (const route of [
       '/post-detail?id=post_123',
-      '/public-event?id=sample-warriors-cavaliers',
+      '/public-event?id=evt_456',
       '/event-detail?id=evt_123',
       '/game/123',
       '/user-profile?id=user_123',

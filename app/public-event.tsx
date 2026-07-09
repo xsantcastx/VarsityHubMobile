@@ -31,7 +31,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Event, Post } from '@/api/entities';
-import settings from '@/api/settings';
 import { useAuth } from '@/context/AuthProvider';
 import { safeGoBack } from '@/utils/navigation';
 import { promptForSignIn } from '@/utils/requireSignIn';
@@ -53,110 +52,35 @@ function PublicEventScreen() {
     setLoading(true);
     try {
       const eventId = params.id;
-      const isSampleEvent = /^sample-/i.test(eventId);
       setLoadError(null);
-      if (__DEV__)
-        console.warn(
-          '[public-event] loadEventData called | eventId:',
-          eventId,
-          '| isSampleEvent:',
-          isSampleEvent
-        );
 
-      // For sample events, try to load posts by game_id (since sample events don't exist in DB)
-      // For real events, try both event_id and game_id
+      // Try posts by event_id first, then game_id as fallback
       let eventPosts: any[] | null = null;
-
-      if (isSampleEvent) {
-        // Sample events: fetch posts by game_id (which matches the event ID for samples)
-        // NOTE: Server should store sample event game_id and query it correctly
-        let serverPostsLoaded = false;
-        try {
-          if (__DEV__)
-            console.warn('[public-event] Fetching sample event posts with game_id:', eventId);
-          const gamePosts = await Post.feedForGame(eventId, { limit: 50, sort: 'trending' }).catch(
-            (err: any) => {
-              if (__DEV__) console.warn('[public-event] feedForGame error:', err?.message);
-              return null;
-            }
-          );
-          if (__DEV__)
-            console.warn(
-              '[public-event] feedForGame response: items=',
-              Array.isArray(gamePosts?.items) ? gamePosts.items.length : 'n/a'
-            );
+      const eventPostsPage = await Post.getByEvent?.(eventId).catch(() => null);
+      eventPosts = Array.isArray(eventPostsPage?.items) ? eventPostsPage.items : null;
+      if (!eventPosts || eventPosts.length === 0) {
+        // If no posts by event_id, try by game_id if event has one
+        const eventData = await Event.get?.(eventId).catch(() => null);
+        if (eventData?.game_id) {
+          const gamePosts = await Post.feedForGame(eventData.game_id, {
+            limit: 50,
+            sort: 'trending',
+          }).catch(() => null);
           if (gamePosts && Array.isArray(gamePosts.items)) {
             eventPosts = gamePosts.items;
-            serverPostsLoaded = true;
-            if (__DEV__)
-              console.warn('[public-event] Got', eventPosts.length, 'posts from gamePosts.items');
-          } else {
-            if (__DEV__) console.warn('[public-event] No posts found in response');
-          }
-        } catch (err: any) {
-          if (__DEV__)
-            console.warn(
-              '[public-event] Failed to load sample event posts (timeout or error):',
-              err?.message
-            );
-        }
-        try {
-          const cached = await settings.getJson<Record<string, any[]>>(
-            settings.SETTINGS_KEYS.SAMPLE_EVENT_POSTS,
-            {} as any
-          );
-          const localPosts = Array.isArray(cached[eventId]) ? cached[eventId] : [];
-          const seen = new Set<string>();
-          const merged: any[] = [];
-          const priority = serverPostsLoaded
-            ? [...(eventPosts || []), ...localPosts]
-            : [...localPosts, ...(eventPosts || [])];
-          for (const post of priority) {
-            const key = String(post?.id ?? post?.media_url ?? post?.created_at ?? '');
-            if (!key || seen.has(key)) continue;
-            seen.add(key);
-            merged.push(post);
-          }
-          eventPosts = merged.length > 0 ? merged : eventPosts || [];
-        } catch (err: any) {
-          if (__DEV__) console.warn('[public-event] sample cache merge failed:', err?.message);
-        }
-      } else {
-        // Real events: try event_id first, then game_id as fallback
-        const eventPostsPage = await Post.getByEvent?.(eventId).catch(() => null);
-        eventPosts = Array.isArray(eventPostsPage?.items) ? eventPostsPage.items : null;
-        if (!eventPosts || eventPosts.length === 0) {
-          // If no posts by event_id, try by game_id if event has one
-          const eventData = await Event.get?.(eventId).catch(() => null);
-          if (eventData?.game_id) {
-            const gamePosts = await Post.feedForGame(eventData.game_id, {
-              limit: 50,
-              sort: 'trending',
-            }).catch(() => null);
-            if (gamePosts && Array.isArray(gamePosts.items)) {
-              eventPosts = gamePosts.items;
-            }
           }
         }
       }
 
       const eventData = await Event.get?.(eventId).catch(() => null);
       setEvent(eventData);
-      if (!eventData && !isSampleEvent) {
+      if (!eventData) {
         setPosts([]);
         setLoadError('This event is unavailable or has been removed.');
         return;
       }
 
-      if (eventPosts && Array.isArray(eventPosts) && eventPosts.length > 0) {
-        setPosts(eventPosts);
-      } else if (isSampleEvent) {
-        // For sample events, show empty state instead of fake posts if no real posts exist
-        setPosts([]);
-      } else {
-        // For real events with no posts, show empty state
-        setPosts([]);
-      }
+      setPosts(eventPosts && eventPosts.length > 0 ? eventPosts : []);
     } catch (error) {
       if (__DEV__) console.error('Failed to load event', error);
       setEvent(null);
@@ -169,7 +93,7 @@ function PublicEventScreen() {
 
   // RSVP status is readable by guests (returns going:false); posting requires auth.
   const loadRsvp = useCallback(async () => {
-    if (!params.id || /^sample-/i.test(String(params.id))) return;
+    if (!params.id) return;
     try {
       const status: any = await Event.rsvpStatus(String(params.id)).catch(() => null);
       if (status) {
@@ -297,7 +221,7 @@ function PublicEventScreen() {
             </Text>
           )}
 
-          {!!event && !/^sample-/i.test(String(params?.id)) && (
+          {!!event && (
             <Pressable
               onPress={() => {
                 void toggleRsvp();
@@ -337,8 +261,6 @@ function PublicEventScreen() {
             <Pressable
               style={[styles.createPostButton, { backgroundColor: Colors[colorScheme].tint }]}
               onPress={() => {
-                // For sample events, use the event's game_id if it exists, otherwise use event ID
-                // The create-post screen accepts gameId and will handle sample events appropriately
                 const targetGameId = event?.game_id || params?.id || '';
                 if (__DEV__)
                   console.warn(
@@ -367,11 +289,7 @@ function PublicEventScreen() {
               }}
             >
               <MaterialIcons name="add-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.createPostButtonText}>
-                {params?.id && /^sample-/i.test(String(params.id))
-                  ? 'Add Sample Post'
-                  : 'Create Post'}
-              </Text>
+              <Text style={styles.createPostButtonText}>Create Post</Text>
             </Pressable>
           </View>
 

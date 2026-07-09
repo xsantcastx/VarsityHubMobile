@@ -260,9 +260,7 @@ const makeCreateStoryHandler = ({ prisma: p }: StoryDeps) =>
     const parsed = storySchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
-    const isSampleGame = /^sample-/i.test(id);
-
-    if (!isSampleGame) {
+    {
       const game = await p.game.findUnique({
         where: { id },
         select: {

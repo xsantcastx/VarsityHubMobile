@@ -315,18 +315,13 @@ postsRouter.get(
 
     if (req.query.game_id) {
       const gameId = String(req.query.game_id);
-      // Handle sample game IDs (stored in title field with [SAMPLE_GAME:...] marker)
-      if (/^sample-/i.test(gameId)) {
-        where.title = { startsWith: `[SAMPLE_GAME:${gameId}]` };
-      } else {
-        // Match posts tied to the game directly (game_id) OR via one of its
-        // events (event_id). Symmetric with the event_id branch below; keeps
-        // legacy rows that only carry one column visible on the game feed.
-        where.AND = [
-          ...(Array.isArray(where.AND) ? where.AND : []),
-          { OR: [{ game_id: gameId }, { event: { game_id: gameId } }] },
-        ];
-      }
+      // Match posts tied to the game directly (game_id) OR via one of its
+      // events (event_id). Symmetric with the event_id branch below; keeps
+      // legacy rows that only carry one column visible on the game feed.
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        { OR: [{ game_id: gameId }, { event: { game_id: gameId } }] },
+      ];
     }
     if (req.query.team_id) {
       const teamId = String(req.query.team_id);
@@ -678,9 +673,6 @@ postsRouter.post(
   requireOnboarded as any,
   postCreationLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
-    // Sample game IDs (sample-*) are handled downstream — stored in title with [SAMPLE_GAME:] prefix
-    // instead of game_id (which has a foreign key constraint). See line ~604.
-
     // v1.0.2 pass 8: banned check (symmetric with DMs + comments)
     const banner = await prisma.user.findUnique({
       where: { id: req.user!.id },
@@ -801,37 +793,19 @@ postsRouter.post(
     }
 
     // ⚠️ GEOFENCING CHECK FOR EVENT POSTS
-    // If this is an event-specific post, verify user is at the venue
-    // Skip geofencing for sample events/games (IDs starting with "sample-") - these are demo content
+    // If this is an event-specific post, verify user is at the venue.
+    // (2026-07-09: the sample- demo-content carve-out is retired — sample ids
+    // no longer skip geofencing or get [SAMPLE_GAME:] title markers. The
+    // stripSampleGameTitle serializer stays: old DB rows still carry markers.)
     const eventId = (data as any).event_id;
     const gameId = data.game_id;
-    const isSampleEvent = eventId && /^sample-/i.test(String(eventId));
-    const isSampleGame = gameId && /^sample-/i.test(String(gameId));
 
-    // For sample events, we can't use game_id (foreign key constraint)
-    // Store sample game_id in title field with special marker for querying
-    let finalGameId: string | null = null;
-    let finalTitle = data.title || null;
+    let finalGameId: string | null = gameId ?? null;
+    const finalTitle = data.title || null;
     // Event id derived from the game's primary event during the geofencing
     // lookup below — reused when denormalizing the link so we don't re-query.
     let derivedEventIdFromGame: string | null = null;
-    if (isSampleGame && gameId) {
-      // Store sample game_id in title: [SAMPLE_GAME:sample-warriors-cavaliers] Original Title
-      const titlePrefix = `[SAMPLE_GAME:${gameId}]`;
-      finalTitle = finalTitle ? `${titlePrefix} ${finalTitle}` : titlePrefix;
-      finalGameId = null; // Don't set game_id for sample events (foreign key constraint)
-      debugLog(`✅ Sample game detected (${gameId}) - storing in title, skipping geofencing`);
-    } else if (isSampleEvent && eventId) {
-      debugLog(`✅ Sample event detected (${eventId}) - skipping geofencing check`);
-      finalGameId = null;
-    } else if (gameId) {
-      finalGameId = gameId;
-    }
-
-    // Allow posting to sample events/games without geofencing
-    if (isSampleEvent || isSampleGame) {
-      debugLog(`✅ Sample event/game detected (${eventId || gameId}) - skipping geofencing check`);
-    } else if (eventId || gameId) {
+    if (eventId || gameId) {
       // Check geofencing for real events or games (games have associated events)
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -939,7 +913,7 @@ postsRouter.post(
     // Attach the post directly to its event (real, non-sample events only) so it
     // associates with event-only pages that have no game, and so its author can
     // qualify for the open-ended post-event upload window via event_id.
-    let finalEventId = eventId && !isSampleEvent ? String(eventId) : null;
+    let finalEventId = eventId ? String(eventId) : null;
 
     // Denormalize the event/game link in BOTH directions. A post tied to a
     // game or event must carry game_id AND event_id whenever both exist, so

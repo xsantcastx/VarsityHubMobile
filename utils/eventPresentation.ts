@@ -45,6 +45,5 @@ export const canShowGamePoll = ({
   eventType?: string | null;
 }) => {
   if (!gameId) return false;
-  if (/^sample-/i.test(String(gameId))) return true;
   return isCompetitiveEventType(eventType);
 };

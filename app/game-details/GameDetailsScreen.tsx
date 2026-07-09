@@ -57,7 +57,6 @@ import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
 import { Event, Game, Post, Team } from '@/api/entities';
-import settings from '@/api/settings';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
@@ -80,7 +79,6 @@ const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] =
   '#1d4ed8',
   '#38bdf8',
 ];
-const isSampleId = (id?: string | null) => !!id && /^sample-/i.test(String(id));
 
 type TeamInfo = { id: string; name: string; avatarUrl?: string | null };
 
@@ -149,9 +147,6 @@ const canAddStory = (
   gameId?: string | null,
   description?: string | null
 ) => {
-  // Sample events can always add stories (no time restriction)
-  if (isSampleId(gameId)) return true;
-
   // Seeded demo matchups (Duke v UNC, Cavs v Warriors) bypass the day-of gate
   // to match the server-side [DEMO_MATCHUP] carve-out in gameStories.ts.
   if (typeof description === 'string' && description.includes(DEMO_MATCHUP_TAG)) return true;
@@ -590,130 +585,14 @@ const GameDetailsScreen = () => {
   };
 
   const loadGameById = useCallback(async (gameIdValue: string) => {
-    // Handle sample slugs locally to avoid noisy 404s
-    if (/^sample-/i.test(gameIdValue)) {
-      const parts = gameIdValue
-        .replace(/^sample-/i, '')
-        .split(/[-_]+/)
-        .filter(Boolean);
-      const toTitle = (s: string) =>
-        s ? s.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
-      const home = toTitle(parts[0] || 'Team A');
-      const away = toTitle(parts[1] || 'Team B');
-      const dateIso = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
-
-      // Sample media/stories for demo carousel
-      const sampleMedia: MediaItem[] = [
-        {
-          id: 'story-video-1',
-          url: 'https://storage.googleapis.com/static.varsityhub.app/videos/sample-highlight-1.mp4',
-          thumbnail_url:
-            'https://storage.googleapis.com/static.varsityhub.app/videos/sample-highlight-1-thumb.jpg',
-          kind: 'video' as const,
-          created_at: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
-          caption: 'Check out this awesome highlight! 🚀',
-          user_id: 'sample-user-0',
-        },
-        {
-          id: 'story-1',
-          url: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400',
-          kind: 'photo' as const,
-          created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-          caption: 'Pre-game warmups 🔥',
-          user_id: 'sample-user-1',
-        },
-        {
-          id: 'story-2',
-          url: 'https://images.unsplash.com/photo-1504450758481-7338eba7524a?w=400',
-          kind: 'photo' as const,
-          created_at: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
-          caption: 'Crowd getting hyped! 🏀',
-          user_id: 'sample-user-2',
-        },
-        {
-          id: 'story-3',
-          url: 'https://images.unsplash.com/photo-1515523110800-9415d13b84a8?w=400',
-          kind: 'photo' as const,
-          created_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
-          caption: 'Starting lineup announced',
-          user_id: 'sample-user-3',
-        },
-        {
-          id: 'story-4',
-          url: 'https://images.unsplash.com/photo-1608245449230-4ac19066d2d0?w=400',
-          kind: 'photo' as const,
-          created_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-          caption: 'Arena is packed tonight! 🎉',
-          user_id: 'sample-user-4',
-        },
-        {
-          id: 'story-5',
-          url: 'https://images.unsplash.com/photo-1519861531473-9200262188bf?w=400',
-          kind: 'photo' as const,
-          created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-          caption: "Let's go! Game time!",
-          user_id: 'sample-user-5',
-        },
-      ];
-
-      let samplePosts: any[] = [];
-      let serverPostsLoaded = false;
-      try {
-        const res: any = await Post.feedForGame(gameIdValue, { limit: 100, sort: 'newest' });
-        if (Array.isArray(res?.items)) {
-          samplePosts = res.items;
-          serverPostsLoaded = true;
-        }
-      } catch (err: any) {
-        if (__DEV__) console.warn('[game-details] sample posts load failed:', err?.message);
-      }
-      try {
-        const cached = await settings.getJson<Record<string, any[]>>(
-          settings.SETTINGS_KEYS.SAMPLE_EVENT_POSTS,
-          {} as any
-        );
-        const localPosts = Array.isArray(cached[gameIdValue]) ? cached[gameIdValue] : [];
-        const seen = new Set<string>();
-        const merged: any[] = [];
-        const priority = serverPostsLoaded
-          ? [...samplePosts, ...localPosts]
-          : [...localPosts, ...samplePosts];
-        for (const post of priority) {
-          const key = String(post?.id ?? post?.media_url ?? post?.created_at ?? '');
-          if (!key || seen.has(key)) continue;
-          seen.add(key);
-          merged.push(post);
-        }
-        samplePosts = merged.length > 0 ? merged : samplePosts;
-      } catch (err: any) {
-        if (__DEV__) console.warn('[game-details] sample cache merge failed:', err?.message);
-      }
-
-      const vmPayload: GameVM = {
-        id: gameIdValue,
-        gameId: gameIdValue,
-        eventId: null,
-        title: `${home} vs ${away}`,
-        date: dateIso,
-        location: null,
-        description: null,
-        bannerUrl: null,
-        coverImageUrl: null,
-        homeTeam: home,
-        awayTeam: away,
-        capacity: null,
-        rsvpCount: null,
-        userRsvped: false,
-        teams: [],
-        posts: samplePosts,
-        media: sampleMedia,
-        reviewsCount: null,
-        isPast: false,
-      };
-      setVm(vmPayload);
-      return;
-    }
-
+    // NOTE (2026-07-09): this used to short-circuit `sample-` ids into a fully
+    // FABRICATED game — "Team A vs Team B" + hardcoded Unsplash stock photos as
+    // fake stories, with NO __DEV__ gate, so a crafted deep link rendered fake
+    // content in production. The sample-content system is retired: nothing
+    // in-app emits sample- ids (the DB-backed [DEMO_MATCHUP] system replaced
+    // it), so a stray sample- id now falls through to the normal fetch and
+    // lands on the standard "unavailable" state. Do not reintroduce fabricated
+    // content here.
     try {
       // eslint-disable-next-line no-console
       if (__DEV__) console.log('[GameDetails] loadGameById() — fetching summary for', gameIdValue);
@@ -1136,13 +1015,7 @@ const GameDetailsScreen = () => {
     // them regardless of distance.
     const vmDescription = typeof vm.description === 'string' ? vm.description : '';
     const isDemoMatchup = vmDescription.includes(DEMO_MATCHUP_TAG);
-    if (
-      !isSampleId(vm.gameId) &&
-      !isDemoMatchup &&
-      !isAdminUser &&
-      location?.latitude &&
-      location?.longitude
-    ) {
+    if (!isDemoMatchup && !isAdminUser && location?.latitude && location?.longitude) {
       const venueLat = vm.venueLat;
       const venueLng = vm.venueLng;
       if (typeof venueLat === 'number' && typeof venueLng === 'number') {
@@ -1298,26 +1171,8 @@ const GameDetailsScreen = () => {
         throw new Error('Upload failed');
       }
       {
-        let gameId = vm.gameId;
-        // If sample game, seed real DB records first so story persists
-        if (isSampleId(gameId)) {
-          try {
-            const { httpPost } = await import('../../api/http');
-            const seedResult = await httpPost('/games/seed-samples', {});
-            const seededGame = seedResult?.games?.find(
-              (g: any) => vm.title && g.title?.includes(vm.title.split(' vs')[0]?.trim())
-            );
-            if (seededGame?.id) {
-              gameId = seededGame.id;
-              setVm(prev => (prev ? ({ ...prev, gameId } as any) : prev));
-            }
-          } catch (seedErr: any) {
-            if (__DEV__)
-              console.warn('[story] seed-samples failed, trying direct post:', seedErr?.message);
-          }
-        }
-        if (!gameId || isSampleId(gameId))
-          throw new Error('Could not create real game record for story');
+        const gameId = vm.gameId;
+        if (!gameId) throw new Error('Could not resolve the game for this story');
         const storyPayload: any = { media_url: mediaUrl };
         if (location?.latitude && location?.longitude) {
           storyPayload.location = {
@@ -1330,10 +1185,7 @@ const GameDetailsScreen = () => {
         analytics.track(ANALYTICS_EVENTS.STORY_ADDED, { game_id: gameId });
         try {
           await loadGameById(gameId);
-          Alert.alert(
-            'Added',
-            isSampleId(gameId) ? 'Story added (demo only).' : 'Story added to this game.'
-          );
+          Alert.alert('Added', 'Story added to this game.');
         } catch (reloadErr: any) {
           if (__DEV__)
             console.warn('[story] Camera - reload failed but story was uploaded:', reloadErr);
@@ -1419,24 +1271,8 @@ const GameDetailsScreen = () => {
       if (!mediaUrl) throw new Error('Upload failed');
 
       {
-        let gameId = vm.gameId;
-        if (isSampleId(gameId)) {
-          try {
-            const { httpPost } = await import('../../api/http');
-            const seedResult = await httpPost('/games/seed-samples', {});
-            const seededGame = seedResult?.games?.find(
-              (g: any) => vm.title && g.title?.includes(vm.title.split(' vs')[0]?.trim())
-            );
-            if (seededGame?.id) {
-              gameId = seededGame.id;
-              setVm(prev => (prev ? ({ ...prev, gameId } as any) : prev));
-            }
-          } catch (seedErr: any) {
-            if (__DEV__) console.warn('[story] video seed failed:', seedErr?.message);
-          }
-        }
-        if (!gameId || isSampleId(gameId))
-          throw new Error('Could not create real game record for story');
+        const gameId = vm.gameId;
+        if (!gameId) throw new Error('Could not resolve the game for this story');
         const storyPayload: any = { media_url: mediaUrl };
         if (location?.latitude && location?.longitude) {
           storyPayload.location = {
@@ -1510,11 +1346,6 @@ const GameDetailsScreen = () => {
   const _refreshVotes = useCallback(async () => {
     if (!canShowVoteSection || !vm?.gameId) {
       setVoteSummary(null);
-      return;
-    }
-    // For sample games, don't make API call
-    if (isSampleId(vm.gameId)) {
-      setVoteSummary(buildVoteSummary(0, 0, null));
       return;
     }
     try {
@@ -1746,12 +1577,6 @@ const GameDetailsScreen = () => {
         return applyVoteSelection(prev, team);
       });
 
-      // For sample games, just update local state
-      if (vm?.gameId && isSampleId(vm.gameId)) {
-        setVoteBusy(false);
-        return;
-      }
-
       // Use gameId if available, otherwise fall back to eventId for event-only pages
       const voteId = vm?.gameId || vm?.eventId;
       if (!voteId) return; // Safety check
@@ -1803,8 +1628,8 @@ const GameDetailsScreen = () => {
     // Early return if there's no vote to clear - prevents unnecessary API calls
     if (!hasVoteToClear) return;
 
-    // For event-only or sample games, just update local state and don't call API
-    if (isEventOnly || (vm?.gameId && isSampleId(vm.gameId))) {
+    // For event-only pages, just update local state and don't call API
+    if (isEventOnly) {
       setVoteBusy(false);
       return;
     }

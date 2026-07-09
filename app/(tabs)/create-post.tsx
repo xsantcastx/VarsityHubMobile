@@ -38,7 +38,6 @@ import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
-import { getAuthSnapshot } from '@/utils/authState';
 import { prepareVideoForUpload, uploadTimeoutMsForSize } from '@/utils/compressVideo';
 import { sanitizeText } from '@/utils/formUtils';
 import { ICLOUD_ERROR_MESSAGE, ICLOUD_ERROR_TITLE, isICloudError } from '@/utils/isICloudError';
@@ -84,12 +83,6 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
   }
 };
 
-// Helper to detect sample events (IDs starting with "sample-")
-const isSampleEvent = (id?: string | null): boolean => {
-  if (!id) return false;
-  return /^sample-/i.test(String(id).trim());
-};
-
 function CreatePostScreen() {
   const router = useRouter();
   const { user, checkAuth, loading: authLoading } = useAuth();
@@ -98,7 +91,6 @@ function CreatePostScreen() {
   const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
   const gameId = params?.gameId ? String(params.gameId) : undefined;
   const postType = params?.type === 'highlight' ? 'highlight' : 'post';
-  const _isSample = isSampleEvent(gameId);
   const {
     location,
     loading: _locLoading,
@@ -312,37 +304,6 @@ function CreatePostScreen() {
   useEffect(() => {
     if (__DEV__) console.warn('[CreatePost] useEffect gameId:', gameId);
     if (!gameId) return;
-
-    // For sample events, create a mock game object - these don't exist in the database
-    if (__DEV__)
-      console.warn('[CreatePost] isSampleEvent check:', gameId, '->', isSampleEvent(gameId));
-    if (isSampleEvent(gameId)) {
-      // Parse sample event ID to extract team names (e.g., "sample-warriors-cavaliers")
-      const parts = gameId
-        .replace(/^sample-/i, '')
-        .split(/[-_]+/)
-        .filter(Boolean);
-      const homeTeam = parts[0]
-        ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1)
-        : 'Home Team';
-      const awayTeam = parts[1]
-        ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1)
-        : 'Away Team';
-
-      const mockGame = {
-        id: gameId,
-        title: `${homeTeam} vs ${awayTeam}`,
-        home_team: homeTeam,
-        away_team: awayTeam,
-        date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days from now
-        location: 'Sample Arena',
-        distance: null,
-      };
-      setSuggestedGame(mockGame);
-      setSelectedGameId(gameId);
-      setError(null);
-      return;
-    }
 
     void (async () => {
       try {
@@ -603,7 +564,7 @@ function CreatePostScreen() {
 
   // Proactive geofence + time window check when a game is selected
   const geofenceWarning = useMemo(() => {
-    if (!suggestedGame || !selectedGameId || isSampleEvent(selectedGameId)) return null;
+    if (!suggestedGame || !selectedGameId) return null;
     // Seeded demo matchups (Duke v UNC, Cavs v Warriors) skip the client
     // warning — server's [DEMO_MATCHUP] carve-out already bypasses geofence
     // and posting-window checks for these Game rows only.
@@ -688,7 +649,7 @@ function CreatePostScreen() {
 
     // Proactive geofence check: if posting to a real event and location is not available, prompt first.
     // Seeded demo matchups bypass the location gate — server carve-out accepts uploads without coords.
-    const isRealGame = selectedGameId && !isSampleEvent(selectedGameId);
+    const isRealGame = Boolean(selectedGameId);
     const gameHasCoords =
       typeof suggestedGame?.latitude === 'number' || typeof suggestedGame?.venue_lat === 'number';
     if (isRealGame && gameHasCoords && !locationReady && !isDemoMatchupGame) {
@@ -783,18 +744,6 @@ function CreatePostScreen() {
         location: locationPayload,
       };
 
-      // Send game_id for both real and sample events
-      // The server detects sample events by checking if game_id starts with "sample-"
-      // For sample events, server stores game_id in title field to avoid foreign key constraint
-      const isSelectedSample = isSampleEvent(selectedGameId);
-      if (__DEV__)
-        console.warn(
-          '[CreatePost] selectedGameId:',
-          selectedGameId,
-          '| isSample:',
-          isSelectedSample
-        );
-
       if (selectedGameId) {
         payload.game_id = selectedGameId;
       }
@@ -803,8 +752,7 @@ function CreatePostScreen() {
         console.warn('[CreatePost] Final payload keys:', Object.keys(payload).join(', '));
 
       // Require event link for highlight posts to ensure they surface on the event page
-      // But allow sample events to bypass this requirement
-      if (postType === 'highlight' && !payload.game_id && !isSelectedSample) {
+      if (postType === 'highlight' && !payload.game_id) {
         throw new Error('Please attach an event to share a highlight.');
       }
 
@@ -818,41 +766,6 @@ function CreatePostScreen() {
       } catch (error) {
         // Non-critical: draft clearing failed, but post was created successfully
         if (__DEV__) console.warn('[CreatePost] Failed to clear draft:', error);
-      }
-
-      if (isSelectedSample && selectedGameId) {
-        try {
-          const me = await getAuthSnapshot(checkAuth, user).catch(() => null);
-          const isVideo = picked?.type === 'video';
-          const newPost = {
-            id: created?.id ? String(created.id) : `local-${Date.now()}`,
-            content: trimmedContent,
-            caption: trimmedContent,
-            media_url: finalMediaUrl || null,
-            media_type: isVideo ? 'video' : picked?.type === 'image' ? 'image' : null,
-            preview_url: null,
-            created_at: new Date().toISOString(),
-            upvotes_count: 0,
-            comments_count: 0,
-            author: me
-              ? {
-                  id: String(me.id ?? 'me'),
-                  username: me.username ?? me.display_name ?? 'me',
-                  display_name: me.display_name ?? me.username ?? 'Me',
-                  avatar_url: me.avatar_url ?? null,
-                }
-              : null,
-          };
-          const cache = await settings.getJson<Record<string, any[]>>(
-            settings.SETTINGS_KEYS.SAMPLE_EVENT_POSTS,
-            {} as any
-          );
-          const existing = Array.isArray(cache[selectedGameId]) ? cache[selectedGameId] : [];
-          cache[selectedGameId] = [newPost, ...existing].slice(0, 200);
-          await settings.setJson(settings.SETTINGS_KEYS.SAMPLE_EVENT_POSTS, cache);
-        } catch (cacheErr) {
-          if (__DEV__) console.warn('[CreatePost] Failed to cache sample post:', cacheErr);
-        }
       }
 
       setPreviewVisible(false);
@@ -873,7 +786,6 @@ function CreatePostScreen() {
           status: e?.status,
           data: e?.data,
           selectedGameId,
-          isSample: isSampleEvent(selectedGameId),
         });
       const issues = (e?.data?.issues || []) as { message: string }[];
       if (e?.status === 409 && e?.data?.code === 'DUPLICATE_POST') {
@@ -887,7 +799,7 @@ function CreatePostScreen() {
         setError(issues.map(i => i.message).join('\n'));
       } else {
         // Provide more helpful error messages
-        if (e?.status === 404 && selectedGameId && !isSampleEvent(selectedGameId)) {
+        if (e?.status === 404 && selectedGameId) {
           setError(
             'Event not found. Please remove the event attachment and try again, or select a different event.'
           );
@@ -1198,11 +1110,7 @@ function CreatePostScreen() {
                   paddingHorizontal: 16,
                   paddingVertical: 14,
                 }}
-                onPress={() =>
-                  nearbyGames.length > 1 && !isSampleEvent(selectedGameId)
-                    ? setEventSelectorVisible(true)
-                    : null
-                }
+                onPress={() => (nearbyGames.length > 1 ? setEventSelectorVisible(true) : null)}
                 accessibilityRole="button"
                 accessibilityLabel={`Tagged game: ${suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}`}
               >
@@ -1211,7 +1119,7 @@ function CreatePostScreen() {
                     {suggestedGame.title ||
                       `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}
                   </Text>
-                  {!isSampleEvent(selectedGameId) && suggestedGame.date && (
+                  {suggestedGame.date && (
                     <Text style={{ color: '#A0A0A0', fontSize: 13, marginTop: 2 }}>
                       {new Date(suggestedGame.date).toLocaleDateString([], {
                         month: 'short',
