@@ -1085,10 +1085,10 @@ export default function FeedScreen() {
       return result;
     }
 
-    // Normally insert after the second event (index 1), but if there is only a
-    // single upcoming event, clamp to it (index 0) so the ad/promo card still
+    // Normally insert after the third event (index 2), but if there are fewer
+    // upcoming events, clamp to the last one so the ad/promo card still
     // appears instead of silently disappearing.
-    const adInsertIndex = Math.min(1, upcomingEvents.length - 1);
+    const adInsertIndex = Math.min(2, upcomingEvents.length - 1);
 
     upcomingEvents.forEach((event, index) => {
       result.push(event);
