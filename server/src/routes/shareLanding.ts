@@ -37,7 +37,7 @@ const APP_STORE_URL =
   'https://apps.apple.com/us/app/varsityhub/id6758405187';
 const PLAY_STORE_URL =
   process.env.ANDROID_PLAY_STORE_URL ||
-  'https://play.google.com/store/apps/details?id=com.xsantcastx.varsityhub';
+  'https://play.google.com/store/apps/details?id=com.varsityhub.varsityhub';
 
 /** Routes the OS may try to deep-link via universal links. Mirrors the
  *  AASA `paths` and Android `intentFilters` pathPrefixes. Anything else

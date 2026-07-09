@@ -4483,7 +4483,7 @@ const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = {
   TOPTIER: 'legend',
 };
 const GOOGLE_ALLOWED_PACKAGES = (
-  process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.xsantcastx.varsityhub'
+  process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.varsityhub.varsityhub'
 )
   .split(',')
   .map(value => value.trim())

@@ -3,7 +3,7 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.xsantcastx.varsityhub",
+      "package_name": "com.varsityhub.varsityhub",
       "sha256_cert_fingerprints": [
         "54:9C:B1:7D:A4:E3:DE:61:9B:56:E5:57:33:CF:FC:8E:6D:8B:4D:0B:FB:C9:46:8F:2B:70:33:C2:3A:25:BE:A7"
       ]

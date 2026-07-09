@@ -924,7 +924,7 @@ describeDb('Critical Server Flows', () => {
         .send({
           purchase_token: 'purchase_token_for_owner_managed_test_12345',
           product_id: 'MIDTIER',
-          package_name: 'com.xsantcastx.varsityhub',
+          package_name: 'com.varsityhub.varsityhub',
         });
 
       expect(res.statusCode).toEqual(403);

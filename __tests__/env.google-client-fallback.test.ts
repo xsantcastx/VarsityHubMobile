@@ -29,7 +29,7 @@ describe('config/env Google client fallback', () => {
       const config = env.getConfig();
 
       expect(config.google.androidClientId).toBe(
-        '514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com'
+        '814866365020-ia09lnm6he2prvaivrp8sblh7oeh9ic0.apps.googleusercontent.com'
       );
       expect(config.google.iosClientId).toBe(
         '514463516787-dm665i3u3a6un7eties8q73eik17vcs3.apps.googleusercontent.com'

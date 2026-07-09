@@ -23,6 +23,6 @@ describe('resolveWellKnownDir', () => {
     expect(aasa.applinks.details[0].paths).toContain('/verify');
     expect(aasa.applinks.details[0].paths).toContain('/verify-email');
     expect(aasa.applinks.details[0].paths).toContain('/reset-password');
-    expect(assetLinks[0].target.package_name).toBe('com.xsantcastx.varsityhub');
+    expect(assetLinks[0].target.package_name).toBe('com.varsityhub.varsityhub');
   });
 });

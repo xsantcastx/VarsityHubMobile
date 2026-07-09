@@ -31,7 +31,7 @@ const processEnv: RawEnv =
 const DEFAULT_API_URL = 'https://api-production-8ac3.up.railway.app';
 const DEFAULT_WEB_BASE = 'https://varsityhub.app';
 const CANONICAL_GOOGLE_CLIENT_IDS = {
-  android: '514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com',
+  android: '814866365020-ia09lnm6he2prvaivrp8sblh7oeh9ic0.apps.googleusercontent.com',
   ios: '514463516787-dm665i3u3a6un7eties8q73eik17vcs3.apps.googleusercontent.com',
   web: '514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com',
   expo: '514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com',

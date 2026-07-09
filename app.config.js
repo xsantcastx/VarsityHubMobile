@@ -131,7 +131,7 @@ module.exports = ({ config }) => {
       softwareKeyboardLayoutMode: 'pan',
       edgeToEdgeEnabled: true,
       versionCode: 39,
-      package: 'com.xsantcastx.varsityhub',
+      package: 'com.varsityhub.varsityhub',
       intentFilters: [
         {
           action: 'VIEW',
@@ -277,7 +277,7 @@ module.exports = ({ config }) => {
         process.env.EXPO_PUBLIC_ADMIN_EMAILS || 'customerservice@varsityhub.app',
       EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID:
         process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
-        '514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com',
+        '814866365020-ia09lnm6he2prvaivrp8sblh7oeh9ic0.apps.googleusercontent.com',
       EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: GOOGLE_IOS_CLIENT_ID,
       EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID:
         process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||

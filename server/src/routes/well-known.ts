@@ -48,7 +48,7 @@ const FALLBACK_ASSET_LINKS = JSON.stringify([
     relation: ['delegate_permission/common.handle_all_urls'],
     target: {
       namespace: 'android_app',
-      package_name: 'com.xsantcastx.varsityhub',
+      package_name: 'com.varsityhub.varsityhub',
       sha256_cert_fingerprints: [
         '3bdce8b7d434451b39ff032e9ae938fb1a213cae69e76e0aac1186ccf5194ab4',
       ],
