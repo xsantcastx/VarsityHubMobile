@@ -8,7 +8,17 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  FlatList,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
@@ -25,6 +35,7 @@ type ManagedAd = {
   created_at: string;
   status?: string;
   payment_status?: string;
+  admin_note?: string | null;
   owner_id?: string | null;
   isLocal?: boolean;
 };
@@ -68,62 +79,70 @@ function MyAdsScreen() {
     return userId ? `${base}_${userId}` : base;
   }, [userId]);
 
-  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
-    const shouldBlock = !silent && !hasLoadedOnceRef.current;
-    if (shouldBlock) setLoading(true);
-    if (!silent) setLoadError(null);
-    try {
-      let serverAds: any[] | null = null;
+  const load = useCallback(
+    async ({ silent = false }: { silent?: boolean } = {}) => {
+      const shouldBlock = !silent && !hasLoadedOnceRef.current;
+      if (shouldBlock) setLoading(true);
+      if (!silent) setLoadError(null);
       try {
-        const s = await AdsApi.listMine();
-        serverAds = Array.isArray(s) ? s : [];
-      } catch { serverAds = null; }
+        let serverAds: any[] | null = null;
+        try {
+          const s = await AdsApi.listMine();
+          serverAds = Array.isArray(s) ? s : [];
+        } catch {
+          serverAds = null;
+        }
 
-      const localAds = await settings.getJson<ManagedAd[]>(getLocalAdsKey(), []);
-      const combined: ManagedAd[] = [];
-      const add = (a: any) => {
-        const id = String(a.id);
-        if (combined.find((x) => x.id === id)) return;
-        combined.push({
-          id,
-          business_name: String(a.business_name || a.name || ''),
-          contact_name: String(a.contact_name || ''),
-          contact_email: String(a.contact_email || ''),
-          banner_url: a.banner_url || undefined,
-          zip_code: String(a.target_zip_code || a.zip_code || ''),
-          description: a.description || undefined,
-          created_at: a.created_at || new Date().toISOString(),
-          status: a.status,
-          payment_status: a.payment_status,
-          owner_id: a.owner_id,
-        });
-      };
-      if (serverAds) serverAds.forEach(add);
-      localAds.forEach(add);
-      setAds(combined);
+        const localAds = await settings.getJson<ManagedAd[]>(getLocalAdsKey(), []);
+        const combined: ManagedAd[] = [];
+        const add = (a: any) => {
+          const id = String(a.id);
+          if (combined.find(x => x.id === id)) return;
+          combined.push({
+            id,
+            business_name: String(a.business_name || a.name || ''),
+            contact_name: String(a.contact_name || ''),
+            contact_email: String(a.contact_email || ''),
+            banner_url: a.banner_url || undefined,
+            zip_code: String(a.target_zip_code || a.zip_code || ''),
+            description: a.description || undefined,
+            created_at: a.created_at || new Date().toISOString(),
+            status: a.status,
+            payment_status: a.payment_status,
+            admin_note: a.admin_note ?? null,
+            owner_id: a.owner_id,
+          });
+        };
+        if (serverAds) serverAds.forEach(add);
+        localAds.forEach(add);
+        setAds(combined);
 
-      const entries = await Promise.all(
-        combined.map(async (ad) => {
-          try {
-            const r: any = await AdsApi.reservationsForAd(ad.id);
-            return [ad.id, Array.isArray(r?.dates) ? r.dates : []] as const;
-          } catch { return [ad.id, []] as const; }
-        })
-      );
-      const map: Record<string, string[]> = {};
-      for (const [id, dates] of entries) map[id] = dates;
-      setDatesByAd(map);
-      hasLoadedOnceRef.current = true;
-      setLoadError(null);
-    } catch (e: any) {
-      if (__DEV__) console.error('[my-ads] Error loading ads:', e);
-      if (!silent || !hasLoadedOnceRef.current) {
-        setLoadError('Unable to load your ads. Please try again.');
+        const entries = await Promise.all(
+          combined.map(async ad => {
+            try {
+              const r: any = await AdsApi.reservationsForAd(ad.id);
+              return [ad.id, Array.isArray(r?.dates) ? r.dates : []] as const;
+            } catch {
+              return [ad.id, []] as const;
+            }
+          })
+        );
+        const map: Record<string, string[]> = {};
+        for (const [id, dates] of entries) map[id] = dates;
+        setDatesByAd(map);
+        hasLoadedOnceRef.current = true;
+        setLoadError(null);
+      } catch (e: any) {
+        if (__DEV__) console.error('[my-ads] Error loading ads:', e);
+        if (!silent || !hasLoadedOnceRef.current) {
+          setLoadError('Unable to load your ads. Please try again.');
+        }
+      } finally {
+        if (shouldBlock) setLoading(false);
       }
-    } finally {
-      if (shouldBlock) setLoading(false);
-    }
-  }, [getLocalAdsKey]);
+    },
+    [getLocalAdsKey]
+  );
 
   useEffect(() => {
     if (userLoaded) {
@@ -148,47 +167,53 @@ function MyAdsScreen() {
         Animated.timing(successOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
       ]).start(() => setShowSuccess(false));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- successOpacity is an Animated.Value (ref-like), adding it causes infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- successOpacity is an Animated.Value (ref-like), adding it causes infinite loops
   }, [payment_success]);
 
   const remove = async (id: string) => {
     Alert.alert(
-      'Delete Ad', 
+      'Delete Ad',
       'This will permanently remove your ad. Your payment is non-refundable. This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive', 
+        {
+          text: 'Delete',
+          style: 'destructive',
           onPress: () => {
             void (async () => {
               try {
                 // Delete from server
                 await AdsApi.delete(id);
-                
+
                 // Also remove from local storage (both scoped and base keys)
                 const scopedKey = getLocalAdsKey();
                 const scopedList = await settings.getJson<ManagedAd[]>(scopedKey, []);
-                await settings.setJson(scopedKey, scopedList.filter((a) => a.id !== id));
+                await settings.setJson(
+                  scopedKey,
+                  scopedList.filter(a => a.id !== id)
+                );
 
                 // Also clean base key in case legacy entries exist
                 const baseKey = settings.SETTINGS_KEYS.LOCAL_ADS;
                 if (baseKey !== scopedKey) {
                   const baseList = await settings.getJson<ManagedAd[]>(baseKey, []);
-                  await settings.setJson(baseKey, baseList.filter((a) => a.id !== id));
+                  await settings.setJson(
+                    baseKey,
+                    baseList.filter(a => a.id !== id)
+                  );
                 }
-                
+
                 // Reload the list
                 await load({ silent: true });
-                
+
                 Alert.alert('Success', 'Ad deleted successfully');
               } catch (error) {
                 if (__DEV__) console.error('[my-ads2] Error deleting ad:', error);
                 Alert.alert('Error', 'Failed to delete ad. Please try again.');
               }
             })();
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -196,10 +221,10 @@ function MyAdsScreen() {
   const categorizeAdDates = (dates: string[]) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const past: string[] = [];
     const future: string[] = [];
-    
+
     dates.forEach(dateStr => {
       try {
         const date = new Date(dateStr + 'T00:00:00');
@@ -213,16 +238,16 @@ function MyAdsScreen() {
         future.push(dateStr);
       }
     });
-    
+
     return { past, future };
   };
 
   const formatDate = (d: string) => {
     try {
-      return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
+      return new Date(d + 'T00:00:00').toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
       });
     } catch {
       return d;
@@ -249,39 +274,67 @@ function MyAdsScreen() {
     const hasUpcoming = future.length > 0;
     const hasDates = dates.length > 0;
     const isPaid = item.payment_status === 'paid';
-    const badge = getCompositeAdBadge(item.status, item.payment_status);
-    const requiresEditBeforeScheduling = item.status === 'rejected';
-    const primaryActionLabel = item.status === 'rejected'
+    // A rejected ad comes back from the server as status:'draft' WITH an
+    // admin_note (the rejection reason) — the server deliberately reuses 'draft'
+    // rather than a 'rejected' status (ad-state-invariants.test.ts). A fresh
+    // draft has no admin_note, so (draft + note) is the reliable "was rejected"
+    // signal. Without this the ad renders as an ordinary draft and the reason
+    // (which the API returns) is shown nowhere on the screen where the user acts.
+    const rejectionReason =
+      item.status === 'draft' && item.admin_note ? String(item.admin_note).trim() : '';
+    const isRejected = rejectionReason.length > 0;
+    const badge = isRejected
+      ? { label: 'Rejected', tone: 'rejected' as const }
+      : getCompositeAdBadge(item.status, item.payment_status);
+    const requiresEditBeforeScheduling = isRejected;
+    const primaryActionLabel = isRejected
       ? 'Edit to Resubmit'
       : item.status === 'draft'
         ? 'Submit for Review'
         : item.status === 'pending'
           ? 'Awaiting Review'
-      : item.status === 'archived'
-        ? 'Run Again'
-        : isPaid && hasDates
-          ? '✓ Paid - Schedule More'
-          : hasDates
-            ? 'Schedule More'
-            : 'Schedule Dates';
-    
+          : item.status === 'archived'
+            ? 'Run Again'
+            : isPaid && hasDates
+              ? '✓ Paid - Schedule More'
+              : hasDates
+                ? 'Schedule More'
+                : 'Schedule Dates';
+
     return (
-      <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+        ]}
+      >
         {/* Banner Section */}
         <View style={styles.bannerContainer}>
           {item.banner_url ? (
             <Image source={{ uri: item.banner_url }} style={styles.banner} contentFit="cover" />
           ) : (
-            <View style={[styles.banner, styles.bannerPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
+            <View
+              style={[
+                styles.banner,
+                styles.bannerPlaceholder,
+                { backgroundColor: Colors[colorScheme].surface },
+              ]}
+            >
               <MaterialIcons name="image" size={40} color={Colors[colorScheme].mutedText} />
-              <Text style={[styles.bannerPlaceholderText, { color: Colors[colorScheme].mutedText }]}>No banner</Text>
+              <Text
+                style={[styles.bannerPlaceholderText, { color: Colors[colorScheme].mutedText }]}
+              >
+                No banner
+              </Text>
             </View>
           )}
         </View>
 
         {/* Info Section */}
         <View style={styles.infoContainer}>
-          <Text style={[styles.businessName, { color: Colors[colorScheme].text }]}>{item.business_name}</Text>
+          <Text style={[styles.businessName, { color: Colors[colorScheme].text }]}>
+            {item.business_name}
+          </Text>
 
           <MetaRow icon="person-outline" text={item.contact_name} />
           <MetaRow icon="mail-outline" text={item.contact_email} />
@@ -295,6 +348,22 @@ function MyAdsScreen() {
               </Text>
             </View>
           </View>
+
+          {/* Rejection reason — surfaced where the user acts on it, not only in
+              email/push. Present only when the ad came back rejected. */}
+          {isRejected ? (
+            <View
+              style={[
+                styles.rejectionNotice,
+                { backgroundColor: Colors[colorScheme].surface, borderColor: '#DC2626' },
+              ]}
+            >
+              <MaterialIcons name="error-outline" size={16} color="#DC2626" />
+              <Text style={[styles.rejectionText, { color: Colors[colorScheme].text }]}>
+                {rejectionReason}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Dates Section */}
@@ -308,31 +377,51 @@ function MyAdsScreen() {
                 </Text>
               </View>
               <View style={styles.datesBadgeWrap}>
-                {past.slice(0, 5).map((d) => (
-                  <View 
-                    key={d} 
+                {past.slice(0, 5).map(d => (
+                  <View
+                    key={d}
                     style={[
-                      styles.dateBadge, 
+                      styles.dateBadge,
                       styles.dateBadgeCompleted,
                       colorScheme === 'dark' && styles.dateBadgeCompletedDark,
-                      { borderColor: Colors[colorScheme].border }
+                      { borderColor: Colors[colorScheme].border },
                     ]}
                   >
-                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextCompleted, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>
+                    <Text
+                      style={[
+                        styles.dateBadgeText,
+                        styles.dateBadgeTextCompleted,
+                        { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' },
+                      ]}
+                    >
                       {formatDate(d)}
                     </Text>
                   </View>
                 ))}
                 {past.length > 5 && (
-                  <View style={[styles.dateBadge, styles.dateBadgeCompleted, colorScheme === 'dark' && styles.dateBadgeCompletedDark]}>
-                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextCompleted, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>+{past.length - 5}</Text>
+                  <View
+                    style={[
+                      styles.dateBadge,
+                      styles.dateBadgeCompleted,
+                      colorScheme === 'dark' && styles.dateBadgeCompletedDark,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dateBadgeText,
+                        styles.dateBadgeTextCompleted,
+                        { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' },
+                      ]}
+                    >
+                      +{past.length - 5}
+                    </Text>
                   </View>
                 )}
               </View>
               <View style={{ height: 10 }} />
             </>
           )}
-          
+
           {/* Upcoming Dates */}
           {hasUpcoming && (
             <>
@@ -342,14 +431,14 @@ function MyAdsScreen() {
                 </Text>
               </View>
               <View style={styles.datesBadgeWrap}>
-                {future.slice(0, 5).map((d) => (
-                  <View 
-                    key={d} 
+                {future.slice(0, 5).map(d => (
+                  <View
+                    key={d}
                     style={[
-                      styles.dateBadge, 
+                      styles.dateBadge,
                       styles.dateBadgeUpcoming,
                       colorScheme === 'dark' && styles.dateBadgeUpcomingDark,
-                      { borderColor: Colors[colorScheme].border }
+                      { borderColor: Colors[colorScheme].border },
                     ]}
                   >
                     <Text style={[styles.dateBadgeText, styles.dateBadgeTextUpcoming]}>
@@ -358,62 +447,95 @@ function MyAdsScreen() {
                   </View>
                 ))}
                 {future.length > 5 && (
-                  <View style={[styles.dateBadge, styles.dateBadgeUpcoming, colorScheme === 'dark' && styles.dateBadgeUpcomingDark]}>
-                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextUpcoming]}>+{future.length - 5}</Text>
+                  <View
+                    style={[
+                      styles.dateBadge,
+                      styles.dateBadgeUpcoming,
+                      colorScheme === 'dark' && styles.dateBadgeUpcomingDark,
+                    ]}
+                  >
+                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextUpcoming]}>
+                      +{future.length - 5}
+                    </Text>
                   </View>
                 )}
               </View>
               <View style={{ height: 10 }} />
             </>
           )}
-          
+
           {/* No Dates */}
           {!hasDates && (
             <>
               <View style={styles.datesSectionHeader}>
                 <MaterialIcons name="event" size={16} color={Colors[colorScheme].text} />
-                <Text style={[styles.datesSectionTitle, { color: Colors[colorScheme].text }]}>Scheduled Dates</Text>
+                <Text style={[styles.datesSectionTitle, { color: Colors[colorScheme].text }]}>
+                  Scheduled Dates
+                </Text>
                 <View style={[styles.datesCount, { backgroundColor: Colors[colorScheme].surface }]}>
-                  <Text style={[styles.datesCountText, { color: Colors[colorScheme].text }]}>0</Text>
+                  <Text style={[styles.datesCountText, { color: Colors[colorScheme].text }]}>
+                    0
+                  </Text>
                 </View>
               </View>
-              <Text style={[styles.noDatesText, { color: Colors[colorScheme].mutedText }]}>No dates scheduled yet</Text>
+              <Text style={[styles.noDatesText, { color: Colors[colorScheme].mutedText }]}>
+                No dates scheduled yet
+              </Text>
             </>
           )}
         </View>
 
         {/* Actions Section */}
         <View style={styles.actionsContainer}>
-          <Pressable 
-            style={[styles.actionButton, styles.actionButtonPrimary, { backgroundColor: Colors[colorScheme].tint }]} 
+          <Pressable
+            style={[
+              styles.actionButton,
+              styles.actionButtonPrimary,
+              { backgroundColor: Colors[colorScheme].tint },
+            ]}
             onPress={() => {
               if (requiresEditBeforeScheduling) {
                 void router.push({ pathname: '/edit-ad', params: { id: item.id } });
                 return;
               }
-              void router.push({ pathname: '/ad-calendar', params: { adId: item.id, isPaid: String(isPaid) } });
+              void router.push({
+                pathname: '/ad-calendar',
+                params: { adId: item.id, isPaid: String(isPaid) },
+              });
             }}
           >
             <MaterialIcons name="event" size={18} color="#FFFFFF" />
             <Text style={styles.actionButtonTextPrimary}>{primaryActionLabel}</Text>
           </Pressable>
-          
-          <Pressable 
-            style={[styles.actionButton, styles.actionButtonSecondary, { 
-              backgroundColor: Colors[colorScheme].surface,
-              borderColor: Colors[colorScheme].border
-            }]} 
-            onPress={() => { void router.push({ pathname: '/edit-ad', params: { id: item.id } }); }}
+
+          <Pressable
+            style={[
+              styles.actionButton,
+              styles.actionButtonSecondary,
+              {
+                backgroundColor: Colors[colorScheme].surface,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
+            onPress={() => {
+              void router.push({ pathname: '/edit-ad', params: { id: item.id } });
+            }}
           >
             <MaterialIcons name="edit" size={18} color={Colors[colorScheme].text} />
-            <Text style={[styles.actionButtonTextSecondary, { color: Colors[colorScheme].text }]}>Edit</Text>
+            <Text style={[styles.actionButtonTextSecondary, { color: Colors[colorScheme].text }]}>
+              Edit
+            </Text>
           </Pressable>
-          
-          <Pressable 
-            style={[styles.actionButton, styles.actionButtonSecondary, { 
-              backgroundColor: Colors[colorScheme].surface,
-              borderColor: Colors[colorScheme].border
-            }]} 
+
+          <Pressable
+            style={[
+              styles.actionButton,
+              styles.actionButtonSecondary,
+              {
+                backgroundColor: Colors[colorScheme].surface,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
             onPress={() => remove(item.id)}
           >
             <MaterialIcons name="delete-outline" size={18} color="#EF4444" />
@@ -425,21 +547,39 @@ function MyAdsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['top', 'left', 'right']}
+    >
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Header */}
-      <View style={[styles.header, {
-        backgroundColor: Colors[colorScheme].card,
-        borderBottomColor: Colors[colorScheme].border
-      }]}>
-        <Pressable onPress={() => { safeGoBack(router); }} hitSlop={8} style={{ padding: 4 }}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: Colors[colorScheme].card,
+            borderBottomColor: Colors[colorScheme].border,
+          },
+        ]}
+      >
+        <Pressable
+          onPress={() => {
+            safeGoBack(router);
+          }}
+          hitSlop={8}
+          style={{ padding: 4 }}
+        >
           <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: Colors[colorScheme].text, flex: 1 }]}>My Ads</Text>
-        <Pressable 
+        <Text style={[styles.headerTitle, { color: Colors[colorScheme].text, flex: 1 }]}>
+          My Ads
+        </Text>
+        <Pressable
           style={[styles.addButton, { backgroundColor: Colors[colorScheme].tint }]}
-          onPress={() => { void router.push('/submit-ad'); }}
+          onPress={() => {
+            void router.push('/submit-ad');
+          }}
         >
           <MaterialIcons name="add" size={24} color="#FFFFFF" />
         </Pressable>
@@ -449,15 +589,21 @@ function MyAdsScreen() {
         {loading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-            <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>Loading your ads...</Text>
+            <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
+              Loading your ads...
+            </Text>
           </View>
         )}
-        
+
         {!loading && loadError && (
           <View style={styles.emptyContainer}>
             <MaterialIcons name="error-outline" size={64} color="#EF4444" />
-            <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>Something went wrong</Text>
-            <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>{loadError}</Text>
+            <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
+              Something went wrong
+            </Text>
+            <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>
+              {loadError}
+            </Text>
             <Pressable
               style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]}
               onPress={() => void load()}
@@ -472,27 +618,30 @@ function MyAdsScreen() {
             <MaterialIcons name="campaign" size={80} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No Ads Yet</Text>
             <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>
-              Create your first advertisement to start promoting your business to local teams and families.
+              Create your first advertisement to start promoting your business to local teams and
+              families.
             </Text>
-            <Pressable 
-              style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]} 
-              onPress={() => { void router.push('/submit-ad'); }}
+            <Pressable
+              style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]}
+              onPress={() => {
+                void router.push('/submit-ad');
+              }}
             >
               <MaterialIcons name="add-circle-outline" size={20} color="#FFFFFF" />
               <Text style={styles.emptyButtonText}>Create Your First Ad</Text>
             </Pressable>
           </View>
         ) : null}
-        
+
         {!loading && ads.length > 0 && (
           <FlatList
             data={ads}
-            keyExtractor={(a) => a.id}
+            keyExtractor={a => a.id}
             renderItem={renderAd}
             ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
-            contentContainerStyle={{ 
-              padding: 16, 
-              paddingBottom: Platform.OS === 'ios' ? 34 : 24 
+            contentContainerStyle={{
+              padding: 16,
+              paddingBottom: Platform.OS === 'ios' ? 34 : 24,
             }}
             showsVerticalScrollIndicator={false}
           />
@@ -500,10 +649,15 @@ function MyAdsScreen() {
       </View>
 
       {showSuccess && (
-        <Animated.View style={[styles.successOverlay, { opacity: successOpacity }]} pointerEvents="none">
+        <Animated.View
+          style={[styles.successOverlay, { opacity: successOpacity }]}
+          pointerEvents="none"
+        >
           <View style={styles.successBadge}>
             <Text style={[styles.successCheck, { color: Colors[colorScheme].text }]}>✓</Text>
-            <Text style={[styles.successLabel, { color: Colors[colorScheme].text }]}>Payment Successful</Text>
+            <Text style={[styles.successLabel, { color: Colors[colorScheme].text }]}>
+              Payment Successful
+            </Text>
           </View>
         </Animated.View>
       )}
@@ -512,12 +666,35 @@ function MyAdsScreen() {
 }
 
 function badgeStyleForTone(tone: string, colorScheme: 'light' | 'dark' = 'light') {
-  if (tone === 'live') return { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#DCFCE7', borderColor: colorScheme === 'dark' ? '#10B981' : '#86EFAC' };
-  if (tone === 'approved') return { backgroundColor: colorScheme === 'dark' ? '#064E3B' : '#D1FAE5', borderColor: colorScheme === 'dark' ? '#34D399' : '#6EE7B7' };
-  if (tone === 'pending') return { backgroundColor: colorScheme === 'dark' ? '#92400E' : '#FEF9C3', borderColor: colorScheme === 'dark' ? '#FBBF24' : '#FDE68A' };
-  if (tone === 'rejected') return { backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2', borderColor: colorScheme === 'dark' ? '#EF4444' : '#FCA5A5' };
-  if (tone === 'archived') return { backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6', borderColor: colorScheme === 'dark' ? '#6B7280' : '#D1D5DB' };
-  return { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#E0E7FF', borderColor: colorScheme === 'dark' ? '#3B82F6' : '#C7D2FE' };
+  if (tone === 'live')
+    return {
+      backgroundColor: colorScheme === 'dark' ? '#065F46' : '#DCFCE7',
+      borderColor: colorScheme === 'dark' ? '#10B981' : '#86EFAC',
+    };
+  if (tone === 'approved')
+    return {
+      backgroundColor: colorScheme === 'dark' ? '#064E3B' : '#D1FAE5',
+      borderColor: colorScheme === 'dark' ? '#34D399' : '#6EE7B7',
+    };
+  if (tone === 'pending')
+    return {
+      backgroundColor: colorScheme === 'dark' ? '#92400E' : '#FEF9C3',
+      borderColor: colorScheme === 'dark' ? '#FBBF24' : '#FDE68A',
+    };
+  if (tone === 'rejected')
+    return {
+      backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2',
+      borderColor: colorScheme === 'dark' ? '#EF4444' : '#FCA5A5',
+    };
+  if (tone === 'archived')
+    return {
+      backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6',
+      borderColor: colorScheme === 'dark' ? '#6B7280' : '#D1D5DB',
+    };
+  return {
+    backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#E0E7FF',
+    borderColor: colorScheme === 'dark' ? '#3B82F6' : '#C7D2FE',
+  };
 }
 function badgeTextStyleForTone(tone: string) {
   if (tone === 'live') return { color: '#10B981' };
@@ -612,6 +789,20 @@ const styles = StyleSheet.create({
     marginTop: 10,
     flexWrap: 'wrap',
     gap: 8,
+  },
+  rejectionNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  rejectionText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
   },
   badge: {
     paddingHorizontal: 12,

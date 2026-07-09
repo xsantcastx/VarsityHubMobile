@@ -1,15 +1,15 @@
 /**
  * Scheduler Service
- * 
+ *
  * Sets up repeatable jobs for scheduled tasks:
  * - Game reminders (12hr and 1hr before)
  * - Daily digest emails
  * - Cleanup old notifications
  * - Push receipt verification
- * 
+ *
  * Run with: npx ts-node server/src/jobs/scheduler.ts
  * Or configure as a Railway cron service
- * 
+ *
  * @module jobs/scheduler
  */
 
@@ -20,13 +20,16 @@ import { captureException, captureMessage } from '../lib/sentry.js';
 const eventRemindersSentFallback = new Set<string>();
 
 // Clear fallback dedup cache daily to prevent unbounded memory growth
-setInterval(() => {
-  const size = eventRemindersSentFallback.size;
-  if (size > 0) {
-    eventRemindersSentFallback.clear();
-    console.log(`[Scheduler] Cleared ${size} event reminder dedup entries (fallback set)`);
-  }
-}, 24 * 60 * 60 * 1000);
+setInterval(
+  () => {
+    const size = eventRemindersSentFallback.size;
+    if (size > 0) {
+      eventRemindersSentFallback.clear();
+      console.log(`[Scheduler] Cleared ${size} event reminder dedup entries (fallback set)`);
+    }
+  },
+  24 * 60 * 60 * 1000
+);
 
 let _redisForDedup: any = null;
 async function getRedisForDedup(): Promise<any | null> {
@@ -114,14 +117,14 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
     handler: async () => {
       const { prisma } = await import('../lib/prisma.js');
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      
+
       const result = await prisma.notification.deleteMany({
         where: {
           read_at: { not: null },
           created_at: { lt: thirtyDaysAgo },
         },
       });
-      
+
       console.log(`[Scheduler] Cleaned up ${result.count} old notifications`);
     },
   },
@@ -160,7 +163,9 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
         const { syncDatabaseBackup } = await import('../lib/dbBackupSync.js');
         const result = await syncDatabaseBackup();
         if (result.success) {
-          console.log(`[Scheduler] DB backup sync: ${result.tablesSync} tables, ${result.totalRows} rows`);
+          console.log(
+            `[Scheduler] DB backup sync: ${result.tablesSync} tables, ${result.totalRows} rows`
+          );
         } else if (result.error?.includes('not configured')) {
           // Silent skip — no backup URL set
         } else {
@@ -250,15 +255,33 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
     },
   },
   {
+    name: 'ad-refund-reconcile',
+    cron: '20 * * * *', // Hourly at :20 — recover stranded ad refunds
+    description:
+      "Re-issue refunds for ads stuck in payment_status:'refund_pending'; alarm on any still stuck",
+    handler: async () => {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const { reconcileStuckAdRefunds } = await import('../lib/approvalService.js');
+        await reconcileStuckAdRefunds(prisma);
+      } catch (error) {
+        console.error('[Scheduler] Ad refund reconcile failed:', error);
+      }
+    },
+  },
+  {
     name: 'coach-state-drift-probe',
     cron: '45 3 * * *', // Every day at 3:45 AM — after stale-event-auto-reject
-    description: 'Detect drift between User.approval_status and CoachApplication.status; report findings to Sentry',
+    description:
+      'Detect drift between User.approval_status and CoachApplication.status; report findings to Sentry',
     handler: async () => {
       try {
         const { prisma } = await import('../lib/prisma.js');
         const { runCoachStateDriftProbe } = await import('../lib/coachStateDriftProbe.js');
         const result = await runCoachStateDriftProbe(prisma);
-        console.log(`[Scheduler] coach-state-drift-probe: total=${result.total} buckets=${result.buckets.length}`);
+        console.log(
+          `[Scheduler] coach-state-drift-probe: total=${result.total} buckets=${result.buckets.length}`
+        );
       } catch (error) {
         console.error('[Scheduler] coach-state-drift-probe failed:', error);
         const { captureException } = await import('../lib/sentry.js');
@@ -392,57 +415,66 @@ function setupFallbackCron(): boolean {
   console.log('[Scheduler] Setting up fallback cron with setInterval');
 
   // Game reminders - every hour
-  setInterval(async () => {
-    try {
-      const { notifyUpcomingGames } = await import('../lib/notifications.js');
-      await notifyUpcomingGames(12);
-      await notifyUpcomingGames(1);
-    } catch (error) {
-      console.error('[Scheduler] Game reminder failed:', error);
-    }
-  }, 60 * 60 * 1000); // 1 hour
+  setInterval(
+    async () => {
+      try {
+        const { notifyUpcomingGames } = await import('../lib/notifications.js');
+        await notifyUpcomingGames(12);
+        await notifyUpcomingGames(1);
+      } catch (error) {
+        console.error('[Scheduler] Game reminder failed:', error);
+      }
+    },
+    60 * 60 * 1000
+  ); // 1 hour
 
   // Cleanup - once per day (check every hour, run at 3am)
-  setInterval(async () => {
-    const hour = new Date().getHours();
-    if (hour === 3) {
-      try {
-        const { prisma } = await import('../lib/prisma.js');
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        
-        await prisma.notification.deleteMany({
-          where: {
-            read_at: { not: null },
-            created_at: { lt: thirtyDaysAgo },
-          },
-        });
-      } catch (error) {
-        console.error('[Scheduler] Cleanup failed:', error);
+  setInterval(
+    async () => {
+      const hour = new Date().getHours();
+      if (hour === 3) {
+        try {
+          const { prisma } = await import('../lib/prisma.js');
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+          await prisma.notification.deleteMany({
+            where: {
+              read_at: { not: null },
+              created_at: { lt: thirtyDaysAgo },
+            },
+          });
+        } catch (error) {
+          console.error('[Scheduler] Cleanup failed:', error);
+        }
       }
-    }
-  }, 60 * 60 * 1000); // Check every hour
+    },
+    60 * 60 * 1000
+  ); // Check every hour
 
   // Push receipt verification - every 15 minutes
-  setInterval(async () => {
-    try {
-      const { verifyPushReceipts } = await import('../lib/notifications.js');
-      await verifyPushReceipts();
-    } catch (error) {
-      console.error('[Scheduler] Push receipt verification failed:', error);
-    }
-  }, 15 * 60 * 1000); // 15 minutes
+  setInterval(
+    async () => {
+      try {
+        const { verifyPushReceipts } = await import('../lib/notifications.js');
+        await verifyPushReceipts();
+      } catch (error) {
+        console.error('[Scheduler] Push receipt verification failed:', error);
+      }
+    },
+    15 * 60 * 1000
+  ); // 15 minutes
 
   // End-of-day transaction report - check every minute, run at 11:59 PM
   setInterval(async () => {
     const now = new Date();
     const hour = now.getHours();
     const minute = now.getMinutes();
-    
+
     // Run at 11:59 PM
     if (hour === 23 && minute === 59) {
       // Get today's date string (YYYY-MM-DD) to prevent duplicate sends
       const todayDate = now.toISOString().split('T')[0];
-      
+
       // Only send if we haven't already sent for today
       if (lastTransactionReportDate !== todayDate) {
         try {
@@ -460,63 +492,75 @@ function setupFallbackCron(): boolean {
   }, 60 * 1000); // Check every minute
 
   // Coach approval reminder - daily
-  setInterval(async () => {
-    try {
-      const { prisma } = await import('../lib/prisma.js');
-      const { remindPendingCoachApprovals } = await import('../lib/approvalService.js');
-      await remindPendingCoachApprovals(prisma);
-    } catch (error) {
-      console.error('[Scheduler] Coach approval reminder failed:', error);
-    }
-  }, 24 * 60 * 60 * 1000);
+  setInterval(
+    async () => {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const { remindPendingCoachApprovals } = await import('../lib/approvalService.js');
+        await remindPendingCoachApprovals(prisma);
+      } catch (error) {
+        console.error('[Scheduler] Coach approval reminder failed:', error);
+      }
+    },
+    24 * 60 * 60 * 1000
+  );
 
   // Coach approval drift probe - daily
-  setInterval(async () => {
-    try {
-      const { prisma } = await import('../lib/prisma.js');
-      const { findCoachApprovalDrift } = await import('../lib/coachApprovalDrift.js');
-      const drift = await findCoachApprovalDrift(prisma, 25);
-      if (drift.length > 0) {
-        console.error(`[Scheduler] Coach approval drift detected (${drift.length} rows)`);
-        captureException(new Error(`Coach approval drift detected (${drift.length} rows)`), {
-          ...withJobTags('coach-approval-drift-probe', {
-            context: 'coach_approval_drift_probe',
-          }),
-          mismatches: drift,
-        });
+  setInterval(
+    async () => {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const { findCoachApprovalDrift } = await import('../lib/coachApprovalDrift.js');
+        const drift = await findCoachApprovalDrift(prisma, 25);
+        if (drift.length > 0) {
+          console.error(`[Scheduler] Coach approval drift detected (${drift.length} rows)`);
+          captureException(new Error(`Coach approval drift detected (${drift.length} rows)`), {
+            ...withJobTags('coach-approval-drift-probe', {
+              context: 'coach_approval_drift_probe',
+            }),
+            mismatches: drift,
+          });
+        }
+      } catch (error) {
+        console.error('[Scheduler] Coach approval drift probe failed:', error);
+        captureException(
+          error instanceof Error ? error : new Error(String(error)),
+          withJobTags('coach-approval-drift-probe', {
+            context: 'coach_approval_drift_probe_failed',
+          })
+        );
       }
-    } catch (error) {
-      console.error('[Scheduler] Coach approval drift probe failed:', error);
-      captureException(
-        error instanceof Error ? error : new Error(String(error)),
-        withJobTags('coach-approval-drift-probe', {
-          context: 'coach_approval_drift_probe_failed',
-        })
-      );
-    }
-  }, 24 * 60 * 60 * 1000);
+    },
+    24 * 60 * 60 * 1000
+  );
 
   // Coach approval auto-expire - daily
-  setInterval(async () => {
-    try {
-      const { prisma } = await import('../lib/prisma.js');
-      const { autoExpirePendingCoaches } = await import('../lib/approvalService.js');
-      await autoExpirePendingCoaches(prisma);
-    } catch (error) {
-      console.error('[Scheduler] Coach approval auto-expire failed:', error);
-    }
-  }, 24 * 60 * 60 * 1000);
+  setInterval(
+    async () => {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const { autoExpirePendingCoaches } = await import('../lib/approvalService.js');
+        await autoExpirePendingCoaches(prisma);
+      } catch (error) {
+        console.error('[Scheduler] Coach approval auto-expire failed:', error);
+      }
+    },
+    24 * 60 * 60 * 1000
+  );
 
   // Stale event auto-reject - daily
-  setInterval(async () => {
-    try {
-      const { prisma } = await import('../lib/prisma.js');
-      const { autoExpireStaleEvents } = await import('../lib/approvalService.js');
-      await autoExpireStaleEvents(prisma);
-    } catch (error) {
-      console.error('[Scheduler] Stale event auto-reject failed:', error);
-    }
-  }, 24 * 60 * 60 * 1000);
+  setInterval(
+    async () => {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const { autoExpireStaleEvents } = await import('../lib/approvalService.js');
+        await autoExpireStaleEvents(prisma);
+      } catch (error) {
+        console.error('[Scheduler] Stale event auto-reject failed:', error);
+      }
+    },
+    24 * 60 * 60 * 1000
+  );
 
   // Daily founder metrics report - check every minute, run at 8:00 AM
   setInterval(async () => {
@@ -551,8 +595,8 @@ export async function startSchedulerWorker(): Promise<void> {
 
     const worker = new Worker(
       'scheduler',
-      async (job) => {
-        const scheduledJob = SCHEDULED_JOBS.find((j) => j.name === job.name);
+      async job => {
+        const scheduledJob = SCHEDULED_JOBS.find(j => j.name === job.name);
         if (scheduledJob) {
           console.log(`[Scheduler] Running ${job.name}: ${scheduledJob.description}`);
           try {
@@ -574,7 +618,7 @@ export async function startSchedulerWorker(): Promise<void> {
       { connection }
     );
 
-    worker.on('completed', (job) => {
+    worker.on('completed', job => {
       console.log(`[Scheduler] Job ${job.name} completed`);
     });
 
@@ -594,7 +638,9 @@ export async function startSchedulerWorker(): Promise<void> {
 /**
  * List all scheduled jobs
  */
-export async function listScheduledJobs(): Promise<Array<{ name: string; cron: string; description: string }>> {
+export async function listScheduledJobs(): Promise<
+  Array<{ name: string; cron: string; description: string }>
+> {
   return SCHEDULED_JOBS.map(({ name, cron, description }) => ({ name, cron, description }));
 }
 
