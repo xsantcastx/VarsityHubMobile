@@ -49,30 +49,20 @@ else
 fi
 echo ""
 
-# 3. Check sample event posting implementation
-echo -e "${BLUE}Step 3: Sample Event Posting Implementation...${NC}"
-if grep -q "isSampleEvent\|isSampleGame" "app/(tabs)/create-post.tsx" && \
-   grep -q "isSampleEvent\|isSampleGame" "server/src/routes/posts.ts" && \
-   grep -q "SAMPLE_GAME" "server/src/routes/posts.ts"; then
-    echo -e "${GREEN}✅ Sample event detection implemented${NC}"
-else
-    echo -e "${RED}❌ Sample event detection missing!${NC}"
+# 3. Sample-content system must STAY retired (2026-07-09).
+# It fabricated "Team A vs Team B" + Unsplash stock stories for sample- ids with
+# no __DEV__ gate. Reintroducing detection = reintroducing fake content in prod.
+echo -e "${BLUE}Step 3: Sample-content system stays retired...${NC}"
+if grep -q "isSampleEvent\|isSampleGame" "app/(tabs)/create-post.tsx"; then
+    echo -e "${RED}❌ sample- detection reintroduced in create-post!${NC}"
     ERRORS=$((ERRORS + 1))
+elif grep -qE "isSampleEvent|isSampleGame|SAMPLE_GAME:" "server/src/routes/posts.ts"; then
+    echo -e "${RED}❌ sample- branches reintroduced in server posts route!${NC}"
+    ERRORS=$((ERRORS + 1))
+else
+    echo -e "${GREEN}✅ No sample-content fabrication paths${NC}"
 fi
 
-if grep -q "feedForGame" "app/public-event.tsx"; then
-    echo -e "${GREEN}✅ Sample event post querying implemented${NC}"
-else
-    echo -e "${RED}❌ Sample event post querying missing!${NC}"
-    ERRORS=$((ERRORS + 1))
-fi
-
-if grep -q "startsWith.*SAMPLE_GAME" "server/src/routes/posts.ts"; then
-    echo -e "${GREEN}✅ Server query for sample events implemented${NC}"
-else
-    echo -e "${RED}❌ Server query for sample events missing!${NC}"
-    ERRORS=$((ERRORS + 1))
-fi
 echo ""
 
 # 4. Check coach onboarding

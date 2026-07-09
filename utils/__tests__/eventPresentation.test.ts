@@ -10,7 +10,8 @@ describe('eventPresentation helpers', () => {
     expect(canShowGamePoll({ gameId: 'game-1', eventType: 'game' })).toBe(true);
     expect(canShowGamePoll({ gameId: 'game-1', eventType: 'fundraiser' })).toBe(false);
     expect(canShowGamePoll({ gameId: null, eventType: 'game' })).toBe(false);
-    expect(canShowGamePoll({ gameId: 'sample-demo', eventType: 'fundraiser' })).toBe(true);
+    // sample- ids no longer get a poll carve-out — the demo system is retired
+    expect(canShowGamePoll({ gameId: 'sample-demo', eventType: 'fundraiser' })).toBe(false);
   });
 
   it('keeps legacy null event types competitive by default', () => {

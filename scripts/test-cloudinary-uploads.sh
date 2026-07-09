@@ -150,14 +150,7 @@ else
 fi
 echo ""
 
-# Test 6: Check sample event handling
-echo -e "${BLUE}Test 6: Sample event upload handling...${NC}"
-if grep -q "isSampleId\|sample" app/game-details/GameDetailsScreen.tsx; then
-    echo -e "${GREEN}✅ Sample event detection found${NC}"
-else
-    echo -e "${YELLOW}⚠️  Sample event detection may be missing${NC}"
-    WARNINGS=$((WARNINGS + 1))
-fi
+# Test 6 removed (2026-07-09): sample-content system retired; no sample upload handling exists.
 
 if grep -q "uploadFile\|ImagePicker" app/game-details/GameDetailsScreen.tsx; then
     echo -e "${GREEN}✅ Game details screen uses uploads${NC}"
