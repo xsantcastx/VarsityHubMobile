@@ -7,6 +7,7 @@ type RawPlanDefinition = {
   price: string;
   period: string;
   max_teams: number | null;
+  max_programs?: number | null;
 };
 
 type RawPlanDefinitions = Record<PlanId, RawPlanDefinition>;
