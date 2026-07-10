@@ -30,12 +30,14 @@ jest.mock('expo-router', () => ({
 
 const mockManaged = jest.fn();
 const mockMembers = jest.fn();
+const mockPrograms = jest.fn();
 jest.mock('@/api/entities', () => ({
   __esModule: true,
   Team: {
     managed: (...args: any[]) => mockManaged(...args),
     members: (...args: any[]) => mockMembers(...args),
   },
+  Organization: { programs: (...args: any[]) => mockPrograms(...args) },
 }));
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({ user: { id: 'u1' } }),
@@ -62,6 +64,36 @@ const sampleTeam = {
   organization: null,
 };
 
+const sampleOrg = { id: 'org1', name: 'Test Org' };
+
+const groupedTeamA = {
+  id: 't1',
+  name: 'Varsity Tigers',
+  members: 12,
+  status: 'active',
+  sport: 'Basketball',
+  season: '2026',
+  avatar_url: null,
+  my_role: 'coach',
+  level: 'varsity',
+  program_id: 'prog1',
+  organization: sampleOrg,
+};
+
+const groupedTeamB = {
+  id: 't2',
+  name: 'JV Tigers',
+  members: 10,
+  status: 'active',
+  sport: 'Basketball',
+  season: '2026',
+  avatar_url: null,
+  my_role: 'coach',
+  level: 'jv',
+  program_id: 'prog1',
+  organization: sampleOrg,
+};
+
 const sampleMember = {
   id: 'm1',
   role: 'player',
@@ -81,6 +113,9 @@ const sampleMember = {
 beforeEach(() => {
   mockManaged.mockReset().mockResolvedValue([sampleTeam]);
   mockMembers.mockReset().mockResolvedValue([sampleMember]);
+  mockPrograms.mockReset().mockResolvedValue({
+    programs: [{ id: 'prog1', sport: 'basketball', gender: 'girls', name: null, teams: [] }],
+  });
 });
 
 describe('MyTeamScreen (react-query render smoke)', () => {
@@ -93,5 +128,25 @@ describe('MyTeamScreen (react-query render smoke)', () => {
     await waitFor(() => expect(mockManaged).toHaveBeenCalled());
     await waitFor(() => expect(mockMembers).toHaveBeenCalledWith('t1'));
     expect(await screen.findByText('Jane Player')).toBeTruthy();
+  });
+
+  it('groups the team picker by program with level labels', async () => {
+    mockManaged.mockReset().mockResolvedValue([groupedTeamA, groupedTeamB]);
+    mockMembers.mockReset().mockResolvedValue([sampleMember]);
+
+    render(
+      <QueryWrapper>
+        <MyTeamScreen />
+      </QueryWrapper>
+    );
+    await waitFor(() => expect(mockManaged).toHaveBeenCalled());
+    await waitFor(() => expect(mockMembers).toHaveBeenCalledWith('t1'));
+
+    const { fireEvent } = require('@testing-library/react-native');
+    fireEvent.press(await screen.findByText('Varsity Tigers'));
+
+    expect(await screen.findByText('Girls Basketball')).toBeTruthy();
+    expect(await screen.findByText('Varsity Tigers  ·  Varsity')).toBeTruthy();
+    expect(await screen.findByText('JV Tigers  ·  JV')).toBeTruthy();
   });
 });

@@ -54,3 +54,24 @@ export function formatLevelLabel(level: string | null | undefined): string | nul
   if (!level) return null;
   return LEVEL_LABELS[level as TeamLevel] ?? null;
 }
+
+/**
+ * Groups teams by `program_id`, preserving first-appearance order within and
+ * across groups. Grouped (non-null program) sections come first; teams with a
+ * null `program_id` land in a single trailing group. Shared by manage-teams
+ * and my-team's picker modal — keep it a pure function of its input.
+ */
+export function groupTeamsByProgram<T extends { program_id: string | null }>(
+  teams: T[]
+): { programId: string | null; teams: T[] }[] {
+  const byProgram = new Map<string | null, T[]>();
+  for (const t of teams) {
+    const key = t.program_id ?? null;
+    const list = byProgram.get(key) ?? [];
+    list.push(t);
+    byProgram.set(key, list);
+  }
+  const groups = [...byProgram.entries()].map(([programId, ts]) => ({ programId, teams: ts }));
+  // programs first (stable by first appearance), ungrouped last
+  return [...groups.filter(g => g.programId !== null), ...groups.filter(g => g.programId === null)];
+}

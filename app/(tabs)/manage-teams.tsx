@@ -1,5 +1,5 @@
 import { Colors } from '@/constants/Colors';
-import { formatLevelLabel, formatProgramLabel } from '@/constants/programs';
+import { formatLevelLabel, formatProgramLabel, groupTeamsByProgram } from '@/constants/programs';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useManagedTeamsQuery } from '@/hooks/useManagedTeamsQuery';
@@ -24,27 +24,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { EmptyState, SectionHeader, TeamCard } from '@/components/ui';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
-
-/**
- * Groups teams by `program_id`, preserving first-appearance order within and
- * across groups. Grouped (non-null program) sections come first; teams with a
- * null `program_id` land in a single trailing group. Relocatable — Task 4 may
- * move this to a shared module; it must stay a pure function of its input.
- */
-export function groupTeamsByProgram<T extends { program_id: string | null }>(
-  teams: T[]
-): { programId: string | null; teams: T[] }[] {
-  const byProgram = new Map<string | null, T[]>();
-  for (const t of teams) {
-    const key = t.program_id ?? null;
-    const list = byProgram.get(key) ?? [];
-    list.push(t);
-    byProgram.set(key, list);
-  }
-  const groups = [...byProgram.entries()].map(([programId, ts]) => ({ programId, teams: ts }));
-  // programs first (stable by first appearance), ungrouped last
-  return [...groups.filter(g => g.programId !== null), ...groups.filter(g => g.programId === null)];
-}
 
 function ManageTeamsSimpleScreen() {
   const { user, checkAuth } = useAuth();

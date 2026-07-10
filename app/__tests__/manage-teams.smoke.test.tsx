@@ -55,7 +55,8 @@ jest.mock('@/utils/authState', () => ({
   getAuthSnapshot: jest.fn().mockResolvedValue({ id: 'u1', preferences: {} }),
 }));
 
-import ManageTeamsScreen, { groupTeamsByProgram } from '../(tabs)/manage-teams';
+import ManageTeamsScreen from '../(tabs)/manage-teams';
+import { groupTeamsByProgram } from '@/constants/programs';
 import { QueryWrapper } from '../../test-utils/screenMocks';
 
 const sampleTeam = {

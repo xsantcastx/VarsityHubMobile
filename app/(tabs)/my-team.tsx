@@ -1,9 +1,11 @@
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
+import { formatLevelLabel, formatProgramLabel, groupTeamsByProgram } from '@/constants/programs';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ManagedTeam, useManagedTeamsQuery } from '@/hooks/useManagedTeamsQuery';
+import { useOrgProgramsQuery } from '@/hooks/useOrgProgramsQuery';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { useTeamMembersQuery } from '@/hooks/useTeamMembersQuery';
 import { handleCoachAccessError } from '@/utils/coachAccess';
@@ -139,6 +141,49 @@ function getRoleBadgeColor(role: string): { bg: string; text: string } {
   }
 }
 
+function TeamPickerRow({
+  team,
+  isActive,
+  colorScheme,
+  onPress,
+}: {
+  team: ManagedTeam;
+  isActive: boolean;
+  colorScheme: 'light' | 'dark';
+  onPress: () => void;
+}) {
+  const levelLabel = formatLevelLabel(team.level);
+  const rowText = levelLabel ? `${team.name}  ·  ${levelLabel}` : team.name;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.roleOption,
+        {
+          backgroundColor: isActive ? Colors[colorScheme].tint + '15' : Colors[colorScheme].surface,
+          borderColor: isActive ? Colors[colorScheme].tint : Colors[colorScheme].border,
+        },
+      ]}
+    >
+      <MaterialIcons
+        name="groups"
+        size={18}
+        color={isActive ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
+      />
+      <Text
+        style={[
+          styles.roleOptionText,
+          { color: isActive ? Colors[colorScheme].tint : Colors[colorScheme].text },
+        ]}
+        numberOfLines={1}
+      >
+        {rowText}
+      </Text>
+      {isActive && <MaterialIcons name="check" size={18} color={Colors[colorScheme].tint} />}
+    </Pressable>
+  );
+}
+
 function MyTeamScreen() {
   const { user } = useAuth();
   const { canManage, loading: coachLoading } = useRequireTeamManagement();
@@ -221,6 +266,20 @@ function MyTeamScreen() {
   }, [teamsIsError, teamsError, router, user]);
 
   const error = teamsIsError && !handledByCoachAccess ? 'Unable to load teams.' : null;
+
+  // Program grouping for the team picker modal — same source pattern as
+  // manage-teams: org from the first team that has one, programs fetched for
+  // that org, teams grouped by program_id (grouped first, ungrouped last).
+  const organization = teams.find(t => t.organization)?.organization;
+  const { data: orgPrograms = [] } = useOrgProgramsQuery({
+    organizationId: organization?.id,
+    enabled: !!organization?.id,
+  });
+  const programsById = useMemo(() => new Map(orgPrograms.map(p => [p.id, p])), [orgPrograms]);
+  const teamGroups = useMemo(() => groupTeamsByProgram(teams), [teams]);
+  // Only show program headers when at least one team actually has a
+  // program_id — a fully ungrouped org keeps today's flat picker list.
+  const hasProgramGroups = teamGroups.some(g => g.programId !== null);
 
   // Keep the selected team valid as the teams list changes: prefer the route
   // param, then the previous selection, then the first team. The functional
@@ -933,45 +992,51 @@ function MyTeamScreen() {
             <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
               Select Team
             </Text>
-            {teams.map(team => {
-              const isActive = team.id === selectedTeamId;
-              return (
-                <Pressable
-                  key={team.id}
-                  onPress={() => {
-                    setSelectedTeamId(team.id);
-                    setShowTeamPicker(false);
-                  }}
-                  style={[
-                    styles.roleOption,
-                    {
-                      backgroundColor: isActive
-                        ? Colors[colorScheme].tint + '15'
-                        : Colors[colorScheme].surface,
-                      borderColor: isActive ? Colors[colorScheme].tint : Colors[colorScheme].border,
-                    },
-                  ]}
-                >
-                  <MaterialIcons
-                    name="groups"
-                    size={18}
-                    color={isActive ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
+            {hasProgramGroups
+              ? teamGroups.map(group => {
+                  const program = group.programId ? programsById.get(group.programId) : undefined;
+                  const headerTitle = group.programId
+                    ? program
+                      ? formatProgramLabel(program)
+                      : group.teams[0]?.sport || 'Teams'
+                    : 'Other teams';
+                  return (
+                    <View key={group.programId ?? 'other'}>
+                      <Text
+                        style={[
+                          styles.teamPickerGroupHeader,
+                          { color: Colors[colorScheme].mutedText },
+                        ]}
+                      >
+                        {headerTitle}
+                      </Text>
+                      {group.teams.map(team => (
+                        <TeamPickerRow
+                          key={team.id}
+                          team={team}
+                          isActive={team.id === selectedTeamId}
+                          colorScheme={colorScheme}
+                          onPress={() => {
+                            setSelectedTeamId(team.id);
+                            setShowTeamPicker(false);
+                          }}
+                        />
+                      ))}
+                    </View>
+                  );
+                })
+              : teams.map(team => (
+                  <TeamPickerRow
+                    key={team.id}
+                    team={team}
+                    isActive={team.id === selectedTeamId}
+                    colorScheme={colorScheme}
+                    onPress={() => {
+                      setSelectedTeamId(team.id);
+                      setShowTeamPicker(false);
+                    }}
                   />
-                  <Text
-                    style={[
-                      styles.roleOptionText,
-                      { color: isActive ? Colors[colorScheme].tint : Colors[colorScheme].text },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {team.name}
-                  </Text>
-                  {isActive && (
-                    <MaterialIcons name="check" size={18} color={Colors[colorScheme].tint} />
-                  )}
-                </Pressable>
-              );
-            })}
+                ))}
             <Pressable onPress={() => setShowTeamPicker(false)} style={styles.cancelButton}>
               <Text style={[styles.cancelText, { color: Colors[colorScheme].mutedText }]}>
                 Cancel
@@ -1202,6 +1267,14 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: '600',
+  },
+  teamPickerGroupHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 10,
+    marginBottom: 6,
   },
   cancelButton: {
     alignItems: 'center',
