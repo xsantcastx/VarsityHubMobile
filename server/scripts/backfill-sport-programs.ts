@@ -26,8 +26,12 @@ async function main() {
 
   const unresolved: typeof teams = [];
   const planned: Array<{
-    teamId: string; teamName: string; orgId: string;
-    sport: string; gender: InferredGender; level: InferredLevel | null;
+    teamId: string;
+    teamName: string;
+    orgId: string;
+    sport: string;
+    gender: InferredGender;
+    level: InferredLevel | null;
   }> = [];
 
   for (const team of teams) {
@@ -37,8 +41,12 @@ async function main() {
       continue;
     }
     planned.push({
-      teamId: team.id, teamName: team.name, orgId: team.organization_id,
-      sport: inferred.sport, gender: inferred.gender, level: inferred.level,
+      teamId: team.id,
+      teamName: team.name,
+      orgId: team.organization_id,
+      sport: inferred.sport,
+      gender: inferred.gender,
+      level: inferred.level,
     });
   }
 

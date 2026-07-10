@@ -1110,7 +1110,10 @@ gamesRouter.get(
         }
         if (!whereClause.AND) whereClause.AND = [];
         whereClause.AND.push({
-          OR: [{ home_team_id: { in: followedTeamIds } }, { away_team_id: { in: followedTeamIds } }],
+          OR: [
+            { home_team_id: { in: followedTeamIds } },
+            { away_team_id: { in: followedTeamIds } },
+          ],
         });
       }
 

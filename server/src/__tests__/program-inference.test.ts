@@ -19,7 +19,7 @@ describe('program inference from legacy team names', () => {
 
   it('infers gender, defaulting coed', () => {
     expect(inferGenderFromName('Girls Varsity Soccer')).toBe('girls');
-    expect(inferGenderFromName("Lady Knights Basketball")).toBe('girls');
+    expect(inferGenderFromName('Lady Knights Basketball')).toBe('girls');
     expect(inferGenderFromName("Women's Lacrosse")).toBe('girls');
     expect(inferGenderFromName('Boys JV Hockey')).toBe('boys');
     expect(inferGenderFromName("Men's Golf")).toBe('boys');
@@ -27,13 +27,17 @@ describe('program inference from legacy team names', () => {
   });
 
   it('combines name + sport column into a program key', () => {
-    expect(
-      inferProgramForTeam({ name: 'Girls JV Soccer', sport: 'Soccer' })
-    ).toEqual({ sport: 'soccer', gender: 'girls', level: 'jv' });
+    expect(inferProgramForTeam({ name: 'Girls JV Soccer', sport: 'Soccer' })).toEqual({
+      sport: 'soccer',
+      gender: 'girls',
+      level: 'jv',
+    });
     // sport column empty → fall back to finding a sport word in the name
-    expect(
-      inferProgramForTeam({ name: 'Varsity Football', sport: null })
-    ).toEqual({ sport: 'football', gender: 'coed', level: 'varsity' });
+    expect(inferProgramForTeam({ name: 'Varsity Football', sport: null })).toEqual({
+      sport: 'football',
+      gender: 'coed',
+      level: 'varsity',
+    });
     // unresolvable sport → null (reported by the script, never guessed)
     expect(inferProgramForTeam({ name: 'The Wolfpack', sport: 'idk' })).toBe(null);
   });

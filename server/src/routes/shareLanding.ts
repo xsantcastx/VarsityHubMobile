@@ -33,8 +33,7 @@ import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma.js';
 
 const APP_STORE_URL =
-  process.env.IOS_APP_STORE_URL ||
-  'https://apps.apple.com/us/app/varsityhub/id6758405187';
+  process.env.IOS_APP_STORE_URL || 'https://apps.apple.com/us/app/varsityhub/id6758405187';
 const PLAY_STORE_URL =
   process.env.ANDROID_PLAY_STORE_URL ||
   'https://play.google.com/store/apps/details?id=com.xsantcastx.varsityhub';
@@ -42,7 +41,16 @@ const PLAY_STORE_URL =
 /** Routes the OS may try to deep-link via universal links. Mirrors the
  *  AASA `paths` and Android `intentFilters` pathPrefixes. Anything else
  *  on a shareable host falls through unhandled. */
-const SHAREABLE_PATHS = ['/posts', '/games', '/teams', '/users', '/events', '/programs', '/join', '/share'] as const;
+const SHAREABLE_PATHS = [
+  '/posts',
+  '/games',
+  '/teams',
+  '/users',
+  '/events',
+  '/programs',
+  '/join',
+  '/share',
+] as const;
 
 // Crawlers / link-preview bots that set Accept: */* (or even nothing) but
 // do want OG tags. Match against User-Agent so we don't false-positive on
@@ -84,8 +92,9 @@ const shareLandingLimiter = rateLimit({
 });
 
 function escapeHtml(s: unknown): string {
-  return String(s ?? '').replace(/[&<>"']/g, (c) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)
+  return String(s ?? '').replace(
+    /[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!
   );
 }
 
@@ -255,12 +264,13 @@ async function gameLanding(req: Request, res: Response, next: NextFunction) {
   const meta: LandingMeta = game
     ? {
         title: game.title || 'VarsityHub Game',
-        description: [
-          game.location && `at ${game.location}`,
-          game.date && new Date(game.date).toLocaleDateString(undefined, { dateStyle: 'long' }),
-        ]
-          .filter(Boolean)
-          .join(' · ') || undefined,
+        description:
+          [
+            game.location && `at ${game.location}`,
+            game.date && new Date(game.date).toLocaleDateString(undefined, { dateStyle: 'long' }),
+          ]
+            .filter(Boolean)
+            .join(' · ') || undefined,
         url: fullUrl(req),
       }
     : genericLanding(req);

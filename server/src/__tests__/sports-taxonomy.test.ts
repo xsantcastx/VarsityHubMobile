@@ -9,8 +9,15 @@ import {
 describe('sports taxonomy', () => {
   it('exposes canonical slugs including the legacy create-team nine', () => {
     for (const slug of [
-      'basketball', 'football', 'soccer', 'baseball', 'tennis',
-      'volleyball', 'swimming', 'track_field', 'other',
+      'basketball',
+      'football',
+      'soccer',
+      'baseball',
+      'tennis',
+      'volleyball',
+      'swimming',
+      'track_field',
+      'other',
     ]) {
       expect(SPORT_SLUGS.has(slug)).toBe(true);
     }

@@ -76,7 +76,9 @@ describe('program share-landing', () => {
     expect(res.text).toContain('og:title');
     expect(res.text).toContain('Stamford High — Basketball');
     expect(res.text).toContain('https://cdn.example.com/program-logo.jpg');
-    expect(sportProgramFindUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'p1' } }));
+    expect(sportProgramFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'p1' } })
+    );
   });
 
   it('uses the explicit name override when set, still prefixed by org name', async () => {

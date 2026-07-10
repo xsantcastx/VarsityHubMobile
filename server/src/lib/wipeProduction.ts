@@ -6,7 +6,9 @@
 import crypto from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 
-export async function wipeDatabase(prisma: PrismaClient): Promise<{ deleted: Record<string, number> }> {
+export async function wipeDatabase(
+  prisma: PrismaClient
+): Promise<{ deleted: Record<string, number> }> {
   const deleted: Record<string, number> = {};
   const steps: Array<[string, () => Promise<{ count: number }>]> = [
     ['Notification', () => prisma.notification.deleteMany()],
@@ -86,7 +88,7 @@ export async function wipeCloudinary(): Promise<{ deleted: number }> {
       };
       const toSign = Object.keys(params)
         .sort()
-        .map((k) => `${k}=${params[k]}`)
+        .map(k => `${k}=${params[k]}`)
         .join('&');
       const signature = crypto.createHash('sha1').update(`${toSign}${apiSecret}`).digest('hex');
 
@@ -104,10 +106,10 @@ export async function wipeCloudinary(): Promise<{ deleted: number }> {
       };
       if (data.resources.length === 0) break;
 
-      const publicIds = data.resources.map((r) => r.public_id);
+      const publicIds = data.resources.map(r => r.public_id);
       const deleteUrl = `https://api.cloudinary.com/v1_1/${cloudName}/resources/${resourceType}/upload`;
       const deleteBody = new URLSearchParams();
-      publicIds.forEach((id) => deleteBody.append('public_ids[]', id));
+      publicIds.forEach(id => deleteBody.append('public_ids[]', id));
 
       const delRes = await fetch(`${deleteUrl}?${deleteBody.toString()}`, {
         method: 'DELETE',

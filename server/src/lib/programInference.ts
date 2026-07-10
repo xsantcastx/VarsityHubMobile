@@ -1,7 +1,6 @@
 import { normalizeSportToSlug, SPORTS } from './sportsTaxonomy.js';
 
-export type InferredLevel =
-  | 'varsity' | 'jv' | 'freshman' | 'middle_school' | 'unified' | 'other';
+export type InferredLevel = 'varsity' | 'jv' | 'freshman' | 'middle_school' | 'unified' | 'other';
 export type InferredGender = 'boys' | 'girls' | 'coed';
 
 const LEVEL_PATTERNS: Array<[RegExp, InferredLevel]> = [
@@ -33,9 +32,7 @@ export function inferProgramForTeam(team: {
   if (!slug) {
     // Fall back: scan the team name for a sport label ("Varsity Football").
     const lower = team.name.toLowerCase();
-    const hit = SPORTS.find(
-      s => s.slug !== 'other' && lower.includes(s.label.toLowerCase())
-    );
+    const hit = SPORTS.find(s => s.slug !== 'other' && lower.includes(s.label.toLowerCase()));
     slug = hit ? hit.slug : normalizeSportToSlug(team.name);
   }
   if (!slug || slug === 'other') return null;

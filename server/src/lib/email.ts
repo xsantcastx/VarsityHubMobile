@@ -53,9 +53,10 @@ export async function resolveMinorAuditMetadata(
 
 const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
 const isPlaywrightE2E = process.env.PLAYWRIGHT_E2E === '1';
-const wantsTestEmailProvider = String(process.env.EMAIL_PROVIDER || '')
-  .trim()
-  .toLowerCase() === 'test';
+const wantsTestEmailProvider =
+  String(process.env.EMAIL_PROVIDER || '')
+    .trim()
+    .toLowerCase() === 'test';
 
 let emailServicePromise: Promise<EmailService> | null = null;
 const getEmailService = async (): Promise<EmailService | null> => {

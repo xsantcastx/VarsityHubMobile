@@ -148,9 +148,7 @@ describe('GET /games approval-status visibility', () => {
 
     const where = lastFindManyWhere();
     expect(where.approval_status).toEqual({ in: ['approved', 'pending'] });
-    expect(where.AND).toEqual([
-      { OR: [{ home_team_id: TEAM_ID }, { away_team_id: TEAM_ID }] },
-    ]);
+    expect(where.AND).toEqual([{ OR: [{ home_team_id: TEAM_ID }, { away_team_id: TEAM_ID }] }]);
   });
 
   it('approval_status=pending stays pending-only for the approvals screen', async () => {

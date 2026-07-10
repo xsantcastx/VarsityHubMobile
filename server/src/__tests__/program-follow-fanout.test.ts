@@ -102,13 +102,7 @@ describe('fanOutProgramFollowersToTeam — team-ADD fan-out', () => {
   });
 
   afterAll(async () => {
-    const userIds = [
-      ownerId,
-      progFollowerAId,
-      progFollowerBId,
-      progFollowerCId,
-      directOnlyId,
-    ];
+    const userIds = [ownerId, progFollowerAId, progFollowerBId, progFollowerCId, directOnlyId];
     await prisma.teamFollow
       .deleteMany({ where: { team_id: { in: [varsityTeamId, jvTeamId].filter(Boolean) } } })
       .catch(() => {});
