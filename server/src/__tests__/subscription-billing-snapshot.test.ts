@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 const mockSportProgramCount = jest.fn();
+const mockTeamCount = jest.fn();
 const mockTeamMembershipFindMany = jest.fn();
 
 jest.unstable_mockModule('../lib/prisma.js', () => ({
   prisma: {
     sportProgram: {
       count: mockSportProgramCount,
+    },
+    team: {
+      count: mockTeamCount,
     },
     teamMembership: {
       findMany: mockTeamMembershipFindMany,
@@ -35,6 +39,7 @@ const resolveVeteranQuantityUpdate = paymentsModule.resolveVeteranQuantityUpdate
 describe('Veteran billing snapshot', () => {
   beforeEach(() => {
     mockSportProgramCount.mockReset();
+    mockTeamCount.mockReset();
     mockTeamMembershipFindMany.mockReset();
   });
 
@@ -59,16 +64,21 @@ describe('Veteran billing snapshot', () => {
     expect(snapshot).toEqual({ programCount: 4, billableQuantity: 0 });
   });
 
-  it('derives veteran billing from organization programs when org-owned', async () => {
+  it('derives veteran billing from organization programs plus ungrouped teams when org-owned', async () => {
     mockSportProgramCount.mockResolvedValueOnce(6);
+    mockTeamCount.mockResolvedValueOnce(2); // 2 ungrouped (null-program) active teams
 
     const snapshot = await getVeteranBillingSnapshot('user-1', 'org-1');
 
     expect(mockSportProgramCount).toHaveBeenCalledWith({
       where: { organization_id: 'org-1', teams: { some: { status: 'active' } } },
     });
+    expect(mockTeamCount).toHaveBeenCalledWith({
+      where: { organization_id: 'org-1', status: 'active', program_id: null },
+    });
     expect(mockTeamMembershipFindMany).not.toHaveBeenCalled();
-    expect(snapshot).toEqual({ programCount: 6, billableQuantity: 1 });
+    // 6 programs + 2 ungrouped teams = 8; billable = 8 - 5 = 3
+    expect(snapshot).toEqual({ programCount: 8, billableQuantity: 3 });
   });
 
   it('converts billable quantity into total program allowance', () => {

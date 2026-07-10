@@ -369,9 +369,21 @@ export async function getVeteranBillingSnapshot(
   organizationId?: string | null
 ): Promise<{ programCount: number; billableQuantity: number }> {
   const programCount = organizationId
-    ? await prisma.sportProgram.count({
-        where: { organization_id: organizationId, teams: { some: { status: 'active' } } },
-      })
+    ? await (async () => {
+        // Programs with an active team, PLUS ungrouped (null-program) active
+        // teams — each ungrouped team is its own billable unit (matches the
+        // personal branch below); omitting them let a paid_by_owner coach create
+        // unlimited program_id-less teams for free.
+        const [programs, ungrouped] = await Promise.all([
+          prisma.sportProgram.count({
+            where: { organization_id: organizationId, teams: { some: { status: 'active' } } },
+          }),
+          prisma.team.count({
+            where: { organization_id: organizationId, status: 'active', program_id: null },
+          }),
+        ]);
+        return programs + ungrouped;
+      })()
     : await (async () => {
         const owned = await prisma.teamMembership.findMany({
           where: { user_id: userId, role: 'owner', status: 'active', team: { status: 'active' } },

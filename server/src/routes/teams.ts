@@ -388,12 +388,26 @@ export async function countBillableProgramsForContext(
   context: TeamCreateBillingContext
 ): Promise<number> {
   if (context.teamCountSource === 'org' && context.orgIdForTeamCount) {
-    return db.sportProgram.count({
-      where: {
-        organization_id: context.orgIdForTeamCount,
-        teams: { some: { status: 'active' } },
-      },
-    });
+    // Programs with an active team, PLUS ungrouped (null-program) active teams —
+    // each ungrouped team is its own billable unit (matches the personal branch
+    // below). Omitting the ungrouped count let a paid_by_owner coach create
+    // unlimited program_id-less teams without ever tripping the billing gate.
+    const [programs, ungrouped] = await Promise.all([
+      db.sportProgram.count({
+        where: {
+          organization_id: context.orgIdForTeamCount,
+          teams: { some: { status: 'active' } },
+        },
+      }),
+      db.team.count({
+        where: {
+          organization_id: context.orgIdForTeamCount,
+          status: 'active',
+          program_id: null,
+        },
+      }),
+    ]);
+    return programs + ungrouped;
   }
 
   // Personal context: distinct programs across the user's active owned teams,

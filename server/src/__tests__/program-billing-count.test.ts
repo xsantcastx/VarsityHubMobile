@@ -75,4 +75,22 @@ describe('countBillableProgramsForContext (org context)', () => {
     } as any);
     expect(n).toBe(1); // basketball only (2 level teams share it); baseball archived-only excluded
   });
+
+  it('counts ungrouped (null-program) active teams as their own billable units (org context)', async () => {
+    // Regression guard: before the fix the org branch counted only programs,
+    // so a paid_by_owner coach could create unlimited program_id-less teams free.
+    await prisma.team.create({
+      data: { name: `Ungrouped 1 ${ts}`, organization_id: orgId, status: 'active' },
+    });
+    await prisma.team.create({
+      data: { name: `Ungrouped 2 ${ts}`, organization_id: orgId, status: 'active' },
+    });
+    const n = await countBillableProgramsForContext(prisma, ownerId, {
+      effectivePlan: 'rookie',
+      effectiveSubscriptionId: undefined,
+      teamCountSource: 'org',
+      orgIdForTeamCount: orgId,
+    } as any);
+    expect(n).toBe(3); // 1 basketball program + 2 ungrouped active teams
+  });
 });
