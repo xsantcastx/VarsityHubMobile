@@ -33,6 +33,7 @@ import {
   isManagementRole,
   TEAM_AUTHORIZED_ROLES,
 } from '../lib/teamEntitlements.js';
+import { fanOutProgramFollowersToTeam } from '../lib/programFollowFanout.js';
 import { getTeamState, listTeamStates } from '../lib/teamState.js';
 import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthState.js';
 import { getEffectiveEntitledPlan } from '../lib/userBillingState.js';
@@ -1672,6 +1673,18 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
       }
     }
 
+    // The team was just created inside a program (program_id set at birth).
+    // Fan out the program's existing followers to this new level team so its
+    // posts reach them — keyed on the ProgramFollow ledger, not a heuristic.
+    // Runs AFTER the transaction committed; must never fail the create.
+    if ((team as any).program_id) {
+      try {
+        await fanOutProgramFollowersToTeam(prisma, (team as any).program_id, team.id);
+      } catch (fanoutError) {
+        console.error('[program-fanout] create-path fan-out failed (non-blocking):', fanoutError);
+      }
+    }
+
     return { team };
   } catch (teamError: any) {
     if (teamError?.status && teamError?.body) {
@@ -1910,6 +1923,12 @@ teamsRouter.put(
         : parsed.data.venue_address;
     if (parsed.data.is_private !== undefined) updateData.is_private = parsed.data.is_private;
     if (parsed.data.level !== undefined) updateData.level = parsed.data.level;
+    // Set when the PUT newly assigns a program_id that DIFFERS from the team's
+    // prior one — the trigger to fan out the program's existing followers to
+    // this team after the update commits (see below). Never set on the
+    // org-transfer null-clear above (that path leaves parsed.data.program_id
+    // undefined), nor when program_id is unchanged.
+    let fanOutProgramId: string | null = null;
     if (parsed.data.program_id !== undefined) {
       const targetOrgForProgram = updateData.organization_id ?? team.organization_id;
       const program = await prisma.sportProgram.findUnique({
@@ -1921,6 +1940,13 @@ teamsRouter.put(
           message: 'program_id must belong to the same organization as the team.',
           code: 'PROGRAM_ORG_MISMATCH',
         });
+      }
+      const priorProgram = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { program_id: true },
+      });
+      if (priorProgram?.program_id !== parsed.data.program_id) {
+        fanOutProgramId = parsed.data.program_id;
       }
       updateData.program_id = parsed.data.program_id;
     }
@@ -1956,6 +1982,16 @@ teamsRouter.put(
         },
       });
       debugLog('[Teams PUT] Update successful');
+      // The team just gained (or switched to) a program_id. Fan out that
+      // program's existing followers to this team so its posts reach them.
+      // Runs AFTER commit; must never fail the request — the team WAS updated.
+      if (fanOutProgramId) {
+        try {
+          await fanOutProgramFollowersToTeam(prisma, fanOutProgramId, updatedTeam.id);
+        } catch (fanoutError) {
+          console.error('[program-fanout] PUT-path fan-out failed (non-blocking):', fanoutError);
+        }
+      }
       // Return a compact team object including organization and logo/avatar fields for client convenience
       return res.json({
         id: updatedTeam.id,
