@@ -90,6 +90,21 @@ enum MembershipStatus {
   archived
 }
 
+enum TeamLevel {
+  varsity
+  jv
+  freshman
+  middle_school
+  unified
+  other
+}
+
+enum ProgramGender {
+  boys
+  girls
+  coed
+}
+
 enum OrganizationRole {
   owner
   manager
@@ -1040,6 +1055,22 @@ model CoachApplication {
 // Teams
 // ===========================
 
+model SportProgram {
+  id              String        @id @default(cuid())
+  organization_id String
+  sport           String        @db.VarChar(100) // canonical slug from shared/sports-taxonomy.json
+  gender          ProgramGender
+  name            String?       @db.VarChar(120) // optional display override, e.g. "Lady Knights Basketball"
+  logo_url        String?
+  created_at      DateTime      @default(now())
+
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Restrict)
+  teams        Team[]
+
+  @@unique([organization_id, sport, gender])
+  @@index([organization_id])
+}
+
 model Team {
   id                       String     @id @default(cuid())
   name                     String     @db.VarChar(100)
@@ -1051,6 +1082,8 @@ model Team {
   club_type                String     @default("sport") // "sport" or "extracurricular"
   extracurricular_category String?    @db.VarChar(100) // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
   season                   String?    @db.VarChar(50) // "Fall" | "Spring" | "Winter" | "Summer"
+  level                    TeamLevel?
+  program_id               String?
   primary_color            String?    @db.VarChar(20) // hex color for team branding
   season_start             DateTime?
   season_end               DateTime?
@@ -1077,6 +1110,7 @@ model Team {
   created_at DateTime @default(now())
 
   organization Organization      @relation(fields: [organization_id], references: [id], onDelete: Restrict)
+  program      SportProgram?     @relation(fields: [program_id], references: [id], onDelete: SetNull)
   memberships  TeamMembership[]
   invites      TeamInvite[]
   joinRequests TeamJoinRequest[]
@@ -1096,6 +1130,7 @@ model Team {
   @@index([sport])
   @@index([organization_id])
   @@index([is_private])
+  @@index([program_id])
 }
 
 model Organization {
@@ -1134,11 +1169,12 @@ model Organization {
   // Supporting document (file/image) URL — required for new org creation
   supporting_document_url String? @db.VarChar(2000)
 
-  teams        Team[]
-  memberships  OrganizationMembership[]
-  invites      OrganizationInvite[]
-  joinRequests OrganizationJoinRequest[]
-  followers    OrganizationFollow[]
+  teams          Team[]
+  memberships    OrganizationMembership[]
+  invites        OrganizationInvite[]
+  joinRequests   OrganizationJoinRequest[]
+  followers      OrganizationFollow[]
+  sport_programs SportProgram[]
 
   @@index([name])
   @@index([zip_code])

@@ -23,6 +23,7 @@ export const TABLES_IN_ORDER = [
   // can lead and Organization only needs User.
   'User',
   'Organization',
+  'SportProgram',
   'Team',
   'Game',
   'Event',
