@@ -28,12 +28,14 @@ const mockOrgGet = jest.fn();
 const mockAdminSummary = jest.fn();
 const mockTeamList = jest.fn();
 const mockGameList = jest.fn();
+const mockPrograms = jest.fn();
 jest.mock('@/api/entities', () => ({
   __esModule: true,
   Organization: {
     get: (...args: any[]) => mockOrgGet(...args),
     adminSummary: (...args: any[]) => mockAdminSummary(...args),
     reviewSummaries: jest.fn().mockResolvedValue([]),
+    programs: (...args: any[]) => mockPrograms(...args),
   },
   Team: { list: (...args: any[]) => mockTeamList(...args) },
   Game: { list: (...args: any[]) => mockGameList(...args) },
@@ -57,6 +59,36 @@ const sampleOrg = {
   followers_count: 3,
 };
 
+const groupedTeamA = {
+  id: 't1',
+  name: 'Varsity Tigers',
+  sport: 'Basketball',
+  season: '2026',
+  organization_id: 'org1',
+  level: 'varsity',
+  program_id: 'prog1',
+};
+
+const groupedTeamB = {
+  id: 't2',
+  name: 'JV Tigers',
+  sport: 'Basketball',
+  season: '2026',
+  organization_id: 'org1',
+  level: 'jv',
+  program_id: 'prog1',
+};
+
+const ungroupedTeam = {
+  id: 't3',
+  name: 'Club Squad',
+  sport: 'Soccer',
+  season: '2026',
+  organization_id: 'org1',
+  level: null,
+  program_id: null,
+};
+
 beforeEach(() => {
   mockOrgGet.mockReset().mockResolvedValue(sampleOrg);
   mockAdminSummary.mockReset().mockResolvedValue({
@@ -69,6 +101,9 @@ beforeEach(() => {
       { id: 't1', name: 'Tigers', sport: 'Basketball', season: '2026', organization_id: 'org1' },
     ]);
   mockGameList.mockReset().mockResolvedValue([]);
+  mockPrograms.mockReset().mockResolvedValue({
+    programs: [{ id: 'prog1', sport: 'basketball', gender: 'girls', name: null, teams: [] }],
+  });
 });
 
 describe('OrganizationScreen (react-query render smoke)', () => {
@@ -84,5 +119,38 @@ describe('OrganizationScreen (react-query render smoke)', () => {
     // Dependent admin-summary query fires once the page payload marks the
     // viewer as an org admin.
     await waitFor(() => expect(mockAdminSummary).toHaveBeenCalledWith('org1'));
+  });
+
+  it("fully-ungrouped org (no program_id on any team) renders today's flat team row, no program row", async () => {
+    render(
+      <QueryWrapper>
+        <OrganizationScreen />
+      </QueryWrapper>
+    );
+    await waitFor(() => expect(mockOrgGet).toHaveBeenCalledWith('org1'));
+    expect(await screen.findByText('Tigers')).toBeTruthy();
+    expect(screen.queryByText('Girls Basketball')).toBeNull();
+  });
+
+  it('groups teams sharing a program_id into one program row, leaves the ungrouped team its own row', async () => {
+    mockTeamList.mockReset().mockResolvedValue([groupedTeamA, groupedTeamB, ungroupedTeam]);
+
+    render(
+      <QueryWrapper>
+        <OrganizationScreen />
+      </QueryWrapper>
+    );
+    await waitFor(() => expect(mockOrgGet).toHaveBeenCalledWith('org1'));
+
+    // One collapsed program row, not two per-team rows.
+    expect(await screen.findByText('Girls Basketball')).toBeTruthy();
+    expect(screen.queryByText('Varsity Tigers')).toBeNull();
+    expect(screen.queryByText('JV Tigers')).toBeNull();
+    // Teams are name-sorted before grouping ("JV Tigers" < "Varsity Tigers"),
+    // so the level labels follow that same order.
+    expect(await screen.findByText('2 teams · JV, Varsity')).toBeTruthy();
+
+    // Ungrouped team keeps its own per-team row.
+    expect(await screen.findByText('Club Squad')).toBeTruthy();
   });
 });
