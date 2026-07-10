@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { PUBLIC_PRIVACY_POLICY_URL } from '@/constants/legal';
-import { Plan, PLAN_DEFINITIONS, ROOKIE_TEAM_LIMIT } from '@/constants/plans';
+import { Plan, PLAN_DEFINITIONS, ROOKIE_PROGRAM_LIMIT } from '@/constants/plans';
 import { openExternalUrl } from '@/utils/openExternalUrl';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -101,7 +101,7 @@ function getPlanPrice(plan: Plan, storePrice?: string | null): string {
     case 'veteran':
       return isIapRail
         ? `${storePrice || PLAN_DEFINITIONS.veteran.price} per month — unlimited sports`
-        : `${storePrice || PLAN_DEFINITIONS.veteran.price} per month per sport over ${ROOKIE_TEAM_LIMIT} sports`;
+        : `${storePrice || PLAN_DEFINITIONS.veteran.price} per month per sport over ${ROOKIE_PROGRAM_LIMIT} sports`;
     case 'legend':
       return `${storePrice || PLAN_DEFINITIONS.legend.price} per year`;
     case 'rookie':
@@ -118,7 +118,7 @@ function getPlanIncludes(plan: Plan): string {
       return 'Unlimited teams and coaches, extracurricular clubs, and the full VarsityHub league feature set.';
     case 'rookie':
     default:
-      return `Up to ${ROOKIE_TEAM_LIMIT} teams with core VarsityHub league tools.`;
+      return `Up to ${ROOKIE_PROGRAM_LIMIT} sports with core VarsityHub league tools.`;
   }
 }
 

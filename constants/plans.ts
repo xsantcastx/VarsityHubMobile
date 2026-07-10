@@ -22,6 +22,9 @@ interface RawPlanDefinition {
   period: string;
   priceId: string | null;
   max_teams: number | null;
+  // Free sport-program allowance (Phase 4 billing unit). Optional because
+  // only the rookie entry in shared/plan-definitions.json sets it.
+  max_programs?: number | null;
   max_authorized_users_per_team: number | null;
   authorized_users_org_strategy: AuthorizedUsersOrgStrategy;
   supports_extracurricular: boolean;
@@ -40,6 +43,7 @@ export interface PlanDefinition {
   period: string;
   priceId: string | null;
   max_teams: number | null;
+  max_programs: number | null;
   max_authorized_users_per_team: number | null;
   max_authorized_users_org: number | null | ((teamCount: number) => number);
   supports_extracurricular: boolean;
@@ -75,6 +79,7 @@ const mapRawPlan = (raw: RawPlanDefinition): PlanDefinition => {
     period: raw.period,
     priceId: raw.priceId,
     max_teams: raw.max_teams,
+    max_programs: raw.max_programs ?? null,
     max_authorized_users_per_team: raw.max_authorized_users_per_team,
     max_authorized_users_org: orgLimit,
     supports_extracurricular: raw.supports_extracurricular,
@@ -88,6 +93,10 @@ export const PLAN_DEFINITIONS: Record<Plan, PlanDefinition> = Object.fromEntries
 ) as Record<Plan, PlanDefinition>;
 
 export const ROOKIE_TEAM_LIMIT = PLAN_DEFINITIONS.rookie.max_teams ?? 0;
+// Free sport-program allowance (Phase 4 billing unit) — the client mirror of
+// server/src/lib/planDefinitions.ts's SERVER_ROOKIE_PROGRAM_LIMIT. max_teams
+// above is retained but vestigial for billing/metering copy.
+export const ROOKIE_PROGRAM_LIMIT = PLAN_DEFINITIONS.rookie.max_programs ?? 5;
 export const VETERAN_MIN_TOTAL_TEAMS = ROOKIE_TEAM_LIMIT + 1;
 export const VETERAN_MONTHLY_TEAM_PRICE_LABEL = `${PLAN_DEFINITIONS.veteran.price}/month per team over ${ROOKIE_TEAM_LIMIT}`;
 export const LEGEND_YEARLY_PRICE_LABEL = `${PLAN_DEFINITIONS.legend.price}/year`;
@@ -127,7 +136,10 @@ export function normalizePlan(planId: Plan | string | undefined): Plan {
 /**
  * Get maximum authorized users for a plan
  */
-export function getMaxAuthorizedUsers(planId: Plan | string | undefined, teamCount?: number): number | null {
+export function getMaxAuthorizedUsers(
+  planId: Plan | string | undefined,
+  teamCount?: number
+): number | null {
   const plan = getPlanDefinition(planId);
   const limit = plan.max_authorized_users_org;
 

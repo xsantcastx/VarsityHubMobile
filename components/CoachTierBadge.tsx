@@ -8,7 +8,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { Colors } from '@/constants/Colors';
-import { LEGEND_YEARLY_PRICE_LABEL, PLAN_DEFINITIONS, ROOKIE_TEAM_LIMIT } from '@/constants/plans';
+import {
+  LEGEND_YEARLY_PRICE_LABEL,
+  PLAN_DEFINITIONS,
+  ROOKIE_PROGRAM_LIMIT,
+} from '@/constants/plans';
 
 export type CoachTier = 'rookie' | 'veteran' | 'legend';
 
@@ -185,17 +189,17 @@ function getTierBenefits(tier: CoachTier) {
         };
       }
       return {
-        price: `${PLAN_DEFINITIONS.veteran.price}/month per sport over ${ROOKIE_TEAM_LIMIT}`,
+        price: `${PLAN_DEFINITIONS.veteran.price}/month per sport over ${ROOKIE_PROGRAM_LIMIT}`,
         description: 'Flexible pay-per-sport pricing as you grow',
         features: [
-          `Add sports beyond the first ${ROOKIE_TEAM_LIMIT} free`,
+          `Add sports beyond the first ${ROOKIE_PROGRAM_LIMIT} free`,
           'Standard support',
           'Per-team administrators',
           'Silver shield badge on profile',
           'Event scheduling tools',
           'Parent communication',
         ],
-        limitations: `Each sport beyond ${ROOKIE_TEAM_LIMIT} incurs a monthly charge`,
+        limitations: `Each sport beyond ${ROOKIE_PROGRAM_LIMIT} incurs a monthly charge`,
       };
     }
     case 'rookie':
@@ -204,7 +208,7 @@ function getTierBenefits(tier: CoachTier) {
         price: 'Free',
         description: 'Perfect for getting started',
         features: [
-          `First ${ROOKIE_TEAM_LIMIT} teams free`,
+          `First ${ROOKIE_PROGRAM_LIMIT} sports free`,
           'Ex: Mens and Womens soccer',
           'Basic scheduling',
           'Roster management',
@@ -212,7 +216,7 @@ function getTierBenefits(tier: CoachTier) {
           'Photo/video sharing',
           'Community support',
         ],
-        limitations: `Limited to ${ROOKIE_TEAM_LIMIT} teams maximum`,
+        limitations: `Limited to ${ROOKIE_PROGRAM_LIMIT} sports maximum`,
       };
   }
 }
