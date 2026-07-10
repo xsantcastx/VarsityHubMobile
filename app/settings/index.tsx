@@ -841,8 +841,16 @@ export default function SettingsScreen() {
             />
             <NavRow
               title="Privacy Policy"
-              isLast
               onPress={() => void router.push('/settings/privacy-policy')}
+            />
+            <NavRow
+              title="Terms of Service"
+              onPress={() => void router.push('/settings/terms-of-service')}
+            />
+            <NavRow
+              title="Copyright & DMCA"
+              isLast
+              onPress={() => void router.push('/settings/dmca')}
             />
           </SectionCard>
 

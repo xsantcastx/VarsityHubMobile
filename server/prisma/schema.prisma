@@ -211,6 +211,8 @@ model User {
   proceeding_as_fan           Boolean   @default(false)
   coach_agreement_accepted_at DateTime?
   coach_agreement_version     Int?
+  terms_accepted_at           DateTime?
+  terms_version               Int?
 
   // ── Canonical billing/onboarding state (replaces payment JSON reads) ──
   plan             MembershipPlan  @default(rookie)

@@ -583,6 +583,11 @@ const passwordRequirement = z
     message: 'Password must contain at least one letter and one number',
   });
 
+// Current Terms of Service version. Stamped onto User.terms_version at
+// registration; bump when the ToS (app/settings/terms-of-service.tsx) changes
+// materially so we can tell which users accepted which version.
+const CURRENT_TERMS_VERSION = 1;
+
 const registerSchema = z.object({
   email: z.string().trim().email(),
   password: passwordRequirement,
@@ -705,6 +710,12 @@ authRouter.post(
           email_verification_code: codeHash,
           email_verification_expires: exp,
           preferences: initialPreferences,
+          // Record ToS acceptance: the signup form gates submission on the
+          // "I agree to the Terms of Service and Privacy Policy" checkbox, so a
+          // successful registration is an affirmative agreement. Bump
+          // CURRENT_TERMS_VERSION when the ToS changes materially.
+          terms_accepted_at: new Date(),
+          terms_version: CURRENT_TERMS_VERSION,
           ...buildAuthStateColumns(authStatePatch),
           ...(dobColumnWrite ? deriveParentalConsentFields(dobColumnWrite.date_of_birth) : {}),
           ...(dobColumnWrite ?? {}),
