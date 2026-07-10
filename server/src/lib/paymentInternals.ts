@@ -427,7 +427,7 @@ export function resolveVeteranQuantityUpdate(
     requestedTotal,
     minAllowedTotal,
     maxAllowedTotal,
-    billableQuantity: Math.max(0, requestedTotal - SERVER_ROOKIE_TEAM_LIMIT),
+    billableQuantity: Math.max(0, requestedTotal - SERVER_ROOKIE_PROGRAM_LIMIT),
     allowed: requestedTotal >= minAllowedTotal && requestedTotal <= maxAllowedTotal,
   };
 }

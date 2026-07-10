@@ -86,22 +86,23 @@ describe('Veteran billing snapshot', () => {
     expect(getVeteranTotalTeamAllowance(2)).toBe(7);
   });
 
-  it('only allows quantity updates for the current total or next team', () => {
-    expect(resolveVeteranQuantityUpdate(5, 5)).toMatchObject({
-      minAllowedTotal: 5,
-      maxAllowedTotal: 6,
+  it('only allows quantity updates for the current total or next sport (5-program free floor)', () => {
+    // A paying veteran has ≥6 programs (5 free + ≥1 billable). billable = total − 5.
+    expect(resolveVeteranQuantityUpdate(6, 6)).toMatchObject({
+      minAllowedTotal: 6,
+      maxAllowedTotal: 7,
       billableQuantity: 1,
       allowed: true,
     });
-    expect(resolveVeteranQuantityUpdate(5, 6)).toMatchObject({
-      minAllowedTotal: 5,
-      maxAllowedTotal: 6,
+    expect(resolveVeteranQuantityUpdate(6, 7)).toMatchObject({
+      minAllowedTotal: 6,
+      maxAllowedTotal: 7,
       billableQuantity: 2,
       allowed: true,
     });
-    expect(resolveVeteranQuantityUpdate(5, 7)).toMatchObject({
-      minAllowedTotal: 5,
-      maxAllowedTotal: 6,
+    expect(resolveVeteranQuantityUpdate(6, 8)).toMatchObject({
+      minAllowedTotal: 6,
+      maxAllowedTotal: 7,
       billableQuantity: 3,
       allowed: false,
     });

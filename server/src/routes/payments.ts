@@ -35,6 +35,7 @@ import {
 import {
   SERVER_LEGEND_PRICE_CENTS,
   SERVER_LEGEND_PRICE_LABEL,
+  SERVER_ROOKIE_PROGRAM_LIMIT,
   SERVER_ROOKIE_TEAM_LIMIT,
   SERVER_VETERAN_MIN_TOTAL_TEAMS,
   SERVER_VETERAN_PRICE_CENTS,
@@ -1281,13 +1282,13 @@ async function createMembershipCheckoutSession(
     if (actualTeamCount < SERVER_VETERAN_MIN_TOTAL_TEAMS) {
       throw membershipError(
         400,
-        `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams (first ${SERVER_ROOKIE_TEAM_LIMIT} are free)`
+        `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total sports (first ${SERVER_ROOKIE_PROGRAM_LIMIT} are free)`
       );
     }
     if (billableQuantity === 0) {
       throw membershipError(
         400,
-        `Select at least one billable team (${SERVER_VETERAN_MIN_TOTAL_TEAMS} total) to use Veteran plan`
+        `Select at least one billable sport (${SERVER_VETERAN_MIN_TOTAL_TEAMS} total) to use Veteran plan`
       );
     }
   }
@@ -1387,7 +1388,7 @@ async function createMembershipCheckoutSession(
               name: 'Membership - ' + chosen,
               description:
                 chosen === 'veteran'
-                  ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
+                  ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_PROGRAM_LIMIT} free)`
                   : `Legend plan - ${SERVER_LEGEND_PRICE_LABEL} unlimited`,
             },
           },
@@ -2061,7 +2062,7 @@ paymentsRouter.post(
                   name: 'Membership - ' + chosen,
                   description:
                     chosen === 'veteran'
-                      ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
+                      ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_PROGRAM_LIMIT} free)`
                       : `Legend plan - ${SERVER_LEGEND_PRICE_LABEL} unlimited`,
                 },
               },
