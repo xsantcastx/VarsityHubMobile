@@ -145,7 +145,7 @@ describe('GET /programs/:id/screen-summary', () => {
       .catch(() => {});
   });
 
-  it('returns the program, its levels in canonical order, and a distinct follower count', async () => {
+  it('returns the program and its levels in canonical order; a direct level-team follow does not count as following the program', async () => {
     const res = await request(app)
       .get(`/programs/${programId}/screen-summary`)
       .set('Authorization', `Bearer ${followerToken}`);
@@ -155,21 +155,70 @@ describe('GET /programs/:id/screen-summary', () => {
     // The private freshman team is hidden from `follower` (they don't follow it).
     expect(res.body.levels.map((l: any) => l.level)).toEqual(['varsity', 'jv']);
     expect(res.body.levels[0].team.id).toBe(varsityTeamId);
-    // Union of distinct followers across all level teams = {follower, follower2} = 2.
-    expect(res.body.program.followers_count).toBe(2);
-    expect(res.body.program.is_following).toBe(true);
+    // INTENT semantics (flipped from the old union-over-TeamFollow model):
+    // `follower` only has a direct TeamFollow row on the JV team — no
+    // ProgramFollow row — so they do NOT count as following the program, and
+    // no ProgramFollow rows exist anywhere in the suite yet.
+    expect(res.body.program.followers_count).toBe(0);
+    expect(res.body.program.is_following).toBe(false);
     expect(res.body.counts.teams).toBe(2);
   });
 
-  it('counts distinct follower users, not follow rows (union semantics)', async () => {
-    // follower2 follows THREE level teams but must count once. A plain row
-    // count would report 4 (1 for follower + 3 for follower2); groupBy(user_id)
-    // reports 2.
-    const res = await request(app)
+  it('followers_count is the ProgramFollow count, not a union over level-team followers', async () => {
+    // Dedicated fresh users so this test is self-contained and order-independent.
+    const passwordHash = await bcrypt.hash('TestPassword123!', 10);
+    const mk = async (label: string) => {
+      const u = await prisma.user.create({
+        data: {
+          email: `program-summary-intent-${label}-${ts}@example.com`,
+          password_hash: passwordHash,
+          display_name: `Program Summary Intent ${label}`,
+          email_verified: true,
+          role: 'coach',
+          onboarding_completed: true,
+          approval_status: 'APPROVED',
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+        },
+      });
+      return { id: u.id, token: signJwt({ id: u.id }) };
+    };
+    const userA = await mk('a'); // follows the PROGRAM (writes a ProgramFollow row)
+    const userB = await mk('b'); // follows only a level team directly (no ledger row)
+
+    await request(app)
+      .post(`/programs/${programId}/follow`)
+      .set('Authorization', `Bearer ${userA.token}`)
+      .expect(200);
+    await prisma.teamFollow.create({ data: { user_id: userB.id, team_id: jvTeamId } });
+
+    const resA = await request(app)
       .get(`/programs/${programId}/screen-summary`)
-      .set('Authorization', `Bearer ${strangerToken}`);
-    expect(res.status).toBe(200);
-    expect(res.body.program.followers_count).toBe(2);
+      .set('Authorization', `Bearer ${userA.token}`);
+    expect(resA.status).toBe(200);
+    // Only userA has a ProgramFollow row — userB's direct TeamFollow does not
+    // contribute to the count under intent semantics.
+    expect(resA.body.program.followers_count).toBe(1);
+    expect(resA.body.program.is_following).toBe(true);
+
+    const resB = await request(app)
+      .get(`/programs/${programId}/screen-summary`)
+      .set('Authorization', `Bearer ${userB.token}`);
+    expect(resB.status).toBe(200);
+    expect(resB.body.program.followers_count).toBe(1);
+    expect(resB.body.program.is_following).toBe(false);
+
+    // Cleanup: fully undo so later tests in this suite see a clean slate.
+    await request(app)
+      .delete(`/programs/${programId}/follow`)
+      .set('Authorization', `Bearer ${userA.token}`)
+      .expect(200);
+    await prisma.teamFollow.deleteMany({ where: { user_id: userB.id } });
+    await prisma.user.deleteMany({ where: { id: { in: [userA.id, userB.id] } } });
   });
 
   it('a viewer who follows no level team is not following the program', async () => {
@@ -177,7 +226,8 @@ describe('GET /programs/:id/screen-summary', () => {
       .get(`/programs/${programId}/screen-summary`)
       .set('Authorization', `Bearer ${strangerToken}`);
     expect(res.body.program.is_following).toBe(false);
-    expect(res.body.program.followers_count).toBe(2);
+    // No ProgramFollow rows exist at this point in the suite.
+    expect(res.body.program.followers_count).toBe(0);
   });
 
   it('excludes a private level team from a stranger, includes it for a follower of it', async () => {

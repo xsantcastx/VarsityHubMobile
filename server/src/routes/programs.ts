@@ -44,9 +44,6 @@ programsRouter.get(
     });
     if (!program) return sendError(res, 404, 'Program not found');
 
-    // All active level teams — used for the union follower stats (below).
-    const allTeamIds = program.teams.map(t => t.id);
-
     // Per-team privacy gate: drop level teams the viewer isn't allowed to see
     // (private teams they don't follow / aren't a member of / aren't an org
     // admin for). Mirrors GET /teams/:id/screen-summary. A fully-hidden
@@ -57,16 +54,13 @@ programsRouter.get(
     const visibleTeams = program.teams.filter((_, i) => !hiddenFlags[i]);
     const visibleTeamIds = visibleTeams.map(t => t.id);
 
-    // Follower stats stay over ALL active level teams: follow state is not
-    // private information, and the union semantics must be viewer-stable.
-    const [followerRows, viewerFollow, games] = await Promise.all([
-      allTeamIds.length
-        ? prisma.teamFollow.groupBy({ by: ['user_id'], where: { team_id: { in: allTeamIds } } })
-        : Promise.resolve([] as { user_id: string }[]),
-      viewerId && allTeamIds.length
-        ? prisma.teamFollow.findFirst({
-            where: { user_id: viewerId, team_id: { in: allTeamIds } },
-            select: { team_id: true },
+    // Follower stats are intent-based: a ProgramFollow row IS "follows the
+    // program." Not a union over level-team TeamFollow rows.
+    const [followersCount, viewerFollow, games] = await Promise.all([
+      prisma.programFollow.count({ where: { program_id: programId } }),
+      viewerId
+        ? prisma.programFollow.findUnique({
+            where: { user_id_program_id: { user_id: viewerId, program_id: programId } },
           })
         : Promise.resolve(null),
       visibleTeamIds.length
@@ -116,7 +110,7 @@ programsRouter.get(
         name: program.name,
         logo_url: program.logo_url,
         created_at: program.created_at.toISOString(),
-        followers_count: followerRows.length,
+        followers_count: followersCount,
         is_following: !!viewerFollow,
         organization: program.organization ?? null,
       },
