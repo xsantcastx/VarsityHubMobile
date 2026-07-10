@@ -1,17 +1,11 @@
 import type { AdStatus, Prisma } from '@prisma/client';
 import type { Stripe } from 'stripe';
 import { debugLog } from './debugLog.js';
-import {
-    SERVER_ROOKIE_TEAM_LIMIT,
-    SERVER_VETERAN_MIN_TOTAL_TEAMS,
-} from './planDefinitions.js';
+import { SERVER_ROOKIE_TEAM_LIMIT, SERVER_VETERAN_MIN_TOTAL_TEAMS } from './planDefinitions.js';
 import { getMaxTeamsForPlan } from './planLimits.js';
 import { prisma } from './prisma.js';
 import { captureException } from './sentry.js';
-import {
-    buildBillingStateColumns,
-    mergeBillingStateIntoPreferences
-} from './userBillingState.js';
+import { buildBillingStateColumns, mergeBillingStateIntoPreferences } from './userBillingState.js';
 import { invalidateMeCacheForUser } from './userCache.js';
 import { WEEKDAY_BLOCK_PRICE_CENTS, WEEKEND_BLOCK_PRICE_CENTS } from '../utils/adPricing.js';
 const MAX_AD_SLOTS = 2;
@@ -35,11 +29,16 @@ export function decodeAdDates(raw: string | null | undefined): string[] {
   if (!raw) return [];
   const s = String(raw).trim();
   if (s.startsWith('[')) {
-    try { return JSON.parse(s); } catch { return []; }
+    try {
+      return JSON.parse(s);
+    } catch {
+      return [];
+    }
   }
-  return s.split(',').filter(Boolean).map(d =>
-    `20${d.slice(0, 2)}-${d.slice(2, 4)}-${d.slice(4, 6)}`
-  );
+  return s
+    .split(',')
+    .filter(Boolean)
+    .map(d => `20${d.slice(0, 2)}-${d.slice(2, 4)}-${d.slice(4, 6)}`);
 }
 
 const formatUsd = (cents?: number | null) => {
@@ -59,12 +58,13 @@ async function getStripe(): Promise<Stripe> {
     throw new Error('STRIPE_SECRET_KEY is not configured — cannot initialize Stripe client');
   }
   if (!stripePromise) {
-    stripePromise = import('stripe').then(({ default: StripeCtor }) =>
-      new StripeCtor(secretKey, {
-        apiVersion: '2024-06-20',
-        timeout: 20000,
-        maxNetworkRetries: 2,
-      })
+    stripePromise = import('stripe').then(
+      ({ default: StripeCtor }) =>
+        new StripeCtor(secretKey, {
+          apiVersion: '2024-06-20',
+          timeout: 20000,
+          maxNetworkRetries: 2,
+        })
     );
   }
   return stripePromise;
@@ -132,7 +132,7 @@ export async function sendAdPaymentEmail({
     hoursLabel = `${hoursRemaining} hrs (${dates.length} day${dates.length !== 1 ? 's' : ''})`;
   }
 
-  const formattedDates = [...dates].sort().map((d) => {
+  const formattedDates = [...dates].sort().map(d => {
     try {
       return new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', {
         weekday: 'short',
@@ -180,13 +180,17 @@ async function sendSubscriptionEmail({
   void totalCents;
 }
 
-function resolvePlanFromStripeSubscription(subscription: Stripe.Subscription): 'veteran' | 'legend' | null {
+function resolvePlanFromStripeSubscription(
+  subscription: Stripe.Subscription
+): 'veteran' | 'legend' | null {
   const priceId = subscription.items?.data?.[0]?.price?.id;
   if (priceId === process.env.STRIPE_PRICE_VETERAN) return 'veteran';
   if (priceId === process.env.STRIPE_PRICE_LEGEND) return 'legend';
 
   const metadataPlan =
-    typeof subscription.metadata?.plan === 'string' ? subscription.metadata.plan.trim().toLowerCase() : '';
+    typeof subscription.metadata?.plan === 'string'
+      ? subscription.metadata.plan.trim().toLowerCase()
+      : '';
   if (metadataPlan === 'veteran' || metadataPlan === 'legend') return metadataPlan;
 
   return null;
@@ -222,7 +226,9 @@ export async function syncStripeSubscriptionState(
 ) {
   const { updateTransactionStatus } = await getTransactionLoggerFns();
   const subCustomerId =
-    typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id || null;
+    typeof subscription.customer === 'string'
+      ? subscription.customer
+      : subscription.customer?.id || null;
 
   if (!subCustomerId) {
     throw new Error('Missing customer ID');
@@ -315,12 +321,15 @@ export async function syncStripeSubscriptionState(
     });
 
     updateData.preferences = syncedPrefs;
-    Object.assign(updateData, buildBillingStateColumns({
-      plan: resolvedPlan,
-      pending_plan: null,
-      payment_pending: false,
-      payment_approved: false,
-    }));
+    Object.assign(
+      updateData,
+      buildBillingStateColumns({
+        plan: resolvedPlan,
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+      })
+    );
 
     const maxTeams = getMaxTeamsForPlan(resolvedPlan);
     updateData.max_teams = maxTeams ?? 999;
@@ -351,7 +360,11 @@ export async function syncStripeSubscriptionState(
       const stripe = await getStripe();
       await stripe.subscriptions.cancel(String(oldSubId));
     } catch (cancelErr: any) {
-      console.warn('[payments] Old subscription cancel failed after new entitlement activated:', oldSubId, cancelErr?.message || cancelErr);
+      console.warn(
+        '[payments] Old subscription cancel failed after new entitlement activated:',
+        oldSubId,
+        cancelErr?.message || cancelErr
+      );
     }
   }
 
@@ -432,7 +445,7 @@ export async function releaseAdInventoryAfterSlotFullRefundWithRetry(adId: strin
     } catch (error) {
       lastError = error;
       if (attempt < 3) {
-        await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+        await new Promise(resolve => setTimeout(resolve, 250 * attempt));
       }
     }
   }
@@ -466,13 +479,10 @@ function buildAppleReceiptReuseError() {
 }
 
 export function normalizeAppleTransactionIds(ids: Array<string | null | undefined>) {
-  return Array.from(new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))).sort();
+  return Array.from(new Set(ids.map(id => String(id || '').trim()).filter(Boolean))).sort();
 }
 
-export function mergeTransactionMetadata(
-  existing: unknown,
-  next: Record<string, unknown>,
-) {
+export function mergeTransactionMetadata(existing: unknown, next: Record<string, unknown>) {
   return {
     ...(existing && typeof existing === 'object' ? (existing as Record<string, unknown>) : {}),
     ...next,
@@ -506,7 +516,7 @@ export async function reserveAdSlots(
     isoDates: string[];
     paymentStatus: 'hold' | 'paid';
     status?: AdStatus;
-  },
+  }
 ) {
   if (params.targetZipCode) {
     const competingAds = await tx.ad.findMany({
@@ -519,15 +529,15 @@ export async function reserveAdSlots(
       take: 100,
     });
     if (competingAds.length > 0) {
-      const dateObjects = params.isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+      const dateObjects = params.isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
       const bookedSlots = await tx.adReservation.groupBy({
         by: ['date'],
-        where: { ad_id: { in: competingAds.map((a) => a.id) }, date: { in: dateObjects } },
+        where: { ad_id: { in: competingAds.map(a => a.id) }, date: { in: dateObjects } },
         _count: { date: true },
       });
       const fullDates = bookedSlots
-        .filter((slot) => slot._count.date >= MAX_AD_SLOTS)
-        .map((slot) => slot.date.toISOString().slice(0, 10));
+        .filter(slot => slot._count.date >= MAX_AD_SLOTS)
+        .map(slot => slot.date.toISOString().slice(0, 10));
       if (fullDates.length > 0) {
         throw buildSlotFullError(fullDates);
       }
@@ -542,7 +552,7 @@ export async function reserveAdSlots(
     },
   });
   await tx.adReservation.createMany({
-    data: params.isoDates.map((s) => ({ ad_id: params.adId, date: new Date(s + 'T00:00:00.000Z') })),
+    data: params.isoDates.map(s => ({ ad_id: params.adId, date: new Date(s + 'T00:00:00.000Z') })),
     skipDuplicates: true,
   });
 }
@@ -680,13 +690,8 @@ export async function finalizeAppleSubscriptionPurchase(params: {
   });
   const currentPrefs =
     user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
-  const {
-    payment_pending,
-    payment_approved,
-    pending_plan,
-    join_request_pending,
-    ...restPrefs
-  } = currentPrefs;
+  const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } =
+    currentPrefs;
   void payment_pending;
   void payment_approved;
   void pending_plan;
@@ -706,7 +711,7 @@ export async function finalizeAppleSubscriptionPurchase(params: {
   });
 
   try {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async tx => {
       await tx.user.update({
         where: { id: params.userId },
         data: {
@@ -806,7 +811,7 @@ function claimMatchesPurchase(
     userId: string;
     adId?: string | null;
     orderId?: string | null;
-  },
+  }
 ) {
   return (
     claim.transaction_type === expected.transactionType &&
@@ -825,10 +830,10 @@ async function reserveAppleTransactionClaims(
     adId: string;
     orderId: string;
     metadata?: Record<string, unknown>;
-  },
+  }
 ) {
   const normalizedIds = Array.from(
-    new Set(params.appleTransactionIds.map((id) => String(id).trim()).filter(Boolean))
+    new Set(params.appleTransactionIds.map(id => String(id).trim()).filter(Boolean))
   ).sort();
   if (normalizedIds.length === 0) {
     const error = new Error('APPLE_TRANSACTION_IDS_REQUIRED');
@@ -852,13 +857,13 @@ async function reserveAppleTransactionClaims(
     take: normalizedIds.length,
   });
 
-  const conflictingClaim = existingClaims.find((claim) => !claimMatchesPurchase(claim, params));
+  const conflictingClaim = existingClaims.find(claim => !claimMatchesPurchase(claim, params));
   if (conflictingClaim) {
     throw buildAppleTransactionClaimConflictError();
   }
 
-  const existingIds = new Set(existingClaims.map((claim) => claim.apple_transaction_id));
-  const missingIds = normalizedIds.filter((id) => !existingIds.has(id));
+  const existingIds = new Set(existingClaims.map(claim => claim.apple_transaction_id));
+  const missingIds = normalizedIds.filter(id => !existingIds.has(id));
 
   for (const appleTransactionId of missingIds) {
     try {
@@ -907,7 +912,7 @@ export async function finalizeAppleAdPurchase(params: {
   receiptsCount: number;
 }) {
   return prisma.$transaction(
-    async (tx) => {
+    async tx => {
       const orderId = String(params.adId);
       const claimResult = await reserveAppleTransactionClaims(tx, {
         appleTransactionIds: params.appleTransactionIds,
@@ -1043,7 +1048,7 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
     });
     try {
       await prisma.$transaction(
-        async (tx) => {
+        async tx => {
           const adRecord = await tx.ad.findUnique({
             where: { id: ad_id },
             select: { target_zip_code: true },
@@ -1059,17 +1064,20 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
               take: 100,
             });
             if (reservedAdsInZip.length > 0) {
-              const dateObjects = dates.map((s) => new Date(s + 'T00:00:00.000Z'));
+              const dateObjects = dates.map(s => new Date(s + 'T00:00:00.000Z'));
               const bookedSlots = await tx.adReservation.groupBy({
                 by: ['date'],
-                where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+                where: {
+                  ad_id: { in: reservedAdsInZip.map(a => a.id) },
+                  date: { in: dateObjects },
+                },
                 _count: { date: true },
               });
-              const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+              const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
               if (fullDates.length > 0) {
                 const err = new Error('SLOT_FULL') as any;
                 err.slotFull = true;
-                err.dates = fullDates.map((s) => s.date.toISOString().slice(0, 10));
+                err.dates = fullDates.map(s => s.date.toISOString().slice(0, 10));
                 throw err;
               }
             }
@@ -1086,7 +1094,9 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
             return;
           }
           if (!adCheck || (adCheck.status !== 'approved' && adCheck.status !== 'active')) {
-            throw new Error(`AD_NOT_APPROVED: Ad ${ad_id} status is ${adCheck?.status}, cannot activate`);
+            throw new Error(
+              `AD_NOT_APPROVED: Ad ${ad_id} status is ${adCheck?.status}, cannot activate`
+            );
           }
 
           const updated = await tx.ad.updateMany({
@@ -1094,10 +1104,12 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
             data: { payment_status: 'paid', status: 'active' },
           });
           if (updated.count === 0) {
-            throw new Error(`AD_NOT_APPROVED: Ad ${ad_id} was no longer approved at activation time`);
+            throw new Error(
+              `AD_NOT_APPROVED: Ad ${ad_id} was no longer approved at activation time`
+            );
           }
           await tx.adReservation.createMany({
-            data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })),
+            data: dates.map(s => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })),
             skipDuplicates: true,
           });
         },
@@ -1118,8 +1130,11 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
         totalCents: session.amount_total ?? null,
         businessName: adForEmail?.business_name,
         zipCode: adForEmail?.target_zip_code,
-      }).catch((err) =>
-        console.warn('[payments] Stripe webhook ad payment receipt failed:', (err as any)?.message || err)
+      }).catch(err =>
+        console.warn(
+          '[payments] Stripe webhook ad payment receipt failed:',
+          (err as any)?.message || err
+        )
       );
     } catch (e: any) {
       if (e?.slotFull) {
@@ -1179,7 +1194,7 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
                 perks: [
                   `Your selected dates in zip code ${adForRefund?.target_zip_code || 'N/A'} were fully booked. You have been fully refunded $${(totalCents / 100).toFixed(2)}.`,
                 ],
-              }).catch((err) => {
+              }).catch(err => {
                 captureException(err as Error, {
                   context: 'slot_full_refund_email_session',
                   sessionId: session.id,
@@ -1202,7 +1217,11 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
             sessionId: session.id,
           });
           await updateTransactionStatus(session.id, 'FAILED', {
-            metadata: { reason: 'slot_full_refund_failed', overbooked_dates: e.dates, refund_failed: true },
+            metadata: {
+              reason: 'slot_full_refund_failed',
+              overbooked_dates: e.dates,
+              refund_failed: true,
+            },
           }).catch(() => {});
           throw refundErr;
         }
@@ -1375,7 +1394,7 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
         redeemed = true;
         break;
       } catch {
-        if (attempt < 3) await new Promise((r) => setTimeout(r, 500 * attempt));
+        if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
       }
     }
     if (!redeemed) {
