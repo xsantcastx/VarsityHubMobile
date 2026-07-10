@@ -33,7 +33,15 @@ import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
-import { SPORT_LABELS } from '@/constants/sports';
+import {
+  GENDER_OPTIONS,
+  LEVEL_OPTIONS,
+  formatProgramLabel,
+  type ProgramGender,
+  type TeamLevel,
+} from '@/constants/programs';
+import { SPORT_LABELS, SPORT_OPTIONS } from '@/constants/sports';
+import { useOrgProgramsQuery, type OrgProgram } from '@/hooks/useOrgProgramsQuery';
 import { getAuthSnapshot } from '@/utils/authState';
 import { getCanonicalBillingState } from '@/utils/billingState';
 import { handleCoachAccessError } from '@/utils/coachAccess';
@@ -80,6 +88,27 @@ type UserOrgPreference = {
     teams?: number;
   };
 };
+
+// Maps a sport picker label (e.g. "Soccer") to its canonical taxonomy slug.
+// Returns null for 'Other'/custom sport labels — those have no canonical
+// slug, so program creation is skipped for them (team created ungrouped).
+export function sportLabelToSlug(label: string): string | null {
+  if (!label || label === 'Other') return null;
+  const match = SPORT_OPTIONS.find(option => option.label === label);
+  return match ? match.slug : null;
+}
+
+// Pure helper: derives the program_id/level fields merged into the team
+// create payload. Kept outside the component so it can be unit tested
+// directly — see __tests__/create-team-program-payload.test.ts.
+export function buildProgramFields(opts: {
+  selectedProgramId: string | null;
+  createdProgramId: string | null;
+  level: TeamLevel | null;
+}): { program_id?: string; level?: TeamLevel } {
+  const program_id = opts.selectedProgramId ?? opts.createdProgramId ?? undefined;
+  return { ...(program_id ? { program_id } : {}), ...(opts.level ? { level: opts.level } : {}) };
+}
 
 const normalizePlanTier = (tier?: string | null) => {
   const value = String(tier ?? 'rookie').toLowerCase();
@@ -131,6 +160,10 @@ function CreateTeamScreen() {
   const [teamColor, setTeamColor] = useState(''); // Team primary color
   const [organizationName, setOrganizationName] = useState(''); // School/organization name
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
+  const [creatingProgram, setCreatingProgram] = useState(false);
+  const [newProgramGender, setNewProgramGender] = useState<ProgramGender | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<TeamLevel | null>(null);
   const [orgSearchResults, setOrgSearchResults] = useState<
     Array<{ id: string; name: string; description?: string }>
   >([]);
@@ -172,6 +205,46 @@ function CreateTeamScreen() {
   }, [authUser, canAccessCreateTeam, createTeamAccessLoading, router]);
 
   const sports = SPORT_LABELS;
+
+  const { data: orgPrograms, refetch: refetchOrgPrograms } = useOrgProgramsQuery({
+    organizationId: selectedOrgId,
+    enabled: !!selectedOrgId && clubType === 'sport',
+  });
+
+  // A program is scoped to one organization — drop any selection made under
+  // a previous org so a stale program_id can't attach to the new org's team.
+  useEffect(() => {
+    setSelectedProgramId(null);
+    setCreatingProgram(false);
+    setNewProgramGender(null);
+    setSelectedLevel(null);
+  }, [selectedOrgId]);
+
+  const handleSelectProgram = useCallback(
+    (program: OrgProgram) => {
+      if (selectedProgramId === program.id) {
+        setSelectedProgramId(null);
+        return;
+      }
+      setSelectedProgramId(program.id);
+      setCreatingProgram(false);
+      setNewProgramGender(null);
+      // Prefill/lock the sport picker to the program's sport.
+      const sportOption = SPORT_OPTIONS.find(option => option.slug === program.sport);
+      if (sportOption) setSport(sportOption.label);
+    },
+    [selectedProgramId]
+  );
+
+  const handleToggleNewProgram = useCallback(() => {
+    if (creatingProgram) {
+      setCreatingProgram(false);
+      setNewProgramGender(null);
+      return;
+    }
+    setCreatingProgram(true);
+    setSelectedProgramId(null);
+  }, [creatingProgram]);
 
   // Predefined team colors
   const teamColors = [
@@ -549,6 +622,62 @@ function CreateTeamScreen() {
       }
       // Team creation now requires an approved organization selection.
 
+      // If the coach is starting a brand-new program, create it first so its
+      // id can be attached to the team below. A canonical sport slug is
+      // required — 'Other'/custom sports have none, so program creation is
+      // skipped for them and the team is created ungrouped (today's behavior).
+      let createdProgramId: string | null = null;
+      if (clubType === 'sport' && creatingProgram && newProgramGender && selectedOrgId) {
+        const sportSlug = sportLabelToSlug(sport);
+        if (sportSlug) {
+          try {
+            const programResponse: any = await Organization.createProgram(selectedOrgId, {
+              sport: sportSlug,
+              gender: newProgramGender,
+            });
+            createdProgramId = programResponse?.program?.id ?? null;
+          } catch (error: unknown) {
+            const err = error as ApiErrorLike;
+            const isProgramExists =
+              err?.status === 409 &&
+              (err?.data?.code === 'PROGRAM_EXISTS' || err?.data?.error === 'PROGRAM_EXISTS');
+            if (isProgramExists) {
+              // Someone else created the same (sport, gender) program first —
+              // recover by refetching and using the existing one instead of
+              // failing team creation.
+              try {
+                const refreshed = await refetchOrgPrograms();
+                const match = (refreshed?.data ?? []).find(
+                  (p: OrgProgram) => p.sport === sportSlug && p.gender === newProgramGender
+                );
+                createdProgramId = match?.id ?? null;
+              } catch (refetchError) {
+                if (__DEV__)
+                  console.warn(
+                    '[create-team] failed to refetch programs after PROGRAM_EXISTS',
+                    refetchError
+                  );
+              }
+            } else {
+              if (__DEV__)
+                console.warn(
+                  '[create-team] program creation failed — creating team ungrouped',
+                  err
+                );
+            }
+          }
+        }
+      }
+
+      const programFields =
+        clubType === 'sport'
+          ? buildProgramFields({
+              selectedProgramId,
+              createdProgramId,
+              level: selectedLevel,
+            })
+          : {};
+
       const teamData = {
         name: sanitizeText(name),
         description: sanitizeText(description) || undefined,
@@ -565,6 +694,7 @@ function CreateTeamScreen() {
         primary_color: teamColor || undefined,
         organization_id: selectedOrgId || undefined,
         logo_url: logoUrl || undefined, // Use uploaded URL
+        ...programFields,
       };
 
       const response = await Team.create(teamData);
@@ -1213,12 +1343,22 @@ function CreateTeamScreen() {
                                     sport === sportOption
                                       ? Colors[colorScheme].tint
                                       : Colors[colorScheme].border,
+                                  opacity: selectedProgramId ? 0.5 : 1,
                                 },
                               ]}
-                              onPress={() => setSport(sport === sportOption ? '' : sportOption)}
+                              onPress={() => {
+                                // Sport is locked while an existing program is
+                                // selected — unselect the program to free it.
+                                if (selectedProgramId) return;
+                                setSport(sport === sportOption ? '' : sportOption);
+                              }}
+                              disabled={!!selectedProgramId}
                               accessibilityRole="button"
                               accessibilityLabel={sportOption}
-                              accessibilityState={{ selected: sport === sportOption }}
+                              accessibilityState={{
+                                selected: sport === sportOption,
+                                disabled: !!selectedProgramId,
+                              }}
                               children={[
                                 <Text
                                   key={`${sportOption}-text`}
@@ -1572,6 +1712,249 @@ function CreateTeamScreen() {
                       ) : null,
                     ]}
                   />,
+
+                  selectedOrgId && clubType === 'sport' ? (
+                    <View
+                      key="program-group"
+                      style={styles.fieldGroup}
+                      children={[
+                        <Text
+                          key="program-label"
+                          style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}
+                        >
+                          Program
+                        </Text>,
+                        <Text
+                          key="program-hint"
+                          style={[
+                            styles.fieldHint,
+                            { color: Colors[colorScheme].mutedText, marginBottom: 8 },
+                          ]}
+                        >
+                          Group this team under an existing program, or start a new one
+                        </Text>,
+                        <RNScrollView
+                          key="program-options"
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={{ paddingHorizontal: 4 }}
+                          children={[
+                            ...(orgPrograms ?? []).map(program => (
+                              <Pressable
+                                key={program.id}
+                                style={[
+                                  styles.chipButton,
+                                  {
+                                    backgroundColor:
+                                      selectedProgramId === program.id
+                                        ? Colors[colorScheme].tint
+                                        : Colors[colorScheme].surface,
+                                    borderColor:
+                                      selectedProgramId === program.id
+                                        ? Colors[colorScheme].tint
+                                        : Colors[colorScheme].border,
+                                  },
+                                ]}
+                                onPress={() => handleSelectProgram(program)}
+                                accessibilityRole="button"
+                                accessibilityLabel={formatProgramLabel(program)}
+                                accessibilityState={{ selected: selectedProgramId === program.id }}
+                                children={[
+                                  <Text
+                                    key={`${program.id}-text`}
+                                    style={[
+                                      styles.chipText,
+                                      {
+                                        color:
+                                          selectedProgramId === program.id
+                                            ? '#fff'
+                                            : Colors[colorScheme].text,
+                                      },
+                                    ]}
+                                  >
+                                    {formatProgramLabel(program)}
+                                  </Text>,
+                                ]}
+                              />
+                            )),
+                            <Pressable
+                              key="program-new-chip"
+                              style={[
+                                styles.chipButton,
+                                {
+                                  backgroundColor: creatingProgram
+                                    ? Colors[colorScheme].tint
+                                    : Colors[colorScheme].surface,
+                                  borderColor: creatingProgram
+                                    ? Colors[colorScheme].tint
+                                    : Colors[colorScheme].border,
+                                },
+                              ]}
+                              onPress={handleToggleNewProgram}
+                              accessibilityRole="button"
+                              accessibilityLabel="New program"
+                              accessibilityState={{ selected: creatingProgram }}
+                              children={[
+                                <Text
+                                  key="program-new-chip-text"
+                                  style={[
+                                    styles.chipText,
+                                    { color: creatingProgram ? '#fff' : Colors[colorScheme].text },
+                                  ]}
+                                >
+                                  New program
+                                </Text>,
+                              ]}
+                            />,
+                          ]}
+                        />,
+                        creatingProgram ? (
+                          <View
+                            key="program-gender-group"
+                            style={{ marginTop: 12 }}
+                            children={[
+                              <Text
+                                key="program-gender-label"
+                                style={[
+                                  styles.fieldLabelSmall,
+                                  { color: Colors[colorScheme].mutedText },
+                                ]}
+                              >
+                                Gender
+                              </Text>,
+                              <View
+                                key="program-gender-options"
+                                style={{
+                                  flexDirection: 'row',
+                                  flexWrap: 'wrap',
+                                  gap: 8,
+                                  marginTop: 6,
+                                }}
+                                children={GENDER_OPTIONS.map(genderOption => (
+                                  <Pressable
+                                    key={genderOption.value}
+                                    style={[
+                                      styles.chipButton,
+                                      {
+                                        backgroundColor:
+                                          newProgramGender === genderOption.value
+                                            ? Colors[colorScheme].tint
+                                            : Colors[colorScheme].surface,
+                                        borderColor:
+                                          newProgramGender === genderOption.value
+                                            ? Colors[colorScheme].tint
+                                            : Colors[colorScheme].border,
+                                      },
+                                    ]}
+                                    onPress={() =>
+                                      setNewProgramGender(
+                                        newProgramGender === genderOption.value
+                                          ? null
+                                          : genderOption.value
+                                      )
+                                    }
+                                    accessibilityRole="button"
+                                    accessibilityLabel={genderOption.label}
+                                    accessibilityState={{
+                                      selected: newProgramGender === genderOption.value,
+                                    }}
+                                    children={[
+                                      <Text
+                                        key={`${genderOption.value}-text`}
+                                        style={[
+                                          styles.chipText,
+                                          {
+                                            color:
+                                              newProgramGender === genderOption.value
+                                                ? '#fff'
+                                                : Colors[colorScheme].text,
+                                          },
+                                        ]}
+                                      >
+                                        {genderOption.label}
+                                      </Text>,
+                                    ]}
+                                  />
+                                ))}
+                              />,
+                            ]}
+                          />
+                        ) : null,
+                        selectedProgramId || creatingProgram ? (
+                          <View
+                            key="program-level-group"
+                            style={{ marginTop: 14 }}
+                            children={[
+                              <Text
+                                key="program-level-label"
+                                style={[
+                                  styles.fieldLabelSmall,
+                                  { color: Colors[colorScheme].mutedText },
+                                ]}
+                              >
+                                Level (optional)
+                              </Text>,
+                              <View
+                                key="program-level-options"
+                                style={{
+                                  flexDirection: 'row',
+                                  flexWrap: 'wrap',
+                                  gap: 8,
+                                  marginTop: 6,
+                                }}
+                                children={LEVEL_OPTIONS.map(levelOption => (
+                                  <Pressable
+                                    key={levelOption.value}
+                                    style={[
+                                      styles.chipButton,
+                                      {
+                                        backgroundColor:
+                                          selectedLevel === levelOption.value
+                                            ? Colors[colorScheme].tint
+                                            : Colors[colorScheme].surface,
+                                        borderColor:
+                                          selectedLevel === levelOption.value
+                                            ? Colors[colorScheme].tint
+                                            : Colors[colorScheme].border,
+                                      },
+                                    ]}
+                                    onPress={() =>
+                                      setSelectedLevel(
+                                        selectedLevel === levelOption.value
+                                          ? null
+                                          : levelOption.value
+                                      )
+                                    }
+                                    accessibilityRole="button"
+                                    accessibilityLabel={levelOption.label}
+                                    accessibilityState={{
+                                      selected: selectedLevel === levelOption.value,
+                                    }}
+                                    children={[
+                                      <Text
+                                        key={`${levelOption.value}-text`}
+                                        style={[
+                                          styles.chipText,
+                                          {
+                                            color:
+                                              selectedLevel === levelOption.value
+                                                ? '#fff'
+                                                : Colors[colorScheme].text,
+                                          },
+                                        ]}
+                                      >
+                                        {levelOption.label}
+                                      </Text>,
+                                    ]}
+                                  />
+                                ))}
+                              />,
+                            ]}
+                          />
+                        ) : null,
+                      ]}
+                    />
+                  ) : null,
 
                   <View
                     key="description-group"
