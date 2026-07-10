@@ -379,6 +379,40 @@ async function countTeamsForBillingContext(
   });
 }
 
+// Phase 4 billing unit: distinct active sport programs. A program counts once it
+// has ≥1 active team; level teams share a program; archived-only programs and
+// null-program active teams are handled explicitly so no team escapes billing.
+export async function countBillableProgramsForContext(
+  db: any,
+  userId: string,
+  context: TeamCreateBillingContext
+): Promise<number> {
+  if (context.teamCountSource === 'org' && context.orgIdForTeamCount) {
+    return db.sportProgram.count({
+      where: {
+        organization_id: context.orgIdForTeamCount,
+        teams: { some: { status: 'active' } },
+      },
+    });
+  }
+
+  // Personal context: distinct programs across the user's active owned teams,
+  // plus each ungrouped (null-program) active owned team as its own unit.
+  const owned = await db.teamMembership.findMany({
+    where: { user_id: userId, role: 'owner', status: 'active', team: { status: 'active' } },
+    select: { team: { select: { program_id: true } } },
+    take: 5000,
+  });
+  const programIds = new Set<string>();
+  let ungrouped = 0;
+  for (const row of owned) {
+    const pid = row.team?.program_id;
+    if (pid) programIds.add(pid);
+    else ungrouped += 1;
+  }
+  return programIds.size + ungrouped;
+}
+
 async function getVeteranSubscriptionAllowance(subscriptionId: string) {
   const stripeLib = await import('stripe');
   const stripeClient = new stripeLib.default(process.env.STRIPE_SECRET_KEY || '', {
