@@ -99,7 +99,7 @@ enum TeamLevel {
   other
 }
 
-enum ProgramGender {
+enum TeamGender {
   boys
   girls
   coed
@@ -1056,18 +1056,17 @@ model CoachApplication {
 // ===========================
 
 model SportProgram {
-  id              String        @id @default(cuid())
+  id              String   @id @default(cuid())
   organization_id String
-  sport           String        @db.VarChar(100) // canonical slug from shared/sports-taxonomy.json
-  gender          ProgramGender
-  name            String?       @db.VarChar(120) // optional display override, e.g. "Lady Knights Basketball"
+  sport           String   @db.VarChar(100) // canonical slug from shared/sports-taxonomy.json
+  name            String?  @db.VarChar(120) // optional display override, e.g. "Lady Knights Basketball"
   logo_url        String?
-  created_at      DateTime      @default(now())
+  created_at      DateTime @default(now())
 
   organization Organization @relation(fields: [organization_id], references: [id], onDelete: Restrict)
   teams        Team[]
 
-  @@unique([organization_id, sport, gender])
+  @@unique([organization_id, sport])
   @@index([organization_id])
 }
 
@@ -1083,6 +1082,7 @@ model Team {
   extracurricular_category String?    @db.VarChar(100) // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
   season                   String?    @db.VarChar(50) // "Fall" | "Spring" | "Winter" | "Summer"
   level                    TeamLevel?
+  gender                   TeamGender?
   program_id               String?
   primary_color            String?    @db.VarChar(20) // hex color for team branding
   season_start             DateTime?
