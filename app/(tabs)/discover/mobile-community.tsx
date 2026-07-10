@@ -1903,7 +1903,7 @@ function CommunityDiscoverScreen() {
                   Manage Teams
                 </Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>
-                  Create and manage your teams
+                  Your programs & teams
                 </Text>
               </Pressable>
               <Pressable
