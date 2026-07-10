@@ -56,6 +56,11 @@ type TeamLimitSummary = {
   remaining?: number;
   subscription_tier?: string;
   upgrade_required?: boolean;
+  // Phase 4 (program-based billing): owned_programs is the billable-unit
+  // count; metered is true only for Stripe-metered veterans (IAP veterans /
+  // rookie / legend are false — no Stripe subscription quantity to update).
+  owned_programs?: number;
+  metered?: boolean;
 };
 
 type ApiErrorLike = {
@@ -113,6 +118,27 @@ export function buildProgramFields(opts: {
     ...(program_id ? { program_id } : {}),
     ...(opts.level ? { level: opts.level } : {}),
     ...(opts.gender ? { gender: opts.gender } : {}),
+  };
+}
+
+// Pure helper: decides whether the Veteran plan's Stripe subscription
+// quantity must be updated before creating a new team (Phase 4 program-based
+// billing). Only Stripe-metered veterans (`/teams/limits` -> `metered: true`)
+// have a Stripe quantity to meter — IAP veterans (Apple/Google, no Stripe
+// subscription) are unlimited on their rail and must skip the quantity
+// update entirely. Kept outside the component so it can be unit tested
+// directly — see __tests__/create-team-metering-guard.test.tsx.
+export function resolveVeteranMeteringAction(opts: {
+  metered: boolean | null | undefined;
+  programCount: number;
+  rookieProgramLimit: number;
+}): { shouldMeterQuantity: boolean; newProgramCount: number; billableProgramCount: number } {
+  const newProgramCount = opts.programCount + 1;
+  const billableProgramCount = Math.max(0, newProgramCount - opts.rookieProgramLimit);
+  return {
+    shouldMeterQuantity: opts.metered === true,
+    newProgramCount,
+    billableProgramCount,
   };
 }
 
@@ -529,7 +555,11 @@ function CreateTeamScreen() {
       } catch {
         // non-blocking
       }
-      const teamCount = latestLimits?.owned_teams ?? currentUser?._count?.teams ?? 0;
+      const programCount =
+        latestLimits?.owned_programs ??
+        latestLimits?.owned_teams ??
+        currentUser?._count?.teams ??
+        0;
       const canCreateMore = latestLimits?.can_create_more ?? true;
 
       // Only surface local billing prompts for coach-owned flows.
@@ -553,12 +583,26 @@ function CreateTeamScreen() {
         }
 
         if (userPlan === 'veteran') {
-          // Veteran plan: Per-team monthly charge - update subscription quantity
-          const newTeamCount = teamCount + 1;
-          const billableTeamCount = Math.max(0, newTeamCount - ROOKIE_TEAM_LIMIT);
+          const meteringAction = resolveVeteranMeteringAction({
+            metered: latestLimits?.metered,
+            programCount,
+            rookieProgramLimit: ROOKIE_TEAM_LIMIT,
+          });
+
+          if (!meteringAction.shouldMeterQuantity) {
+            // IAP veteran (Apple/Google) — unlimited sports on this rail,
+            // no Stripe subscription quantity to update. Proceed straight
+            // to team creation.
+            await proceedWithTeamCreation();
+            return;
+          }
+
+          // Veteran plan (Stripe-metered): per-sport-program monthly charge
+          // - update subscription quantity before creating the team
+          const { newProgramCount, billableProgramCount } = meteringAction;
           Alert.alert(
-            'Add Team',
-            `Adding this team will update your Veteran billing to $${(billableTeamCount * 0.99).toFixed(2)}/month (${billableTeamCount} billable team${billableTeamCount === 1 ? '' : 's'} beyond the first ${ROOKIE_TEAM_LIMIT} free). Your subscription will be updated automatically.`,
+            'Add Sport',
+            `Adding this sport will update your Veteran billing to $${(billableProgramCount * 0.99).toFixed(2)}/month (${billableProgramCount} billable sport${billableProgramCount === 1 ? '' : 's'} beyond the first ${ROOKIE_TEAM_LIMIT} free). Your subscription will be updated automatically.`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
               {
@@ -566,8 +610,8 @@ function CreateTeamScreen() {
                 onPress: async () => {
                   try {
                     // Update subscription quantity before creating the team
-                    await Subscriptions.updateQuantity(newTeamCount);
-                    await proceedWithTeamCreation({ rollbackTeamCount: teamCount });
+                    await Subscriptions.updateQuantity(newProgramCount);
+                    await proceedWithTeamCreation({ rollbackTeamCount: programCount });
                   } catch (error: unknown) {
                     const err = error as ApiErrorLike;
                     if (__DEV__) console.error('Failed to update subscription:', err);
@@ -585,7 +629,7 @@ function CreateTeamScreen() {
           return; // Wait for user confirmation
         }
 
-        // Legend plan: unlimited teams, proceed
+        // Legend plan: unlimited sports, proceed
       }
 
       // For non-coaches or Legend plan, proceed directly

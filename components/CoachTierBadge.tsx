@@ -1,18 +1,14 @@
 /**
  * Coach Tier Badge Component
- * 
+ *
  * Displays tier-specific badges for coaches based on subscription level
  * Rookie, Veteran, Legend tiers with visual distinctions
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Platform, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { Colors } from '@/constants/Colors';
-import {
-  LEGEND_YEARLY_PRICE_LABEL,
-  ROOKIE_TEAM_LIMIT,
-  VETERAN_MONTHLY_TEAM_PRICE_LABEL,
-} from '@/constants/plans';
+import { LEGEND_YEARLY_PRICE_LABEL, PLAN_DEFINITIONS, ROOKIE_TEAM_LIMIT } from '@/constants/plans';
 
 export type CoachTier = 'rookie' | 'veteran' | 'legend';
 
@@ -104,7 +100,6 @@ function getSizeStyles(size: 'small' | 'medium' | 'large') {
   }
 }
 
-
 /**
  * Tier benefits description component
  */
@@ -129,9 +124,11 @@ export function CoachTierBenefits({ tier, compact = false }: TierBenefitsProps) 
       </View>
 
       {!compact && (
-        <Text style={[styles.benefitsDescription, { color: theme.mutedText }]}>{benefits.description}</Text>
+        <Text style={[styles.benefitsDescription, { color: theme.mutedText }]}>
+          {benefits.description}
+        </Text>
       )}
-      
+
       <View style={styles.benefitsList}>
         {benefits.features.map((feature, index) => (
           <View key={index} style={styles.benefitRow}>
@@ -140,10 +137,8 @@ export function CoachTierBenefits({ tier, compact = false }: TierBenefitsProps) 
           </View>
         ))}
       </View>
-      
-      {benefits.limitations && (
-        <Text style={styles.limitation}>{benefits.limitations}</Text>
-      )}
+
+      {benefits.limitations && <Text style={styles.limitation}>{benefits.limitations}</Text>}
     </View>
   );
 }
@@ -168,20 +163,41 @@ function getTierBenefits(tier: CoachTier) {
         ],
         limitations: null,
       };
-    case 'veteran':
+    case 'veteran': {
+      // Veteran is metered per sport program on the web/Stripe rail only —
+      // Apple IAP (iOS) / Google Play Billing (Android) sell it as a flat,
+      // unlimited-sports subscription with no per-unit price. Display-copy
+      // branch only; does not affect which checkout rail runs.
+      const isIapRail = Platform.OS === 'ios' || Platform.OS === 'android';
+      if (isIapRail) {
+        return {
+          price: 'Veteran — unlimited sports',
+          description: 'One flat subscription, unlimited sport programs',
+          features: [
+            'Unlimited sport programs',
+            'Standard support',
+            'Per-team administrators',
+            'Silver shield badge on profile',
+            'Event scheduling tools',
+            'Parent communication',
+          ],
+          limitations: null,
+        };
+      }
       return {
-        price: VETERAN_MONTHLY_TEAM_PRICE_LABEL,
-        description: 'Flexible pay-per-team pricing as you grow',
+        price: `${PLAN_DEFINITIONS.veteran.price}/month per sport over ${ROOKIE_TEAM_LIMIT}`,
+        description: 'Flexible pay-per-sport pricing as you grow',
         features: [
-          `Add teams beyond the first ${ROOKIE_TEAM_LIMIT} free`,
+          `Add sports beyond the first ${ROOKIE_TEAM_LIMIT} free`,
           'Standard support',
           'Per-team administrators',
           'Silver shield badge on profile',
           'Event scheduling tools',
           'Parent communication',
         ],
-        limitations: `Each team beyond ${ROOKIE_TEAM_LIMIT} incurs a monthly charge`,
+        limitations: `Each sport beyond ${ROOKIE_TEAM_LIMIT} incurs a monthly charge`,
       };
+    }
     case 'rookie':
     default:
       return {

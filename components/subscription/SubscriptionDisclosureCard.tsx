@@ -90,10 +90,18 @@ function getPlanLength(plan: Plan): string {
   }
 }
 
+// Veteran is metered per sport program on the web/Stripe rail only — Apple
+// IAP (iOS) and Google Play Billing (Android) sell Veteran as a flat,
+// unlimited-sports subscription with no per-unit price (Play/Apple don't
+// support usage-based IAP quantities). Do not route iOS/Android checkout
+// through Stripe — this is a display-copy branch only.
 function getPlanPrice(plan: Plan, storePrice?: string | null): string {
+  const isIapRail = Platform.OS === 'ios' || Platform.OS === 'android';
   switch (plan) {
     case 'veteran':
-      return `${storePrice || PLAN_DEFINITIONS.veteran.price} per month per team over ${ROOKIE_TEAM_LIMIT} teams`;
+      return isIapRail
+        ? `${storePrice || PLAN_DEFINITIONS.veteran.price} per month — unlimited sports`
+        : `${storePrice || PLAN_DEFINITIONS.veteran.price} per month per sport over ${ROOKIE_TEAM_LIMIT} sports`;
     case 'legend':
       return `${storePrice || PLAN_DEFINITIONS.legend.price} per year`;
     case 'rookie':
@@ -105,7 +113,7 @@ function getPlanPrice(plan: Plan, storePrice?: string | null): string {
 function getPlanIncludes(plan: Plan): string {
   switch (plan) {
     case 'veteran':
-      return `Unlimited teams, up to 5 staff per team, up to 100 athletes per team, and coach coverage for growing leagues.`;
+      return `Unlimited sport programs, up to 5 staff per team, up to 100 athletes per team, and coach coverage for growing leagues.`;
     case 'legend':
       return 'Unlimited teams and coaches, extracurricular clubs, and the full VarsityHub league feature set.';
     case 'rookie':
