@@ -671,6 +671,12 @@ export const Organization = {
   declineInvite: (inviteId: string) =>
     httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/decline`, {}),
   myJoinRequests: () => httpGet('/organizations/join-requests/me'),
+  programs: (organizationId: string) =>
+    httpGet(`/organizations/${encodeURIComponent(organizationId)}/programs`),
+  createProgram: (
+    organizationId: string,
+    data: { sport: string; gender: 'boys' | 'girls' | 'coed'; name?: string }
+  ) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/programs`, data),
   // Organization join requests (coach/admin workflows)
   requestToJoin: (organizationId: string, message?: string, teamId?: string) =>
     httpPost(`/organizations/join-requests`, {
