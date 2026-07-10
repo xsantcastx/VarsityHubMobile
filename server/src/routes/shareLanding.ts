@@ -341,13 +341,13 @@ async function programLanding(req: Request, res: Response, next: NextFunction) {
     })
     .catch(() => null);
 
-  if (!program) return next();
-
-  const meta: LandingMeta = {
-    title: programLandingTitle(program),
-    imageUrl: program.logo_url || undefined,
-    url: fullUrl(req),
-  };
+  const meta: LandingMeta = program
+    ? {
+        title: programLandingTitle(program),
+        imageUrl: program.logo_url || undefined,
+        url: fullUrl(req),
+      }
+    : genericLanding(req);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=300');

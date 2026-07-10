@@ -68,6 +68,7 @@
             { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/games" },
             { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/posts" },
             { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/teams" },
+            { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/programs" },
             { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/events" },
             { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/organizations" },
             { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/share" }

@@ -8,8 +8,12 @@
  *   3. The title is "{Org name} — {Program label}" when the program has
  *      an org and no explicit `name` override; falls back to the
  *      explicit `name` when set.
- *   4. Unknown program id 404s (falls through to next(), which the stub
- *      API answers with a JSON-style 404 here).
+ *   4. An unknown-but-well-formed program id renders the generic branded
+ *      landing (200 HTML with store buttons), mirroring teamLanding's
+ *      `program ? {...} : genericLanding(req)` fallback — a tap on a
+ *      dead/deleted program link must never dead-end on a raw
+ *      "Cannot GET /programs/:id" page. The real app registers NO
+ *      GET /programs/:id downstream route, so next() would 404.
  */
 
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
@@ -33,8 +37,12 @@ const { shareLandingRouter } = await import('../routes/shareLanding.js');
 
 function makeApp() {
   const app = express();
+  // Landing first, then a stub "API" that always replies JSON — used only
+  // to prove the JSON-client (!wantsHtml) branch calls next(). The real app
+  // has no GET /programs/:id route; browser/crawler requests never reach a
+  // downstream route because programLanding renders (branded or generic) HTML.
   app.use(shareLandingRouter);
-  app.get('/programs/:id', (_req, res) => res.status(404).json({ error: 'Not found' }));
+  app.get('/programs/:id', (_req, res) => res.status(200).json({ id: 'api-response' }));
   return app;
 }
 
@@ -46,8 +54,9 @@ describe('program share-landing', () => {
   it('JSON client (Accept: application/json) falls through to API', async () => {
     const res = await request(makeApp()).get('/programs/p1').set('Accept', 'application/json');
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/application\/json/);
+    expect(res.body).toEqual({ id: 'api-response' });
     expect(sportProgramFindUnique).not.toHaveBeenCalled();
   });
 
@@ -116,13 +125,19 @@ describe('program share-landing', () => {
     expect(res.text).not.toContain('null');
   });
 
-  it('unknown program id falls through to next() (API 404)', async () => {
+  it('unknown-but-well-formed program id renders the generic branded landing (not a raw 404)', async () => {
+    // Mirrors share-landing.test.ts "falls back to generic OG tags when the
+    // resource is missing" — a dead/deleted program link must land on the
+    // branded page with store buttons, never Express's "Cannot GET" default.
     sportProgramFindUnique.mockResolvedValueOnce(null as any);
 
     const res = await request(makeApp()).get('/programs/missing').set('Accept', 'text/html');
 
-    expect(res.status).toBe(404);
-    expect(res.headers['content-type']).toMatch(/application\/json/);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/html/);
+    expect(res.text).toContain('VarsityHub');
+    expect(res.text).toContain('Open in VarsityHub');
+    expect(res.text).not.toContain('api-response'); // did not fall through to the stub API
   });
 
   it('escapes HTML entities in the program label (no XSS)', async () => {
