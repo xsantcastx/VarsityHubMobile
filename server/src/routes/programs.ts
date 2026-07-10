@@ -112,7 +112,6 @@ programsRouter.get(
         id: program.id,
         organization_id: program.organization_id,
         sport: program.sport,
-        gender: program.gender,
         name: program.name,
         logo_url: program.logo_url,
         created_at: program.created_at.toISOString(),

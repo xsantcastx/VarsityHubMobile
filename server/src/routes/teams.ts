@@ -299,6 +299,7 @@ type TeamCreatePayload = {
   venue_lng?: number;
   venue_address?: string;
   level?: 'varsity' | 'jv' | 'freshman' | 'middle_school' | 'unified' | 'other';
+  gender?: 'boys' | 'girls' | 'coed';
   program_id?: string;
   authorized_users?: Array<{
     email?: string;
@@ -1280,6 +1281,7 @@ const createSchema = z.object({
   season_end: z.string().optional(),
   onboarding: z.boolean().optional(),
   level: z.enum(['varsity', 'jv', 'freshman', 'middle_school', 'unified', 'other']).optional(),
+  gender: z.enum(['boys', 'girls', 'coed']).optional(),
   program_id: z.string().min(1).optional(),
 });
 async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload) {
@@ -1570,6 +1572,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
             venue_lng: data.venue_lng || null,
             venue_address: data.venue_address ? stripHtml(data.venue_address.trim()) : null,
             level: data.level ?? null,
+            gender: data.gender ?? null,
             program_id: data.program_id ?? null,
           },
           select: {
@@ -1582,6 +1585,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
             logo_url: true,
             avatar_url: true,
             level: true,
+            gender: true,
             program_id: true,
           },
         });
@@ -1759,6 +1763,7 @@ const updateSchema = z.object({
   venue_address: z.string().optional(),
   is_private: z.boolean().optional(),
   level: z.enum(['varsity', 'jv', 'freshman', 'middle_school', 'unified', 'other']).optional(),
+  gender: z.enum(['boys', 'girls', 'coed']).optional(),
   program_id: z.string().min(1).optional(),
 });
 teamsRouter.put(
@@ -1910,6 +1915,7 @@ teamsRouter.put(
         : parsed.data.venue_address;
     if (parsed.data.is_private !== undefined) updateData.is_private = parsed.data.is_private;
     if (parsed.data.level !== undefined) updateData.level = parsed.data.level;
+    if (parsed.data.gender !== undefined) updateData.gender = parsed.data.gender;
     if (parsed.data.program_id !== undefined) {
       const targetOrgForProgram = updateData.organization_id ?? team.organization_id;
       const program = await prisma.sportProgram.findUnique({
@@ -1944,6 +1950,7 @@ teamsRouter.put(
           avatar_url: true,
           created_at: true,
           level: true,
+          gender: true,
           program_id: true,
           organization: {
             select: {
@@ -1979,6 +1986,7 @@ teamsRouter.put(
         status: team.status,
         created_at: updatedTeam.created_at,
         level: (updatedTeam as any).level ?? null,
+        gender: (updatedTeam as any).gender ?? null,
         program_id: (updatedTeam as any).program_id ?? null,
       });
     } catch (err: any) {
@@ -2088,6 +2096,7 @@ const createTeamSchema = z.object({
   venue_lng: z.number().optional(),
   venue_address: z.string().optional(),
   level: z.enum(['varsity', 'jv', 'freshman', 'middle_school', 'unified', 'other']).optional(),
+  gender: z.enum(['boys', 'girls', 'coed']).optional(),
   program_id: z.string().min(1).optional(),
   authorized_users: z
     .array(
@@ -2128,6 +2137,7 @@ teamsRouter.post(
         name: result.team.name,
         organization_id: result.team.organization_id,
         level: (result.team as any).level ?? null,
+        gender: (result.team as any).gender ?? null,
         program_id: (result.team as any).program_id ?? null,
       },
     });

@@ -77,7 +77,6 @@ describe('GET /programs/:id/screen-summary', () => {
       data: {
         organization_id: orgId,
         sport: 'basketball',
-        gender: 'girls',
       },
     });
     programId = program.id;
@@ -88,6 +87,7 @@ describe('GET /programs/:id/screen-summary', () => {
         organization_id: orgId,
         program_id: programId,
         level: 'varsity',
+        gender: 'girls',
       },
     });
     varsityTeamId = varsityTeam.id;
@@ -98,6 +98,7 @@ describe('GET /programs/:id/screen-summary', () => {
         organization_id: orgId,
         program_id: programId,
         level: 'jv',
+        gender: 'girls',
       },
     });
     jvTeamId = jvTeam.id;
@@ -110,6 +111,7 @@ describe('GET /programs/:id/screen-summary', () => {
         organization_id: orgId,
         program_id: programId,
         level: 'freshman',
+        gender: 'girls',
       },
     });
     privateTeamId = privateTeam.id;
@@ -151,10 +153,11 @@ describe('GET /programs/:id/screen-summary', () => {
       .set('Authorization', `Bearer ${followerToken}`);
     expect(res.status).toBe(200);
     expect(res.body.program.sport).toBe('basketball');
-    expect(res.body.program.gender).toBe('girls');
+    expect(res.body.program.gender).toBeUndefined();
     // The private freshman team is hidden from `follower` (they don't follow it).
     expect(res.body.levels.map((l: any) => l.level)).toEqual(['varsity', 'jv']);
     expect(res.body.levels[0].team.id).toBe(varsityTeamId);
+    expect(res.body.levels[0].team.gender).toBe('girls');
     // Union of distinct followers across all level teams = {follower, follower2} = 2.
     expect(res.body.program.followers_count).toBe(2);
     expect(res.body.program.is_following).toBe(true);

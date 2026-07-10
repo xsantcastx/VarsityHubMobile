@@ -63,7 +63,6 @@ describe('program share-landing', () => {
   it('Browser request (Accept: text/html) gets HTML landing with org + program label', async () => {
     sportProgramFindUnique.mockResolvedValueOnce({
       sport: 'basketball',
-      gender: 'girls',
       name: null,
       logo_url: 'https://cdn.example.com/program-logo.jpg',
       organization: { name: 'Stamford High' },
@@ -75,7 +74,7 @@ describe('program share-landing', () => {
     expect(res.headers['content-type']).toMatch(/text\/html/);
     expect(res.text).toContain('<!DOCTYPE html>');
     expect(res.text).toContain('og:title');
-    expect(res.text).toContain('Stamford High — Girls Basketball');
+    expect(res.text).toContain('Stamford High — Basketball');
     expect(res.text).toContain('https://cdn.example.com/program-logo.jpg');
     expect(sportProgramFindUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'p1' } }));
   });
@@ -83,7 +82,6 @@ describe('program share-landing', () => {
   it('uses the explicit name override when set, still prefixed by org name', async () => {
     sportProgramFindUnique.mockResolvedValueOnce({
       sport: 'basketball',
-      gender: 'girls',
       name: 'Lady Knights Basketball',
       logo_url: null,
       organization: { name: 'Stamford High' },
@@ -94,10 +92,9 @@ describe('program share-landing', () => {
     expect(res.text).toContain('Stamford High — Lady Knights Basketball');
   });
 
-  it('coed programs omit the gender word in the label', async () => {
+  it('title-cases underscored sport slugs', async () => {
     sportProgramFindUnique.mockResolvedValueOnce({
       sport: 'track_field',
-      gender: 'coed',
       name: null,
       logo_url: null,
       organization: { name: 'Westhill' },
@@ -106,13 +103,11 @@ describe('program share-landing', () => {
     const res = await request(makeApp()).get('/programs/p3').set('Accept', 'text/html');
 
     expect(res.text).toContain('Westhill — Track Field');
-    expect(res.text).not.toContain('Coed Track Field');
   });
 
   it('falls back to the label with no org prefix when the program has no organization', async () => {
     sportProgramFindUnique.mockResolvedValueOnce({
       sport: 'soccer',
-      gender: 'boys',
       name: null,
       logo_url: null,
       organization: null,
@@ -120,7 +115,7 @@ describe('program share-landing', () => {
 
     const res = await request(makeApp()).get('/programs/p4').set('Accept', 'text/html');
 
-    expect(res.text).toContain('Boys Soccer');
+    expect(res.text).toContain('Soccer');
     expect(res.text).not.toContain('undefined');
     expect(res.text).not.toContain('null');
   });
@@ -143,7 +138,6 @@ describe('program share-landing', () => {
   it('escapes HTML entities in the program label (no XSS)', async () => {
     sportProgramFindUnique.mockResolvedValueOnce({
       sport: 'basketball',
-      gender: 'girls',
       name: '<script>alert(1)</script>',
       logo_url: null,
       organization: { name: 'Stamford High' },

@@ -3308,7 +3308,6 @@ organizationsRouter.get(
 // ── Sport programs (Phase 1 of the sport-program pivot) ──────────────
 const createProgramSchema = z.object({
   sport: z.string().min(1).max(100),
-  gender: z.enum(['boys', 'girls', 'coed']),
   name: z.string().trim().min(1).max(120).optional(),
 });
 
@@ -3346,7 +3345,6 @@ organizationsRouter.post(
         data: {
           organization_id: orgId,
           sport: parsed.data.sport,
-          gender: parsed.data.gender,
           name: parsed.data.name ?? null,
         },
       });
@@ -3369,12 +3367,12 @@ organizationsRouter.get(
     const orgId = String(req.params.id);
     const programs = await prisma.sportProgram.findMany({
       where: { organization_id: orgId },
-      orderBy: [{ sport: 'asc' }, { gender: 'asc' }],
+      orderBy: [{ sport: 'asc' }],
       take: 200,
       include: {
         teams: {
           where: { status: 'active' },
-          select: { id: true, name: true, level: true },
+          select: { id: true, name: true, level: true, gender: true },
           orderBy: { created_at: 'asc' },
           take: 25,
         },

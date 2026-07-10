@@ -301,20 +301,17 @@ async function teamLanding(req: Request, res: Response, next: NextFunction) {
 // Trade-off: this title-cases the raw slug ("track_field" -> "Track Field")
 // instead of using the taxonomy's exact display names, which is close
 // enough for a share-link preview and avoids a client/server coupling.
-function sportProgramLabel(program: { sport: string; gender: string; name: string | null }): string {
+function sportProgramLabel(program: { sport: string; name: string | null }): string {
   if (program.name) return program.name;
-  const sportLabel = String(program.sport || '')
+  return String(program.sport || '')
     .split('_')
     .filter(Boolean)
     .map(w => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
-  const genderWord = program.gender === 'girls' ? 'Girls' : program.gender === 'boys' ? 'Boys' : '';
-  return [genderWord, sportLabel].filter(Boolean).join(' ');
 }
 
 function programLandingTitle(program: {
   sport: string;
-  gender: string;
   name: string | null;
   organization?: { name: string } | null;
 }): string {
@@ -333,7 +330,6 @@ async function programLanding(req: Request, res: Response, next: NextFunction) {
       where: { id },
       select: {
         sport: true,
-        gender: true,
         name: true,
         logo_url: true,
         organization: { select: { name: true } },

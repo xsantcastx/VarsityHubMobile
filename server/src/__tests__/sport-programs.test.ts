@@ -84,25 +84,24 @@ describe('sport program endpoints', () => {
     const res = await request(app)
       .post(`/organizations/${orgId}/programs`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ sport: 'basketball', gender: 'girls' });
+      .send({ sport: 'basketball' });
     expect(res.status).toBe(201);
     expect(res.body.program.sport).toBe('basketball');
-    expect(res.body.program.gender).toBe('girls');
   });
 
   it('member coach of the org can create a program', async () => {
     const res = await request(app)
       .post(`/organizations/${orgId}/programs`)
       .set('Authorization', `Bearer ${memberCoachToken}`)
-      .send({ sport: 'soccer', gender: 'boys' });
+      .send({ sport: 'soccer' });
     expect(res.status).toBe(201);
   });
 
-  it('duplicate (org, sport, gender) → 409 PROGRAM_EXISTS', async () => {
+  it('duplicate (org, sport) → 409 PROGRAM_EXISTS', async () => {
     const res = await request(app)
       .post(`/organizations/${orgId}/programs`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ sport: 'basketball', gender: 'girls' });
+      .send({ sport: 'basketball' });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('PROGRAM_EXISTS');
   });
@@ -111,7 +110,7 @@ describe('sport program endpoints', () => {
     const res = await request(app)
       .post(`/organizations/${orgId}/programs`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ sport: 'Basketball', gender: 'girls' });
+      .send({ sport: 'Basketball' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_SPORT');
   });
@@ -120,7 +119,7 @@ describe('sport program endpoints', () => {
     const res = await request(app)
       .post(`/organizations/${orgId}/programs`)
       .set('Authorization', `Bearer ${outsiderToken}`)
-      .send({ sport: 'tennis', gender: 'coed' });
+      .send({ sport: 'tennis' });
     expect(res.status).toBe(403);
   });
 
@@ -134,6 +133,7 @@ describe('sport program endpoints', () => {
         organization_id: orgId,
         program_id: prog.id,
         level: 'varsity',
+        gender: 'girls',
       },
     });
     const res = await request(app)
@@ -142,6 +142,8 @@ describe('sport program endpoints', () => {
     expect(res.status).toBe(200);
     const basketball = res.body.programs.find((p: any) => p.sport === 'basketball');
     expect(basketball.teams.map((t: any) => t.level)).toContain('varsity');
+    const varsityTeam = basketball.teams.find((t: any) => t.level === 'varsity');
+    expect(varsityTeam.gender).toBe('girls');
   });
 
   it('team create accepts level + program_id and validates org match', async () => {
@@ -156,10 +158,12 @@ describe('sport program endpoints', () => {
         organization_id: orgId,
         sport: 'Soccer',
         level: 'jv',
+        gender: 'boys',
         program_id: prog.id,
       });
     expect(ok.status).toBe(201);
     expect(ok.body.team?.level ?? ok.body.level).toBe('jv');
+    expect(ok.body.team?.gender ?? ok.body.gender).toBe('boys');
 
     const otherOrg = await prisma.organization.create({
       data: {
