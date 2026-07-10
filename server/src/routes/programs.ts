@@ -6,6 +6,7 @@ import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { serializeTeam, buildTeamSerializeSelect } from '../lib/serializeTeam.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { followLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 
@@ -128,5 +129,64 @@ programsRouter.get(
         games: games.length,
       },
     });
+  })
+);
+
+// Follow every current active level team in a program (fan-out write).
+// No TEAM_FOLLOWED notifications here, deliberately — unlike POST
+// /teams/:id/follow, fanning this out per level team would send N
+// notifications to the same staff for one user action.
+programsRouter.post(
+  '/:id/follow',
+  requireAuth as any,
+  followLimiter,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
+    const programId = String(req.params.id);
+    const program = await prisma.sportProgram.findUnique({
+      where: { id: programId },
+      select: { id: true, teams: { where: { status: 'active' }, select: { id: true }, take: 25 } },
+    });
+    if (!program) return sendError(res, 404, 'Program not found');
+
+    const teamIds = program.teams.map(t => t.id);
+    // Fan out over the program's ACTIVE level teams without the
+    // isTeamHiddenFromViewer privacy gate — following a program means
+    // following its teams, including a private one the viewer can't
+    // currently see (and isTeamHiddenFromViewer admits followers, so a
+    // private team becomes visible to the viewer as soon as this runs).
+    // createMany + skipDuplicates keeps this idempotent under the
+    // (user_id, team_id) composite PK without a P2002 round-trip.
+    if (teamIds.length) {
+      await prisma.teamFollow.createMany({
+        data: teamIds.map(team_id => ({ team_id, user_id: req.user!.id })),
+        skipDuplicates: true,
+      });
+    }
+    return res.json({ ok: true, followed_team_ids: teamIds });
+  })
+);
+
+programsRouter.delete(
+  '/:id/follow',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
+    const programId = String(req.params.id);
+    // No status filter on teams here (unlike the follow route above) — an
+    // unfollow must clear a stale TeamFollow row even if the team has since
+    // been archived, so it removes follows for ALL of the program's teams.
+    const program = await prisma.sportProgram.findUnique({
+      where: { id: programId },
+      select: { id: true, teams: { select: { id: true }, take: 25 } },
+    });
+    if (!program) return sendError(res, 404, 'Program not found');
+    const teamIds = program.teams.map(t => t.id);
+    const removed = teamIds.length
+      ? await prisma.teamFollow.deleteMany({
+          where: { user_id: req.user.id, team_id: { in: teamIds } },
+        })
+      : { count: 0 };
+    return res.json({ ok: true, unfollowed: removed.count });
   })
 );

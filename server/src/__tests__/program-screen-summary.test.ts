@@ -206,4 +206,50 @@ describe('GET /programs/:id/screen-summary', () => {
       .set('Authorization', `Bearer ${followerToken}`)
       .expect(404);
   });
+
+  it('following a program follows every current level team, idempotently', async () => {
+    // The private freshman team is `status: 'active'` too (privacy and status
+    // are independent), so the program has 3 active level teams and a program
+    // follow fans out to all 3 — the follow route deliberately does NOT apply
+    // the isTeamHiddenFromViewer privacy gate (see the route's comment).
+    const allTeamIds = [varsityTeamId, jvTeamId, privateTeamId];
+    const first = await request(app)
+      .post(`/programs/${programId}/follow`)
+      .set('Authorization', `Bearer ${strangerToken}`);
+    expect(first.status).toBe(200);
+    expect(first.body.followed_team_ids.sort()).toEqual(allTeamIds.sort());
+
+    // second call must not throw on the unique (user_id, team_id) constraint
+    await request(app)
+      .post(`/programs/${programId}/follow`)
+      .set('Authorization', `Bearer ${strangerToken}`)
+      .expect(200);
+
+    const rows = await prisma.teamFollow.count({
+      where: { user_id: strangerId, team_id: { in: allTeamIds } },
+    });
+    expect(rows).toBe(3);
+  });
+
+  it('unfollowing a program removes every level-team follow', async () => {
+    const allTeamIds = [varsityTeamId, jvTeamId, privateTeamId];
+    await request(app)
+      .delete(`/programs/${programId}/follow`)
+      .set('Authorization', `Bearer ${strangerToken}`)
+      .expect(200);
+    const rows = await prisma.teamFollow.count({
+      where: { user_id: strangerId, team_id: { in: allTeamIds } },
+    });
+    expect(rows).toBe(0);
+  });
+
+  it('404s follow on an unknown program', async () => {
+    // 'does-not-exist' would 400 under registerIdValidation's CUID/UUID format
+    // check before the route body ever runs — use a well-formed-but-nonexistent
+    // CUID so this actually exercises the route's own 404 branch.
+    await request(app)
+      .post('/programs/cknownexistcknownexistckno/follow')
+      .set('Authorization', `Bearer ${strangerToken}`)
+      .expect(404);
+  });
 });
