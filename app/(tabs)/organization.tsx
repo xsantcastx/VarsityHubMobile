@@ -1,6 +1,11 @@
 import { Game, Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
-import { formatLevelLabel, formatProgramLabel, groupTeamsByProgram } from '@/constants/programs';
+import {
+  formatLevelLabel,
+  formatProgramLabel,
+  groupTeamsByProgram,
+  LEVEL_OPTIONS,
+} from '@/constants/programs';
 import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -82,6 +87,13 @@ type AuthorizedInvite = {
   role?: string | null;
   status?: string | null;
 };
+
+// Canonical level ordering derived from LEVEL_OPTIONS (varsity, jv, freshman,
+// middle_school, unified, other). Unknown/null levels sort last.
+function levelRank(level: string | null | undefined): number {
+  const idx = LEVEL_OPTIONS.findIndex(o => o.value === level);
+  return idx === -1 ? LEVEL_OPTIONS.length : idx;
+}
 
 function buildOrganizationJoinRequestsRoute(id: string, name?: string | null) {
   return {
@@ -236,10 +248,13 @@ export default function OrganizationScreen() {
   // Sport-program grouping: one row per program instead of one per team,
   // matching the manage-teams / my-team picker precedent. Only kicks in once
   // any team carries a program_id — a fully ungrouped org (or a server that
-  // predates the program layer) renders exactly today's flat team list.
+  // predates the program layer) renders exactly today's flat team list. The
+  // program-metadata query is gated on that same condition so the OTA-safe
+  // path (nothing to group) never fires an extra network call.
+  const anyTeamHasProgram = teams.some(t => !!t.program_id);
   const { data: orgPrograms = [] } = useOrgProgramsQuery({
     organizationId: orgPage?.orgId,
-    enabled: !!orgPage?.orgId,
+    enabled: !!orgPage?.orgId && anyTeamHasProgram,
   });
   const programsById = useMemo(() => new Map(orgPrograms.map(p => [p.id, p])), [orgPrograms]);
   const teamGroups = useMemo(() => groupTeamsByProgram(teams), [teams]);
@@ -465,8 +480,15 @@ export default function OrganizationScreen() {
   const renderProgramRow = (group: (typeof programGroups)[number]) => {
     const program = group.programId ? programsById.get(group.programId) : undefined;
     const title = program ? formatProgramLabel(program) : group.teams[0]?.sport || 'Teams';
+    // Order levels by canonical rank (varsity, jv, freshman, …) rather than the
+    // team-name sort the list arrives in, so it reads "Varsity, JV".
     const levelLabels = Array.from(
-      new Set(group.teams.map(t => formatLevelLabel(t.level)).filter((l): l is string => !!l))
+      new Set(
+        [...group.teams]
+          .sort((a, b) => levelRank(a.level) - levelRank(b.level))
+          .map(t => formatLevelLabel(t.level))
+          .filter((l): l is string => !!l)
+      )
     );
     const count = group.teams.length;
     const subtitle = `${count} team${count !== 1 ? 's' : ''}${

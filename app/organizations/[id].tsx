@@ -1,6 +1,4 @@
 import { Colors } from '@/constants/Colors';
-import { formatLevelLabel, formatProgramLabel, groupTeamsByProgram } from '@/constants/programs';
-import { useOrgProgramsQuery } from '@/hooks/useOrgProgramsQuery';
 import { useShareLink } from '@/hooks/useShareLink';
 import { Organization as OrganizationApi } from '@/api/entities';
 import { findSeedOrganization, seedOrganizationToPayload } from '@/data/seedOrganizations';
@@ -32,8 +30,6 @@ interface OrgTeam {
   sport?: string | null;
   logo_url?: string | null;
   avatar_url?: string | null;
-  program_id?: string | null;
-  level?: string | null;
   _count?: { memberships?: number };
 }
 
@@ -144,29 +140,6 @@ function OrganizationDetailScreen() {
     if (ungrouped.length) sections.push({ title: '', data: ungrouped });
     return sections;
   }, [org?.teams]);
-
-  // Sport-program grouping takes precedence over the "Group X" description
-  // sectioning above once any team carries a program_id — real (non-seed)
-  // orgs redirect to /organization before reaching this screen, so in
-  // practice this only guards against a future org landing here with
-  // programs. Seed orgs (e.g. the FIFA demo) never carry program_id, so they
-  // keep the Group X sectioning untouched.
-  const { data: orgPrograms = [] } = useOrgProgramsQuery({
-    organizationId: org?.id,
-    enabled: !!org?.id,
-  });
-  const programsById = useMemo(() => new Map(orgPrograms.map(p => [p.id, p])), [orgPrograms]);
-  const teamGroups = useMemo(
-    () =>
-      groupTeamsByProgram(
-        (org?.teams ?? []).map(t => ({ ...t, program_id: t.program_id ?? null }))
-      ),
-    [org?.teams]
-  );
-  const hasProgramGroups = teamGroups.some(g => g.programId !== null);
-  const programGroups = teamGroups.filter(g => g.programId !== null);
-  const ungroupedTeams = teamGroups.find(g => g.programId === null)?.teams ?? [];
-
   const orgShareId = org?.id || normalizedId || null;
   const orgThemeColor = theme.tint || '#2563EB';
   const {
@@ -322,128 +295,6 @@ function OrganizationDetailScreen() {
     }
   };
 
-  const renderOrgTeamRow = (team: OrgTeam) => (
-    <Pressable
-      key={team.id}
-      onPress={() =>
-        router.push({
-          pathname: '/team-page',
-          params: { id: team.id, name: team.name },
-        } as any)
-      }
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        paddingVertical: 12,
-        paddingHorizontal: 12,
-        borderRadius: 10,
-        backgroundColor: pressed
-          ? colorScheme === 'dark'
-            ? 'rgba(255,255,255,0.05)'
-            : 'rgba(0,0,0,0.04)'
-          : 'transparent',
-        borderBottomWidth: 1,
-        borderBottomColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-      })}
-    >
-      {team.logo_url || team.avatar_url ? (
-        <Image
-          source={{ uri: (team.logo_url || team.avatar_url)! }}
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
-          }}
-        />
-      ) : (
-        <View
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Ionicons name="people" size={20} color={theme.mutedText} />
-        </View>
-      )}
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: theme.text }}>{team.name}</Text>
-        {team.sport ? (
-          <Text style={{ fontSize: 13, color: theme.mutedText, marginTop: 2 }}>
-            {team.sport}
-            {team._count?.memberships ? ` · ${team._count.memberships} members` : ''}
-          </Text>
-        ) : team._count?.memberships ? (
-          <Text style={{ fontSize: 13, color: theme.mutedText, marginTop: 2 }}>
-            {team._count.memberships} members
-          </Text>
-        ) : null}
-      </View>
-      <Ionicons name="chevron-forward" size={16} color={theme.mutedText} />
-    </Pressable>
-  );
-
-  const renderProgramRow = (group: (typeof programGroups)[number]) => {
-    const program = group.programId ? programsById.get(group.programId) : undefined;
-    const title = program ? formatProgramLabel(program) : group.teams[0]?.sport || 'Teams';
-    const levelLabels = Array.from(
-      new Set(group.teams.map(t => formatLevelLabel(t.level)).filter((l): l is string => !!l))
-    );
-    const count = group.teams.length;
-    const subtitle = `${count} team${count !== 1 ? 's' : ''}${
-      levelLabels.length ? ` · ${levelLabels.join(', ')}` : ''
-    }`;
-    return (
-      <Pressable
-        key={group.programId}
-        onPress={() =>
-          router.push({
-            pathname: '/program-page',
-            params: { id: group.programId as string },
-          } as any)
-        }
-        style={({ pressed }) => ({
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 12,
-          paddingVertical: 12,
-          paddingHorizontal: 12,
-          borderRadius: 10,
-          backgroundColor: pressed
-            ? colorScheme === 'dark'
-              ? 'rgba(255,255,255,0.05)'
-              : 'rgba(0,0,0,0.04)'
-            : 'transparent',
-          borderBottomWidth: 1,
-          borderBottomColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-        })}
-      >
-        <View
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Ionicons name="albums-outline" size={20} color={theme.mutedText} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 16, fontWeight: '600', color: theme.text }}>{title}</Text>
-          <Text style={{ fontSize: 13, color: theme.mutedText, marginTop: 2 }}>{subtitle}</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={theme.mutedText} />
-      </Pressable>
-    );
-  };
-
   return (
     <ScrollView
       contentContainerStyle={{ padding: 16 }}
@@ -507,34 +358,94 @@ function OrganizationDetailScreen() {
           Teams
         </Text>
         {org.teams && org.teams.length > 0 ? (
-          hasProgramGroups ? (
-            <>
-              {programGroups.map(renderProgramRow)}
-              {ungroupedTeams.map(renderOrgTeamRow)}
-            </>
-          ) : (
-            teamSections.map(section => (
-              <View key={section.title || 'ungrouped'}>
-                {section.title ? (
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: '700',
-                      color: theme.mutedText,
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.5,
-                      marginTop: 14,
-                      marginBottom: 4,
-                      paddingHorizontal: 12,
-                    }}
-                  >
-                    {section.title}
-                  </Text>
-                ) : null}
-                {section.data.map(renderOrgTeamRow)}
-              </View>
-            ))
-          )
+          teamSections.map(section => (
+            <View key={section.title || 'ungrouped'}>
+              {section.title ? (
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: '700',
+                    color: theme.mutedText,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                    marginTop: 14,
+                    marginBottom: 4,
+                    paddingHorizontal: 12,
+                  }}
+                >
+                  {section.title}
+                </Text>
+              ) : null}
+              {section.data.map(team => (
+                <Pressable
+                  key={team.id}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/team-page',
+                      params: { id: team.id, name: team.name },
+                    } as any)
+                  }
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                    paddingVertical: 12,
+                    paddingHorizontal: 12,
+                    borderRadius: 10,
+                    backgroundColor: pressed
+                      ? colorScheme === 'dark'
+                        ? 'rgba(255,255,255,0.05)'
+                        : 'rgba(0,0,0,0.04)'
+                      : 'transparent',
+                    borderBottomWidth: 1,
+                    borderBottomColor:
+                      colorScheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+                  })}
+                >
+                  {team.logo_url || team.avatar_url ? (
+                    <Image
+                      source={{ uri: (team.logo_url || team.avatar_url)! }}
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                      }}
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Ionicons name="people" size={20} color={theme.mutedText} />
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: theme.text }}>
+                      {team.name}
+                    </Text>
+                    {team.sport ? (
+                      <Text style={{ fontSize: 13, color: theme.mutedText, marginTop: 2 }}>
+                        {team.sport}
+                        {team._count?.memberships ? ` · ${team._count.memberships} members` : ''}
+                      </Text>
+                    ) : team._count?.memberships ? (
+                      <Text style={{ fontSize: 13, color: theme.mutedText, marginTop: 2 }}>
+                        {team._count.memberships} members
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.mutedText} />
+                </Pressable>
+              ))}
+            </View>
+          ))
         ) : (
           <Text style={{ color: theme.mutedText }}>No teams yet.</Text>
         )}

@@ -146,9 +146,9 @@ describe('OrganizationScreen (react-query render smoke)', () => {
     expect(await screen.findByText('Girls Basketball')).toBeTruthy();
     expect(screen.queryByText('Varsity Tigers')).toBeNull();
     expect(screen.queryByText('JV Tigers')).toBeNull();
-    // Teams are name-sorted before grouping ("JV Tigers" < "Varsity Tigers"),
-    // so the level labels follow that same order.
-    expect(await screen.findByText('2 teams · JV, Varsity')).toBeTruthy();
+    // Level labels are ordered by canonical rank (varsity before jv), not the
+    // team-name sort the list arrives in.
+    expect(await screen.findByText('2 teams · Varsity, JV')).toBeTruthy();
 
     // Ungrouped team keeps its own per-team row.
     expect(await screen.findByText('Club Squad')).toBeTruthy();
