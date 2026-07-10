@@ -37,4 +37,19 @@ describe('program inference from legacy team names', () => {
     // unresolvable sport → null (reported by the script, never guessed)
     expect(inferProgramForTeam({ name: 'The Wolfpack', sport: 'idk' })).toBe(null);
   });
+
+  it('two teams of different gender in the same sport share a program key', () => {
+    // SportProgram is now keyed on (organization_id, sport) only — no gender
+    // column. Gender lives on Team. inferProgramForTeam's return shape is
+    // unchanged; the dedup happens at the caller (backfill-sport-programs.ts),
+    // which upserts SportProgram on { organization_id, sport } and writes
+    // gender onto each Team row individually. Boys/Girls Varsity Soccer must
+    // therefore resolve to the same `sport` so they land on one program.
+    const boys = inferProgramForTeam({ name: 'Boys Varsity Soccer', sport: 'Soccer' });
+    const girls = inferProgramForTeam({ name: 'Girls Varsity Soccer', sport: 'Soccer' });
+    expect(boys).toEqual({ sport: 'soccer', gender: 'boys', level: 'varsity' });
+    expect(girls).toEqual({ sport: 'soccer', gender: 'girls', level: 'varsity' });
+    expect(boys!.sport).toBe(girls!.sport);
+    expect(boys!.gender).not.toBe(girls!.gender);
+  });
 });

@@ -13,7 +13,7 @@
  *   npx tsx scripts/backfill-sport-programs.ts --apply
  */
 import { prisma } from '../src/lib/prisma.js';
-import { inferProgramForTeam } from '../src/lib/programInference.js';
+import { inferProgramForTeam, InferredGender, InferredLevel } from '../src/lib/programInference.js';
 
 const apply = process.argv.includes('--apply');
 
@@ -27,7 +27,7 @@ async function main() {
   const unresolved: typeof teams = [];
   const planned: Array<{
     teamId: string; teamName: string; orgId: string;
-    sport: string; gender: string; level: string | null;
+    sport: string; gender: InferredGender; level: InferredLevel | null;
   }> = [];
 
   for (const team of teams) {
@@ -45,7 +45,7 @@ async function main() {
   console.log(`[programs-backfill] mode: ${apply ? 'APPLY' : 'DRY RUN'}`);
   console.log(`[programs-backfill] linkable teams: ${planned.length}`);
   for (const p of planned) {
-    console.log(`  - ${p.teamName} -> ${p.gender}/${p.sport}/${p.level ?? 'no-level'}`);
+    console.log(`  - ${p.teamName} -> ${p.sport} [${p.gender}/${p.level ?? 'no-level'}]`);
   }
   console.log(`[programs-backfill] UNRESOLVED (left untouched): ${unresolved.length}`);
   for (const t of unresolved) {
@@ -58,18 +58,18 @@ async function main() {
 
   let linked = 0;
   for (const p of planned) {
+    // SportProgram is keyed on (organization_id, sport) only — one program
+    // per sport per org, regardless of gender. Gender lives on the Team row.
     const program = await prisma.sportProgram.upsert({
       where: {
-        organization_id_sport_gender: {
-          organization_id: p.orgId, sport: p.sport, gender: p.gender as any,
-        },
+        organization_id_sport: { organization_id: p.orgId, sport: p.sport },
       },
       update: {},
-      create: { organization_id: p.orgId, sport: p.sport, gender: p.gender as any },
+      create: { organization_id: p.orgId, sport: p.sport },
     });
     await prisma.team.update({
       where: { id: p.teamId },
-      data: { program_id: program.id, level: (p.level ?? 'other') as any },
+      data: { program_id: program.id, level: p.level ?? 'other', gender: p.gender },
     });
     linked += 1;
   }
