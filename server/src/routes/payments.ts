@@ -1269,7 +1269,7 @@ async function createMembershipCheckoutSession(
 
   if (chosen === 'veteran') {
     const snapshot = await getVeteranBillingSnapshot(req.user!.id, organizationId);
-    actualTeamCount = snapshot.teamCount;
+    actualTeamCount = snapshot.programCount;
     billableQuantity = snapshot.billableQuantity;
 
     if (typeof teamCount === 'number' && teamCount !== actualTeamCount) {
@@ -2002,7 +2002,7 @@ paymentsRouter.post(
 
       if (chosen === 'veteran') {
         const snapshot = await getVeteranBillingSnapshot(userId, orgIdBody);
-        actualTeamCount = snapshot.teamCount;
+        actualTeamCount = snapshot.programCount;
         billableQuantity = snapshot.billableQuantity;
 
         if (typeof team_count === 'number' && team_count !== actualTeamCount) {
@@ -2789,7 +2789,7 @@ paymentsRouter.post(
       }
 
       const snapshot = await getVeteranBillingSnapshot(userId);
-      const actualTeamCount = snapshot.teamCount;
+      const actualTeamCount = snapshot.programCount;
       const quantityUpdate = resolveVeteranQuantityUpdate(actualTeamCount, team_count);
       const billable = quantityUpdate.billableQuantity;
       if (billable === 0) {

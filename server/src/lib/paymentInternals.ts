@@ -2,6 +2,7 @@ import type { AdStatus, Prisma } from '@prisma/client';
 import type { Stripe } from 'stripe';
 import { debugLog } from './debugLog.js';
 import {
+    SERVER_ROOKIE_PROGRAM_LIMIT,
     SERVER_ROOKIE_TEAM_LIMIT,
     SERVER_VETERAN_MIN_TOTAL_TEAMS,
 } from './planDefinitions.js';
@@ -366,21 +367,31 @@ export async function syncStripeSubscriptionState(
 export async function getVeteranBillingSnapshot(
   userId: string,
   organizationId?: string | null
-): Promise<{ teamCount: number; billableQuantity: number }> {
-  const teamCount = organizationId
-    ? await prisma.team.count({ where: { organization_id: organizationId } })
-    : await prisma.teamMembership.count({
-        where: { user_id: userId, role: 'owner', status: 'active' },
-      });
+): Promise<{ programCount: number; billableQuantity: number }> {
+  const programCount = organizationId
+    ? await prisma.sportProgram.count({
+        where: { organization_id: organizationId, teams: { some: { status: 'active' } } },
+      })
+    : await (async () => {
+        const owned = await prisma.teamMembership.findMany({
+          where: { user_id: userId, role: 'owner', status: 'active', team: { status: 'active' } },
+          select: { team: { select: { program_id: true } } },
+          take: 5000,
+        });
+        const ids = new Set<string>();
+        let ungrouped = 0;
+        for (const r of owned) r.team?.program_id ? ids.add(r.team.program_id) : (ungrouped += 1);
+        return ids.size + ungrouped;
+      })();
 
   return {
-    teamCount,
-    billableQuantity: Math.max(0, teamCount - SERVER_ROOKIE_TEAM_LIMIT),
+    programCount,
+    billableQuantity: Math.max(0, programCount - SERVER_ROOKIE_PROGRAM_LIMIT),
   };
 }
 
 export function getVeteranTotalTeamAllowance(billableQuantity: number): number {
-  return SERVER_ROOKIE_TEAM_LIMIT + Math.max(0, Math.trunc(billableQuantity || 0));
+  return SERVER_ROOKIE_PROGRAM_LIMIT + Math.max(0, Math.trunc(billableQuantity || 0));
 }
 
 export function resolveVeteranQuantityUpdate(
