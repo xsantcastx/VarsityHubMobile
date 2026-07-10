@@ -6,6 +6,7 @@ import { useCreateTeamAccess } from '@/hooks/useCreateTeamAccess';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -205,6 +206,7 @@ function CreateTeamScreen() {
   }, [authUser, canAccessCreateTeam, createTeamAccessLoading, router]);
 
   const sports = SPORT_LABELS;
+  const queryClient = useQueryClient();
 
   const { data: orgPrograms, refetch: refetchOrgPrograms } = useOrgProgramsQuery({
     organizationId: selectedOrgId,
@@ -223,15 +225,19 @@ function CreateTeamScreen() {
   const handleSelectProgram = useCallback(
     (program: OrgProgram) => {
       if (selectedProgramId === program.id) {
+        // Level lives inside the program section — deselecting hides the chips,
+        // so drop the level too or it rides along invisibly into the payload.
         setSelectedProgramId(null);
+        setSelectedLevel(null);
         return;
       }
       setSelectedProgramId(program.id);
       setCreatingProgram(false);
       setNewProgramGender(null);
-      // Prefill/lock the sport picker to the program's sport.
+      // Prefill/lock the sport picker to the program's sport. An unresolvable
+      // slug leaves nothing to lock onto, so clear rather than show a stale one.
       const sportOption = SPORT_OPTIONS.find(option => option.slug === program.sport);
-      if (sportOption) setSport(sportOption.label);
+      setSport(sportOption ? sportOption.label : '');
     },
     [selectedProgramId]
   );
@@ -240,6 +246,7 @@ function CreateTeamScreen() {
     if (creatingProgram) {
       setCreatingProgram(false);
       setNewProgramGender(null);
+      setSelectedLevel(null);
       return;
     }
     setCreatingProgram(true);
@@ -636,11 +643,12 @@ function CreateTeamScreen() {
               gender: newProgramGender,
             });
             createdProgramId = programResponse?.program?.id ?? null;
+            // The new program must appear in the grouped coach surfaces that
+            // read this cache key (manage-teams, my-team picker).
+            void queryClient.invalidateQueries({ queryKey: ['org-programs', selectedOrgId] });
           } catch (error: unknown) {
             const err = error as ApiErrorLike;
-            const isProgramExists =
-              err?.status === 409 &&
-              (err?.data?.code === 'PROGRAM_EXISTS' || err?.data?.error === 'PROGRAM_EXISTS');
+            const isProgramExists = err?.status === 409 && err?.data?.error === 'PROGRAM_EXISTS';
             if (isProgramExists) {
               // Someone else created the same (sport, gender) program first —
               // recover by refetching and using the existing one instead of
