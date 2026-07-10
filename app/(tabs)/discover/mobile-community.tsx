@@ -416,6 +416,29 @@ function CommunityDiscoverScreen() {
       : 'Unable to load events right now. Pull to refresh to retry.';
   })();
 
+  const { data: followedGamesData, isPending: followedGamesPending } = useQuery({
+    queryKey: ['discover-followed-games', user?.id ?? 'guest'],
+    enabled: interactionsDone,
+    queryFn: async (): Promise<GameItem[]> => {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const raw = await Game.list('date', {
+        following: true,
+        dateFrom: startOfToday.toISOString(),
+        limit: 100,
+      });
+      const list = Array.isArray(raw) ? raw : raw?.games || raw?.items || [];
+      // Upcoming only — drop anything already past (parity with calendar dots)
+      const now = new Date();
+      return list.filter((g: any) => {
+        if (!g.date) return false;
+        const d = new Date(g.date);
+        return !isNaN(d.getTime()) && d >= now;
+      });
+    },
+  });
+  const followedGames = followedGamesData ?? [];
+
   const personalizationQueryKey = ['discover-personalization', user?.id ?? 'guest'];
   const {
     data: personalization,
@@ -1389,6 +1412,9 @@ function CommunityDiscoverScreen() {
                       try {
                         if (next) await Team.follow(t.id);
                         else await Team.unfollow(t.id);
+                        queryClient.invalidateQueries({
+                          queryKey: ['discover-followed-games', user?.id ?? 'guest'],
+                        });
                       } catch {
                         setUnifiedSearchResults(prev =>
                           prev
@@ -1706,7 +1732,7 @@ function CommunityDiscoverScreen() {
             const marked: Record<string, any> = {};
             const now = new Date();
             // Mark only future dates with events
-            games.forEach(game => {
+            followedGames.forEach(game => {
               if (game.date) {
                 const gameDate = new Date(game.date);
                 // Only mark future events
@@ -1727,7 +1753,7 @@ function CommunityDiscoverScreen() {
               };
             }
             return marked;
-          }, [games, selectedDate, colorScheme])}
+          }, [followedGames, selectedDate, colorScheme])}
           style={{
             backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
           }}
@@ -1765,10 +1791,17 @@ function CommunityDiscoverScreen() {
         />
       </View>
 
+      {followedGames.length === 0 && !followedGamesPending ? (
+        <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>
+          You&apos;re not following any teams yet — search above to find and follow teams, and their
+          games show up here.
+        </Text>
+      ) : null}
+
       {/* Games on Selected Date */}
       {selectedDate &&
         (() => {
-          const gamesOnDate = games.filter(g => {
+          const gamesOnDate = followedGames.filter(g => {
             if (!g.date) return false;
             const gameDate = new Date(g.date);
             // Only show future events on selected date
