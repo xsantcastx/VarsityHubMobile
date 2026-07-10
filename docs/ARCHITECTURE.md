@@ -136,8 +136,8 @@ with _this_ program's id, so a pre-existing direct follow of a level team
 A level team added to a program later is reconciled exactly, not left
 stale: `fanOutProgramFollowersToTeam` (`server/src/lib/
 programFollowFanout.ts`) reads the `ProgramFollow` ledger for every
-existing follower and stamps a `TeamFollow` for the new team, fired
-fire-and-forget from the team-create and team-PUT routes
+existing follower and stamps a `TeamFollow` for the new team, awaited but
+wrapped in try/catch in the team-create and team-PUT routes
 (`server/src/routes/teams.ts`) after the transaction commits so it can
 never fail the request. It caps at 5000 followers per call, chunks writes
 at 1000, and logs + `captureException`s when truncated — the reconcile-
