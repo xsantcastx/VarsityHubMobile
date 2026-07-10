@@ -146,7 +146,10 @@ describe('MyTeamScreen (react-query render smoke)', () => {
     fireEvent.press(await screen.findByText('Varsity Tigers'));
 
     expect(await screen.findByText('Girls Basketball')).toBeTruthy();
-    expect(await screen.findByText('Varsity Tigers  ·  Varsity')).toBeTruthy();
-    expect(await screen.findByText('JV Tigers  ·  JV')).toBeTruthy();
+    // Level labels render as their own muted Text nodes beside the name
+    // (not concatenated into it), so assert them independently.
+    expect(await screen.findByText('JV Tigers')).toBeTruthy();
+    expect(await screen.findByText('Varsity')).toBeTruthy();
+    expect(await screen.findByText('JV')).toBeTruthy();
   });
 });

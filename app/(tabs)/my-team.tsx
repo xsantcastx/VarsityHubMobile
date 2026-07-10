@@ -153,7 +153,6 @@ function TeamPickerRow({
   onPress: () => void;
 }) {
   const levelLabel = formatLevelLabel(team.level);
-  const rowText = levelLabel ? `${team.name}  ·  ${levelLabel}` : team.name;
   return (
     <Pressable
       onPress={onPress}
@@ -173,12 +172,18 @@ function TeamPickerRow({
       <Text
         style={[
           styles.roleOptionText,
+          styles.teamPickerName,
           { color: isActive ? Colors[colorScheme].tint : Colors[colorScheme].text },
         ]}
         numberOfLines={1}
       >
-        {rowText}
+        {team.name}
       </Text>
+      {levelLabel ? (
+        <Text style={[styles.teamPickerLevel, { color: Colors[colorScheme].mutedText }]}>
+          {levelLabel}
+        </Text>
+      ) : null}
       {isActive && <MaterialIcons name="check" size={18} color={Colors[colorScheme].tint} />}
     </Pressable>
   );
@@ -1275,6 +1280,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginTop: 10,
     marginBottom: 6,
+  },
+  teamPickerName: {
+    flexShrink: 1,
+  },
+  teamPickerLevel: {
+    flexShrink: 0,
+    fontSize: 13,
+    fontWeight: '400',
   },
   cancelButton: {
     alignItems: 'center',
