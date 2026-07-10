@@ -1,13 +1,15 @@
 import { Colors } from '@/constants/Colors';
+import { formatLevelLabel, formatProgramLabel } from '@/constants/programs';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useManagedTeamsQuery } from '@/hooks/useManagedTeamsQuery';
+import { useOrgProgramsQuery } from '@/hooks/useOrgProgramsQuery';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { getAuthSnapshot } from '@/utils/authState';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,6 +24,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { EmptyState, SectionHeader, TeamCard } from '@/components/ui';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
+
+/**
+ * Groups teams by `program_id`, preserving first-appearance order within and
+ * across groups. Grouped (non-null program) sections come first; teams with a
+ * null `program_id` land in a single trailing group. Relocatable — Task 4 may
+ * move this to a shared module; it must stay a pure function of its input.
+ */
+export function groupTeamsByProgram<T extends { program_id: string | null }>(
+  teams: T[]
+): { programId: string | null; teams: T[] }[] {
+  const byProgram = new Map<string | null, T[]>();
+  for (const t of teams) {
+    const key = t.program_id ?? null;
+    const list = byProgram.get(key) ?? [];
+    list.push(t);
+    byProgram.set(key, list);
+  }
+  const groups = [...byProgram.entries()].map(([programId, ts]) => ({ programId, teams: ts }));
+  // programs first (stable by first appearance), ungrouped last
+  return [...groups.filter(g => g.programId !== null), ...groups.filter(g => g.programId === null)];
+}
 
 function ManageTeamsSimpleScreen() {
   const { user, checkAuth } = useAuth();
@@ -152,6 +175,16 @@ function ManageTeamsSimpleScreen() {
   // Get organization from first team that has one
   const organization = teams.find(t => t.organization)?.organization;
   const activeTeams = teams.filter(t => t.status === 'active');
+
+  const { data: orgPrograms = [] } = useOrgProgramsQuery({
+    organizationId: organization?.id,
+    enabled: !!organization?.id,
+  });
+  const programsById = useMemo(() => new Map(orgPrograms.map(p => [p.id, p])), [orgPrograms]);
+  const teamGroups = useMemo(() => groupTeamsByProgram(activeTeams), [activeTeams]);
+  // Only show program headers when at least one team actually has a
+  // program_id — a fully ungrouped org keeps today's flat look.
+  const hasProgramGroups = teamGroups.some(g => g.programId !== null);
   const handleCreateTeamPress = useCallback(() => {
     void router.push({
       pathname: '/create-team',
@@ -396,23 +429,63 @@ function ManageTeamsSimpleScreen() {
           <View style={styles.teamsSection}>
             <SectionHeader title="MY TEAMS" style={{ paddingHorizontal: 0 }} />
 
-            {activeTeams.map(team => (
-              <TeamCard
-                key={team.id}
-                team={{
-                  id: team.id,
-                  name: team.name,
-                  sport: team.sport || undefined,
-                  season: team.season || undefined,
-                  logo_url: team.avatar_url || undefined,
-                  member_count: team.members,
-                  role: team.my_role as any,
-                }}
-                onPress={() => void router.push(`/team-page?id=${team.id}`)}
-                showRole={true}
-                style={{ marginBottom: 12 }}
-              />
-            ))}
+            {hasProgramGroups
+              ? teamGroups.map(group => {
+                  const program = group.programId ? programsById.get(group.programId) : undefined;
+                  const headerTitle = group.programId
+                    ? program
+                      ? formatProgramLabel(program)
+                      : group.teams[0]?.sport || 'Teams'
+                    : 'Other teams';
+                  return (
+                    <View key={group.programId ?? 'other'}>
+                      <SectionHeader
+                        title={headerTitle}
+                        showBorder={false}
+                        style={{ paddingHorizontal: 0, paddingTop: 8 }}
+                      />
+                      {group.teams.map(team => {
+                        const levelLabel = formatLevelLabel(team.level);
+                        const seasonText =
+                          [team.season, levelLabel].filter(Boolean).join(' • ') || undefined;
+                        return (
+                          <TeamCard
+                            key={team.id}
+                            team={{
+                              id: team.id,
+                              name: team.name,
+                              sport: team.sport || undefined,
+                              season: seasonText,
+                              logo_url: team.avatar_url || undefined,
+                              member_count: team.members,
+                              role: team.my_role as any,
+                            }}
+                            onPress={() => void router.push(`/team-page?id=${team.id}`)}
+                            showRole={true}
+                            style={{ marginBottom: 12 }}
+                          />
+                        );
+                      })}
+                    </View>
+                  );
+                })
+              : activeTeams.map(team => (
+                  <TeamCard
+                    key={team.id}
+                    team={{
+                      id: team.id,
+                      name: team.name,
+                      sport: team.sport || undefined,
+                      season: team.season || undefined,
+                      logo_url: team.avatar_url || undefined,
+                      member_count: team.members,
+                      role: team.my_role as any,
+                    }}
+                    onPress={() => void router.push(`/team-page?id=${team.id}`)}
+                    showRole={true}
+                    style={{ marginBottom: 12 }}
+                  />
+                ))}
           </View>
         )}
 

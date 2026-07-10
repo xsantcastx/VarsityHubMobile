@@ -33,9 +33,11 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockManaged = jest.fn();
+const mockPrograms = jest.fn();
 jest.mock('@/api/entities', () => ({
   __esModule: true,
   Team: { managed: (...args: any[]) => mockManaged(...args) },
+  Organization: { programs: (...args: any[]) => mockPrograms(...args) },
 }));
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({
@@ -53,7 +55,7 @@ jest.mock('@/utils/authState', () => ({
   getAuthSnapshot: jest.fn().mockResolvedValue({ id: 'u1', preferences: {} }),
 }));
 
-import ManageTeamsScreen from '../(tabs)/manage-teams';
+import ManageTeamsScreen, { groupTeamsByProgram } from '../(tabs)/manage-teams';
 import { QueryWrapper } from '../../test-utils/screenMocks';
 
 const sampleTeam = {
@@ -68,8 +70,55 @@ const sampleTeam = {
   organization: null,
 };
 
+const sampleOrg = { id: 'org1', name: 'Test Org' };
+
+const groupedTeamA = {
+  id: 't1',
+  name: 'Varsity Tigers',
+  members: 12,
+  status: 'active',
+  sport: 'Basketball',
+  season: '2026',
+  avatar_url: null,
+  my_role: 'coach',
+  level: 'varsity',
+  program_id: 'prog1',
+  organization: sampleOrg,
+};
+
+const groupedTeamB = {
+  id: 't2',
+  name: 'JV Tigers',
+  members: 10,
+  status: 'active',
+  sport: 'Basketball',
+  season: '2026',
+  avatar_url: null,
+  my_role: 'coach',
+  level: 'jv',
+  program_id: 'prog1',
+  organization: sampleOrg,
+};
+
+const ungroupedTeam = {
+  id: 't3',
+  name: 'Club Squad',
+  members: 8,
+  status: 'active',
+  sport: 'Soccer',
+  season: '2026',
+  avatar_url: null,
+  my_role: 'coach',
+  level: null,
+  program_id: null,
+  organization: sampleOrg,
+};
+
 beforeEach(() => {
   mockManaged.mockReset().mockResolvedValue([sampleTeam]);
+  mockPrograms.mockReset().mockResolvedValue({
+    programs: [{ id: 'prog1', sport: 'basketball', gender: 'girls', name: null, teams: [] }],
+  });
 });
 
 describe('ManageTeamsScreen (react-query render smoke)', () => {
@@ -81,5 +130,44 @@ describe('ManageTeamsScreen (react-query render smoke)', () => {
     );
     await waitFor(() => expect(mockManaged).toHaveBeenCalled());
     expect(await screen.findByText('Tigers')).toBeTruthy();
+    // Fully ungrouped org (no program_id on any team) keeps today's flat look —
+    // no program section headers, no "Other teams" header.
+    expect(screen.queryByText('Other teams')).toBeNull();
+  });
+
+  it('groups teams by program with a program header and an "Other teams" section', async () => {
+    mockManaged.mockReset().mockResolvedValue([groupedTeamA, groupedTeamB, ungroupedTeam]);
+
+    render(
+      <QueryWrapper>
+        <ManageTeamsScreen />
+      </QueryWrapper>
+    );
+    await waitFor(() => expect(mockManaged).toHaveBeenCalled());
+
+    expect(await screen.findByText('Girls Basketball')).toBeTruthy();
+    expect(await screen.findByText('Varsity Tigers')).toBeTruthy();
+    expect(await screen.findByText('JV Tigers')).toBeTruthy();
+    expect(await screen.findByText('Other teams')).toBeTruthy();
+    expect(await screen.findByText('Club Squad')).toBeTruthy();
+  });
+});
+
+describe('groupTeamsByProgram', () => {
+  it('orders grouped programs first (stable by first appearance) and ungrouped last', () => {
+    const teams = [
+      { id: 'a', program_id: 'p2' },
+      { id: 'b', program_id: null },
+      { id: 'c', program_id: 'p1' },
+      { id: 'd', program_id: 'p2' },
+      { id: 'e', program_id: null },
+    ];
+
+    const groups = groupTeamsByProgram(teams);
+
+    expect(groups.map(g => g.programId)).toEqual(['p2', 'p1', null]);
+    expect(groups[0].teams.map(t => t.id)).toEqual(['a', 'd']);
+    expect(groups[1].teams.map(t => t.id)).toEqual(['c']);
+    expect(groups[2].teams.map(t => t.id)).toEqual(['b', 'e']);
   });
 });
