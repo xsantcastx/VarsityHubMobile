@@ -16,6 +16,7 @@ export const DATA_EXPORT_DOMAIN_FILENAMES = [
   'teams_owned.json',
   'team_memberships.json',
   'team_follows.json',
+  'program_follows.json',
   'organization_memberships.json',
   'organization_follows.json',
   'organization_join_requests.json',

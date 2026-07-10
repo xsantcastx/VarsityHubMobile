@@ -123,24 +123,43 @@ shareLanding.ts`, falls back to a generic landing for unknown ids).
 `isTeamHiddenFromViewer` gate used by `GET /teams/:id/screen-summary` —
 hidden teams drop out of both `levels` and `counts`, and a program that is
 all-hidden still returns 200 with `levels: []` (the program object itself
-is not private). `followers_count` / `is_following` are computed over ALL
-active level teams regardless of per-team visibility, since follow state
-isn't private information and needs to stay viewer-stable.
+is not private).
 
-**Follow semantics are union-read / fan-out-write, deliberately with no
-`ProgramFollow` table and no feed-clause change.** `is_following` is true if
-the viewer follows _any_ level team; `followers_count` is a DISTINCT-user
-count across all level teams. `POST /follow` fans out and creates a
-`TeamFollow` row for every current active level team (`createMany` +
-`skipDuplicates`, idempotent under the `(user_id, team_id)` composite key).
-`DELETE /follow` removes follows for all of the program's teams regardless
-of team status (so it also clears a stale follow on an archived level
-team). Accepted consequence: a level team added to the program _after_ a
-user already follows the program does not retroactively inherit that
-follower — there is no reconciliation job for this, by design. No
-`TEAM_FOLLOWED` notification fan-out on program follow (would spam the same
-staff once per level team for a single user action). Group chats remain
-per level team; there is no program-level group chat.
+**Follow is a `ProgramFollow` intent ledger (`@@id([user_id, program_id])`)
+layered on top of the existing `TeamFollow` fan-out — feed clauses
+(`feed.ts`, `posts.ts`) are unchanged and still read `TeamFollow` only.**
+`is_following` / `followers_count` are now intent-based: a `ProgramFollow`
+row means the viewer follows the program, and `followers_count` is a
+`ProgramFollow` count. This replaced the earlier union-read model (follow
+state derived from `TeamFollow` rows across all level teams), which had a
+real bug — following a single level team made the whole program read as
+followed even without an explicit program follow.
+
+`POST /follow` writes the `ProgramFollow` ledger row and fans out a
+`TeamFollow` row for every current active level team, stamped
+`via_program_id` (`createMany` + `skipDuplicates`, idempotent under the
+`(user_id, team_id)` composite key). `DELETE /follow` is lossless: it
+removes the `ProgramFollow` row plus only the `TeamFollow` rows stamped
+with _this_ program's id, so a pre-existing direct follow of a level team
+(unstamped, `via_program_id` null) survives the unfollow untouched.
+
+A level team added to a program later is reconciled exactly, not left
+stale: `fanOutProgramFollowersToTeam` (`server/src/lib/
+programFollowFanout.ts`) reads the `ProgramFollow` ledger for every
+existing follower and stamps a `TeamFollow` for the new team, awaited but
+wrapped in try/catch in the team-create and team-PUT routes
+(`server/src/routes/teams.ts`) after the transaction commits so it can
+never fail the request. It caps at 5000 followers per call, chunks writes
+at 1000, and logs + `captureException`s when truncated — the reconcile-
+script backstop for the truncated-overflow case is a documented follow-up,
+not yet built. This fan-out runs regardless of the newly-added team's
+privacy — a coach adding a private team to an already-followed program
+deliberately reaches those existing followers with the new team's posts;
+surfacing that to the coach before they add the team is a deferred UX
+follow-up, not a bug. No `TEAM_FOLLOWED` notification fan-out on program
+follow (would spam the same staff once per level team for a single user
+action). Group chats remain per level team; there is no program-level
+group chat.
 
 Deep links: `/programs` is in `SHAREABLE_PATHS` and the iOS `IOS_PATHS` AASA
 allowlist, `AppLinks.program()`, and both `program`/`programs` map to

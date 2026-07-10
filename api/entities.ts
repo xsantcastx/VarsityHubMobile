@@ -238,6 +238,7 @@ export const Game = {
       showPending?: boolean;
       teamId?: string;
       mapView?: boolean; // v1.0.2: restricts server-side to games this week only
+      following?: boolean; // Discover calendar: scope to viewer's followed teams
     }
   ) => {
     const params: string[] = [];
@@ -258,6 +259,7 @@ export const Game = {
     if (options?.showPending) params.push('show_pending=true');
     if (options?.teamId) params.push(`team_id=${encodeURIComponent(options.teamId)}`);
     if (options?.mapView) params.push('map_view=true');
+    if (options?.following) params.push('following=true');
     const qs = params.length ? `?${params.join('&')}` : '';
     return httpGet('/games' + qs, {}, 15000, 2);
   },

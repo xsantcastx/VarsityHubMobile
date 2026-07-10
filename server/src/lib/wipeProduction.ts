@@ -37,6 +37,7 @@ export async function wipeDatabase(prisma: PrismaClient): Promise<{ deleted: Rec
     ['Follows', () => prisma.follows.deleteMany()],
     ['TeamFollow', () => prisma.teamFollow.deleteMany()],
     ['OrganizationFollow', () => prisma.organizationFollow.deleteMany()],
+    ['ProgramFollow', () => prisma.programFollow.deleteMany()],
     ['CategoryFollow', () => prisma.categoryFollow.deleteMany()],
     ['BlockedUser', () => prisma.blockedUser.deleteMany()],
     ['TeamMembership', () => prisma.teamMembership.deleteMany()],
@@ -46,6 +47,10 @@ export async function wipeDatabase(prisma: PrismaClient): Promise<{ deleted: Rec
     ['OrganizationJoinRequest', () => prisma.organizationJoinRequest.deleteMany()],
     ['Game', () => prisma.game.deleteMany()],
     ['Team', () => prisma.team.deleteMany()],
+    // SportProgram.organization_id -> Organization is onDelete: Restrict, so this
+    // MUST run before Organization. ProgramFollow (Cascade) is deleted above;
+    // TeamFollow.via_program_id and Team.program_id are SetNull (order-independent).
+    ['SportProgram', () => prisma.sportProgram.deleteMany()],
     ['Organization', () => prisma.organization.deleteMany()],
     ['User', () => prisma.user.deleteMany()],
   ];

@@ -44,9 +44,6 @@ programsRouter.get(
     });
     if (!program) return sendError(res, 404, 'Program not found');
 
-    // All active level teams — used for the union follower stats (below).
-    const allTeamIds = program.teams.map(t => t.id);
-
     // Per-team privacy gate: drop level teams the viewer isn't allowed to see
     // (private teams they don't follow / aren't a member of / aren't an org
     // admin for). Mirrors GET /teams/:id/screen-summary. A fully-hidden
@@ -57,16 +54,13 @@ programsRouter.get(
     const visibleTeams = program.teams.filter((_, i) => !hiddenFlags[i]);
     const visibleTeamIds = visibleTeams.map(t => t.id);
 
-    // Follower stats stay over ALL active level teams: follow state is not
-    // private information, and the union semantics must be viewer-stable.
-    const [followerRows, viewerFollow, games] = await Promise.all([
-      allTeamIds.length
-        ? prisma.teamFollow.groupBy({ by: ['user_id'], where: { team_id: { in: allTeamIds } } })
-        : Promise.resolve([] as { user_id: string }[]),
-      viewerId && allTeamIds.length
-        ? prisma.teamFollow.findFirst({
-            where: { user_id: viewerId, team_id: { in: allTeamIds } },
-            select: { team_id: true },
+    // Follower stats are intent-based: a ProgramFollow row IS "follows the
+    // program." Not a union over level-team TeamFollow rows.
+    const [followersCount, viewerFollow, games] = await Promise.all([
+      prisma.programFollow.count({ where: { program_id: programId } }),
+      viewerId
+        ? prisma.programFollow.findUnique({
+            where: { user_id_program_id: { user_id: viewerId, program_id: programId } },
           })
         : Promise.resolve(null),
       visibleTeamIds.length
@@ -115,7 +109,7 @@ programsRouter.get(
         name: program.name,
         logo_url: program.logo_url,
         created_at: program.created_at.toISOString(),
-        followers_count: followerRows.length,
+        followers_count: followersCount,
         is_following: !!viewerFollow,
         organization: program.organization ?? null,
       },
@@ -149,16 +143,33 @@ programsRouter.post(
     if (!program) return sendError(res, 404, 'Program not found');
 
     const teamIds = program.teams.map(t => t.id);
+    // Write the intent ledger row first — this is the new source of truth
+    // for "does this user follow the program." Upsert keeps it idempotent
+    // under the (user_id, program_id) composite PK.
+    await prisma.programFollow.upsert({
+      where: { user_id_program_id: { user_id: req.user.id, program_id: programId } },
+      create: { user_id: req.user.id, program_id: programId },
+      update: {},
+    });
     // Fan out over the program's ACTIVE level teams without the
     // isTeamHiddenFromViewer privacy gate — following a program means
     // following its teams, including a private one the viewer can't
     // currently see (and isTeamHiddenFromViewer admits followers, so a
     // private team becomes visible to the viewer as soon as this runs).
     // createMany + skipDuplicates keeps this idempotent under the
-    // (user_id, team_id) composite PK without a P2002 round-trip.
+    // (user_id, team_id) composite PK without a P2002 round-trip. Each row
+    // is stamped via_program_id so DELETE can later target only the rows
+    // this program created — NOTE: skipDuplicates means a PRE-EXISTING
+    // direct follow (via_program_id null) of a level team is left alone,
+    // not overwritten with the program stamp. That's deliberate: it's what
+    // keeps unfollow lossless (see DELETE below), not a bug to "fix".
     if (teamIds.length) {
       await prisma.teamFollow.createMany({
-        data: teamIds.map(team_id => ({ team_id, user_id: req.user!.id })),
+        data: teamIds.map(team_id => ({
+          team_id,
+          user_id: req.user!.id,
+          via_program_id: programId,
+        })),
         skipDuplicates: true,
       });
     }
@@ -172,20 +183,23 @@ programsRouter.delete(
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return sendError(res, 401, 'Unauthorized');
     const programId = String(req.params.id);
-    // No status filter on teams here (unlike the follow route above) — an
-    // unfollow must clear a stale TeamFollow row even if the team has since
-    // been archived, so it removes follows for ALL of the program's teams.
     const program = await prisma.sportProgram.findUnique({
       where: { id: programId },
-      select: { id: true, teams: { select: { id: true }, take: 25 } },
+      select: { id: true },
     });
     if (!program) return sendError(res, 404, 'Program not found');
-    const teamIds = program.teams.map(t => t.id);
-    const removed = teamIds.length
-      ? await prisma.teamFollow.deleteMany({
-          where: { user_id: req.user.id, team_id: { in: teamIds } },
-        })
-      : { count: 0 };
+    const userId = req.user.id;
+    // Lossless unfollow: only clear the ProgramFollow ledger row and the
+    // TeamFollow rows THIS program stamped (via_program_id === programId).
+    // A pre-existing direct follow of a level team (via_program_id null)
+    // is untouched — matching on via_program_id instead of team_id is what
+    // makes this lossless, unlike the old team_id-in-list approach.
+    const [, removed] = await prisma.$transaction([
+      prisma.programFollow.deleteMany({ where: { user_id: userId, program_id: programId } }),
+      prisma.teamFollow.deleteMany({
+        where: { user_id: userId, via_program_id: programId },
+      }),
+    ]);
     return res.json({ ok: true, unfollowed: removed.count });
   })
 );

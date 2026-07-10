@@ -50,6 +50,7 @@ export const TABLES_IN_ORDER = [
   'BlockedUser',
   'TeamMembership',
   'TeamFollow',
+  'ProgramFollow',
   'TeamInvite',
   'TeamJoinRequest',
   'OrganizationMembership',

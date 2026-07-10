@@ -299,6 +299,7 @@ model User {
   followers           Follows[]            @relation("followers")
   teamFollows         TeamFollow[]
   organizationFollows OrganizationFollow[]
+  program_follows     ProgramFollow[]
 
   // Messages
   messagesSent     Message[]      @relation("message_sender")
@@ -1065,6 +1066,8 @@ model SportProgram {
 
   organization Organization @relation(fields: [organization_id], references: [id], onDelete: Restrict)
   teams        Team[]
+  followers    ProgramFollow[]
+  fanned_out_team_follows TeamFollow[] @relation("TeamFollowViaProgram")
 
   @@unique([organization_id, sport])
   @@index([organization_id])
@@ -1310,12 +1313,14 @@ model Follows {
 }
 
 model TeamFollow {
-  user_id    String
-  team_id    String
-  created_at DateTime @default(now())
+  user_id        String
+  team_id        String
+  created_at     DateTime @default(now())
+  via_program_id String?
 
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  team        Team          @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  via_program SportProgram? @relation("TeamFollowViaProgram", fields: [via_program_id], references: [id], onDelete: SetNull)
 
   @@id([user_id, team_id])
   @@index([user_id])
@@ -1333,6 +1338,19 @@ model OrganizationFollow {
   @@id([user_id, organization_id])
   @@index([user_id])
   @@index([organization_id])
+}
+
+model ProgramFollow {
+  user_id    String
+  program_id String
+  created_at DateTime @default(now())
+
+  user    User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  program SportProgram @relation(fields: [program_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, program_id])
+  @@index([user_id])
+  @@index([program_id])
 }
 
 // ===========================
