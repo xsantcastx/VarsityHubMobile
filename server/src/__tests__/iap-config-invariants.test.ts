@@ -16,6 +16,8 @@ const read = (...parts: string[]) => readFileSync(join(...parts), 'utf8');
 
 const payments = read(SERVER_ROOT, 'src', 'routes', 'payments.ts');
 const paymentInternals = read(SERVER_ROOT, 'src', 'lib', 'paymentInternals.ts');
+const appleIapReconciliation = read(SERVER_ROOT, 'src', 'lib', 'appleIapReconciliation.ts');
+const adPricing = read(SERVER_ROOT, 'src', 'utils', 'adPricing.ts');
 const env = read(SERVER_ROOT, 'src', 'lib', 'env.ts');
 const clientIap = read(REPO_ROOT, 'hooks', 'useIAP.ts');
 const clientIapWeb = read(REPO_ROOT, 'hooks', 'useIAP.web.ts');
@@ -45,8 +47,16 @@ describe('IAP product configuration invariants', () => {
     expect(paymentInternals).toMatch(
       /export const APPLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/
     );
-    expect(payments).toMatch(/const GOOGLE_PRODUCT_TO_PLAN[\s\S]*MIDTIER:\s*'veteran'/);
-    expect(payments).toMatch(/const GOOGLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/);
+    // Google reuses the one canonical Apple map — no second literal that can drift.
+    expect(payments).toMatch(/const GOOGLE_PRODUCT_TO_PLAN[^\n]*=\s*APPLE_PRODUCT_TO_PLAN/);
+  });
+
+  it('reconciliation reverse map is derived by inverting the canonical map (cannot drift)', () => {
+    expect(appleIapReconciliation).toMatch(
+      /const APPLE_PLAN_TO_PRODUCT[\s\S]*Object\.fromEntries[\s\S]*APPLE_PRODUCT_TO_PLAN/
+    );
+    // No hand-maintained literal SKUs in the reverse map.
+    expect(appleIapReconciliation).not.toMatch(/APPLE_PLAN_TO_PRODUCT[\s\S]*'MIDTIER'/);
   });
 
   it('client and server ad IAP hooks use MOND_THURS/FRI_SUN product IDs', () => {
@@ -55,8 +65,17 @@ describe('IAP product configuration invariants', () => {
     expect(clientAdIapWeb).toMatch(/weekday:\s*'MOND_THURS'/);
     expect(clientAdIapWeb).toMatch(/weekend:\s*'FRI_SUN'/);
     expect(payments).toMatch(/const APPLE_AD_PRODUCTS = \['MOND_THURS', 'FRI_SUN'\]/);
-    expect(paymentInternals).toMatch(/export const AD_PRODUCT_CENTS[\s\S]*MOND_THURS:\s*499/);
-    expect(paymentInternals).toMatch(/export const AD_PRODUCT_CENTS[\s\S]*FRI_SUN:\s*799/);
+    // Apple ad-IAP cents are derived from the single ad-pricing source so the
+    // Apple and Stripe/Android ad prices cannot diverge.
+    expect(paymentInternals).toMatch(
+      /export const AD_PRODUCT_CENTS[\s\S]*MOND_THURS:\s*WEEKDAY_BLOCK_PRICE_CENTS/
+    );
+    expect(paymentInternals).toMatch(
+      /export const AD_PRODUCT_CENTS[\s\S]*FRI_SUN:\s*WEEKEND_BLOCK_PRICE_CENTS/
+    );
+    // The canonical ad-price source still pins the real dollar amounts.
+    expect(adPricing).toMatch(/WEEKDAY_BLOCK_PRICE\s*=\s*4\.99/);
+    expect(adPricing).toMatch(/WEEKEND_BLOCK_PRICE\s*=\s*7\.99/);
   });
 
   it('mobile ad checkout uses Apple IAP on iOS and Stripe PaymentSheet elsewhere', () => {

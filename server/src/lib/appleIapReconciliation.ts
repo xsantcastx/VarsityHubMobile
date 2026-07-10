@@ -17,14 +17,16 @@
 
 import { prisma } from './prisma.js';
 import { captureException, captureMessage } from './sentry.js';
+import { APPLE_PRODUCT_TO_PLAN } from './paymentInternals.js';
 
 const PENDING_STALE_THRESHOLD_MIN = 30;
 const NOTIFICATION_DRYSPELL_HOURS = 24;
 const STUCK_ROW_REPORT_LIMIT = 50;
-const APPLE_PLAN_TO_PRODUCT: Record<string, string> = {
-  veteran: 'MIDTIER',
-  legend: 'TOPTIER',
-};
+// Derived inverse of the canonical APPLE_PRODUCT_TO_PLAN so the plan→product
+// direction can never drift from product→plan when a SKU is renamed.
+const APPLE_PLAN_TO_PRODUCT: Record<string, string> = Object.fromEntries(
+  Object.entries(APPLE_PRODUCT_TO_PLAN).map(([product, plan]) => [plan, product])
+);
 
 export type AppleIapReconciliationResult = {
   stuckPending: number;

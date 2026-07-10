@@ -13,6 +13,7 @@ import {
     mergeBillingStateIntoPreferences
 } from './userBillingState.js';
 import { invalidateMeCacheForUser } from './userCache.js';
+import { WEEKDAY_BLOCK_PRICE_CENTS, WEEKEND_BLOCK_PRICE_CENTS } from '../utils/adPricing.js';
 const MAX_AD_SLOTS = 2;
 const isJestRuntime = process.env.JEST_WORKER_ID != null;
 
@@ -483,9 +484,11 @@ export const APPLE_PRODUCT_TO_PLAN: Record<string, string> = {
   TOPTIER: 'legend',
 };
 
+// Apple ad-IAP prices must equal the Stripe/Android ad prices; derive from the
+// single ad-pricing source (utils/adPricing) so the two rails cannot diverge.
 export const AD_PRODUCT_CENTS: Record<string, number> = {
-  MOND_THURS: 499,
-  FRI_SUN: 799,
+  MOND_THURS: WEEKDAY_BLOCK_PRICE_CENTS,
+  FRI_SUN: WEEKEND_BLOCK_PRICE_CENTS,
 };
 
 function buildSlotFullError(dates: string[]) {

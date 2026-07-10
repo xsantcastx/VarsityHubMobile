@@ -4491,10 +4491,10 @@ paymentsRouter.post(
 );
 
 // ── Google Play Billing verification ────────────────────────────────
-const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = {
-  MIDTIER: 'veteran',
-  TOPTIER: 'legend',
-};
+// Google Play uses the same subscription SKU strings as Apple, so reuse the one
+// canonical product→plan map (imported above) rather than a second literal that
+// could silently drift.
+const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = APPLE_PRODUCT_TO_PLAN;
 const GOOGLE_ALLOWED_PACKAGES = (
   process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.xsantcastx.varsityhub'
 )
