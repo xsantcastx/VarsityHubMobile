@@ -126,17 +126,24 @@ export function buildProgramFields(opts: {
 // billing). Only Stripe-metered veterans (`/teams/limits` -> `metered: true`)
 // have a Stripe quantity to meter — IAP veterans (Apple/Google, no Stripe
 // subscription) are unlimited on their rail and must skip the quantity
-// update entirely. Kept outside the component so it can be unit tested
-// directly — see __tests__/create-team-metering-guard.test.tsx.
+// update entirely. `isNewProgram` must be false when the new team is joining
+// a sport program the org already runs — the server's billable-program count
+// (countBillableProgramsForContext in server/src/routes/teams.ts) only counts
+// a program once it has an active team, so adding another team to an
+// already-active program does NOT increase the count, and bumping the Stripe
+// quantity in that case would over-bill by one unit permanently. Kept outside
+// the component so it can be unit tested directly — see
+// __tests__/create-team-metering-guard.test.tsx.
 export function resolveVeteranMeteringAction(opts: {
   metered: boolean | null | undefined;
   programCount: number;
   rookieProgramLimit: number;
+  isNewProgram: boolean;
 }): { shouldMeterQuantity: boolean; newProgramCount: number; billableProgramCount: number } {
-  const newProgramCount = opts.programCount + 1;
+  const newProgramCount = opts.isNewProgram ? opts.programCount + 1 : opts.programCount;
   const billableProgramCount = Math.max(0, newProgramCount - opts.rookieProgramLimit);
   return {
-    shouldMeterQuantity: opts.metered === true,
+    shouldMeterQuantity: opts.metered === true && opts.isNewProgram,
     newProgramCount,
     billableProgramCount,
   };
@@ -583,16 +590,32 @@ function CreateTeamScreen() {
         }
 
         if (userPlan === 'veteran') {
+          // Joining a sport program the org already runs (an existing
+          // program with an active team) does NOT introduce a new billable
+          // unit — see countBillableProgramsForContext in
+          // server/src/routes/teams.ts. Only creating a brand-new program
+          // (creatingProgram) or an ungrouped team (no program at all — e.g.
+          // a custom/"Other" sport, or an extracurricular club) adds one.
+          const selectedProgram =
+            clubType === 'sport' && selectedProgramId
+              ? (orgPrograms ?? []).find(program => program.id === selectedProgramId)
+              : undefined;
+          const isJoiningEstablishedProgram = !!selectedProgram && selectedProgram.teams.length > 0;
+          const isNewProgram = !isJoiningEstablishedProgram;
+
           const meteringAction = resolveVeteranMeteringAction({
             metered: latestLimits?.metered,
             programCount,
             rookieProgramLimit: ROOKIE_PROGRAM_LIMIT,
+            isNewProgram,
           });
 
           if (!meteringAction.shouldMeterQuantity) {
-            // IAP veteran (Apple/Google) — unlimited sports on this rail,
-            // no Stripe subscription quantity to update. Proceed straight
-            // to team creation.
+            // IAP veteran (Apple/Google) — unlimited sports on this rail, no
+            // Stripe subscription quantity to update — OR a Stripe-metered
+            // veteran joining an already-established program, where the
+            // billable program count doesn't change. Proceed straight to
+            // team creation.
             await proceedWithTeamCreation();
             return;
           }
