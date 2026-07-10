@@ -190,4 +190,52 @@ describe('sport program endpoints', () => {
     await prisma.team.deleteMany({ where: { organization_id: otherOrg.id } }).catch(() => {});
     await prisma.organization.delete({ where: { id: otherOrg.id } }).catch(() => {});
   });
+
+  it('org transfer without program_id clears the stale program link', async () => {
+    const prog = await prisma.sportProgram.findFirst({
+      where: { organization_id: orgId, sport: 'soccer' },
+    });
+    // Team in orgId linked to orgId's soccer program. No teamMembership rows —
+    // the owner passes canAdministerTeam + transfer auth via org-owner tier.
+    const team = await prisma.team.create({
+      data: {
+        name: `Programs Transfer ${ts}`,
+        organization_id: orgId,
+        program_id: prog.id,
+        level: 'varsity',
+      },
+    });
+    // Owner must also OWN the destination org to satisfy transfer authorization.
+    const transferOrg = await prisma.organization.create({
+      data: {
+        name: `Programs Transfer Org ${ts}`,
+        org_type: 'school',
+        admin_approved: true,
+        updated_at: new Date(),
+        league_owner_id: ownerId,
+      },
+    });
+    await prisma.organizationMembership.create({
+      data: { organization_id: transferOrg.id, user_id: ownerId, role: 'owner', status: 'active' },
+    });
+
+    const res = await request(app)
+      .put(`/teams/${team.id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ organization_id: transferOrg.id });
+    expect(res.status).toBe(200);
+
+    const moved = await prisma.team.findUnique({
+      where: { id: team.id },
+      select: { organization_id: true, program_id: true },
+    });
+    expect(moved.organization_id).toBe(transferOrg.id);
+    expect(moved.program_id).toBeNull();
+
+    await prisma.team.delete({ where: { id: team.id } }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: transferOrg.id } })
+      .catch(() => {});
+    await prisma.organization.delete({ where: { id: transferOrg.id } }).catch(() => {});
+  });
 });

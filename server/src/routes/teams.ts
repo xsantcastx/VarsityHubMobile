@@ -1879,6 +1879,13 @@ teamsRouter.put(
         }
       }
 
+      if (targetOrganizationId !== team.organization_id && parsed.data.program_id === undefined) {
+        // Org transfer without an explicit program_id: clear the old org's
+        // program link so the team never points at a cross-org program
+        // (mirrors the FK's onDelete: SetNull spirit). When the payload DOES
+        // carry program_id, the PROGRAM_ORG_MISMATCH validation below handles it.
+        updateData.program_id = null;
+      }
       updateData.organization_id = targetOrganizationId;
     }
     if (parsed.data.logo_url !== undefined)
