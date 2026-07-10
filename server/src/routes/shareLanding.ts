@@ -42,7 +42,7 @@ const PLAY_STORE_URL =
 /** Routes the OS may try to deep-link via universal links. Mirrors the
  *  AASA `paths` and Android `intentFilters` pathPrefixes. Anything else
  *  on a shareable host falls through unhandled. */
-const SHAREABLE_PATHS = ['/posts', '/games', '/teams', '/users', '/events', '/join', '/share'] as const;
+const SHAREABLE_PATHS = ['/posts', '/games', '/teams', '/users', '/events', '/programs', '/join', '/share'] as const;
 
 // Crawlers / link-preview bots that set Accept: */* (or even nothing) but
 // do want OG tags. Match against User-Agent so we don't false-positive on
@@ -296,6 +296,64 @@ async function teamLanding(req: Request, res: Response, next: NextFunction) {
   return res.send(renderLanding(meta, requestOrigin(req)));
 }
 
+// Sport program label — deliberately NOT importing the client sports
+// taxonomy (constants/sports.ts) to keep this server route dependency-free.
+// Trade-off: this title-cases the raw slug ("track_field" -> "Track Field")
+// instead of using the taxonomy's exact display names, which is close
+// enough for a share-link preview and avoids a client/server coupling.
+function sportProgramLabel(program: { sport: string; gender: string; name: string | null }): string {
+  if (program.name) return program.name;
+  const sportLabel = String(program.sport || '')
+    .split('_')
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+  const genderWord = program.gender === 'girls' ? 'Girls' : program.gender === 'boys' ? 'Boys' : '';
+  return [genderWord, sportLabel].filter(Boolean).join(' ');
+}
+
+function programLandingTitle(program: {
+  sport: string;
+  gender: string;
+  name: string | null;
+  organization?: { name: string } | null;
+}): string {
+  const label = sportProgramLabel(program);
+  const orgName = program.organization?.name;
+  return orgName ? `${orgName} — ${label}` : label;
+}
+
+async function programLanding(req: Request, res: Response, next: NextFunction) {
+  if (!wantsHtml(req)) return next();
+  const id = String(req.params.id || '').trim();
+  if (!id) return next();
+
+  const program = await prisma.sportProgram
+    .findUnique({
+      where: { id },
+      select: {
+        sport: true,
+        gender: true,
+        name: true,
+        logo_url: true,
+        organization: { select: { name: true } },
+      },
+    })
+    .catch(() => null);
+
+  if (!program) return next();
+
+  const meta: LandingMeta = {
+    title: programLandingTitle(program),
+    imageUrl: program.logo_url || undefined,
+    url: fullUrl(req),
+  };
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  return res.send(renderLanding(meta, requestOrigin(req)));
+}
+
 async function userLanding(req: Request, res: Response, next: NextFunction) {
   if (!wantsHtml(req)) return next();
   const id = String(req.params.id || '').trim();
@@ -369,6 +427,7 @@ shareLandingRouter.use(shareLandingLimiter);
 shareLandingRouter.get('/posts/:id', postLanding);
 shareLandingRouter.get('/games/:id', gameLanding);
 shareLandingRouter.get('/teams/:id', teamLanding);
+shareLandingRouter.get('/programs/:id', programLanding);
 shareLandingRouter.get('/users/:id', userLanding);
 shareLandingRouter.get('/events/:id', eventLanding);
 // Invite/share routes get the generic landing — no DB lookup needed since

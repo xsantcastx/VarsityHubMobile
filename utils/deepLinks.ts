@@ -47,6 +47,7 @@ const PUBLIC_DEEP_LINK_ROUTES = new Set([
   '/post-detail',
   '/game-detail',
   '/team-page',
+  '/program-page',
   '/user-profile',
   '/event-detail',
 ]);
@@ -138,6 +139,8 @@ const ROUTE_MAP: Record<string, string> = {
   events: '/event-detail', // /events/:id (server + email links)
   team: '/team-page',
   teams: '/team-page', // /teams/:id (server + share URLs)
+  program: '/program-page',
+  programs: '/program-page', // /programs/:id (server + share URLs)
   organizations: '/organizations/[id]', // /organizations/:id public org pages
   profile: '/user-profile',
   user: '/user-profile',

@@ -24,7 +24,7 @@ jest.mock('expo-linking', () => ({
   }),
 }));
 
-import { parseDeepLink } from '@/utils/deepLinks';
+import { parseDeepLink, ROUTE_MAP } from '@/utils/deepLinks';
 
 describe('parseDeepLink', () => {
   it('parses native admin dashboard review links with query params', () => {
@@ -232,6 +232,7 @@ describe('parseDeepLink', () => {
       ['/games/game_abc123', '/game-detail', 'game_abc123'],
       ['/events/event_abc123', '/event-detail', 'event_abc123'],
       ['/teams/team_abc123', '/team-page', 'team_abc123'],
+      ['/programs/program_abc123', '/program-page', 'program_abc123'],
       ['/organizations/org_abc123', '/organizations/[id]', 'org_abc123'],
       ['/users/user_abc123', '/user-profile', 'user_abc123'],
     ];
@@ -252,6 +253,7 @@ describe('parseDeepLink', () => {
       ['/game/game_abc123', '/game-detail'],
       ['/event/event_abc123', '/event-detail'],
       ['/team/team_abc123', '/team-page'],
+      ['/program/program_abc123', '/program-page'],
       ['/user/user_abc123', '/user-profile'],
     ];
     for (const [path, expectedScreen] of cases) {
@@ -278,6 +280,23 @@ describe('parseDeepLink', () => {
         params: {},
         source: 'universal',
       });
+    });
+  });
+
+  describe('sport program routes (Phase 3 share landing)', () => {
+    it('ROUTE_MAP maps program/programs to the program-page screen', () => {
+      expect(ROUTE_MAP.program).toBe('/program-page');
+      expect(ROUTE_MAP.programs).toBe('/program-page');
+    });
+
+    it('fails closed: drops an unlisted query param on a program deep link', () => {
+      const result = parseDeepLink(
+        'https://varsityhub.app/programs/program_abc123?evil=1&role=owner'
+      );
+      expect(result?.screen).toBe('/program-page');
+      expect(result?.params).toEqual({ id: 'program_abc123' });
+      expect(result?.params).not.toHaveProperty('evil');
+      expect(result?.params).not.toHaveProperty('role');
     });
   });
 

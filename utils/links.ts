@@ -90,6 +90,18 @@ export const AppLinks = {
   },
 
   /**
+   * Generate shareable link for a sport program (e.g. "Girls Basketball").
+   */
+  program: (id: string, programName?: string): ShareableLink => {
+    const webUrl = `${WEB_BASE_URL}/programs/${id}`;
+    const deepLink = `${APP_SCHEME}://program/${id}`;
+    const shareMessage = programName
+      ? `Follow ${programName} on VarsityHub!\n${webUrl}`
+      : `Check out this program on VarsityHub!\n${webUrl}`;
+    return { webUrl, deepLink, shareMessage };
+  },
+
+  /**
    * Generate shareable link for a user profile
    */
   user: (id: string, displayName?: string): ShareableLink => {
