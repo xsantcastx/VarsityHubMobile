@@ -616,10 +616,12 @@ uploadsRouter.post('/avatar', requireAuth as any, requireVerified as any, upload
 
 // Error handler for multer and other upload errors
 uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  // Stack intentionally omitted here — console.error survives prod log
+  // stripping, so we keep internal paths out of the log sink. The full stack is
+  // still captured in Sentry via captureException below for non-client errors.
   console.error('[uploads] Error:', {
     message: err.message,
     code: err.code,
-    stack: err.stack,
     path: req.path,
   });
   
