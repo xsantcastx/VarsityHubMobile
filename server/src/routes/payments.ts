@@ -2014,14 +2014,14 @@ paymentsRouter.post(
 
         if (actualTeamCount < SERVER_VETERAN_MIN_TOTAL_TEAMS) {
           return res.status(400).json({
-            error: `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams (first ${SERVER_ROOKIE_TEAM_LIMIT} are free)`,
+            error: `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total sports (first ${SERVER_ROOKIE_PROGRAM_LIMIT} are free)`,
           });
         }
         if (billableQuantity === 0) {
           // error-envelope-exempt: pre-existing raw response, unrelated to this change beyond the interpolated team-count constant.
           return res.status(400).json({
             // error-envelope-exempt
-            error: `Select at least one billable team (${SERVER_VETERAN_MIN_TOTAL_TEAMS} total) to use Veteran plan`,
+            error: `Select at least one billable sport (${SERVER_VETERAN_MIN_TOTAL_TEAMS} total) to use Veteran plan`,
           });
         }
       }
@@ -2750,7 +2750,7 @@ paymentsRouter.post(
           .int()
           .min(
             SERVER_VETERAN_MIN_TOTAL_TEAMS,
-            `Minimum ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams required for Veteran plan.`
+            `Minimum ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total sports required for Veteran plan.`
           ),
       });
       const parsed = updateQuantitySchema.safeParse(req.body);
@@ -2797,7 +2797,7 @@ paymentsRouter.post(
         // error-envelope-exempt: pre-existing raw response, unrelated to this change beyond the interpolated team-count constant.
         return res.status(400).json({
           // error-envelope-exempt
-          error: `No billable teams (only ${SERVER_ROOKIE_TEAM_LIMIT}). Remain on Rookie plan instead.`,
+          error: `No billable sports (only ${SERVER_ROOKIE_PROGRAM_LIMIT}). Remain on Rookie plan instead.`,
         });
       }
 
@@ -2806,8 +2806,8 @@ paymentsRouter.post(
           error: 'Team count mismatch',
           message:
             actualTeamCount >= SERVER_VETERAN_MIN_TOTAL_TEAMS
-              ? `You currently own ${actualTeamCount} team${actualTeamCount !== 1 ? 's' : ''}. This flow can only keep billing aligned with your current total or prepay for the next team (${quantityUpdate.maxAllowedTotal} total).`
-              : `Veteran billing requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams.`,
+              ? `You currently own ${actualTeamCount} sport${actualTeamCount !== 1 ? 's' : ''}. This flow can only keep billing aligned with your current total or prepay for the next sport (${quantityUpdate.maxAllowedTotal} total).`
+              : `Veteran billing requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total sports.`,
           owned_teams: actualTeamCount,
           requested_teams: team_count,
         });
