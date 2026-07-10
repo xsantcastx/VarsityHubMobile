@@ -3,7 +3,12 @@ import { useProgramScreenSummary } from '@/hooks/useProgramScreenSummary';
 import { Program } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
-import { formatProgramLabel, formatTeamFolderLabel, LEVEL_OPTIONS } from '@/constants/programs';
+import {
+  formatProgramLabel,
+  formatTeamFolderLabel,
+  genderRank,
+  levelRank,
+} from '@/constants/programs';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { gameRowTitle } from '@/utils/eventTitle';
 import { safeGoBack } from '@/utils/navigation';
@@ -29,17 +34,6 @@ type ProgramLevel = {
   team: Record<string, any>;
   games: Record<string, any>[];
 };
-
-// Canonical level ordering (varsity, jv, freshman, …); unknown/null sorts last.
-function levelRank(level: string | null | undefined): number {
-  const idx = LEVEL_OPTIONS.findIndex(o => o.value === level);
-  return idx === -1 ? LEVEL_OPTIONS.length : idx;
-}
-
-// Gender ordering within a level: boys < girls < coed < unknown/null.
-function genderRank(gender: string | null | undefined): number {
-  return gender === 'boys' ? 0 : gender === 'girls' ? 1 : gender === 'coed' ? 2 : 3;
-}
 
 function ProgramScreen() {
   const { user: currentUser } = useAuth();

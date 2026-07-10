@@ -3,8 +3,9 @@ import { Colors } from '@/constants/Colors';
 import {
   formatProgramLabel,
   formatTeamFolderLabel,
+  genderRank,
   groupTeamsByProgram,
-  LEVEL_OPTIONS,
+  levelRank,
 } from '@/constants/programs';
 import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
@@ -88,18 +89,6 @@ type AuthorizedInvite = {
   role?: string | null;
   status?: string | null;
 };
-
-// Canonical level ordering derived from LEVEL_OPTIONS (varsity, jv, freshman,
-// middle_school, unified, other). Unknown/null levels sort last.
-function levelRank(level: string | null | undefined): number {
-  const idx = LEVEL_OPTIONS.findIndex(o => o.value === level);
-  return idx === -1 ? LEVEL_OPTIONS.length : idx;
-}
-
-// Gender ordering within a level: boys < girls < coed < unknown/null.
-function genderRank(gender: string | null | undefined): number {
-  return gender === 'boys' ? 0 : gender === 'girls' ? 1 : gender === 'coed' ? 2 : 3;
-}
 
 function buildOrganizationJoinRequestsRoute(id: string, name?: string | null) {
   return {

@@ -69,6 +69,18 @@ export function formatLevelLabel(level: string | null | undefined): string | nul
   return LEVEL_LABELS[level as TeamLevel] ?? null;
 }
 
+// Canonical level ordering derived from LEVEL_OPTIONS (varsity, jv, freshman,
+// middle_school, unified, other). Unknown/null levels sort last.
+export function levelRank(level: string | null | undefined): number {
+  const idx = LEVEL_OPTIONS.findIndex(o => o.value === level);
+  return idx === -1 ? LEVEL_OPTIONS.length : idx;
+}
+
+// Gender ordering within a level: boys < girls < coed < unknown/null.
+export function genderRank(gender: string | null | undefined): number {
+  return gender === 'boys' ? 0 : gender === 'girls' ? 1 : gender === 'coed' ? 2 : 3;
+}
+
 /**
  * Groups teams by `program_id`, preserving first-appearance order within and
  * across groups. Grouped (non-null program) sections come first; teams with a
