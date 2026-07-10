@@ -33,6 +33,7 @@ import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
+import { SPORT_LABELS } from '@/constants/sports';
 import { getAuthSnapshot } from '@/utils/authState';
 import { getCanonicalBillingState } from '@/utils/billingState';
 import { handleCoachAccessError } from '@/utils/coachAccess';
@@ -170,17 +171,7 @@ function CreateTeamScreen() {
     router.replace((recoveryRoute || '/(tabs)') as never);
   }, [authUser, canAccessCreateTeam, createTeamAccessLoading, router]);
 
-  const sports = [
-    'Basketball',
-    'Football',
-    'Soccer',
-    'Baseball',
-    'Tennis',
-    'Volleyball',
-    'Swimming',
-    'Track & Field',
-    'Other',
-  ];
+  const sports = SPORT_LABELS;
 
   // Predefined team colors
   const teamColors = [
