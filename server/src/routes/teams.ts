@@ -1910,8 +1910,7 @@ teamsRouter.put(
         select: { id: true, organization_id: true },
       });
       if (!program || program.organization_id !== targetOrgForProgram) {
-        return res.status(400).json({
-          error: 'PROGRAM_ORG_MISMATCH',
+        return sendError(res, 400, 'PROGRAM_ORG_MISMATCH', {
           message: 'program_id must belong to the same organization as the team.',
           code: 'PROGRAM_ORG_MISMATCH',
         });
