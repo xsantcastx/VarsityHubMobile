@@ -29,7 +29,7 @@ not Kubernetes — and that is the correct choice at this scale.
 ## Buzzword audit (what's present vs. correctly absent)
 
 - **Present:** ACID (Postgres tx), encryption (bcrypt/JWT/TLS/helmet), CI/CD,
-  database design (pg_trgm trigram search — _not_ Elasticsearch), error logging
+  database design (pg*trgm trigram search — \_not* Elasticsearch), error logging
   (Sentry/pino), caching (Redis + react-query), CDN (Cloudinary + OTA),
   **message queues = BullMQ on Redis** (this is the SQS/Kafka/RabbitMQ role),
   polling, S3 (GDPR data-export archives only).
@@ -87,9 +87,11 @@ program). Canonical sport slugs live in `shared/sports-taxonomy.json`, the
 single taxonomy loaded server-side by `server/src/lib/sportsTaxonomy.ts`
 (`normalizeSportToSlug`) and client-side by `constants/sports.ts`, which
 feeds the create-team sport picker — same pattern as `shared/` JSON reuse
-elsewhere in the repo. Program management is `POST`/`GET
-/organizations/:id/programs`. This ships dark: billing still counts teams,
-not programs — the per-sport billing re-unit is Phase 4 and not yet built.
+elsewhere in the repo. Program endpoints: `POST /organizations/:id/programs`
+is gated to the org owner or an active org member;
+`GET /organizations/:id/programs` is any authenticated user (public read).
+This ships dark: billing still counts teams, not programs — the per-sport
+billing re-unit is Phase 4 and not yet built.
 
 ## Shared coordination substrate
 
