@@ -68,7 +68,7 @@ describe('fanOutProgramFollowersToTeam — team-ADD fan-out', () => {
     });
 
     const program = await prisma.sportProgram.create({
-      data: { organization_id: orgId, sport: 'basketball', gender: 'girls' },
+      data: { organization_id: orgId, sport: 'basketball' },
     });
     programId = program.id;
 
