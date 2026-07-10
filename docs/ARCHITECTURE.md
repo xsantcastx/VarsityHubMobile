@@ -93,6 +93,54 @@ is gated to the org owner or an active org member;
 This ships dark: billing still counts teams, not programs — the per-sport
 billing re-unit is Phase 4 and not yet built.
 
+## Sport-program public page (2026-07, Phase 3)
+
+The program page (`app/program-page.tsx`) is now the canonical **public**
+surface for a sport program: collapsible level folders (first one expanded),
+a follow button, and the standard loading/error/success/empty states. A
+level team keeps its own page (`app/team-page.tsx`) — it still renders
+normally standalone — but redirects once to `/program-page` whenever the
+team carries a `program_id` (a ref latch plus `params.from !== 'program'`
+stop the program page's own link-back to a level team from bouncing right
+back to the program page). Three endpoints back this: `GET
+/programs/:id/screen-summary` (`server/src/routes/programs.ts` — program +
+`levels[]`, each with its serialized team and that level's games, plus
+counts), `POST /programs/:id/follow` / `DELETE /programs/:id/follow`, and
+`GET /programs/:id` (branded share-landing page, `server/src/routes/
+shareLanding.ts`, falls back to a generic landing for unknown ids).
+
+`screen-summary` privacy-filters level teams through the same
+`isTeamHiddenFromViewer` gate used by `GET /teams/:id/screen-summary` —
+hidden teams drop out of both `levels` and `counts`, and a program that is
+all-hidden still returns 200 with `levels: []` (the program object itself
+is not private). `followers_count` / `is_following` are computed over ALL
+active level teams regardless of per-team visibility, since follow state
+isn't private information and needs to stay viewer-stable.
+
+**Follow semantics are union-read / fan-out-write, deliberately with no
+`ProgramFollow` table and no feed-clause change.** `is_following` is true if
+the viewer follows _any_ level team; `followers_count` is a DISTINCT-user
+count across all level teams. `POST /follow` fans out and creates a
+`TeamFollow` row for every current active level team (`createMany` +
+`skipDuplicates`, idempotent under the `(user_id, team_id)` composite key).
+`DELETE /follow` removes follows for all of the program's teams regardless
+of team status (so it also clears a stale follow on an archived level
+team). Accepted consequence: a level team added to the program _after_ a
+user already follows the program does not retroactively inherit that
+follower — there is no reconciliation job for this, by design. No
+`TEAM_FOLLOWED` notification fan-out on program follow (would spam the same
+staff once per level team for a single user action). Group chats remain
+per level team; there is no program-level group chat.
+
+Deep links: `/programs` is in `SHAREABLE_PATHS` and the iOS `IOS_PATHS` AASA
+allowlist, `AppLinks.program()`, and both `program`/`programs` map to
+`/program-page` in `utils/deepLinks.ts`. The Android `/programs`
+intent filter added to `app.json` is **native config — it only ships via
+`eas build`, never via `eas update` OTA** (an OTA'd client with the new
+program-page code, but running on a binary built before this intent filter
+existed, simply can't be opened via an Android `/programs` deep link until
+the next store build).
+
 ## Shared coordination substrate
 
 Everything that must work across replicas coordinates through **Redis**, never
