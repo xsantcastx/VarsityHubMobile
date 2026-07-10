@@ -22,6 +22,7 @@ import {
   validateOrganizationArray,
   validateOrganizationReviewSummaryArray,
 } from './schemas/organization';
+import { validateProgramScreenSummary } from './schemas/program';
 import {
   validateFollowedTeamArray,
   validateTeam,
@@ -842,6 +843,15 @@ export const Team = {
     httpPost(`/teams/${encodeURIComponent(teamId)}/transfer-ownership`, {
       new_owner_id: newOwnerId,
     }),
+};
+
+export const Program = {
+  screenSummary: (id: string): Promise<any> =>
+    httpGet(`/programs/${encodeURIComponent(id)}/screen-summary`).then(data =>
+      validateProgramScreenSummary('program.screenSummary', data)
+    ),
+  follow: (id: string) => httpPost(`/programs/${encodeURIComponent(id)}/follow`, {}),
+  unfollow: (id: string) => httpDelete(`/programs/${encodeURIComponent(id)}/follow`),
 };
 
 export const Support = {
