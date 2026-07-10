@@ -252,4 +252,137 @@ describe('GET /programs/:id/screen-summary', () => {
       .set('Authorization', `Bearer ${strangerToken}`)
       .expect(404);
   });
+
+  it('404s unfollow on an unknown program', async () => {
+    await request(app)
+      .delete('/programs/cknownexistcknownexistckno/follow')
+      .set('Authorization', `Bearer ${strangerToken}`)
+      .expect(404);
+  });
+
+  it('follow writes a ProgramFollow row and stamps the fanned-out TeamFollow rows; idempotent on repeat', async () => {
+    const allTeamIds = [varsityTeamId, jvTeamId, privateTeamId];
+
+    // Use a DEDICATED fresh user with a guaranteed-clean follow slate. The
+    // stamped-row assertion below requires that NO pre-existing (null-stamped)
+    // direct follow exists — createMany({ skipDuplicates }) correctly leaves
+    // such a row's via_program_id null, which would fail the `toBe(programId)`
+    // check. Reusing a user another test already touched makes this
+    // order-dependent, so mint one here.
+    const stampUser = await prisma.user.create({
+      data: {
+        email: `program-summary-stampuser-${ts}@example.com`,
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Program Summary StampUser',
+        email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
+        approval_status: 'APPROVED',
+        preferences: {
+          role: 'coach',
+          plan: 'rookie',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+        },
+      },
+    });
+    const stampUserId = stampUser.id;
+    const stampUserToken = signJwt({ id: stampUserId });
+
+    const first = await request(app)
+      .post(`/programs/${programId}/follow`)
+      .set('Authorization', `Bearer ${stampUserToken}`);
+    expect(first.status).toBe(200);
+
+    const ledgerRow = await prisma.programFollow.findUnique({
+      where: { user_id_program_id: { user_id: stampUserId, program_id: programId } },
+    });
+    expect(ledgerRow).not.toBeNull();
+
+    const stampedRows = await prisma.teamFollow.findMany({
+      where: { user_id: stampUserId, team_id: { in: allTeamIds } },
+    });
+    expect(stampedRows.length).toBe(3);
+    for (const row of stampedRows) {
+      expect(row.via_program_id).toBe(programId);
+    }
+
+    // Repeat call must not throw on the ProgramFollow composite PK or the
+    // TeamFollow composite PK, and row counts must stay stable.
+    await request(app)
+      .post(`/programs/${programId}/follow`)
+      .set('Authorization', `Bearer ${stampUserToken}`)
+      .expect(200);
+
+    const ledgerCount = await prisma.programFollow.count({
+      where: { user_id: stampUserId, program_id: programId },
+    });
+    expect(ledgerCount).toBe(1);
+    const stampedCount = await prisma.teamFollow.count({
+      where: { user_id: stampUserId, team_id: { in: allTeamIds } },
+    });
+    expect(stampedCount).toBe(3);
+
+    // Cleanup: remove this test's own rows and the dedicated user.
+    await prisma.programFollow.deleteMany({ where: { user_id: stampUserId } });
+    await prisma.teamFollow.deleteMany({ where: { user_id: stampUserId } });
+    await prisma.user.deleteMany({ where: { id: stampUserId } });
+  });
+
+  it('unfollow is lossless: a pre-existing direct level-team follow survives program unfollow', async () => {
+    // Reuse `strangerId`, who has no follow rows at this point in the suite.
+    // Seed a DIRECT follow of the JV team (via_program_id null) BEFORE the
+    // program follow — this simulates a year-old direct follower.
+    await prisma.teamFollow.create({ data: { user_id: strangerId, team_id: jvTeamId } });
+
+    const followRes = await request(app)
+      .post(`/programs/${programId}/follow`)
+      .set('Authorization', `Bearer ${strangerToken}`);
+    expect(followRes.status).toBe(200);
+
+    // The pre-existing JV row must still be null-stamped: createMany with
+    // skipDuplicates does not touch existing rows, so the direct follow is
+    // untouched by the fan-out (this is the mechanism that makes unfollow
+    // lossless below, not a bug to "fix").
+    const jvRowAfterFollow = await prisma.teamFollow.findUnique({
+      where: { user_id_team_id: { user_id: strangerId, team_id: jvTeamId } },
+    });
+    expect(jvRowAfterFollow?.via_program_id).toBeNull();
+
+    const varsityRowAfterFollow = await prisma.teamFollow.findUnique({
+      where: { user_id_team_id: { user_id: strangerId, team_id: varsityTeamId } },
+    });
+    expect(varsityRowAfterFollow?.via_program_id).toBe(programId);
+
+    const unfollowRes = await request(app)
+      .delete(`/programs/${programId}/follow`)
+      .set('Authorization', `Bearer ${strangerToken}`);
+    expect(unfollowRes.status).toBe(200);
+
+    // ProgramFollow ledger row gone.
+    const ledgerRow = await prisma.programFollow.findUnique({
+      where: { user_id_program_id: { user_id: strangerId, program_id: programId } },
+    });
+    expect(ledgerRow).toBeNull();
+
+    // The stamped varsity + private-team rows are gone.
+    const varsityRowAfter = await prisma.teamFollow.findUnique({
+      where: { user_id_team_id: { user_id: strangerId, team_id: varsityTeamId } },
+    });
+    expect(varsityRowAfter).toBeNull();
+    const privateRowAfter = await prisma.teamFollow.findUnique({
+      where: { user_id_team_id: { user_id: strangerId, team_id: privateTeamId } },
+    });
+    expect(privateRowAfter).toBeNull();
+
+    // The null-stamped JV row SURVIVES the program unfollow.
+    const jvRowAfter = await prisma.teamFollow.findUnique({
+      where: { user_id_team_id: { user_id: strangerId, team_id: jvTeamId } },
+    });
+    expect(jvRowAfter).not.toBeNull();
+    expect(jvRowAfter?.via_program_id).toBeNull();
+
+    // Cleanup.
+    await prisma.teamFollow.deleteMany({ where: { user_id: strangerId, team_id: jvTeamId } });
+  });
 });
