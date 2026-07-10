@@ -22,6 +22,7 @@ import {
   isOrganizationOwner as isOrganizationOwnerScoped,
   ORGANIZATION_OWNER_ROLE,
 } from '../lib/organizationAuthorization.js';
+import { isCanonicalSport } from '../lib/sportsTaxonomy.js';
 import {
   approveJoinRequest,
   denyJoinRequest,
@@ -3301,6 +3302,85 @@ organizationsRouter.get(
         events: upcomingEvents.map(serializeOrganizationAdminEvent),
       },
     });
+  })
+);
+
+// ── Sport programs (Phase 1 of the sport-program pivot) ──────────────
+const createProgramSchema = z.object({
+  sport: z.string().min(1).max(100),
+  gender: z.enum(['boys', 'girls', 'coed']),
+  name: z.string().trim().min(1).max(120).optional(),
+});
+
+// POST /organizations/:id/programs — org owner or any active org member
+// (approved coaches land as org 'member'); same tier as team creation.
+organizationsRouter.post(
+  '/:id/programs',
+  requireAuth as any,
+  requireVerified as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
+    const orgId = String(req.params.id);
+    const parsed = createProgramSchema.safeParse(req.body);
+    if (!parsed.success)
+      return sendError(res, 400, 'Validation failed', {
+        details: parsed.error.flatten().fieldErrors,
+      });
+    if (!isCanonicalSport(parsed.data.sport))
+      return sendError(res, 400, 'INVALID_SPORT', {
+        message: 'sport must be a canonical slug from the sports taxonomy.',
+      });
+
+    const isOwner = await isOrganizationOwnerScoped(req.user.id, orgId);
+    const membership = isOwner
+      ? null
+      : await prisma.organizationMembership.findFirst({
+          where: { organization_id: orgId, user_id: req.user.id, status: 'active' },
+          select: { id: true },
+        });
+    if (!isOwner && !membership) return sendError(res, 403, 'PERMISSION_DENIED');
+
+    try {
+      const program = await prisma.sportProgram.create({
+        data: {
+          organization_id: orgId,
+          sport: parsed.data.sport,
+          gender: parsed.data.gender,
+          name: parsed.data.name ?? null,
+        },
+      });
+      return res.status(201).json({ ok: true, program });
+    } catch (err: any) {
+      if (err?.code === 'P2002')
+        return sendError(res, 409, 'PROGRAM_EXISTS', {
+          message: 'This organization already has that sport program.',
+        });
+      throw err;
+    }
+  })
+);
+
+// GET /organizations/:id/programs — any authenticated user (public info)
+organizationsRouter.get(
+  '/:id/programs',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const orgId = String(req.params.id);
+    const programs = await prisma.sportProgram.findMany({
+      where: { organization_id: orgId },
+      orderBy: [{ sport: 'asc' }, { gender: 'asc' }],
+      take: 200,
+      include: {
+        teams: {
+          where: { status: 'active' },
+          select: { id: true, name: true, level: true },
+          orderBy: { created_at: 'asc' },
+          take: 25,
+        },
+      },
+    });
+    return res.json({ programs });
   })
 );
 
