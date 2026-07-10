@@ -74,15 +74,18 @@ not introduce a parallel one.
    adding a non-owner DB role + per-transaction `SET LOCAL app.current_user_id`
    middleware — and remember `start.sh` auto-applies migrations to prod on deploy.
 
-## Org → program → team hierarchy (sport-program layer, 2026-07, Phase 0+1)
+## Org → program → team hierarchy (sport-program layer, 2026-07, Phase 0+1; re-keyed 2026-07-10)
 
 Teams are grouped one level above the roster by `SportProgram`
-(`organization_id`, `sport`, `gender`) — a unique constraint means an org has
-at most one program per sport/gender pair (e.g. "Boys Basketball"). A team's
-`level` (`varsity`/`jv`/`freshman`/`middle_school`/`unified`/`other`) and
-`program_id` are both nullable, additive columns — pre-existing teams are
-unaffected until the one-time `server/scripts/backfill-sport-programs.ts`
-runs (dry-run by default; it reports unresolved teams and never guesses a
+(`organization_id`, `sport`) — a unique constraint means an org has at most
+one program per sport, full stop (e.g. "Basketball" — not a separate
+program per gender). A team's `gender` (`boys`/`girls`/`coed`) and `level`
+(`varsity`/`jv`/`freshman`/`middle_school`/`unified`/`other`) are both
+nullable team attributes, not program keys — a program's boys' and girls'
+teams are sibling level teams inside the same program. `program_id` is a
+nullable, additive column on `Team` — pre-existing teams are unaffected
+until the one-time `server/scripts/backfill-sport-programs.ts` runs
+(dry-run by default; it reports unresolved teams and never guesses a
 program). Canonical sport slugs live in `shared/sports-taxonomy.json`, the
 single taxonomy loaded server-side by `server/src/lib/sportsTaxonomy.ts`
 (`normalizeSportToSlug`) and client-side by `constants/sports.ts`, which
@@ -91,13 +94,20 @@ elsewhere in the repo. Program endpoints: `POST /organizations/:id/programs`
 is gated to the org owner or an active org member;
 `GET /organizations/:id/programs` is any authenticated user (public read).
 This ships dark: billing still counts teams, not programs — the per-sport
-billing re-unit is Phase 4 and not yet built.
+billing re-unit is Phase 4 and not yet built, and will now count one unit
+per sport (not per sport-gender pair) — a school running boys' and girls'
+teams across three levels in one sport pays for a single unit, which lowers
+the expected unit count and likely requires revisiting the per-unit price
+to stay revenue-neutral.
 
 ## Sport-program public page (2026-07, Phase 3)
 
 The program page (`app/program-page.tsx`) is now the canonical **public**
-surface for a sport program: collapsible level folders (first one expanded),
-a follow button, and the standard loading/error/success/empty states. A
+surface for a sport program: collapsible level folders (first one expanded,
+labeled "Boys Varsity" / "Girls JV" / etc. — the gender word comes from the
+level team's own `gender` attribute since gender is no longer part of the
+program key), a follow button, and the standard loading/error/success/empty
+states. A
 level team keeps its own page (`app/team-page.tsx`) — it still renders
 normally standalone — but redirects once to `/program-page` whenever the
 team carries a `program_id` (a ref latch plus `params.from !== 'program'`
