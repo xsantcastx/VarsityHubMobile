@@ -10,26 +10,26 @@ not Kubernetes — and that is the correct choice at this scale.
 
 ## What each layer actually is
 
-| Layer | Reality |
-|-------|---------|
-| Frontend | Expo SDK 54 / React Native, Expo Router (~90 file-based routes) |
-| API / backend | Express + Prisma, domain-split routes (`server/src/routes/*`) |
-| Database & storage | PostgreSQL via Prisma (47 models, ~178 indexes, `$transaction` for race-safety). Media in Cloudinary, not the DB |
-| Auth & permissions | JWT + `session_epoch` single-session (`server/src/middleware/auth.ts`), bcrypt, server-side role/plan/ownership |
-| Hosting / deploy | Railway, single Dockerfile service; `start.sh` runs `prisma migrate deploy` on **every** deploy |
-| Cloud & compute | Railway-managed; `railway.toml` `numReplicas=2` |
-| CI/CD | GitHub Actions (18 workflows) + Railway auto-deploy from `main`; EAS for binaries/OTA |
-| Security & RLS | Helmet/TLS/JWT; Postgres RLS **enabled-not-forced** (dormant defense-in-depth) |
-| Rate limiting | Redis-backed, fails closed in prod (`redisRateLimit.ts`) |
-| Caching & CDN | Redis cache (`cache.ts`, DB 2) + react-query (client) + Cloudinary CDN + Expo OTA |
-| Load balancing / scaling | Railway edge LB; multi-replica safe via `runClusterOnce` |
-| Error tracking / logs | Sentry + pino-http |
-| Availability / recovery | Health checks, retries, distributed locks, DB backup sync, circuit breaker |
+| Layer                    | Reality                                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Frontend                 | Expo SDK 54 / React Native, Expo Router (~90 file-based routes)                                                  |
+| API / backend            | Express + Prisma, domain-split routes (`server/src/routes/*`)                                                    |
+| Database & storage       | PostgreSQL via Prisma (47 models, ~178 indexes, `$transaction` for race-safety). Media in Cloudinary, not the DB |
+| Auth & permissions       | JWT + `session_epoch` single-session (`server/src/middleware/auth.ts`), bcrypt, server-side role/plan/ownership  |
+| Hosting / deploy         | Railway, single Dockerfile service; `start.sh` runs `prisma migrate deploy` on **every** deploy                  |
+| Cloud & compute          | Railway-managed; `railway.toml` `numReplicas=2`                                                                  |
+| CI/CD                    | GitHub Actions (18 workflows) + Railway auto-deploy from `main`; EAS for binaries/OTA                            |
+| Security & RLS           | Helmet/TLS/JWT; Postgres RLS **enabled-not-forced** (dormant defense-in-depth)                                   |
+| Rate limiting            | Redis-backed, fails closed in prod (`redisRateLimit.ts`)                                                         |
+| Caching & CDN            | Redis cache (`cache.ts`, DB 2) + react-query (client) + Cloudinary CDN + Expo OTA                                |
+| Load balancing / scaling | Railway edge LB; multi-replica safe via `runClusterOnce`                                                         |
+| Error tracking / logs    | Sentry + pino-http                                                                                               |
+| Availability / recovery  | Health checks, retries, distributed locks, DB backup sync, circuit breaker                                       |
 
 ## Buzzword audit (what's present vs. correctly absent)
 
 - **Present:** ACID (Postgres tx), encryption (bcrypt/JWT/TLS/helmet), CI/CD,
-  database design (pg_trgm trigram search — *not* Elasticsearch), error logging
+  database design (pg_trgm trigram search — _not_ Elasticsearch), error logging
   (Sentry/pino), caching (Redis + react-query), CDN (Cloudinary + OTA),
   **message queues = BullMQ on Redis** (this is the SQS/Kafka/RabbitMQ role),
   polling, S3 (GDPR data-export archives only).
@@ -43,7 +43,7 @@ not Kubernetes — and that is the correct choice at this scale.
 
 ## Canonical integration patterns — one way to do each thing
 
-These exist so features compose *together* instead of stacking redundant
+These exist so features compose _together_ instead of stacking redundant
 mechanisms on top of each other. New code MUST follow the established pattern,
 not introduce a parallel one.
 
@@ -56,7 +56,7 @@ not introduce a parallel one.
 2. **Screen data fetching → react-query, one client.** Use the shared
    `lib/queryClient.ts`; gate the full-screen spinner on `isPending` (never
    `isFetching`). Do NOT add a second QueryClient or a parallel fetch cache.
-   `PostCacheContext` is a *different* concern (cross-screen sharing of already-
+   `PostCacheContext` is a _different_ concern (cross-screen sharing of already-
    loaded post objects), not a fetch cache — don't duplicate its role in react-query
    or vice-versa.
 3. **Realtime → one socket.io server.** `realtime/socketServer.ts` (JWT handshake,
@@ -66,13 +66,30 @@ not introduce a parallel one.
 4. **Startup-once work → `runClusterOnce`.** Anything that must run on exactly one
    replica (scheduler repeatable-job reconfig, data backfills) goes through
    `runClusterOnce` (`distributedLock.ts`), which reuses the existing Redis lock —
-   do not invent a new leader-election mechanism. The scheduler *worker* still runs
+   do not invent a new leader-election mechanism. The scheduler _worker_ still runs
    on every replica.
 5. **Postgres RLS → enabled-not-forced.** Policies key on
    `current_setting('app.current_user_id', true)`. The app connects as the owner
    and bypasses them (dormant). NEVER `FORCE ROW LEVEL SECURITY` without first
    adding a non-owner DB role + per-transaction `SET LOCAL app.current_user_id`
    middleware — and remember `start.sh` auto-applies migrations to prod on deploy.
+
+## Org → program → team hierarchy (sport-program layer, 2026-07, Phase 0+1)
+
+Teams are grouped one level above the roster by `SportProgram`
+(`organization_id`, `sport`, `gender`) — a unique constraint means an org has
+at most one program per sport/gender pair (e.g. "Boys Basketball"). A team's
+`level` (`varsity`/`jv`/`freshman`/`middle_school`/`unified`/`other`) and
+`program_id` are both nullable, additive columns — pre-existing teams are
+unaffected until the one-time `server/scripts/backfill-sport-programs.ts`
+runs (dry-run by default; it reports unresolved teams and never guesses a
+program). Canonical sport slugs live in `shared/sports-taxonomy.json`, the
+single taxonomy loaded server-side by `server/src/lib/sportsTaxonomy.ts`
+(`normalizeSportToSlug`) and client-side by `constants/sports.ts`, which
+feeds the create-team sport picker — same pattern as `shared/` JSON reuse
+elsewhere in the repo. Program management is `POST`/`GET
+/organizations/:id/programs`. This ships dark: billing still counts teams,
+not programs — the per-sport billing re-unit is Phase 4 and not yet built.
 
 ## Shared coordination substrate
 
