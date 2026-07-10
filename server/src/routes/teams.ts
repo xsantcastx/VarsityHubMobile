@@ -970,10 +970,28 @@ teamsRouter.post(
       const team = await getTeamState(teamId);
       if (!team) return res.status(404).json({ error: 'Team not found' });
       if (team.status !== 'active') return res.status(404).json({ error: 'Team not found' });
-      try {
-        await prisma.teamFollow.create({ data: { user_id: userId, team_id: teamId } });
+      // Upsert (not create) so a direct follow always records GENUINE intent.
+      // If a program fan-out already created a stamped row (via_program_id set),
+      // this PROMOTES it to a real direct follow by clearing the stamp — so a
+      // later program-unfollow (which deletes only this-program-stamped rows)
+      // no longer wipes the user's explicit direct follow. This is the inverse
+      // of the direct-then-program lossless case: both directions now survive.
+      // Note the compound unique input `user_id_team_id` matches TeamFollow's
+      // @@id([user_id, team_id]).
+      const existingFollow = await prisma.teamFollow.findUnique({
+        where: { user_id_team_id: { user_id: userId, team_id: teamId } },
+        select: { user_id: true },
+      });
+      await prisma.teamFollow.upsert({
+        where: { user_id_team_id: { user_id: userId, team_id: teamId } },
+        create: { user_id: userId, team_id: teamId },
+        update: { via_program_id: null },
+      });
 
-        // Notify team coaches/owners about new follower
+      // Notify team coaches/owners only on a brand-new follow — mirrors the old
+      // create/P2002 control flow, where an already-following user (or now, a
+      // stamped-row promotion) sent no notification and just returned 201.
+      if (!existingFollow) {
         try {
           const follower = await prisma.user.findUnique({
             where: { id: userId },
@@ -1016,12 +1034,9 @@ teamsRouter.post(
         } catch (notifErr) {
           console.error('[teams] Failed to send team followed notification:', notifErr);
         }
-
-        return res.status(201).json({ is_following: true });
-      } catch (e: any) {
-        if (e?.code === 'P2002') return res.status(201).json({ is_following: true }); // Already following
-        throw e;
       }
+
+      return res.status(201).json({ is_following: true });
     } catch (e: any) {
       console.error('[teams] follow error:', e?.message || e);
       return res.status(500).json({ error: 'Failed to follow team' });

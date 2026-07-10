@@ -201,4 +201,65 @@ describe('fanOutProgramFollowersToTeam — team-ADD fan-out', () => {
     expect(after).not.toBeNull();
     expect(after.via_program_id).toBe(programId);
   });
+
+  it('program-then-direct is lossless: a direct follow promotes the stamped row, which then survives a program unfollow', async () => {
+    // Fresh user so this is order-independent.
+    const promoteUser = await mkUser('promote');
+
+    // 1) Follow the PROGRAM → writes the ledger row + fans out a stamped
+    //    TeamFollow (via_program_id=P) for every current active level team.
+    await request(app)
+      .post(`/programs/${programId}/follow`)
+      .set('Authorization', `Bearer ${promoteUser.token}`)
+      .expect(200);
+
+    const stampedVarsity = await prisma.teamFollow.findUnique({
+      where: { user_id_team_id: { user_id: promoteUser.id, team_id: varsityTeamId } },
+    });
+    expect(stampedVarsity?.via_program_id).toBe(programId);
+
+    // 2) Now follow the varsity team DIRECTLY. The endpoint must PROMOTE the
+    //    stamped row — clearing via_program_id — recording genuine direct intent.
+    await request(app)
+      .post(`/teams/${varsityTeamId}/follow`)
+      .set('Authorization', `Bearer ${promoteUser.token}`)
+      .expect(201);
+
+    const promotedVarsity = await prisma.teamFollow.findUnique({
+      where: { user_id_team_id: { user_id: promoteUser.id, team_id: varsityTeamId } },
+    });
+    expect(promotedVarsity).not.toBeNull();
+    expect(promotedVarsity.via_program_id).toBeNull();
+
+    // A still-stamped sibling (jv) is untouched — proves only the directly
+    // followed team was promoted.
+    const stillStampedJv = await prisma.teamFollow.findUnique({
+      where: { user_id_team_id: { user_id: promoteUser.id, team_id: jvTeamId } },
+    });
+    expect(stillStampedJv?.via_program_id).toBe(programId);
+
+    // 3) Unfollow the PROGRAM. It deletes only this-program-stamped rows, so
+    //    the promoted (now-unstamped) varsity follow SURVIVES while the
+    //    still-stamped jv follow is removed — the inverse-lossless guarantee.
+    await request(app)
+      .delete(`/programs/${programId}/follow`)
+      .set('Authorization', `Bearer ${promoteUser.token}`)
+      .expect(200);
+
+    const varsityAfterUnfollow = await prisma.teamFollow.findUnique({
+      where: { user_id_team_id: { user_id: promoteUser.id, team_id: varsityTeamId } },
+    });
+    expect(varsityAfterUnfollow).not.toBeNull();
+    expect(varsityAfterUnfollow.via_program_id).toBeNull();
+
+    const jvAfterUnfollow = await prisma.teamFollow.findUnique({
+      where: { user_id_team_id: { user_id: promoteUser.id, team_id: jvTeamId } },
+    });
+    expect(jvAfterUnfollow).toBeNull();
+
+    // Cleanup this test's own rows + user.
+    await prisma.teamFollow.deleteMany({ where: { user_id: promoteUser.id } });
+    await prisma.programFollow.deleteMany({ where: { user_id: promoteUser.id } });
+    await prisma.user.deleteMany({ where: { id: promoteUser.id } });
+  });
 });
