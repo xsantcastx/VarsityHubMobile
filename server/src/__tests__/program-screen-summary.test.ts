@@ -10,14 +10,17 @@ const ts = Date.now();
 describe('GET /programs/:id/screen-summary', () => {
   let ownerId = '',
     followerId = '',
+    follower2Id = '',
     strangerId = '';
   let ownerToken = '',
     followerToken = '',
+    follower2Token = '',
     strangerToken = '';
   let orgId = '';
   let programId = '';
   let varsityTeamId = '';
   let jvTeamId = '';
+  let privateTeamId = '';
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -49,6 +52,9 @@ describe('GET /programs/:id/screen-summary', () => {
     const follower = await mkUser('follower');
     followerId = follower.id;
     followerToken = follower.token;
+    const follower2 = await mkUser('follower2');
+    follower2Id = follower2.id;
+    follower2Token = follower2.token;
     const stranger = await mkUser('stranger');
     strangerId = stranger.id;
     strangerToken = stranger.token;
@@ -96,13 +102,38 @@ describe('GET /programs/:id/screen-summary', () => {
     });
     jvTeamId = jvTeam.id;
 
-    await prisma.teamFollow.create({
-      data: { user_id: followerId, team_id: jvTeamId },
+    // A private freshman-level team in the same program. Hidden from viewers
+    // who don't follow / aren't members of it.
+    const privateTeam = await prisma.team.create({
+      data: {
+        name: `Program Summary Private Freshman ${ts}`,
+        organization_id: orgId,
+        program_id: programId,
+        level: 'freshman',
+      },
+    });
+    privateTeamId = privateTeam.id;
+    await prisma.team.update({ where: { id: privateTeamId }, data: { is_private: true } });
+
+    // Follow graph:
+    //   follower  → jv
+    //   follower2 → varsity, jv, freshman(private)
+    // Distinct union of followers across ALL level teams = {follower, follower2} = 2,
+    // even though follower2 alone contributes 3 follow rows.
+    await prisma.teamFollow.createMany({
+      data: [
+        { user_id: followerId, team_id: jvTeamId },
+        { user_id: follower2Id, team_id: varsityTeamId },
+        { user_id: follower2Id, team_id: jvTeamId },
+        { user_id: follower2Id, team_id: privateTeamId },
+      ],
     });
   });
 
   afterAll(async () => {
-    await prisma.teamFollow.deleteMany({ where: { team_id: { in: [varsityTeamId, jvTeamId] } } }).catch(() => {});
+    await prisma.teamFollow
+      .deleteMany({ where: { team_id: { in: [varsityTeamId, jvTeamId, privateTeamId] } } })
+      .catch(() => {});
     await prisma.team.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
     await prisma.sportProgram.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
     await prisma.organizationMembership
@@ -110,7 +141,7 @@ describe('GET /programs/:id/screen-summary', () => {
       .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
     await prisma.user
-      .deleteMany({ where: { id: { in: [ownerId, followerId, strangerId] } } })
+      .deleteMany({ where: { id: { in: [ownerId, followerId, follower2Id, strangerId] } } })
       .catch(() => {});
   });
 
@@ -121,12 +152,24 @@ describe('GET /programs/:id/screen-summary', () => {
     expect(res.status).toBe(200);
     expect(res.body.program.sport).toBe('basketball');
     expect(res.body.program.gender).toBe('girls');
+    // The private freshman team is hidden from `follower` (they don't follow it).
     expect(res.body.levels.map((l: any) => l.level)).toEqual(['varsity', 'jv']);
     expect(res.body.levels[0].team.id).toBe(varsityTeamId);
-    // follower of ONE level team counts once, and reads as following the program
-    expect(res.body.program.followers_count).toBe(1);
+    // Union of distinct followers across all level teams = {follower, follower2} = 2.
+    expect(res.body.program.followers_count).toBe(2);
     expect(res.body.program.is_following).toBe(true);
     expect(res.body.counts.teams).toBe(2);
+  });
+
+  it('counts distinct follower users, not follow rows (union semantics)', async () => {
+    // follower2 follows THREE level teams but must count once. A plain row
+    // count would report 4 (1 for follower + 3 for follower2); groupBy(user_id)
+    // reports 2.
+    const res = await request(app)
+      .get(`/programs/${programId}/screen-summary`)
+      .set('Authorization', `Bearer ${strangerToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.program.followers_count).toBe(2);
   });
 
   it('a viewer who follows no level team is not following the program', async () => {
@@ -134,7 +177,27 @@ describe('GET /programs/:id/screen-summary', () => {
       .get(`/programs/${programId}/screen-summary`)
       .set('Authorization', `Bearer ${strangerToken}`);
     expect(res.body.program.is_following).toBe(false);
-    expect(res.body.program.followers_count).toBe(1);
+    expect(res.body.program.followers_count).toBe(2);
+  });
+
+  it('excludes a private level team from a stranger, includes it for a follower of it', async () => {
+    // Stranger: private freshman team must NOT appear.
+    const strangerRes = await request(app)
+      .get(`/programs/${programId}/screen-summary`)
+      .set('Authorization', `Bearer ${strangerToken}`);
+    expect(strangerRes.status).toBe(200);
+    expect(strangerRes.body.levels.map((l: any) => l.level)).not.toContain('freshman');
+    expect(strangerRes.body.levels.map((l: any) => l.team.id)).not.toContain(privateTeamId);
+    expect(strangerRes.body.counts.teams).toBe(2);
+
+    // follower2 follows the private freshman team → it IS included for them.
+    const followerRes = await request(app)
+      .get(`/programs/${programId}/screen-summary`)
+      .set('Authorization', `Bearer ${follower2Token}`);
+    expect(followerRes.status).toBe(200);
+    expect(followerRes.body.levels.map((l: any) => l.level)).toEqual(['varsity', 'jv', 'freshman']);
+    expect(followerRes.body.levels.map((l: any) => l.team.id)).toContain(privateTeamId);
+    expect(followerRes.body.counts.teams).toBe(3);
   });
 
   it('404s an unknown program', async () => {

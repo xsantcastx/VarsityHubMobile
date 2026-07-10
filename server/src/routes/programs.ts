@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { sendError } from '../lib/http/sendError.js';
 import { prisma } from '../lib/prisma.js';
+import { isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { serializeTeam, buildTeamSerializeSelect } from '../lib/serializeTeam.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -42,25 +43,40 @@ programsRouter.get(
     });
     if (!program) return sendError(res, 404, 'Program not found');
 
-    const teamIds = program.teams.map(t => t.id);
+    // All active level teams — used for the union follower stats (below).
+    const allTeamIds = program.teams.map(t => t.id);
 
-    // Read-time union: distinct followers across the program's level teams.
+    // Per-team privacy gate: drop level teams the viewer isn't allowed to see
+    // (private teams they don't follow / aren't a member of / aren't an org
+    // admin for). Mirrors GET /teams/:id/screen-summary. A fully-hidden
+    // program still returns 200 with levels: [] — the program is not private.
+    const hiddenFlags = await Promise.all(
+      program.teams.map(t => isTeamHiddenFromViewer(t.id, viewerId))
+    );
+    const visibleTeams = program.teams.filter((_, i) => !hiddenFlags[i]);
+    const visibleTeamIds = visibleTeams.map(t => t.id);
+
+    // Follower stats stay over ALL active level teams: follow state is not
+    // private information, and the union semantics must be viewer-stable.
     const [followerRows, viewerFollow, games] = await Promise.all([
-      teamIds.length
-        ? prisma.teamFollow.groupBy({ by: ['user_id'], where: { team_id: { in: teamIds } } })
+      allTeamIds.length
+        ? prisma.teamFollow.groupBy({ by: ['user_id'], where: { team_id: { in: allTeamIds } } })
         : Promise.resolve([] as { user_id: string }[]),
-      viewerId && teamIds.length
+      viewerId && allTeamIds.length
         ? prisma.teamFollow.findFirst({
-            where: { user_id: viewerId, team_id: { in: teamIds } },
+            where: { user_id: viewerId, team_id: { in: allTeamIds } },
             select: { team_id: true },
           })
         : Promise.resolve(null),
-      teamIds.length
+      visibleTeamIds.length
         ? prisma.game.findMany({
             where: {
               approval_status: 'approved',
               opponent_approval_status: { in: ['not_required', 'approved'] },
-              OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+              OR: [
+                { home_team_id: { in: visibleTeamIds } },
+                { away_team_id: { in: visibleTeamIds } },
+              ],
             },
             orderBy: { date: 'desc' },
             take: 100,
@@ -72,14 +88,14 @@ programsRouter.get(
     const gamesByTeam = new Map<string, any[]>();
     for (const g of games) {
       for (const tid of [g.home_team_id, g.away_team_id]) {
-        if (!tid || !teamIds.includes(tid)) continue;
+        if (!tid || !visibleTeamIds.includes(tid)) continue;
         const list = gamesByTeam.get(tid) ?? [];
         if (list.length < 20) list.push(g);
         gamesByTeam.set(tid, list);
       }
     }
 
-    const levels = [...program.teams]
+    const levels = [...visibleTeams]
       .sort((a, b) => levelRank(a.level) - levelRank(b.level))
       .map(team => ({
         level: team.level ?? null,
@@ -105,8 +121,10 @@ programsRouter.get(
       },
       levels,
       counts: {
+        // Counts reflect ONLY the visible teams — the games query above is
+        // already scoped to visibleTeamIds, so games.length is post-filter.
         levels: levels.length,
-        teams: program.teams.length,
+        teams: visibleTeams.length,
         games: games.length,
       },
     });
