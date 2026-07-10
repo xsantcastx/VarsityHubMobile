@@ -298,6 +298,8 @@ type TeamCreatePayload = {
   venue_lat?: number;
   venue_lng?: number;
   venue_address?: string;
+  level?: 'varsity' | 'jv' | 'freshman' | 'middle_school' | 'unified' | 'other';
+  program_id?: string;
   authorized_users?: Array<{
     email?: string;
     user_id?: string;
@@ -1277,6 +1279,8 @@ const createSchema = z.object({
   season_start: z.string().optional(),
   season_end: z.string().optional(),
   onboarding: z.boolean().optional(),
+  level: z.enum(['varsity', 'jv', 'freshman', 'middle_school', 'unified', 'other']).optional(),
+  program_id: z.string().min(1).optional(),
 });
 async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload) {
   const me = await prisma.user.findUnique({
@@ -1452,6 +1456,23 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
 
   const organizationId = resolvedOrganization.organizationId;
 
+  if (data.program_id) {
+    const program = await prisma.sportProgram.findUnique({
+      where: { id: data.program_id },
+      select: { id: true, organization_id: true },
+    });
+    if (!program || program.organization_id !== organizationId) {
+      return {
+        status: 400,
+        body: {
+          error: 'PROGRAM_ORG_MISMATCH',
+          message: 'program_id must belong to the same organization as the team.',
+          code: 'PROGRAM_ORG_MISMATCH',
+        },
+      };
+    }
+  }
+
   try {
     const team = await prisma.$transaction(
       async tx => {
@@ -1548,6 +1569,8 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
             venue_lat: data.venue_lat || null,
             venue_lng: data.venue_lng || null,
             venue_address: data.venue_address ? stripHtml(data.venue_address.trim()) : null,
+            level: data.level ?? null,
+            program_id: data.program_id ?? null,
           },
           select: {
             id: true,
@@ -1558,6 +1581,8 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
             season_end: true,
             logo_url: true,
             avatar_url: true,
+            level: true,
+            program_id: true,
           },
         });
 
@@ -1733,6 +1758,8 @@ const updateSchema = z.object({
   venue_lng: z.number().optional(),
   venue_address: z.string().optional(),
   is_private: z.boolean().optional(),
+  level: z.enum(['varsity', 'jv', 'freshman', 'middle_school', 'unified', 'other']).optional(),
+  program_id: z.string().min(1).optional(),
 });
 teamsRouter.put(
   '/:id',
@@ -1875,6 +1902,22 @@ teamsRouter.put(
         ? stripHtml(parsed.data.venue_address)
         : parsed.data.venue_address;
     if (parsed.data.is_private !== undefined) updateData.is_private = parsed.data.is_private;
+    if (parsed.data.level !== undefined) updateData.level = parsed.data.level;
+    if (parsed.data.program_id !== undefined) {
+      const targetOrgForProgram = updateData.organization_id ?? team.organization_id;
+      const program = await prisma.sportProgram.findUnique({
+        where: { id: parsed.data.program_id },
+        select: { id: true, organization_id: true },
+      });
+      if (!program || program.organization_id !== targetOrgForProgram) {
+        return res.status(400).json({
+          error: 'PROGRAM_ORG_MISMATCH',
+          message: 'program_id must belong to the same organization as the team.',
+          code: 'PROGRAM_ORG_MISMATCH',
+        });
+      }
+      updateData.program_id = parsed.data.program_id;
+    }
 
     debugLog('[Teams PUT] Prepared update data:', JSON.stringify(updateData));
 
@@ -1894,6 +1937,8 @@ teamsRouter.put(
           logo_url: true,
           avatar_url: true,
           created_at: true,
+          level: true,
+          program_id: true,
           organization: {
             select: {
               id: true,
@@ -1927,6 +1972,8 @@ teamsRouter.put(
         avatar_url: (updatedTeam as any).avatar_url || null,
         status: team.status,
         created_at: updatedTeam.created_at,
+        level: (updatedTeam as any).level ?? null,
+        program_id: (updatedTeam as any).program_id ?? null,
       });
     } catch (err: any) {
       console.error('[teams] update error:', err);
@@ -2034,6 +2081,8 @@ const createTeamSchema = z.object({
   venue_lat: z.number().optional(),
   venue_lng: z.number().optional(),
   venue_address: z.string().optional(),
+  level: z.enum(['varsity', 'jv', 'freshman', 'middle_school', 'unified', 'other']).optional(),
+  program_id: z.string().min(1).optional(),
   authorized_users: z
     .array(
       z.object({
@@ -2072,6 +2121,8 @@ teamsRouter.post(
         id: result.team.id,
         name: result.team.name,
         organization_id: result.team.organization_id,
+        level: (result.team as any).level ?? null,
+        program_id: (result.team as any).program_id ?? null,
       },
     });
   })

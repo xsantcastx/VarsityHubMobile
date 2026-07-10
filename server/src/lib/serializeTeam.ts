@@ -88,6 +88,8 @@ export const TEAM_SERIALIZE_SAFE_SELECT = {
   venue_address: true,
   organization_id: true,
   created_at: true,
+  level: true,
+  program_id: true,
 } as const;
 
 type BuildTeamSerializeSelectOptions = {
@@ -169,6 +171,10 @@ export function serializeTeam(team: any, opts: SerializeTeamOptions = {}) {
     // Org FK (the full org embed is opt-in)
     organization_id: team.organization_id ?? null,
 
+    // Sport-program pivot (Phase 0/1): staff-facing level folder + program FK
+    level: team.level ?? null,
+    program_id: team.program_id ?? null,
+
     // Lifecycle
     created_at: toIso(team.created_at),
   };
@@ -230,5 +236,7 @@ export const SERIALIZE_TEAM_BASELINE_FIELDS = [
   'venue_lng',
   'venue_address',
   'organization_id',
+  'level',
+  'program_id',
   'created_at',
 ] as const;
