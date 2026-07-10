@@ -124,9 +124,15 @@ const DOMAINS: DomainExtractor[] = [
       prisma.team.findMany({
         where: { coach_id: userId } as any,
         select: {
-          id: true, name: true, sport: true, created_at: true,
-          city: true, state: true, country_code: true,
-          organization_id: true, is_private: true,
+          id: true,
+          name: true,
+          sport: true,
+          created_at: true,
+          city: true,
+          state: true,
+          country_code: true,
+          organization_id: true,
+          is_private: true,
         } as any,
       }),
   },
@@ -136,8 +142,11 @@ const DOMAINS: DomainExtractor[] = [
       prisma.teamMembership.findMany({
         where: { user_id: userId },
         select: {
-          team_id: true, role: true, status: true,
-          custom_position: true, joined_at: true,
+          team_id: true,
+          role: true,
+          status: true,
+          custom_position: true,
+          joined_at: true,
         } as any,
       }),
   },
@@ -147,6 +156,14 @@ const DOMAINS: DomainExtractor[] = [
       prisma.teamFollow.findMany({
         where: { user_id: userId },
         select: { team_id: true, created_at: true } as any,
+      }),
+  },
+  {
+    filename: 'program_follows.json',
+    extract: async userId =>
+      prisma.programFollow.findMany({
+        where: { user_id: userId },
+        select: { program_id: true, created_at: true } as any,
       }),
   },
   {
@@ -171,8 +188,11 @@ const DOMAINS: DomainExtractor[] = [
       prisma.organizationJoinRequest.findMany({
         where: { user_id: userId },
         select: {
-          organization_id: true, status: true, message: true,
-          created_at: true, reviewed_at: true,
+          organization_id: true,
+          status: true,
+          message: true,
+          created_at: true,
+          reviewed_at: true,
         } as any,
       }),
   },
@@ -182,8 +202,13 @@ const DOMAINS: DomainExtractor[] = [
       prisma.post.findMany({
         where: { author_id: userId },
         select: {
-          id: true, content: true, media_url: true, created_at: true,
-          team_id: true, deleted_at: true, upvotes_count: true,
+          id: true,
+          content: true,
+          media_url: true,
+          created_at: true,
+          team_id: true,
+          deleted_at: true,
+          upvotes_count: true,
         } as any,
       }),
   },
@@ -193,7 +218,10 @@ const DOMAINS: DomainExtractor[] = [
       prisma.comment.findMany({
         where: { author_id: userId },
         select: {
-          id: true, post_id: true, content: true, created_at: true,
+          id: true,
+          post_id: true,
+          content: true,
+          created_at: true,
           parent_comment_id: true,
         } as any,
       }),
@@ -251,8 +279,13 @@ const DOMAINS: DomainExtractor[] = [
           OR: [{ sender_id: userId }, { recipient_id: userId }],
         },
         select: {
-          id: true, conversation_id: true, sender_id: true,
-          recipient_id: true, content: true, read: true, created_at: true,
+          id: true,
+          conversation_id: true,
+          sender_id: true,
+          recipient_id: true,
+          content: true,
+          read: true,
+          created_at: true,
         },
         orderBy: { created_at: 'asc' },
         take: 50_000,
@@ -296,7 +329,10 @@ const DOMAINS: DomainExtractor[] = [
       prisma.groupChatMessage.findMany({
         where: { sender_id: userId },
         select: {
-          id: true, chat_id: true, content: true, created_at: true,
+          id: true,
+          chat_id: true,
+          content: true,
+          created_at: true,
         } as any,
       }),
   },
@@ -306,8 +342,14 @@ const DOMAINS: DomainExtractor[] = [
       prisma.event.findMany({
         where: { creator_id: userId },
         select: {
-          id: true, title: true, description: true, date: true,
-          location: true, team_id: true, game_id: true, status: true,
+          id: true,
+          title: true,
+          description: true,
+          date: true,
+          location: true,
+          team_id: true,
+          game_id: true,
+          status: true,
           created_at: true,
         } as any,
       }),
@@ -328,8 +370,12 @@ const DOMAINS: DomainExtractor[] = [
       prisma.story.findMany({
         where: { user_id: userId },
         select: {
-          id: true, game_id: true, media_url: true, caption: true,
-          created_at: true, expires_at: true,
+          id: true,
+          game_id: true,
+          media_url: true,
+          caption: true,
+          created_at: true,
+          expires_at: true,
         } as any,
       }),
   },
@@ -339,9 +385,16 @@ const DOMAINS: DomainExtractor[] = [
       prisma.ad.findMany({
         where: { user_id: userId },
         select: {
-          id: true, business_name: true, banner_url: true, target_zip_code: true,
-          contact_email: true, contact_name: true, status: true,
-          payment_status: true, created_at: true, updated_at: true,
+          id: true,
+          business_name: true,
+          banner_url: true,
+          target_zip_code: true,
+          contact_email: true,
+          contact_name: true,
+          status: true,
+          payment_status: true,
+          created_at: true,
+          updated_at: true,
         } as any,
       }),
   },
@@ -351,7 +404,11 @@ const DOMAINS: DomainExtractor[] = [
       prisma.abuseReport.findMany({
         where: { reporter_id: userId },
         select: {
-          id: true, subject: true, message: true, status: true, created_at: true,
+          id: true,
+          subject: true,
+          message: true,
+          status: true,
+          created_at: true,
         } as any,
       }),
   },
@@ -363,9 +420,15 @@ const DOMAINS: DomainExtractor[] = [
       prisma.notification.findMany({
         where: { user_id: userId },
         select: {
-          id: true, type: true, actor_id: true, post_id: true,
-          comment_id: true, message_id: true, meta: true,
-          created_at: true, read_at: true,
+          id: true,
+          type: true,
+          actor_id: true,
+          post_id: true,
+          comment_id: true,
+          message_id: true,
+          meta: true,
+          created_at: true,
+          read_at: true,
         } as any,
         take: 10_000,
       }),
@@ -379,7 +442,10 @@ const DOMAINS: DomainExtractor[] = [
       prisma.parentalConsentAudit.findMany({
         where: { user_id: userId } as any,
         select: {
-          id: true, action: true, reason: true, actor_admin_id: true,
+          id: true,
+          action: true,
+          reason: true,
+          actor_admin_id: true,
           created_at: true,
         } as any,
       }),
@@ -394,9 +460,7 @@ const DOMAINS: DomainExtractor[] = [
  * that failed (the partial-failure path — a single bad extractor should not
  * kill the whole export; it gets recorded as an error entry in the ZIP).
  */
-export async function buildUserDataExportArchive(
-  userId: string
-): Promise<{
+export async function buildUserDataExportArchive(userId: string): Promise<{
   zipBuffer: Buffer;
   sizeBytes: number;
   domainsIncluded: string[];
@@ -439,7 +503,7 @@ export async function buildUserDataExportArchive(
     errors,
     readme:
       'This archive contains the data VarsityHub holds that you directly own or authored. ' +
-      'Secrets, OAuth identifiers, raw payment processor internals, and other users\' ' +
+      "Secrets, OAuth identifiers, raw payment processor internals, and other users' " +
       'private contact information are intentionally excluded.',
   };
   archive.append(JSON.stringify(manifest, null, 2), { name: 'MANIFEST.json' });
@@ -473,9 +537,7 @@ export function __getDataExportDomainsForTests() {
   const expected = new Set<string>(DATA_EXPORT_DOMAIN_FILENAMES);
   for (const name of expected) {
     if (!registered.has(name)) {
-      throw new Error(
-        `[data-export] Builder is missing expected domain extractor: ${name}`
-      );
+      throw new Error(`[data-export] Builder is missing expected domain extractor: ${name}`);
     }
   }
   for (const name of registered) {

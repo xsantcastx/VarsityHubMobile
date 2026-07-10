@@ -933,15 +933,22 @@ gamesRouter.get(
 
       // By default, only show approved games unless specifically requested otherwise
       const showPending = req.query.show_pending === 'true';
+      const following = req.query.following === 'true';
       const approvalStatus = req.query.approval_status as string;
       const normalizedApprovalStatus =
         typeof approvalStatus === 'string' ? approvalStatus.trim().toLowerCase() : '';
       const wantsNonApproved =
         showPending || (normalizedApprovalStatus !== '' && normalizedApprovalStatus !== 'approved');
-      const shouldUseGamesCache = !wantsNonApproved;
+      const shouldUseGamesCache = !wantsNonApproved && !following;
       const viewerScope = authedReq.user?.id ? `user:${authedReq.user.id}` : 'anon';
       const cacheRequestUrl = req.originalUrl || req.url;
       const gameCacheKey = `games:${viewerScope}:${cacheRequestUrl}`;
+
+      // Followed-teams calendar scope (Discover): signed-out users have no
+      // follows, so return an empty list rather than the global feed.
+      if (following && !authedReq.user?.id) {
+        return res.json([]);
+      }
 
       if (shouldUseGamesCache) {
         const cachedGames = await cacheGet(gameCacheKey);
@@ -1084,6 +1091,29 @@ gamesRouter.get(
         if (!whereClause.AND) whereClause.AND = [];
         whereClause.AND.push({
           OR: [{ home_team_id: teamIdFilter }, { away_team_id: teamIdFilter }],
+        });
+      }
+
+      // Discover calendar: scope to the viewer's followed teams (home OR away).
+      // Guests were already short-circuited above; an authed user with zero
+      // follows gets an empty list without hitting the games table.
+      if (following && authedReq.user?.id) {
+        // audit-allow unbounded: calendar scope needs every team the viewer follows
+        const followedRows = await prisma.teamFollow.findMany({
+          where: { user_id: authedReq.user.id },
+          select: { team_id: true },
+          take: 500,
+        });
+        const followedTeamIds = followedRows.map(r => r.team_id);
+        if (followedTeamIds.length === 0) {
+          return res.json([]);
+        }
+        if (!whereClause.AND) whereClause.AND = [];
+        whereClause.AND.push({
+          OR: [
+            { home_team_id: { in: followedTeamIds } },
+            { away_team_id: { in: followedTeamIds } },
+          ],
         });
       }
 

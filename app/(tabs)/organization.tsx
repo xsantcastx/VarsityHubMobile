@@ -1,8 +1,16 @@
 import { Game, Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import {
+  formatProgramLabel,
+  formatTeamFolderLabel,
+  genderRank,
+  groupTeamsByProgram,
+  levelRank,
+} from '@/constants/programs';
 import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { useOrgProgramsQuery } from '@/hooks/useOrgProgramsQuery';
 import { getCanonicalOrganizationId } from '@/utils/authState';
 import { gameRowTitle } from '@/utils/eventTitle';
 import { goBackToTrackedRoute } from '@/utils/navigation';
@@ -10,7 +18,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
-import { useCallback, useContext, useState } from 'react';
+import { useCallback, useContext, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -57,6 +65,9 @@ type TeamItem = {
   season?: string | null;
   logo_url?: string | null;
   organization_id?: string;
+  program_id: string | null;
+  level: string | null;
+  gender: string | null;
 };
 
 type GameItem = {
@@ -174,6 +185,9 @@ export default function OrganizationScreen() {
           season: t.season || null,
           logo_url: t.logo_url || t.avatar_url || null,
           organization_id: t.organization_id,
+          program_id: t.program_id ?? null,
+          level: t.level ?? null,
+          gender: t.gender ?? null,
         }))
         .sort((a: TeamItem, b: TeamItem) => a.name.localeCompare(b.name));
 
@@ -226,6 +240,24 @@ export default function OrganizationScreen() {
   const teams = orgPage?.teams ?? [];
   const games = orgPage?.games ?? [];
   const isFollowing = orgPage?.isFollowing ?? false;
+
+  // Sport-program grouping: one row per program instead of one per team,
+  // matching the manage-teams / my-team picker precedent. Only kicks in once
+  // any team carries a program_id — a fully ungrouped org (or a server that
+  // predates the program layer) renders exactly today's flat team list. The
+  // program-metadata query is gated on that same condition so the OTA-safe
+  // path (nothing to group) never fires an extra network call.
+  const anyTeamHasProgram = teams.some(t => !!t.program_id);
+  const { data: orgPrograms = [] } = useOrgProgramsQuery({
+    organizationId: orgPage?.orgId,
+    enabled: !!orgPage?.orgId && anyTeamHasProgram,
+  });
+  const programsById = useMemo(() => new Map(orgPrograms.map(p => [p.id, p])), [orgPrograms]);
+  const teamGroups = useMemo(() => groupTeamsByProgram(teams), [teams]);
+  const hasProgramGroups = teamGroups.some(g => g.programId !== null);
+  const ungroupedTeams = teamGroups.find(g => g.programId === null)?.teams ?? [];
+  const programGroups = teamGroups.filter(g => g.programId !== null);
+
   const error = isError
     ? (orgPageError as any)?.message === 'not_found'
       ? 'not_found'
@@ -417,6 +449,74 @@ export default function OrganizationScreen() {
       return d && new Date(d as string) >= new Date();
     })
     .slice(0, 10);
+
+  const renderTeamRow = (team: TeamItem) => {
+    const subline = [team.sport, team.season].filter(Boolean).join(' • ');
+    return (
+      <Pressable
+        key={team.id}
+        style={[styles.rowItem, { borderColor: theme.border }]}
+        onPress={() => handleTeamPress(team)}
+      >
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+            {team.name}
+          </Text>
+          {subline.length > 0 && (
+            <Text style={[styles.rowSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+              {subline}
+            </Text>
+          )}
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
+      </Pressable>
+    );
+  };
+
+  const renderProgramRow = (group: (typeof programGroups)[number]) => {
+    const program = group.programId ? programsById.get(group.programId) : undefined;
+    const title = program ? formatProgramLabel(program) : group.teams[0]?.sport || 'Teams';
+    // Folder labels ordered by (level rank, gender) — "Boys Varsity, Girls JV" —
+    // rather than the team-name sort the list arrives in. Deduped and capped so
+    // a large program's subtitle can't overflow the row.
+    const folderLabels = Array.from(
+      new Set(
+        [...group.teams]
+          .sort((a, b) => {
+            const byLevel = levelRank(a.level) - levelRank(b.level);
+            if (byLevel !== 0) return byLevel;
+            return genderRank(a.gender) - genderRank(b.gender);
+          })
+          .map(t => formatTeamFolderLabel({ gender: t.gender, level: t.level }))
+      )
+    );
+    const shownLabels = folderLabels.slice(0, 3);
+    const extraCount = folderLabels.length - shownLabels.length;
+    const labelText = shownLabels.join(', ') + (extraCount > 0 ? ` +${extraCount} more` : '');
+    const count = group.teams.length;
+    const subtitle = `${count} team${count !== 1 ? 's' : ''}${
+      folderLabels.length ? ` · ${labelText}` : ''
+    }`;
+    return (
+      <Pressable
+        key={group.programId}
+        style={[styles.rowItem, { borderColor: theme.border }]}
+        onPress={() =>
+          router.push({ pathname: '/program-page', params: { id: group.programId as string } })
+        }
+      >
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={[styles.rowSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
+      </Pressable>
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -837,32 +937,13 @@ export default function OrganizationScreen() {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Teams</Text>
           {teams.length === 0 ? (
             <Text style={[styles.emptyText, { color: theme.mutedText }]}>No teams yet.</Text>
+          ) : hasProgramGroups ? (
+            <>
+              {programGroups.map(renderProgramRow)}
+              {ungroupedTeams.map(renderTeamRow)}
+            </>
           ) : (
-            teams.map(team => {
-              const subline = [team.sport, team.season].filter(Boolean).join(' • ');
-              return (
-                <Pressable
-                  key={team.id}
-                  style={[styles.rowItem, { borderColor: theme.border }]}
-                  onPress={() => handleTeamPress(team)}
-                >
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
-                      {team.name}
-                    </Text>
-                    {subline.length > 0 && (
-                      <Text
-                        style={[styles.rowSubtitle, { color: theme.mutedText }]}
-                        numberOfLines={1}
-                      >
-                        {subline}
-                      </Text>
-                    )}
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
-                </Pressable>
-              );
-            })
+            teams.map(renderTeamRow)
           )}
         </View>
 

@@ -19,6 +19,7 @@ const mockCacheGet = jest.fn(async () => null);
 const mockCacheSet = jest.fn(async () => undefined);
 const mockGameFindMany = jest.fn(async () => []);
 const mockUserFindUnique = jest.fn();
+const mockTeamFollowFindMany = jest.fn(async () => [] as Array<{ team_id: string }>);
 
 jest.unstable_mockModule('../lib/cache.js', () => ({
   cacheGet: mockCacheGet,
@@ -53,6 +54,9 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
     },
     team: {
       findMany: jest.fn(async () => []),
+    },
+    teamFollow: {
+      findMany: mockTeamFollowFindMany,
     },
     user: {
       findUnique: mockUserFindUnique,
@@ -114,6 +118,10 @@ app.use((req: any, _res, next) => {
 });
 app.use('/games', gamesRouter);
 
+const guestApp = express();
+guestApp.use(express.json());
+guestApp.use('/games', gamesRouter);
+
 const lastFindManyWhere = () => {
   const calls = mockGameFindMany.mock.calls as unknown as Array<[{ where?: any }]>;
   expect(calls.length).toBeGreaterThan(0);
@@ -140,9 +148,7 @@ describe('GET /games approval-status visibility', () => {
 
     const where = lastFindManyWhere();
     expect(where.approval_status).toEqual({ in: ['approved', 'pending'] });
-    expect(where.AND).toEqual([
-      { OR: [{ home_team_id: TEAM_ID }, { away_team_id: TEAM_ID }] },
-    ]);
+    expect(where.AND).toEqual([{ OR: [{ home_team_id: TEAM_ID }, { away_team_id: TEAM_ID }] }]);
   });
 
   it('approval_status=pending stays pending-only for the approvals screen', async () => {
@@ -157,5 +163,42 @@ describe('GET /games approval-status visibility', () => {
 
     const where = lastFindManyWhere();
     expect(where.approval_status).toBe('approved');
+  });
+});
+
+describe('GET /games?following=true (followed-teams calendar)', () => {
+  beforeEach(() => {
+    mockGameFindMany.mockClear();
+    mockTeamFollowFindMany.mockReset();
+    mockTeamFollowFindMany.mockResolvedValue([]);
+    mockUserFindUnique.mockReset();
+    mockUserFindUnique.mockResolvedValue({ email: 'coach@example.com' });
+  });
+
+  it('scopes approved games to the viewer followed teams (home OR away)', async () => {
+    mockTeamFollowFindMany.mockResolvedValue([{ team_id: TEAM_ID }]);
+    await request(app).get('/games?following=true').expect(200);
+
+    const where = lastFindManyWhere();
+    expect(where.approval_status).toBe('approved');
+    expect(where.AND).toEqual([
+      { OR: [{ home_team_id: { in: [TEAM_ID] } }, { away_team_id: { in: [TEAM_ID] } }] },
+    ]);
+  });
+
+  it('returns [] without querying games when the viewer follows nothing', async () => {
+    mockTeamFollowFindMany.mockResolvedValue([]);
+    const res = await request(app).get('/games?following=true').expect(200);
+
+    expect(res.body).toEqual([]);
+    expect(mockGameFindMany).not.toHaveBeenCalled();
+  });
+
+  it('returns [] for signed-out users without touching the DB', async () => {
+    const res = await request(guestApp).get('/games?following=true').expect(200);
+
+    expect(res.body).toEqual([]);
+    expect(mockTeamFollowFindMany).not.toHaveBeenCalled();
+    expect(mockGameFindMany).not.toHaveBeenCalled();
   });
 });

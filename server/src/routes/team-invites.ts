@@ -23,13 +23,11 @@ import { requireVerified } from '../middleware/requireVerified.js';
 
 export const teamInvitesRouter = Router();
 
+// 2026-07-09: player/parent/member retired — teams hold staff only.
 const VALID_INVITE_ROLES = [
   'manager',
   'coach',
   'assistant_coach',
-  'player',
-  'parent',
-  'member',
   'equipment',
   'health_wellness',
 ] as const;

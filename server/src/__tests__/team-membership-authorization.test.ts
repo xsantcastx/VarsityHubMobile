@@ -184,7 +184,7 @@ describe('Team membership authorization boundaries', () => {
       .send({
         team_id: teamId,
         user_id: addTargetId,
-        role: 'member',
+        role: 'assistant_coach',
       })
       .expect(403);
   });
@@ -193,7 +193,7 @@ describe('Team membership authorization boundaries', () => {
     await request(app)
       .patch(`/team-memberships/${membershipId}`)
       .set('Authorization', `Bearer ${managerToken}`)
-      .send({ role: 'player' })
+      .send({ role: 'coach' })
       .expect(403);
   });
 

@@ -39,6 +39,7 @@ type LeagueTeam = {
     id?: string;
     name?: string | null;
   } | null;
+  program_id?: string | null;
   created_at?: string;
   _count?: {
     members?: number;
@@ -373,6 +374,22 @@ function TeamScreen() {
     setIsFollowing(!!(data.team as any).is_following);
     setTeamThemeColor('#3B82F6');
   }, [teamQuery.data]);
+
+  // Redirect legacy team links to the canonical program page once the team
+  // has loaded and it belongs to a program. `from=program` breaks the loop
+  // when the program page's own folder header pushed us here on purpose.
+  // The ref latch guarantees this fires at most once per mount — never on
+  // every render, and never while the query has no data yet.
+  const redirectedToProgramRef = useRef(false);
+  useEffect(() => {
+    if (redirectedToProgramRef.current) return;
+    if (teamQuery.isPending) return;
+    const programId = team?.program_id;
+    if (!programId) return;
+    if (params.from === 'program') return;
+    redirectedToProgramRef.current = true;
+    router.replace({ pathname: '/program-page', params: { id: programId } }); // nav-safe: canonical program page supersedes the level-team page; from=program bypasses
+  }, [team, teamQuery.isPending, params.from, router]);
 
   // Pick up server-side edits (e.g. renamed team) when the screen regains focus.
   // The callback must NOT depend on `teamQuery`: the query result object gets a

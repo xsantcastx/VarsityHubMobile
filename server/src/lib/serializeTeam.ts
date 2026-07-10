@@ -60,9 +60,6 @@ export interface SerializeTeamOptions {
 
   /** Whether the viewer is an org admin for the team's org. */
   isOrgAdmin?: boolean;
-
-  /** The viewer's pending join request status, if any. null = no request. */
-  viewerJoinRequestStatus?: string | null;
 }
 
 export const TEAM_SERIALIZE_SAFE_SELECT = {
@@ -88,6 +85,9 @@ export const TEAM_SERIALIZE_SAFE_SELECT = {
   venue_address: true,
   organization_id: true,
   created_at: true,
+  level: true,
+  gender: true,
+  program_id: true,
 } as const;
 
 type BuildTeamSerializeSelectOptions = {
@@ -169,6 +169,11 @@ export function serializeTeam(team: any, opts: SerializeTeamOptions = {}) {
     // Org FK (the full org embed is opt-in)
     organization_id: team.organization_id ?? null,
 
+    // Sport-program pivot (Phase 0/1): staff-facing level folder + program FK
+    level: team.level ?? null,
+    gender: team.gender ?? null,
+    program_id: team.program_id ?? null,
+
     // Lifecycle
     created_at: toIso(team.created_at),
   };
@@ -200,7 +205,6 @@ export function serializeTeam(team: any, opts: SerializeTeamOptions = {}) {
     base.can_manage_team = opts.canManageTeam === true;
     base.can_administer_team = opts.canAdministerTeam === true;
     base.is_org_admin = opts.isOrgAdmin === true;
-    base.viewer_join_request_status = opts.viewerJoinRequestStatus ?? null;
   }
 
   return base;
@@ -230,5 +234,8 @@ export const SERIALIZE_TEAM_BASELINE_FIELDS = [
   'venue_lng',
   'venue_address',
   'organization_id',
+  'level',
+  'gender',
+  'program_id',
   'created_at',
 ] as const;

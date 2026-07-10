@@ -33,6 +33,7 @@ import {
   isManagementRole,
   TEAM_AUTHORIZED_ROLES,
 } from '../lib/teamEntitlements.js';
+import { fanOutProgramFollowersToTeam } from '../lib/programFollowFanout.js';
 import { getTeamState, listTeamStates } from '../lib/teamState.js';
 import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthState.js';
 import { getEffectiveEntitledPlan } from '../lib/userBillingState.js';
@@ -298,6 +299,9 @@ type TeamCreatePayload = {
   venue_lat?: number;
   venue_lng?: number;
   venue_address?: string;
+  level?: 'varsity' | 'jv' | 'freshman' | 'middle_school' | 'unified' | 'other';
+  gender?: 'boys' | 'girls' | 'coed';
+  program_id?: string;
   authorized_users?: Array<{
     email?: string;
     user_id?: string;
@@ -754,7 +758,7 @@ teamsRouter.get(
     const canManage =
       access.isAdmin || access.isOrgAdmin || isManagementRole(access.membership?.role);
 
-    const [memberships, approvedGames, viewerJoinRequest] = await Promise.all([
+    const [memberships, approvedGames] = await Promise.all([
       prisma.teamMembership.findMany({
         where: { team_id: teamId, status: 'active' },
         orderBy: { created_at: 'asc' },
@@ -783,12 +787,6 @@ teamsRouter.get(
         take: 20,
         select: GAME_SUMMARY_SELECT,
       }),
-      viewerId
-        ? prisma.teamJoinRequest.findUnique({
-            where: { team_id_user_id: { team_id: teamId, user_id: viewerId } },
-            select: { id: true, status: true },
-          })
-        : Promise.resolve(null),
     ]);
 
     return res.json({
@@ -799,7 +797,6 @@ teamsRouter.get(
         viewerRole: access.membership?.role ?? null,
         canManageTeam: canManage,
         isOrgAdmin: access.isOrgAdmin,
-        viewerJoinRequestStatus: viewerJoinRequest?.status ?? null,
       }),
       permissions: {
         can_manage: canManage,
@@ -967,10 +964,28 @@ teamsRouter.post(
       const team = await getTeamState(teamId);
       if (!team) return res.status(404).json({ error: 'Team not found' });
       if (team.status !== 'active') return res.status(404).json({ error: 'Team not found' });
-      try {
-        await prisma.teamFollow.create({ data: { user_id: userId, team_id: teamId } });
+      // Upsert (not create) so a direct follow always records GENUINE intent.
+      // If a program fan-out already created a stamped row (via_program_id set),
+      // this PROMOTES it to a real direct follow by clearing the stamp — so a
+      // later program-unfollow (which deletes only this-program-stamped rows)
+      // no longer wipes the user's explicit direct follow. This is the inverse
+      // of the direct-then-program lossless case: both directions now survive.
+      // Note the compound unique input `user_id_team_id` matches TeamFollow's
+      // @@id([user_id, team_id]).
+      const existingFollow = await prisma.teamFollow.findUnique({
+        where: { user_id_team_id: { user_id: userId, team_id: teamId } },
+        select: { user_id: true },
+      });
+      await prisma.teamFollow.upsert({
+        where: { user_id_team_id: { user_id: userId, team_id: teamId } },
+        create: { user_id: userId, team_id: teamId },
+        update: { via_program_id: null },
+      });
 
-        // Notify team coaches/owners about new follower
+      // Notify team coaches/owners only on a brand-new follow — mirrors the old
+      // create/P2002 control flow, where an already-following user (or now, a
+      // stamped-row promotion) sent no notification and just returned 201.
+      if (!existingFollow) {
         try {
           const follower = await prisma.user.findUnique({
             where: { id: userId },
@@ -1013,12 +1028,9 @@ teamsRouter.post(
         } catch (notifErr) {
           console.error('[teams] Failed to send team followed notification:', notifErr);
         }
-
-        return res.status(201).json({ is_following: true });
-      } catch (e: any) {
-        if (e?.code === 'P2002') return res.status(201).json({ is_following: true }); // Already following
-        throw e;
       }
+
+      return res.status(201).json({ is_following: true });
     } catch (e: any) {
       console.error('[teams] follow error:', e?.message || e);
       return res.status(500).json({ error: 'Failed to follow team' });
@@ -1277,6 +1289,9 @@ const createSchema = z.object({
   season_start: z.string().optional(),
   season_end: z.string().optional(),
   onboarding: z.boolean().optional(),
+  level: z.enum(['varsity', 'jv', 'freshman', 'middle_school', 'unified', 'other']).optional(),
+  gender: z.enum(['boys', 'girls', 'coed']).optional(),
+  program_id: z.string().min(1).optional(),
 });
 async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload) {
   const me = await prisma.user.findUnique({
@@ -1452,6 +1467,23 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
 
   const organizationId = resolvedOrganization.organizationId;
 
+  if (data.program_id) {
+    const program = await prisma.sportProgram.findUnique({
+      where: { id: data.program_id },
+      select: { id: true, organization_id: true },
+    });
+    if (!program || program.organization_id !== organizationId) {
+      return {
+        status: 400,
+        body: {
+          error: 'PROGRAM_ORG_MISMATCH',
+          message: 'program_id must belong to the same organization as the team.',
+          code: 'PROGRAM_ORG_MISMATCH',
+        },
+      };
+    }
+  }
+
   try {
     const team = await prisma.$transaction(
       async tx => {
@@ -1548,6 +1580,9 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
             venue_lat: data.venue_lat || null,
             venue_lng: data.venue_lng || null,
             venue_address: data.venue_address ? stripHtml(data.venue_address.trim()) : null,
+            level: data.level ?? null,
+            gender: data.gender ?? null,
+            program_id: data.program_id ?? null,
           },
           select: {
             id: true,
@@ -1558,6 +1593,9 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
             season_end: true,
             logo_url: true,
             avatar_url: true,
+            level: true,
+            gender: true,
+            program_id: true,
           },
         });
 
@@ -1581,26 +1619,21 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
       data.authorized_users.length > 0
     ) {
       try {
+        // 2026-07-09: player/parent/member retired — teams hold staff only.
         const validInviteRoles = new Set([
           'manager',
           'coach',
           'assistant_coach',
-          'player',
-          'parent',
-          'member',
           'equipment',
           'health_wellness',
         ]);
         const invites = data.authorized_users
-          .filter(user => user.email)
-          .map(user => {
-            const requestedRole = String(user.role || 'member');
-            return {
-              team_id: team.id,
-              email: user.email!,
-              role: (validInviteRoles.has(requestedRole) ? requestedRole : 'member') as any,
-            };
-          });
+          .filter(user => user.email && validInviteRoles.has(String(user.role || '')))
+          .map(user => ({
+            team_id: team.id,
+            email: user.email!,
+            role: String(user.role) as any,
+          }));
 
         if (invites.length > 0) {
           await prisma.teamInvite.createMany({
@@ -1644,6 +1677,18 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
         }
       } catch (inviteError: any) {
         console.warn('[Teams] Failed to create invites (non-blocking):', inviteError);
+      }
+    }
+
+    // The team was just created inside a program (program_id set at birth).
+    // Fan out the program's existing followers to this new level team so its
+    // posts reach them — keyed on the ProgramFollow ledger, not a heuristic.
+    // Runs AFTER the transaction committed; must never fail the create.
+    if ((team as any).program_id) {
+      try {
+        await fanOutProgramFollowersToTeam(prisma, (team as any).program_id, team.id);
+      } catch (fanoutError) {
+        console.error('[program-fanout] create-path fan-out failed (non-blocking):', fanoutError);
       }
     }
 
@@ -1733,6 +1778,9 @@ const updateSchema = z.object({
   venue_lng: z.number().optional(),
   venue_address: z.string().optional(),
   is_private: z.boolean().optional(),
+  level: z.enum(['varsity', 'jv', 'freshman', 'middle_school', 'unified', 'other']).optional(),
+  gender: z.enum(['boys', 'girls', 'coed']).optional(),
+  program_id: z.string().min(1).optional(),
 });
 teamsRouter.put(
   '/:id',
@@ -1852,6 +1900,13 @@ teamsRouter.put(
         }
       }
 
+      if (targetOrganizationId !== team.organization_id && parsed.data.program_id === undefined) {
+        // Org transfer without an explicit program_id: clear the old org's
+        // program link so the team never points at a cross-org program
+        // (mirrors the FK's onDelete: SetNull spirit). When the payload DOES
+        // carry program_id, the PROGRAM_ORG_MISMATCH validation below handles it.
+        updateData.program_id = null;
+      }
       updateData.organization_id = targetOrganizationId;
     }
     if (parsed.data.logo_url !== undefined)
@@ -1875,6 +1930,35 @@ teamsRouter.put(
         ? stripHtml(parsed.data.venue_address)
         : parsed.data.venue_address;
     if (parsed.data.is_private !== undefined) updateData.is_private = parsed.data.is_private;
+    if (parsed.data.level !== undefined) updateData.level = parsed.data.level;
+    if (parsed.data.gender !== undefined) updateData.gender = parsed.data.gender;
+    // Set when the PUT newly assigns a program_id that DIFFERS from the team's
+    // prior one — the trigger to fan out the program's existing followers to
+    // this team after the update commits (see below). Never set on the
+    // org-transfer null-clear above (that path leaves parsed.data.program_id
+    // undefined), nor when program_id is unchanged.
+    let fanOutProgramId: string | null = null;
+    if (parsed.data.program_id !== undefined) {
+      const targetOrgForProgram = updateData.organization_id ?? team.organization_id;
+      const program = await prisma.sportProgram.findUnique({
+        where: { id: parsed.data.program_id },
+        select: { id: true, organization_id: true },
+      });
+      if (!program || program.organization_id !== targetOrgForProgram) {
+        return sendError(res, 400, 'PROGRAM_ORG_MISMATCH', {
+          message: 'program_id must belong to the same organization as the team.',
+          code: 'PROGRAM_ORG_MISMATCH',
+        });
+      }
+      const priorProgram = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { program_id: true },
+      });
+      if (priorProgram?.program_id !== parsed.data.program_id) {
+        fanOutProgramId = parsed.data.program_id;
+      }
+      updateData.program_id = parsed.data.program_id;
+    }
 
     debugLog('[Teams PUT] Prepared update data:', JSON.stringify(updateData));
 
@@ -1894,6 +1978,9 @@ teamsRouter.put(
           logo_url: true,
           avatar_url: true,
           created_at: true,
+          level: true,
+          gender: true,
+          program_id: true,
           organization: {
             select: {
               id: true,
@@ -1905,6 +1992,16 @@ teamsRouter.put(
         },
       });
       debugLog('[Teams PUT] Update successful');
+      // The team just gained (or switched to) a program_id. Fan out that
+      // program's existing followers to this team so its posts reach them.
+      // Runs AFTER commit; must never fail the request — the team WAS updated.
+      if (fanOutProgramId) {
+        try {
+          await fanOutProgramFollowersToTeam(prisma, fanOutProgramId, updatedTeam.id);
+        } catch (fanoutError) {
+          console.error('[program-fanout] PUT-path fan-out failed (non-blocking):', fanoutError);
+        }
+      }
       // Return a compact team object including organization and logo/avatar fields for client convenience
       return res.json({
         id: updatedTeam.id,
@@ -1927,6 +2024,9 @@ teamsRouter.put(
         avatar_url: (updatedTeam as any).avatar_url || null,
         status: team.status,
         created_at: updatedTeam.created_at,
+        level: (updatedTeam as any).level ?? null,
+        gender: (updatedTeam as any).gender ?? null,
+        program_id: (updatedTeam as any).program_id ?? null,
       });
     } catch (err: any) {
       console.error('[teams] update error:', err);
@@ -2034,6 +2134,9 @@ const createTeamSchema = z.object({
   venue_lat: z.number().optional(),
   venue_lng: z.number().optional(),
   venue_address: z.string().optional(),
+  level: z.enum(['varsity', 'jv', 'freshman', 'middle_school', 'unified', 'other']).optional(),
+  gender: z.enum(['boys', 'girls', 'coed']).optional(),
+  program_id: z.string().min(1).optional(),
   authorized_users: z
     .array(
       z.object({
@@ -2072,6 +2175,9 @@ teamsRouter.post(
         id: result.team.id,
         name: result.team.name,
         organization_id: result.team.organization_id,
+        level: (result.team as any).level ?? null,
+        gender: (result.team as any).gender ?? null,
+        program_id: (result.team as any).program_id ?? null,
       },
     });
   })
@@ -2089,13 +2195,11 @@ const inviteSchema = z
   .refine(d => Boolean(d.email) || Boolean(d.username), {
     message: 'Provide an email address or a username to invite.',
   });
+// 2026-07-09: player/parent/member retired — teams hold staff only.
 const VALID_TEAM_INVITE_ROLES = [
   'manager',
   'coach',
   'assistant_coach',
-  'player',
-  'parent',
-  'member',
   'equipment',
   'health_wellness',
 ] as const;
@@ -2440,6 +2544,16 @@ teamsRouter.post(
         } as any,
       },
     });
+    // 2026-07-09: player/parent/member retired — block acceptance of legacy
+    // pending invites carrying a retired role (archive script cancels them,
+    // this is the backstop for the deploy window).
+    const RETIRED_TEAM_ROLES = new Set(['player', 'parent', 'member']);
+    if (RETIRED_TEAM_ROLES.has(String(invite.role))) {
+      return sendError(res, 410, 'INVITE_ROLE_RETIRED', {
+        message:
+          'This invite was for a roster role that no longer exists. Ask a coach to send a new staff invite.',
+      });
+    }
     try {
       const accepted = await prisma.$transaction(
         async tx => {
@@ -2451,7 +2565,11 @@ teamsRouter.post(
               } as any,
             },
           });
-          const roleToApply = currentMembership?.role || invite.role;
+          // Never resurrect a retired role from an archived membership — the
+          // staff role on the fresh invite wins.
+          const roleToApply = RETIRED_TEAM_ROLES.has(String(currentMembership?.role))
+            ? invite.role
+            : currentMembership?.role || invite.role;
           const entitlement = await getTeamEntitlementState(tx, invite.team_id);
           if (entitlement.teamLocked) {
             throw new Error('TEAM_PLAN_LOCKED');

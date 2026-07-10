@@ -47,6 +47,8 @@ export const teamSchema = z
     is_following: z.boolean().nullable().optional(),
     can_manage_team: z.boolean().optional(),
     is_org_admin: z.boolean().optional(),
+    level: z.string().nullable().optional(),
+    program_id: z.string().nullable().optional(),
   })
   .passthrough();
 

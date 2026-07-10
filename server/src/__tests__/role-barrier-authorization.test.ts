@@ -152,7 +152,7 @@ describe('Role-barrier authorization boundaries', () => {
       await request(app)
         .post(`/teams/${teamId}/invite`)
         .set('Authorization', `Bearer ${managerToken}`)
-        .send({ email: `invitee-blocked-${ts}@example.com`, role: 'member' })
+        .send({ email: `invitee-blocked-${ts}@example.com`, role: 'assistant_coach' })
         .expect(403);
     });
 
@@ -160,7 +160,7 @@ describe('Role-barrier authorization boundaries', () => {
       const res = await request(app)
         .post(`/teams/${teamId}/invite`)
         .set('Authorization', `Bearer ${ownerToken}`)
-        .send({ email: `invitee-allowed-${ts}@example.com`, role: 'member' });
+        .send({ email: `invitee-allowed-${ts}@example.com`, role: 'assistant_coach' });
       expect(res.status).toBe(201);
     });
   });
@@ -208,16 +208,6 @@ describe('Role-barrier authorization boundaries', () => {
         .set('Authorization', `Bearer ${orgOwnerToken}`)
         .send({ email: `org-invitee-allowed-${ts}@example.com`, role: 'member' });
       expect(res.status).toBe(201);
-    });
-  });
-
-  describe('roster + event approvals stay available to authorized users (unchanged)', () => {
-    it('still allows a team manager to view pending join requests (canManageTeam boundary)', async () => {
-      const res = await request(app)
-        .get('/team-memberships/join-requests')
-        .query({ teamId })
-        .set('Authorization', `Bearer ${managerToken}`);
-      expect(res.status).toBe(200);
     });
   });
 });

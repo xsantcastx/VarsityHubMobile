@@ -381,7 +381,10 @@ jobs:
             exit 0
           fi
 
-          CHANGED_FILES="$(git diff --name-only "$BASE_SHA" HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' '*.md')"
+          # --diff-filter=d excludes deleted paths so prettier --check is not
+          # handed files that no longer exist (a deletion PR would otherwise
+          # fail here with "No files matching the pattern").
+          CHANGED_FILES="$(git diff --name-only --diff-filter=d "$BASE_SHA" HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' '*.md')"
           if [ -z "$CHANGED_FILES" ]; then
             echo "No format-relevant files changed"
             exit 0
