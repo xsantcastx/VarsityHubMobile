@@ -11,8 +11,8 @@ import { getOrganizationState } from '../lib/organizationState.js';
 import { DEMO_LEAGUE_NAMES } from '../lib/demoContent.js';
 import { getVeteranTotalTeamAllowance } from '../lib/paymentInternals.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
-import { SERVER_ROOKIE_TEAM_LIMIT, SERVER_ROOKIE_PROGRAM_LIMIT } from '../lib/planDefinitions.js';
-import { getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
+import { SERVER_ROOKIE_PROGRAM_LIMIT } from '../lib/planDefinitions.js';
+import { planSupportsExtracurricular } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { getExcludedPrivateTeamIds, isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
@@ -365,20 +365,6 @@ async function buildTeamCreateBillingContext(
   };
 }
 
-async function countTeamsForBillingContext(
-  db: any,
-  userId: string,
-  context: TeamCreateBillingContext
-): Promise<number> {
-  if (context.teamCountSource === 'org' && context.orgIdForTeamCount) {
-    return db.team.count({ where: { organization_id: context.orgIdForTeamCount } });
-  }
-
-  return db.teamMembership.count({
-    where: { user_id: userId, role: 'owner', status: 'active' },
-  });
-}
-
 // Phase 4 billing unit: distinct active sport programs. A program counts once it
 // has ≥1 active team; level teams share a program; archived-only programs and
 // null-program active teams are handled explicitly so no team escapes billing.
@@ -615,47 +601,62 @@ teamsRouter.get(
     if (!user) return res.status(401).json({ error: 'User not found' });
 
     const billingContext = await buildTeamCreateBillingContext(req.user!.id, user);
-    const ownedTeamsCount = await countTeamsForBillingContext(prisma, req.user!.id, billingContext);
+    const ownedProgramsCount = await countBillableProgramsForContext(
+      prisma,
+      req.user!.id,
+      billingContext
+    );
     const effectivePlan = billingContext.effectivePlan;
 
-    let maxTeamsDisplay = 999;
+    // maxPrograms === null means unlimited (display 999 on legacy fields).
+    let maxPrograms: number | null = SERVER_ROOKIE_PROGRAM_LIMIT;
     let canCreateMore = true;
-    let remaining = 999;
+    let metered = false;
 
     if (effectivePlan === 'veteran') {
       const subscriptionId = billingContext.effectiveSubscriptionId;
       if (!subscriptionId) {
-        maxTeamsDisplay = ownedTeamsCount;
-        canCreateMore = false;
-        remaining = 0;
+        // Flat-tier IAP purchase (Apple/Google) — no Stripe quantity to meter
+        // against, so this rail is unlimited, not blocked.
+        maxPrograms = null;
+        canCreateMore = true;
+        metered = false;
       } else {
+        metered = true;
         try {
           const allowance = await getVeteranSubscriptionAllowance(subscriptionId);
-          maxTeamsDisplay = allowance.totalTeamAllowance;
-          canCreateMore = allowance.active && ownedTeamsCount < allowance.totalTeamAllowance;
-          remaining = canCreateMore
-            ? Math.max(0, allowance.totalTeamAllowance - ownedTeamsCount)
-            : 0;
+          maxPrograms = allowance.totalTeamAllowance;
+          canCreateMore = allowance.active && ownedProgramsCount < allowance.totalTeamAllowance;
         } catch (err) {
           console.error('[teams] limits veteran allowance verification failed:', err);
-          maxTeamsDisplay = ownedTeamsCount;
+          maxPrograms = ownedProgramsCount;
           canCreateMore = false;
-          remaining = 0;
         }
       }
+    } else if (effectivePlan === 'legend') {
+      maxPrograms = null;
+      canCreateMore = true;
+      metered = false;
     } else {
-      const maxTeamsFromPlan = getMaxTeamsForPlan(effectivePlan);
-      const maxTeams = maxTeamsFromPlan ?? (user as any).max_teams ?? SERVER_ROOKIE_TEAM_LIMIT;
-      maxTeamsDisplay = maxTeamsFromPlan === null ? 999 : maxTeams;
-      canCreateMore = maxTeamsFromPlan === null || ownedTeamsCount < maxTeams;
-      remaining = maxTeamsFromPlan === null ? 999 : Math.max(0, maxTeams - ownedTeamsCount);
+      // Rookie (or any unrecognized/default plan) — free floor of
+      // SERVER_ROOKIE_PROGRAM_LIMIT billable sport programs.
+      maxPrograms = SERVER_ROOKIE_PROGRAM_LIMIT;
+      canCreateMore = ownedProgramsCount < SERVER_ROOKIE_PROGRAM_LIMIT;
+      metered = false;
     }
 
+    const maxProgramsDisplay = maxPrograms === null ? 999 : maxPrograms;
+    const remaining = maxPrograms === null ? 999 : Math.max(0, maxPrograms - ownedProgramsCount);
     const subscriptionTier = effectivePlan ?? (user as any).subscription_tier ?? 'free';
 
     return res.json({
-      owned_teams: ownedTeamsCount,
-      max_teams: maxTeamsDisplay,
+      owned_programs: ownedProgramsCount,
+      max_programs: maxPrograms,
+      metered,
+      // Legacy fields — kept for older client bundles that read team-based
+      // names; the values are program-based now (see Phase 4 billing re-unit).
+      owned_teams: ownedProgramsCount,
+      max_teams: maxProgramsDisplay,
       can_create_more: canCreateMore,
       remaining,
       subscription_tier: subscriptionTier,
@@ -1546,11 +1547,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
     const team = await prisma.$transaction(
       async tx => {
         if (effectivePlan === 'rookie' || !effectivePlan) {
-          const billablePrograms = await countBillableProgramsForContext(
-            tx,
-            me.id,
-            billingContext
-          );
+          const billablePrograms = await countBillableProgramsForContext(tx, me.id, billingContext);
           if (!targetProgramAlreadyActive && billablePrograms >= SERVER_ROOKIE_PROGRAM_LIMIT) {
             throw Object.assign(new Error('Program limit reached'), {
               status: 403,
@@ -1591,10 +1588,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
                 me.id,
                 billingContext
               );
-              if (
-                !targetProgramAlreadyActive &&
-                billablePrograms >= allowance.totalTeamAllowance
-              ) {
+              if (!targetProgramAlreadyActive && billablePrograms >= allowance.totalTeamAllowance) {
                 throw Object.assign(new Error('Program limit reached'), {
                   status: 403,
                   body: {
