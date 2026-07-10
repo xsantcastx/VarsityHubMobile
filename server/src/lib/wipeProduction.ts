@@ -37,6 +37,7 @@ export async function wipeDatabase(prisma: PrismaClient): Promise<{ deleted: Rec
     ['Follows', () => prisma.follows.deleteMany()],
     ['TeamFollow', () => prisma.teamFollow.deleteMany()],
     ['OrganizationFollow', () => prisma.organizationFollow.deleteMany()],
+    ['ProgramFollow', () => prisma.programFollow.deleteMany()],
     ['CategoryFollow', () => prisma.categoryFollow.deleteMany()],
     ['BlockedUser', () => prisma.blockedUser.deleteMany()],
     ['TeamMembership', () => prisma.teamMembership.deleteMany()],

@@ -150,6 +150,14 @@ const DOMAINS: DomainExtractor[] = [
       }),
   },
   {
+    filename: 'program_follows.json',
+    extract: async userId =>
+      prisma.programFollow.findMany({
+        where: { user_id: userId },
+        select: { program_id: true, created_at: true } as any,
+      }),
+  },
+  {
     filename: 'organization_memberships.json',
     extract: async userId =>
       prisma.organizationMembership.findMany({
