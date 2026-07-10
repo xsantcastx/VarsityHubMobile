@@ -758,7 +758,7 @@ teamsRouter.get(
     const canManage =
       access.isAdmin || access.isOrgAdmin || isManagementRole(access.membership?.role);
 
-    const [memberships, approvedGames, viewerJoinRequest] = await Promise.all([
+    const [memberships, approvedGames] = await Promise.all([
       prisma.teamMembership.findMany({
         where: { team_id: teamId, status: 'active' },
         orderBy: { created_at: 'asc' },
@@ -787,12 +787,6 @@ teamsRouter.get(
         take: 20,
         select: GAME_SUMMARY_SELECT,
       }),
-      viewerId
-        ? prisma.teamJoinRequest.findUnique({
-            where: { team_id_user_id: { team_id: teamId, user_id: viewerId } },
-            select: { id: true, status: true },
-          })
-        : Promise.resolve(null),
     ]);
 
     return res.json({
@@ -803,7 +797,6 @@ teamsRouter.get(
         viewerRole: access.membership?.role ?? null,
         canManageTeam: canManage,
         isOrgAdmin: access.isOrgAdmin,
-        viewerJoinRequestStatus: viewerJoinRequest?.status ?? null,
       }),
       permissions: {
         can_manage: canManage,
@@ -1626,26 +1619,21 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
       data.authorized_users.length > 0
     ) {
       try {
+        // 2026-07-09: player/parent/member retired — teams hold staff only.
         const validInviteRoles = new Set([
           'manager',
           'coach',
           'assistant_coach',
-          'player',
-          'parent',
-          'member',
           'equipment',
           'health_wellness',
         ]);
         const invites = data.authorized_users
-          .filter(user => user.email)
-          .map(user => {
-            const requestedRole = String(user.role || 'member');
-            return {
-              team_id: team.id,
-              email: user.email!,
-              role: (validInviteRoles.has(requestedRole) ? requestedRole : 'member') as any,
-            };
-          });
+          .filter(user => user.email && validInviteRoles.has(String(user.role || '')))
+          .map(user => ({
+            team_id: team.id,
+            email: user.email!,
+            role: String(user.role) as any,
+          }));
 
         if (invites.length > 0) {
           await prisma.teamInvite.createMany({
@@ -2207,13 +2195,11 @@ const inviteSchema = z
   .refine(d => Boolean(d.email) || Boolean(d.username), {
     message: 'Provide an email address or a username to invite.',
   });
+// 2026-07-09: player/parent/member retired — teams hold staff only.
 const VALID_TEAM_INVITE_ROLES = [
   'manager',
   'coach',
   'assistant_coach',
-  'player',
-  'parent',
-  'member',
   'equipment',
   'health_wellness',
 ] as const;
@@ -2558,6 +2544,16 @@ teamsRouter.post(
         } as any,
       },
     });
+    // 2026-07-09: player/parent/member retired — block acceptance of legacy
+    // pending invites carrying a retired role (archive script cancels them,
+    // this is the backstop for the deploy window).
+    const RETIRED_TEAM_ROLES = new Set(['player', 'parent', 'member']);
+    if (RETIRED_TEAM_ROLES.has(String(invite.role))) {
+      return sendError(res, 410, 'INVITE_ROLE_RETIRED', {
+        message:
+          'This invite was for a roster role that no longer exists. Ask a coach to send a new staff invite.',
+      });
+    }
     try {
       const accepted = await prisma.$transaction(
         async tx => {
@@ -2569,7 +2565,11 @@ teamsRouter.post(
               } as any,
             },
           });
-          const roleToApply = currentMembership?.role || invite.role;
+          // Never resurrect a retired role from an archived membership — the
+          // staff role on the fresh invite wins.
+          const roleToApply = RETIRED_TEAM_ROLES.has(String(currentMembership?.role))
+            ? invite.role
+            : currentMembership?.role || invite.role;
           const entitlement = await getTeamEntitlementState(tx, invite.team_id);
           if (entitlement.teamLocked) {
             throw new Error('TEAM_PLAN_LOCKED');

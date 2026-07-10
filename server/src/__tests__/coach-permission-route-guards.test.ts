@@ -14,7 +14,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROUTES_DIR = join(process.cwd(), 'src', 'routes');
-const teamMembershipsSrc = readFileSync(join(ROUTES_DIR, 'team-memberships.ts'), 'utf8');
 const groupChatsSrc = readFileSync(join(ROUTES_DIR, 'group-chats.ts'), 'utf8');
 
 /**
@@ -30,17 +29,8 @@ function routeGuards(src: string, pathLiteral: string): string {
 }
 
 describe('coach-mutating routes require onboarding (C1/C2)', () => {
-  it('team join-request APPROVE runs requireOnboarded', () => {
-    expect(routeGuards(teamMembershipsSrc, "'/join-requests/:id/approve'")).toContain(
-      'requireOnboarded'
-    );
-  });
-
-  it('team join-request REJECT runs requireOnboarded', () => {
-    expect(routeGuards(teamMembershipsSrc, "'/join-requests/:id/reject'")).toContain(
-      'requireOnboarded'
-    );
-  });
+  // NOTE: the team join-request approve/reject guard tests were removed
+  // 2026-07-09 along with the athlete self-join flow itself (PR #152).
 
   it('group-chat CREATE runs requireOnboarded', () => {
     // Anchor on the POST '/' registration specifically — a bare "'/'" would
@@ -57,9 +47,7 @@ describe('coach-mutating routes require onboarding (C1/C2)', () => {
   });
 
   it('group-chat REMOVE MEMBER runs requireOnboarded', () => {
-    expect(routeGuards(groupChatsSrc, "'/:chatId/members/:userId'")).toContain(
-      'requireOnboarded'
-    );
+    expect(routeGuards(groupChatsSrc, "'/:chatId/members/:userId'")).toContain('requireOnboarded');
   });
 
   it('group-chats imports the requireOnboarded middleware', () => {

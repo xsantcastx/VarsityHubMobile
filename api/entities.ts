@@ -678,13 +678,8 @@ export const Organization = {
     httpGet(`/organizations/${encodeURIComponent(organizationId)}/programs`),
   createProgram: (organizationId: string, data: { sport: string; name?: string }) =>
     httpPost(`/organizations/${encodeURIComponent(organizationId)}/programs`, data),
-  // Organization join requests (coach/admin workflows)
-  requestToJoin: (organizationId: string, message?: string, teamId?: string) =>
-    httpPost(`/organizations/join-requests`, {
-      organization_id: organizationId,
-      message,
-      team_id: teamId,
-    }),
+  // Organization join requests (coach onboarding submits via httpPost directly;
+  // these are the admin review workflows)
   getJoinRequests: (organizationId: string, status?: 'pending' | 'approved' | 'rejected') => {
     const params: string[] = [];
     if (status) params.push('status=' + encodeURIComponent(status));
@@ -959,22 +954,6 @@ export const TeamMemberships = {
     httpGet(
       `/team-memberships/search-users?teamId=${encodeURIComponent(teamId)}&q=${encodeURIComponent(q)}`
     ),
-  // Team join requests
-  requestToJoin: (teamId: string, message?: string) =>
-    httpPost('/team-memberships/join-requests', { team_id: teamId, message }),
-  getJoinRequests: (teamId: string) =>
-    httpGet(`/team-memberships/join-requests?teamId=${encodeURIComponent(teamId)}`),
-  myJoinRequests: () => httpGet('/team-memberships/join-requests/my'),
-  approveJoinRequest: (requestId: string) =>
-    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
-  rejectJoinRequest: (requestId: string, reason?: string) =>
-    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/reject`, {
-      rejection_reason: reason,
-    }),
-  cancelJoinRequest: (requestId: string) =>
-    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/reject`, {
-      rejection_reason: 'Cancelled by requester',
-    }),
 };
 
 export const TeamInvites = {

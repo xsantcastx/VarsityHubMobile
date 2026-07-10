@@ -60,9 +60,6 @@ export interface SerializeTeamOptions {
 
   /** Whether the viewer is an org admin for the team's org. */
   isOrgAdmin?: boolean;
-
-  /** The viewer's pending join request status, if any. null = no request. */
-  viewerJoinRequestStatus?: string | null;
 }
 
 export const TEAM_SERIALIZE_SAFE_SELECT = {
@@ -208,7 +205,6 @@ export function serializeTeam(team: any, opts: SerializeTeamOptions = {}) {
     base.can_manage_team = opts.canManageTeam === true;
     base.can_administer_team = opts.canAdministerTeam === true;
     base.is_org_admin = opts.isOrgAdmin === true;
-    base.viewer_join_request_status = opts.viewerJoinRequestStatus ?? null;
   }
 
   return base;

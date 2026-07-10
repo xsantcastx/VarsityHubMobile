@@ -116,7 +116,7 @@ describe('POST /team-memberships — add member', () => {
   it('401 when unauthenticated', async () => {
     const res = await request(app)
       .post('/team-memberships')
-      .send({ team_id: teamId, user_id: fanId, role: 'member' });
+      .send({ team_id: teamId, user_id: fanId, role: 'assistant_coach' });
     expect(res.status).toBe(401);
   });
 
@@ -124,7 +124,7 @@ describe('POST /team-memberships — add member', () => {
     const res = await request(app)
       .post('/team-memberships')
       .set('Authorization', `Bearer ${outsiderToken}`)
-      .send({ team_id: teamId, user_id: fanId, role: 'member' });
+      .send({ team_id: teamId, user_id: fanId, role: 'assistant_coach' });
     expect(res.status).toBe(403);
   });
 
@@ -132,7 +132,7 @@ describe('POST /team-memberships — add member', () => {
     const res = await request(app)
       .post('/team-memberships')
       .set('Authorization', `Bearer ${coachToken}`)
-      .send({ team_id: teamId, user_id: fanId, role: 'member' });
+      .send({ team_id: teamId, user_id: fanId, role: 'assistant_coach' });
     expect(res.status).toBe(201);
     // Route returns the membership object directly (not wrapped in { membership })
     expect(res.body.team_id).toBe(teamId);

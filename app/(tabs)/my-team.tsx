@@ -102,15 +102,10 @@ function resolveNextSelectedTeamId(
   return teams[0].id;
 }
 
-const ROLE_OPTIONS = [
-  'owner',
-  'manager',
-  'coach',
-  'assistant_coach',
-  'player',
-  'parent',
-  'member',
-] as const;
+// 2026-07-09: player/parent/member retired as assignable roles — teams hold
+// staff only. ROLE_LABELS/badges below keep the legacy labels for display of
+// pre-existing rows until the archive script has run.
+const ROLE_OPTIONS = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
 type Role = (typeof ROLE_OPTIONS)[number];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -232,7 +227,7 @@ function MyTeamScreen() {
   // Invite modal
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteIdentifier, setInviteIdentifier] = useState('');
-  const [inviteRole, setInviteRole] = useState<Role>('player');
+  const [inviteRole, setInviteRole] = useState<Role>('assistant_coach');
   const [inviting, setInviting] = useState(false);
   const [memberActionLoading, setMemberActionLoading] = useState(false);
 
@@ -433,7 +428,7 @@ function MyTeamScreen() {
       Alert.alert('Invited', `Invitation sent to ${inviteIdentifier.trim()}`);
       setShowInviteModal(false);
       setInviteIdentifier('');
-      setInviteRole('player');
+      setInviteRole('assistant_coach');
       await refetchMembers();
     } catch (error: unknown) {
       const e = error as ApiErrorLike;
@@ -915,12 +910,9 @@ function MyTeamScreen() {
             </Text>
             <View style={styles.roleGrid}>
               {getAssignableTeamRoles(roleActor, [
-                'player',
                 'coach',
                 'assistant_coach',
-                'parent',
                 'manager',
-                'member',
               ] as Role[]).map(role => {
                 const badge = getRoleBadgeColor(role);
                 const isActive = inviteRole === role;
@@ -954,7 +946,7 @@ function MyTeamScreen() {
                 onPress={() => {
                   setShowInviteModal(false);
                   setInviteIdentifier('');
-                  setInviteRole('player');
+                  setInviteRole('assistant_coach');
                 }}
                 style={[styles.modalActionBtn, { borderColor: Colors[colorScheme].border }]}
               >

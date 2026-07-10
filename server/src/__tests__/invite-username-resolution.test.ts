@@ -107,7 +107,7 @@ describe('Invite by username or email', () => {
     const res = await request(app)
       .post(`/teams/${teamId}/invite`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ username: targetUsername, role: 'player' });
+      .send({ username: targetUsername, role: 'assistant_coach' });
     expect(res.status).toBe(201);
 
     const invite = await prisma.teamInvite.findFirst({
@@ -121,7 +121,7 @@ describe('Invite by username or email', () => {
     await request(app)
       .post(`/teams/${teamId}/invite`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ username: `nobody${ts}`, role: 'player' })
+      .send({ username: `nobody${ts}`, role: 'assistant_coach' })
       .expect(404);
   });
 
@@ -129,7 +129,7 @@ describe('Invite by username or email', () => {
     await request(app)
       .post(`/teams/${teamId}/invite`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ role: 'player' })
+      .send({ role: 'assistant_coach' })
       .expect(400);
   });
 
@@ -137,7 +137,7 @@ describe('Invite by username or email', () => {
     const res = await request(app)
       .post(`/teams/${teamId}/invite`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ email: `plain-email-${ts}@example.com`, role: 'member' });
+      .send({ email: `plain-email-${ts}@example.com`, role: 'assistant_coach' });
     expect(res.status).toBe(201);
   });
 });

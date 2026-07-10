@@ -2228,32 +2228,6 @@ export async function sendLeagueApprovalRequestEmail(params: {
  * notifications. This adds email parity with the create-new-org path.
  * Reuses LEAGUE_PENDING_APPROVAL template ("Join request admin" in SendGrid).
  */
-/**
- * Notify team staff when a user submits a team join request.
- * Reuses the generic JOIN_REQUEST_ADMIN template — no new SendGrid template required.
- */
-export async function sendTeamJoinRequestEmail(params: {
-  staffEmail: string;
-  staffName: string;
-  requesterName: string;
-  requesterEmail: string;
-  teamName: string;
-  teamId: string;
-}): Promise<boolean> {
-  const subject = `New join request: ${params.requesterName} wants to join ${params.teamName}`;
-  return sendJoinRequestAdminTemplate({
-    to: params.staffEmail,
-    subject,
-    leagueName: params.teamName,
-    requesterName: params.requesterName,
-    requesterEmail: params.requesterEmail,
-    adminName: params.staffName,
-    sport: 'N/A',
-    orgType: 'Team join request',
-    includeRequesterEmail: false,
-  });
-}
-
 export async function sendCoachJoinRequestEmail(params: {
   ownerEmail: string;
   ownerName: string;

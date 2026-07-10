@@ -207,13 +207,13 @@ describe('invite identifier routes', () => {
     const first = await request(app)
       .post(`/teams/${teamId}/invite`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ username: targetUsername, role: 'member' })
+      .send({ username: targetUsername, role: 'assistant_coach' })
       .expect(201);
 
     const second = await request(app)
       .post('/team-invites')
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ team_id: teamId, email: targetEmail.toUpperCase(), role: 'member' })
+      .send({ team_id: teamId, email: targetEmail.toUpperCase(), role: 'assistant_coach' })
       .expect(201);
 
     expect(second.body.id).toBe(first.body.id);
@@ -230,7 +230,7 @@ describe('invite identifier routes', () => {
     await request(app)
       .post(`/teams/${teamId}/invite`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ email, role: 'member' })
+      .send({ email, role: 'assistant_coach' })
       .expect(201);
 
     const invite = await prisma.teamInvite.findFirst({
@@ -242,7 +242,7 @@ describe('invite identifier routes', () => {
     await request(app)
       .post('/team-invites')
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ team_id: teamId, username: 'does-not-exist-user', role: 'member' })
+      .send({ team_id: teamId, username: 'does-not-exist-user', role: 'assistant_coach' })
       .expect(404);
 
     const member = await prisma.user.findUnique({
@@ -253,7 +253,7 @@ describe('invite identifier routes', () => {
     const response = await request(app)
       .post(`/teams/${teamId}/invite`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ username: member?.username, role: 'member' })
+      .send({ username: member?.username, role: 'assistant_coach' })
       .expect(409);
 
     // See the org-invite note above: `code` is the machine token, `error` is prose.

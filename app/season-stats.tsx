@@ -260,7 +260,7 @@ function SeasonStatsScreen() {
           name: m.display_name || m.name || m.email || 'Unknown',
           position: m.custom_position || m.position || '-',
           gamesPlayed: stats.gamesPlayed, // team-level games played (no per-player tracking)
-          role: m.role || 'player',
+          role: m.role || 'member',
         }));
         setPlayerStats(players);
       } catch (err: any) {
