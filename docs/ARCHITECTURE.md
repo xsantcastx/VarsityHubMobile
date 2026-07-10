@@ -29,7 +29,7 @@ not Kubernetes — and that is the correct choice at this scale.
 ## Buzzword audit (what's present vs. correctly absent)
 
 - **Present:** ACID (Postgres tx), encryption (bcrypt/JWT/TLS/helmet), CI/CD,
-  database design (pg*trgm trigram search — \_not* Elasticsearch), error logging
+  database design (`pg_trgm` trigram search — _not_ Elasticsearch), error logging
   (Sentry/pino), caching (Redis + react-query), CDN (Cloudinary + OTA),
   **message queues = BullMQ on Redis** (this is the SQS/Kafka/RabbitMQ role),
   polling, S3 (GDPR data-export archives only).
