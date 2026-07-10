@@ -13,7 +13,6 @@ const programSchema = z
     id: z.string(),
     organization_id: z.string(),
     sport: z.string(),
-    gender: z.enum(['boys', 'girls', 'coed']),
     name: z.string().nullable(),
     logo_url: z.string().nullable(),
     created_at: z.string(),
@@ -26,7 +25,11 @@ const programSchema = z
 const programLevelSchema = z
   .object({
     level: z.string().nullable(),
-    team: z.record(z.any()),
+    team: z
+      .object({
+        gender: z.enum(['boys', 'girls', 'coed']).nullable().optional(),
+      })
+      .passthrough(),
     games: z.array(z.record(z.any())),
   })
   .passthrough();

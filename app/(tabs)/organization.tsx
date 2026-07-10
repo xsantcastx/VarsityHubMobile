@@ -1,8 +1,8 @@
 import { Game, Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import {
-  formatLevelLabel,
   formatProgramLabel,
+  formatTeamFolderLabel,
   groupTeamsByProgram,
   LEVEL_OPTIONS,
 } from '@/constants/programs';
@@ -66,6 +66,7 @@ type TeamItem = {
   organization_id?: string;
   program_id: string | null;
   level: string | null;
+  gender: string | null;
 };
 
 type GameItem = {
@@ -93,6 +94,11 @@ type AuthorizedInvite = {
 function levelRank(level: string | null | undefined): number {
   const idx = LEVEL_OPTIONS.findIndex(o => o.value === level);
   return idx === -1 ? LEVEL_OPTIONS.length : idx;
+}
+
+// Gender ordering within a level: boys < girls < coed < unknown/null.
+function genderRank(gender: string | null | undefined): number {
+  return gender === 'boys' ? 0 : gender === 'girls' ? 1 : gender === 'coed' ? 2 : 3;
 }
 
 function buildOrganizationJoinRequestsRoute(id: string, name?: string | null) {
@@ -192,6 +198,7 @@ export default function OrganizationScreen() {
           organization_id: t.organization_id,
           program_id: t.program_id ?? null,
           level: t.level ?? null,
+          gender: t.gender ?? null,
         }))
         .sort((a: TeamItem, b: TeamItem) => a.name.localeCompare(b.name));
 
@@ -480,19 +487,26 @@ export default function OrganizationScreen() {
   const renderProgramRow = (group: (typeof programGroups)[number]) => {
     const program = group.programId ? programsById.get(group.programId) : undefined;
     const title = program ? formatProgramLabel(program) : group.teams[0]?.sport || 'Teams';
-    // Order levels by canonical rank (varsity, jv, freshman, …) rather than the
-    // team-name sort the list arrives in, so it reads "Varsity, JV".
-    const levelLabels = Array.from(
+    // Folder labels ordered by (level rank, gender) — "Boys Varsity, Girls JV" —
+    // rather than the team-name sort the list arrives in. Deduped and capped so
+    // a large program's subtitle can't overflow the row.
+    const folderLabels = Array.from(
       new Set(
         [...group.teams]
-          .sort((a, b) => levelRank(a.level) - levelRank(b.level))
-          .map(t => formatLevelLabel(t.level))
-          .filter((l): l is string => !!l)
+          .sort((a, b) => {
+            const byLevel = levelRank(a.level) - levelRank(b.level);
+            if (byLevel !== 0) return byLevel;
+            return genderRank(a.gender) - genderRank(b.gender);
+          })
+          .map(t => formatTeamFolderLabel({ gender: t.gender, level: t.level }))
       )
     );
+    const shownLabels = folderLabels.slice(0, 3);
+    const extraCount = folderLabels.length - shownLabels.length;
+    const labelText = shownLabels.join(', ') + (extraCount > 0 ? ` +${extraCount} more` : '');
     const count = group.teams.length;
     const subtitle = `${count} team${count !== 1 ? 's' : ''}${
-      levelLabels.length ? ` · ${levelLabels.join(', ')}` : ''
+      folderLabels.length ? ` · ${labelText}` : ''
     }`;
     return (
       <Pressable

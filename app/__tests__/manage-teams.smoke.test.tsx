@@ -118,7 +118,7 @@ const ungroupedTeam = {
 beforeEach(() => {
   mockManaged.mockReset().mockResolvedValue([sampleTeam]);
   mockPrograms.mockReset().mockResolvedValue({
-    programs: [{ id: 'prog1', sport: 'basketball', gender: 'girls', name: null, teams: [] }],
+    programs: [{ id: 'prog1', sport: 'basketball', name: null, teams: [] }],
   });
 });
 
@@ -146,7 +146,9 @@ describe('ManageTeamsScreen (react-query render smoke)', () => {
     );
     await waitFor(() => expect(mockManaged).toHaveBeenCalled());
 
-    expect(await screen.findByText('Girls Basketball')).toBeTruthy();
+    // Program header renders the sport-only label; team cards also show the
+    // sport, so match on the collection rather than a unique node.
+    await waitFor(() => expect(screen.getAllByText('Basketball').length).toBeGreaterThan(0));
     expect(await screen.findByText('Varsity Tigers')).toBeTruthy();
     expect(await screen.findByText('JV Tigers')).toBeTruthy();
     expect(await screen.findByText('Other teams')).toBeTruthy();

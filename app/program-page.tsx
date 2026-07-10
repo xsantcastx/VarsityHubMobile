@@ -3,7 +3,7 @@ import { useProgramScreenSummary } from '@/hooks/useProgramScreenSummary';
 import { Program } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
-import { formatLevelLabel, formatProgramLabel } from '@/constants/programs';
+import { formatProgramLabel, formatTeamFolderLabel, LEVEL_OPTIONS } from '@/constants/programs';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { gameRowTitle } from '@/utils/eventTitle';
 import { safeGoBack } from '@/utils/navigation';
@@ -29,6 +29,17 @@ type ProgramLevel = {
   team: Record<string, any>;
   games: Record<string, any>[];
 };
+
+// Canonical level ordering (varsity, jv, freshman, …); unknown/null sorts last.
+function levelRank(level: string | null | undefined): number {
+  const idx = LEVEL_OPTIONS.findIndex(o => o.value === level);
+  return idx === -1 ? LEVEL_OPTIONS.length : idx;
+}
+
+// Gender ordering within a level: boys < girls < coed < unknown/null.
+function genderRank(gender: string | null | undefined): number {
+  return gender === 'boys' ? 0 : gender === 'girls' ? 1 : gender === 'coed' ? 2 : 3;
+}
 
 function ProgramScreen() {
   const { user: currentUser } = useAuth();
@@ -221,12 +232,18 @@ function ProgramScreen() {
     );
   }
 
-  const levels = (data?.levels ?? []) as ProgramLevel[];
+  // Folder order is stable across genders: level rank first, then gender, so
+  // "Boys Varsity" precedes "Girls Varsity" precedes "Boys JV" regardless of
+  // the server's canonical level-only sort.
+  const levels = [...((data?.levels ?? []) as ProgramLevel[])].sort((a, b) => {
+    const byLevel = levelRank(a.level) - levelRank(b.level);
+    if (byLevel !== 0) return byLevel;
+    return genderRank(a.team?.gender) - genderRank(b.team?.gender);
+  });
   const counts = data?.counts ?? { levels: 0, teams: 0, games: 0 };
   const title = formatProgramLabel({
     id: program.id,
     sport: program.sport,
-    gender: program.gender,
     name: program.name,
   });
   const logoUrl = program.logo_url || levels[0]?.team?.logo_url || null;
@@ -350,7 +367,10 @@ function ProgramScreen() {
         ) : (
           levels.map((lvl, idx) => {
             const expanded = isExpanded(idx);
-            const levelLabel = formatLevelLabel(lvl.level) ?? 'Team';
+            const folderLabel = formatTeamFolderLabel({
+              gender: lvl.team?.gender,
+              level: lvl.level,
+            });
             const teamId = String(lvl.team?.id ?? '');
             const games = Array.isArray(lvl.games) ? lvl.games : [];
             return (
@@ -364,7 +384,7 @@ function ProgramScreen() {
                   ]}
                   accessibilityRole="button"
                   accessibilityState={{ expanded }}
-                  accessibilityLabel={`${levelLabel}, ${games.length} games`}
+                  accessibilityLabel={`${folderLabel}, ${games.length} games`}
                 >
                   <Ionicons
                     name={expanded ? 'chevron-down' : 'chevron-forward'}
@@ -373,7 +393,7 @@ function ProgramScreen() {
                   />
                   <View style={styles.folderTitleWrap}>
                     <Text style={[styles.folderTitle, { color: theme.text }]} numberOfLines={1}>
-                      {levelLabel}
+                      {folderLabel}
                     </Text>
                     <Text style={[styles.folderCount, { color: theme.mutedText }]}>
                       {games.length} {games.length === 1 ? 'game' : 'games'}

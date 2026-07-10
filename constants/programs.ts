@@ -8,7 +8,7 @@
 import { SPORT_OPTIONS } from './sports';
 
 export type TeamLevel = 'varsity' | 'jv' | 'freshman' | 'middle_school' | 'unified' | 'other';
-export type ProgramGender = 'boys' | 'girls' | 'coed';
+export type TeamGender = 'boys' | 'girls' | 'coed';
 
 export const LEVEL_OPTIONS: { value: TeamLevel; label: string }[] = [
   { value: 'varsity', label: 'Varsity' },
@@ -27,7 +27,7 @@ export const LEVEL_LABELS: Record<TeamLevel, string> = LEVEL_OPTIONS.reduce(
   {} as Record<TeamLevel, string>
 );
 
-export const GENDER_OPTIONS: { value: ProgramGender; label: string }[] = [
+export const GENDER_OPTIONS: { value: TeamGender; label: string }[] = [
   { value: 'boys', label: 'Boys' },
   { value: 'girls', label: 'Girls' },
   { value: 'coed', label: 'Coed' },
@@ -36,18 +36,32 @@ export const GENDER_OPTIONS: { value: ProgramGender; label: string }[] = [
 export type ProgramSummary = {
   id: string;
   sport: string;
-  gender: ProgramGender;
   name?: string | null;
 };
 
 export function formatProgramLabel(p: ProgramSummary): string {
   if (p.name) return p.name;
   const sportOption = SPORT_OPTIONS.find(s => s.slug === p.sport);
-  const sportLabel = sportOption ? sportOption.label : p.sport;
-  if (p.gender === 'coed') return sportLabel;
-  const genderOption = GENDER_OPTIONS.find(g => g.value === p.gender);
-  const genderLabel = genderOption ? genderOption.label : '';
-  return genderLabel ? `${genderLabel} ${sportLabel}` : sportLabel;
+  return sportOption ? sportOption.label : p.sport;
+}
+
+/**
+ * Folder label for a level team within a program page: gender (when boys/girls)
+ * + level. Coed/unknown gender drops the gender word; a team with neither a
+ * gendered label nor a level falls back to "Team".
+ *   { gender: 'girls', level: 'varsity' } -> "Girls Varsity"
+ *   { gender: 'coed',  level: 'varsity' } -> "Varsity"
+ *   { gender: 'girls', level: null }      -> "Girls"
+ *   { gender: null,    level: null }      -> "Team"
+ */
+export function formatTeamFolderLabel(team: {
+  gender?: string | null;
+  level?: string | null;
+}): string {
+  const genderPart = team.gender === 'boys' ? 'Boys' : team.gender === 'girls' ? 'Girls' : '';
+  const levelPart = formatLevelLabel(team.level) ?? '';
+  const label = [genderPart, levelPart].filter(Boolean).join(' ');
+  return label || 'Team';
 }
 
 export function formatLevelLabel(level: string | null | undefined): string | null {

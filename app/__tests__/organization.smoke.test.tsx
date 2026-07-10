@@ -66,6 +66,7 @@ const groupedTeamA = {
   season: '2026',
   organization_id: 'org1',
   level: 'varsity',
+  gender: 'boys',
   program_id: 'prog1',
 };
 
@@ -76,6 +77,7 @@ const groupedTeamB = {
   season: '2026',
   organization_id: 'org1',
   level: 'jv',
+  gender: 'girls',
   program_id: 'prog1',
 };
 
@@ -102,7 +104,7 @@ beforeEach(() => {
     ]);
   mockGameList.mockReset().mockResolvedValue([]);
   mockPrograms.mockReset().mockResolvedValue({
-    programs: [{ id: 'prog1', sport: 'basketball', gender: 'girls', name: null, teams: [] }],
+    programs: [{ id: 'prog1', sport: 'basketball', name: null, teams: [] }],
   });
 });
 
@@ -129,7 +131,7 @@ describe('OrganizationScreen (react-query render smoke)', () => {
     );
     await waitFor(() => expect(mockOrgGet).toHaveBeenCalledWith('org1'));
     expect(await screen.findByText('Tigers')).toBeTruthy();
-    expect(screen.queryByText('Girls Basketball')).toBeNull();
+    expect(screen.queryByText('Basketball')).toBeNull();
   });
 
   it('groups teams sharing a program_id into one program row, leaves the ungrouped team its own row', async () => {
@@ -142,13 +144,13 @@ describe('OrganizationScreen (react-query render smoke)', () => {
     );
     await waitFor(() => expect(mockOrgGet).toHaveBeenCalledWith('org1'));
 
-    // One collapsed program row, not two per-team rows.
-    expect(await screen.findByText('Girls Basketball')).toBeTruthy();
+    // One collapsed program row, not two per-team rows. Program label is
+    // sport-only now (gender lives on the teams/folders).
+    expect(await screen.findByText('Basketball')).toBeTruthy();
     expect(screen.queryByText('Varsity Tigers')).toBeNull();
     expect(screen.queryByText('JV Tigers')).toBeNull();
-    // Level labels are ordered by canonical rank (varsity before jv), not the
-    // team-name sort the list arrives in.
-    expect(await screen.findByText('2 teams · Varsity, JV')).toBeTruthy();
+    // Folder labels ordered by (level rank, gender): boys varsity before girls jv.
+    expect(await screen.findByText('2 teams · Boys Varsity, Girls JV')).toBeTruthy();
 
     // Ungrouped team keeps its own per-team row.
     expect(await screen.findByText('Club Squad')).toBeTruthy();

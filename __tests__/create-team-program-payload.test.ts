@@ -54,6 +54,36 @@ describe('buildProgramFields', () => {
       })
     ).toEqual({ program_id: 'program-existing', level: 'jv' });
   });
+
+  it('includes gender only when one is chosen', () => {
+    expect(
+      buildProgramFields({
+        selectedProgramId: null,
+        createdProgramId: null,
+        level: null,
+        gender: 'girls',
+      })
+    ).toEqual({ gender: 'girls' });
+    expect(
+      buildProgramFields({
+        selectedProgramId: null,
+        createdProgramId: null,
+        level: null,
+        gender: null,
+      })
+    ).toEqual({});
+  });
+
+  it('carries gender alongside program_id and level', () => {
+    expect(
+      buildProgramFields({
+        selectedProgramId: 'program-123',
+        createdProgramId: null,
+        level: 'varsity',
+        gender: 'boys',
+      })
+    ).toEqual({ program_id: 'program-123', level: 'varsity', gender: 'boys' });
+  });
 });
 
 describe('sportLabelToSlug', () => {

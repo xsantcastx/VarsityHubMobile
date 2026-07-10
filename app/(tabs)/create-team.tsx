@@ -38,7 +38,7 @@ import {
   GENDER_OPTIONS,
   LEVEL_OPTIONS,
   formatProgramLabel,
-  type ProgramGender,
+  type TeamGender,
   type TeamLevel,
 } from '@/constants/programs';
 import { SPORT_LABELS, SPORT_OPTIONS } from '@/constants/sports';
@@ -106,9 +106,14 @@ export function buildProgramFields(opts: {
   selectedProgramId: string | null;
   createdProgramId: string | null;
   level: TeamLevel | null;
-}): { program_id?: string; level?: TeamLevel } {
+  gender?: TeamGender | null;
+}): { program_id?: string; level?: TeamLevel; gender?: TeamGender } {
   const program_id = opts.selectedProgramId ?? opts.createdProgramId ?? undefined;
-  return { ...(program_id ? { program_id } : {}), ...(opts.level ? { level: opts.level } : {}) };
+  return {
+    ...(program_id ? { program_id } : {}),
+    ...(opts.level ? { level: opts.level } : {}),
+    ...(opts.gender ? { gender: opts.gender } : {}),
+  };
 }
 
 const normalizePlanTier = (tier?: string | null) => {
@@ -163,7 +168,7 @@ function CreateTeamScreen() {
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [creatingProgram, setCreatingProgram] = useState(false);
-  const [newProgramGender, setNewProgramGender] = useState<ProgramGender | null>(null);
+  const [teamGender, setTeamGender] = useState<TeamGender | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<TeamLevel | null>(null);
   const [orgSearchResults, setOrgSearchResults] = useState<
     Array<{ id: string; name: string; description?: string }>
@@ -218,7 +223,7 @@ function CreateTeamScreen() {
   useEffect(() => {
     setSelectedProgramId(null);
     setCreatingProgram(false);
-    setNewProgramGender(null);
+    setTeamGender(null);
     setSelectedLevel(null);
   }, [selectedOrgId]);
 
@@ -233,7 +238,6 @@ function CreateTeamScreen() {
       }
       setSelectedProgramId(program.id);
       setCreatingProgram(false);
-      setNewProgramGender(null);
       // Prefill/lock the sport picker to the program's sport. An unresolvable
       // slug leaves nothing to lock onto, so clear rather than show a stale one.
       const sportOption = SPORT_OPTIONS.find(option => option.slug === program.sport);
@@ -245,7 +249,6 @@ function CreateTeamScreen() {
   const handleToggleNewProgram = useCallback(() => {
     if (creatingProgram) {
       setCreatingProgram(false);
-      setNewProgramGender(null);
       setSelectedLevel(null);
       return;
     }
@@ -634,13 +637,12 @@ function CreateTeamScreen() {
       // required — 'Other'/custom sports have none, so program creation is
       // skipped for them and the team is created ungrouped (today's behavior).
       let createdProgramId: string | null = null;
-      if (clubType === 'sport' && creatingProgram && newProgramGender && selectedOrgId) {
+      if (clubType === 'sport' && creatingProgram && selectedOrgId) {
         const sportSlug = sportLabelToSlug(sport);
         if (sportSlug) {
           try {
             const programResponse: any = await Organization.createProgram(selectedOrgId, {
               sport: sportSlug,
-              gender: newProgramGender,
             });
             createdProgramId = programResponse?.program?.id ?? null;
             // The new program must appear in the grouped coach surfaces that
@@ -650,13 +652,13 @@ function CreateTeamScreen() {
             const err = error as ApiErrorLike;
             const isProgramExists = err?.status === 409 && err?.data?.error === 'PROGRAM_EXISTS';
             if (isProgramExists) {
-              // Someone else created the same (sport, gender) program first —
-              // recover by refetching and using the existing one instead of
-              // failing team creation.
+              // Someone else created the same (sport) program first — recover by
+              // refetching and using the existing one instead of failing team
+              // creation.
               try {
                 const refreshed = await refetchOrgPrograms();
                 const match = (refreshed?.data ?? []).find(
-                  (p: OrgProgram) => p.sport === sportSlug && p.gender === newProgramGender
+                  (p: OrgProgram) => p.sport === sportSlug
                 );
                 createdProgramId = match?.id ?? null;
               } catch (refetchError) {
@@ -683,6 +685,7 @@ function CreateTeamScreen() {
               selectedProgramId,
               createdProgramId,
               level: selectedLevel,
+              gender: teamGender,
             })
           : {};
 
@@ -1816,78 +1819,74 @@ function CreateTeamScreen() {
                             />,
                           ]}
                         />,
-                        creatingProgram ? (
-                          <View
-                            key="program-gender-group"
-                            style={{ marginTop: 12 }}
-                            children={[
-                              <Text
-                                key="program-gender-label"
-                                style={[
-                                  styles.fieldLabelSmall,
-                                  { color: Colors[colorScheme].mutedText },
-                                ]}
-                              >
-                                Gender
-                              </Text>,
-                              <View
-                                key="program-gender-options"
-                                style={{
-                                  flexDirection: 'row',
-                                  flexWrap: 'wrap',
-                                  gap: 8,
-                                  marginTop: 6,
-                                }}
-                                children={GENDER_OPTIONS.map(genderOption => (
-                                  <Pressable
-                                    key={genderOption.value}
-                                    style={[
-                                      styles.chipButton,
-                                      {
-                                        backgroundColor:
-                                          newProgramGender === genderOption.value
-                                            ? Colors[colorScheme].tint
-                                            : Colors[colorScheme].surface,
-                                        borderColor:
-                                          newProgramGender === genderOption.value
-                                            ? Colors[colorScheme].tint
-                                            : Colors[colorScheme].border,
-                                      },
-                                    ]}
-                                    onPress={() =>
-                                      setNewProgramGender(
-                                        newProgramGender === genderOption.value
-                                          ? null
-                                          : genderOption.value
-                                      )
-                                    }
-                                    accessibilityRole="button"
-                                    accessibilityLabel={genderOption.label}
-                                    accessibilityState={{
-                                      selected: newProgramGender === genderOption.value,
-                                    }}
-                                    children={[
-                                      <Text
-                                        key={`${genderOption.value}-text`}
-                                        style={[
-                                          styles.chipText,
-                                          {
-                                            color:
-                                              newProgramGender === genderOption.value
-                                                ? '#fff'
-                                                : Colors[colorScheme].text,
-                                          },
-                                        ]}
-                                      >
-                                        {genderOption.label}
-                                      </Text>,
-                                    ]}
-                                  />
-                                ))}
-                              />,
-                            ]}
-                          />
-                        ) : null,
+                        <View
+                          key="team-gender-group"
+                          style={{ marginTop: 12 }}
+                          children={[
+                            <Text
+                              key="team-gender-label"
+                              style={[
+                                styles.fieldLabelSmall,
+                                { color: Colors[colorScheme].mutedText },
+                              ]}
+                            >
+                              Gender (optional)
+                            </Text>,
+                            <View
+                              key="team-gender-options"
+                              style={{
+                                flexDirection: 'row',
+                                flexWrap: 'wrap',
+                                gap: 8,
+                                marginTop: 6,
+                              }}
+                              children={GENDER_OPTIONS.map(genderOption => (
+                                <Pressable
+                                  key={genderOption.value}
+                                  style={[
+                                    styles.chipButton,
+                                    {
+                                      backgroundColor:
+                                        teamGender === genderOption.value
+                                          ? Colors[colorScheme].tint
+                                          : Colors[colorScheme].surface,
+                                      borderColor:
+                                        teamGender === genderOption.value
+                                          ? Colors[colorScheme].tint
+                                          : Colors[colorScheme].border,
+                                    },
+                                  ]}
+                                  onPress={() =>
+                                    setTeamGender(
+                                      teamGender === genderOption.value ? null : genderOption.value
+                                    )
+                                  }
+                                  accessibilityRole="button"
+                                  accessibilityLabel={genderOption.label}
+                                  accessibilityState={{
+                                    selected: teamGender === genderOption.value,
+                                  }}
+                                  children={[
+                                    <Text
+                                      key={`${genderOption.value}-text`}
+                                      style={[
+                                        styles.chipText,
+                                        {
+                                          color:
+                                            teamGender === genderOption.value
+                                              ? '#fff'
+                                              : Colors[colorScheme].text,
+                                        },
+                                      ]}
+                                    >
+                                      {genderOption.label}
+                                    </Text>,
+                                  ]}
+                                />
+                              ))}
+                            />,
+                          ]}
+                        />,
                         selectedProgramId || creatingProgram ? (
                           <View
                             key="program-level-group"

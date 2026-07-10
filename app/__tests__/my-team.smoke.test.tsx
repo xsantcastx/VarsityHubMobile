@@ -114,7 +114,7 @@ beforeEach(() => {
   mockManaged.mockReset().mockResolvedValue([sampleTeam]);
   mockMembers.mockReset().mockResolvedValue([sampleMember]);
   mockPrograms.mockReset().mockResolvedValue({
-    programs: [{ id: 'prog1', sport: 'basketball', gender: 'girls', name: null, teams: [] }],
+    programs: [{ id: 'prog1', sport: 'basketball', name: null, teams: [] }],
   });
 });
 
@@ -145,7 +145,7 @@ describe('MyTeamScreen (react-query render smoke)', () => {
     const { fireEvent } = require('@testing-library/react-native');
     fireEvent.press(await screen.findByText('Varsity Tigers'));
 
-    expect(await screen.findByText('Girls Basketball')).toBeTruthy();
+    expect(await screen.findByText('Basketball')).toBeTruthy();
     // Level labels render as their own muted Text nodes beside the name
     // (not concatenated into it), so assert them independently.
     expect(await screen.findByText('JV Tigers')).toBeTruthy();
