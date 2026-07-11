@@ -39,7 +39,12 @@ import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthS
 import { getEffectiveEntitledPlan } from '../lib/userBillingState.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { followLimiter, inviteLimiter, teamCreationLimiter } from '../middleware/rateLimiters.js';
+import {
+  followLimiter,
+  inviteLimiter,
+  teamCreationLimiter,
+  teamUpdateLimiter,
+} from '../middleware/rateLimiters.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
@@ -1786,6 +1791,7 @@ teamsRouter.put(
   '/:id',
   requireVerified as any,
   requireOnboarded as any,
+  teamUpdateLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
     debugLog('[Teams PUT] Received update request:', JSON.stringify(req.body));
     // req.user is guaranteed by requireVerified middleware
