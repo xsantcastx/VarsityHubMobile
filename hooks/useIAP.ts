@@ -58,13 +58,7 @@ export function useVHubIAP() {
   const purchaseResolveRef = useRef<((success: boolean) => void) | null>(null);
   const lastPendingRecoveryAtRef = useRef(0);
 
-  const {
-    connected,
-    subscriptions,
-    fetchProducts,
-    requestPurchase,
-    finishTransaction,
-  } = useRNIAP({
+  const { connected, subscriptions, fetchProducts, requestPurchase, finishTransaction } = useRNIAP({
     onPurchaseSuccess: async (purchase: Purchase) => {
       captureBreadcrumb('Subscription store purchase received', 'payments.subscription', {
         platform: isIOS ? 'ios' : isAndroid ? 'android' : Platform.OS,
@@ -83,10 +77,15 @@ export function useVHubIAP() {
               });
             } catch {
               receipt = (purchase as any).transactionReceipt;
-              captureBreadcrumb('Apple receipt fallback used', 'payments.subscription', {
-                source: 'transactionReceipt',
-                product_id: purchase?.productId,
-              }, 'warning');
+              captureBreadcrumb(
+                'Apple receipt fallback used',
+                'payments.subscription',
+                {
+                  source: 'transactionReceipt',
+                  product_id: purchase?.productId,
+                },
+                'warning'
+              );
             }
           }
           if (!jws && !receipt) throw new Error('No receipt available for validation');
@@ -114,7 +113,7 @@ export function useVHubIAP() {
           await httpPost('/payments/google/verify-purchase', {
             purchase_token: purchaseToken,
             product_id: purchase.productId,
-            package_name: (purchase as any).packageNameAndroid || 'com.xsantcastx.varsityhub',
+            package_name: (purchase as any).packageNameAndroid || 'com.varsityhub.varsityhub',
           });
         }
 
@@ -122,9 +121,13 @@ export function useVHubIAP() {
         captureBreadcrumb('Subscription receipt verification succeeded', 'payments.subscription', {
           product_id: purchase?.productId,
         });
-        captureBreadcrumb('Subscription store transaction finish started', 'payments.subscription', {
-          product_id: purchase?.productId,
-        });
+        captureBreadcrumb(
+          'Subscription store transaction finish started',
+          'payments.subscription',
+          {
+            product_id: purchase?.productId,
+          }
+        );
         await finishTransaction({ purchase, isConsumable: false });
         captureBreadcrumb('Subscription store transaction finished', 'payments.subscription', {
           product_id: purchase?.productId,
@@ -136,10 +139,15 @@ export function useVHubIAP() {
         purchaseResolveRef.current = null;
       } catch (err: any) {
         if (__DEV__) console.error('[useVHubIAP] receipt validation error:', err);
-        captureBreadcrumb('Subscription purchase processing failed', 'payments.subscription', {
-          product_id: purchase?.productId,
-          error: err?.message || 'unknown_error',
-        }, 'error');
+        captureBreadcrumb(
+          'Subscription purchase processing failed',
+          'payments.subscription',
+          {
+            product_id: purchase?.productId,
+            error: err?.message || 'unknown_error',
+          },
+          'error'
+        );
         // Do NOT finish the transaction on server verification failure.
         // Leaving it in the pending queue allows StoreKit to re-deliver it on
         // next app launch and the Apple S2S DID_RENEW/SUBSCRIBED notification
@@ -155,9 +163,14 @@ export function useVHubIAP() {
       const msg = err?.message || '';
       // User cancelled — not an error
       if (msg.toLowerCase().includes('cancel') || (err as any)?.code === 'E_USER_CANCELLED') {
-        captureBreadcrumb('Subscription purchase cancelled', 'payments.subscription', {
-          code: (err as any)?.code,
-        }, 'info');
+        captureBreadcrumb(
+          'Subscription purchase cancelled',
+          'payments.subscription',
+          {
+            code: (err as any)?.code,
+          },
+          'info'
+        );
         setPurchasing(false);
         setError(null);
         purchaseResolveRef.current?.(false);
@@ -165,10 +178,15 @@ export function useVHubIAP() {
         return;
       }
       if (__DEV__) console.warn('[useVHubIAP] purchase error:', err);
-      captureBreadcrumb('Subscription purchase failed', 'payments.subscription', {
-        code: (err as any)?.code,
-        error: msg || 'unknown_error',
-      }, 'error');
+      captureBreadcrumb(
+        'Subscription purchase failed',
+        'payments.subscription',
+        {
+          code: (err as any)?.code,
+          error: msg || 'unknown_error',
+        },
+        'error'
+      );
       setPurchasing(false);
       setError(msg || 'Purchase failed');
       purchaseResolveRef.current?.(false);
@@ -184,14 +202,22 @@ export function useVHubIAP() {
     }
     if (!isIOS && !isAndroid) return;
     if (!connected) {
-      if (__DEV__) console.warn('[useVHubIAP] Store not connected yet — IAP will not work until connected. Use EAS build (not Expo Go).');
+      if (__DEV__)
+        console.warn(
+          '[useVHubIAP] Store not connected yet — IAP will not work until connected. Use EAS build (not Expo Go).'
+        );
       return;
     }
     fetchProducts({ skus: ALL_SKUS, type: 'subs' }).catch((err: unknown) => {
       if (__DEV__) console.warn('[useVHubIAP] fetchProducts failed:', err);
-      captureBreadcrumb('Subscription products load failed', 'payments.subscription', {
-        error: err instanceof Error ? err.message : 'unknown_error',
-      }, 'warning');
+      captureBreadcrumb(
+        'Subscription products load failed',
+        'payments.subscription',
+        {
+          error: err instanceof Error ? err.message : 'unknown_error',
+        },
+        'warning'
+      );
       setError(err instanceof Error ? err.message : 'Failed to load subscription products');
     });
   }, [connected, fetchProducts]);
@@ -226,35 +252,53 @@ export function useVHubIAP() {
                 receipt = (p as any).transactionReceipt;
               }
             }
-            await httpPost('/payments/apple/verify-receipt', { jws, receipt, productId: p.productId });
+            await httpPost('/payments/apple/verify-receipt', {
+              jws,
+              receipt,
+              productId: p.productId,
+            });
           } else if (isAndroid && (p as any).purchaseToken) {
             await httpPost('/payments/google/verify-purchase', {
               purchase_token: (p as any).purchaseToken,
               product_id: p.productId,
-              package_name: (p as any).packageNameAndroid || 'com.xsantcastx.varsityhub',
+              package_name: (p as any).packageNameAndroid || 'com.varsityhub.varsityhub',
             });
           }
           await finishTransaction({ purchase: p, isConsumable: false }).catch(() => {});
         } catch (e) {
           if (__DEV__)
             console.warn('[useVHubIAP] Pending purchase recovery failed for', p.productId, e);
-          captureBreadcrumb('Subscription pending purchase recovery failed', 'payments.subscription', {
-            product_id: p?.productId,
-            error: e instanceof Error ? e.message : 'unknown_error',
-          }, 'warning');
+          captureBreadcrumb(
+            'Subscription pending purchase recovery failed',
+            'payments.subscription',
+            {
+              product_id: p?.productId,
+              error: e instanceof Error ? e.message : 'unknown_error',
+            },
+            'warning'
+          );
         }
       }
-      captureBreadcrumb('Subscription pending purchase recovery completed', 'payments.subscription', {
-        recovered_count: pending.length,
-      });
+      captureBreadcrumb(
+        'Subscription pending purchase recovery completed',
+        'payments.subscription',
+        {
+          recovered_count: pending.length,
+        }
+      );
       if (pending.length && __DEV__) {
         console.log(`[useVHubIAP] Recovered ${pending.length} pending purchase(s)`);
       }
     } catch (err) {
       if (__DEV__) console.warn('[useVHubIAP] Pending purchase scan failed:', err);
-      captureBreadcrumb('Subscription pending purchase scan failed', 'payments.subscription', {
-        error: err instanceof Error ? err.message : 'unknown_error',
-      }, 'warning');
+      captureBreadcrumb(
+        'Subscription pending purchase scan failed',
+        'payments.subscription',
+        {
+          error: err instanceof Error ? err.message : 'unknown_error',
+        },
+        'warning'
+      );
     }
   }, [connected, finishTransaction]);
 
@@ -265,7 +309,7 @@ export function useVHubIAP() {
 
   // Retry pending purchase recovery when the app returns to foreground.
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
+    const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') {
         void recoverPendingPurchases();
       }
@@ -281,16 +325,22 @@ export function useVHubIAP() {
         return false;
       }
       // Prefer the SKU currently returned from the store, fall back to primary configured SKU.
-      const availableSku = subscriptions.find((p: { productId?: string }) => planSkus.includes(p.productId ?? '')) as { productId?: string } | undefined;
+      const availableSku = subscriptions.find((p: { productId?: string }) =>
+        planSkus.includes(p.productId ?? '')
+      ) as { productId?: string } | undefined;
       if (__DEV__ && !availableSku) {
-        console.warn('[useVHubIAP] Plan SKU not in store response:', { plan, planSkus, subscriptionIds: subscriptions.map((s: { productId?: string }) => s.productId) });
+        console.warn('[useVHubIAP] Plan SKU not in store response:', {
+          plan,
+          planSkus,
+          subscriptionIds: subscriptions.map((s: { productId?: string }) => s.productId),
+        });
       }
       const sku = availableSku?.productId || planSkus[0];
 
       setPurchasing(true);
       setError(null);
 
-      return new Promise<boolean>((resolve) => {
+      return new Promise<boolean>(resolve => {
         purchaseResolveRef.current = resolve;
 
         // Platform-specific purchase request
@@ -319,7 +369,9 @@ export function useVHubIAP() {
   const getProduct = useCallback(
     (plan: 'veteran' | 'legend') => {
       const planSkus = PLAN_SKUS[plan];
-      return subscriptions.find((p: { productId?: string }) => planSkus.includes(p.productId ?? ''));
+      return subscriptions.find((p: { productId?: string }) =>
+        planSkus.includes(p.productId ?? '')
+      );
     },
     [subscriptions]
   );
@@ -332,8 +384,10 @@ export function useVHubIAP() {
       await restorePurchasesFn();
       const purchases = await getAvailablePurchasesFn({ onlyIncludeActiveItemsIOS: true });
       const subs = Array.isArray(purchases) ? purchases : [];
-      const ourSubs = subs.filter((p: { productId?: string }) =>
-        PLAN_SKUS.veteran.includes(p.productId ?? '') || PLAN_SKUS.legend.includes(p.productId ?? '')
+      const ourSubs = subs.filter(
+        (p: { productId?: string }) =>
+          PLAN_SKUS.veteran.includes(p.productId ?? '') ||
+          PLAN_SKUS.legend.includes(p.productId ?? '')
       );
       let restoredCount = 0;
       for (const p of ourSubs) {
@@ -342,16 +396,24 @@ export function useVHubIAP() {
             const jws = (p as any).purchaseToken || null;
             let receipt: string | undefined;
             if (!jws) {
-              try { receipt = await getReceiptIOS(); } catch { receipt = (p as any).transactionReceipt; }
+              try {
+                receipt = await getReceiptIOS();
+              } catch {
+                receipt = (p as any).transactionReceipt;
+              }
             }
-            await httpPost('/payments/apple/verify-receipt', { jws, receipt, productId: p.productId });
+            await httpPost('/payments/apple/verify-receipt', {
+              jws,
+              receipt,
+              productId: p.productId,
+            });
           } else if (isAndroid) {
             const token = (p as any).purchaseToken;
             if (token) {
               await httpPost('/payments/google/verify-purchase', {
                 purchase_token: token,
                 product_id: p.productId,
-                package_name: (p as any).packageNameAndroid || 'com.xsantcastx.varsityhub',
+                package_name: (p as any).packageNameAndroid || 'com.varsityhub.varsityhub',
               });
             }
           }
@@ -363,9 +425,14 @@ export function useVHubIAP() {
       if (ourSubs.length > 0 && restoredCount === 0) {
         const restoreError =
           'We found previous purchases, but could not restore your VarsityHub subscription.';
-        captureBreadcrumb('Subscription restore found purchases without entitlement recovery', 'payments.subscription', {
-          purchase_count: ourSubs.length,
-        }, 'warning');
+        captureBreadcrumb(
+          'Subscription restore found purchases without entitlement recovery',
+          'payments.subscription',
+          {
+            purchase_count: ourSubs.length,
+          },
+          'warning'
+        );
         setError(restoreError);
       } else {
         captureBreadcrumb('Subscription restore completed', 'payments.subscription', {
