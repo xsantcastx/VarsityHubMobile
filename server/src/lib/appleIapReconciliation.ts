@@ -17,14 +17,16 @@
 
 import { prisma } from './prisma.js';
 import { captureException, captureMessage } from './sentry.js';
+import { APPLE_PRODUCT_TO_PLAN } from './paymentInternals.js';
 
 const PENDING_STALE_THRESHOLD_MIN = 30;
 const NOTIFICATION_DRYSPELL_HOURS = 24;
 const STUCK_ROW_REPORT_LIMIT = 50;
-const APPLE_PLAN_TO_PRODUCT: Record<string, string> = {
-  veteran: 'MIDTIER',
-  legend: 'TOPTIER',
-};
+// Derived inverse of the canonical APPLE_PRODUCT_TO_PLAN so the plan→product
+// direction can never drift from product→plan when a SKU is renamed.
+const APPLE_PLAN_TO_PRODUCT: Record<string, string> = Object.fromEntries(
+  Object.entries(APPLE_PRODUCT_TO_PLAN).map(([product, plan]) => [plan, product])
+);
 
 export type AppleIapReconciliationResult = {
   stuckPending: number;
@@ -43,9 +45,7 @@ function readString(value: unknown) {
 
 function readStringArray(value: unknown) {
   if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => String(entry ?? '').trim())
-    .filter(Boolean);
+  return value.map(entry => String(entry ?? '').trim()).filter(Boolean);
 }
 
 export async function reconcileAppleIapOrphans(): Promise<AppleIapReconciliationResult> {
@@ -84,9 +84,10 @@ export async function reconcileAppleIapOrphans(): Promise<AppleIapReconciliation
 
   for (const row of stuck) {
     const ageMin = Math.round((Date.now() - row.created_at.getTime()) / 60000);
-    const meta = (row.metadata && typeof row.metadata === 'object')
-      ? row.metadata as Record<string, unknown>
-      : {};
+    const meta =
+      row.metadata && typeof row.metadata === 'object'
+        ? (row.metadata as Record<string, unknown>)
+        : {};
 
     try {
       if (row.transaction_type === 'SUBSCRIPTION_PURCHASE') {
@@ -127,30 +128,34 @@ export async function reconcileAppleIapOrphans(): Promise<AppleIapReconciliation
       } else {
         const dates = readStringArray(meta.dates);
         const appleTransactionIds = Array.from(
-          new Set([
-            ...readStringArray(meta.apple_transaction_ids),
-            ...readStringArray(meta.appleTransactionIds),
-            ...[readString(row.apple_transaction_id)],
-          ].filter(Boolean) as string[])
+          new Set(
+            [
+              ...readStringArray(meta.apple_transaction_ids),
+              ...readStringArray(meta.appleTransactionIds),
+              ...[readString(row.apple_transaction_id)],
+            ].filter(Boolean) as string[]
+          )
         ).sort();
-        const receiptsCount = Number(meta.receipts_count ?? appleTransactionIds.length) || appleTransactionIds.length;
+        const receiptsCount =
+          Number(meta.receipts_count ?? appleTransactionIds.length) || appleTransactionIds.length;
 
-        if (!row.user_id || !row.order_id || dates.length === 0 || appleTransactionIds.length === 0) {
+        if (
+          !row.user_id ||
+          !row.order_id ||
+          dates.length === 0 ||
+          appleTransactionIds.length === 0
+        ) {
           manualReviewNeeded++;
-          captureMessage(
-            'Apple IAP reconciliation could not auto-recover ad purchase',
-            'error',
-            {
-              context: 'apple_iap_reconciliation_manual_review',
-              transaction_log_id: row.id,
-              transaction_type: row.transaction_type,
-              user_id: row.user_id,
-              order_id: row.order_id,
-              apple_transaction_id: row.apple_transaction_id,
-              age_minutes: ageMin,
-              reason: 'missing_ad_metadata',
-            }
-          );
+          captureMessage('Apple IAP reconciliation could not auto-recover ad purchase', 'error', {
+            context: 'apple_iap_reconciliation_manual_review',
+            transaction_log_id: row.id,
+            transaction_type: row.transaction_type,
+            user_id: row.user_id,
+            order_id: row.order_id,
+            apple_transaction_id: row.apple_transaction_id,
+            age_minutes: ageMin,
+            reason: 'missing_ad_metadata',
+          });
           continue;
         }
 
@@ -165,19 +170,15 @@ export async function reconcileAppleIapOrphans(): Promise<AppleIapReconciliation
       }
 
       recovered++;
-      captureMessage(
-        'Apple IAP reconciliation auto-recovered stuck purchase',
-        'warning',
-        {
-          context: 'apple_iap_reconciliation_recovered',
-          transaction_log_id: row.id,
-          transaction_type: row.transaction_type,
-          user_id: row.user_id,
-          order_id: row.order_id,
-          apple_transaction_id: row.apple_transaction_id,
-          age_minutes: ageMin,
-        }
-      );
+      captureMessage('Apple IAP reconciliation auto-recovered stuck purchase', 'warning', {
+        context: 'apple_iap_reconciliation_recovered',
+        transaction_log_id: row.id,
+        transaction_type: row.transaction_type,
+        user_id: row.user_id,
+        order_id: row.order_id,
+        apple_transaction_id: row.apple_transaction_id,
+        age_minutes: ageMin,
+      });
       console.warn(
         `[apple-iap-reconcile] RECOVERED ${row.transaction_type} txlog=${row.id} apple_tx=${row.apple_transaction_id ?? '-'} age=${ageMin}min`
       );
