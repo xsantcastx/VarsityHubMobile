@@ -156,4 +156,24 @@ describe('Rookie program-limit enforcement (Phase 4)', () => {
     expect(res.body.team.program_id).toBe(existingProgramId);
     createdTeamIds.push(res.body.team.id);
   });
+
+  it('allows a rookie at the limit to add a level team to an EXISTING sport WITHOUT program_id (gate mirrors the tx sport→program resolution)', async () => {
+    // No program_id passed — only the sport. The create transaction groups this
+    // into the org's existing (org, 'basketball') program, so it must NOT be
+    // mis-gated as a new billable program. Regression guard for the false-block.
+    const res = await request(app)
+      .post('/teams/create')
+      .set('Authorization', `Bearer ${rookieToken}`)
+      .send({
+        name: `Rookie Basketball Freshman ${ts}`,
+        description: 'level team resolved by sport, no program_id',
+        organization_id: rookieOrgId,
+        club_type: 'sport',
+        sport: 'basketball',
+      });
+    expect(res.status).toBe(201);
+    // server grouped it into the pre-existing basketball program (seeded first)
+    expect(res.body.team.program_id).toBe(seededProgramIds[0]);
+    createdTeamIds.push(res.body.team.id);
+  });
 });

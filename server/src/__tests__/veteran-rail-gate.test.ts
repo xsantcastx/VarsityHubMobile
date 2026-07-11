@@ -92,7 +92,12 @@ async function seedActiveProgram(orgId: string, userId: string, sportSlug: strin
   return { programId: program.id as string, teamId: team.id as string };
 }
 
-async function createTeamViaApi(token: string, teamName: string, organizationId: string) {
+async function createTeamViaApi(
+  token: string,
+  teamName: string,
+  organizationId: string,
+  sport?: string
+) {
   return request(app)
     .post('/teams/create')
     .set('Authorization', `Bearer ${token}`)
@@ -101,6 +106,10 @@ async function createTeamViaApi(token: string, teamName: string, organizationId:
       description: `${teamName} description`,
       organization_id: organizationId,
       club_type: 'sport',
+      // Pass a real sport so each distinct sport is a distinct program. Without
+      // it the server groups every sport-less team into one 'other' program, so
+      // "N differently-named teams" would NOT be N distinct billable programs.
+      ...(sport ? { sport } : {}),
     });
 }
 
@@ -210,7 +219,12 @@ afterAll(async () => {
 
 describe('Veteran IAP rail — unlimited programs (regression)', () => {
   it('a veteran with NO subscription_id can create a team in a 6th sport (no NO_ACTIVE_SUBSCRIPTION)', async () => {
-    const res = await createTeamViaApi(iapVeteranToken, `IAP Veteran Tennis ${ts}`, iapOrgId);
+    const res = await createTeamViaApi(
+      iapVeteranToken,
+      `IAP Veteran Tennis ${ts}`,
+      iapOrgId,
+      'tennis'
+    );
     expect(res.body.code).not.toBe('NO_ACTIVE_SUBSCRIPTION');
     expect(res.status).toBe(201);
     createdTeamIds.push(res.body.team.id);
@@ -222,7 +236,8 @@ describe('Veteran Stripe rail — metered by program', () => {
     const res = await createTeamViaApi(
       stripeVeteranToken,
       `Stripe Veteran Tennis ${ts}`,
-      stripeOrgId
+      stripeOrgId,
+      'tennis'
     );
     expect(mockRetrieve).toHaveBeenCalledWith('sub_test_veteran_rail');
     expect(res.status).toBe(201);
@@ -236,7 +251,8 @@ describe('Veteran Stripe rail — metered by program', () => {
     const res1 = await createTeamViaApi(
       stripeVeteranToken,
       `Stripe Veteran Lacrosse ${ts}`,
-      stripeOrgId
+      stripeOrgId,
+      'lacrosse'
     );
     expect(res1.status).toBe(201);
     createdTeamIds.push(res1.body.team.id);
@@ -244,7 +260,8 @@ describe('Veteran Stripe rail — metered by program', () => {
     const res2 = await createTeamViaApi(
       stripeVeteranToken,
       `Stripe Veteran Hockey ${ts}`,
-      stripeOrgId
+      stripeOrgId,
+      'ice_hockey'
     );
     expect(res2.status).toBe(403);
     expect(res2.body.code).toBe('SUBSCRIPTION_QUANTITY_EXCEEDED');

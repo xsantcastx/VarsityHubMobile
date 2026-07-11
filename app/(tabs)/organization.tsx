@@ -193,17 +193,23 @@ export default function OrganizationScreen() {
 
       let orgGames: GameItem[] = [];
       try {
-        const allGamesData = await Game.list('-date');
-        const allGames = Array.isArray(allGamesData)
-          ? allGamesData
-          : allGamesData?.games || allGamesData?.items || [];
-        const teamNames = orgTeams.map(t => t.name.toLowerCase());
-        orgGames = allGames
-          .filter((g: any) => {
-            const homeTeam = (g.home_team || '').toLowerCase();
-            const awayTeam = (g.away_team || '').toLowerCase();
-            return teamNames.some(name => homeTeam.includes(name) || awayTeam.includes(name));
-          })
+        // Scope server-side by each team's ID (matches home_team_id OR
+        // away_team_id), then merge + dedupe. Replaces the old unbounded
+        // Game.list('-date') + fragile name-substring match, which pulled the
+        // whole games table and mis-matched teams whose names are substrings of
+        // others (e.g. "Eagles" also matched "Golden Eagles" / "Eagles JV").
+        const perTeamGames = await Promise.all(
+          orgTeams.map(t =>
+            Game.list('-date', { teamId: t.id, limit: 100 })
+              .then((res: any) => (Array.isArray(res) ? res : res?.games || res?.items || []))
+              .catch(() => [])
+          )
+        );
+        const dedupedById = new Map<string, any>();
+        for (const list of perTeamGames) {
+          for (const g of list) dedupedById.set(String(g.id), g);
+        }
+        orgGames = Array.from(dedupedById.values())
           .map((g: any) => ({
             id: String(g.id),
             date: g.date,

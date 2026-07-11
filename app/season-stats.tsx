@@ -710,7 +710,7 @@ function SeasonStatsScreen() {
 
               {playerStats.length === 0 ? (
                 <Text style={[styles.emptyTabText, { color: theme.mutedText }]}>
-                  No team members found. Invite players to your team to see them here.
+                  No staff members yet. Add coaches or managers to your team to see them here.
                 </Text>
               ) : (
                 playerStats.map((player, index) => (

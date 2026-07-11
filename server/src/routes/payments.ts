@@ -2856,7 +2856,7 @@ paymentsRouter.post(
           total_teams: team_count,
           billable_teams: billable,
           allowed_total_teams: getVeteranTotalTeamAllowance(billable),
-          monthly_cost: billable * 1.0,
+          monthly_cost: Number(((billable * SERVER_VETERAN_PRICE_CENTS) / 100).toFixed(2)),
         });
       } catch (err: any) {
         console.warn('Failed to update Stripe subscription quantity:', err?.message || err);
@@ -3015,7 +3015,8 @@ paymentsRouter.get(
             current_period_end = new Date(sub.current_period_end * 1000).toISOString();
           const item = sub.items.data[0];
           quantity = item?.quantity ?? null;
-          if (typeof quantity === 'number') monthly_cost = Number((quantity * 1.0).toFixed(2));
+          if (typeof quantity === 'number')
+            monthly_cost = Number(((quantity * SERVER_VETERAN_PRICE_CENTS) / 100).toFixed(2));
         } catch (err) {
           console.warn(
             '[payments] Failed to retrieve summary subscription:',

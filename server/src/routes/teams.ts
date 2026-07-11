@@ -1443,6 +1443,29 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
       where: { program_id: targetProgramId, status: 'active' },
     });
     targetProgramAlreadyActive = activeInProgram > 0;
+  } else if (
+    (data.club_type || 'sport') === 'sport' &&
+    typeof data.organization_id === 'string' &&
+    data.organization_id.trim()
+  ) {
+    // No explicit program_id: the create transaction groups this sport team into
+    // the org's (organization_id, sport) program — creating it if absent, or
+    // JOINING an existing one. Mirror that resolution here (read-only) so adding a
+    // level team to an EXISTING sport isn't mis-gated as a brand-new billable
+    // program, which false-blocked free level-team add-ons at the rookie limit.
+    const sportSlug = normalizeSportToSlug(data.sport) ?? 'other';
+    const existingProgram = await prisma.sportProgram.findUnique({
+      where: {
+        organization_id_sport: { organization_id: data.organization_id.trim(), sport: sportSlug },
+      },
+      select: { id: true },
+    });
+    if (existingProgram) {
+      const activeInProgram = await prisma.team.count({
+        where: { program_id: existingProgram.id, status: 'active' },
+      });
+      targetProgramAlreadyActive = activeInProgram > 0;
+    }
   }
 
   if (effectivePlan === 'rookie' || !effectivePlan) {
