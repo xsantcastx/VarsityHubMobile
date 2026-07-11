@@ -1,150 +1,122 @@
-# Dead Code Audit - VarsityHub Mobile
-Date: 2026-04-06 | Branch: main / ca8c2ae5 | Scope: api/, components/, hooks/, app/, server/src/routes/
+# Dead Code Audit — VarsityHub Mobile
+
+Generated: 2026-07-11
+Repo: /Users/varsityhub/Code/VarsityHubMobile
+Routine: .claude/scheduled-tasks/dead-code-audit/SKILL.md
+
+Method: static grep sweep across `api app components hooks context utils lib constants shared server` (excluding `node_modules`, `dist`, `.git`). Every candidate was re-verified with a broad whole-repo search before being reported. "Test-only" means the sole references are under `__tests__`. Findings are grouped by the skill's five steps.
+
+**Scope note:** the skill named `api/teams.ts`, `api/games.ts`, `api/posts.ts`, `api/misc.ts` — none of these files exist on disk (CLAUDE.md still describes them, but they are stale references). That functionality lives in `api/entities.ts` as namespace objects (`Team`, `Game`, `Post`, ...). Step 1 was therefore run against the api files that actually exist: `api/entities.ts` and `api/auth.ts`.
+
+**Actionable findings: 21** — 2 api exports, 2 orphaned screens, 13 unused components, 4 unused hooks — plus 3 server routers uncalled by the mobile client.
 
 ---
 
-## 1. Unused API Exports
+## 1. Unused exports in api/
 
-### api/codex.ts - Entire file dead
-invokeCodex and invokeCodexStream have 0 callers outside the file.
-Wraps InvokeLLM from api/integrations.js (Base44 LLM stub). Safe to delete.
+| #   | File:Line           | Export                       | Status                                                                                                                                                                                | Safe to delete?                                                                                                         |
+| --- | ------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1   | api/entities.ts:982 | `TeamInvites` (const object) | DEAD — zero references anywhere except a test comment in `server/src/__tests__/invite-identifier-routes.test.ts:204` that explicitly calls it "the unused TeamInvites.create helper". | Yes. Pure object literal, no module-level side effects.                                                                 |
+| 2   | api/auth.ts:216     | `loadToken`                  | Redundant export — **0 external callers**, but the function is used internally within `auth.ts` (lines 350–460) and re-exposed via `auth.getToken: loadToken` (line 460).             | Not the function — only the `export` keyword. Downgrade to a private (non-exported) helper; do not delete the function. |
 
-### api/messages.ts - Entire file dead
-Never imported by any client file. Duplicates Message export from api/entities.ts. Safe to delete.
+All 20 namespace exports in `api/entities.ts` (`User`, `Game`, `Post`, `Event`, `Message`, `Organization`, `Team`, `Program`, `Support`, `Report`, `Payments`, `Subscriptions`, `TeamMemberships`, `Notification`, `Advertisement`, `Search`, `Highlights`, `Feed`, `DataExport`) have live callers. `api/auth.ts` exports `invalidateMeCache` (used by entities.ts) and `clearStaleTokensOnFreshInstall` (used by context/AuthProvider.tsx) — both live.
 
-### api/games.ts - Entire file dead
-Exports a Game object identical to Game in api/entities.ts. Zero imports from client. Safe to delete.
-
-### api/groupChats.ts - Entire file dead
-GroupChat.list/getMessages/sendMessage/markRead/create all have 0 callers in app code.
-Server-side /group-chats route is mounted but client never calls it. Safe to delete.
-
-### api/entities.ts - Unused methods
-
-  User.lookupByEmail       0 callers
-  User.exportMyData        0 callers  (GDPR, not in UI)
-  User.teams               0 callers
-  Post.restore             0 callers  (soft-delete restore, no UI)
-  Post.createPoll          0 callers  (creation UI missing)
-  Post.createCollage       0 callers
-  Post.filterPage          0 callers  (filter/listPage used instead)
-  Post.count               0 callers
-  TeamMemberships.create   0 callers  (dup of Team.invite)
-  TeamMemberships.update   0 callers  (dup of Team.updateMember)
-  TeamMemberships.delete   0 callers  (dup of Team.removeMember)
-  TeamInvites.create       0 callers  (entire export unused)
-
-### api/geocoding.ts - clearGeocodeCache unused
-clearGeocodeCache has 0 callers. geocodeLocation and autocompleteLocations are active.
-
+Limitation: this step audits the _named exports_ only, not the individual methods inside each namespace object. A per-method sweep (e.g. is `Team.someMethod` ever called) is beyond a grep approach and could surface more dead methods.
 
 ---
 
-## 2. Orphaned Screens
+## 2. Orphaned screens (app/)
 
-Screens that exist but are never navigated to via router.push/replace/href.
+Expo Router is file-based, so every `app/**/*.tsx` is auto-registered as a route. "Orphaned" here = no in-app navigation (`router.push/replace/navigate`, `href=`, `<Link>`, `<Redirect>`) targets it.
 
-  app/reset.tsx            /reset           _layout.tsx line 158  (probable dup of forgot-password.tsx)
-  app/game-highlights.tsx  /game-highlights _layout.tsx line 213  (0 navigation calls)
-  app/game-photos.tsx      /game-photos     _layout.tsx line 214  (0 navigation calls)
-  app/game-reviews.tsx     /game-reviews    _layout.tsx line 215  (0 navigation calls)
-  app/env-debug.tsx        /env-debug       NOT IN _layout.tsx    (0 navigation calls)
-  app/debug.tsx            /debug           NOT IN _layout.tsx    (0 navigation calls)
+| #   | Screen                   | Status                                                                                                                                                      | Safe to delete?                                                                                        |
+| --- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 3   | app/env-debug.tsx        | DEAD — zero references anywhere in the repo (no nav, no route constant, no test). Dev/debug screen reachable only by manually typing the URL.               | Likely — confirm it is not an intentional dev-only tool first.                                         |
+| 4   | app/account-deletion.tsx | No in-app navigation. Only reference is `constants/legal.ts` building a public web URL `${LEGAL_BASE_URL}/account-deletion`. The app route is never pushed. | Borderline — probably kept as a deep-link/legal landing. Verify deep-link requirement before deleting. |
 
-When deleting the first four, also remove matching Stack.Screen entries from
-app/_layout.tsx lines 158, 213, 214, 215.
+Investigated but **NOT dead**:
 
-Confirmed NOT orphaned:
-  app/billing.tsx         navigated from create-fan-event.tsx
-  app/game-detail.tsx     re-export shim; registered in both layouts
-  app/reset-password.tsx  navigated from forgot-password.tsx
-  app/verify.tsx          navigated from index.tsx, sign-up.tsx, onboarding steps
+- **app/request-join-organization.tsx** — no in-app nav buttons, but `__tests__/navigation-direct-open-contracts.test.ts` documents it as "deep-link only — in-app entry buttons removed" and asserts the org-detail screen must NOT navigate to it. Intentional. Keep.
 
+The other ~160 route files all have navigation references.
 
 ---
 
-## 3. Unused Components
+## 3. Unused components
 
-  components/HelloWave.tsx               HelloWave                 0 callers  (Expo starter remnant)
-  components/ParallaxScrollView.tsx      ParallaxScrollView        0 callers  (Expo starter remnant)
-  components/Collapsible.tsx             Collapsible               0 callers  (Expo starter remnant)
-  components/ExternalLink.tsx            ExternalLink              0 callers  (Expo starter remnant)
-  components/EventMergeSuggestionModal.tsx EventMergeSuggestionModal 0 callers (no app file imports it)
-  components/ui/AccessibleButton.tsx     AccessibleButton          0 callers  (no importers found)
-  app/components/AppearancePicker.tsx    AppearancePicker          0 callers  (dup of components/ version)
-  app/components/MatchBannerCapture.tsx  MatchBannerCapture        0 callers  (other MatchBanner variants used)
+All verified with a whole-repo search; zero references except where noted. Top-level `components/`:
 
-Flagged - verify before deleting:
-  components/EmailPreview.tsx           0 React imports in app. Server uses string template refs, not this file.
-  components/ReportResolutionEmail.tsx  Same pattern as EmailPreview.
+| #   | File                                           | Status                                                                     | Safe to delete?                    |
+| --- | ---------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------- |
+| 5   | components/Collapsible.tsx                     | DEAD (Expo starter boilerplate)                                            | Yes                                |
+| 6   | components/EmailPreview.tsx                    | DEAD                                                                       | Yes                                |
+| 7   | components/EventMergeSuggestionModal.tsx       | DEAD                                                                       | Yes                                |
+| 8   | components/ExternalLink.tsx                    | DEAD (Expo starter boilerplate)                                            | Yes                                |
+| 9   | components/HelloWave.tsx                       | DEAD (Expo starter boilerplate)                                            | Yes                                |
+| 10  | components/ParallaxScrollView.tsx              | DEAD (Expo starter boilerplate)                                            | Yes                                |
+| 11  | components/TeamSearchInput.tsx                 | DEAD                                                                       | Yes                                |
+| 12  | components/onboarding/OnboardingBackHeader.tsx | DEAD                                                                       | Yes                                |
+| 13  | components/ui/AccessibleButton.tsx             | DEAD                                                                       | Yes                                |
+| 14  | components/ui/MessagesTabIcon.tsx              | DEAD                                                                       | Yes                                |
+| 15  | components/ZipAlternativesModal.tsx            | TEST-ONLY — referenced only by `__tests__/theme-surface-contract.test.ts`. | Yes (also drop the test reference) |
 
----
+Additional dead components under `app/components/` (colocated, not top-level `components/`):
 
-## 4. Unused Hooks
+| #   | File                                  | Status                                                                                                                                                                   | Safe to delete? |
+| --- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| 16  | app/components/MatchBannerCapture.tsx | DEAD — 0 importers                                                                                                                                                       | Yes             |
+| 17  | app/components/RsvpSheet.tsx          | DEAD — 0 importers. `GameDetailsScreen` uses a local inline Modal (`rsvpSheet*` state), not this component; only other mention is a note in `utils/darkModeFixGuide.ts`. | Yes             |
 
-No unused hooks. All 19 hooks in hooks/ are imported by at least one screen or component.
-
----
-
-## 5. Dead Server Routes
-
-Files in server/src/routes/ never mounted in server/src/app.ts:
-
-  server/src/routes/plays.ts        playsRouter     - never imported or mounted
-  server/src/routes/tournaments.ts  tournamentsRouter - never imported or mounted
-
-Both have 0 client API wrappers in api/. Safe to delete.
-
-Mounted but with no direct api/ client wrapper (NOT dead):
-  promos.ts   Called directly via httpPost in billing.tsx and ad-calendar.tsx. Not dead.
-  rsvps.ts    Mounted at /rsvps but client uses /events/{id}/rsvp. Verify before removing.
+All are pure presentational components — no module-level side effects.
 
 ---
 
-## Complete Delete List (high confidence)
+## 4. Unused hooks (hooks/)
 
-Entire files to delete:
-  /Users/varsityhub/VarsityHubMobile/api/codex.ts
-  /Users/varsityhub/VarsityHubMobile/api/messages.ts
-  /Users/varsityhub/VarsityHubMobile/api/games.ts
-  /Users/varsityhub/VarsityHubMobile/api/groupChats.ts
-  /Users/varsityhub/VarsityHubMobile/components/HelloWave.tsx
-  /Users/varsityhub/VarsityHubMobile/components/ParallaxScrollView.tsx
-  /Users/varsityhub/VarsityHubMobile/components/Collapsible.tsx
-  /Users/varsityhub/VarsityHubMobile/components/ExternalLink.tsx
-  /Users/varsityhub/VarsityHubMobile/components/EventMergeSuggestionModal.tsx
-  /Users/varsityhub/VarsityHubMobile/components/ui/AccessibleButton.tsx
-  /Users/varsityhub/VarsityHubMobile/app/components/AppearancePicker.tsx
-  /Users/varsityhub/VarsityHubMobile/app/components/MatchBannerCapture.tsx
-  /Users/varsityhub/VarsityHubMobile/app/reset.tsx
-  /Users/varsityhub/VarsityHubMobile/app/game-highlights.tsx
-  /Users/varsityhub/VarsityHubMobile/app/game-photos.tsx
-  /Users/varsityhub/VarsityHubMobile/app/game-reviews.tsx
-  /Users/varsityhub/VarsityHubMobile/app/env-debug.tsx
-  /Users/varsityhub/VarsityHubMobile/app/debug.tsx
-  /Users/varsityhub/VarsityHubMobile/server/src/routes/plays.ts
-  /Users/varsityhub/VarsityHubMobile/server/src/routes/tournaments.ts
+| #   | File                             | Status                                                                                                                                                                                                                                                                                                                                           | Safe to delete?                                                                                                                          |
+| --- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 18  | hooks/useProfileOrganizations.ts | DEAD — 0 references                                                                                                                                                                                                                                                                                                                              | Yes                                                                                                                                      |
+| 19  | hooks/useThemedStyles.ts         | DEAD — 0 references                                                                                                                                                                                                                                                                                                                              | Yes                                                                                                                                      |
+| 20  | hooks/useUploadProgress.ts       | DEAD — 0 references                                                                                                                                                                                                                                                                                                                              | Yes                                                                                                                                      |
+| 21  | hooks/useUser.ts                 | TEST-ONLY — no production caller; referenced only by 6 test files (`__tests__/useUser.test.tsx`, `app/__tests__/profile.smoke.test.tsx`, `__tests__/zip-code-contracts.test.ts`, `__tests__/settings-profile-prefill-contracts.test.ts`, `__tests__/profile-canonical-state-contracts.test.ts`, `__tests__/account-settings-contracts.test.ts`). | Investigate — a tested-but-unused hook usually means it was orphaned by a refactor. Confirm no dynamic use before removing hook + tests. |
 
-Methods/exports to remove from api/entities.ts:
-  User.lookupByEmail, User.exportMyData, User.teams
-  Post.restore, Post.createPoll, Post.createCollage, Post.filterPage, Post.count
-  TeamMemberships (entire export block)
-  TeamInvites (entire export block)
-
-Function to remove from api/geocoding.ts:
-  clearGeocodeCache
-
-Stack.Screen entries to remove from app/_layout.tsx:
-  line 158: name="reset"
-  line 213: name="game-highlights"
-  line 214: name="game-photos"
-  line 215: name="game-reviews"
+All hooks are side-effect-free at module scope.
 
 ---
 
-## Verify Before Removing
+## 5. Dead server routes (server/src/routes/)
 
-  components/EmailPreview.tsx           Server uses string template refs; confirm no React import in app
-  components/ReportResolutionEmail.tsx  Same as EmailPreview
-  server/src/routes/rsvps.ts            Mounted, 0 direct client calls; may serve admin tooling or webhooks
-  app/game-detail.tsx (re-export shim)  Check if push notifications or deep-links target /game-detail directly
+Compared each mounted router's endpoints against client path literals in `api/*.ts` and the wider client tree (`app`, `hooks`, `components`, `context`). "Uncalled by client" = the mobile app never issues a request to that mount. Endpoint definitions use the `xRouter.method(...)` pattern (not `router.method`).
+
+Routers mounted in production (`server/src/app.ts`) but with **no mobile-client caller**:
+
+| #   | Router / mount                  | Endpoints                                | Finding                                                                                                                                                                                                                                  |
+| --- | ------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | group-chats.ts → `/group-chats` | ~8 (2×GET list/detail, 4×POST, 1×DELETE) | No client caller. The only repo reference is a code comment in `app/(tabs)/team-contacts.tsx:149`. The entire router appears unused by the app — either a server-only/planned feature or dead-from-client. Highest-value item to triage. |
+| B   | rsvps.ts → `/rsvps`             | `GET /`                                  | No client caller. RSVP UI (`app/rsvp-history.tsx`) goes through the `Event` namespace → `/events/...` endpoints instead; the `/rsvps` list endpoint is never hit.                                                                        |
+| C   | consent.ts → `/consent`         | `GET`, 2×`POST`                          | No client caller. Driven by email/web consent links (`handleConsentResend`), not the app. Confirm the web/email flow still needs it before touching.                                                                                     |
+
+Routers intentionally **not** app-client-facing (reported for completeness, NOT flagged as dead):
+
+- `og.ts` (`/og`), `shareLanding.ts`, `publicSite.ts`, `publicAppHandoff.ts`, `well-known.ts` (`/.well-known`) — server-rendered / OpenGraph / deep-link landing pages for crawlers & browsers.
+- `sendgrid-webhook.ts` (`/webhooks/sendgrid`) — inbound webhook.
+- `test-notifications.ts`, `test-emails.ts` — dev/QA routers; no production client caller by design.
+- `dataExport.ts` — mounted without a prefix (`parent.use(dataExportRouter)`), defines its own full paths, exercised by the settings/data-export screen.
+
+`/promos` is partially live: the client calls only `POST /promos/preview` (`app/ad-calendar.tsx:495`); other promos endpoints were not individually confirmed as called.
+
+---
+
+## Recommended quick wins (highest confidence, zero risk)
+
+Delete these 15 files — each has zero references anywhere (or is Expo boilerplate):
+
+- components/Collapsible.tsx, components/EmailPreview.tsx, components/EventMergeSuggestionModal.tsx, components/ExternalLink.tsx, components/HelloWave.tsx, components/ParallaxScrollView.tsx, components/TeamSearchInput.tsx, components/onboarding/OnboardingBackHeader.tsx, components/ui/AccessibleButton.tsx, components/ui/MessagesTabIcon.tsx
+- app/components/MatchBannerCapture.tsx, app/components/RsvpSheet.tsx
+- hooks/useProfileOrganizations.ts, hooks/useThemedStyles.ts, hooks/useUploadProgress.ts
+
+Then remove the dead `TeamInvites` export (api/entities.ts:982) and triage the `/group-chats` server router.
+
+## Caveats
+
+This is a static grep audit. Before deleting, guard against: dynamic route strings, barrel re-exports resolved at runtime, string-based component lookups, and deep-link-only screens. Two flagged items (`account-deletion`, `request-join-organization`) are deep-link surfaces and one (`env-debug`) is a debug tool — confirm intent before removal.
