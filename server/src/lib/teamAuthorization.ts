@@ -140,7 +140,18 @@ export async function isOrgOwner(
     },
     select: { id: true },
   });
-  return Boolean(membership);
+  if (membership) return true;
+  // Legacy orgs created before owner membership rows existed record ownership
+  // only on Organization.league_owner_id (no membership row). Honor that pointer
+  // so a legacy owner isn't 403'd on team-admin-tier actions (settings, invites,
+  // program attach/detach, transfer) — mirrors isOrganizationOwner() in
+  // organizationAuthorization.ts (PR #142). transfer-ownership moves
+  // league_owner_id atomically, so a demoted ex-owner never matches here.
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { league_owner_id: true },
+  });
+  return !!org && org.league_owner_id === userId;
 }
 
 /**

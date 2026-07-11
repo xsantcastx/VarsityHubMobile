@@ -4,11 +4,16 @@ import { prisma } from '../lib/prisma.js';
 import { isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { serializeTeam, buildTeamSerializeSelect } from '../lib/serializeTeam.js';
+import { captureMessage } from '../lib/sentry.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { followLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+
+// Level-teams query cap for GET /:id/screen-summary — see the truncation
+// signal right after the query below.
+const SCREEN_SUMMARY_TEAM_CAP = 25;
 
 export const programsRouter = Router();
 registerIdValidation(programsRouter);
@@ -34,7 +39,7 @@ programsRouter.get(
         teams: {
           where: { status: 'active' },
           orderBy: { created_at: 'asc' },
-          take: 25,
+          take: SCREEN_SUMMARY_TEAM_CAP,
           select: {
             ...buildTeamSerializeSelect({ includeCounts: true }),
             status: true,
@@ -43,6 +48,16 @@ programsRouter.get(
       },
     });
     if (!program) return sendError(res, 404, 'Program not found');
+
+    // Signal (don't change behavior) when the level-teams query hits its cap:
+    // the 26th+ active team is silently dropped from both `levels` and
+    // `counts` below. Mirrors the truncation signal in
+    // server/src/lib/programFollowFanout.ts.
+    if (program.teams.length === SCREEN_SUMMARY_TEAM_CAP) {
+      const message = `[program-screen-summary] team list truncated at ${SCREEN_SUMMARY_TEAM_CAP} for program ${programId}`;
+      console.warn(message);
+      captureMessage(message, 'warning', { programId, cap: SCREEN_SUMMARY_TEAM_CAP });
+    }
 
     // Per-team privacy gate: drop level teams the viewer isn't allowed to see
     // (private teams they don't follow / aren't a member of / aren't an org

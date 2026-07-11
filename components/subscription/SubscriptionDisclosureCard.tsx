@@ -113,7 +113,7 @@ function getPlanPrice(plan: Plan, storePrice?: string | null): string {
 function getPlanIncludes(plan: Plan): string {
   switch (plan) {
     case 'veteran':
-      return `Unlimited sport programs, up to 5 staff per team, up to 100 athletes per team, and coach coverage for growing leagues.`;
+      return `Unlimited sport programs, up to 5 staff per team, up to ${PLAN_DEFINITIONS.veteran.max_roster_size_per_team} athletes per team, and coach coverage for growing leagues.`;
     case 'legend':
       return 'Unlimited teams and coaches, extracurricular clubs, and the full VarsityHub league feature set.';
     case 'rookie':

@@ -49,20 +49,24 @@ export function CoachTierBadge({ tier, size = 'medium', showLabel = true }: Coac
  */
 function getTierConfig(tier: CoachTier, colorScheme: keyof typeof Colors) {
   switch (tier) {
+    // iconColor sits ON the fixed-color metal badge, so it's a fixed value chosen
+    // for contrast with that badge (NOT theme-aware). textColor is the LABEL, which
+    // renders on the theme-colored parent, so it must follow the color scheme or it
+    // goes invisible in dark mode.
     case 'legend':
       return {
         label: 'Legend',
         icon: 'trophy' as const,
         backgroundColor: '#FCD34D', // Gold
-        iconColor: Colors.light.text,
-        textColor: Colors.light.text,
+        iconColor: Colors.light.text, // dark icon on gold
+        textColor: Colors[colorScheme].text,
       };
     case 'veteran':
       return {
         label: 'Veteran',
         icon: 'shield-checkmark' as const,
         backgroundColor: '#C0C0C0', // Silver
-        iconColor: Colors[colorScheme].text,
+        iconColor: Colors.light.text, // dark icon on silver (was theme-aware → white-on-silver in dark)
         textColor: Colors[colorScheme].text,
       };
     case 'rookie':
@@ -71,8 +75,8 @@ function getTierConfig(tier: CoachTier, colorScheme: keyof typeof Colors) {
         label: 'Rookie',
         icon: 'medal' as const,
         backgroundColor: '#CD7F32', // Bronze
-        iconColor: Colors.dark.text,
-        textColor: Colors.light.text,
+        iconColor: Colors.dark.text, // light icon on bronze
+        textColor: Colors[colorScheme].text,
       };
   }
 }
@@ -119,7 +123,9 @@ export function CoachTierBenefits({ tier, compact = false }: TierBenefitsProps) 
   const config = getTierConfig(tier, colorScheme);
 
   return (
-    <View style={styles.benefitsContainer}>
+    <View
+      style={[styles.benefitsContainer, { backgroundColor: theme.card, borderColor: theme.border }]}
+    >
       <View style={styles.benefitsHeader}>
         <CoachTierBadge tier={tier} size="medium" showLabel={true} />
         {!compact && (
@@ -142,7 +148,9 @@ export function CoachTierBenefits({ tier, compact = false }: TierBenefitsProps) 
         ))}
       </View>
 
-      {benefits.limitations && <Text style={styles.limitation}>{benefits.limitations}</Text>}
+      {benefits.limitations && (
+        <Text style={[styles.limitation, { color: theme.mutedText }]}>{benefits.limitations}</Text>
+      )}
     </View>
   );
 }
@@ -236,11 +244,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   benefitsContainer: {
+    // backgroundColor + borderColor applied inline from the theme (see render) so
+    // the card is readable in dark mode — do not hardcode light colors here.
     padding: 16,
-    backgroundColor: '#F9FAFB',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
   },
   benefitsHeader: {
     flexDirection: 'row',
@@ -272,8 +280,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   limitation: {
+    // color applied inline from the theme (see render) for dark-mode readability.
     fontSize: 12,
-    color: '#9CA3AF',
     marginTop: 12,
     fontStyle: 'italic',
   },

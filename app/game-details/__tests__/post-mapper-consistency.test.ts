@@ -1,10 +1,11 @@
 /**
  * Post-mapper Consistency Rule — mechanical enforcement.
  *
- * CLAUDE.md requires the post→FeedPost mappers to stay in sync. The two LIVE
+ * CLAUDE.md requires the post→FeedPost mappers to stay in sync. The three LIVE
  * mappers are:
  *   - `toFeedPost` in app/profile.tsx               (the /profile + /(tabs)/profile route)
  *   - `mapHighlightToFeedPost` in GameVerticalFeedScreen.tsx (highlights feed)
+ *   - `toFeedPost` in app/team-page.tsx              (the team-page post viewer)
  *
  * (NOTE: app/features/navigation/screens/ProfileScreen.tsx ALSO contains a
  *  `toFeedPost`, but that screen is orphaned — it is only re-exported by
@@ -39,9 +40,17 @@ const sources = LIVE_MAPPERS.map(m => ({
 }));
 
 describe('Post-mapper Consistency Rule (live mappers)', () => {
-  it.each(sources)('$name includes the caption → content fallback chain', ({ src }) => {
-    // Both must fall through `content` so text-only posts render their text.
-    expect(src).toContain('item?.caption ?? item?.content');
+  // Pinned to the FULL chain, not just the shared prefix — a prior version of
+  // this test used toContain('item?.caption ?? item?.content'), which matches
+  // regardless of what the chain falls through to *after* content. That let
+  // profile.tsx/team-page.tsx silently drift to a `?? ''` tail (blank caption
+  // instead of falling through to the sanitized title) without failing CI.
+  it.each(sources)('$name includes the FULL caption fallback chain', ({ src }) => {
+    expect(src).toContain('item?.caption ?? item?.content ?? sanitizeTitle(item?.title) ?? null');
+  });
+
+  it.each(sources)('$name imports sanitizeTitle from the shared lib', ({ src }) => {
+    expect(src).toContain("from '@/lib/sanitizeTitle'");
   });
 
   it.each(sources)('$name maps preview_url identically', ({ src }) => {
@@ -60,10 +69,22 @@ describe('Post-mapper Consistency Rule (live mappers)', () => {
     expect(src).toContain('resolveMediaType(item?.media_url, item?.media_type)');
   });
 
-  it.each(sources)('$name builds the author shape with id/username/avatar_url', ({ src }) => {
-    expect(src).toMatch(/author: item\?\.author/);
-    expect(src).toContain('username: item.author.username');
-    expect(src).toContain('avatar_url: item.author.avatar_url');
+  // Pinned to the FULL author fallback chains — not just the `username:` /
+  // `avatar_url:` key prefixes, which matched regardless of what each chain
+  // fell through to. profile.tsx/team-page.tsx previously dropped the
+  // `user_id` / `display_name` / `avatarUrl` fallbacks, so a highlight-shaped
+  // author payload rendered blank on profile/team-page but fine on the
+  // highlights feed.
+  it.each(sources)('$name builds the author.id with the user_id fallback', ({ src }) => {
+    expect(src).toContain('id: String(item.author.id ?? item.author.user_id ?? id)');
+  });
+
+  it.each(sources)('$name builds the author.username with the display_name fallback', ({ src }) => {
+    expect(src).toContain('username: item.author.username ?? item.author.display_name ?? null');
+  });
+
+  it.each(sources)('$name builds the author.avatar_url with the avatarUrl fallback', ({ src }) => {
+    expect(src).toContain('avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null');
   });
 
   it.each(sources)('$name carries the event/game linkage (EventChip depends on it)', ({ src }) => {
