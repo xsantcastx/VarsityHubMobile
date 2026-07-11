@@ -380,8 +380,12 @@ describe('API Team Endpoints', () => {
     });
 
     it('uses the organization source of truth for paid_by_owner coaches', async () => {
-      const orgTeamCount = await prisma.team.count({
-        where: { organization_id: testOrgId },
+      // Phase 4 billing unit: distinct ACTIVE billable sport programs, not
+      // raw team rows — archived teams (e.g. the DELETE flow's team above)
+      // don't count. None of the teams created in this file carry a
+      // program_id, so each active one is its own ungrouped billable unit.
+      const orgActiveTeamCount = await prisma.team.count({
+        where: { organization_id: testOrgId, status: 'active' },
       });
       const personalOwnerCount = await prisma.teamMembership.count({
         where: {
@@ -397,8 +401,10 @@ describe('API Team Endpoints', () => {
         .expect(200);
 
       expect(personalOwnerCount).toBe(0);
-      expect(response.body.owned_teams).toBe(orgTeamCount);
-      expect(response.body.max_teams).toBe(4);
+      expect(response.body.owned_programs).toBe(orgActiveTeamCount);
+      expect(response.body.owned_teams).toBe(orgActiveTeamCount);
+      expect(response.body.max_programs).toBe(5);
+      expect(response.body.max_teams).toBe(5);
     });
 
     it('should require authentication', async () => {

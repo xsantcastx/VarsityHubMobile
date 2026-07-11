@@ -1,7 +1,11 @@
 import type { AdStatus, Prisma } from '@prisma/client';
 import type { Stripe } from 'stripe';
 import { debugLog } from './debugLog.js';
-import { SERVER_ROOKIE_TEAM_LIMIT, SERVER_VETERAN_MIN_TOTAL_TEAMS } from './planDefinitions.js';
+import {
+  SERVER_ROOKIE_PROGRAM_LIMIT,
+  SERVER_ROOKIE_TEAM_LIMIT,
+  SERVER_VETERAN_MIN_TOTAL_TEAMS,
+} from './planDefinitions.js';
 import { getMaxTeamsForPlan } from './planLimits.js';
 import { prisma } from './prisma.js';
 import { captureException } from './sentry.js';
@@ -380,21 +384,43 @@ export async function syncStripeSubscriptionState(
 export async function getVeteranBillingSnapshot(
   userId: string,
   organizationId?: string | null
-): Promise<{ teamCount: number; billableQuantity: number }> {
-  const teamCount = organizationId
-    ? await prisma.team.count({ where: { organization_id: organizationId } })
-    : await prisma.teamMembership.count({
-        where: { user_id: userId, role: 'owner', status: 'active' },
-      });
+): Promise<{ programCount: number; billableQuantity: number }> {
+  const programCount = organizationId
+    ? await (async () => {
+        // Programs with an active team, PLUS ungrouped (null-program) active
+        // teams — each ungrouped team is its own billable unit (matches the
+        // personal branch below); omitting them let a paid_by_owner coach create
+        // unlimited program_id-less teams for free.
+        const [programs, ungrouped] = await Promise.all([
+          prisma.sportProgram.count({
+            where: { organization_id: organizationId, teams: { some: { status: 'active' } } },
+          }),
+          prisma.team.count({
+            where: { organization_id: organizationId, status: 'active', program_id: null },
+          }),
+        ]);
+        return programs + ungrouped;
+      })()
+    : await (async () => {
+        const owned = await prisma.teamMembership.findMany({
+          where: { user_id: userId, role: 'owner', status: 'active', team: { status: 'active' } },
+          select: { team: { select: { program_id: true } } },
+          take: 5000,
+        });
+        const ids = new Set<string>();
+        let ungrouped = 0;
+        for (const r of owned) r.team?.program_id ? ids.add(r.team.program_id) : (ungrouped += 1);
+        return ids.size + ungrouped;
+      })();
 
   return {
-    teamCount,
-    billableQuantity: Math.max(0, teamCount - SERVER_ROOKIE_TEAM_LIMIT),
+    programCount,
+    billableQuantity: Math.max(0, programCount - SERVER_ROOKIE_PROGRAM_LIMIT),
   };
 }
 
 export function getVeteranTotalTeamAllowance(billableQuantity: number): number {
-  return SERVER_ROOKIE_TEAM_LIMIT + Math.max(0, Math.trunc(billableQuantity || 0));
+  return SERVER_ROOKIE_PROGRAM_LIMIT + Math.max(0, Math.trunc(billableQuantity || 0));
 }
 
 export function resolveVeteranQuantityUpdate(
@@ -418,7 +444,7 @@ export function resolveVeteranQuantityUpdate(
     requestedTotal,
     minAllowedTotal,
     maxAllowedTotal,
-    billableQuantity: Math.max(0, requestedTotal - SERVER_ROOKIE_TEAM_LIMIT),
+    billableQuantity: Math.max(0, requestedTotal - SERVER_ROOKIE_PROGRAM_LIMIT),
     allowed: requestedTotal >= minAllowedTotal && requestedTotal <= maxAllowedTotal,
   };
 }

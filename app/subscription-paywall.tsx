@@ -37,7 +37,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PUBLIC_PRIVACY_POLICY_URL } from '@/constants/legal';
-import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
+import { ROOKIE_PROGRAM_LIMIT } from '@/constants/plans';
 import { SubscriptionDisclosureCard } from '@/components/subscription/SubscriptionDisclosureCard';
 import { getFreshAuthSnapshot } from '@/utils/authState';
 import { getCanonicalBillingState } from '@/utils/billingState';
@@ -720,7 +720,10 @@ function SubscriptionPaywallScreen() {
 
             <Text style={[styles.ctaSubtext, { color: theme.mutedText }]}>
               {selectedTier === 'legend' && 'Billed annually • Cancel anytime'}
-              {selectedTier === 'veteran' && 'Billed monthly per team • Cancel anytime'}
+              {selectedTier === 'veteran' &&
+                (isIOS || Platform.OS === 'android'
+                  ? 'Billed monthly • Unlimited sports • Cancel anytime'
+                  : 'Billed monthly per sport • Cancel anytime')}
               {selectedTier === 'rookie' && 'Free • No credit card required'}
             </Text>
 
@@ -855,7 +858,12 @@ function renderFeatureValue(value: string | boolean, scheme: 'light' | 'dark' = 
 
 // Comparison table data
 const comparisonFeatures = [
-  { name: 'Teams', rookie: String(ROOKIE_TEAM_LIMIT), veteran: 'Unlimited', legend: 'Unlimited' },
+  {
+    name: 'Sports',
+    rookie: String(ROOKIE_PROGRAM_LIMIT),
+    veteran: 'Unlimited',
+    legend: 'Unlimited',
+  },
   { name: 'Dedicated Admin', rookie: false, veteran: true, legend: true },
   { name: 'Profile Badge', rookie: false, veteran: true, legend: true },
 ];

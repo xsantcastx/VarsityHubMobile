@@ -7,6 +7,7 @@
     "period": "",
     "priceId": null,
     "max_teams": 4,
+    "max_programs": 5,
     "max_authorized_users_per_team": 6,
     "max_roster_size_per_team": 50,
     "authorized_users_org_strategy": {
@@ -33,6 +34,7 @@
     "period": "/ month per team over 4",
     "priceId": "price_1SVco4GJt8CsPE1EBNNlHYPB",
     "max_teams": null,
+    "max_programs": null,
     "max_authorized_users_per_team": 5,
     "max_roster_size_per_team": 100,
     "authorized_users_org_strategy": {
@@ -60,6 +62,7 @@
     "period": "/ year",
     "priceId": "price_1SKO8lGJt8CsPE1E7RmXJblX",
     "max_teams": null,
+    "max_programs": null,
     "max_authorized_users_per_team": null,
     "max_roster_size_per_team": null,
     "authorized_users_org_strategy": {
