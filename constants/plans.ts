@@ -118,8 +118,11 @@ export function getPlanDefinition(planId: Plan | string | undefined): PlanDefini
 export function normalizePlan(planId: Plan | string | undefined): Plan {
   const value = String(planId ?? 'rookie').toLowerCase();
   if (value === 'free') return 'rookie';
-  if (value === 'premium' || value === 'pro') return 'veteran';
-  if (value === 'legend') return 'legend';
+  if (value === 'premium') return 'veteran';
+  // 'pro' aliases to legend, matching the canonical shared/runtime/billingCore.js
+  // PLAN_ALIASES (pro: 'legend') and server planLimits.ts. Previously mapped to
+  // veteran here, so the same 'pro' string granted different entitlements per side.
+  if (value === 'pro' || value === 'legend') return 'legend';
   if (value === 'veteran') return 'veteran';
   return 'rookie';
 }
@@ -127,7 +130,10 @@ export function normalizePlan(planId: Plan | string | undefined): Plan {
 /**
  * Get maximum authorized users for a plan
  */
-export function getMaxAuthorizedUsers(planId: Plan | string | undefined, teamCount?: number): number | null {
+export function getMaxAuthorizedUsers(
+  planId: Plan | string | undefined,
+  teamCount?: number
+): number | null {
   const plan = getPlanDefinition(planId);
   const limit = plan.max_authorized_users_org;
 
