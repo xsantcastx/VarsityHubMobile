@@ -13,6 +13,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { getGradientForColor } from '@/utils/theme';
 import { queryClient } from '@/lib/queryClient';
+import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -82,16 +83,16 @@ const toFeedPost = (item: any): FeedPost | null => {
     media_url: media,
     media_type,
     preview_url: typeof item?.preview_url === 'string' ? item.preview_url : null,
-    caption: item?.caption ?? item?.content ?? '',
+    caption: item?.caption ?? item?.content ?? sanitizeTitle(item?.title) ?? null,
     upvotes_count: item?.upvotes_count ?? 0,
     comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
     bookmarks_count: item?.bookmarks_count ?? 0,
     created_at: item?.created_at ?? null,
     author: item?.author
       ? {
-          id: String(item.author.id ?? id),
-          username: item.author.username ?? null,
-          avatar_url: item.author.avatar_url ?? null,
+          id: String(item.author.id ?? item.author.user_id ?? id),
+          username: item.author.username ?? item.author.display_name ?? null,
+          avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null,
         }
       : null,
     has_upvoted: Boolean(item?.has_upvoted),

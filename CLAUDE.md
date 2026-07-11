@@ -130,12 +130,13 @@ Check env vars, Railway logs, and build configs — not just source code.
 
 ## Post-mapper Consistency Rule
 
-Two LIVE post mapper functions exist and MUST stay in sync:
+Three LIVE post mapper functions exist and MUST stay in sync:
 
-- `mapHighlightToFeedPost` in `app/game-details/GameVerticalFeedScreen.tsx` — used for highlights API data
+- `mapHighlightToFeedPost` in `app/game-details/GameVerticalFeedScreen.tsx` — used for highlights API data (the parity reference)
 - `toFeedPost` in `app/profile.tsx` — used for profile post data (the `/profile` + `/(tabs)/profile` route)
+- `toFeedPost` in `app/team-page.tsx` — used for the team-page post viewer
 
-**When fixing a field mapping in one, always check and fix the other.** Caption/content/title fallback chains, `preview_url`, `has_upvoted`, `has_bookmarked`, `author` shape — if they diverge, bugs appear in one context but not the other. Enforced by `app/game-details/__tests__/post-mapper-consistency.test.ts` (parity across both live mappers) and `app/game-details/__tests__/GameVerticalFeedScreen.caption.test.ts` (caption chain). NOTE: a third copy formerly lived in `app/features/navigation/screens/ProfileScreen.tsx`; that screen was orphaned dead code and has been deleted.
+**When fixing a field mapping in one, always check and fix the other two.** Caption/content/title fallback chains, `preview_url`, `has_upvoted`, `has_bookmarked`, `author` shape (`id`/`username`/`display_name`/`avatar_url` fallbacks) — if they diverge, bugs appear in one context but not the others. Enforced by `app/game-details/__tests__/post-mapper-consistency.test.ts` (full-chain parity across all three live mappers, not just a shared-prefix substring check) and `app/game-details/__tests__/GameVerticalFeedScreen.caption.test.ts` (caption chain). NOTE: a fourth copy formerly lived in `app/features/navigation/screens/ProfileScreen.tsx`; that screen was orphaned dead code and has been deleted.
 
 ## Quick Checks
 
