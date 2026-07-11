@@ -9,7 +9,10 @@ import { sendError } from '../lib/http/sendError.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import { getOrganizationState } from '../lib/organizationState.js';
 import { DEMO_LEAGUE_NAMES } from '../lib/demoContent.js';
-import { getVeteranTotalTeamAllowance } from '../lib/paymentInternals.js';
+import {
+  getVeteranTotalTeamAllowance,
+  resolveOwnerBillingOrgId,
+} from '../lib/paymentInternals.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { SERVER_ROOKIE_PROGRAM_LIMIT } from '../lib/planDefinitions.js';
 import { planSupportsExtracurricular } from '../lib/planLimits.js';
@@ -326,7 +329,8 @@ type TeamCreateBillingContext = {
 
 async function buildTeamCreateBillingContext(
   userId: string,
-  me: any
+  me: any,
+  targetOrganizationId?: string | null
 ): Promise<TeamCreateBillingContext> {
   const prefs =
     me?.preferences && typeof me.preferences === 'object' ? (me.preferences as any) : {};
@@ -360,6 +364,19 @@ async function buildTeamCreateBillingContext(
       effectiveSubscriptionId = ownerPrefs.subscription_id;
       teamCountSource = 'org';
       orgIdForTeamCount = orgMembership?.organization?.id;
+    }
+  } else {
+    // Org owner (pays for their own org): scope Veteran billing to the org they
+    // own so the create-gate counts the whole org's programs — matching the
+    // org-wide checkout snapshot. Without this the owner's gate counted only
+    // personally-owned teams, letting them create programs for their coaches
+    // past the paid allowance without ever tripping the limit gate. Returns null
+    // for non-owners (stays personal) and for ambiguous multi-org owners with no
+    // explicit target org.
+    const ownerOrgId = await resolveOwnerBillingOrgId(userId, targetOrganizationId);
+    if (ownerOrgId) {
+      teamCountSource = 'org';
+      orgIdForTeamCount = ownerOrgId;
     }
   }
 
@@ -1416,7 +1433,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
     }
   }
 
-  const billingContext = await buildTeamCreateBillingContext(userId, me);
+  const billingContext = await buildTeamCreateBillingContext(userId, me, data.organization_id);
   const effectivePlan = billingContext.effectivePlan;
   const clubType = data.club_type || 'sport';
 

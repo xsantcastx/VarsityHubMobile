@@ -25,6 +25,7 @@ import {
   releaseAdInventoryAfterSlotFullRefund,
   releaseAdInventoryAfterSlotFullRefundWithRetry,
   reserveAdSlots,
+  resolveOwnerBillingOrgId,
   resolveVeteranQuantityUpdate,
   runFinalizeFromSession,
   sendAdPaymentEmail,
@@ -1269,13 +1270,17 @@ async function createMembershipCheckoutSession(
   }
 
   if (chosen === 'veteran') {
-    const snapshot = await getVeteranBillingSnapshot(req.user!.id, organizationId);
+    // Scope to the org the user OWNS (server-authoritative via league_owner_id),
+    // so an owner's subscription is billed on their whole org's program count —
+    // consistent with the create-gate and quantity-update.
+    const scopeOrgId = await resolveOwnerBillingOrgId(req.user!.id, organizationId);
+    const snapshot = await getVeteranBillingSnapshot(req.user!.id, scopeOrgId);
     actualTeamCount = snapshot.programCount;
     billableQuantity = snapshot.billableQuantity;
 
     if (typeof teamCount === 'number' && teamCount !== actualTeamCount) {
       debugLog(
-        `[payments] Ignoring client team_count=${teamCount}; using actual ${actualTeamCount} for user ${req.user!.id}${organizationId ? ` org ${organizationId}` : ''}`
+        `[payments] Ignoring client team_count=${teamCount}; using actual ${actualTeamCount} for user ${req.user!.id}${scopeOrgId ? ` org ${scopeOrgId}` : ''}`
       );
     }
 
@@ -2002,13 +2007,17 @@ paymentsRouter.post(
       }
 
       if (chosen === 'veteran') {
-        const snapshot = await getVeteranBillingSnapshot(userId, orgIdBody);
+        // Server-authoritative org scope (owner's subscription covers their org),
+        // consistent with checkout + the create-gate. Also validates ownership —
+        // a non-owned orgIdBody resolves away instead of being trusted.
+        const scopeOrgId = await resolveOwnerBillingOrgId(userId, orgIdBody);
+        const snapshot = await getVeteranBillingSnapshot(userId, scopeOrgId);
         actualTeamCount = snapshot.programCount;
         billableQuantity = snapshot.billableQuantity;
 
         if (typeof team_count === 'number' && team_count !== actualTeamCount) {
           debugLog(
-            `[payments] Ignoring client team_count=${team_count}; using actual ${actualTeamCount} for user ${userId}${orgIdBody ? ` org ${orgIdBody}` : ''}`
+            `[payments] Ignoring client team_count=${team_count}; using actual ${actualTeamCount} for user ${userId}${scopeOrgId ? ` org ${scopeOrgId}` : ''}`
           );
         }
 
@@ -2789,7 +2798,10 @@ paymentsRouter.post(
         return res.status(400).json({ error: 'No active subscription found' });
       }
 
-      const snapshot = await getVeteranBillingSnapshot(userId);
+      // Server-authoritative org scope (owner's subscription covers their org),
+      // consistent with checkout, the create-gate, and update-subscription-quantity.
+      const scopeOrgId = await resolveOwnerBillingOrgId(userId);
+      const snapshot = await getVeteranBillingSnapshot(userId, scopeOrgId);
       const actualTeamCount = snapshot.programCount;
       const quantityUpdate = resolveVeteranQuantityUpdate(actualTeamCount, team_count);
       const billable = quantityUpdate.billableQuantity;

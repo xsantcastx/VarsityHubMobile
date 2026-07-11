@@ -27,6 +27,9 @@ let rookieOrgId: string;
 const seededProgramIds: string[] = [];
 const seededTeamIds: string[] = [];
 const createdTeamIds: string[] = [];
+// Extra org/users for the owner-org-scope test (cleaned in afterAll).
+const extraOrgIds: string[] = [];
+const extraUserIds: string[] = [];
 
 async function createOrgForUser(userId: string, orgName: string): Promise<string> {
   const org = await prisma.organization.create({
@@ -126,8 +129,15 @@ afterAll(async () => {
       });
       await prisma.organization.delete({ where: { id: rookieOrgId } });
     }
-    if (rookieId) {
-      await prisma.user.deleteMany({ where: { id: rookieId } });
+    if (extraOrgIds.length) {
+      await prisma.organizationMembership.deleteMany({
+        where: { organization_id: { in: extraOrgIds } },
+      });
+      await prisma.organization.deleteMany({ where: { id: { in: extraOrgIds } } });
+    }
+    const allUserIds = [rookieId, ...extraUserIds].filter(Boolean);
+    if (allUserIds.length) {
+      await prisma.user.deleteMany({ where: { id: { in: allUserIds } } });
     }
   } catch (e) {
     console.warn('Cleanup error (non-critical):', e);
@@ -175,5 +185,53 @@ describe('Rookie program-limit enforcement (Phase 4)', () => {
     // server grouped it into the pre-existing basketball program (seeded first)
     expect(res.body.team.program_id).toBe(seededProgramIds[0]);
     createdTeamIds.push(res.body.team.id);
+  });
+
+  it('gates an org OWNER on the org-wide program count, not just their personally-owned teams', async () => {
+    // The owner's org has 5 programs owned by a COACH (the owner personally owns
+    // 0). The owner must still be blocked from starting a 6th sport. Before the
+    // org-scope fix the gate counted only the owner's own teams (0), letting an
+    // owner bypass the free limit by having coaches hold the teams.
+    const { id: ownerId, token: ownerToken } = await createTestUser({
+      prisma,
+      signJwt,
+      password: PASSWORD,
+      email: `test-prog-owner-${ts}@example.com`,
+      displayName: 'Program Org Owner',
+      role: 'coach',
+      plan: 'rookie',
+    });
+    extraUserIds.push(ownerId);
+    const { id: coachId } = await createTestUser({
+      prisma,
+      signJwt,
+      password: PASSWORD,
+      email: `test-prog-coach-${ts}@example.com`,
+      displayName: 'Program Staff Coach',
+      role: 'coach',
+      plan: 'rookie',
+    });
+    extraUserIds.push(coachId);
+
+    const ownerOrgId = await createOrgForUser(ownerId, `Owner Scope League ${ts}`);
+    extraOrgIds.push(ownerOrgId);
+    for (const sport of ['basketball', 'soccer', 'baseball', 'football', 'volleyball']) {
+      await seedActiveProgram(ownerOrgId, coachId, sport);
+    }
+
+    const res = await request(app)
+      .post('/teams/create')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        name: `Owner Tennis ${ts}`,
+        description: 'owner starting a 6th sport in their own org',
+        organization_id: ownerOrgId,
+        club_type: 'sport',
+        sport: 'tennis',
+      });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('PROGRAM_LIMIT_EXCEEDED');
+    expect(res.body.current).toBe(5);
+    if (res.body.team?.id) createdTeamIds.push(res.body.team.id);
   });
 });

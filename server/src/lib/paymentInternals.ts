@@ -423,6 +423,40 @@ export function getVeteranTotalTeamAllowance(billableQuantity: number): number {
   return SERVER_ROOKIE_PROGRAM_LIMIT + Math.max(0, Math.trunc(billableQuantity || 0));
 }
 
+/**
+ * For Veteran billing, an org owner's subscription covers the ORG they own — so
+ * checkout, the create-gate, and the quantity-update must all scope to the same
+ * org-wide program count, never just the owner's personally-owned teams.
+ * Otherwise the three paths diverge (checkout org-wide, gate personal) and an
+ * owner can create programs for their coaches past the paid allowance without
+ * ever tripping the limit gate.
+ *
+ * Returns the org id to scope Veteran billing by, or null for a genuinely
+ * personal context (the user owns no org, or owns several and no explicit org
+ * was supplied to disambiguate — the caller stays personal rather than guess).
+ * Server-authoritative: derived from `league_owner_id`, never a client field.
+ */
+export async function resolveOwnerBillingOrgId(
+  userId: string,
+  explicitOrgId?: string | null
+): Promise<string | null> {
+  const trimmed = typeof explicitOrgId === 'string' ? explicitOrgId.trim() : '';
+  if (trimmed) {
+    const owned = await prisma.organization.findFirst({
+      where: { id: trimmed, league_owner_id: userId },
+      select: { id: true },
+    });
+    if (owned) return owned.id;
+  }
+  // No (valid) explicit org: fall back only when ownership is unambiguous.
+  const owned = await prisma.organization.findMany({
+    where: { league_owner_id: userId },
+    select: { id: true },
+    take: 2,
+  });
+  return owned.length === 1 ? owned[0]!.id : null;
+}
+
 export function resolveVeteranQuantityUpdate(
   actualTeamCount: number,
   requestedTeamCount: number
