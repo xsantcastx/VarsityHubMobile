@@ -70,6 +70,13 @@ describe('IAP product configuration invariants', () => {
     expect(paymentInternals).toMatch(/export const AD_PRODUCT_CENTS[\s\S]*FRI_SUN:\s*799/);
   });
 
+  it('ad booking horizon of 56 days is pinned across the client calendar and both server checks', () => {
+    expect(adCalendarScreen).toMatch(/56 \* DAY_MS/);
+    expect(adCalendarScreen).toMatch(/8 weeks/);
+    const serverHorizonMatches = payments.match(/MAX_BOOKING_HORIZON_DAYS = 56/g) || [];
+    expect(serverHorizonMatches.length).toBe(2);
+  });
+
   it('mobile ad checkout uses Apple IAP on iOS and Stripe PaymentSheet elsewhere', () => {
     expect(adCalendarScreen).toMatch(/if \(Platform\.OS === 'ios'\)/);
     expect(adCalendarScreen).toMatch(
