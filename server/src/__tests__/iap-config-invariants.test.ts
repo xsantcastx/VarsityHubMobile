@@ -22,6 +22,7 @@ const clientIapWeb = read(REPO_ROOT, 'hooks', 'useIAP.web.ts');
 const clientAdIap = read(REPO_ROOT, 'hooks', 'useAdIAP.ts');
 const clientAdIapWeb = read(REPO_ROOT, 'hooks', 'useAdIAP.web.ts');
 const adCalendarScreen = read(REPO_ROOT, 'app', 'ad-calendar.tsx');
+const adPricingUtil = read(SERVER_ROOT, 'src', 'utils', 'adPricing.ts');
 const preReleaseDoc = read(REPO_ROOT, 'docs', 'PRE_RELEASE_CONFIG_VERIFICATION.md');
 const externalSetupDoc = read(REPO_ROOT, 'docs', 'EXTERNAL_SETUP_GUIDE.md');
 const appStoreDoc = read(REPO_ROOT, 'docs', 'BEFORE_APP_STORE_SUBMISSION.md');
@@ -55,6 +56,16 @@ describe('IAP product configuration invariants', () => {
     expect(clientAdIapWeb).toMatch(/weekday:\s*'MOND_THURS'/);
     expect(clientAdIapWeb).toMatch(/weekend:\s*'FRI_SUN'/);
     expect(payments).toMatch(/const APPLE_AD_PRODUCTS = \['MOND_THURS', 'FRI_SUN'\]/);
+    expect(paymentInternals).toMatch(/export const AD_PRODUCT_CENTS[\s\S]*MOND_THURS:\s*499/);
+    expect(paymentInternals).toMatch(/export const AD_PRODUCT_CENTS[\s\S]*FRI_SUN:\s*799/);
+  });
+
+  it('client ad dollar prices, server adPricing util, and AD_PRODUCT_CENTS stay pinned together', () => {
+    expect(adCalendarScreen).toMatch(/const weekdayRate = 4\.99;/);
+    expect(adCalendarScreen).toMatch(/const weekendRate = 7\.99;/);
+    expect(adPricingUtil).toMatch(/const WEEKDAY_BLOCK_PRICE = 4\.99;/);
+    expect(adPricingUtil).toMatch(/const WEEKEND_BLOCK_PRICE = 7\.99;/);
+    // 4.99 * 100 = 499 cents (MOND_THURS), 7.99 * 100 = 799 cents (FRI_SUN).
     expect(paymentInternals).toMatch(/export const AD_PRODUCT_CENTS[\s\S]*MOND_THURS:\s*499/);
     expect(paymentInternals).toMatch(/export const AD_PRODUCT_CENTS[\s\S]*FRI_SUN:\s*799/);
   });
