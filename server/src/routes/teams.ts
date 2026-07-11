@@ -18,6 +18,7 @@ import { getExcludedPrivateTeamIds, isTeamHiddenFromViewer } from '../lib/privac
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
+import { normalizeSportToSlug } from '../lib/sportsTaxonomy.js';
 import {
   canAdministerTeam as canAdministerTeamScoped,
   canAssignTeamRole as canAssignTeamRoleScoped,
@@ -1622,6 +1623,26 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
           }
         }
 
+        // Every sport team MUST belong to a SportProgram — no ungrouped billable
+        // units. If the caller didn't pass a validated program_id, resolve/create
+        // the org's program for this sport. Unrecognized/custom sports fall back to
+        // the taxonomy's 'other' program so nothing is ever left ungrouped.
+        // Extracurricular clubs are exempt (no sport / no program).
+        const isSportTeam = (data.club_type || 'sport') === 'sport';
+        let resolvedProgramId: string | null = data.program_id ?? null;
+        if (!resolvedProgramId && isSportTeam) {
+          const sportSlug = normalizeSportToSlug(data.sport) ?? 'other';
+          const program = await tx.sportProgram.upsert({
+            where: {
+              organization_id_sport: { organization_id: organizationId, sport: sportSlug },
+            },
+            create: { organization_id: organizationId, sport: sportSlug },
+            update: {},
+            select: { id: true },
+          });
+          resolvedProgramId = program.id;
+        }
+
         const newTeam = await tx.team.create({
           data: {
             name: stripHtml(data.name.trim()),
@@ -1644,7 +1665,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
             venue_address: data.venue_address ? stripHtml(data.venue_address.trim()) : null,
             level: data.level ?? null,
             gender: data.gender ?? null,
-            program_id: data.program_id ?? null,
+            program_id: resolvedProgramId,
           },
           select: {
             id: true,
