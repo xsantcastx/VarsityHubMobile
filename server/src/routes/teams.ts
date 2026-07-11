@@ -2060,8 +2060,8 @@ teamsRouter.delete(
     // teams inside their own league.
     const isAdmin = await getIsAdmin(req as any);
     // Archiving cascades (memberships/invites/follows/chat unlinks), so it is
-    // gated more tightly than team edits: only team leadership (owner/manager)
-    // or an org admin — not coaches/assistant_coaches — may archive.
+    // gated more tightly than team edits: only the team owner/coach, or the
+    // org owner — not managers/assistant_coaches — may archive.
     const canArchive = await canArchiveTeamScoped(req.user.id, teamId);
     if (!isAdmin && !canArchive) {
       return res.status(403).json({
