@@ -2,7 +2,7 @@ import { Payments, Subscriptions, User } from '@/api/entities';
 import { SubscriptionDisclosureCard } from '@/components/subscription/SubscriptionDisclosureCard';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
-import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
+import { PLAN_DEFINITIONS, ROOKIE_TEAM_LIMIT } from '@/constants/plans';
 import { useAuth } from '@/context/AuthProvider';
 import { useVHubIAP } from '@/hooks/useIAP';
 import { getCanonicalBillingState } from '@/utils/billingState';
@@ -407,7 +407,7 @@ function ManageSubscription() {
   const onSkipPayment = async () => {
     Alert.alert(
       'Continue as Rookie?',
-      `You can upgrade to a paid plan anytime from Settings. Your team will be limited to ${ROOKIE_TEAM_LIMIT} teams and 50 roster spots on the free plan.`,
+      `You can upgrade to a paid plan anytime from Settings. Your team will be limited to ${ROOKIE_TEAM_LIMIT} teams and ${PLAN_DEFINITIONS.rookie.max_roster_size_per_team} roster spots on the free plan.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {

@@ -23,6 +23,7 @@ interface RawPlanDefinition {
   priceId: string | null;
   max_teams: number | null;
   max_authorized_users_per_team: number | null;
+  max_roster_size_per_team: number | null;
   authorized_users_org_strategy: AuthorizedUsersOrgStrategy;
   supports_extracurricular: boolean;
   features: string[];
@@ -41,6 +42,7 @@ export interface PlanDefinition {
   priceId: string | null;
   max_teams: number | null;
   max_authorized_users_per_team: number | null;
+  max_roster_size_per_team: number | null;
   max_authorized_users_org: number | null | ((teamCount: number) => number);
   supports_extracurricular: boolean;
   features: string[];
@@ -76,6 +78,7 @@ const mapRawPlan = (raw: RawPlanDefinition): PlanDefinition => {
     priceId: raw.priceId,
     max_teams: raw.max_teams,
     max_authorized_users_per_team: raw.max_authorized_users_per_team,
+    max_roster_size_per_team: raw.max_roster_size_per_team,
     max_authorized_users_org: orgLimit,
     supports_extracurricular: raw.supports_extracurricular,
     features: raw.features,
