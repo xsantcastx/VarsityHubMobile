@@ -1,0 +1,80 @@
+import { prisma } from './prisma.js';
+import { TEAM_STAFF_ROLES } from './teamAuthorization.js';
+
+export type ActionKind = 'event' | 'game' | 'request';
+export interface ActionItem {
+  kind: ActionKind;
+  id: string;
+  title: string;
+  subtitle: string;
+  team_id?: string | null;
+  org_id?: string | null;
+  created_at: string;
+  route: string;
+}
+export interface ActionQueue {
+  total: number;
+  counts: { events: number; games: number; requests: number };
+  items: ActionItem[];
+}
+
+const SOURCE_TAKE = 50;
+
+// Teams the user can manage (direct staff role) PLUS every active team inside an
+// org they own — resolved server-side, never from client input.
+export async function getCoachManagedScope(
+  userId: string
+): Promise<{ teamIds: string[]; ownedOrgIds: string[] }> {
+  const [staff, owned] = await Promise.all([
+    prisma.teamMembership.findMany({
+      where: { user_id: userId, role: { in: [...TEAM_STAFF_ROLES] }, status: 'active' },
+      select: { team_id: true },
+      take: 5000,
+    }),
+    prisma.organizationMembership.findMany({
+      where: { user_id: userId, role: 'owner', status: 'active' },
+      select: { organization_id: true },
+      take: 5000,
+    }),
+  ]);
+  const ownedOrgIds = owned.map((o) => o.organization_id);
+  const orgTeams = ownedOrgIds.length
+    ? await prisma.team.findMany({
+        where: { organization_id: { in: ownedOrgIds }, status: 'active' },
+        select: { id: true },
+        take: 5000,
+      })
+    : [];
+  const teamIds = [...new Set([...staff.map((m) => m.team_id), ...orgTeams.map((t) => t.id)])];
+  return { teamIds, ownedOrgIds };
+}
+
+export async function buildCoachActionQueue(userId: string): Promise<ActionQueue> {
+  const { teamIds } = await getCoachManagedScope(userId);
+
+  const events = teamIds.length
+    ? await prisma.event.findMany({
+        where: { approval_status: 'pending', team_id: { in: teamIds } },
+        select: { id: true, title: true, date: true, location: true, team_id: true, created_at: true },
+        orderBy: { created_at: 'asc' },
+        take: SOURCE_TAKE,
+      })
+    : [];
+
+  const items: ActionItem[] = events.map((e) => ({
+    kind: 'event' as const,
+    id: e.id,
+    title: e.title || 'Event',
+    subtitle: e.location || (e.date ? new Date(e.date).toLocaleDateString() : 'Pending approval'),
+    team_id: e.team_id,
+    created_at: (e.created_at ?? new Date()).toISOString(),
+    route: `/event-approvals?teamId=${encodeURIComponent(e.team_id ?? '')}`,
+  }));
+
+  items.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return {
+    total: items.length,
+    counts: { events: events.length, games: 0, requests: 0 },
+    items,
+  };
+}
