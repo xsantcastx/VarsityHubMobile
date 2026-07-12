@@ -1280,7 +1280,7 @@ export default function PostDetailScreen() {
                   void router.push({ pathname: '/game/[id]', params: { id: eventGameId } });
                 } else if (postData.event?.id) {
                   void router.push({
-                    pathname: '/public-event',
+                    pathname: '/event-detail',
                     params: { id: postData.event.id },
                   });
                 }

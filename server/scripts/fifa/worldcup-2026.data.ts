@@ -1,9 +1,11 @@
 /**
- * International Cup 2026 — template data. GENERATED from the fixture feed
+ * FIFA World Cup 2026 — template data. GENERATED from the fixture feed
  * (fixturedownload.com/feed/json/fifa-world-cup-2026) — full group stage.
  *
- * Knockout-round fixtures (matches 73-104) are intentionally absent: teams
- * are TBD until the group stage concludes. Add them here once known, then run:
+ * Knockout-round fixtures are added as their teams become known (group stage
+ * concluded June 27). Included so far: full Round of 16 (matches 89–96) and
+ * all 4 quarterfinals (97–100). Still TBD: semifinals, bronze final, and the
+ * final — add them here once their teams are decided, then run:
  *
  *   npx tsx scripts/fifa/create-fifa-events.ts --dry-run
  *
@@ -15,9 +17,9 @@
  */
 
 export const ORGANIZATION = {
-  name: 'International Cup 2026',
+  name: 'FIFA World Cup 2026',
   description:
-    'The 23rd International Cup, co-hosted by Canada, Mexico, and the United States from June 11 – July 19, 2026. Featuring 48 nations across 16 host cities.',
+    'The 23rd FIFA World Cup, co-hosted by Canada, Mexico, and the United States from June 11 – July 19, 2026. Featuring 48 nations across 16 host cities.',
   sport: 'Soccer',
   org_type: 'league',
   location: 'United States, Canada & Mexico',
@@ -30,8 +32,15 @@ export interface VenueDef {
   lat: number;
   lng: number;
   capacity: number;
-  /** Stadium photo — set as banner_url on the game and event */
-  bannerUrl: string;
+  /**
+   * Stadium photo — set as banner_url on the game and event. Only sourced
+   * from no-attribution-required licenses (CC0/public domain, or a stock
+   * site whose license waives attribution like Unsplash/Pexels) — never
+   * CC BY/CC BY-SA, which legally require photographer credit that this
+   * app doesn't display anywhere. Omitted (no banner) where no verified
+   * no-attribution photo of that specific venue could be found.
+   */
+  bannerUrl?: string;
 }
 
 export const VENUES: Record<string, VenueDef> = {
@@ -42,8 +51,8 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 19.303,
     lng: -99.1506,
     capacity: 87523,
-    bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+    // No verified no-attribution photo found — omit rather than use a
+    // CC BY-SA file this app can't credit.
   },
   akron: {
     name: 'Estadio Akron, Zapopan, Guadalajara, Mexico',
@@ -51,8 +60,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 20.6859,
     lng: -103.4667,
     capacity: 46732,
-    bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+    bannerUrl: 'https://images.unsplash.com/photo-wbdrpnbn_DE?w=960&h=400&fit=crop&q=80',
   },
   bbva: {
     name: 'Estadio BBVA, Guadalupe, Monterrey, Mexico',
@@ -61,7 +69,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -100.2447,
     capacity: 53500,
     bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Estadio_BBVA_Bancomer_desde_el_metro.JPG',
   },
   bmoField: {
     name: 'BMO Field, Toronto, Canada',
@@ -70,7 +78,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -79.4186,
     capacity: 45736,
     bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+      'https://images.pexels.com/photos/16730329/pexels-photo-16730329.jpeg?w=960&h=400&fit=crop',
   },
   bcPlace: {
     name: 'BC Place, Vancouver, Canada',
@@ -79,7 +87,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -123.1119,
     capacity: 54500,
     bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+      'https://images.pexels.com/photos/18784843/pexels-photo-18784843.jpeg?w=960&h=400&fit=crop',
   },
   lumen: {
     name: 'Lumen Field, Seattle, Washington, USA',
@@ -87,8 +95,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 47.5952,
     lng: -122.3316,
     capacity: 68740,
-    bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+    bannerUrl: 'https://images.unsplash.com/photo-01X8k4Gzg7A?w=960&h=400&fit=crop&q=80',
   },
   levis: {
     name: "Levi's Stadium, Santa Clara, California, USA",
@@ -96,8 +103,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 37.403,
     lng: -121.97,
     capacity: 68500,
-    bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+    // No verified no-attribution photo found — omit.
   },
   sofi: {
     name: 'SoFi Stadium, Inglewood, California, USA',
@@ -106,7 +112,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -118.3392,
     capacity: 70240,
     bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+      'https://commons.wikimedia.org/wiki/Special:FilePath/SoFi_Stadium_23rd_March_2025.jpg',
   },
   att: {
     name: 'AT&T Stadium, Arlington, Texas, USA',
@@ -114,8 +120,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 32.7473,
     lng: -97.0945,
     capacity: 80000,
-    bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/AT%26T_Stadium_2022-08-24.jpg',
   },
   nrg: {
     name: 'NRG Stadium, Houston, Texas, USA',
@@ -123,8 +128,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 29.6847,
     lng: -95.4107,
     capacity: 72220,
-    bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Nrg_stadium.jpg',
   },
   arrowhead: {
     name: 'Arrowhead Stadium, Kansas City, Missouri, USA',
@@ -132,8 +136,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 39.0489,
     lng: -94.4839,
     capacity: 76416,
-    bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+    // No verified no-attribution photo found — omit.
   },
   mercedesBenz: {
     name: 'Mercedes-Benz Stadium, Atlanta, Georgia, USA',
@@ -141,8 +144,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 33.7554,
     lng: -84.401,
     capacity: 71000,
-    bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+    bannerUrl: 'https://images.unsplash.com/photo-3US4JTS8LOM?w=960&h=400&fit=crop&q=80',
   },
   hardRock: {
     name: 'Hard Rock Stadium, Miami Gardens, Florida, USA',
@@ -150,8 +152,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 25.958,
     lng: -80.2389,
     capacity: 64767,
-    bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+    bannerUrl: 'https://images.unsplash.com/photo-pPLq1MEpBr4?w=960&h=400&fit=crop&q=80',
   },
   gillette: {
     name: 'Gillette Stadium, Foxborough, Massachusetts, USA',
@@ -159,8 +160,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 42.0909,
     lng: -71.2643,
     capacity: 64628,
-    bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+    bannerUrl: 'https://images.unsplash.com/photo-PIg-F4FB-IY?w=960&h=400&fit=crop&q=80',
   },
   lincoln: {
     name: 'Lincoln Financial Field, Philadelphia, Pennsylvania, USA',
@@ -168,8 +168,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 39.9008,
     lng: -75.1675,
     capacity: 69596,
-    bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+    // No verified no-attribution photo found — omit.
   },
   metlife: {
     name: 'MetLife Stadium, East Rutherford, New Jersey, USA',
@@ -177,8 +176,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 40.8135,
     lng: -74.0745,
     capacity: 82500,
-    bannerUrl:
-      'https://placehold.co/960x400?text=Venue+Photo',
+    // No verified no-attribution photo found — omit.
   },
 };
 
@@ -1286,5 +1284,139 @@ export const MATCHES: MatchDef[] = [
     matchLabel: 'Match 72',
     kickoffLocalNote: 'Kickoff: 7:30 PM EDT.',
     isNeutral: true,
+  },
+  // ── Round of 16 — July 4 ───────────────────────────────────────────────────
+  {
+    home: 'Canada',
+    away: 'Morocco',
+    venue: 'nrg',
+    kickoffUtc: '2026-07-04T17:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 90',
+    kickoffLocalNote: 'Kickoff: 1:00 PM EDT / 12:00 PM CDT.',
+    isNeutral: true,
+    note: 'Canada (Group B winner) meets Morocco after their shootout upset of the Netherlands.',
+  },
+  {
+    home: 'Paraguay',
+    away: 'France',
+    venue: 'lincoln',
+    kickoffUtc: '2026-07-04T21:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 89',
+    kickoffLocalNote: 'Kickoff: 5:00 PM EDT.',
+    isNeutral: true,
+    note: 'Paraguay reach the last 16 after a shootout win over Germany; France arrive as two-time champions.',
+  },
+  // ── Round of 16 — July 5 ───────────────────────────────────────────────────
+  {
+    home: 'Brazil',
+    away: 'Norway',
+    venue: 'metlife',
+    kickoffUtc: '2026-07-05T20:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 91',
+    kickoffLocalNote: 'Kickoff: 4:00 PM EDT.',
+    isNeutral: true,
+  },
+  {
+    home: 'Mexico',
+    away: 'England',
+    venue: 'azteca',
+    kickoffUtc: '2026-07-06T00:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 92',
+    kickoffLocalNote: 'Kickoff: 8:00 PM EDT / 6:00 PM local in Mexico City.',
+    isNeutral: false,
+    note: 'Host nation Mexico take on England at the Azteca.',
+  },
+  // ── Round of 16 — July 6 ───────────────────────────────────────────────────
+  {
+    home: 'Portugal',
+    away: 'Spain',
+    venue: 'att',
+    kickoffUtc: '2026-07-06T19:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 93',
+    kickoffLocalNote: 'Kickoff: 3:00 PM EDT / 2:00 PM CDT.',
+    isNeutral: true,
+    note: 'Iberian derby — reigning European champions Spain against Ronaldo’s Portugal.',
+  },
+  {
+    home: 'USA',
+    away: 'Belgium',
+    venue: 'lumen',
+    kickoffUtc: '2026-07-07T00:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 94',
+    kickoffLocalNote: 'Kickoff: 8:00 PM EDT / 5:00 PM PDT.',
+    isNeutral: false,
+    note: 'The hosts play for a quarterfinal spot in front of a packed Lumen Field.',
+  },
+  // ── Round of 16 — July 7 ───────────────────────────────────────────────────
+  {
+    home: 'Argentina',
+    away: 'Egypt',
+    venue: 'mercedesBenz',
+    kickoffUtc: '2026-07-07T16:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 95',
+    kickoffLocalNote: 'Kickoff: 12:00 PM EDT.',
+    isNeutral: true,
+  },
+  {
+    home: 'Switzerland',
+    away: 'Colombia',
+    venue: 'bcPlace',
+    kickoffUtc: '2026-07-07T20:00:00.000Z',
+    group: 'Round of 16',
+    matchLabel: 'Match 96',
+    kickoffLocalNote: 'Kickoff: 4:00 PM EDT / 1:00 PM PDT.',
+    isNeutral: true,
+  },
+  // ── Quarterfinals ──────────────────────────────────────────────────────────
+  {
+    home: 'France',
+    away: 'Morocco',
+    venue: 'gillette',
+    kickoffUtc: '2026-07-09T20:00:00.000Z',
+    group: 'Quarterfinal',
+    matchLabel: 'Match 97',
+    kickoffLocalNote: 'Kickoff: 4:00 PM EDT.',
+    isNeutral: true,
+    note: 'Rematch of the 2022 semifinal.',
+  },
+  {
+    home: 'Norway',
+    away: 'England',
+    venue: 'hardRock',
+    kickoffUtc: '2026-07-11T21:00:00.000Z',
+    group: 'Quarterfinal',
+    matchLabel: 'Match 99',
+    kickoffLocalNote: 'Kickoff: 5:00 PM EDT.',
+    isNeutral: true,
+    note: 'Norway stunned Brazil to get here; England survived Mexico at the Azteca.',
+  },
+  {
+    home: 'Spain',
+    away: 'Belgium',
+    venue: 'sofi',
+    kickoffUtc: '2026-07-10T19:00:00.000Z',
+    group: 'Quarterfinal',
+    matchLabel: 'Match 98',
+    kickoffLocalNote: 'Kickoff: 3:00 PM EDT / 12:00 PM PDT.',
+    isNeutral: true,
+    note: 'Third World Cup meeting between these two — Spain beat Portugal 1-0, Belgium routed host USA 4-1 to get here.',
+  },
+  {
+    home: 'Argentina',
+    away: 'Switzerland',
+    venue: 'arrowhead',
+    kickoffUtc: '2026-07-12T01:00:00.000Z',
+    group: 'Quarterfinal',
+    matchLabel: 'Match 100',
+    kickoffLocalNote: 'Kickoff: 9:00 PM EDT / 8:00 PM CDT.',
+    isNeutral: true,
+    note: 'Argentina completed a stunning comeback to beat Egypt 3-2; Switzerland outlasted Colombia 4-3 on penalties.',
   },
 ];

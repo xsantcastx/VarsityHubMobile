@@ -1,0 +1,55 @@
+name: Format Fix (one-off)
+
+# Runs prettier --write on every file changed relative to main, then commits
+# and pushes the result back to this branch. Exists because the sandbox this
+# branch was developed in has no node_modules / network access to run
+# prettier directly. Safe to delete once the branch is merged.
+
+on:
+  push:
+    branches: [claude/fifa-games-varistyhub-4g56fq]
+    paths:
+      - '.github/workflows/format-fix.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    name: Format changed files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Format files changed relative to main
+        run: |
+          git fetch origin main
+          BASE_SHA="$(git merge-base origin/main HEAD)"
+          CHANGED_FILES="$(git diff --name-only --diff-filter=d "$BASE_SHA" HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' '*.md')"
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No format-relevant files changed"
+            exit 0
+          fi
+          echo "Formatting:"
+          echo "$CHANGED_FILES"
+          echo "$CHANGED_FILES" | xargs npx prettier --write
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No formatting changes needed"
+            exit 0
+          fi
+          git add -A
+          git commit -m "style: prettier --write on files changed vs main"
+          git push origin HEAD:${{ github.ref_name }}
