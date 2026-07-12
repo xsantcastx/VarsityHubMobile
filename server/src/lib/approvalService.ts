@@ -31,6 +31,7 @@ import {
   mergeAuthStateIntoPreferences,
 } from './userAuthState.js';
 import { buildBillingStateColumns } from './userBillingState.js';
+import { isAdminEmail } from './adminEmails.js';
 import { getLatestCoachApplication } from './coachApplications.js';
 import { getOrganizationJoinRequestStateForUser } from './organizationWorkflowState.js';
 
@@ -420,7 +421,10 @@ export async function rejectOrganization(
     await tx.organizationMembership.deleteMany({
       where: { organization_id: orgId },
     });
-    if (owner?.id) {
+    // Reject the org, but never cascade REJECTED onto a platform-admin owner
+    // (would trigger the pending-approval routing loop). isAdminEmail() returns
+    // false for a null email, so non-admin owners reject as before.
+    if (owner?.id && !isAdminEmail(owner.email)) {
       await tx.user.update({
         where: { id: owner.id },
         data: {
@@ -696,6 +700,17 @@ export async function rejectCoach(
     },
   });
   if (!user) return { error: 'User not found', status: 404 };
+  // Platform admins must never be pushed into coach REJECTED — it triggers the
+  // pending-approval routing loop with no self-service recovery (the emancero
+  // incident). Refuse regardless of caller: admin dashboard, email token, or the
+  // auto-expire cron. isAdminEmail() safely returns false for a null email.
+  if (isAdminEmail(user.email)) {
+    captureException(new Error('[rejectCoach] refused: target is a platform admin'), {
+      tags: { area: 'coach-approval' },
+      extra: { userId, adminId },
+    });
+    return { error: 'Cannot reject a platform admin', status: 403 };
+  }
   if (user.approval_status !== 'PENDING')
     return { error: 'User is not pending approval', status: 400 };
 

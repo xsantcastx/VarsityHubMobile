@@ -2101,6 +2101,11 @@ organizationsRouter.post(
         return res.status(404).json({ error: 'Join request not found' });
       }
 
+      // IDOR: prevent self-denial (defense-in-depth) — mirrors the approve route.
+      if (joinRequest.user_id === req.user!.id) {
+        return res.status(403).json({ error: 'You cannot deny your own join request.' });
+      }
+
       // Owner-only (incl. legacy league_owner_id owners) or platform admin.
       const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
       if (

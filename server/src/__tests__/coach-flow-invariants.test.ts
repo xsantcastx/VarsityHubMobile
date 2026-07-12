@@ -439,6 +439,45 @@ describe('coach flow structural invariants', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────
+  // Platform-admin lockout guard — the emancero incident. A platform admin
+  // must never be pushed into coach approval_status=REJECTED (it triggers the
+  // pending-approval routing loop with no self-service recovery). The reject
+  // writers gained a target-admin exemption; assert the refusals stay in place.
+  // ──────────────────────────────────────────────────────────────────────
+  describe('platform admins cannot be pushed into coach REJECTED', () => {
+    const approvalServiceSrc = readFileSync(
+      join(process.cwd(), 'src', 'lib', 'approvalService.ts'),
+      'utf8'
+    );
+    const joinRequestsSrc = readFileSync(
+      join(process.cwd(), 'src', 'lib', 'organizationJoinRequests.ts'),
+      'utf8'
+    );
+    const organizationsSrc = readFileSync(
+      join(process.cwd(), 'src', 'routes', 'organizations.ts'),
+      'utf8'
+    );
+
+    it('rejectCoach refuses when the target is a platform admin', () => {
+      expect(/isAdminEmail\(user\.email\)/.test(approvalServiceSrc)).toBe(true);
+      expect(/Cannot reject a platform admin/.test(approvalServiceSrc)).toBe(true);
+    });
+
+    it('rejectOrganization does not cascade REJECTED onto an admin owner', () => {
+      expect(/!isAdminEmail\(owner\.email\)/.test(approvalServiceSrc)).toBe(true);
+    });
+
+    it('denyJoinRequest refuses when the target is a platform admin', () => {
+      expect(/isAdminEmail\(user\.email\)/.test(joinRequestsSrc)).toBe(true);
+      expect(/Cannot reject a platform admin/.test(joinRequestsSrc)).toBe(true);
+    });
+
+    it('the join-request deny route has a self-denial IDOR guard like approve', () => {
+      expect(/cannot deny your own join request/i.test(organizationsSrc)).toBe(true);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
   // Approval email wiring — every transition has a user notification
   // ──────────────────────────────────────────────────────────────────────
 
