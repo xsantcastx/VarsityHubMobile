@@ -49,6 +49,9 @@ describeDb('Game stories API geofencing', () => {
     process.env.ADMIN_EMAILS = ['admin-story-geofence@varsityhub.app', priorAdminEmails]
       .filter(Boolean)
       .join(',');
+    // Admin ACCESS comes from the hardcoded floor; ADMIN_EMAILS grants nothing.
+    // TEST_PLATFORM_ADMIN_EMAILS is the test-only seam (honored only in NODE_ENV=test).
+    process.env.TEST_PLATFORM_ADMIN_EMAILS = 'admin-story-geofence@varsityhub.app';
 
     adminUser = await prisma.user.create({
       data: {
@@ -150,6 +153,7 @@ describeDb('Game stories API geofencing', () => {
   });
 
   afterAll(async () => {
+    delete process.env.TEST_PLATFORM_ADMIN_EMAILS;
     await prisma.story.deleteMany({ where: { game_id: gameId } }).catch(() => {});
     if (eventId) {
       await prisma.event.delete({ where: { id: eventId } }).catch(() => {});
