@@ -390,6 +390,30 @@ const makeCreateStoryHandler = ({ prisma: p }: StoryDeps) =>
     return res.status(201).json(story);
   });
 
+/**
+ * Build the Redis cache key for the games feed.
+ *
+ * The client recomputes `from` (a 3-day-back window) with millisecond precision
+ * on every feed load, so using the raw URL made every request a unique key and
+ * silently defeated the 120s feed cache — the hottest query re-ran on every
+ * load. Bucketing the `from`/`to` timestamps to the hour in the KEY (not the
+ * query itself) makes repeated loads within the TTL share an entry. A one-hour
+ * bucket is imperceptible for a 3-day feed window and self-corrects every 120s.
+ */
+export function buildGamesCacheKey(viewerScope: string, requestUrl: string): string {
+  const HOUR_MS = 60 * 60 * 1000;
+  const bucketParam = (_match: string, prefix: string, rawValue: string) => {
+    const ms = Date.parse(decodeURIComponent(rawValue));
+    if (Number.isNaN(ms)) return `${prefix}${rawValue}`;
+    const bucketed = new Date(Math.floor(ms / HOUR_MS) * HOUR_MS).toISOString();
+    return `${prefix}${encodeURIComponent(bucketed)}`;
+  };
+  const normalizedUrl = requestUrl
+    .replace(/([?&]from=)([^&]+)/, bucketParam)
+    .replace(/([?&]to=)([^&]+)/, bucketParam);
+  return `games:${viewerScope}:${normalizedUrl}`;
+}
+
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
 
@@ -942,7 +966,7 @@ gamesRouter.get(
       const shouldUseGamesCache = !wantsNonApproved && !following;
       const viewerScope = authedReq.user?.id ? `user:${authedReq.user.id}` : 'anon';
       const cacheRequestUrl = req.originalUrl || req.url;
-      const gameCacheKey = `games:${viewerScope}:${cacheRequestUrl}`;
+      const gameCacheKey = buildGamesCacheKey(viewerScope, cacheRequestUrl);
 
       // Followed-teams calendar scope (Discover): signed-out users have no
       // follows, so return an empty list rather than the global feed.
