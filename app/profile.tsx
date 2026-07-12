@@ -1,5 +1,4 @@
 import { Organization, Team, User } from '@/api/entities';
-import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
@@ -39,12 +38,6 @@ import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFee
 type ProfilePreferences = {
   role?: string | null;
   plan?: string | null;
-  position?: string | null;
-  jersey_number?: string | number | null;
-  grade_level?: string | null;
-  graduation_year?: string | number | null;
-  accolades?: string | null;
-  primary_sport?: Sport | string | null;
   sport?: string | null;
   header_image_url?: string | null;
   header_image_focus_y?: number | null;
@@ -189,8 +182,6 @@ export default function ProfileScreen() {
       logo_url?: string | null;
       avatar_url?: string | null;
       role?: string;
-      position?: string | null;
-      jersey_number?: string | number | null;
     }>
   >([]);
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
@@ -626,14 +617,6 @@ export default function ProfileScreen() {
     /^c[0-9a-z]{20,}$/.test(s); // CUID
   const displayUsername = me?.username && !isInternalId(me.username) ? `@${me.username}` : 'User';
 
-  // Athlete-specific data from preferences (currently unused but may be needed for future features)
-  const _isAthlete = Boolean(preferences?.position || preferences?.jersey_number);
-  const _jerseyNumber = preferences?.jersey_number || me?.jersey_number;
-  const _position = preferences?.position || me?.position;
-  const _gradeLevel = preferences?.grade_level;
-  const _graduationYear = preferences?.graduation_year;
-  const _accolades = preferences?.accolades;
-  const _primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
   const headerBackgroundImage = preferences?.header_image_url || null;
   const headerImageFocusY = clampValue(
     typeof preferences?.header_image_focus_y === 'number' ? preferences.header_image_focus_y : 0,
@@ -1031,7 +1014,7 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
 
-          {/* Teams - Athlete profile section */}
+          {/* Teams the user belongs to */}
           {userTeams.length > 0 && (
             <View
               style={[
@@ -2170,21 +2153,6 @@ const styles = StyleSheet.create({
   },
   teamChipName: { flex: 1, fontSize: 15, fontWeight: '600', minWidth: 0 },
   teamChipRole: { fontSize: 12, textTransform: 'capitalize' },
-  athleteCredentialsCompact: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  positionBadgeText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#3B82F6',
-    marginBottom: 2,
-  },
-  credentialsTextCompact: {
-    fontSize: 13,
-    fontWeight: '400',
-    color: Colors.light.mutedText,
-  },
   bioSectionCompact: {
     paddingHorizontal: 16,
     paddingVertical: 8,
