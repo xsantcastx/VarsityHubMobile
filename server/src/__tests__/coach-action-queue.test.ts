@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import request from 'supertest';
+import { app } from '../app.js';
 
 let prisma: any;
 let buildCoachActionQueue: any;
@@ -15,6 +17,7 @@ describe('coach action queue', () => {
         data: {
           email: `caq-${label}-${ts}@example.com`, password_hash: 'x', display_name: label,
           email_verified: true, role: 'coach', onboarding_completed: true, approval_status: 'APPROVED',
+          coach_agreement_accepted_at: new Date(), coach_agreement_version: 1,
           preferences: { role: 'coach' },
         },
       });
@@ -87,5 +90,21 @@ describe('coach action queue', () => {
     expect(item.org_id).toBe(orgId);
     expect(item.route).toContain('/organization-join-requests');
     await prisma.organizationJoinRequest.deleteMany({ where: { id: jr.id } });
+  });
+
+  it('GET /me/action-queue returns the queue for the authed coach', async () => {
+    const { signJwt } = await import('../lib/jwt.js');
+    const token = signJwt({ id: coachId });
+    const res = await request(app).get('/me/action-queue').set('Authorization', `Bearer ${token}`).expect(200);
+    expect(typeof res.body.total).toBe('number');
+    expect(res.body.counts).toHaveProperty('events');
+    expect(Array.isArray(res.body.items)).toBe(true);
+  });
+
+  it('GET /me/action-queue returns empty for a manager-of-nothing (no 403)', async () => {
+    const { signJwt } = await import('../lib/jwt.js');
+    const token = signJwt({ id: otherCoachId });
+    const res = await request(app).get('/me/action-queue').set('Authorization', `Bearer ${token}`).expect(200);
+    expect(res.body.total).toBe(0);
   });
 });
