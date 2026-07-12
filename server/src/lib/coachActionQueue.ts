@@ -61,6 +61,18 @@ export async function buildCoachActionQueue(userId: string): Promise<ActionQueue
       })
     : [];
 
+  const games = teamIds.length
+    ? await prisma.game.findMany({
+        where: {
+          approval_status: 'pending',
+          OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+        },
+        select: { id: true, title: true, date: true, location: true, home_team_id: true, created_at: true },
+        orderBy: { created_at: 'asc' },
+        take: SOURCE_TAKE,
+      })
+    : [];
+
   const items: ActionItem[] = events.map((e) => ({
     kind: 'event' as const,
     id: e.id,
@@ -71,10 +83,22 @@ export async function buildCoachActionQueue(userId: string): Promise<ActionQueue
     route: `/event-approvals?teamId=${encodeURIComponent(e.team_id ?? '')}`,
   }));
 
+  items.push(
+    ...games.map((g) => ({
+      kind: 'game' as const,
+      id: g.id,
+      title: g.title || 'Game',
+      subtitle: g.location || (g.date ? new Date(g.date).toLocaleDateString() : 'Pending approval'),
+      team_id: g.home_team_id,
+      created_at: (g.created_at ?? new Date()).toISOString(),
+      route: `/game/${g.id}`,
+    }))
+  );
+
   items.sort((a, b) => a.created_at.localeCompare(b.created_at));
   return {
     total: items.length,
-    counts: { events: events.length, games: 0, requests: 0 },
+    counts: { events: events.length, games: games.length, requests: 0 },
     items,
   };
 }

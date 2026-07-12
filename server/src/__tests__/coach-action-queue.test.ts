@@ -38,6 +38,7 @@ describe('coach action queue', () => {
   });
 
   afterAll(async () => {
+    await prisma.game.deleteMany({ where: { OR: [{ home_team_id: teamId }, { away_team_id: teamId }] } }).catch(() => {});
     await prisma.event.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.teamMembership.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
@@ -60,5 +61,17 @@ describe('coach action queue', () => {
     const q = await buildCoachActionQueue(otherCoachId);
     expect(q.counts.events).toBe(0);
     expect(q.total).toBe(0);
+  });
+
+  it('includes a pending game on the coach\'s team', async () => {
+    const g = await prisma.game.create({
+      data: { title: `Pending Game ${ts}`, home_team_id: teamId, approval_status: 'pending', date: new Date() } as any,
+    });
+    const q = await buildCoachActionQueue(coachId);
+    expect(q.counts.games).toBeGreaterThanOrEqual(1);
+    const item = q.items.find((i: any) => i.kind === 'game' && i.id === g.id);
+    expect(item).toBeTruthy();
+    expect(item.route).toBe(`/game/${g.id}`);
+    await prisma.game.deleteMany({ where: { id: g.id } });
   });
 });
