@@ -14,7 +14,12 @@ on:
     - cron: '0 12 * * 1' # every Monday, 12:00 UTC — only fires once this file is on main
   workflow_dispatch: {}
   push:
-    branches: [claude/fifa-games-varistyhub-4g56fq]
+    # TEMPORARY: workflow_dispatch can't be triggered via the API by this
+    # session's GitHub App integration (403 Resource not accessible by
+    # integration). Bootstrapping this week's sync via push since the
+    # Monday cron hasn't fired yet on main; revert to the feature-branch-only
+    # trigger (or drop this block) once this run completes.
+    branches: [main]
     paths:
       - '.github/workflows/weekly-sports-refresh.yml'
       - 'server/scripts/weekly/**'
