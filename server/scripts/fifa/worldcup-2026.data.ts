@@ -32,8 +32,15 @@ export interface VenueDef {
   lat: number;
   lng: number;
   capacity: number;
-  /** Stadium photo — set as banner_url on the game and event */
-  bannerUrl: string;
+  /**
+   * Stadium photo — set as banner_url on the game and event. Only sourced
+   * from no-attribution-required licenses (CC0/public domain, or a stock
+   * site whose license waives attribution like Unsplash/Pexels) — never
+   * CC BY/CC BY-SA, which legally require photographer credit that this
+   * app doesn't display anywhere. Omitted (no banner) where no verified
+   * no-attribution photo of that specific venue could be found.
+   */
+  bannerUrl?: string;
 }
 
 export const VENUES: Record<string, VenueDef> = {
@@ -44,8 +51,8 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 19.303,
     lng: -99.1506,
     capacity: 87523,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Vista_a%C3%A9rea_del_Estadio_Azteca_-_2026_-_02.jpg/960px-Vista_a%C3%A9rea_del_Estadio_Azteca_-_2026_-_02.jpg',
+    // No verified no-attribution photo found — omit rather than use a
+    // CC BY-SA file this app can't credit.
   },
   akron: {
     name: 'Estadio Akron, Zapopan, Guadalajara, Mexico',
@@ -53,8 +60,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 20.6859,
     lng: -103.4667,
     capacity: 46732,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Estadio_Akron_02-07-2022_cabecera_sur_lado_derecho_%283%29.jpg/960px-Estadio_Akron_02-07-2022_cabecera_sur_lado_derecho_%283%29.jpg',
+    bannerUrl: 'https://images.unsplash.com/photo-wbdrpnbn_DE?w=960&h=400&fit=crop&q=80',
   },
   bbva: {
     name: 'Estadio BBVA, Guadalupe, Monterrey, Mexico',
@@ -63,7 +69,7 @@ export const VENUES: Record<string, VenueDef> = {
     lng: -100.2447,
     capacity: 53500,
     bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Mexico_Guadalupe_Monterrey_Estadio_BBVA_Bancomer_fifa_world_cup_2026_6.JPG/960px-Mexico_Guadalupe_Monterrey_Estadio_BBVA_Bancomer_fifa_world_cup_2026_6.JPG',
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Estadio_BBVA_Bancomer_desde_el_metro.JPG',
   },
   bmoField: {
     name: 'BMO Field, Toronto, Canada',
@@ -71,8 +77,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 43.6332,
     lng: -79.4186,
     capacity: 45736,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Toronto_BMO_Field_in_2024.jpg/960px-Toronto_BMO_Field_in_2024.jpg',
+    bannerUrl: 'https://images.pexels.com/photos/16730329/pexels-photo-16730329.jpeg?w=960&h=400&fit=crop',
   },
   bcPlace: {
     name: 'BC Place, Vancouver, Canada',
@@ -80,8 +85,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 49.2767,
     lng: -123.1119,
     capacity: 54500,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/BC_Place_2015_Women%27s_FIFA_World_Cup.jpg/960px-BC_Place_2015_Women%27s_FIFA_World_Cup.jpg',
+    bannerUrl: 'https://images.pexels.com/photos/18784843/pexels-photo-18784843.jpeg?w=960&h=400&fit=crop',
   },
   lumen: {
     name: 'Lumen Field, Seattle, Washington, USA',
@@ -89,8 +93,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 47.5952,
     lng: -122.3316,
     capacity: 68740,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/2025_FIFA_Club_World_Cup_-_Seattle_Sounders_FC_vs._Atl%C3%A9tico_Madrid_-_05.jpg/960px-2025_FIFA_Club_World_Cup_-_Seattle_Sounders_FC_vs._Atl%C3%A9tico_Madrid_-_05.jpg',
+    bannerUrl: 'https://images.unsplash.com/photo-01X8k4Gzg7A?w=960&h=400&fit=crop&q=80',
   },
   levis: {
     name: "Levi's Stadium, Santa Clara, California, USA",
@@ -98,8 +101,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 37.403,
     lng: -121.97,
     capacity: 68500,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Levi%27s_Stadium_in_February_2016_prior_to_Super_Bowl_50_%2824398261729%29.jpg/960px-Levi%27s_Stadium_in_February_2016_prior_to_Super_Bowl_50_%2824398261729%29.jpg',
+    // No verified no-attribution photo found — omit.
   },
   sofi: {
     name: 'SoFi Stadium, Inglewood, California, USA',
@@ -107,8 +109,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 33.9535,
     lng: -118.3392,
     capacity: 70240,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/SoFi_Stadium_2023.jpg/960px-SoFi_Stadium_2023.jpg',
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/SoFi_Stadium_23rd_March_2025.jpg',
   },
   att: {
     name: 'AT&T Stadium, Arlington, Texas, USA',
@@ -116,8 +117,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 32.7473,
     lng: -97.0945,
     capacity: 80000,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Arlington_June_2020_4_%28AT%26T_Stadium%29.jpg/960px-Arlington_June_2020_4_%28AT%26T_Stadium%29.jpg',
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/AT%26T_Stadium_2022-08-24.jpg',
   },
   nrg: {
     name: 'NRG Stadium, Houston, Texas, USA',
@@ -125,8 +125,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 29.6847,
     lng: -95.4107,
     capacity: 72220,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Nrg_stadium.jpg/960px-Nrg_stadium.jpg',
+    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Nrg_stadium.jpg',
   },
   arrowhead: {
     name: 'Arrowhead Stadium, Kansas City, Missouri, USA',
@@ -134,8 +133,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 39.0489,
     lng: -94.4839,
     capacity: 76416,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Aerial_view_of_Arrowhead_Stadium_08-31-2013.jpg/960px-Aerial_view_of_Arrowhead_Stadium_08-31-2013.jpg',
+    // No verified no-attribution photo found — omit.
   },
   mercedesBenz: {
     name: 'Mercedes-Benz Stadium, Atlanta, Georgia, USA',
@@ -143,8 +141,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 33.7554,
     lng: -84.401,
     capacity: 71000,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Mercedes_Benz_Stadium_time_lapse_capture_2017-08-13.jpg/960px-Mercedes_Benz_Stadium_time_lapse_capture_2017-08-13.jpg',
+    bannerUrl: 'https://images.unsplash.com/photo-3US4JTS8LOM?w=960&h=400&fit=crop&q=80',
   },
   hardRock: {
     name: 'Hard Rock Stadium, Miami Gardens, Florida, USA',
@@ -152,8 +149,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 25.958,
     lng: -80.2389,
     capacity: 64767,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/Hard_Rock_Stadium_for_Super_Bowl_LIV_%2849606710103%29.jpg/960px-Hard_Rock_Stadium_for_Super_Bowl_LIV_%2849606710103%29.jpg',
+    bannerUrl: 'https://images.unsplash.com/photo-pPLq1MEpBr4?w=960&h=400&fit=crop&q=80',
   },
   gillette: {
     name: 'Gillette Stadium, Foxborough, Massachusetts, USA',
@@ -161,8 +157,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 42.0909,
     lng: -71.2643,
     capacity: 64628,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Gillette_Stadium_%28Top_View%29.jpg/960px-Gillette_Stadium_%28Top_View%29.jpg',
+    bannerUrl: 'https://images.unsplash.com/photo-PIg-F4FB-IY?w=960&h=400&fit=crop&q=80',
   },
   lincoln: {
     name: 'Lincoln Financial Field, Philadelphia, Pennsylvania, USA',
@@ -170,8 +165,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 39.9008,
     lng: -75.1675,
     capacity: 69596,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Lincoln_Financial_Field_%28Aerial_view%29.jpg/960px-Lincoln_Financial_Field_%28Aerial_view%29.jpg',
+    // No verified no-attribution photo found — omit.
   },
   metlife: {
     name: 'MetLife Stadium, East Rutherford, New Jersey, USA',
@@ -179,8 +173,7 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 40.8135,
     lng: -74.0745,
     capacity: 82500,
-    bannerUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Metlife_stadium_%28Aerial_view%29.jpg/960px-Metlife_stadium_%28Aerial_view%29.jpg',
+    // No verified no-attribution photo found — omit.
   },
 };
 
