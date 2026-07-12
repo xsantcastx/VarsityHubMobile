@@ -683,6 +683,7 @@ function CreatePostScreen() {
 
     try {
       let finalMediaUrl = '';
+      let finalPosterUrl = '';
       const mediaMeta: {
         media_width?: number;
         media_height?: number;
@@ -732,6 +733,38 @@ function CreatePostScreen() {
         if (typeof res?.bytes === 'number') mediaMeta.media_bytes = res.bytes;
         if (typeof res?.duration === 'number') mediaMeta.media_duration_s = res.duration;
         if (__DEV__) console.warn('[CreatePost] Upload complete:', finalMediaUrl);
+        // R2 stores bytes verbatim — no server-side poster derivation exists
+        // (Cloudinary posts get theirs derived by the serializer). Generate a
+        // first-frame poster on-device and upload it alongside the video so
+        // feeds and share previews have an image. Best-effort: a video post
+        // without a poster still works.
+        if ((res as any)?.provider === 'r2' && picked.type === 'video') {
+          try {
+            // Dynamic require, same OTA-safety pattern as highlights.tsx —
+            // never crash a binary built before the module existed.
+            let VideoThumbnails: any = null;
+            try {
+              VideoThumbnails = require('expo-video-thumbnails');
+            } catch {
+              /* module unavailable in this binary */
+            }
+            if (VideoThumbnails?.getThumbnailAsync) {
+              const thumb = await VideoThumbnails.getThumbnailAsync(uploadUri, {
+                time: 0,
+                quality: 0.7,
+              });
+              if (thumb?.uri) {
+                if (typeof thumb.width === 'number') mediaMeta.media_width = thumb.width;
+                if (typeof thumb.height === 'number') mediaMeta.media_height = thumb.height;
+                const posterRes = await uploadFile(base, thumb.uri, 'poster.jpg', 'image/jpeg');
+                finalPosterUrl = posterRes?.url || '';
+                if (__DEV__) console.warn('[CreatePost] Poster uploaded:', finalPosterUrl);
+              }
+            }
+          } catch (posterErr: any) {
+            if (__DEV__) console.warn('[CreatePost] Poster generation failed:', posterErr?.message);
+          }
+        }
         // Clean up temp trimmed files after successful upload
         try {
           const filesToClean = [trimmedUri].filter(
@@ -754,6 +787,7 @@ function CreatePostScreen() {
         content: trimmedContent,
         media_url: finalMediaUrl || undefined,
         ...(finalMediaUrl ? mediaMeta : {}),
+        ...(finalMediaUrl && finalPosterUrl ? { poster_url: finalPosterUrl } : {}),
         type: postType,
         location: locationPayload,
       };

@@ -17,6 +17,12 @@
  *   R2_PUBLIC_BASE_URL   — public/custom-domain base for delivery (optional;
  *                          if unset, presign still works but no public URL is
  *                          returned and the caller must serve via a worker)
+ *   R2_ENDPOINT          — optional S3 endpoint override. Defaults to the
+ *                          Cloudflare R2 endpoint derived from R2_ACCOUNT_ID;
+ *                          set explicitly for any other S3-compatible store
+ *                          (MinIO in local verification, AWS S3, etc.). Path
+ *                          style is forced when overridden — MinIO/localhost
+ *                          can't do virtual-host bucket subdomains.
  *
  * The AWS SDK v3 (@aws-sdk/client-s3 + s3-request-presigner) is already a
  * dependency — no new install, no new binary, so activation ships via OTA.
@@ -32,7 +38,7 @@ function env(key: string): string {
 
 export function isR2Configured(): boolean {
   return Boolean(
-    env('R2_ACCOUNT_ID') &&
+    (env('R2_ACCOUNT_ID') || env('R2_ENDPOINT')) &&
       env('R2_ACCESS_KEY_ID') &&
       env('R2_SECRET_ACCESS_KEY') &&
       env('R2_BUCKET')
@@ -40,19 +46,27 @@ export function isR2Configured(): boolean {
 }
 
 let _client: S3Client | null = null;
+let _clientKey = '';
 function getClient(): S3Client {
-  if (_client) return _client;
+  const endpoint = env('R2_ENDPOINT') || `https://${env('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com`;
+  // Re-create the client if config changed (tests swap env between cases).
+  const key = `${endpoint}|${env('R2_ACCESS_KEY_ID')}|${env('R2_BUCKET')}`;
+  if (_client && _clientKey === key) return _client;
   if (!isR2Configured()) {
     throw new Error('R2 is not configured (R2_ACCOUNT_ID / keys / bucket missing)');
   }
   _client = new S3Client({
     region: 'auto',
-    endpoint: `https://${env('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com`,
+    endpoint,
+    // Virtual-host style needs bucket.<host> DNS; impossible on localhost
+    // (MinIO) and unnecessary on R2 — path style works for both.
+    forcePathStyle: Boolean(env('R2_ENDPOINT')),
     credentials: {
       accessKeyId: env('R2_ACCESS_KEY_ID'),
       secretAccessKey: env('R2_SECRET_ACCESS_KEY'),
     },
   });
+  _clientKey = key;
   return _client;
 }
 
@@ -108,7 +122,12 @@ export async function createR2UploadTicket(opts: {
     Key: key,
     ContentType: contentType,
   });
-  const uploadUrl = await getSignedUrl(getClient(), command, { expiresIn });
+  // Force content-type into the signed headers — the presigner does not by
+  // default, which would let a client claim image/jpeg then PUT anything.
+  const uploadUrl = await getSignedUrl(getClient(), command, {
+    expiresIn,
+    signableHeaders: new Set(['content-type', 'host']),
+  });
 
   const publicBase = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');
   const publicUrl = publicBase ? `${publicBase}/${key}` : null;

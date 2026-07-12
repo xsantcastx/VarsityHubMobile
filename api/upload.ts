@@ -1,3 +1,4 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import {
   isEmailVerificationRequiredError,
   openVerificationGate,
@@ -322,6 +323,144 @@ async function uploadViaFetchWithRetries({
 }
 
 // -----------------------------------------------
+// Direct-to-R2 upload (Cloudflare R2 / any S3-compatible store)
+// Phone → storage, zero-egress delivery. Server-driven activation: the client
+// simply TRIES GET /uploads/r2-presign; while R2 is unprovisioned the server
+// 503s, we cache the miss for a few minutes, and every upload proceeds down
+// the existing Cloudinary path with no behavior change. The moment R2 env
+// vars exist on the server, uploads start landing on R2 — no client flag.
+// -----------------------------------------------
+
+const R2_UNAVAILABLE_TTL_MS = 5 * 60_000;
+let _r2UnavailableAt = 0;
+
+interface R2UploadTicket {
+  uploadUrl: string;
+  key: string;
+  publicUrl: string | null;
+  expiresIn: number;
+}
+
+async function getR2UploadTicket(
+  baseUrl: string,
+  contentType: string
+): Promise<R2UploadTicket | null> {
+  if (Date.now() - _r2UnavailableAt < R2_UNAVAILABLE_TTL_MS) return null;
+  const token = await getAccessTokenForRequest({ allowRefresh: true });
+  if (!token) return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SIG_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(
+      `${baseUrl}/uploads/r2-presign?content_type=${encodeURIComponent(contentType)}`,
+      { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
+    );
+    if (res.status === 503) {
+      // R2 not provisioned server-side — remember and stop asking for a while.
+      _r2UnavailableAt = Date.now();
+      return null;
+    }
+    if (!res.ok) return null;
+    const data = (await res.json().catch(() => null)) as R2UploadTicket | null;
+    // Without a public delivery URL the asset would be unreachable — treat as
+    // unavailable rather than uploading into a black hole.
+    if (!data?.uploadUrl || !data?.publicUrl) return null;
+    return data;
+  } catch {
+    // Never let the R2 probe break uploads — any failure falls back to Cloudinary.
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function uploadDirectToR2(
+  uri: string,
+  mimeType: string,
+  ticket: R2UploadTicket,
+  options?: UploadOptions
+): Promise<{ url: string; type: string; mime: string; provider: 'r2' }> {
+  const isVideo = mimeType.startsWith('video/');
+  const timeoutMs = options?.timeoutMs ?? (isVideo ? 300000 : 120000);
+
+  // Binary PUT straight from disk — no FormData, no base64, no JS copy of the
+  // bytes. Content-Type must match exactly: the server pinned it into the
+  // presigned signature.
+  const task = FileSystem.createUploadTask(
+    ticket.uploadUrl,
+    uri,
+    {
+      httpMethod: 'PUT',
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      headers: { 'Content-Type': mimeType },
+    },
+    options?.onProgress
+      ? progress => {
+          const total = progress.totalBytesExpectedToSend || 0;
+          if (total > 0) {
+            options.onProgress!(
+              Math.round((progress.totalBytesSent / total) * 100),
+              progress.totalBytesSent,
+              total
+            );
+          }
+        }
+      : undefined
+  );
+
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    task.cancelAsync().catch(() => {});
+  }, timeoutMs);
+  try {
+    const result = await task.uploadAsync();
+    if (timedOut) throw new Error('R2 upload timed out');
+    if (!result || result.status < 200 || result.status >= 300) {
+      throw new Error(
+        `R2 upload failed: HTTP ${result?.status ?? 'unknown'}${
+          result?.body ? ` — ${String(result.body).slice(0, 200)}` : ''
+        }`
+      );
+    }
+    return {
+      url: ticket.publicUrl!,
+      type: isVideo ? 'video' : 'image',
+      mime: mimeType,
+      provider: 'r2',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Try the R2 path for a media file. Returns null when R2 is unavailable or the
+ * ticket can't be fetched (callers fall back to Cloudinary); throws only when
+ * an actual R2 upload was attempted and failed — callers still fall back.
+ */
+async function tryUploadToR2(
+  baseUrl: string,
+  uri: string,
+  mimeType: string,
+  options?: UploadOptions
+): Promise<{ url: string; type: string; mime: string; provider: 'r2' } | null> {
+  const ticket = await getR2UploadTicket(baseUrl, mimeType);
+  if (!ticket) return null;
+  try {
+    if (__DEV__) console.log('[upload] Using direct R2 upload:', ticket.key);
+    return await uploadDirectToR2(uri, mimeType, ticket, options);
+  } catch (err: any) {
+    if (__DEV__)
+      console.warn('[upload] R2 upload failed, falling back to Cloudinary:', err?.message);
+    captureException(err instanceof Error ? err : new Error(String(err)), {
+      tags: { context: 'r2_upload', stage: 'direct_put_failed' },
+    });
+    return null;
+  }
+}
+
+// -----------------------------------------------
 // Direct-to-Cloudinary upload (skips your server)
 // Phone → Cloudinary CDN. ~2x faster than proxying through Railway.
 // -----------------------------------------------
@@ -454,6 +593,7 @@ async function uploadDirectToCloudinary(
   url: string;
   type: string;
   mime: string;
+  provider: 'cloudinary';
   width?: number;
   height?: number;
   bytes?: number;
@@ -508,6 +648,7 @@ async function uploadDirectToCloudinary(
             url,
             type: resourceType,
             mime: mimeType,
+            provider: 'cloudinary',
             width: typeof data.width === 'number' ? data.width : undefined,
             height: typeof data.height === 'number' ? data.height : undefined,
             bytes: typeof data.bytes === 'number' ? data.bytes : undefined,
@@ -579,6 +720,12 @@ export async function uploadFile(
     if (__DEV__) console.log('[upload] Non-media upload via /uploads/files:', finalMimeType);
     return uploadRawViaServer(finalBase, finalUri, finalFilename, finalMimeType, options);
   }
+
+  // Try direct-to-R2 first (zero-egress storage). Server-driven: while R2 is
+  // unprovisioned this resolves null instantly (cached 503) and the Cloudinary
+  // path below runs exactly as before.
+  const r2Result = await tryUploadToR2(finalBase, finalUri, finalMimeType, options);
+  if (r2Result) return r2Result;
 
   // Try direct-to-Cloudinary (always attempted for media)
   let directErr: any = null;
@@ -676,6 +823,10 @@ export async function uploadFileWithProgress(
   );
 
   const isVideo = finalMimeType.startsWith('video/');
+
+  // Try direct-to-R2 first — createUploadTask reports progress natively.
+  const r2Result = await tryUploadToR2(finalBase, finalUri, finalMimeType, options);
+  if (r2Result) return r2Result;
 
   // Try direct-to-Cloudinary (XHR with progress built in)
   let directErr: any = null;

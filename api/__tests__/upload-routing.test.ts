@@ -78,8 +78,17 @@ class MockXHR {
 describe('uploadFile routing', () => {
   const fetchMock = jest.fn() as any;
   const originalFormData = (global as any).FormData;
+  // Every media upload first probes GET /uploads/r2-presign; a 503 means R2 is
+  // unprovisioned and latches _r2UnavailableAt for 5 minutes within a module
+  // instance (jest.resetModules() in beforeEach clears the latch between tests).
+  const mockR2ProbeUnavailable = () =>
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: 'R2 not configured' }),
+    });
   const mockSignatureThenFallbackUpload = () =>
-    fetchMock
+    mockR2ProbeUnavailable()
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -275,6 +284,7 @@ describe('uploadFile routing', () => {
   });
 
   it('routes images through the Cloudinary signature flow before upload', async () => {
+    mockR2ProbeUnavailable();
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -295,8 +305,11 @@ describe('uploadFile routing', () => {
       'image/jpeg'
     );
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://api.test/uploads/r2-presign?content_type=image%2Fjpeg'
+    );
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
       'https://api.test/uploads/cloudinary-signature'
     );
     expect(MockXHR.instances).toHaveLength(1);
@@ -307,6 +320,7 @@ describe('uploadFile routing', () => {
       url: 'https://cloudinary.test/image.jpg',
       type: 'image',
       mime: 'image/jpeg',
+      provider: 'cloudinary',
     });
   });
 
@@ -324,6 +338,7 @@ describe('uploadFile routing', () => {
     }
 
     (global as any).FormData = MockFormData as any;
+    mockR2ProbeUnavailable();
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -348,6 +363,7 @@ describe('uploadFile routing', () => {
   });
 
   it('mirrors signed Cloudinary constraints into the direct-upload form body', async () => {
+    mockR2ProbeUnavailable();
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -383,11 +399,12 @@ describe('uploadFile routing', () => {
       'image/jpeg'
     );
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('https://api.test/uploads/r2-presign');
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
       'https://api.test/uploads/cloudinary-signature'
     );
-    expect(String(fetchMock.mock.calls[1]?.[0])).toBe('https://api.test/uploads');
+    expect(String(fetchMock.mock.calls[2]?.[0])).toBe('https://api.test/uploads');
     expect(result).toEqual({
       url: 'https://api.test/uploads/fallback.jpg',
       type: 'image',
@@ -424,8 +441,33 @@ describe('uploadFile routing', () => {
       },
     });
 
-    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
+    expect(String(fetchMock.mock.calls[2]?.[0])).toBe(
       'https://api.test/uploads?onboarding=true&upload_context=onboarding_header_image'
     );
+  });
+
+  it('latches R2 unavailability after a 503 probe and skips the probe on later uploads', async () => {
+    mockR2ProbeUnavailable();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        cloudName: 'varsityhub',
+        apiKey: 'key',
+        signature: 'sig',
+        timestamp: 123,
+        folder: 'uploads',
+      }),
+    });
+
+    const { uploadFile } = await import('../upload');
+    await uploadFile('https://api.test', 'file:///tmp/pic.jpg', 'pic.jpg', 'image/jpeg');
+    await uploadFile('https://api.test', 'file:///tmp/pic2.jpg', 'pic2.jpg', 'image/jpeg');
+
+    const presignCalls = fetchMock.mock.calls.filter((call: any[]) =>
+      String(call[0]).includes('/uploads/r2-presign')
+    );
+    expect(presignCalls).toHaveLength(1);
+    expect(MockXHR.instances).toHaveLength(2);
   });
 });
