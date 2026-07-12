@@ -10,13 +10,13 @@ This implementation adds two critical features to VarsityHub:
 ### Business Rules
 
 **Story Posts** (24-hour ephemeral content):
-- Posting window: **12 hours before to 12 hours after** game start time
-- Location requirement: Within **1km** of the venue
+- Posting window: opens on the event's UTC start day, stays open until **48 hours after** game start time
+- Location requirement: Within **3km** of the venue
 - Stories are temporary content that expire after 24 hours
 
 **Regular Posts** (permanent content):
-- Posting window: **2 days before to 1 day after** game start time (4-day window with game day in the middle)
-- Location requirement: Within **3km** of the venue
+- Posting window: opens **2 days before** game start, live window runs through **+2 hours** after start; after that, posting stays open-ended (no closing cutoff) only for users who already posted during the live window
+- Location requirement: Within **3km** of the venue (only enforced during the pre-event/live window — the post-event grace window skips the geofence check, since the qualifying live post already proved venue presence)
 - Posts are permanent and appear on the event page
 
 **General Rules:**
@@ -30,10 +30,10 @@ This implementation adds two critical features to VarsityHub:
 1. **`server/src/lib/geofencing.ts`** - Geolocation utilities
    - `calculateDistance()` - Haversine formula for lat/long distance (km or miles)
    - `isWithinGeofence()` - Check if user is within specified radius (km)
-   - `isStoryPostingWindowOpen()` - Verify story posting window (12h before to 12h after game)
-   - `isPostPostingWindowOpen()` - Verify post posting window (2 days before to 1 day after game)
-   - `verifyStoryPostingPermission()` - Story validation (1km radius, 24h window)
-   - `verifyEventPostingPermission()` - Post validation (3km radius, 4-day window)
+   - `isStoryPostingWindowOpen()` - Verify story posting window (event day through +48h)
+   - `isPostPostingWindowOpen()` - Verify post posting window (opens 2 days before, live window +2h, then open-ended grace for live posters)
+   - `verifyStoryPostingPermission()` - Story validation (3km radius, event day through +48h window)
+   - `verifyEventPostingPermission()` - Post validation (3km radius during pre-event/live window; grace window skips the geofence for users who already posted live)
 
 2. **`server/src/routes/posts.ts`** - Updated post creation
    - Added `event_id` field to post schema
