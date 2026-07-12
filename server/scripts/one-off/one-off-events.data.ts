@@ -1,9 +1,14 @@
 /**
- * One-off events — template data.
+ * One-night-only event template — the standard way to publish a standalone,
+ * single-occurrence event page (watch parties, fundraisers, tryouts, meetups,
+ * a single game, or one day of a multi-day festival like Fanatics Fest — each
+ * day is its own one-night entry). Use this for anything that doesn't belong
+ * to a recurring sync (MLB/WNBA) or a tournament/org structure (FIFA template).
  *
- * Edit this file each time you want to push standalone events (watch parties,
- * fundraisers, tryouts, meetups, or a single game) that don't belong to a
- * tournament/org structure like the FIFA template. Then run:
+ * To add a new one-night event: copy one of the entries marked "EXAMPLE" below
+ * (each is annotated for a different case — a home/away matchup, a standalone
+ * watch party with no opponent, or a single real game), fill in real details,
+ * append it to the EVENTS array, then run:
  *
  *   npx tsx scripts/one-off/create-one-off-events.ts --dry-run   # preview
  *   npx tsx scripts/one-off/create-one-off-events.ts             # create

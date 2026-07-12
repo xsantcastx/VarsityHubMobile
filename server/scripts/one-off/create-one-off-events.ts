@@ -1,5 +1,5 @@
 /**
- * One-off events — template-driven creator.
+ * One-night-only event template — creator engine.
  *
  * Reads event definitions from one-off-events.data.ts and idempotently creates
  * each one (plus a linked Game record whenever `game` is provided — required
