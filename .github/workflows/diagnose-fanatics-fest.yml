@@ -1,0 +1,36 @@
+name: Diagnose Fanatics Fest visibility
+
+# Read-only. Confirms the Fanatics Fest day-pages still exist in prod and
+# reports how many approved games sort ahead of them in the feed's
+# date-ascending query. No writes.
+
+on:
+  push:
+    branches: [claude/fifa-games-varistyhub-4g56fq]
+    paths:
+      - '.github/workflows/diagnose-fanatics-fest.yml'
+      - 'server/scripts/one-off/diagnose-fanatics-fest.ts'
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    name: Diagnose
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+      - name: Run diagnostic
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: npx tsx scripts/one-off/diagnose-fanatics-fest.ts
