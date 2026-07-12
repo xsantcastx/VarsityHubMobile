@@ -77,7 +77,8 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 43.6332,
     lng: -79.4186,
     capacity: 45736,
-    bannerUrl: 'https://images.pexels.com/photos/16730329/pexels-photo-16730329.jpeg?w=960&h=400&fit=crop',
+    bannerUrl:
+      'https://images.pexels.com/photos/16730329/pexels-photo-16730329.jpeg?w=960&h=400&fit=crop',
   },
   bcPlace: {
     name: 'BC Place, Vancouver, Canada',
@@ -85,7 +86,8 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 49.2767,
     lng: -123.1119,
     capacity: 54500,
-    bannerUrl: 'https://images.pexels.com/photos/18784843/pexels-photo-18784843.jpeg?w=960&h=400&fit=crop',
+    bannerUrl:
+      'https://images.pexels.com/photos/18784843/pexels-photo-18784843.jpeg?w=960&h=400&fit=crop',
   },
   lumen: {
     name: 'Lumen Field, Seattle, Washington, USA',
@@ -109,7 +111,8 @@ export const VENUES: Record<string, VenueDef> = {
     lat: 33.9535,
     lng: -118.3392,
     capacity: 70240,
-    bannerUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/SoFi_Stadium_23rd_March_2025.jpg',
+    bannerUrl:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/SoFi_Stadium_23rd_March_2025.jpg',
   },
   att: {
     name: 'AT&T Stadium, Arlington, Texas, USA',
@@ -1414,6 +1417,6 @@ export const MATCHES: MatchDef[] = [
     matchLabel: 'Match 100',
     kickoffLocalNote: 'Kickoff: 9:00 PM EDT / 8:00 PM CDT.',
     isNeutral: true,
-    note: "Argentina completed a stunning comeback to beat Egypt 3-2; Switzerland outlasted Colombia 4-3 on penalties.",
+    note: 'Argentina completed a stunning comeback to beat Egypt 3-2; Switzerland outlasted Colombia 4-3 on penalties.',
   },
 ];

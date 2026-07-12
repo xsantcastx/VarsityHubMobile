@@ -51,7 +51,9 @@ async function main() {
     }
   }
 
-  console.log(`\n✅ Cleanup complete. deletedEvents=${deletedEvents} deletedGames=${deletedGames}\n`);
+  console.log(
+    `\n✅ Cleanup complete. deletedEvents=${deletedEvents} deletedGames=${deletedGames}\n`
+  );
 }
 
 main()

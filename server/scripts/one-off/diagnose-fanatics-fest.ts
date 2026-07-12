@@ -17,12 +17,21 @@ async function main() {
 
   const fanaticsEvents = await prisma.event.findMany({
     where: { title: { startsWith: 'Fanatics Fest NYC 2026' } },
-    select: { id: true, title: true, date: true, game_id: true, approval_status: true, status: true },
+    select: {
+      id: true,
+      title: true,
+      date: true,
+      game_id: true,
+      approval_status: true,
+      status: true,
+    },
     orderBy: { date: 'asc' },
   });
   console.log(`Fanatics Fest events found: ${fanaticsEvents.length}`);
   for (const e of fanaticsEvents) {
-    console.log(`  - "${e.title}" date=${e.date.toISOString()} game_id=${e.game_id} approval=${e.approval_status} status=${e.status}`);
+    console.log(
+      `  - "${e.title}" date=${e.date.toISOString()} game_id=${e.game_id} approval=${e.approval_status} status=${e.status}`
+    );
   }
   console.log('');
 

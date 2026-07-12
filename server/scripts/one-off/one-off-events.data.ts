@@ -74,7 +74,8 @@ export const EVENTS: OneOffEventDef[] = [
       "The day's second Centre Court semifinal, following Karolína Muchová's 7-6(4) 6-4 win over Coco Gauff earlier in the session. The winner faces Muchová in Saturday's final. Centre Court play begins 1:30 PM BST; second-match start time depends on how the first match runs.",
     eventType: 'game',
     dateUtc: '2026-07-09T12:30:00.000Z', // Thu Jul 9, 1:30 PM BST (Centre Court session start)
-    location: 'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
+    location:
+      'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
     lat: 51.4336,
     lng: -0.2144,
     linkedLeague: 'Wimbledon',
@@ -88,7 +89,8 @@ export const EVENTS: OneOffEventDef[] = [
       'Defending champion and World No. 1 Jannik Sinner faces seven-time champion Novak Djokovic, who survived a 5-hour, 15-minute epic over Félix Auger-Aliassime in the quarterfinal. First Centre Court match of the day.',
     eventType: 'game',
     dateUtc: '2026-07-10T12:30:00.000Z', // Fri Jul 10, 1:30 PM BST (Centre Court session start)
-    location: 'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
+    location:
+      'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
     lat: 51.4336,
     lng: -0.2144,
     linkedLeague: 'Wimbledon',
@@ -102,7 +104,8 @@ export const EVENTS: OneOffEventDef[] = [
       "Roland Garros champion Alexander Zverev takes on British wildcard Arthur Fery. The day's second Centre Court match, following Sinner vs Djokovic — exact start time depends on how the first match runs.",
     eventType: 'game',
     dateUtc: '2026-07-10T14:30:00.000Z', // Fri Jul 10, ~3:30 PM BST (second match, approximate)
-    location: 'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
+    location:
+      'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
     lat: 51.4336,
     lng: -0.2144,
     linkedLeague: 'Wimbledon',
@@ -116,7 +119,8 @@ export const EVENTS: OneOffEventDef[] = [
       "Karolína Muchová reached the final by beating Coco Gauff; her opponent is the winner of Thursday's Kostyuk–Nosková semifinal, still TBD. Reported start time varies by source (~2 PM BST) — check wimbledon.com closer to the date for the confirmed time.",
     eventType: 'game',
     dateUtc: '2026-07-11T13:00:00.000Z', // Sat Jul 11, ~2:00 PM BST (approximate, sources vary)
-    location: 'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
+    location:
+      'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
     lat: 51.4336,
     lng: -0.2144,
     linkedLeague: 'Wimbledon',
@@ -129,7 +133,8 @@ export const EVENTS: OneOffEventDef[] = [
       'Both finalists TBD until the Friday semifinals (Sinner/Djokovic, Zverev/Fery) conclude. Note: Carlos Alcaraz withdrew from the 2026 tournament due to a wrist injury and is not in contention.',
     eventType: 'game',
     dateUtc: '2026-07-12T15:00:00.000Z', // Sun Jul 12, 4:00 PM BST
-    location: 'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
+    location:
+      'All England Lawn Tennis Club — Centre Court, Church Road, Wimbledon, London SW19 5AE, UK',
     lat: 51.4336,
     lng: -0.2144,
     linkedLeague: 'Wimbledon',
@@ -139,7 +144,7 @@ export const EVENTS: OneOffEventDef[] = [
   {
     title: 'MLB All-Star Game',
     description:
-      "The 2026 MLB All-Star Game in Philadelphia. Gates open 5:00 PM ET, FOX coverage begins 7:00 PM ET, first pitch 8:00 PM ET.",
+      'The 2026 MLB All-Star Game in Philadelphia. Gates open 5:00 PM ET, FOX coverage begins 7:00 PM ET, first pitch 8:00 PM ET.',
     eventType: 'game',
     dateUtc: '2026-07-15T00:00:00.000Z', // Tue Jul 14, 8:00 PM EDT
     location: 'Citizens Bank Park, 1 Citizens Bank Way, Philadelphia, PA 19148',
@@ -180,7 +185,8 @@ export const EVENTS: OneOffEventDef[] = [
   // ── WNBA — Fever at Aces (created 2026-07-09) ─────────────────────────────────────
   {
     title: 'Indiana Fever at Las Vegas Aces',
-    description: 'WNBA regular season, nationally televised on NBC. Tip-off 9:00 PM ET / 6:00 PM PT.',
+    description:
+      'WNBA regular season, nationally televised on NBC. Tip-off 9:00 PM ET / 6:00 PM PT.',
     eventType: 'game',
     dateUtc: '2026-07-13T01:00:00.000Z', // Sun Jul 12, 9:00 PM EDT
     location: 'Michelob ULTRA Arena, 3950 S Las Vegas Blvd, Las Vegas, NV 89119',
@@ -194,7 +200,7 @@ export const EVENTS: OneOffEventDef[] = [
   {
     title: 'UFC 329: McGregor vs Holloway 2',
     description:
-      "Headliner of UFC International Fight Week (Jul 9-12, Las Vegas). Former featherweight/lightweight champion Conor McGregor rematches former featherweight champion Max Holloway. Prelims 5:00 PM ET; main card 9:00 PM ET.",
+      'Headliner of UFC International Fight Week (Jul 9-12, Las Vegas). Former featherweight/lightweight champion Conor McGregor rematches former featherweight champion Max Holloway. Prelims 5:00 PM ET; main card 9:00 PM ET.',
     eventType: 'game',
     dateUtc: '2026-07-12T01:00:00.000Z', // Sat Jul 11, 9:00 PM EDT (main card)
     location: 'T-Mobile Arena, 3780 S Las Vegas Blvd, Las Vegas, NV 89158',
@@ -228,12 +234,11 @@ export const EVENTS: OneOffEventDef[] = [
   // ── EXAMPLE: championship game 6, if necessary (fictional) — replace me ────
   {
     title: 'Summit Storm vs Harbor City Hawks — Championship Game 6',
-    description:
-      'Championship series, Game 6 (if necessary). Tip-off: 8:30 PM local time.',
+    description: 'Championship series, Game 6 (if necessary). Tip-off: 8:30 PM local time.',
     eventType: 'game',
     dateUtc: '2026-06-17T00:30:00.000Z',
     location: 'Summit Pavilion, Summit City, CA',
-    lat: 37.7680,
+    lat: 37.768,
     lng: -122.3877,
     // Placeholder venue image — replace with a photo YOU own before a real run.
     bannerUrl: 'https://placehold.co/960x400?text=Venue+Photo',

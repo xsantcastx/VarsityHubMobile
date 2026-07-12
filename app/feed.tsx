@@ -648,7 +648,8 @@ export default function FeedScreen() {
         try {
           marqueeGamesData = await queryClient.fetchQuery({
             queryKey: ['feed-games-marquee', gamesDateFrom],
-            queryFn: () => Game.list('date', { limit: 10, dateFrom: gamesDateFrom, teamless: true }),
+            queryFn: () =>
+              Game.list('date', { limit: 10, dateFrom: gamesDateFrom, teamless: true }),
           });
         } catch (err: any) {
           if (__DEV__) console.warn('[Feed] Failed to load marquee games:', err);

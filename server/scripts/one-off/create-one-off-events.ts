@@ -276,7 +276,9 @@ async function main() {
       await ensureOneOffEvent(def, admin, dryRun);
     } catch (err) {
       failures++;
-      console.error(`❌ Failed to process "${def.title}": ${err instanceof Error ? err.message : err}`);
+      console.error(
+        `❌ Failed to process "${def.title}": ${err instanceof Error ? err.message : err}`
+      );
     }
   }
 

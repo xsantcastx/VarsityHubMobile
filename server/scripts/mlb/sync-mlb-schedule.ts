@@ -46,7 +46,9 @@ function parseArgs() {
   const to = toIdx !== -1 ? args[toIdx + 1] : undefined;
   if (!inspect) {
     if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
-      console.error('Usage: --from YYYY-MM-DD --to YYYY-MM-DD [--dry-run]  (or --inspect to preview raw API shape)');
+      console.error(
+        'Usage: --from YYYY-MM-DD --to YYYY-MM-DD [--dry-run]  (or --inspect to preview raw API shape)'
+      );
       process.exit(1);
     }
   }
@@ -94,7 +96,10 @@ async function ensureGame(
   if (existingGame) {
     gameId = existingGame.id;
     if (!existingGame.banner_url && venue.bannerUrl && !dryRun) {
-      await prisma.game.update({ where: { id: existingGame.id }, data: { banner_url: venue.bannerUrl } });
+      await prisma.game.update({
+        where: { id: existingGame.id },
+        data: { banner_url: venue.bannerUrl },
+      });
     }
   } else if (dryRun) {
     console.log(`[dry-run] Would create "${title}" — ${game.gameDate} @ ${venue.name}`);
@@ -136,7 +141,10 @@ async function ensureGame(
       await prisma.event.update({ where: { id: existingEvent.id }, data: { game_id: gameId } });
     }
     if (!existingEvent.banner_url && venue.bannerUrl) {
-      await prisma.event.update({ where: { id: existingEvent.id }, data: { banner_url: venue.bannerUrl } });
+      await prisma.event.update({
+        where: { id: existingEvent.id },
+        data: { banner_url: venue.bannerUrl },
+      });
     }
     return 'skipped';
   }

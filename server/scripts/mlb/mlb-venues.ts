@@ -66,7 +66,8 @@ export const MLB_VENUES: Record<string, MlbVenueDef> = {
     address: '333 W 35th St, Chicago, IL 60616',
     lat: 41.830017,
     lng: -87.634598,
-    bannerUrl: 'https://images.pexels.com/photos/32536303/pexels-photo-32536303.jpeg?w=960&h=400&fit=crop',
+    bannerUrl:
+      'https://images.pexels.com/photos/32536303/pexels-photo-32536303.jpeg?w=960&h=400&fit=crop',
   },
   'Cincinnati Reds': {
     name: 'Great American Ball Park',
