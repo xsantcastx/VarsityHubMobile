@@ -11,8 +11,13 @@ name: Weekly Sports Schedule Refresh
 
 on:
   schedule:
-    - cron: '0 12 * * 1' # every Monday, 12:00 UTC
+    - cron: '0 12 * * 1' # every Monday, 12:00 UTC — only fires once this file is on main
   workflow_dispatch: {}
+  push:
+    branches: [claude/fifa-games-varistyhub-4g56fq]
+    paths:
+      - '.github/workflows/weekly-sports-refresh.yml'
+      - 'server/scripts/weekly/**'
 
 jobs:
   refresh:
