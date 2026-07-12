@@ -64,8 +64,10 @@ export async function buildCoachActionQueue(userId: string): Promise<ActionQueue
   const games = teamIds.length
     ? await prisma.game.findMany({
         where: {
-          approval_status: 'pending',
-          OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+          OR: [
+            { approval_status: 'pending', OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }] },
+            { opponent_approval_status: 'pending', opponent_approval_team_id: { in: teamIds } },
+          ],
         },
         select: { id: true, title: true, date: true, location: true, home_team_id: true, created_at: true },
         orderBy: { created_at: 'asc' },
@@ -112,7 +114,7 @@ export async function buildCoachActionQueue(userId: string): Promise<ActionQueue
       subtitle: 'Someone wants to join your organization',
       org_id: r.organization_id,
       created_at: (r.created_at ?? new Date()).toISOString(),
-      route: `/organization-join-requests?id=${encodeURIComponent(r.organization_id)}`,
+      route: `/organization-join-requests?organization_id=${encodeURIComponent(r.organization_id)}`,
     }))
   );
 

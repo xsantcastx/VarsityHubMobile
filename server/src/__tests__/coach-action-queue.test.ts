@@ -89,7 +89,25 @@ describe('coach action queue', () => {
     expect(item).toBeTruthy();
     expect(item.org_id).toBe(orgId);
     expect(item.route).toContain('/organization-join-requests');
+    expect(item.route).toContain('organization_id=');
     await prisma.organizationJoinRequest.deleteMany({ where: { id: jr.id } });
+  });
+
+  it('includes a game awaiting the coach\'s team opponent consent', async () => {
+    const g = await prisma.game.create({
+      data: {
+        title: `Opponent Consent Game ${ts}`,
+        date: new Date(),
+        approval_status: 'approved',
+        opponent_approval_status: 'pending',
+        opponent_approval_team_id: teamId,
+      } as any,
+    });
+    const q = await buildCoachActionQueue(coachId);
+    expect(q.counts.games).toBeGreaterThanOrEqual(1);
+    const item = q.items.find((i: any) => i.kind === 'game' && i.id === g.id);
+    expect(item).toBeTruthy();
+    await prisma.game.deleteMany({ where: { id: g.id } });
   });
 
   it('GET /me/action-queue returns the queue for the authed coach', async () => {
