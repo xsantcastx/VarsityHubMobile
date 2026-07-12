@@ -1330,29 +1330,48 @@ export async function remindPendingCoachApprovals(prisma: PrismaClient): Promise
 export async function autoExpirePendingCoaches(prisma: PrismaClient): Promise<number> {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  const expiredCoaches = await prisma.user.findMany({
+  // Key expiry off APPLICATION age (CoachApplication.submitted_at), NOT the
+  // user's account age. The previous query filtered on `User.created_at`, so any
+  // coach-pending user whose ACCOUNT was older than 30 days got auto-rejected on
+  // the next daily run — within ~24h of applying (the emancero-style false
+  // expiry, and a latent bug for every legitimate long-standing user who later
+  // applies to coach). We now find submitted applications older than 30 days
+  // whose applicant is still coach+PENDING and expire those.
+  //
+  // NOTE (held for review): this only expires coaches who have a submitted
+  // CoachApplication. Users who entered coach+PENDING via a path that does not
+  // create an application (org create, join-request, preferences) are no longer
+  // auto-expired here — the conservative direction (we were over-expiring). If
+  // those should also expire, the correct fix is a `coach_pending_since`
+  // timestamp set on every PENDING entry, keyed off that instead (a schema
+  // migration + touching all entry paths).
+  const staleApplications = await prisma.coachApplication.findMany({
     where: {
-      approval_status: 'PENDING',
-      OR: [{ role: 'coach' as any }, { preferences: { path: ['role'], equals: 'coach' } }],
-      created_at: { lt: thirtyDaysAgo },
+      status: 'submitted',
+      submitted_at: { lt: thirtyDaysAgo },
+      user: {
+        approval_status: 'PENDING',
+        OR: [{ role: 'coach' as any }, { preferences: { path: ['role'], equals: 'coach' } }],
+      },
     },
-    select: { id: true, display_name: true, email: true },
+    select: { user_id: true },
+    distinct: ['user_id'],
     take: 50,
   });
 
-  for (const coach of expiredCoaches) {
-    await rejectCoach(coach.id, 'system', prisma, {
+  for (const app of staleApplications) {
+    await rejectCoach(app.user_id, 'system', prisma, {
       reason: 'Application expired after 30 days without admin review. Please re-apply.',
     }).catch(err => {
-      console.error(`[auto-expire] Failed to expire coach ${coach.id}:`, err);
+      console.error(`[auto-expire] Failed to expire coach ${app.user_id}:`, err);
     });
   }
 
-  if (expiredCoaches.length > 0) {
-    console.log(`[auto-expire] Expired ${expiredCoaches.length} coach application(s)`);
+  if (staleApplications.length > 0) {
+    console.log(`[auto-expire] Expired ${staleApplications.length} coach application(s)`);
   }
 
-  return expiredCoaches.length;
+  return staleApplications.length;
 }
 
 /**
