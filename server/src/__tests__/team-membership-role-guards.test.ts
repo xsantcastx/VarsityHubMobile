@@ -191,4 +191,52 @@ describe('team-membership role-tier + sole-owner guards', () => {
     expect(forManager.body.permissions.can_transfer).toBe(false);
     expect(forManager.body.team.can_administer_team).toBe(false);
   });
+
+  // ── screen-summary tier flags (team-page Edit-profile button gates on these) ──
+  it('screen-summary exposes can_administer=true for owner/coach, false for a manager', async () => {
+    // team-page.tsx gates the Edit-profile button (→ /edit-team, administer-only)
+    // on this flag. Before it was added, team-page fell back to the staff-tier
+    // can_manage, so a manager saw "Edit profile" then got bounced with 403.
+    const forOwner = await request(app)
+      .get(`/teams/${teamId}/screen-summary`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200);
+    expect(forOwner.body.permissions.can_manage).toBe(true);
+    expect(forOwner.body.permissions.can_administer).toBe(true);
+
+    const forCoach = await request(app)
+      .get(`/teams/${teamId}/screen-summary`)
+      .set('Authorization', `Bearer ${coachToken}`)
+      .expect(200);
+    expect(forCoach.body.permissions.can_administer).toBe(true);
+
+    const forManager = await request(app)
+      .get(`/teams/${teamId}/screen-summary`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .expect(200);
+    expect(forManager.body.permissions.can_manage).toBe(true);
+    expect(forManager.body.permissions.can_administer).toBe(false);
+  });
+
+  it('DELETE cannot remove the last ACTIVE owner even when an archived owner row exists', async () => {
+    // Seed a second, ARCHIVED owner — a non-functional row. The sole-owner guard
+    // must count only ACTIVE owners; counting the archived one would let the last
+    // active owner be removed, leaving the team ownerless (transfer then 403s).
+    const ghost = await mkUser('ghost-owner', 'coach');
+    const archived = await prisma.teamMembership.create({
+      data: { team_id: teamId, user_id: ghost.id, role: 'owner', status: 'archived' },
+    });
+    try {
+      const res = await request(app)
+        .delete(`/team-memberships/${ownerMembershipId}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(400);
+      expect(res.body.error).toBe('SOLE_OWNER');
+      const still = await prisma.teamMembership.findUnique({ where: { id: ownerMembershipId } });
+      expect(still?.status).toBe('active');
+    } finally {
+      await prisma.teamMembership.delete({ where: { id: archived.id } });
+      await prisma.user.delete({ where: { id: ghost.id } });
+    }
+  });
 });
