@@ -135,6 +135,9 @@ type TeamPageData = {
   members: TeamMember[];
   games: GameItem[];
   canManageTeam: boolean;
+  // Full-administration tier (owner/head coach/org owner). Distinct from
+  // canManageTeam (staff tier) — only administrators may edit team settings.
+  canAdministerTeam: boolean;
 };
 
 // Pure server fetch for the team page, driven by react-query so revisiting the
@@ -146,6 +149,7 @@ async function fetchTeamData(teamId?: string, teamName?: string): Promise<TeamPa
   let summaryMembers: TeamMember[] = [];
   let summaryGames: GameItem[] = [];
   let canManageTeam = false;
+  let canAdministerTeam = false;
 
   try {
     // Prefer the scoped summary endpoint so team page navigation and access
@@ -159,11 +163,15 @@ async function fetchTeamData(teamId?: string, teamName?: string): Promise<TeamPa
           summaryGames = Array.isArray(summary.games) ? (summary.games as GameItem[]) : [];
           canManageTeam =
             summary?.permissions?.can_manage === true || summary?.team?.can_manage_team === true;
+          canAdministerTeam =
+            summary?.permissions?.can_administer === true ||
+            summary?.team?.can_administer_team === true;
         } else {
           const fullTeamData = await Team.get(teamId);
           if (fullTeamData) {
             teamData = fullTeamData as LeagueTeam;
             canManageTeam = (fullTeamData as any)?.can_manage_team === true;
+            canAdministerTeam = (fullTeamData as any)?.can_administer_team === true;
           }
         }
       } catch (getErr: any) {
@@ -225,7 +233,7 @@ async function fetchTeamData(teamId?: string, teamName?: string): Promise<TeamPa
     members = [];
   }
 
-  return { team: teamData, members, games, canManageTeam };
+  return { team: teamData, members, games, canManageTeam, canAdministerTeam };
 }
 
 function TeamScreen() {
@@ -249,6 +257,9 @@ function TeamScreen() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [isTeamAdmin, setIsTeamAdmin] = useState(false);
+  // Full-administration tier — gates owner/coach-only actions (edit team
+  // settings). Staff (manager/assistant_coach) get isTeamAdmin but NOT this.
+  const [isTeamAdministrator, setIsTeamAdministrator] = useState(false);
 
   // Posts state - matching profile.tsx
   const [posts, setPosts] = useState<PostItem[]>([]);
@@ -372,6 +383,7 @@ function TeamScreen() {
     setMembers(data.members);
     setGames(data.games);
     setIsTeamAdmin(data.canManageTeam);
+    setIsTeamAdministrator(data.canAdministerTeam);
     setIsFollowing(!!(data.team as any).is_following);
     setTeamThemeColor('#3B82F6');
   }, [teamQuery.data]);
@@ -622,7 +634,7 @@ function TeamScreen() {
         <View style={styles.usernameRow}>
           <Text style={[styles.userHandle, { color: theme.text }]}>{teamHandle}</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            {isTeamAdmin && (
+            {isTeamAdministrator && (
               <Pressable
                 testID="team-page-edit-button"
                 style={[

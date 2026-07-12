@@ -74,8 +74,12 @@ export type FollowedTeamArrayResponse = z.infer<typeof followedTeamArraySchema>;
 const teamPermissionsSchema = z
   .object({
     can_manage: z.boolean(),
+    // Full-administration tier (owner/head coach/org owner). Gates owner-only
+    // actions (edit team settings) — distinct from the staff-tier can_manage.
+    can_administer: z.boolean().optional(),
     membership_role: z.string().nullable().optional(),
     via_org_admin: z.boolean().optional(),
+    via_org_owner: z.boolean().optional(),
     is_platform_admin: z.boolean().optional(),
   })
   .passthrough();

@@ -829,6 +829,16 @@ teamsRouter.get(
 
     const canManage =
       access.isAdmin || access.isOrgAdmin || isManagementRole(access.membership?.role);
+    // Full-administration tier (canAdministerTeam) — team owner/head coach or org
+    // OWNER. Computed identically to the admin-summary endpoint so team-page can
+    // gate owner/coach-only actions (edit team) without over-trusting the staff
+    // -tier can_manage flag. Managers/assistant_coaches get can_manage but NOT this.
+    const summaryTeamRole = access.membership?.role;
+    const canAdminister =
+      access.isAdmin ||
+      access.isOrgOwner ||
+      summaryTeamRole === 'owner' ||
+      summaryTeamRole === 'coach';
 
     const [memberships, approvedGames] = await Promise.all([
       prisma.teamMembership.findMany({
@@ -872,8 +882,10 @@ teamsRouter.get(
       }),
       permissions: {
         can_manage: canManage,
+        can_administer: canAdminister,
         membership_role: access.membership?.role ?? null,
         via_org_admin: access.isOrgAdmin && !isManagementRole(access.membership?.role),
+        via_org_owner: access.isOrgOwner,
       },
       counts: {
         members: memberships.length,

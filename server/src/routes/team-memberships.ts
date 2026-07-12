@@ -328,10 +328,13 @@ teamMembershipsRouter.delete(
         });
       }
 
-      // ORG-5: Prevent removal of the sole team owner
+      // ORG-5: Prevent removal of the sole team owner. Count only ACTIVE owners
+      // (matches the PATCH demote/deactivate guard) — an archived owner row is
+      // not a functional owner, so counting it would let the last active owner be
+      // removed, leaving the team ownerless and transfer-ownership permanently 403.
       if (membership.role === 'owner') {
         const ownerCount = await prisma.teamMembership.count({
-          where: { team_id: membership.team_id, role: 'owner' },
+          where: { team_id: membership.team_id, role: 'owner', status: 'active' },
         });
         if (ownerCount <= 1) {
           return sendError(res, 400, 'SOLE_OWNER', {
