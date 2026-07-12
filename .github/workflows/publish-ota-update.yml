@@ -7,6 +7,14 @@ on:
         description: 'Update message (shown in EAS update history)'
         required: false
         default: 'Manual OTA publish via GitHub Actions'
+  # TEMPORARY: workflow_dispatch can't be triggered via the API by this repo's
+  # GitHub App integration (403 Resource not accessible by integration). This
+  # push trigger is a one-time bootstrap to fire the very first run; remove it
+  # once that run completes and go back to workflow_dispatch-only.
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-ota-update.yml
 
 jobs:
   publish:
@@ -39,4 +47,4 @@ jobs:
       - name: Publish OTA update
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch production --non-interactive --message "${{ github.event.inputs.message }}"
+        run: eas update --branch production --non-interactive --message "${{ github.event.inputs.message || 'Fanatics Fest feed visibility fix + real MLB/WNBA/FIFA/Wimbledon content' }}"
