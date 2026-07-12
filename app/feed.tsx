@@ -638,7 +638,40 @@ export default function FeedScreen() {
           gamesData = null;
         }
 
+        // Curated/marquee events (no real team matchup — e.g. Fanatics Fest)
+        // are fetched separately so a flood of routine league games (MLB,
+        // WNBA, ...) can never paginate them out of the primary page. Best
+        // effort: a failure here just means no marquee events this load,
+        // never blocks or errors the main games list.
+        let marqueeGamesData: any = null;
+        try {
+          marqueeGamesData = await queryClient.fetchQuery({
+            queryKey: ['feed-games-marquee', gamesDateFrom],
+            queryFn: () => Game.list('date', { limit: 10, dateFrom: gamesDateFrom, teamless: true }),
+          });
+        } catch (err: any) {
+          if (__DEV__) console.warn('[Feed] Failed to load marquee games:', err);
+          marqueeGamesData = null;
+        }
+
         let { games: normalizedGames, cursor } = normalizeGamesPage(gamesData);
+        const { games: marqueeGames } = normalizeGamesPage(marqueeGamesData);
+        if (marqueeGames.length > 0) {
+          const seenIds = new Set(normalizedGames.map(g => g.id));
+          const merged = [...normalizedGames];
+          for (const mg of marqueeGames) {
+            if (!seenIds.has(mg.id)) {
+              merged.push(mg);
+              seenIds.add(mg.id);
+            }
+          }
+          merged.sort((a, b) => {
+            const at = a.date ? new Date(a.date).getTime() : 0;
+            const bt = b.date ? new Date(b.date).getTime() : 0;
+            return at - bt;
+          });
+          normalizedGames = merged;
+        }
 
         // If no games exist, seed sample games as real DB records (stories/polls work)
         if ((!normalizedGames || normalizedGames.length === 0) && gamesData !== null) {

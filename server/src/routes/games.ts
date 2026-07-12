@@ -1044,6 +1044,15 @@ gamesRouter.get(
         });
       }
 
+      // teamless=true: curated/marquee events (festivals, one-off watch parties)
+      // created without a real team matchup. Used by the feed to fetch these
+      // separately so they can't be paginated out by a flood of routine
+      // league games sharing the same date window.
+      if (req.query.teamless === 'true' || req.query.teamless === '1') {
+        whereClause.home_team_id = null;
+        whereClause.away_team_id = null;
+      }
+
       if (
         (dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) ||
         (dateToRaw && !Number.isNaN(dateToRaw.getTime()))
