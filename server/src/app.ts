@@ -1,7 +1,6 @@
 import cors from 'cors';
 import 'dotenv/config';
 import express, { NextFunction, Request, Response } from 'express';
-import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
@@ -18,7 +17,7 @@ import { addBreadcrumb, addSentryErrorHandler, initSentry } from './lib/sentry.j
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
 import { requestLogging } from './middleware/logging.js';
-import { defaultApiLimiter, publicRouteLimiter } from './middleware/rateLimiters.js';
+import { authMountLimiter, defaultApiLimiter, publicRouteLimiter } from './middleware/rateLimiters.js';
 import { requireAdmin } from './middleware/requireAdmin.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { requireParentalConsent } from './middleware/requireParentalConsent.js';
@@ -312,15 +311,6 @@ app.use(
   express.static(path.resolve(process.cwd(), 'uploads'))
 );
 
-const isDev = process.env.NODE_ENV !== 'production';
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: isDev ? 100000 : 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: () => isDev,
-});
-
 app.use('/health', publicRouteLimiter, healthRouter);
 
 // Universal links - must be at /.well-known/ for iOS and Android
@@ -364,7 +354,7 @@ function mountApiRoutes(parent: any) {
   // middleware handles its own bypass for admins and non-minors, so it's safe
   // to run before every route in this bundle.
   parent.use(requireParentalConsent as any);
-  parent.use('/auth', authLimiter, authRouter);
+  parent.use('/auth', authMountLimiter, authRouter);
   parent.use('/consent', consentRouter);
   parent.post('/me/consent/resend', noStore, ...handleConsentResend);
   parent.use(dataExportRouter);
