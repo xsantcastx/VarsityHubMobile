@@ -380,9 +380,21 @@ describe('API Team Endpoints', () => {
     });
 
     it('uses the organization source of truth for paid_by_owner coaches', async () => {
-      const orgTeamCount = await prisma.team.count({
-        where: { organization_id: testOrgId },
-      });
+      // Phase 4 billing unit: distinct ACTIVE billable sport programs, not raw
+      // team rows. Since teams are now auto-grouped into a per-sport program on
+      // create (require-a-program), the billable count = distinct programs with
+      // an active team PLUS any ungrouped active teams — mirroring the server's
+      // countBillableProgramsForContext org branch. (Same-sport teams collapse
+      // into one program, so this is NOT the raw active-team count.)
+      const [orgProgramCount, orgUngroupedActive] = await Promise.all([
+        prisma.sportProgram.count({
+          where: { organization_id: testOrgId, teams: { some: { status: 'active' } } },
+        }),
+        prisma.team.count({
+          where: { organization_id: testOrgId, status: 'active', program_id: null },
+        }),
+      ]);
+      const expectedBillablePrograms = orgProgramCount + orgUngroupedActive;
       const personalOwnerCount = await prisma.teamMembership.count({
         where: {
           user_id: ownerManagedCoachId,
@@ -397,8 +409,12 @@ describe('API Team Endpoints', () => {
         .expect(200);
 
       expect(personalOwnerCount).toBe(0);
-      expect(response.body.owned_teams).toBe(orgTeamCount);
-      expect(response.body.max_teams).toBe(4);
+      // Org source of truth (paid_by_owner coach): count reflects the org's
+      // billable programs, not the coach's personally-owned teams (0).
+      expect(response.body.owned_programs).toBe(expectedBillablePrograms);
+      expect(response.body.owned_teams).toBe(expectedBillablePrograms);
+      expect(response.body.max_programs).toBe(5);
+      expect(response.body.max_teams).toBe(5);
     });
 
     it('should require authentication', async () => {

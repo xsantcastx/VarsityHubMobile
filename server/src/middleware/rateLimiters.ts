@@ -296,6 +296,21 @@ export const teamCreationLimiter = createLimiter({
 });
 
 /**
+ * Team update (PUT /teams/:id)
+ * 30 per minute per user. Generous — normal team editing (settings, roster
+ * metadata, program_id changes) never approaches this. Exists to cap a tight
+ * program_id null<->X toggle loop, which re-triggers the up-to-5000-row
+ * fanOutProgramFollowersToTeam scan on every write (see server/src/lib/
+ * programFollowFanout.ts). POST /teams/create already has teamCreationLimiter;
+ * this is the PUT-path counterpart.
+ */
+export const teamUpdateLimiter = createLimiter({
+  name: 'team-update',
+  windowMs: 60 * 1000, // 1 minute
+  max: rateLimitingDisabled ? 100000 : 30,
+});
+
+/**
  * Event creation
  * 10 per hour per user
  */
@@ -587,6 +602,7 @@ export const rateLimiters = {
   interaction: interactionLimiter,
   report: reportLimiter,
   teamCreation: teamCreationLimiter,
+  teamUpdate: teamUpdateLimiter,
   eventCreation: eventCreationLimiter,
   gameCreation: gameCreationLimiter,
   invite: inviteLimiter,

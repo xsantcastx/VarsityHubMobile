@@ -300,9 +300,12 @@ function ProgramScreen() {
               accessibilityLabel={isFollowing ? 'Unfollow program' : 'Follow program'}
             >
               {isFollowing ? (
-                <Ionicons name="checkmark" size={18} color={theme.text} />
+                // audit: fixed white on the fixed green button (theme-independent bg)
+                <Ionicons name="checkmark" size={18} color="#FFFFFF" />
               ) : (
-                <Ionicons name="person-add" size={16} color={theme.text} />
+                // audit: fixed dark glyph on the fixed yellow button — theme.text was
+                // near-white in dark mode (~1.2:1 on #FFD600, near-invisible)
+                <Ionicons name="person-add" size={16} color="#1A1A1A" />
               )}
             </Pressable>
           </View>

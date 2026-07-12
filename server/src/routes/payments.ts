@@ -25,6 +25,7 @@ import {
   releaseAdInventoryAfterSlotFullRefund,
   releaseAdInventoryAfterSlotFullRefundWithRetry,
   reserveAdSlots,
+  resolveOwnerBillingOrgId,
   resolveVeteranQuantityUpdate,
   runFinalizeFromSession,
   sendAdPaymentEmail,
@@ -35,6 +36,7 @@ import {
 import {
   SERVER_LEGEND_PRICE_CENTS,
   SERVER_LEGEND_PRICE_LABEL,
+  SERVER_ROOKIE_PROGRAM_LIMIT,
   SERVER_ROOKIE_TEAM_LIMIT,
   SERVER_VETERAN_MIN_TOTAL_TEAMS,
   SERVER_VETERAN_PRICE_CENTS,
@@ -1268,26 +1270,30 @@ async function createMembershipCheckoutSession(
   }
 
   if (chosen === 'veteran') {
-    const snapshot = await getVeteranBillingSnapshot(req.user!.id, organizationId);
-    actualTeamCount = snapshot.teamCount;
+    // Scope to the org the user OWNS (server-authoritative via league_owner_id),
+    // so an owner's subscription is billed on their whole org's program count —
+    // consistent with the create-gate and quantity-update.
+    const scopeOrgId = await resolveOwnerBillingOrgId(req.user!.id, organizationId);
+    const snapshot = await getVeteranBillingSnapshot(req.user!.id, scopeOrgId);
+    actualTeamCount = snapshot.programCount;
     billableQuantity = snapshot.billableQuantity;
 
     if (typeof teamCount === 'number' && teamCount !== actualTeamCount) {
       debugLog(
-        `[payments] Ignoring client team_count=${teamCount}; using actual ${actualTeamCount} for user ${req.user!.id}${organizationId ? ` org ${organizationId}` : ''}`
+        `[payments] Ignoring client team_count=${teamCount}; using actual ${actualTeamCount} for user ${req.user!.id}${scopeOrgId ? ` org ${scopeOrgId}` : ''}`
       );
     }
 
     if (actualTeamCount < SERVER_VETERAN_MIN_TOTAL_TEAMS) {
       throw membershipError(
         400,
-        `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams (first ${SERVER_ROOKIE_TEAM_LIMIT} are free)`
+        `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total sports (first ${SERVER_ROOKIE_PROGRAM_LIMIT} are free)`
       );
     }
     if (billableQuantity === 0) {
       throw membershipError(
         400,
-        `Select at least one billable team (${SERVER_VETERAN_MIN_TOTAL_TEAMS} total) to use Veteran plan`
+        `Select at least one billable sport (${SERVER_VETERAN_MIN_TOTAL_TEAMS} total) to use Veteran plan`
       );
     }
   }
@@ -1387,7 +1393,7 @@ async function createMembershipCheckoutSession(
               name: 'Membership - ' + chosen,
               description:
                 chosen === 'veteran'
-                  ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
+                  ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_PROGRAM_LIMIT} free)`
                   : `Legend plan - ${SERVER_LEGEND_PRICE_LABEL} unlimited`,
             },
           },
@@ -2001,26 +2007,30 @@ paymentsRouter.post(
       }
 
       if (chosen === 'veteran') {
-        const snapshot = await getVeteranBillingSnapshot(userId, orgIdBody);
-        actualTeamCount = snapshot.teamCount;
+        // Server-authoritative org scope (owner's subscription covers their org),
+        // consistent with checkout + the create-gate. Also validates ownership —
+        // a non-owned orgIdBody resolves away instead of being trusted.
+        const scopeOrgId = await resolveOwnerBillingOrgId(userId, orgIdBody);
+        const snapshot = await getVeteranBillingSnapshot(userId, scopeOrgId);
+        actualTeamCount = snapshot.programCount;
         billableQuantity = snapshot.billableQuantity;
 
         if (typeof team_count === 'number' && team_count !== actualTeamCount) {
           debugLog(
-            `[payments] Ignoring client team_count=${team_count}; using actual ${actualTeamCount} for user ${userId}${orgIdBody ? ` org ${orgIdBody}` : ''}`
+            `[payments] Ignoring client team_count=${team_count}; using actual ${actualTeamCount} for user ${userId}${scopeOrgId ? ` org ${scopeOrgId}` : ''}`
           );
         }
 
         if (actualTeamCount < SERVER_VETERAN_MIN_TOTAL_TEAMS) {
           return res.status(400).json({
-            error: `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams (first ${SERVER_ROOKIE_TEAM_LIMIT} are free)`,
+            error: `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total sports (first ${SERVER_ROOKIE_PROGRAM_LIMIT} are free)`,
           });
         }
         if (billableQuantity === 0) {
           // error-envelope-exempt: pre-existing raw response, unrelated to this change beyond the interpolated team-count constant.
           return res.status(400).json({
             // error-envelope-exempt
-            error: `Select at least one billable team (${SERVER_VETERAN_MIN_TOTAL_TEAMS} total) to use Veteran plan`,
+            error: `Select at least one billable sport (${SERVER_VETERAN_MIN_TOTAL_TEAMS} total) to use Veteran plan`,
           });
         }
       }
@@ -2061,7 +2071,7 @@ paymentsRouter.post(
                   name: 'Membership - ' + chosen,
                   description:
                     chosen === 'veteran'
-                      ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
+                      ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_PROGRAM_LIMIT} free)`
                       : `Legend plan - ${SERVER_LEGEND_PRICE_LABEL} unlimited`,
                 },
               },
@@ -2749,7 +2759,7 @@ paymentsRouter.post(
           .int()
           .min(
             SERVER_VETERAN_MIN_TOTAL_TEAMS,
-            `Minimum ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams required for Veteran plan.`
+            `Minimum ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total sports required for Veteran plan.`
           ),
       });
       const parsed = updateQuantitySchema.safeParse(req.body);
@@ -2788,15 +2798,18 @@ paymentsRouter.post(
         return res.status(400).json({ error: 'No active subscription found' });
       }
 
-      const snapshot = await getVeteranBillingSnapshot(userId);
-      const actualTeamCount = snapshot.teamCount;
+      // Server-authoritative org scope (owner's subscription covers their org),
+      // consistent with checkout, the create-gate, and update-subscription-quantity.
+      const scopeOrgId = await resolveOwnerBillingOrgId(userId);
+      const snapshot = await getVeteranBillingSnapshot(userId, scopeOrgId);
+      const actualTeamCount = snapshot.programCount;
       const quantityUpdate = resolveVeteranQuantityUpdate(actualTeamCount, team_count);
       const billable = quantityUpdate.billableQuantity;
       if (billable === 0) {
         // error-envelope-exempt: pre-existing raw response, unrelated to this change beyond the interpolated team-count constant.
         return res.status(400).json({
           // error-envelope-exempt
-          error: `No billable teams (only ${SERVER_ROOKIE_TEAM_LIMIT}). Remain on Rookie plan instead.`,
+          error: `No billable sports (only ${SERVER_ROOKIE_PROGRAM_LIMIT}). Remain on Rookie plan instead.`,
         });
       }
 
@@ -2805,8 +2818,8 @@ paymentsRouter.post(
           error: 'Team count mismatch',
           message:
             actualTeamCount >= SERVER_VETERAN_MIN_TOTAL_TEAMS
-              ? `You currently own ${actualTeamCount} team${actualTeamCount !== 1 ? 's' : ''}. This flow can only keep billing aligned with your current total or prepay for the next team (${quantityUpdate.maxAllowedTotal} total).`
-              : `Veteran billing requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams.`,
+              ? `You currently own ${actualTeamCount} sport${actualTeamCount !== 1 ? 's' : ''}. This flow can only keep billing aligned with your current total or prepay for the next sport (${quantityUpdate.maxAllowedTotal} total).`
+              : `Veteran billing requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total sports.`,
           owned_teams: actualTeamCount,
           requested_teams: team_count,
         });
@@ -2855,7 +2868,7 @@ paymentsRouter.post(
           total_teams: team_count,
           billable_teams: billable,
           allowed_total_teams: getVeteranTotalTeamAllowance(billable),
-          monthly_cost: billable * 1.0,
+          monthly_cost: Number(((billable * SERVER_VETERAN_PRICE_CENTS) / 100).toFixed(2)),
         });
       } catch (err: any) {
         console.warn('Failed to update Stripe subscription quantity:', err?.message || err);
@@ -3014,7 +3027,8 @@ paymentsRouter.get(
             current_period_end = new Date(sub.current_period_end * 1000).toISOString();
           const item = sub.items.data[0];
           quantity = item?.quantity ?? null;
-          if (typeof quantity === 'number') monthly_cost = Number((quantity * 1.0).toFixed(2));
+          if (typeof quantity === 'number')
+            monthly_cost = Number(((quantity * SERVER_VETERAN_PRICE_CENTS) / 100).toFixed(2));
         } catch (err) {
           console.warn(
             '[payments] Failed to retrieve summary subscription:',
@@ -4491,10 +4505,10 @@ paymentsRouter.post(
 );
 
 // ── Google Play Billing verification ────────────────────────────────
-const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = {
-  MIDTIER: 'veteran',
-  TOPTIER: 'legend',
-};
+// Google Play uses the same subscription SKU strings as Apple, so reuse the one
+// canonical product→plan map (imported above) rather than a second literal that
+// could silently drift.
+const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = APPLE_PRODUCT_TO_PLAN;
 const GOOGLE_ALLOWED_PACKAGES = (
   process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.xsantcastx.varsityhub'
 )

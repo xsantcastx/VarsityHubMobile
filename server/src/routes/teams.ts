@@ -9,15 +9,19 @@ import { sendError } from '../lib/http/sendError.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import { getOrganizationState } from '../lib/organizationState.js';
 import { DEMO_LEAGUE_NAMES } from '../lib/demoContent.js';
-import { getVeteranTotalTeamAllowance } from '../lib/paymentInternals.js';
+import {
+  getVeteranTotalTeamAllowance,
+  resolveOwnerBillingOrgId,
+} from '../lib/paymentInternals.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
-import { SERVER_ROOKIE_TEAM_LIMIT } from '../lib/planDefinitions.js';
-import { getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
+import { SERVER_ROOKIE_PROGRAM_LIMIT } from '../lib/planDefinitions.js';
+import { planSupportsExtracurricular } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { getExcludedPrivateTeamIds, isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
+import { normalizeSportToSlug } from '../lib/sportsTaxonomy.js';
 import {
   canAdministerTeam as canAdministerTeamScoped,
   canAssignTeamRole as canAssignTeamRoleScoped,
@@ -39,7 +43,12 @@ import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthS
 import { getEffectiveEntitledPlan } from '../lib/userBillingState.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { followLimiter, inviteLimiter, teamCreationLimiter } from '../middleware/rateLimiters.js';
+import {
+  followLimiter,
+  inviteLimiter,
+  teamCreationLimiter,
+  teamUpdateLimiter,
+} from '../middleware/rateLimiters.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
@@ -320,7 +329,8 @@ type TeamCreateBillingContext = {
 
 async function buildTeamCreateBillingContext(
   userId: string,
-  me: any
+  me: any,
+  targetOrganizationId?: string | null
 ): Promise<TeamCreateBillingContext> {
   const prefs =
     me?.preferences && typeof me.preferences === 'object' ? (me.preferences as any) : {};
@@ -355,6 +365,19 @@ async function buildTeamCreateBillingContext(
       teamCountSource = 'org';
       orgIdForTeamCount = orgMembership?.organization?.id;
     }
+  } else {
+    // Org owner (pays for their own org): scope Veteran billing to the org they
+    // own so the create-gate counts the whole org's programs — matching the
+    // org-wide checkout snapshot. Without this the owner's gate counted only
+    // personally-owned teams, letting them create programs for their coaches
+    // past the paid allowance without ever tripping the limit gate. Returns null
+    // for non-owners (stays personal) and for ambiguous multi-org owners with no
+    // explicit target org.
+    const ownerOrgId = await resolveOwnerBillingOrgId(userId, targetOrganizationId);
+    if (ownerOrgId) {
+      teamCountSource = 'org';
+      orgIdForTeamCount = ownerOrgId;
+    }
   }
 
   return {
@@ -365,18 +388,52 @@ async function buildTeamCreateBillingContext(
   };
 }
 
-async function countTeamsForBillingContext(
+// Phase 4 billing unit: distinct active sport programs. A program counts once it
+// has ≥1 active team; level teams share a program; archived-only programs and
+// null-program active teams are handled explicitly so no team escapes billing.
+export async function countBillableProgramsForContext(
   db: any,
   userId: string,
   context: TeamCreateBillingContext
 ): Promise<number> {
   if (context.teamCountSource === 'org' && context.orgIdForTeamCount) {
-    return db.team.count({ where: { organization_id: context.orgIdForTeamCount } });
+    // Programs with an active team, PLUS ungrouped (null-program) active teams —
+    // each ungrouped team is its own billable unit (matches the personal branch
+    // below). Omitting the ungrouped count let a paid_by_owner coach create
+    // unlimited program_id-less teams without ever tripping the billing gate.
+    const [programs, ungrouped] = await Promise.all([
+      db.sportProgram.count({
+        where: {
+          organization_id: context.orgIdForTeamCount,
+          teams: { some: { status: 'active' } },
+        },
+      }),
+      db.team.count({
+        where: {
+          organization_id: context.orgIdForTeamCount,
+          status: 'active',
+          program_id: null,
+        },
+      }),
+    ]);
+    return programs + ungrouped;
   }
 
-  return db.teamMembership.count({
-    where: { user_id: userId, role: 'owner', status: 'active' },
+  // Personal context: distinct programs across the user's active owned teams,
+  // plus each ungrouped (null-program) active owned team as its own unit.
+  const owned = await db.teamMembership.findMany({
+    where: { user_id: userId, role: 'owner', status: 'active', team: { status: 'active' } },
+    select: { team: { select: { program_id: true } } },
+    take: 5000,
   });
+  const programIds = new Set<string>();
+  let ungrouped = 0;
+  for (const row of owned) {
+    const pid = row.team?.program_id;
+    if (pid) programIds.add(pid);
+    else ungrouped += 1;
+  }
+  return programIds.size + ungrouped;
 }
 
 async function getVeteranSubscriptionAllowance(subscriptionId: string) {
@@ -567,47 +624,62 @@ teamsRouter.get(
     if (!user) return res.status(401).json({ error: 'User not found' });
 
     const billingContext = await buildTeamCreateBillingContext(req.user!.id, user);
-    const ownedTeamsCount = await countTeamsForBillingContext(prisma, req.user!.id, billingContext);
+    const ownedProgramsCount = await countBillableProgramsForContext(
+      prisma,
+      req.user!.id,
+      billingContext
+    );
     const effectivePlan = billingContext.effectivePlan;
 
-    let maxTeamsDisplay = 999;
+    // maxPrograms === null means unlimited (display 999 on legacy fields).
+    let maxPrograms: number | null = SERVER_ROOKIE_PROGRAM_LIMIT;
     let canCreateMore = true;
-    let remaining = 999;
+    let metered = false;
 
     if (effectivePlan === 'veteran') {
       const subscriptionId = billingContext.effectiveSubscriptionId;
       if (!subscriptionId) {
-        maxTeamsDisplay = ownedTeamsCount;
-        canCreateMore = false;
-        remaining = 0;
+        // Flat-tier IAP purchase (Apple/Google) — no Stripe quantity to meter
+        // against, so this rail is unlimited, not blocked.
+        maxPrograms = null;
+        canCreateMore = true;
+        metered = false;
       } else {
+        metered = true;
         try {
           const allowance = await getVeteranSubscriptionAllowance(subscriptionId);
-          maxTeamsDisplay = allowance.totalTeamAllowance;
-          canCreateMore = allowance.active && ownedTeamsCount < allowance.totalTeamAllowance;
-          remaining = canCreateMore
-            ? Math.max(0, allowance.totalTeamAllowance - ownedTeamsCount)
-            : 0;
+          maxPrograms = allowance.totalTeamAllowance;
+          canCreateMore = allowance.active && ownedProgramsCount < allowance.totalTeamAllowance;
         } catch (err) {
           console.error('[teams] limits veteran allowance verification failed:', err);
-          maxTeamsDisplay = ownedTeamsCount;
+          maxPrograms = ownedProgramsCount;
           canCreateMore = false;
-          remaining = 0;
         }
       }
+    } else if (effectivePlan === 'legend') {
+      maxPrograms = null;
+      canCreateMore = true;
+      metered = false;
     } else {
-      const maxTeamsFromPlan = getMaxTeamsForPlan(effectivePlan);
-      const maxTeams = maxTeamsFromPlan ?? (user as any).max_teams ?? SERVER_ROOKIE_TEAM_LIMIT;
-      maxTeamsDisplay = maxTeamsFromPlan === null ? 999 : maxTeams;
-      canCreateMore = maxTeamsFromPlan === null || ownedTeamsCount < maxTeams;
-      remaining = maxTeamsFromPlan === null ? 999 : Math.max(0, maxTeams - ownedTeamsCount);
+      // Rookie (or any unrecognized/default plan) — free floor of
+      // SERVER_ROOKIE_PROGRAM_LIMIT billable sport programs.
+      maxPrograms = SERVER_ROOKIE_PROGRAM_LIMIT;
+      canCreateMore = ownedProgramsCount < SERVER_ROOKIE_PROGRAM_LIMIT;
+      metered = false;
     }
 
+    const maxProgramsDisplay = maxPrograms === null ? 999 : maxPrograms;
+    const remaining = maxPrograms === null ? 999 : Math.max(0, maxPrograms - ownedProgramsCount);
     const subscriptionTier = effectivePlan ?? (user as any).subscription_tier ?? 'free';
 
     return res.json({
-      owned_teams: ownedTeamsCount,
-      max_teams: maxTeamsDisplay,
+      owned_programs: ownedProgramsCount,
+      max_programs: maxPrograms,
+      metered,
+      // Legacy fields — kept for older client bundles that read team-based
+      // names; the values are program-based now (see Phase 4 billing re-unit).
+      owned_teams: ownedProgramsCount,
+      max_teams: maxProgramsDisplay,
       can_create_more: canCreateMore,
       remaining,
       subscription_tier: subscriptionTier,
@@ -1361,7 +1433,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
     }
   }
 
-  const billingContext = await buildTeamCreateBillingContext(userId, me);
+  const billingContext = await buildTeamCreateBillingContext(userId, me, data.organization_id);
   const effectivePlan = billingContext.effectivePlan;
   const clubType = data.club_type || 'sport';
 
@@ -1378,76 +1450,109 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
     };
   }
 
-  const currentTeamCount = await countTeamsForBillingContext(prisma, userId, billingContext);
+  // Phase 4 billing unit: sport programs, not raw team count. A team joining
+  // a program that already has an active team introduces no new billable
+  // unit (free level-team add-on within an existing sport).
+  const targetProgramId = data.program_id ?? null;
+  let targetProgramAlreadyActive = false;
+  if (targetProgramId) {
+    const activeInProgram = await prisma.team.count({
+      where: { program_id: targetProgramId, status: 'active' },
+    });
+    targetProgramAlreadyActive = activeInProgram > 0;
+  } else if (
+    (data.club_type || 'sport') === 'sport' &&
+    typeof data.organization_id === 'string' &&
+    data.organization_id.trim()
+  ) {
+    // No explicit program_id: the create transaction groups this sport team into
+    // the org's (organization_id, sport) program — creating it if absent, or
+    // JOINING an existing one. Mirror that resolution here (read-only) so adding a
+    // level team to an EXISTING sport isn't mis-gated as a brand-new billable
+    // program, which false-blocked free level-team add-ons at the rookie limit.
+    const sportSlug = normalizeSportToSlug(data.sport) ?? 'other';
+    const existingProgram = await prisma.sportProgram.findUnique({
+      where: {
+        organization_id_sport: { organization_id: data.organization_id.trim(), sport: sportSlug },
+      },
+      select: { id: true },
+    });
+    if (existingProgram) {
+      const activeInProgram = await prisma.team.count({
+        where: { program_id: existingProgram.id, status: 'active' },
+      });
+      targetProgramAlreadyActive = activeInProgram > 0;
+    }
+  }
+
   if (effectivePlan === 'rookie' || !effectivePlan) {
-    if (currentTeamCount >= SERVER_ROOKIE_TEAM_LIMIT) {
+    const billablePrograms = await countBillableProgramsForContext(prisma, userId, billingContext);
+    if (!targetProgramAlreadyActive && billablePrograms >= SERVER_ROOKIE_PROGRAM_LIMIT) {
       return {
         status: 403,
         body: {
-          error: 'Team limit reached',
+          error: 'Program limit reached',
           message: me.paid_by_owner
-            ? `Your organization has reached the free limit (${SERVER_ROOKIE_TEAM_LIMIT} teams). The league owner needs to upgrade.`
-            : `You've reached your free limit (${SERVER_ROOKIE_TEAM_LIMIT} teams). Upgrade to add more.`,
-          code: 'TEAM_LIMIT_EXCEEDED',
-          limit: SERVER_ROOKIE_TEAM_LIMIT,
-          current: currentTeamCount,
+            ? `Your organization has reached the free limit (${SERVER_ROOKIE_PROGRAM_LIMIT} sports). The league owner needs to upgrade.`
+            : `You've reached your free limit (${SERVER_ROOKIE_PROGRAM_LIMIT} sports). Upgrade to add another sport.`,
+          code: 'PROGRAM_LIMIT_EXCEEDED',
+          limit: SERVER_ROOKIE_PROGRAM_LIMIT,
+          current: billablePrograms,
         },
       };
     }
   } else if (effectivePlan === 'veteran') {
     const subscriptionId = billingContext.effectiveSubscriptionId;
     if (!subscriptionId) {
-      return {
-        status: 403,
-        body: {
-          error: 'No active subscription',
-          message: me.paid_by_owner
-            ? 'The league owner needs an active Veteran subscription.'
-            : 'Veteran plan requires an active subscription. Please update your billing settings.',
-          code: 'NO_ACTIVE_SUBSCRIPTION',
-        },
-      };
-    }
+      // IAP veteran (Apple/Google flat MIDTIER) — no per-unit metering possible,
+      // so the flat tier grants UNLIMITED programs. Do not block. (Fixes the bug
+      // where mobile veterans could not create any team.)
+    } else {
+      try {
+        const allowance = await getVeteranSubscriptionAllowance(subscriptionId);
+        if (!allowance.active) {
+          return {
+            status: 403,
+            body: {
+              error: 'Subscription not active',
+              message: me.paid_by_owner
+                ? "The league owner's Veteran subscription is not active."
+                : 'Your Veteran subscription is not active. Please update your billing settings.',
+              code: 'SUBSCRIPTION_NOT_ACTIVE',
+            },
+          };
+        }
 
-    try {
-      const allowance = await getVeteranSubscriptionAllowance(subscriptionId);
-      if (!allowance.active) {
+        const billablePrograms = await countBillableProgramsForContext(
+          prisma,
+          userId,
+          billingContext
+        );
+        if (!targetProgramAlreadyActive && billablePrograms >= allowance.totalTeamAllowance) {
+          return {
+            status: 403,
+            body: {
+              error: 'Program limit reached',
+              message: me.paid_by_owner
+                ? `The organization's subscription currently covers ${allowance.totalTeamAllowance} sports. The league owner needs to update billing before adding another sport.`
+                : `Your subscription currently covers ${allowance.totalTeamAllowance} sports. Update billing before adding another sport.`,
+              code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
+              paid_quantity: allowance.billableQuantity,
+              allowed_total_programs: allowance.totalTeamAllowance,
+              current_programs: billablePrograms,
+            },
+          };
+        }
+      } catch (err) {
+        console.error('[Teams] Failed to verify Veteran subscription:', err);
         return {
-          status: 403,
+          status: 500,
           body: {
-            error: 'Subscription not active',
-            message: me.paid_by_owner
-              ? "The league owner's Veteran subscription is not active."
-              : 'Your Veteran subscription is not active. Please update your billing settings.',
-            code: 'SUBSCRIPTION_NOT_ACTIVE',
+            error: 'Subscription verification failed',
+            message: 'Unable to verify your subscription. Please try again or contact support.',
           },
         };
       }
-
-      if (currentTeamCount >= allowance.totalTeamAllowance) {
-        return {
-          status: 403,
-          body: {
-            error: 'Team limit reached',
-            message: me.paid_by_owner
-              ? `The organization's subscription currently covers ${allowance.totalTeamAllowance} total team${allowance.totalTeamAllowance === 1 ? '' : 's'}. The league owner needs to update billing before creating another team.`
-              : `Your subscription currently covers ${allowance.totalTeamAllowance} total team${allowance.totalTeamAllowance === 1 ? '' : 's'}. Update billing before creating another team.`,
-            code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
-            paid_quantity: allowance.billableQuantity,
-            allowed_total_teams: allowance.totalTeamAllowance,
-            current_teams: currentTeamCount,
-          },
-        };
-      }
-    } catch (err) {
-      console.error('[Teams] Failed to verify Veteran subscription:', err);
-      return {
-        status: 500,
-        body: {
-          error: 'Subscription verification failed',
-          message: 'Unable to verify your subscription. Please try again or contact support.',
-        },
-      };
     }
   }
 
@@ -1487,77 +1592,95 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
   try {
     const team = await prisma.$transaction(
       async tx => {
-        const ownedTeamsInTx = await countTeamsForBillingContext(tx, me.id, billingContext);
-
         if (effectivePlan === 'rookie' || !effectivePlan) {
-          if (ownedTeamsInTx >= SERVER_ROOKIE_TEAM_LIMIT) {
-            throw Object.assign(new Error('Team limit reached'), {
+          const billablePrograms = await countBillableProgramsForContext(tx, me.id, billingContext);
+          if (!targetProgramAlreadyActive && billablePrograms >= SERVER_ROOKIE_PROGRAM_LIMIT) {
+            throw Object.assign(new Error('Program limit reached'), {
               status: 403,
               body: {
-                error: 'Team limit reached',
+                error: 'Program limit reached',
                 message: me.paid_by_owner
-                  ? `Your organization has reached the free limit (${SERVER_ROOKIE_TEAM_LIMIT} teams). The league owner needs to upgrade.`
-                  : `You've reached your free limit (${SERVER_ROOKIE_TEAM_LIMIT} teams). Upgrade to add more.`,
-                code: 'TEAM_LIMIT_EXCEEDED',
-                limit: SERVER_ROOKIE_TEAM_LIMIT,
-                current: ownedTeamsInTx,
+                  ? `Your organization has reached the free limit (${SERVER_ROOKIE_PROGRAM_LIMIT} sports). The league owner needs to upgrade.`
+                  : `You've reached your free limit (${SERVER_ROOKIE_PROGRAM_LIMIT} sports). Upgrade to add another sport.`,
+                code: 'PROGRAM_LIMIT_EXCEEDED',
+                limit: SERVER_ROOKIE_PROGRAM_LIMIT,
+                current: billablePrograms,
               },
             });
           }
         } else if (effectivePlan === 'veteran') {
           const subscriptionId = billingContext.effectiveSubscriptionId;
           if (!subscriptionId) {
-            throw Object.assign(new Error('No active subscription'), {
-              status: 403,
-              body: {
-                error: 'No active subscription',
-                message: me.paid_by_owner
-                  ? 'The league owner needs an active Veteran subscription.'
-                  : 'Veteran plan requires an active subscription. Please update your billing settings.',
-                code: 'NO_ACTIVE_SUBSCRIPTION',
-              },
-            });
+            // IAP veteran (Apple/Google flat MIDTIER) — no per-unit metering possible,
+            // so the flat tier grants UNLIMITED programs. Do not block. (Fixes the bug
+            // where mobile veterans could not create any team.)
+          } else {
+            try {
+              const allowance = await getVeteranSubscriptionAllowance(subscriptionId);
+              if (!allowance.active) {
+                throw Object.assign(new Error('Subscription not active'), {
+                  status: 403,
+                  body: {
+                    error: 'Subscription not active',
+                    message: me.paid_by_owner
+                      ? "The league owner's Veteran subscription is not active."
+                      : 'Your Veteran subscription is not active. Please update your billing settings.',
+                    code: 'SUBSCRIPTION_NOT_ACTIVE',
+                  },
+                });
+              }
+              const billablePrograms = await countBillableProgramsForContext(
+                tx,
+                me.id,
+                billingContext
+              );
+              if (!targetProgramAlreadyActive && billablePrograms >= allowance.totalTeamAllowance) {
+                throw Object.assign(new Error('Program limit reached'), {
+                  status: 403,
+                  body: {
+                    error: 'Program limit reached',
+                    message: me.paid_by_owner
+                      ? `The organization's subscription currently covers ${allowance.totalTeamAllowance} sports. The league owner needs to update billing before adding another sport.`
+                      : `Your subscription currently covers ${allowance.totalTeamAllowance} sports. Update billing before adding another sport.`,
+                    code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
+                    paid_quantity: allowance.billableQuantity,
+                    allowed_total_programs: allowance.totalTeamAllowance,
+                    current_programs: billablePrograms,
+                  },
+                });
+              }
+            } catch (err: any) {
+              if (err?.status && err?.body) throw err;
+              throw Object.assign(new Error('Subscription verification failed'), {
+                status: 500,
+                body: {
+                  error: 'Subscription verification failed',
+                  message:
+                    'Unable to verify your subscription. Please try again or contact support.',
+                },
+              });
+            }
           }
+        }
 
-          try {
-            const allowance = await getVeteranSubscriptionAllowance(subscriptionId);
-            if (!allowance.active) {
-              throw Object.assign(new Error('Subscription not active'), {
-                status: 403,
-                body: {
-                  error: 'Subscription not active',
-                  message: me.paid_by_owner
-                    ? "The league owner's Veteran subscription is not active."
-                    : 'Your Veteran subscription is not active. Please update your billing settings.',
-                  code: 'SUBSCRIPTION_NOT_ACTIVE',
-                },
-              });
-            }
-            if (ownedTeamsInTx >= allowance.totalTeamAllowance) {
-              throw Object.assign(new Error('Team limit reached'), {
-                status: 403,
-                body: {
-                  error: 'Team limit reached',
-                  message: me.paid_by_owner
-                    ? `The organization's subscription currently covers ${allowance.totalTeamAllowance} total team${allowance.totalTeamAllowance === 1 ? '' : 's'}. The league owner needs to update billing before creating another team.`
-                    : `Your subscription currently covers ${allowance.totalTeamAllowance} total team${allowance.totalTeamAllowance === 1 ? '' : 's'}. Update billing before creating another team.`,
-                  code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
-                  paid_quantity: allowance.billableQuantity,
-                  allowed_total_teams: allowance.totalTeamAllowance,
-                  current_teams: ownedTeamsInTx,
-                },
-              });
-            }
-          } catch (err: any) {
-            if (err?.status && err?.body) throw err;
-            throw Object.assign(new Error('Subscription verification failed'), {
-              status: 500,
-              body: {
-                error: 'Subscription verification failed',
-                message: 'Unable to verify your subscription. Please try again or contact support.',
-              },
-            });
-          }
+        // Every sport team MUST belong to a SportProgram — no ungrouped billable
+        // units. If the caller didn't pass a validated program_id, resolve/create
+        // the org's program for this sport. Unrecognized/custom sports fall back to
+        // the taxonomy's 'other' program so nothing is ever left ungrouped.
+        // Extracurricular clubs are exempt (no sport / no program).
+        const isSportTeam = (data.club_type || 'sport') === 'sport';
+        let resolvedProgramId: string | null = data.program_id ?? null;
+        if (!resolvedProgramId && isSportTeam) {
+          const sportSlug = normalizeSportToSlug(data.sport) ?? 'other';
+          const program = await tx.sportProgram.upsert({
+            where: {
+              organization_id_sport: { organization_id: organizationId, sport: sportSlug },
+            },
+            create: { organization_id: organizationId, sport: sportSlug },
+            update: {},
+            select: { id: true },
+          });
+          resolvedProgramId = program.id;
         }
 
         const newTeam = await tx.team.create({
@@ -1582,7 +1705,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
             venue_address: data.venue_address ? stripHtml(data.venue_address.trim()) : null,
             level: data.level ?? null,
             gender: data.gender ?? null,
-            program_id: data.program_id ?? null,
+            program_id: resolvedProgramId,
           },
           select: {
             id: true,
@@ -1786,6 +1909,7 @@ teamsRouter.put(
   '/:id',
   requireVerified as any,
   requireOnboarded as any,
+  teamUpdateLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
     debugLog('[Teams PUT] Received update request:', JSON.stringify(req.body));
     // req.user is guaranteed by requireVerified middleware
@@ -2054,8 +2178,8 @@ teamsRouter.delete(
     // teams inside their own league.
     const isAdmin = await getIsAdmin(req as any);
     // Archiving cascades (memberships/invites/follows/chat unlinks), so it is
-    // gated more tightly than team edits: only team leadership (owner/manager)
-    // or an org admin — not coaches/assistant_coaches — may archive.
+    // gated more tightly than team edits: only the team owner/coach, or the
+    // org owner — not managers/assistant_coaches — may archive.
     const canArchive = await canArchiveTeamScoped(req.user.id, teamId);
     if (!isAdmin && !canArchive) {
       return res.status(403).json({

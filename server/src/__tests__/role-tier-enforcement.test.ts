@@ -313,11 +313,13 @@ describe('Rookie Coach plan limits', () => {
     rookieTeamIds.push(res.body.team.id);
   });
 
-  it('Rookie is BLOCKED on team #5 (exceeds free limit of 4)', async () => {
+  it('Rookie can create team #5 (now within the 5-program free floor)', async () => {
+    // Phase 4: billing unit is the sport program (5 free). An ungrouped team
+    // (no program_id) counts as one unit, so the 5th ungrouped team is allowed;
+    // the 6th-program block is covered by program-limit-enforcement.test.ts.
     const res = await createTeamViaApi(rookieToken, `Rookie Team 5 ${ts}`, rookieOrgId);
-    expect(res.status).toBe(403);
-    expect(res.body.error).toMatch(/Team limit|TEAM_LIMIT/i);
-    expect(res.body.code || res.body.error).toMatch(/TEAM_LIMIT_EXCEEDED|Team limit/);
+    expect(res.status).toBe(201);
+    if (res.body?.team?.id) rookieTeamIds.push(res.body.team.id);
   });
 
   it('Rookie team is linked to an org (league page)', async () => {
@@ -381,7 +383,7 @@ describe('Rookie Coach plan limits', () => {
       where: { user_id: rookieId, role: 'owner', status: 'active' },
     });
     expect(orgMembership).toBeTruthy();
-    expect(teamMemberships.length).toBe(4); // owns 4 teams + the league page
+    expect(teamMemberships.length).toBe(5); // Phase 4: owns 5 teams (5-program free floor) + the league page
   });
 });
 
