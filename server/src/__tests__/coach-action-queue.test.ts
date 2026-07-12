@@ -40,6 +40,7 @@ describe('coach action queue', () => {
   afterAll(async () => {
     await prisma.game.deleteMany({ where: { OR: [{ home_team_id: teamId }, { away_team_id: teamId }] } }).catch(() => {});
     await prisma.event.deleteMany({ where: { team_id: teamId } }).catch(() => {});
+    await prisma.organizationJoinRequest.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
     await prisma.teamMembership.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
     await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
@@ -73,5 +74,18 @@ describe('coach action queue', () => {
     expect(item).toBeTruthy();
     expect(item.route).toBe(`/game/${g.id}`);
     await prisma.game.deleteMany({ where: { id: g.id } });
+  });
+
+  it('includes a pending org join request for an org the coach owns', async () => {
+    const jr = await prisma.organizationJoinRequest.create({
+      data: { organization_id: orgId, user_id: otherCoachId, status: 'pending' } as any,
+    });
+    const q = await buildCoachActionQueue(coachId);
+    expect(q.counts.requests).toBeGreaterThanOrEqual(1);
+    const item = q.items.find((i: any) => i.kind === 'request' && i.id === jr.id);
+    expect(item).toBeTruthy();
+    expect(item.org_id).toBe(orgId);
+    expect(item.route).toContain('/organization-join-requests');
+    await prisma.organizationJoinRequest.deleteMany({ where: { id: jr.id } });
   });
 });

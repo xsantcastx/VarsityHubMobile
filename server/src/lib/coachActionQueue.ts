@@ -50,7 +50,7 @@ export async function getCoachManagedScope(
 }
 
 export async function buildCoachActionQueue(userId: string): Promise<ActionQueue> {
-  const { teamIds } = await getCoachManagedScope(userId);
+  const { teamIds, ownedOrgIds } = await getCoachManagedScope(userId);
 
   const events = teamIds.length
     ? await prisma.event.findMany({
@@ -68,6 +68,15 @@ export async function buildCoachActionQueue(userId: string): Promise<ActionQueue
           OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
         },
         select: { id: true, title: true, date: true, location: true, home_team_id: true, created_at: true },
+        orderBy: { created_at: 'asc' },
+        take: SOURCE_TAKE,
+      })
+    : [];
+
+  const requests = ownedOrgIds.length
+    ? await prisma.organizationJoinRequest.findMany({
+        where: { organization_id: { in: ownedOrgIds }, status: 'pending' },
+        select: { id: true, organization_id: true, user_id: true, created_at: true },
         orderBy: { created_at: 'asc' },
         take: SOURCE_TAKE,
       })
@@ -95,10 +104,22 @@ export async function buildCoachActionQueue(userId: string): Promise<ActionQueue
     }))
   );
 
+  items.push(
+    ...requests.map((r) => ({
+      kind: 'request' as const,
+      id: r.id,
+      title: 'Join request',
+      subtitle: 'Someone wants to join your organization',
+      org_id: r.organization_id,
+      created_at: (r.created_at ?? new Date()).toISOString(),
+      route: `/organization-join-requests?id=${encodeURIComponent(r.organization_id)}`,
+    }))
+  );
+
   items.sort((a, b) => a.created_at.localeCompare(b.created_at));
   return {
     total: items.length,
-    counts: { events: events.length, games: games.length, requests: 0 },
+    counts: { events: events.length, games: games.length, requests: requests.length },
     items,
   };
 }
