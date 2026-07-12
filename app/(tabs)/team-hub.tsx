@@ -1,73 +1,47 @@
-import { Team } from '@/api/entities';
-import type { TeamResponse } from '@/api/schemas/team';
+import { User } from '@/api/entities';
+import type { ActionItem } from '@/api/schemas/actionQueue';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { getCanonicalOrganizationId } from '@/utils/authState';
-import { Redirect, Stack, useRootNavigationState, type Href } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
+import { Stack, useRouter } from 'expo-router';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
-function buildOrganizationOverviewRoute(orgId: string): Href {
-  return `/organization?id=${encodeURIComponent(orgId)}&tab=overview` as Href;
+function ManageFooter({ user, theme, router }: any) {
+  const orgId = getCanonicalOrganizationId(user);
+  return (
+    <View style={{ marginTop: 16 }}>
+      {orgId ? (
+        <Pressable onPress={() => router.push(`/organization?id=${orgId}&tab=overview` as any)}>
+          <Text style={{ color: theme.tint }}>Manage league</Text>
+        </Pressable>
+      ) : null}
+      <Pressable onPress={() => router.push('/manage-teams' as any)}>
+        <Text style={{ color: theme.tint }}>Manage teams</Text>
+      </Pressable>
+    </View>
+  );
 }
 
-function buildTeamAdminOverviewRoute(teamId: string): Href {
-  return `/team-admin?teamId=${encodeURIComponent(teamId)}&tab=overview` as Href;
-}
-
-export default function TeamHubRedirectScreen() {
+export default function TeamHubScreen() {
   const { user } = useAuth();
   const { canManage, loading } = useRequireTeamManagement();
-  const navigationState = useRootNavigationState();
+  const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
-  const [targetRoute, setTargetRoute] = useState<Href | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    const redirect = async () => {
-      if (loading || !canManage) return;
-
-      const orgId = getCanonicalOrganizationId(user as any);
-      if (orgId) {
-        if (active) setTargetRoute(buildOrganizationOverviewRoute(orgId));
-        return;
-      }
-
-      try {
-        const managedTeams = await Team.managed();
-        if (!active) return;
-        const firstTeam: TeamResponse | null = Array.isArray(managedTeams) ? managedTeams[0] : null;
-        if (firstTeam?.id) {
-          setTargetRoute(buildTeamAdminOverviewRoute(String(firstTeam.id)));
-          return;
-        }
-      } catch {
-        // Fall through.
-      }
-
-      if (active) setTargetRoute('/(tabs)');
-    };
-
-    void redirect();
-    return () => {
-      active = false;
-    };
-  }, [canManage, loading, user]);
+  const { data, isPending, isError, refetch } = useQuery({
+    queryKey: ['action-queue', (user as any)?.id],
+    queryFn: () => User.actionQueue(),
+    enabled: canManage && !loading,
+  });
 
   if (loading) {
     return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: theme.background,
-        }}
-      >
+      <View style={[styles.center, { backgroundColor: theme.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator size="large" color={theme.tint} />
       </View>
@@ -84,21 +58,66 @@ export default function TeamHubRedirectScreen() {
     );
   }
 
-  if (targetRoute && navigationState?.key) {
-    return <Redirect href={targetRoute} />;
+  if (isPending) {
+    return (
+      <View style={[styles.center, { backgroundColor: theme.background }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ActivityIndicator size="large" color={theme.tint} />
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View style={[styles.center, { backgroundColor: theme.background }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <Text style={[styles.title, { color: theme.text }]}>Couldn&apos;t load your queue</Text>
+        <Pressable onPress={() => refetch()} style={{ marginTop: 12 }}>
+          <Text style={{ color: theme.tint }}>Try again</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (!data || data.total === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <Text style={[styles.title, { color: theme.text }]}>You&apos;re all caught up</Text>
+        <Text style={[styles.subtitle, { color: theme.mutedText }]}>
+          Nothing needs your approval right now.
+        </Text>
+        <ManageFooter user={user} theme={theme} router={router} />
+      </View>
+    );
   }
 
   return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: theme.background,
-      }}
-    >
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ActivityIndicator size="large" color={theme.tint} />
+      <Text style={[styles.title, { color: theme.text }]}>Needs your attention</Text>
+      <FlatList
+        data={data.items}
+        keyExtractor={(item: ActionItem) => `${item.kind}-${item.id}`}
+        renderItem={({ item }: { item: ActionItem }) => (
+          <Pressable style={styles.row} onPress={() => router.push(item.route as any)}>
+            <Text style={[styles.rowTitle, { color: theme.text }]}>{item.title}</Text>
+            <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}>{item.subtitle}</Text>
+          </Pressable>
+        )}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        ListFooterComponent={<ManageFooter user={user} theme={theme} router={router} />}
+      />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
+  container: { flex: 1, padding: 16, paddingTop: 24 },
+  title: { fontSize: 20, fontWeight: '700', marginBottom: 4 },
+  subtitle: { fontSize: 14, marginBottom: 16 },
+  row: { paddingVertical: 12 },
+  rowTitle: { fontWeight: '600', fontSize: 15 },
+  rowSubtitle: { fontSize: 13, marginTop: 2 },
+});
