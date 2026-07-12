@@ -181,9 +181,18 @@ const REGISTER_EMAIL_SOFT_TIMEOUT_MS = 5000;
 // against this hash equalizes login timing so the endpoint cannot be used to
 // enumerate which emails have an account. Generated once at boot from a random
 // input so the hash itself is not predictable.
+// Password hashing cost factor. Bumped 10→12 (2026 hardening). bcrypt embeds
+// the cost in each hash, so pre-existing cost-10 hashes still verify on login;
+// only newly set/changed passwords use 12. DUMMY_BCRYPT_HASH below MUST use the
+// same cost so the no-account login path stays timing-matched to a real
+// (newly-hashed) account — otherwise the timing delta re-opens the enumeration
+// oracle the dummy hash exists to close. The random-secret OAuth-stub hashes
+// (never used as password verifiers) intentionally stay at 10.
+const PASSWORD_BCRYPT_COST = 12;
+
 const DUMMY_BCRYPT_HASH = bcrypt.hashSync(
   `const-time-${crypto.randomBytes(16).toString('hex')}`,
-  10
+  PASSWORD_BCRYPT_COST
 );
 
 // v1.0.2 audit fix: unified truthy parsing — must match middleware/rateLimiters.ts.
@@ -663,7 +672,7 @@ authRouter.post(
         errorCode: 'EMAIL_ALREADY_REGISTERED',
       });
     }
-    const password_hash = await bcrypt.hash(password, 10);
+    const password_hash = await bcrypt.hash(password, PASSWORD_BCRYPT_COST);
     const code = String(crypto.randomInt(100000, 999999));
     if (process.env.NODE_ENV === 'development')
       debugLog(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
@@ -838,12 +847,6 @@ authRouter.post(
       await recordLoginFailure(sanitizedEmail);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    if (user.banned)
-      return res.status(403).json({
-        error: 'Account banned',
-        ban_reason: user.ban_reason || null,
-        banned_until: user.banned_until || null,
-      });
     if (!user.password_hash) {
       await recordLoginFailure(sanitizedEmail);
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -854,6 +857,19 @@ authRouter.post(
     }
     // Success — clear the failure counter so this account isn't half-locked.
     await clearLoginFailures(sanitizedEmail);
+
+    // Reveal ban status ONLY after credentials verify. Returning this 403
+    // (with ban_reason) before the password check let anyone enumerate
+    // accounts and read ban reasons using any password — undercutting the
+    // DUMMY_BCRYPT_HASH timing-equalization above. A wrong password on a
+    // banned account now returns the same generic 401 as any other account;
+    // only the real owner (correct password) learns the account is banned.
+    if (user.banned)
+      return res.status(403).json({
+        error: 'Account banned',
+        ban_reason: user.ban_reason || null,
+        banned_until: user.banned_until || null,
+      });
 
     // Mint a fresh token pair for this login without invalidating the user's
     // other active devices. Forced security events (password change, bans,
@@ -1916,7 +1932,7 @@ authRouter.post(
     // Success — clear failure tracking and reset the code
     await clearResetFailures(sanitizedEmail);
 
-    const password_hash = await bcrypt.hash(password, 10);
+    const password_hash = await bcrypt.hash(password, PASSWORD_BCRYPT_COST);
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -1961,7 +1977,7 @@ authRouter.post(
     if (!isValid) return res.status(401).json({ error: 'Current password is incorrect' });
 
     // Hash new password
-    const password_hash = await bcrypt.hash(new_password, 10);
+    const password_hash = await bcrypt.hash(new_password, PASSWORD_BCRYPT_COST);
 
     // Update password and revoke all refresh tokens atomically
     await prisma.user.update({
