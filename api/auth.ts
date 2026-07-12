@@ -36,6 +36,15 @@ export type FreshInstallCleanupResult = {
   error?: unknown;
 };
 
+// Set true when clearStaleTokensOnFreshInstall() could not delete a possibly-
+// stale persisted token (e.g. iOS Keychain locked at first-unlock, where the
+// delete throws). While set, loadToken()/loadRefreshToken() refuse to hand out
+// the persisted token, so a previous install's session can't be lazily
+// re-hydrated on a request (api/http.ts) or restored on foreground
+// (context/AuthProvider). Cleared once a fresh token is written — a successful
+// login overwrites the stale slot (see saveToken).
+let freshInstallClearBlocked = false;
+
 /**
  * Clear stale Keychain tokens on fresh install.
  * iOS Keychain persists across app delete/reinstall, but AsyncStorage does not.
@@ -58,8 +67,10 @@ export async function clearStaleTokensOnFreshInstall(): Promise<FreshInstallClea
     clearAuthToken();
     invalidateMeCache();
     await AsyncStorage.setItem(FRESH_INSTALL_KEY, 'true');
+    freshInstallClearBlocked = false;
     return { freshInstall: true, ok: true };
   } catch (error) {
+    freshInstallClearBlocked = true;
     clearAuthToken();
     invalidateMeCache();
     if (__DEV__) {
@@ -178,6 +189,10 @@ async function saveToken(token: string | null) {
       if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
       else await SecureStore.deleteItemAsync(TOKEN_KEY);
     }
+    // A successful write/delete means the persisted slot now holds the intended
+    // value (a fresh token overwrote any stale one, or it was cleared), so the
+    // fresh-install fail-closed latch no longer applies.
+    freshInstallClearBlocked = false;
   } catch (error) {
     if (__DEV__) console.error('[auth] Failed to save token to secure storage:', error);
   }
@@ -204,6 +219,10 @@ async function saveRefreshToken(token: string | null) {
 }
 
 async function loadRefreshToken(): Promise<string | null> {
+  // Fail closed: same fresh-install guard as loadToken — never hydrate a
+  // possibly-stale persisted refresh token (the higher-value item, since it
+  // mints new access tokens).
+  if (freshInstallClearBlocked) return null;
   try {
     if (Platform.OS === 'web') return readWebToken(REFRESH_TOKEN_KEY);
     return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
@@ -216,6 +235,10 @@ async function loadRefreshToken(): Promise<string | null> {
 export async function loadToken(): Promise<string | null> {
   const cached = getAuthToken();
   if (cached) return cached;
+  // Fail closed: a fresh-install cleanup that couldn't delete a possibly-stale
+  // persisted token blocks hydrating it here — the lazy-hydration leak path (#3).
+  // Only the persisted read is blocked; an in-process token (above) is fine.
+  if (freshInstallClearBlocked) return null;
   let t: string | null = null;
   try {
     if (Platform.OS === 'web') t = readWebToken(TOKEN_KEY);
