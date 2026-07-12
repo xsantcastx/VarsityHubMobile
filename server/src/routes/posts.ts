@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
-import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
+import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import {
   serializePoll,
   stripSampleGameTitle,
@@ -641,6 +641,14 @@ const createPostSchema = z
     type: z.string().max(50).optional(),
     // Accept any non-empty string to support data URIs or local uploads handled elsewhere
     media_url: z.string().trim().min(1).optional(),
+    // Media metadata captured client-side from the upload response. Bounded to
+    // sane ranges so a malformed client can't persist absurd values. All
+    // optional/additive — older clients simply omit them.
+    poster_url: z.string().trim().min(1).max(2048).optional(),
+    media_width: z.number().int().positive().max(100000).optional(),
+    media_height: z.number().int().positive().max(100000).optional(),
+    media_duration_s: z.number().nonnegative().max(86400).optional(),
+    media_bytes: z.number().int().nonnegative().max(5_000_000_000).optional(),
     game_id: z.string().optional(),
     team_id: z.string().optional(), // Associate post with team page (coach-only)
     event_id: z.string().optional(), // For event-specific posts
@@ -946,6 +954,11 @@ postsRouter.post(
         content: data.content ? stripHtml(data.content.trim()) : null,
         type: data.type || 'post',
         media_url: data.media_url,
+        poster_url: data.poster_url,
+        media_width: data.media_width,
+        media_height: data.media_height,
+        media_duration_s: data.media_duration_s,
+        media_bytes: data.media_bytes,
         game_id: finalGameId,
         event_id: finalEventId || undefined,
         team_id: finalTeamId || undefined,
@@ -981,7 +994,7 @@ postsRouter.post(
     res.status(201).json({
       ...post,
       title: stripSampleGameTitle(post.title),
-      preview_url: getVideoPreviewUrl(post.media_url),
+      preview_url: resolvePreviewUrl(post),
       location: { lat, lng, place_name, country_code },
     });
   })
@@ -1291,7 +1304,7 @@ postsRouter.get(
       has_bookmarked,
       is_following_author,
       media_type: detectMediaType(post.media_url),
-      preview_url: getVideoPreviewUrl(post.media_url),
+      preview_url: resolvePreviewUrl(post),
       caption: post.content ?? null,
       bookmarks_count: post._count?.bookmarks ?? 0,
       comments_count: post._count?.comments ?? 0,
@@ -2045,7 +2058,7 @@ postsRouter.patch(
       res.json({
         ...updatedPost,
         media_type: detectMediaType(updatedPost.media_url),
-        preview_url: getVideoPreviewUrl(updatedPost.media_url),
+        preview_url: resolvePreviewUrl(updatedPost),
       });
     } catch (error) {
       console.error('Error updating post:', error);

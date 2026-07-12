@@ -87,6 +87,9 @@ describe('serializeFeedPost', () => {
       media_url: 'https://cdn/x.mp4',
       media_type: 'video',
       preview_url: null,
+      media_width: null,
+      media_height: null,
+      media_duration_s: null,
       caption: 'body text',
       upvotes_count: 4,
       comments_count: 2,
@@ -124,6 +127,30 @@ describe('serializeFeedPost', () => {
     expect(out.team).toBeNull();
     expect(out.comments_count).toBe(0);
     expect(out.is_following_author).toBe(false);
+  });
+
+  it('prefers a stored poster_url over the Cloudinary-derived preview (provider seam)', () => {
+    const cloudinaryVideo = {
+      id: 'p',
+      media_url: 'https://res.cloudinary.com/demo/video/upload/v1/a.mp4',
+    };
+    // Without a stored poster, it derives the Cloudinary preview transform.
+    expect(serializeFeedPost(cloudinaryVideo, emptySets).preview_url).toContain('f_webp');
+    // With a stored poster (e.g. an R2 video's uploaded poster), it serves that.
+    const withPoster = { ...cloudinaryVideo, poster_url: 'https://cdn.r2.example/poster.jpg' };
+    expect(serializeFeedPost(withPoster, emptySets).preview_url).toBe(
+      'https://cdn.r2.example/poster.jpg'
+    );
+  });
+
+  it('passes through captured media dimensions', () => {
+    const out = serializeFeedPost(
+      { id: 'p', media_url: 'https://cdn/x.mp4', media_width: 1080, media_height: 1920, media_duration_s: 12.5 },
+      emptySets
+    );
+    expect(out.media_width).toBe(1080);
+    expect(out.media_height).toBe(1920);
+    expect(out.media_duration_s).toBe(12.5);
   });
 });
 

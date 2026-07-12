@@ -683,6 +683,12 @@ function CreatePostScreen() {
 
     try {
       let finalMediaUrl = '';
+      const mediaMeta: {
+        media_width?: number;
+        media_height?: number;
+        media_bytes?: number;
+        media_duration_s?: number;
+      } = {};
       if (picked?.uri) {
         if (__DEV__) console.warn('[CreatePost] Uploading media...');
         const { getApiBaseUrl } = await import('@/api/http');
@@ -718,6 +724,13 @@ function CreatePostScreen() {
         if (!finalMediaUrl) {
           throw new Error('Media upload succeeded but returned no URL. Please try again.');
         }
+        // Capture media dimensions/size the uploader surfaced (aspect-ratio
+        // hints + storage-migration tooling). Undefined on the server-proxy
+        // fallback path, which is fine — the columns are nullable.
+        if (typeof res?.width === 'number') mediaMeta.media_width = res.width;
+        if (typeof res?.height === 'number') mediaMeta.media_height = res.height;
+        if (typeof res?.bytes === 'number') mediaMeta.media_bytes = res.bytes;
+        if (typeof res?.duration === 'number') mediaMeta.media_duration_s = res.duration;
         if (__DEV__) console.warn('[CreatePost] Upload complete:', finalMediaUrl);
         // Clean up temp trimmed files after successful upload
         try {
@@ -740,6 +753,7 @@ function CreatePostScreen() {
       const payload: Record<string, any> = {
         content: trimmedContent,
         media_url: finalMediaUrl || undefined,
+        ...(finalMediaUrl ? mediaMeta : {}),
         type: postType,
         location: locationPayload,
       };

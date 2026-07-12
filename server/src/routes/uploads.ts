@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { CloudinaryUpstreamError, getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
+import { createR2UploadTicket, isR2Configured } from '../lib/r2.js';
 import { debugLog } from '../lib/debugLog.js';
 import { signMediaPath } from '../lib/mediaAccess.js';
 import { prisma } from '../lib/prisma.js';
@@ -327,6 +328,44 @@ uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, asyncHandle
       path: rawPath,
     });
     return res.status(500).json({ error: 'Failed to sign media URL' });
+  }
+}));
+
+// -----------------------------------------------
+// GET /uploads/r2-presign
+// Returns a short-lived presigned PUT URL for a direct-to-R2 upload, mirroring
+// the Cloudinary signature flow. DORMANT until R2 env vars are set: without
+// them isR2Configured() is false and this returns 503, so the client keeps
+// using the Cloudinary path. When live, the client PUTs bytes to `uploadUrl`
+// then posts `publicUrl` as the post's media_url.
+// -----------------------------------------------
+uploadsRouter.get('/r2-presign', requireAuth as any, requireVerifiedUnlessScopedAdBannerUpload as any, uploadLimiter as any, asyncHandler(async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!isR2Configured()) {
+    return res.status(503).json({ error: 'Direct R2 upload not available — R2 not configured' });
+  }
+  const contentType = String((req.query as any).content_type || '').trim().toLowerCase();
+  if (!contentType) {
+    return res.status(400).json({ error: 'content_type is required' });
+  }
+  try {
+    const ticket = await createR2UploadTicket({ contentType });
+    if (!ticket) {
+      return res.status(503).json({ error: 'Direct R2 upload not available — R2 not configured' });
+    }
+    addBreadcrumb('R2 presign issued', 'uploads.r2Presign', 'info', { key: ticket.key });
+    return res.json(ticket);
+  } catch (error: any) {
+    // Unsupported content type is a client error; anything else is upstream.
+    if (/Unsupported content type/i.test(String(error?.message))) {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error('[uploads] Failed to presign R2 upload:', error);
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      context: 'r2_presign_failed',
+      provider: 'r2',
+    });
+    return res.status(500).json({ error: 'Failed to presign upload' });
   }
 }));
 

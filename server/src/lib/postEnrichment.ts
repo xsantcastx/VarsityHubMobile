@@ -1,4 +1,4 @@
-import { detectMediaType, getVideoPreviewUrl } from './mediaUtils.js';
+import { detectMediaType, resolvePreviewUrl } from './mediaUtils.js';
 import { prisma } from './prisma.js';
 
 export const withMediaPreview = (post: any) => {
@@ -9,7 +9,7 @@ export const withMediaPreview = (post: any) => {
   return {
     ...rest,
     media_type: detectMediaType(rest.media_url),
-    preview_url: getVideoPreviewUrl(rest.media_url),
+    preview_url: resolvePreviewUrl(rest),
   };
 };
 

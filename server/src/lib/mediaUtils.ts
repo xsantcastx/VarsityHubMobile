@@ -19,3 +19,19 @@ export const getVideoPreviewUrl = (url?: string | null): string | null => {
   const [, base, , rest] = match;
   return `${base}f_webp,fl_awebp,du_3,so_0,w_480,q_60/${rest}`;
 };
+
+/**
+ * Resolve the preview/poster URL for a post — the provider-independence seam.
+ * Prefers a stored `poster_url` (uploaded alongside the video for a
+ * direct-to-storage provider that can't transform on the fly); falls back to
+ * the on-the-fly Cloudinary derivation. Behaviorally identical to the old
+ * `getVideoPreviewUrl(post.media_url)` for every post whose poster_url is null.
+ *
+ * Every post-serialization site must use this rather than calling
+ * getVideoPreviewUrl directly, so preview behavior stays consistent as media
+ * migrates off Cloudinary (mirrors the client post-mapper consistency rule).
+ */
+export const resolvePreviewUrl = (post: {
+  poster_url?: string | null;
+  media_url?: string | null;
+}): string | null => post.poster_url ?? getVideoPreviewUrl(post.media_url);

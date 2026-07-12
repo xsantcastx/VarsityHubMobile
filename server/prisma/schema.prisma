@@ -532,6 +532,19 @@ model Post {
   media_url     String?
   upvotes_count Int     @default(0)
 
+  // Media metadata captured at upload (from the Cloudinary response today; from
+  // the client for a future direct-to-storage provider). All nullable/additive
+  // — every existing row is null. media_width/height/duration_s power correct
+  // pre-load aspect ratios; media_bytes + duration feed cost/integrity tooling
+  // for a storage migration. poster_url is the provider-independence seam: when
+  // set (e.g. a poster uploaded alongside a non-Cloudinary video) the serializer
+  // serves it as preview_url instead of deriving a Cloudinary transform.
+  poster_url       String?
+  media_width      Int?
+  media_height     Int?
+  media_duration_s Float?
+  media_bytes      Int?
+
   // Geolocation (optional)
   country_code String?
   admin1       String?

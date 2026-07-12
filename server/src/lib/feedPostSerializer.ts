@@ -12,7 +12,7 @@
  * see feedPostSerializer.test.ts which locks the payload shape.
  */
 import type { PrismaClient } from '@prisma/client';
-import { detectMediaType, getVideoPreviewUrl } from './mediaUtils.js';
+import { detectMediaType, resolvePreviewUrl } from './mediaUtils.js';
 
 export const serializePoll = (
   poll: any,
@@ -128,7 +128,12 @@ export function serializeFeedPost(post: any, sets: PostInteractionSets) {
     content: post.content ?? null,
     media_url: post.media_url ?? null,
     media_type: detectMediaType(post.media_url),
-    preview_url: getVideoPreviewUrl(post.media_url),
+    preview_url: resolvePreviewUrl(post),
+    // Nullable until backfilled/captured; lets the client reserve correct
+    // aspect ratio before the media loads (no layout shift).
+    media_width: post.media_width ?? null,
+    media_height: post.media_height ?? null,
+    media_duration_s: post.media_duration_s ?? null,
     caption: post.content ?? null,
     upvotes_count: post.upvotes_count ?? 0,
     comments_count: post._count?.comments ?? 0,

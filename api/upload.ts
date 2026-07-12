@@ -450,7 +450,15 @@ async function uploadDirectToCloudinary(
     max_bytes?: string;
   },
   options?: UploadOptions
-): Promise<{ url: string; type: string; mime: string }> {
+): Promise<{
+  url: string;
+  type: string;
+  mime: string;
+  width?: number;
+  height?: number;
+  bytes?: number;
+  duration?: number;
+}> {
   const isVideo = mimeType.startsWith('video/');
   const resourceType = isVideo ? 'video' : 'image';
   const timeoutMs = options?.timeoutMs ?? (isVideo ? 300000 : 120000);
@@ -494,7 +502,17 @@ async function uploadDirectToCloudinary(
             reject(new Error('Cloudinary returned no URL'));
             return;
           }
-          resolve({ url, type: resourceType, mime: mimeType });
+          // Surface the dimensions/size/duration Cloudinary returns so the
+          // caller can persist them (aspect-ratio hints + migration tooling).
+          resolve({
+            url,
+            type: resourceType,
+            mime: mimeType,
+            width: typeof data.width === 'number' ? data.width : undefined,
+            height: typeof data.height === 'number' ? data.height : undefined,
+            bytes: typeof data.bytes === 'number' ? data.bytes : undefined,
+            duration: typeof data.duration === 'number' ? data.duration : undefined,
+          });
         } catch {
           reject(new Error('Cloudinary returned invalid response'));
         }
