@@ -1,0 +1,42 @@
+name: Publish Production OTA Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Update message (shown in EAS update history)'
+        required: false
+        default: 'Manual OTA publish via GitHub Actions'
+
+jobs:
+  publish:
+    name: eas update --branch production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Check EXPO_TOKEN is configured
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN repo secret is not set. Add it under Settings > Secrets and variables > Actions, then re-run this workflow."
+            exit 1
+          fi
+
+      - name: Publish OTA update
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas update --branch production --non-interactive --message "${{ github.event.inputs.message }}"
