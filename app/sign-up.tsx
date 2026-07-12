@@ -15,6 +15,7 @@ import { User } from '@/api/entities';
 import { AuthenticatedEntryGuard } from '@/components/auth/AuthenticatedEntryGuard';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
+import DateField from '@/components/ui/DateField';
 import { Input } from '@/components/ui/input';
 import PasswordInput from '@/components/PasswordInput';
 import { Colors } from '@/constants/Colors';
@@ -44,6 +45,21 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } =
   AppleAuthentication;
 
+// COPPA age gate — client-side mirror of the server `isUnder13` check and the
+// onboarding step-2 logic. `dobStr` is a 'YYYY-MM-DD' local date string emitted
+// by DateField. This is UX only; the server re-checks on /auth/register.
+function computeIsUnder13(dobStr: string): boolean {
+  const [y, mo, day] = dobStr.split('-').map(Number);
+  if (!y || !mo || !day) return false;
+  const d = new Date(y, mo - 1, day);
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age < 13;
+}
+
 export default function SignUpScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
@@ -70,7 +86,9 @@ export default function SignUpScreen() {
   const passwordRef = useRef<any>(null);
   const submitting = useRef(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [confirmedAge, setConfirmedAge] = useState(false);
+  const [dob, setDob] = useState('');
+  const dobUnder13 = dob ? computeIsUnder13(dob) : false;
+  const dobValid = !!dob && !dobUnder13;
 
   const getErrorMessage = (error: unknown, fallback = ''): string => {
     if (typeof error === 'string') return error;
@@ -186,24 +204,17 @@ export default function SignUpScreen() {
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.checkboxRow}
-        onPress={() => setConfirmedAge(!confirmedAge)}
-        activeOpacity={0.7}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: confirmedAge }}
-        accessibilityLabel="I confirm I am at least 13 years old"
-        accessibilityHint="Double tap to toggle"
-      >
-        <Ionicons
-          name={confirmedAge ? 'checkbox' : 'checkbox-outline'}
-          size={24}
-          color={confirmedAge ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
-        />
-        <Text style={[styles.checkboxText, { color: Colors[colorScheme].text }]}>
-          I confirm I am at least 13 years old
+      <DateField
+        label="Date of birth"
+        value={dob}
+        onChange={setDob}
+        placeholder="Select your date of birth"
+      />
+      {dobUnder13 ? (
+        <Text style={[styles.checkboxText, { color: Colors[colorScheme].destructive }]}>
+          You must be at least 13 years old to use VarsityHub.
         </Text>
-      </TouchableOpacity>
+      ) : null}
     </>
   );
 
@@ -212,7 +223,7 @@ export default function SignUpScreen() {
 
     try {
       const sanitizedEmail = sanitizeEmail(email);
-      return await User.register(sanitizedEmail, password);
+      return await User.register(sanitizedEmail, password, undefined, dob);
     } catch (e: any) {
       const errMsg = getErrorMessage(e);
       const sanitizedEmail = sanitizeEmail(email);
@@ -323,6 +334,19 @@ export default function SignUpScreen() {
     if (!passwordValidation.valid) {
       submitting.current = false;
       setError(passwordValidation.error || 'Invalid password');
+      return;
+    }
+
+    // COPPA age gate — required DOB, block under-13. The server re-validates on
+    // /auth/register; this is UX-only and fails closed (missing/under-13 stops here).
+    if (!dob) {
+      submitting.current = false;
+      setError('Please enter your date of birth');
+      return;
+    }
+    if (dobUnder13) {
+      submitting.current = false;
+      setError('VarsityHub is not available for users under 13.');
       return;
     }
 
@@ -534,10 +558,8 @@ export default function SignUpScreen() {
             {/* Apple Sign Up Option (iOS only) */}
             {Platform.OS === 'ios' ? (
               <View
-                pointerEvents={!agreedToTerms || !confirmedAge || authBusy ? 'none' : 'auto'}
-                style={
-                  !agreedToTerms || !confirmedAge || authBusy ? styles.buttonDisabled : undefined
-                }
+                pointerEvents={!agreedToTerms || !dobValid || authBusy ? 'none' : 'auto'}
+                style={!agreedToTerms || !dobValid || authBusy ? styles.buttonDisabled : undefined}
                 accessibilityLabel="Sign up with Apple"
                 accessibilityRole="button"
                 accessibilityHint="Double tap to create an account with your Apple ID"
@@ -561,14 +583,14 @@ export default function SignUpScreen() {
               <Pressable
                 style={[
                   styles.googleButton,
-                  (authBusy || !agreedToTerms || !confirmedAge) && styles.buttonDisabled,
+                  (authBusy || !agreedToTerms || !dobValid) && styles.buttonDisabled,
                   {
                     backgroundColor: Colors[colorScheme].card,
                     borderColor: Colors[colorScheme].border,
                   },
                 ]}
                 onPress={handleGoogleSignUp}
-                disabled={authBusy || !agreedToTerms || !confirmedAge}
+                disabled={authBusy || !agreedToTerms || !dobValid}
                 accessibilityRole="button"
                 accessibilityLabel="Continue with Google"
                 accessibilityHint="Double tap to create an account with your Google account"
@@ -651,7 +673,7 @@ export default function SignUpScreen() {
             <Button
               onPress={() => setShowEmailForm(true)}
               variant="outline"
-              disabled={authBusy || !agreedToTerms || !confirmedAge}
+              disabled={authBusy || !agreedToTerms || !dobValid}
               accessibilityLabel="Sign up with Email"
               accessibilityRole="button"
               accessibilityHint="Double tap to enter your email and password"
@@ -754,7 +776,7 @@ export default function SignUpScreen() {
 
             <Button
               onPress={onSubmit}
-              disabled={authBusy || !agreedToTerms || !confirmedAge}
+              disabled={authBusy || !agreedToTerms || !dobValid}
               accessibilityLabel={loading ? 'Creating account' : 'Create account'}
               accessibilityRole="button"
               accessibilityHint="Double tap to sign up with email and password"

@@ -603,7 +603,12 @@ const registerSchema = z.object({
   display_name: z.string().optional(),
   // Rookie is a coach plan, not a role
   role: z.enum(['fan', 'coach']).optional(),
-  dob: z.string().optional(), // COPPA: reject if under 13
+  // COPPA: required so an under-13 cannot bypass the age gate by omitting dob.
+  // The client (app/sign-up.tsx) collects DOB at signup and blocks <13.
+  // ROLLOUT: this server change must ship only AFTER the DOB-at-signup client
+  // build reaches adoption via `eas update` — older clients send no dob and
+  // would 400 here. isUnder13(dob) is still enforced below.
+  dob: z.string({ required_error: 'Date of birth is required' }).min(1, 'Date of birth is required'),
 });
 
 authRouter.post(

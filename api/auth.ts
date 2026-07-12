@@ -244,7 +244,7 @@ export const auth = {
       if (__DEV__) console.warn('[auth] Failed to clear tokens from storage:', error);
     }
   },
-  async register(email: string, password: string, display_name?: string) {
+  async register(email: string, password: string, display_name?: string, dob?: string) {
     invalidateMeCache();
     // omitAuthToken: register must not inherit a stale bearer token from a
     // previous session on the device. skipAuthRetry: auth-establishing
@@ -252,7 +252,7 @@ export const auth = {
     const res = parseAuthTokenResponse(
       await httpPostLongTimeout(
         '/auth/register',
-        { email, password, display_name },
+        { email, password, display_name, dob },
         {
           omitAuthToken: true,
           skipAuthRetry: true,

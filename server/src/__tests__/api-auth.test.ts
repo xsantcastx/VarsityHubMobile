@@ -20,6 +20,7 @@ let hashRefreshToken: (token: string) => string;
 const TEST_EMAIL = `test-api-auth-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 const TEST_DISPLAY_NAME = 'Test API User';
+const TEST_DOB = '2000-01-01'; // COPPA: dob is required at register (adult DOB)
 
 describe('API Authentication Endpoints', () => {
   let userId: string;
@@ -68,6 +69,7 @@ describe('API Authentication Endpoints', () => {
           password: TEST_PASSWORD,
           display_name: TEST_DISPLAY_NAME,
           role: 'fan',
+          dob: TEST_DOB,
         })
         .expect(201);
 
@@ -96,6 +98,7 @@ describe('API Authentication Endpoints', () => {
           email: TEST_EMAIL, // Same email as above
           password: 'AnotherPassword123!',
           display_name: 'Another User',
+          dob: TEST_DOB,
         })
         .expect(409);
 
@@ -110,6 +113,7 @@ describe('API Authentication Endpoints', () => {
           email: TEST_EMAIL.toUpperCase(),
           password: 'AnotherPassword123!',
           display_name: 'Another User',
+          dob: TEST_DOB,
         })
         .expect(409);
 
@@ -157,6 +161,7 @@ describe('API Authentication Endpoints', () => {
       const response = await request(app).post('/auth/register').send({
         email: emailWithSpaces,
         password: TEST_PASSWORD,
+        dob: TEST_DOB,
       });
 
       // Should either succeed (if sanitized) or fail with 409 (if already exists)
@@ -178,11 +183,36 @@ describe('API Authentication Endpoints', () => {
           email: `test-direct-coach-${Date.now()}@example.com`,
           password: TEST_PASSWORD,
           role: 'coach',
+          dob: TEST_DOB,
         })
         .expect(400);
 
       expect(response.body.code).toBe('COACH_REGISTRATION_DISABLED');
       expect(response.body.error).toMatch(/upgrade-to-coach|fan accounts/i);
+    });
+
+    it('should reject registration without a date of birth (COPPA)', async () => {
+      const response = await request(app)
+        .post('/auth/register')
+        .send({
+          email: `test-no-dob-${Date.now()}@example.com`,
+          password: TEST_PASSWORD,
+        })
+        .expect(400);
+      expect(response.body).toHaveProperty('error');
+    });
+
+    it('should reject registration for an under-13 date of birth (COPPA)', async () => {
+      const under13 = `${new Date().getFullYear() - 10}-01-01`; // ~10 years old
+      const response = await request(app)
+        .post('/auth/register')
+        .send({
+          email: `test-under13-${Date.now()}@example.com`,
+          password: TEST_PASSWORD,
+          dob: under13,
+        })
+        .expect(400);
+      expect(JSON.stringify(response.body)).toMatch(/under 13|COPPA/i);
     });
   });
 

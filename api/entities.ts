@@ -47,8 +47,8 @@ import type {
 export const User = {
   me: (options?: { force?: boolean }) => auth.me(options),
   refresh: () => auth.me({ force: true }),
-  register: (email: string, password: string, display_name?: string) =>
-    auth.register(email, password, display_name),
+  register: (email: string, password: string, display_name?: string, dob?: string) =>
+    auth.register(email, password, display_name, dob),
   loginViaEmailPassword: (email: string, password: string) => auth.login(email, password),
   loginViaGoogle: (idToken: string) => auth.loginWithGoogle(idToken),
   loginViaApple: (identityToken: string) => auth.loginWithApple(identityToken),
