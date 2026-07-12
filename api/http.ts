@@ -375,9 +375,38 @@ async function request(
         const newToken = refreshResult?.accessToken ?? null;
 
         if (newToken) {
-          // Retry the original request with the fresh token
+          // Retry the original request with the fresh token. Give the retry its
+          // OWN AbortController (registered with inflightControllers) + timeout,
+          // mirroring the primary request above. The original controller was
+          // already removed from the set on the first response, so without this
+          // a retry in flight during sign-out/session-expiry couldn't be aborted
+          // and could resolve under user A's token after user B signed in — and
+          // it had no timeout, so a stalled socket hung forever.
           headers['Authorization'] = `Bearer ${newToken}`;
-          const retryRes = await fetch(base + path, { ...options, headers, signal: undefined });
+          const retryController = new AbortController();
+          inflightControllers.add(retryController);
+          const retryTimeoutId = setTimeout(() => retryController.abort(), timeoutMs);
+          let retryRes: Response;
+          try {
+            retryRes = await fetch(base + path, {
+              ...options,
+              headers,
+              signal: retryController.signal,
+            });
+          } catch (retryErr) {
+            clearTimeout(retryTimeoutId);
+            inflightControllers.delete(retryController);
+            if (retryController.signal.aborted) {
+              // Aborted by sign-out (abortAllInflight) or the timeout above: the
+              // socket is freed; hang the promise so a per-screen catch can't
+              // stack an Alert over the sign-out redirect (same teardown
+              // contract as the 401-after-refresh branch below).
+              return new Promise(() => {});
+            }
+            throw retryErr; // genuine network error — surface as before
+          }
+          clearTimeout(retryTimeoutId);
+          inflightControllers.delete(retryController);
           if (retryRes.ok) {
             const retryText = await retryRes.text();
             const retryCt =
