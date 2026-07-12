@@ -48,6 +48,15 @@ type TeamInvite = {
   team: { id: string; name: string };
 };
 
+type PendingGameRequest = {
+  id: string;
+  title: string;
+  date: string;
+  location?: string | null;
+  home_team?: string | null;
+  away_team?: string | null;
+};
+
 type OrgJoinRequest = {
   id: string;
   status: string;
@@ -127,6 +136,11 @@ export default function EventApprovalsScreen() {
         ? '/(tabs)/discover'
         : '/(tabs)/discover';
 
+  // Section 0 — Game Requests (opponent-approval)
+  const [gameRequests, setGameRequests] = useState<PendingGameRequest[]>([]);
+  const [gameRequestsLoading, setGameRequestsLoading] = useState(true);
+  const [processingGameRequestId, setProcessingGameRequestId] = useState<string | null>(null);
+
   // Section 1 — Pitched Events
   const [events, setEvents] = useState<PendingEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
@@ -161,6 +175,22 @@ export default function EventApprovalsScreen() {
   const loadEventsFailedRef = useRef(false);
   const loadInvitesFailedRef = useRef(false);
   const loadOrgFailedRef = useRef(false);
+  const loadGameRequestsFailedRef = useRef(false);
+
+  const loadGameRequests = useCallback(async () => {
+    try {
+      const data = await Game.opponentPending();
+      setGameRequests(asArray<PendingGameRequest>(data));
+      loadGameRequestsFailedRef.current = false;
+    } catch (error: unknown) {
+      const e = error as ApprovalError;
+      if (__DEV__) console.warn('[Approvals] Game requests load failed:', e?.message);
+      setGameRequests([]);
+      loadGameRequestsFailedRef.current = true;
+    } finally {
+      setGameRequestsLoading(false);
+    }
+  }, []);
 
   const loadEvents = useCallback(async () => {
     try {
@@ -174,8 +204,17 @@ export default function EventApprovalsScreen() {
           games: [],
         })),
       ]);
+      const pendingGameIds = new Set(
+        asArray<RawPendingGame>((gamesData as { games?: unknown })?.games)
+          .filter(game => game?.approval_status === 'pending')
+          .map(game => String((game as any)?.id))
+      );
+      // Approving a game syncs its linked event in the same transaction, so a
+      // game-linked event row would duplicate the actionable game row.
       const pendingEvents = asArray<RawPendingEvent>(eventsData).filter(
-        event => event?.approval_status === 'pending'
+        event =>
+          event?.approval_status === 'pending' &&
+          (!(event as any)?.game_id || !pendingGameIds.has(String((event as any).game_id)))
       );
       const pendingGames = asArray<RawPendingGame>((gamesData as { games?: unknown })?.games)
         .filter(game => game?.approval_status === 'pending')
@@ -236,12 +275,22 @@ export default function EventApprovalsScreen() {
 
   const loadAll = useCallback(async () => {
     setError(null);
-    const loaders: Promise<void>[] = [loadEvents(), loadTeamInvites(), loadOrgRequests()];
+    const loaders: Promise<void>[] = [
+      loadGameRequests(),
+      loadEvents(),
+      loadTeamInvites(),
+      loadOrgRequests(),
+    ];
     await Promise.allSettled(loaders);
-    if (loadInvitesFailedRef.current && loadOrgFailedRef.current && loadEventsFailedRef.current) {
+    if (
+      loadInvitesFailedRef.current &&
+      loadOrgFailedRef.current &&
+      loadEventsFailedRef.current &&
+      loadGameRequestsFailedRef.current
+    ) {
       setError('Failed to load approvals. Pull down to refresh.');
     }
-  }, [loadEvents, loadOrgRequests, loadTeamInvites]);
+  }, [loadEvents, loadGameRequests, loadOrgRequests, loadTeamInvites]);
 
   useEffect(() => {
     if (authLoading || coachLoading) return;
@@ -250,12 +299,56 @@ export default function EventApprovalsScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    setGameRequestsLoading(true);
     setEventsLoading(true);
     setInvitesLoading(true);
     setOrgRequestsLoading(true);
     await loadAll();
     setRefreshing(false);
   }, [loadAll]);
+
+  // ── Game request (opponent-approval) actions ─────────────────────────────
+
+  const handleApproveGameRequest = useCallback(async (gameId: string) => {
+    setProcessingGameRequestId(gameId);
+    try {
+      await Game.decideOpponentApproval(gameId, 'approve');
+      Alert.alert('Confirmed', 'The game is now live.');
+      setGameRequests(prev => prev.filter(g => g.id !== gameId));
+    } catch (error: unknown) {
+      const e = error as ApprovalError;
+      if (isSessionExpiryError(e)) return;
+      Alert.alert('Error', e?.message || 'Failed to confirm the game request.');
+    } finally {
+      setProcessingGameRequestId(null);
+    }
+  }, []);
+
+  const [declineGameModal, setDeclineGameModal] = useState<{ gameId: string } | null>(null);
+  const [declineGameReason, setDeclineGameReason] = useState('');
+
+  const handleDeclineGameRequest = useCallback((gameId: string) => {
+    setDeclineGameReason('');
+    setDeclineGameModal({ gameId });
+  }, []);
+
+  const confirmDeclineGameRequest = useCallback(async () => {
+    if (!declineGameModal) return;
+    const { gameId } = declineGameModal;
+    setDeclineGameModal(null);
+    setProcessingGameRequestId(gameId);
+    try {
+      await Game.decideOpponentApproval(gameId, 'decline', declineGameReason.trim() || undefined);
+      Alert.alert('Declined', 'The game request has been declined.');
+      setGameRequests(prev => prev.filter(g => g.id !== gameId));
+    } catch (error: unknown) {
+      const e = error as ApprovalError;
+      if (isSessionExpiryError(e)) return;
+      Alert.alert('Error', e?.message || 'Failed to decline the game request.');
+    } finally {
+      setProcessingGameRequestId(null);
+    }
+  }, [declineGameModal, declineGameReason]);
 
   // ── Event actions ─────────────────────────────────────────────────────────
 
@@ -496,6 +589,56 @@ export default function EventApprovalsScreen() {
     </View>
   );
 
+  const renderGameRequestCard = (item: PendingGameRequest) => {
+    const isProcessing = processingGameRequestId === item.id;
+    return (
+      <View key={item.id} style={[styles.card, { backgroundColor: C.card, borderColor: C.border }]}>
+        <View style={styles.cardRow}>
+          <Text style={[styles.typeChip, { color: '#F59E0B' }]}>🏆 Game Request</Text>
+          <Text style={[styles.metaText, { color: C.mutedText }]}>
+            {new Date(item.date).toLocaleDateString()}
+          </Text>
+        </View>
+
+        <Text style={[styles.cardTitle, { color: C.text }]}>
+          {item.home_team && item.away_team ? `${item.home_team} vs ${item.away_team}` : item.title}
+        </Text>
+
+        {item.location ? (
+          <View style={styles.metaRow}>
+            <Ionicons name="location-outline" size={14} color={C.mutedText} />
+            <Text style={[styles.metaText, { color: C.mutedText }]}>{item.location}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.actionRow}>
+          <Pressable
+            style={[styles.btn, styles.approveBtn, isProcessing && styles.btnDisabled]}
+            onPress={() => handleApproveGameRequest(item.id)}
+            disabled={isProcessing}
+          >
+            {isProcessing ? (
+              <ActivityIndicator size="small" color="#10B981" />
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle-outline" size={18} color="#10B981" />
+                <Text style={[styles.btnText, { color: '#10B981' }]}>Confirm</Text>
+              </>
+            )}
+          </Pressable>
+          <Pressable
+            style={[styles.btn, styles.rejectBtn, isProcessing && styles.btnDisabled]}
+            onPress={() => handleDeclineGameRequest(item.id)}
+            disabled={isProcessing}
+          >
+            <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
+            <Text style={[styles.btnText, { color: '#DC2626' }]}>Decline</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
   const renderEventCard = (item: PendingEvent) => {
     const isProcessing = processingEventId === item.id;
     return (
@@ -655,11 +798,12 @@ export default function EventApprovalsScreen() {
     );
   };
 
-  const isLoading = eventsLoading || invitesLoading || orgRequestsLoading;
+  const isLoading = eventsLoading || invitesLoading || orgRequestsLoading || gameRequestsLoading;
   // Only count actually-pending items for the empty state. Section 3 now shows all statuses
   // (pending/approved/denied) as read-only, so approved/denied requests shouldn't suppress "All caught up".
   const pendingOrgRequests = orgRequests.filter(r => r.status === 'pending');
-  const totalPending = events.length + teamInvites.length + pendingOrgRequests.length;
+  const totalPending =
+    gameRequests.length + events.length + teamInvites.length + pendingOrgRequests.length;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -710,6 +854,7 @@ export default function EventApprovalsScreen() {
           <TouchableOpacity
             onPress={() => {
               setError(null);
+              setGameRequestsLoading(true);
               setEventsLoading(true);
               setInvitesLoading(true);
               setOrgRequestsLoading(true);
@@ -748,6 +893,16 @@ export default function EventApprovalsScreen() {
                   No pending approvals right now.
                 </Text>
               </View>
+            )}
+
+            {/* ── Section 0: Game Requests (opponent-approval) ── */}
+            {renderSectionHeader('Game Requests', 'trophy-outline', gameRequests.length, '#F59E0B')}
+            {gameRequestsLoading ? (
+              <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
+            ) : gameRequests.length === 0 ? (
+              renderEmpty('No game requests awaiting your confirmation.')
+            ) : (
+              gameRequests.map(renderGameRequestCard)
             )}
 
             {/* ── Section 1: Pitched Events ── */}
@@ -860,6 +1015,78 @@ export default function EventApprovalsScreen() {
                 onPress={confirmRejectEvent}
               >
                 <Text style={{ color: 'white', fontWeight: '700' }}>Reject</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* Decline Game Request Modal */}
+      <Modal visible={!!declineGameModal} transparent animationType="slide">
+        <View
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            padding: 24,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
+              borderRadius: 16,
+              padding: 20,
+              width: '100%',
+              maxWidth: 400,
+            }}
+          >
+            <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 8 }}>
+              Decline Game Request
+            </Text>
+            <Text style={{ color: C.mutedText, marginBottom: 12 }}>
+              Let the proposing coach know why (optional):
+            </Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: C.border,
+                borderRadius: 8,
+                padding: 10,
+                color: C.text,
+                backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB',
+                minHeight: 60,
+                textAlignVertical: 'top',
+              }}
+              value={declineGameReason}
+              onChangeText={setDeclineGameReason}
+              placeholder="Reason (optional)..."
+              placeholderTextColor={C.mutedText}
+              multiline
+            />
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              <Pressable
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  borderRadius: 8,
+                  backgroundColor: C.border,
+                  alignItems: 'center',
+                }}
+                onPress={() => setDeclineGameModal(null)}
+              >
+                <Text style={{ color: C.text, fontWeight: '700' }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  borderRadius: 8,
+                  backgroundColor: '#dc2626',
+                  alignItems: 'center',
+                }}
+                onPress={confirmDeclineGameRequest}
+              >
+                <Text style={{ color: 'white', fontWeight: '700' }}>Decline</Text>
               </Pressable>
             </View>
           </View>

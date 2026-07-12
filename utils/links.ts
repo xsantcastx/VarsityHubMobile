@@ -3,6 +3,7 @@
  * Provides canonical URLs for sharing events, games, posts, and profiles
  */
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { getConfig } from '@/config/env';
 
 const appConfig = getConfig();
@@ -20,6 +21,27 @@ export interface ShareableLink {
   deepLink: string;
   /** Shareable message with URL */
   shareMessage: string;
+}
+
+/**
+ * Payload for React Native's Share.share().
+ *
+ * iOS: URL only. Passing both `message` and `url` (or a message that contains
+ * the URL) makes Messages split the share into a text bubble plus one link
+ * chip per URL occurrence — the recipient gets three bubbles. A bare URL
+ * renders as a single rich link preview.
+ *
+ * Android: Share.share() ignores `url`, so the URL must live in the message
+ * text (shareMessage already ends with it).
+ */
+export function buildNativeSharePayload(
+  shareMessage: string,
+  webUrl: string | null | undefined
+): { message: string } | { url: string } {
+  if (Platform.OS === 'ios' && webUrl) {
+    return { url: webUrl };
+  }
+  return { message: shareMessage };
 }
 
 /**
@@ -68,6 +90,18 @@ export const AppLinks = {
   },
 
   /**
+   * Generate shareable link for a sport program (e.g. "Girls Basketball").
+   */
+  program: (id: string, programName?: string): ShareableLink => {
+    const webUrl = `${WEB_BASE_URL}/programs/${id}`;
+    const deepLink = `${APP_SCHEME}://program/${id}`;
+    const shareMessage = programName
+      ? `Follow ${programName} on VarsityHub!\n${webUrl}`
+      : `Check out this program on VarsityHub!\n${webUrl}`;
+    return { webUrl, deepLink, shareMessage };
+  },
+
+  /**
    * Generate shareable link for a user profile
    */
   user: (id: string, displayName?: string): ShareableLink => {
@@ -86,7 +120,7 @@ export const AppLinks = {
     const id = String(idOrSlug);
     const webUrl = `${WEB_BASE_URL}/events/${id}`;
     const deepLink = `${APP_SCHEME}://event/${id}`;
-    const shareMessage = title 
+    const shareMessage = title
       ? `Check out "${title}" on VarsityHub!\n${webUrl}`
       : `Check out this event on VarsityHub!\n${webUrl}`;
     return { webUrl, deepLink, shareMessage };
@@ -135,7 +169,7 @@ export const AppLinks = {
 export function parseDeepLink(url: string): { type: string; id: string } | null {
   const match = url.match(new RegExp(`${APP_SCHEME}://([^/]+)/(.+)`));
   if (!match) return null;
-  
+
   const [, type, id] = match;
   return { type, id };
 }

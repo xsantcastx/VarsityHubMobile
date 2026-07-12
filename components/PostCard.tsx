@@ -13,7 +13,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import { resolveMediaType } from '@/utils/media';
 import { prefetchUserProfile } from '@/utils/prefetch';
+import EventChip from './EventChip';
 import ExpandableText from './ExpandableText';
 import RankingBadge from './RankingBadge';
 
@@ -120,11 +122,9 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
     currentUser && post.author_id && String(currentUser.id) === String(post.author_id);
   const mediaUrl = post?.media_url || post?.mediaUrl || null;
   const previewUrl = post?.preview_url || post?.thumbnail_url || post?.previewUrl || null;
-  const mediaType = typeof post?.media_type === 'string' ? post.media_type.toLowerCase() : null;
-  const isImage =
-    mediaType === 'image' || (mediaUrl ? /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl) : false);
-  const isVideo =
-    mediaType === 'video' || (mediaUrl ? /\.(mp4|mov|webm|m4v)$/i.test(mediaUrl) : false);
+  const resolvedMediaType = resolveMediaType(mediaUrl, post?.media_type);
+  const isImage = resolvedMediaType === 'image';
+  const isVideo = resolvedMediaType === 'video';
   const caption = useMemo(() => post.caption || post.content || '', [post.caption, post.content]);
   const author = post?.author || null;
 
@@ -286,6 +286,12 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
               )}
             </View>
           ) : null}
+          <EventChip
+            gameId={(post as any)?.game_id ?? (post as any)?.game?.id}
+            eventId={(post as any)?.event_id ?? (post as any)?.event?.id}
+            variant="card"
+            style={styles.eventChip}
+          />
           {/* Top accent stripe */}
           <LinearGradient
             colors={['#1e293b', '#0f172a']}
@@ -322,13 +328,14 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   <Text style={styles.mediaErrorText}>Image unavailable</Text>
                   <Text style={styles.mediaRetryText}>Tap to retry</Text>
                 </Pressable>
-              ) : isVideo && previewUrl ? (
+              ) : isVideo && previewUrl && !mediaError ? (
                 <Image
                   source={{ uri: optimizeImageUrl(previewUrl, 600) }}
                   style={styles.media}
                   contentFit="cover"
                   cachePolicy="memory-disk"
                   recyclingKey={String(post.id)}
+                  onError={() => setMediaError(true)}
                 />
               ) : isVideo && mediaUrl ? (
                 <View
@@ -352,7 +359,14 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   </View>
                   <Text style={styles.vsText}>vs</Text>
                   <View style={styles.teamPillAlt}>
-                    <Text style={[styles.teamPillAltText, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>{teamLabels.teamB}</Text>
+                    <Text
+                      style={[
+                        styles.teamPillAltText,
+                        { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' },
+                      ]}
+                    >
+                      {teamLabels.teamB}
+                    </Text>
                   </View>
                 </View>
               ) : null}
@@ -392,7 +406,14 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   </View>
                   <Text style={styles.vsText}>vs</Text>
                   <View style={styles.teamPillAlt}>
-                    <Text style={[styles.teamPillAltText, { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' }]}>{teamLabels.teamB}</Text>
+                    <Text
+                      style={[
+                        styles.teamPillAltText,
+                        { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' },
+                      ]}
+                    >
+                      {teamLabels.teamB}
+                    </Text>
                   </View>
                 </View>
               ) : null}
@@ -751,6 +772,10 @@ const styles = StyleSheet.create({
   authorAvatar: { width: 28, height: 28, borderRadius: 14 },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
   avatarFallbackText: { fontWeight: '700', fontSize: 12 },
+  eventChip: {
+    marginHorizontal: 12,
+    marginBottom: 8,
+  },
   authorName: { fontWeight: '700', maxWidth: 220 },
   actionsButton: { padding: 4, borderRadius: 12 },
   mediaErrorState: { backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },

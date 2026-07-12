@@ -1,15 +1,24 @@
 import { Game, Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import {
+  formatProgramLabel,
+  formatTeamFolderLabel,
+  genderRank,
+  groupTeamsByProgram,
+  levelRank,
+} from '@/constants/programs';
 import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { useOrgProgramsQuery } from '@/hooks/useOrgProgramsQuery';
 import { getCanonicalOrganizationId } from '@/utils/authState';
+import { gameRowTitle } from '@/utils/eventTitle';
 import { goBackToTrackedRoute } from '@/utils/navigation';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
-import { useCallback, useContext, useState } from 'react';
+import { useCallback, useContext, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -56,6 +65,9 @@ type TeamItem = {
   season?: string | null;
   logo_url?: string | null;
   organization_id?: string;
+  program_id: string | null;
+  level: string | null;
+  gender: string | null;
 };
 
 type GameItem = {
@@ -67,6 +79,8 @@ type GameItem = {
   opponent_name?: string;
   location?: string;
   game_type?: string;
+  event_type?: string | null;
+  title?: string | null;
 };
 
 type AuthorizedInvite = {
@@ -103,7 +117,7 @@ export default function OrganizationScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteIdentifier, setInviteIdentifier] = useState('');
 
   const queryClient = useQueryClient();
   const orgPageQueryKey = ['org-page', params.id?.trim() || 'mine', user?.id];
@@ -171,22 +185,31 @@ export default function OrganizationScreen() {
           season: t.season || null,
           logo_url: t.logo_url || t.avatar_url || null,
           organization_id: t.organization_id,
+          program_id: t.program_id ?? null,
+          level: t.level ?? null,
+          gender: t.gender ?? null,
         }))
         .sort((a: TeamItem, b: TeamItem) => a.name.localeCompare(b.name));
 
       let orgGames: GameItem[] = [];
       try {
-        const allGamesData = await Game.list('-date');
-        const allGames = Array.isArray(allGamesData)
-          ? allGamesData
-          : allGamesData?.games || allGamesData?.items || [];
-        const teamNames = orgTeams.map(t => t.name.toLowerCase());
-        orgGames = allGames
-          .filter((g: any) => {
-            const homeTeam = (g.home_team || '').toLowerCase();
-            const awayTeam = (g.away_team || '').toLowerCase();
-            return teamNames.some(name => homeTeam.includes(name) || awayTeam.includes(name));
-          })
+        // Scope server-side by each team's ID (matches home_team_id OR
+        // away_team_id), then merge + dedupe. Replaces the old unbounded
+        // Game.list('-date') + fragile name-substring match, which pulled the
+        // whole games table and mis-matched teams whose names are substrings of
+        // others (e.g. "Eagles" also matched "Golden Eagles" / "Eagles JV").
+        const perTeamGames = await Promise.all(
+          orgTeams.map(t =>
+            Game.list('-date', { teamId: t.id, limit: 100 })
+              .then((res: any) => (Array.isArray(res) ? res : res?.games || res?.items || []))
+              .catch(() => [])
+          )
+        );
+        const dedupedById = new Map<string, any>();
+        for (const list of perTeamGames) {
+          for (const g of list) dedupedById.set(String(g.id), g);
+        }
+        orgGames = Array.from(dedupedById.values())
           .map((g: any) => ({
             id: String(g.id),
             date: g.date,
@@ -196,6 +219,8 @@ export default function OrganizationScreen() {
             opponent_name: g.opponent_name,
             location: g.location,
             game_type: g.game_type,
+            event_type: g.event_type,
+            title: g.title,
           }))
           .sort((a: GameItem, b: GameItem) => {
             const dateA = new Date((a.scheduled_date || a.date) as string).getTime();
@@ -221,6 +246,24 @@ export default function OrganizationScreen() {
   const teams = orgPage?.teams ?? [];
   const games = orgPage?.games ?? [];
   const isFollowing = orgPage?.isFollowing ?? false;
+
+  // Sport-program grouping: one row per program instead of one per team,
+  // matching the manage-teams / my-team picker precedent. Only kicks in once
+  // any team carries a program_id — a fully ungrouped org (or a server that
+  // predates the program layer) renders exactly today's flat team list. The
+  // program-metadata query is gated on that same condition so the OTA-safe
+  // path (nothing to group) never fires an extra network call.
+  const anyTeamHasProgram = teams.some(t => !!t.program_id);
+  const { data: orgPrograms = [] } = useOrgProgramsQuery({
+    organizationId: orgPage?.orgId,
+    enabled: !!orgPage?.orgId && anyTeamHasProgram,
+  });
+  const programsById = useMemo(() => new Map(orgPrograms.map(p => [p.id, p])), [orgPrograms]);
+  const teamGroups = useMemo(() => groupTeamsByProgram(teams), [teams]);
+  const hasProgramGroups = teamGroups.some(g => g.programId !== null);
+  const ungroupedTeams = teamGroups.find(g => g.programId === null)?.teams ?? [];
+  const programGroups = teamGroups.filter(g => g.programId !== null);
+
   const error = isError
     ? (orgPageError as any)?.message === 'not_found'
       ? 'not_found'
@@ -413,6 +456,74 @@ export default function OrganizationScreen() {
     })
     .slice(0, 10);
 
+  const renderTeamRow = (team: TeamItem) => {
+    const subline = [team.sport, team.season].filter(Boolean).join(' • ');
+    return (
+      <Pressable
+        key={team.id}
+        style={[styles.rowItem, { borderColor: theme.border }]}
+        onPress={() => handleTeamPress(team)}
+      >
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+            {team.name}
+          </Text>
+          {subline.length > 0 && (
+            <Text style={[styles.rowSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+              {subline}
+            </Text>
+          )}
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
+      </Pressable>
+    );
+  };
+
+  const renderProgramRow = (group: (typeof programGroups)[number]) => {
+    const program = group.programId ? programsById.get(group.programId) : undefined;
+    const title = program ? formatProgramLabel(program) : group.teams[0]?.sport || 'Teams';
+    // Folder labels ordered by (level rank, gender) — "Boys Varsity, Girls JV" —
+    // rather than the team-name sort the list arrives in. Deduped and capped so
+    // a large program's subtitle can't overflow the row.
+    const folderLabels = Array.from(
+      new Set(
+        [...group.teams]
+          .sort((a, b) => {
+            const byLevel = levelRank(a.level) - levelRank(b.level);
+            if (byLevel !== 0) return byLevel;
+            return genderRank(a.gender) - genderRank(b.gender);
+          })
+          .map(t => formatTeamFolderLabel({ gender: t.gender, level: t.level }))
+      )
+    );
+    const shownLabels = folderLabels.slice(0, 3);
+    const extraCount = folderLabels.length - shownLabels.length;
+    const labelText = shownLabels.join(', ') + (extraCount > 0 ? ` +${extraCount} more` : '');
+    const count = group.teams.length;
+    const subtitle = `${count} team${count !== 1 ? 's' : ''}${
+      folderLabels.length ? ` · ${labelText}` : ''
+    }`;
+    return (
+      <Pressable
+        key={group.programId}
+        style={[styles.rowItem, { borderColor: theme.border }]}
+        onPress={() =>
+          router.push({ pathname: '/program-page', params: { id: group.programId as string } })
+        }
+      >
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={[styles.rowSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
+      </Pressable>
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen options={{ title: orgName, headerShown: false }} />
@@ -435,7 +546,10 @@ export default function OrganizationScreen() {
         </Pressable>
 
         {/* Admin: View Join Requests */}
-        {organization?.id && (canReviewCoachRequests || isOrgAdmin) && (
+        {/* Coach Requests: any reviewer. Invite Coach: OWNER ONLY — org invite
+            creation is owner-only server-side (organizations.ts:1267); showing it
+            to an org manager just 403s. */}
+        {organization?.id && (canReviewCoachRequests || isOrgOwner) && (
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
             {canReviewCoachRequests ? (
               <Pressable
@@ -454,24 +568,26 @@ export default function OrganizationScreen() {
                 <Text style={styles.adminButtonText}>Coach Requests</Text>
               </Pressable>
             ) : null}
-            <Pressable
-              onPress={() => {
-                setInviteEmail('');
-                setInviteModalVisible(true);
-              }}
-              style={[
-                styles.adminButton,
-                {
-                  backgroundColor: theme.card,
-                  borderWidth: 1,
-                  borderColor: theme.border,
-                  flex: canReviewCoachRequests ? 1 : undefined,
-                },
-              ]}
-            >
-              <Ionicons name="person-add-outline" size={20} color={theme.text} />
-              <Text style={[styles.adminButtonText, { color: theme.text }]}>Invite Coach</Text>
-            </Pressable>
+            {isOrgOwner ? (
+              <Pressable
+                onPress={() => {
+                  setInviteIdentifier('');
+                  setInviteModalVisible(true);
+                }}
+                style={[
+                  styles.adminButton,
+                  {
+                    backgroundColor: theme.card,
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    flex: canReviewCoachRequests ? 1 : undefined,
+                  },
+                ]}
+              >
+                <Ionicons name="person-add-outline" size={20} color={theme.text} />
+                <Text style={[styles.adminButtonText, { color: theme.text }]}>Invite Coach</Text>
+              </Pressable>
+            ) : null}
           </View>
         )}
 
@@ -729,30 +845,35 @@ export default function OrganizationScreen() {
                       {String(invite.role || 'member').replace(/_/g, ' ')}
                     </Text>
                   </View>
-                  <Pressable
-                    onPress={async () => {
-                      if (!organization?.id) return;
-                      try {
-                        await Organization.cancelInvite(organization.id, invite.id);
-                        await refreshAll();
-                      } catch (err: any) {
-                        Alert.alert('Error', err?.message || 'Failed to cancel invite.');
-                      }
-                    }}
-                    style={[
-                      styles.actionBtn,
-                      {
-                        backgroundColor: 'transparent',
-                        borderColor: theme.border,
-                        borderWidth: 1,
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
-                        minHeight: 0,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.actionBtnText, { color: theme.text }]}>Cancel</Text>
-                  </Pressable>
+                  {/* Managers may VIEW pending invites (server allows) but only the
+                      OWNER may revoke them (organizations.ts:1474) — hide Cancel for
+                      non-owners so it doesn't 403. */}
+                  {isOrgOwner ? (
+                    <Pressable
+                      onPress={async () => {
+                        if (!organization?.id) return;
+                        try {
+                          await Organization.cancelInvite(organization.id, invite.id);
+                          await refreshAll();
+                        } catch (err: any) {
+                          Alert.alert('Error', err?.message || 'Failed to cancel invite.');
+                        }
+                      }}
+                      style={[
+                        styles.actionBtn,
+                        {
+                          backgroundColor: 'transparent',
+                          borderColor: theme.border,
+                          borderWidth: 1,
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          minHeight: 0,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.actionBtnText, { color: theme.text }]}>Cancel</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               ))
             )}
@@ -822,32 +943,13 @@ export default function OrganizationScreen() {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Teams</Text>
           {teams.length === 0 ? (
             <Text style={[styles.emptyText, { color: theme.mutedText }]}>No teams yet.</Text>
+          ) : hasProgramGroups ? (
+            <>
+              {programGroups.map(renderProgramRow)}
+              {ungroupedTeams.map(renderTeamRow)}
+            </>
           ) : (
-            teams.map(team => {
-              const subline = [team.sport, team.season].filter(Boolean).join(' • ');
-              return (
-                <Pressable
-                  key={team.id}
-                  style={[styles.rowItem, { borderColor: theme.border }]}
-                  onPress={() => handleTeamPress(team)}
-                >
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
-                      {team.name}
-                    </Text>
-                    {subline.length > 0 && (
-                      <Text
-                        style={[styles.rowSubtitle, { color: theme.mutedText }]}
-                        numberOfLines={1}
-                      >
-                        {subline}
-                      </Text>
-                    )}
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
-                </Pressable>
-              );
-            })
+            teams.map(renderTeamRow)
           )}
         </View>
 
@@ -865,7 +967,11 @@ export default function OrganizationScreen() {
           ) : (
             upcomingGames.map(game => {
               const dateStr = formatEventDate(game.scheduled_date || game.date);
-              const opponent = game.opponent_name || game.away_team || 'TBD';
+              const rowTitle = gameRowTitle({
+                event_type: game.event_type,
+                title: game.title,
+                opponent: game.opponent_name || game.away_team,
+              });
               return (
                 <Pressable
                   key={game.id}
@@ -877,7 +983,7 @@ export default function OrganizationScreen() {
                   </View>
                   <View style={{ flex: 1, gap: 4 }}>
                     <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
-                      vs {opponent}
+                      {rowTitle}
                     </Text>
                     <View style={styles.eventMetaRow}>
                       <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}>
@@ -917,18 +1023,17 @@ export default function OrganizationScreen() {
           >
             <Text style={[styles.modalTitle, { color: theme.text }]}>Invite Coach</Text>
             <Text style={[styles.modalSubtitle, { color: theme.mutedText }]}>
-              Enter the email address of the coach to invite:
+              Enter the coach's username or email address:
             </Text>
             <TextInput
               style={[
                 styles.modalInput,
                 { backgroundColor: theme.background, borderColor: theme.border, color: theme.text },
               ]}
-              placeholder="coach@example.com"
+              placeholder="@coachname or coach@example.com"
               placeholderTextColor={theme.mutedText}
-              value={inviteEmail}
-              onChangeText={setInviteEmail}
-              keyboardType="email-address"
+              value={inviteIdentifier}
+              onChangeText={setInviteIdentifier}
               autoCapitalize="none"
               autoCorrect={false}
               autoFocus
@@ -943,16 +1048,19 @@ export default function OrganizationScreen() {
               <Pressable
                 style={[styles.modalButton, { backgroundColor: theme.tint }]}
                 onPress={async () => {
-                  if (!inviteEmail.trim() || !organization) return;
+                  if (!inviteIdentifier.trim() || !organization) return;
                   try {
-                    await Organization.invite(organization.id, inviteEmail.trim(), 'member');
+                    await Organization.invite(organization.id, inviteIdentifier.trim(), 'member');
                     setInviteModalVisible(false);
                     await refreshAll();
-                    Alert.alert('Invited', `Invitation sent to ${inviteEmail.trim()}`);
+                    Alert.alert('Invited', `Invitation sent to ${inviteIdentifier.trim()}`);
                   } catch (err: any) {
                     Alert.alert(
                       'Error',
-                      err?.data?.error || err?.message || 'Failed to send invite'
+                      err?.data?.message ||
+                        err?.data?.error ||
+                        err?.message ||
+                        'Failed to send invite'
                     );
                   }
                 }}

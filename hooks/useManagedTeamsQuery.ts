@@ -11,6 +11,8 @@ export type ManagedTeam = {
   season?: string;
   avatar_url?: string;
   my_role?: string;
+  level: string | null;
+  program_id: string | null;
   organization?: {
     id: string;
     name: string;
@@ -46,6 +48,8 @@ export function useManagedTeamsQuery({
         season: t.season || null,
         avatar_url: t.avatar_url || null,
         my_role: t.my_role || null,
+        level: t.level ?? null,
+        program_id: t.program_id ?? null,
         organization: t.organization || null,
       }));
     },

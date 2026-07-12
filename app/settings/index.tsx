@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import PasswordInput from '@/components/PasswordInput';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
 import { useCustomColorScheme, useThemePreference } from '@/hooks/useCustomColorScheme';
@@ -832,8 +833,7 @@ export default function SettingsScreen() {
             />
           </SectionCard>
 
-          {/* Legal */}
-          <SectionCard title="Legal">
+          <SectionCard title="Privacy">
             <NavRow
               title="Download My Data"
               subtitle="Request and download a privacy export archive"
@@ -847,11 +847,10 @@ export default function SettingsScreen() {
               title="Terms of Service"
               onPress={() => void router.push('/settings/terms-of-service')}
             />
-            <NavRow title="DMCA Policy" onPress={() => void router.push('/settings/dmca')} />
             <NavRow
-              title="Contact Us"
+              title="Copyright & DMCA"
               isLast
-              onPress={() => void router.push('/settings/contact')}
+              onPress={() => void router.push('/settings/dmca')}
             />
           </SectionCard>
 
@@ -1296,13 +1295,12 @@ export default function SettingsScreen() {
                   ]}
                 />
                 {deleteRequiresPassword && (
-                  <TextInput
+                  <PasswordInput
                     value={deletePassword}
                     onChangeText={setDeletePassword}
                     editable={!deletingAccount}
                     placeholder="Password"
                     placeholderTextColor={Colors[colorScheme ?? 'light'].mutedText}
-                    secureTextEntry
                     style={[
                       styles.deleteInput,
                       {

@@ -1,9 +1,5 @@
 import { Alert } from 'react-native';
-import {
-  ICLOUD_ERROR_MESSAGE,
-  ICLOUD_ERROR_TITLE,
-  isICloudError,
-} from '@/utils/isICloudError';
+import { ICLOUD_ERROR_MESSAGE, ICLOUD_ERROR_TITLE, isICloudError } from '@/utils/isICloudError';
 
 type UploadErrorAlertOptions = {
   fallbackTitle?: string;
@@ -38,8 +34,7 @@ export function showUploadErrorAlert(
     status === 502 ||
     code.startsWith('UPSTREAM_') ||
     /upload service is (misconfigured|temporarily unavailable)/i.test(rawMessage);
-  const isAuth =
-    !isUpstreamFailure && (status === 401 || /unauthoriz/i.test(rawMessage));
+  const isAuth = !isUpstreamFailure && (status === 401 || /unauthoriz/i.test(rawMessage));
   const isServer =
     (typeof status === 'number' && status >= 500 && !isUpstreamFailure) ||
     /HTTP 5\d\d/i.test(rawMessage);
@@ -56,14 +51,22 @@ export function showUploadErrorAlert(
     return;
   }
 
+  const isRateLimited = status === 429 || /too many requests|rate limit/i.test(rawMessage);
+  if (isRateLimited) {
+    Alert.alert(
+      'Too Many Uploads',
+      'You have hit the hourly upload limit. Wait a few minutes and try again.'
+    );
+    return;
+  }
+
   if (isUpstreamFailure) {
     // Cloudinary or another upstream provider rejected the upload. This is
     // infrastructure — not the user's session. Show a clear retry prompt,
     // never mention signing in/out.
     Alert.alert(
       'Upload Unavailable',
-      rawMessage ||
-        'The upload service is temporarily unavailable. Please try again in a minute.'
+      rawMessage || 'The upload service is temporarily unavailable. Please try again in a minute.'
     );
   } else if (isAuth) {
     // A genuine 401 that isn't upstream — either a race where the

@@ -22,9 +22,8 @@ const profileSource = readFileSync(join(process.cwd(), 'app', 'profile.tsx'), 'u
 
 describe('GameVerticalFeedScreen memory guards', () => {
   it('only gives the video player a source for actual videos', () => {
-    expect(viewerSource).toContain(
-      "post.media_type === 'video' && post.media_url ? { uri: post.media_url } : null"
-    );
+    expect(viewerSource).toContain("post.media_type === 'video' && post.media_url");
+    expect(viewerSource).toContain('? { uri: optimizeVideoUrl(post.media_url) || post.media_url }');
     // The old unconditional form must not come back.
     expect(viewerSource).not.toContain('(post.media_url ? { uri: post.media_url } : null),');
   });
@@ -38,7 +37,9 @@ describe('GameVerticalFeedScreen memory guards', () => {
 
 describe('profile grid thumbnails', () => {
   it('requests downsized Cloudinary transforms, not original uploads', () => {
-    const optimized = profileSource.match(/optimizeImageUrl\(media\.displayImageUrl!, 500\)/g);
+    const optimized = profileSource.match(
+      /optimizeImageUrl\(media\.previewUrl \|\| media\.displayImageUrl!, 500\)/g
+    );
     expect(optimized?.length).toBe(3); // posts, replies, upvotes grids
     expect(profileSource).not.toContain('source={{ uri: media.displayImageUrl! }}');
   });

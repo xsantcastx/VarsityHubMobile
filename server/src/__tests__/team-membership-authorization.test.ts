@@ -142,62 +142,69 @@ describe('Team membership authorization boundaries', () => {
 
   afterAll(async () => {
     try {
-      await prisma.notification.deleteMany({
-        where: { user_id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
-      }).catch(() => {});
-      await prisma.teamMembership.deleteMany({
-        where: {
-          OR: [
-            { team_id: teamId },
-            { user_id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
-          ],
-        },
-      }).catch(() => {});
+      await prisma.notification
+        .deleteMany({
+          where: { user_id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
+        })
+        .catch(() => {});
+      await prisma.teamMembership
+        .deleteMany({
+          where: {
+            OR: [
+              { team_id: teamId },
+              { user_id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
+            ],
+          },
+        })
+        .catch(() => {});
       await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
-      await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+      await prisma.organizationMembership
+        .deleteMany({ where: { organization_id: orgId } })
+        .catch(() => {});
       await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
-      await prisma.user.deleteMany({
-        where: { id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
+        })
+        .catch(() => {});
     } catch (e) {
       console.warn('Cleanup error (non-critical):', e);
     }
   });
 
-  it('allows an org manager to add a member to a team in their organization', async () => {
-    const res = await request(app)
+  // Role-barrier model (2026-07-06): full team administration (add/update/
+  // remove roster members) is reserved for the team owner, head coach, or
+  // ORG OWNER — an org MANAGER is an "authorized user" (roster/event
+  // approve-deny only) and must NOT reach these admin-tier mutations via the
+  // org-membership fallback, even without any direct team membership.
+  it('blocks an org manager from adding a member to a team in their organization', async () => {
+    await request(app)
       .post('/team-memberships')
       .set('Authorization', `Bearer ${managerToken}`)
       .send({
         team_id: teamId,
         user_id: addTargetId,
-        role: 'member',
+        role: 'assistant_coach',
       })
-      .expect(201);
-
-    expect(res.body.team_id).toBe(teamId);
-    expect(res.body.user_id).toBe(addTargetId);
-    expect(res.body.role).toBe('member');
+      .expect(403);
   });
 
-  it('allows an org manager to update team membership without direct team membership', async () => {
-    const res = await request(app)
+  it('blocks an org manager from updating team membership without direct team membership', async () => {
+    await request(app)
       .patch(`/team-memberships/${membershipId}`)
       .set('Authorization', `Bearer ${managerToken}`)
-      .send({ role: 'player' })
-      .expect(200);
-
-    expect(res.body.id).toBe(membershipId);
-    expect(res.body.role).toBe('player');
+      .send({ role: 'coach' })
+      .expect(403);
   });
 
-  it('allows an org manager to remove team membership without direct team membership', async () => {
+  it('blocks an org manager from removing team membership without direct team membership', async () => {
     await request(app)
       .delete(`/team-memberships/${membershipId}`)
       .set('Authorization', `Bearer ${managerToken}`)
-      .expect(200);
+      .expect(403);
 
-    const membership = await prisma.teamMembership.findUnique({ where: { id: membershipId } });
-    expect(membership).toBeNull();
+    // Confirm the membership genuinely survived the blocked delete.
+    const stillExists = await prisma.teamMembership.findUnique({ where: { id: membershipId } });
+    expect(stillExists).toBeTruthy();
   });
 });

@@ -53,9 +53,10 @@ export async function resolveMinorAuditMetadata(
 
 const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
 const isPlaywrightE2E = process.env.PLAYWRIGHT_E2E === '1';
-const wantsTestEmailProvider = String(process.env.EMAIL_PROVIDER || '')
-  .trim()
-  .toLowerCase() === 'test';
+const wantsTestEmailProvider =
+  String(process.env.EMAIL_PROVIDER || '')
+    .trim()
+    .toLowerCase() === 'test';
 
 let emailServicePromise: Promise<EmailService> | null = null;
 const getEmailService = async (): Promise<EmailService | null> => {
@@ -146,7 +147,6 @@ const CONSENT_API_BASE_URL = resolveEmailBaseUrlWithDiagnostics(
 ).value;
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
 const PRIVACY_POLICY_URL = `${APP_BASE_URL}/privacy-policy`;
-const TERMS_URL = `${APP_BASE_URL}/terms`;
 const SUPPORT_URL = `${APP_BASE_URL}/support`;
 const REVIEW_LINK_TTL = '30d';
 
@@ -159,14 +159,14 @@ const getCommonTemplateData = () => ({
   hero_image_url:
     'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
   privacy_policy_url: PRIVACY_POLICY_URL,
-  community_guidelines_url: TERMS_URL,
+  community_guidelines_url: PRIVACY_POLICY_URL,
   instagram_url: 'https://www.instagram.com/varsityhubapp/',
   tiktok_url: 'https://www.tiktok.com/@varsityhubapp',
   youtube_url: 'https://www.youtube.com/@varsityhubapp',
   facebook_url: 'https://www.facebook.com/varsityhubapp/',
   x_url: 'https://x.com/varsityhub00',
   website_url: APP_BASE_URL,
-  communityGuidelinesUrl: TERMS_URL,
+  communityGuidelinesUrl: PRIVACY_POLICY_URL,
   privacyPolicyUrl: PRIVACY_POLICY_URL,
   support_url: SUPPORT_URL,
   supportUrl: SUPPORT_URL,
@@ -2229,32 +2229,6 @@ export async function sendLeagueApprovalRequestEmail(params: {
  * notifications. This adds email parity with the create-new-org path.
  * Reuses LEAGUE_PENDING_APPROVAL template ("Join request admin" in SendGrid).
  */
-/**
- * Notify team staff when a user submits a team join request.
- * Reuses the generic JOIN_REQUEST_ADMIN template — no new SendGrid template required.
- */
-export async function sendTeamJoinRequestEmail(params: {
-  staffEmail: string;
-  staffName: string;
-  requesterName: string;
-  requesterEmail: string;
-  teamName: string;
-  teamId: string;
-}): Promise<boolean> {
-  const subject = `New join request: ${params.requesterName} wants to join ${params.teamName}`;
-  return sendJoinRequestAdminTemplate({
-    to: params.staffEmail,
-    subject,
-    leagueName: params.teamName,
-    requesterName: params.requesterName,
-    requesterEmail: params.requesterEmail,
-    adminName: params.staffName,
-    sport: 'N/A',
-    orgType: 'Team join request',
-    includeRequesterEmail: false,
-  });
-}
-
 export async function sendCoachJoinRequestEmail(params: {
   ownerEmail: string;
   ownerName: string;

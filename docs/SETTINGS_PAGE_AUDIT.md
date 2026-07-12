@@ -8,6 +8,7 @@
 ## ✅ WORKING FEATURES
 
 ### Account Section
+
 - ✅ **Edit Username** (`/settings/edit-username`)
   - Fully implemented
   - Uses `User.updateMe({ display_name })`
@@ -33,6 +34,7 @@
   - Status: **WORKING**
 
 ### Appearance Section
+
 - ✅ **Theme Selection** (Light/Dark/System)
   - Fully implemented
   - Uses `useThemePreference()` hook
@@ -40,6 +42,7 @@
   - Status: **WORKING**
 
 ### Events Section
+
 - ✅ **Request to Host Event** (`/settings/request-host-event`)
   - Fully implemented
   - Uses `Support.contact()` API
@@ -53,6 +56,7 @@
   - Status: **WORKING**
 
 ### Notifications Section
+
 - ✅ **Game/Event Reminders** toggle
   - Fully implemented
   - Uses debounced `User.updatePreferences()`
@@ -72,6 +76,7 @@
   - Status: **WORKING**
 
 ### Privacy Section
+
 - ✅ **Manage Blocked Users** (`/settings/blocked-users`)
   - Fully implemented
   - Uses `User.blockedUsers()`, `User.block()`, `User.unblock()`
@@ -85,6 +90,7 @@
   - Status: **WORKING**
 
 ### My Content Section
+
 - ✅ **View Favorites** (`/settings/favorites`)
   - Fully implemented
   - Displays saved/bookmarked posts
@@ -100,6 +106,7 @@
   - Status: **WORKING** (route exists)
 
 ### Billing Section (Coaches Only)
+
 - ✅ **Manage Subscription** (`/settings/manage-subscription`)
   - Fully implemented
   - Uses `Subscriptions.createCheckout()`, `Subscriptions.cancel()`
@@ -108,12 +115,11 @@
   - Status: **WORKING**
 
 ### Legal Section
+
 - ✅ **Privacy Policy** (`/settings/privacy-policy`)
   - File exists: `app/settings/privacy-policy.tsx`
   - Status: **WORKING**
 
-- ✅ **Terms of Service** (`/settings/terms-of-service`)
-  - File exists: `app/settings/terms-of-service.tsx`
   - Status: **WORKING**
 
 - ✅ **Safe Zone Policy** (`/settings/safe-zone-policy`)
@@ -133,6 +139,7 @@
   - Status: **WORKING**
 
 ### Support & Feedback Section
+
 - ✅ **Contact Varsity Hub Team** (`/settings/contact`)
   - Fully implemented
   - Uses `Support.contact()` API
@@ -146,6 +153,7 @@
   - Status: **WORKING**
 
 ### Admin Panel (Admin Only)
+
 - ✅ **Admin Dashboard** (`/admin-dashboard`)
   - Fully implemented
   - Uses `/admin/dashboard` endpoint
@@ -173,6 +181,7 @@
   - Status: **WORKING**
 
 ### Session Section
+
 - ✅ **Log Out**
   - Fully implemented
   - Uses `User.logout()`
@@ -198,18 +207,21 @@
 ## ⚠️ POTENTIAL ISSUES / NEEDS VERIFICATION
 
 ### 1. Settings Loading State
+
 - **Issue**: `_loading` state is declared but never used in UI
 - **Location**: `app/settings/index.tsx:148`
 - **Impact**: Users don't see loading indicator while settings load
 - **Severity**: Low (functionality works, just no visual feedback)
 
 ### 2. Error Display
+
 - **Issue**: Error state exists but styling may not be visible in dark mode
 - **Location**: `app/settings/index.tsx:279`
 - **Impact**: Errors may be hard to see
 - **Severity**: Low
 
 ### 3. Admin Email Detection
+
 - **Issue**: Falls back to hardcoded email if `appConfig.adminEmails` is empty
 - **Location**: `app/settings/index.tsx:174`
 - **Code**: `const adminEmails = (appConfig.adminEmails.length ? appConfig.adminEmails : ['emilmancero@gmail.com'])`
@@ -217,12 +229,14 @@
 - **Severity**: Medium
 
 ### 4. Preference Debouncing
+
 - **Issue**: Debounce timer refs may not be cleaned up on unmount
 - **Location**: `app/settings/index.tsx:161, 220`
 - **Impact**: Potential memory leak if user navigates away quickly
 - **Severity**: Low
 
 ### 5. Delete Account Android Fallback
+
 - **Issue**: Android doesn't support `Alert.prompt`, so delete confirmation is less secure
 - **Location**: `app/settings/index.tsx:449-464`
 - **Impact**: Users can delete account without typing "DELETE"
@@ -233,6 +247,7 @@
 ## 🔍 CODE QUALITY OBSERVATIONS
 
 ### Good Practices
+
 - ✅ Proper error handling with try/catch
 - ✅ Loading states for async operations
 - ✅ Debouncing for preference updates (reduces API calls)
@@ -241,6 +256,7 @@
 - ✅ Dark mode support
 
 ### Areas for Improvement
+
 1. **Unused Variables**: `_loading`, `_email` prefixed with underscore but never used
 2. **Error Handling**: Some catch blocks are empty (`catch {}`)
 3. **Type Safety**: Some `any` types used (e.g., `me: any`)
@@ -257,6 +273,7 @@
 **Critical Issues**: 0
 
 ### Key Findings:
+
 1. **All major features are implemented and functional**
 2. **All routes exist and are properly linked**
 3. **API integrations are working correctly**
@@ -264,6 +281,7 @@
 5. **No critical bugs found**
 
 ### Recommendations:
+
 1. Add loading indicator while settings load
 2. Clean up debounce timers on unmount
 3. Improve Android delete account confirmation
@@ -275,7 +293,7 @@
 ## 🎯 NEXT STEPS
 
 1. **High Priority**: None (all features working)
-2. **Medium Priority**: 
+2. **Medium Priority**:
    - Fix Android delete account confirmation
    - Clean up debounce timer memory leaks
 3. **Low Priority**:

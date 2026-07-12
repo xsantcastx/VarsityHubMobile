@@ -12,6 +12,7 @@ import {
 } from './userAuthState.js';
 import { buildBillingStateColumns } from './userBillingState.js';
 import { invalidateMeCacheForUser } from './userCache.js';
+import { isAdminEmail } from './adminEmails.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 
 // =====================================================
@@ -350,6 +351,17 @@ export async function denyJoinRequest(params: {
   }
   if (joinRequest.status !== 'pending') {
     return { ok: false, status: 400, error: ALREADY_REVIEWED_ERROR };
+  }
+  // Platform admins must never be pushed into coach REJECTED (pending-approval
+  // routing loop, no self-service recovery). This is also the one REJECTED path
+  // a non-admin org owner can trigger against an admin. isAdminEmail() returns
+  // false for a null email.
+  if (isAdminEmail(user.email)) {
+    captureException(new Error('[denyJoinRequest] refused: target is a platform admin'), {
+      tags: { area: 'coach-approval' },
+      extra: { requestId, reviewerUserId },
+    });
+    return { ok: false, status: 403, error: 'Cannot reject a platform admin' };
   }
 
   try {

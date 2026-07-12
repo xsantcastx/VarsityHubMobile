@@ -11,6 +11,7 @@
 import type { Request, Response } from 'express';
 import rateLimit, { Options, Store } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
+import { Redis } from 'ioredis';
 import { debugLog } from '../lib/debugLog.js';
 
 /**
@@ -41,50 +42,57 @@ if (rateLimitingDisabled) {
 }
 
 /**
- * Create a separate Redis connection for rate limiting only
- * This prevents connection pool exhaustion when queues are also using Redis
+ * Dedicated Redis connection for rate limiting (isolated from the queue/cache
+ * connections to avoid pool exhaustion).
+ *
+ * Created SYNCHRONOUSLY at module load. The previous implementation built this
+ * inside an async function started with fire-and-forget; its first
+ * `await import('ioredis')` deferred the `redisStore` assignment to a microtask
+ * that ran AFTER the limiter consts below were already constructed. At that
+ * point `redisStore` was still `undefined`, so every limiter silently fell back
+ * to an in-process MemoryStore — counters reset on each deploy (Railway
+ * auto-deploys from main) and multiply per replica (breaking the
+ * no-in-process-shared-state invariant). We now create the client
+ * synchronously; ioredis performs the TCP connect in the background and
+ * `enableOfflineQueue` buffers the few commands issued before it's ready, so
+ * the store is genuinely attached at construction time. Mirrors the
+ * request-time lazy pattern already proven correct in lib/redisRateLimit.ts.
  */
-let rateLimitRedis: any = null;
-let redisStore: Store | undefined;
+let rateLimitRedis: Redis | null = null;
 
-async function initializeRateLimitRedis() {
-  if (rateLimitingDisabled || rateLimitRedis) return;
-
+if (!rateLimitingDisabled && process.env.REDIS_URL && process.env.NODE_ENV === 'production') {
   try {
-    const REDIS_URL = process.env.REDIS_URL;
-    if (!REDIS_URL) {
-      debugLog('⚠️ REDIS_URL not set, rate limiter will use memory store');
-      return;
-    }
-
-    // Import Redis using CommonJS style (same as queue.ts)
-    const RedisModule = await import('ioredis');
-    const Redis = RedisModule.default;
-    const RedisCtor = Redis as unknown as new (url: string, options?: any) => any;
-
-    rateLimitRedis = new RedisCtor(REDIS_URL, {
+    rateLimitRedis = new Redis(process.env.REDIS_URL, {
       maxRetriesPerRequest: null, // Disable retry limit
       enableReadyCheck: false,
-      enableOfflineQueue: true,
+      enableOfflineQueue: true, // buffer commands issued before connect resolves
     });
-
-    redisStore = new RedisStore({
-      sendCommand: (...args: string[]) => rateLimitRedis.call(...(args as [string, ...string[]])),
-      prefix: 'rl:', // rate limit prefix
+    rateLimitRedis.on('error', (err: Error) => {
+      // ioredis auto-reconnects; log for visibility. Per-command failures fall
+      // through to the express-rate-limit MemoryStore default (see buildStore).
+      console.warn('[RateLimit] Redis connection error:', err?.message);
     });
     debugLog('✅ Rate limiter using dedicated Redis connection (isolated from queues)');
   } catch (error) {
     console.warn('⚠️ Failed to initialize Redis for rate limiting, using memory store:', error);
     rateLimitRedis = null;
-    redisStore = undefined;
   }
 }
 
-// Avoid background async startup during Jest module evaluation; it can outlive
-// the test environment teardown and surface unrelated import-time failures.
-if (process.env.NODE_ENV !== 'test') {
-  initializeRateLimitRedis().catch(err => {
-    console.error('[RateLimit] Failed to initialize Redis:', err);
+/**
+ * Build a store for a single limiter. Each limiter gets its OWN RedisStore
+ * instance with a name-scoped prefix (`rl:<name>:`), so two IP-keyed limiters
+ * can never share a `rl:ip:<addr>` counter and express-rate-limit's
+ * unshared-store validation passes. Returns undefined — express-rate-limit's
+ * default per-limiter MemoryStore — when Redis isn't configured (dev/test/no
+ * REDIS_URL).
+ */
+function buildStore(name: string): Store | undefined {
+  if (!rateLimitRedis || rateLimitingDisabled) return undefined;
+  return new RedisStore({
+    sendCommand: (...args: string[]) =>
+      rateLimitRedis!.call(...(args as [string, ...string[]])) as Promise<any>,
+    prefix: `rl:${name}:`,
   });
 }
 
@@ -106,6 +114,7 @@ function getUserIdentifier(req: Request): string {
  */
 function createLimiter(options: Partial<Options> & { name: string }): ReturnType<typeof rateLimit> {
   const { name, skip: customSkip, ...restOptions } = options;
+  const store = buildStore(name);
 
   return rateLimit({
     windowMs: 60 * 1000, // 1 minute default
@@ -119,8 +128,9 @@ function createLimiter(options: Partial<Options> & { name: string }): ReturnType
       return false;
     },
     keyGenerator: getUserIdentifier,
-    // Use Redis store if available (set after async init), otherwise default memory store
-    ...(redisStore && !rateLimitingDisabled ? { store: redisStore } : {}),
+    // Redis-backed in production (own RedisStore instance + name-scoped prefix);
+    // otherwise express-rate-limit's default per-limiter MemoryStore.
+    ...(store ? { store } : {}),
     handler: (req: Request, res: Response) => {
       console.warn(`[RateLimit] ${name}: User ${getUserIdentifier(req)} exceeded limit`);
       res.status(429).json({
@@ -147,6 +157,24 @@ export const authLimiter = createLimiter({
   max: rateLimitingDisabled ? 100000 : 10,
   keyGenerator: req => `ip:${req.ip}`, // Always use IP for auth
   message: 'Too many login attempts. Please try again in 15 minutes.',
+});
+
+/**
+ * Coarse per-IP throttle applied to the whole /auth router mount (see app.ts).
+ * Deliberately looser than `authLimiter` and a SEPARATE counter (own name →
+ * own `rl:auth-mount:` prefix), so mounting it does not double-count the
+ * sub-routes that also attach `authLimiter`. Replaces the in-memory limiter
+ * formerly inlined in app.ts, which reset on every deploy and multiplied per
+ * replica. Skipped outside production to preserve the prior dev behavior
+ * (the inlined limiter used `skip: () => isDev`).
+ */
+export const authMountLimiter = createLimiter({
+  name: 'auth-mount',
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: rateLimitingDisabled ? 100000 : 30,
+  keyGenerator: req => `ip:${req.ip}`,
+  skip: () => process.env.NODE_ENV !== 'production',
+  message: 'Too many requests to authentication endpoints. Please try again in 15 minutes.',
 });
 
 /**
@@ -296,6 +324,21 @@ export const teamCreationLimiter = createLimiter({
 });
 
 /**
+ * Team update (PUT /teams/:id)
+ * 30 per minute per user. Generous — normal team editing (settings, roster
+ * metadata, program_id changes) never approaches this. Exists to cap a tight
+ * program_id null<->X toggle loop, which re-triggers the up-to-5000-row
+ * fanOutProgramFollowersToTeam scan on every write (see server/src/lib/
+ * programFollowFanout.ts). POST /teams/create already has teamCreationLimiter;
+ * this is the PUT-path counterpart.
+ */
+export const teamUpdateLimiter = createLimiter({
+  name: 'team-update',
+  windowMs: 60 * 1000, // 1 minute
+  max: rateLimitingDisabled ? 100000 : 30,
+});
+
+/**
  * Event creation
  * 10 per hour per user
  */
@@ -331,12 +374,12 @@ export const inviteLimiter = createLimiter({
 
 /**
  * File uploads
- * 30 per hour per user
+ * 60 per hour per user
  */
 export const uploadLimiter = createLimiter({
   name: 'upload',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: rateLimitingDisabled ? 100000 : 30,
+  max: rateLimitingDisabled ? 100000 : 60, // was 30 — each failed video burns 2 signature calls
 });
 
 // ============================================
@@ -587,6 +630,7 @@ export const rateLimiters = {
   interaction: interactionLimiter,
   report: reportLimiter,
   teamCreation: teamCreationLimiter,
+  teamUpdate: teamUpdateLimiter,
   eventCreation: eventCreationLimiter,
   gameCreation: gameCreationLimiter,
   invite: inviteLimiter,

@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
+const mockSportProgramCount = jest.fn();
 const mockTeamCount = jest.fn();
-const mockTeamMembershipCount = jest.fn();
+const mockTeamMembershipFindMany = jest.fn();
 
 jest.unstable_mockModule('../lib/prisma.js', () => ({
   prisma: {
+    sportProgram: {
+      count: mockSportProgramCount,
+    },
     team: {
       count: mockTeamCount,
     },
     teamMembership: {
-      count: mockTeamMembershipCount,
+      findMany: mockTeamMembershipFindMany,
     },
   },
 }));
@@ -18,7 +22,7 @@ const paymentsModule = await import('../lib/paymentInternals.js');
 const getVeteranBillingSnapshot = paymentsModule.getVeteranBillingSnapshot as (
   userId: string,
   organizationId?: string | null
-) => Promise<{ teamCount: number; billableQuantity: number }>;
+) => Promise<{ programCount: number; billableQuantity: number }>;
 const getVeteranTotalTeamAllowance = paymentsModule.getVeteranTotalTeamAllowance as (
   billableQuantity: number
 ) => number;
@@ -34,55 +38,71 @@ const resolveVeteranQuantityUpdate = paymentsModule.resolveVeteranQuantityUpdate
 
 describe('Veteran billing snapshot', () => {
   beforeEach(() => {
+    mockSportProgramCount.mockReset();
     mockTeamCount.mockReset();
-    mockTeamMembershipCount.mockReset();
+    mockTeamMembershipFindMany.mockReset();
   });
 
-  it('derives veteran billing from user-owned teams', async () => {
-    mockTeamMembershipCount.mockResolvedValueOnce(5);
+  it('derives veteran billing from distinct programs owned by the user', async () => {
+    mockTeamMembershipFindMany.mockResolvedValueOnce([
+      { team: { program_id: 'program-1' } },
+      { team: { program_id: 'program-1' } },
+      { team: { program_id: 'program-2' } },
+      { team: { program_id: null } },
+      { team: { program_id: null } },
+    ]);
 
     const snapshot = await getVeteranBillingSnapshot('user-1');
 
-    expect(mockTeamMembershipCount).toHaveBeenCalledWith({
-      where: { user_id: 'user-1', role: 'owner', status: 'active' },
+    expect(mockTeamMembershipFindMany).toHaveBeenCalledWith({
+      where: { user_id: 'user-1', role: 'owner', status: 'active', team: { status: 'active' } },
+      select: { team: { select: { program_id: true } } },
+      take: 5000,
     });
-    expect(mockTeamCount).not.toHaveBeenCalled();
-    expect(snapshot).toEqual({ teamCount: 5, billableQuantity: 2 });
+    expect(mockSportProgramCount).not.toHaveBeenCalled();
+    // 2 distinct programs (program-1, program-2) + 2 ungrouped teams = 4
+    expect(snapshot).toEqual({ programCount: 4, billableQuantity: 0 });
   });
 
-  it('derives veteran billing from organization teams when org-owned', async () => {
-    mockTeamCount.mockResolvedValueOnce(6);
+  it('derives veteran billing from organization programs plus ungrouped teams when org-owned', async () => {
+    mockSportProgramCount.mockResolvedValueOnce(6);
+    mockTeamCount.mockResolvedValueOnce(2); // 2 ungrouped (null-program) active teams
 
     const snapshot = await getVeteranBillingSnapshot('user-1', 'org-1');
 
-    expect(mockTeamCount).toHaveBeenCalledWith({
-      where: { organization_id: 'org-1' },
+    expect(mockSportProgramCount).toHaveBeenCalledWith({
+      where: { organization_id: 'org-1', teams: { some: { status: 'active' } } },
     });
-    expect(mockTeamMembershipCount).not.toHaveBeenCalled();
-    expect(snapshot).toEqual({ teamCount: 6, billableQuantity: 3 });
+    expect(mockTeamCount).toHaveBeenCalledWith({
+      where: { organization_id: 'org-1', status: 'active', program_id: null },
+    });
+    expect(mockTeamMembershipFindMany).not.toHaveBeenCalled();
+    // 6 programs + 2 ungrouped teams = 8; billable = 8 - 5 = 3
+    expect(snapshot).toEqual({ programCount: 8, billableQuantity: 3 });
   });
 
-  it('converts billable quantity into total team allowance', () => {
-    expect(getVeteranTotalTeamAllowance(0)).toBe(3);
-    expect(getVeteranTotalTeamAllowance(2)).toBe(5);
+  it('converts billable quantity into total program allowance', () => {
+    expect(getVeteranTotalTeamAllowance(0)).toBe(5);
+    expect(getVeteranTotalTeamAllowance(2)).toBe(7);
   });
 
-  it('only allows quantity updates for the current total or next team', () => {
-    expect(resolveVeteranQuantityUpdate(4, 4)).toMatchObject({
-      minAllowedTotal: 4,
-      maxAllowedTotal: 5,
+  it('only allows quantity updates for the current total or next sport (5-program free floor)', () => {
+    // A paying veteran has ≥6 programs (5 free + ≥1 billable). billable = total − 5.
+    expect(resolveVeteranQuantityUpdate(6, 6)).toMatchObject({
+      minAllowedTotal: 6,
+      maxAllowedTotal: 7,
       billableQuantity: 1,
       allowed: true,
     });
-    expect(resolveVeteranQuantityUpdate(4, 5)).toMatchObject({
-      minAllowedTotal: 4,
-      maxAllowedTotal: 5,
+    expect(resolveVeteranQuantityUpdate(6, 7)).toMatchObject({
+      minAllowedTotal: 6,
+      maxAllowedTotal: 7,
       billableQuantity: 2,
       allowed: true,
     });
-    expect(resolveVeteranQuantityUpdate(4, 6)).toMatchObject({
-      minAllowedTotal: 4,
-      maxAllowedTotal: 5,
+    expect(resolveVeteranQuantityUpdate(6, 8)).toMatchObject({
+      minAllowedTotal: 6,
+      maxAllowedTotal: 7,
       billableQuantity: 3,
       allowed: false,
     });

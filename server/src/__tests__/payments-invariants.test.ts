@@ -389,7 +389,7 @@ describe('payments & subscriptions — structural invariants', () => {
     });
 
     it('the persisted User.max_teams default matches the Rookie plan allowance', () => {
-      expect(schema).toMatch(/max_teams\s+Int\s+@default\(3\)/);
+      expect(schema).toMatch(/max_teams\s+Int\s+@default\(4\)/);
     });
   });
 

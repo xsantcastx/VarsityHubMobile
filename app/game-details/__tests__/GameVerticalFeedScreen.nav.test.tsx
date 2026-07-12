@@ -28,4 +28,26 @@ describe('GameVerticalFeedScreen rail actions', () => {
     expect(source).toContain('Report Post');
     expect(source).toMatch(/setShowOptionsMenu\(false\);\s*onSharePost\(\);/);
   });
+
+  it('keeps interactive overlays above the full-screen media press target', () => {
+    expect(source).toMatch(/captionOverlay:\s*\{[\s\S]*zIndex:\s*20/);
+    expect(source).toMatch(/rail:\s*\{[\s\S]*zIndex:\s*20/);
+    expect(source).toMatch(/titleOverlay:\s*\{[\s\S]*zIndex:\s*30/);
+    expect(source).toContain('pointerEvents="box-none"');
+  });
+
+  it('closes modal-backed viewers before pushing a new route', () => {
+    expect(source).toContain('const navigateFromViewer = useCallback(');
+    expect(source).toContain('if (onClose) {');
+    expect(source).toContain('requestAnimationFrame(runNavigation);');
+    expect(source).toContain("navigateFromViewer('/sign-in');");
+    expect(source).toContain(
+      'navigateFromViewer(`/user-profile?id=${encodeURIComponent(String(authorId))}`);'
+    );
+  });
+
+  it('uses the highlight-only game feed query in the viewer', () => {
+    expect(source).toContain("{ game_id: gameId, type: 'highlight' }");
+    expect(source).toContain('const navigateToLinkedContext = useCallback(');
+  });
 });

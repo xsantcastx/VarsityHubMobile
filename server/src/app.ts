@@ -1,16 +1,15 @@
 import cors from 'cors';
 import 'dotenv/config';
 import express, { NextFunction, Request, Response } from 'express';
-import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
 import {
-    startAdGoLiveCheck,
-    startMessageCleanup,
-    startOvernightMonitoring,
-    startQueueCleanup,
+  startAdGoLiveCheck,
+  startMessageCleanup,
+  startOvernightMonitoring,
+  startQueueCleanup,
 } from './cron/overnightTasks.js';
 import { debugLog } from './lib/debugLog.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
@@ -18,13 +17,14 @@ import { addBreadcrumb, addSentryErrorHandler, initSentry } from './lib/sentry.j
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
 import { requestLogging } from './middleware/logging.js';
-import { defaultApiLimiter, publicRouteLimiter } from './middleware/rateLimiters.js';
+import { authMountLimiter, defaultApiLimiter, publicRouteLimiter } from './middleware/rateLimiters.js';
 import { requireAdmin } from './middleware/requireAdmin.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { requireParentalConsent } from './middleware/requireParentalConsent.js';
 import adminRouter from './routes/admin.js';
 import { adminReportsRouter } from './routes/adminReports.js';
 import { adsRouter } from './routes/ads.js';
+import { ogRouter } from './routes/og.js';
 import { authRouter } from './routes/auth.js';
 import { consentRouter, handleConsentResend } from './routes/consent.js';
 import { dataExportRouter } from './routes/dataExport.js';
@@ -41,6 +41,7 @@ import { notificationsRouter } from './routes/notifications.js';
 import { organizationsRouter } from './routes/organizations.js';
 import { paymentsRouter } from './routes/payments.js';
 import { postsRouter } from './routes/posts.js';
+import { programsRouter } from './routes/programs.js';
 import { promosRouter } from './routes/promos.js';
 import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';
 import { publicSiteRouter } from './routes/publicSite.js';
@@ -310,15 +311,6 @@ app.use(
   express.static(path.resolve(process.cwd(), 'uploads'))
 );
 
-const isDev = process.env.NODE_ENV !== 'production';
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: isDev ? 100000 : 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: () => isDev,
-});
-
 app.use('/health', publicRouteLimiter, healthRouter);
 
 // Universal links - must be at /.well-known/ for iOS and Android
@@ -362,7 +354,7 @@ function mountApiRoutes(parent: any) {
   // middleware handles its own bypass for admins and non-minors, so it's safe
   // to run before every route in this bundle.
   parent.use(requireParentalConsent as any);
-  parent.use('/auth', authLimiter, authRouter);
+  parent.use('/auth', authMountLimiter, authRouter);
   parent.use('/consent', consentRouter);
   parent.post('/me/consent/resend', noStore, ...handleConsentResend);
   parent.use(dataExportRouter);
@@ -376,6 +368,7 @@ function mountApiRoutes(parent: any) {
   parent.use('/group-chats', noStore, groupChatsRouter);
   parent.use('/uploads', uploadsRouter);
   parent.use('/ads', adsRouter);
+  parent.use('/og', ogRouter);
   parent.use('/payments', paymentsRouter);
   parent.use('/webhooks/sendgrid', sendgridWebhookRouter);
   parent.use('/admin/reports', noStore, adminReportsRouter);
@@ -383,6 +376,7 @@ function mountApiRoutes(parent: any) {
   parent.use('/geocoding', noStore, geocodingRouter);
   parent.use('/teams', teamsRouter);
   parent.use('/organizations', organizationsRouter);
+  parent.use('/programs', programsRouter);
   parent.use('/users', noStore, usersRouter);
   parent.use('/search', noStore, searchRouter);
   parent.use('/reports', noStore, reportsRouter);

@@ -250,6 +250,30 @@ describe('Ad Approval Security', () => {
     expect(res.text).toContain('Reject Ad');
   });
 
+  it('falls back to the app handoff page when an approval GET link has no valid token', async () => {
+    const ad = await createAd('pending');
+
+    const res = await request(app).get(`/ads/${ad.id}/approve`).query({ token: 'bad-token' });
+
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'] || '')).toContain('text/html');
+    expect(res.text).toContain('Open VarsityHub to approve this ad');
+    expect(res.text).toContain(`varsityhubmobile://admin-ads?ad_id=${ad.id}&action=approve`);
+    expect(res.text).not.toMatch(/Invalid Link/i);
+  });
+
+  it('falls back to the app handoff page when a rejection GET link has no valid token', async () => {
+    const ad = await createAd('pending');
+
+    const res = await request(app).get(`/ads/${ad.id}/reject`).query({ token: 'bad-token' });
+
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'] || '')).toContain('text/html');
+    expect(res.text).toContain('Open VarsityHub to reject this ad');
+    expect(res.text).toContain(`varsityhubmobile://admin-ads?ad_id=${ad.id}&action=reject`);
+    expect(res.text).not.toMatch(/Invalid Link/i);
+  });
+
   it('serves an HTML app handoff page for unauthenticated email review links', async () => {
     const ad = await createAd('pending');
 

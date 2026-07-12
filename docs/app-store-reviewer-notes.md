@@ -93,8 +93,8 @@ All user-generated content (posts, comments, messages) can be reported by any us
 
 Subscriptions and ad purchases use Apple In-App Purchase exclusively on iOS. Available plans:
 
-- Rookie: Free (3 teams, 50-player roster limit)
-- Veteran: $0.99/month per team over 3 teams (100-player roster limit)
+- Rookie: Free (4 teams, 50-player roster limit)
+- Veteran: $0.99/month per team over 4 teams (100-player roster limit)
 - Legend: $19.99/year (unlimited teams and rosters, club features)
 
 Ad purchases are one-time IAP transactions for promoting team content within the app.

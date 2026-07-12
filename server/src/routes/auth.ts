@@ -181,9 +181,18 @@ const REGISTER_EMAIL_SOFT_TIMEOUT_MS = 5000;
 // against this hash equalizes login timing so the endpoint cannot be used to
 // enumerate which emails have an account. Generated once at boot from a random
 // input so the hash itself is not predictable.
+// Password hashing cost factor. Bumped 10→12 (2026 hardening). bcrypt embeds
+// the cost in each hash, so pre-existing cost-10 hashes still verify on login;
+// only newly set/changed passwords use 12. DUMMY_BCRYPT_HASH below MUST use the
+// same cost so the no-account login path stays timing-matched to a real
+// (newly-hashed) account — otherwise the timing delta re-opens the enumeration
+// oracle the dummy hash exists to close. The random-secret OAuth-stub hashes
+// (never used as password verifiers) intentionally stay at 10.
+const PASSWORD_BCRYPT_COST = 12;
+
 const DUMMY_BCRYPT_HASH = bcrypt.hashSync(
   `const-time-${crypto.randomBytes(16).toString('hex')}`,
-  10
+  PASSWORD_BCRYPT_COST
 );
 
 // v1.0.2 audit fix: unified truthy parsing — must match middleware/rateLimiters.ts.
@@ -583,6 +592,11 @@ const passwordRequirement = z
     message: 'Password must contain at least one letter and one number',
   });
 
+// Current Terms of Service version. Stamped onto User.terms_version at
+// registration; bump when the ToS (app/settings/terms-of-service.tsx) changes
+// materially so we can tell which users accepted which version.
+const CURRENT_TERMS_VERSION = 1;
+
 const registerSchema = z.object({
   email: z.string().trim().email(),
   password: passwordRequirement,
@@ -649,13 +663,16 @@ authRouter.post(
     // Prevent duplicate accounts - check if email already exists
     // Users can create multiple accounts with different emails, but not duplicate the same email
     debugLog('[register] Checking for existing user');
-    const exists = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
+    const exists = await prisma.user.findFirst({
+      where: { email: { equals: sanitizedEmail, mode: 'insensitive' } },
+      select: { id: true },
+    });
     if (exists) {
       throw new ConflictError('Email already registered', {
         errorCode: 'EMAIL_ALREADY_REGISTERED',
       });
     }
-    const password_hash = await bcrypt.hash(password, 10);
+    const password_hash = await bcrypt.hash(password, PASSWORD_BCRYPT_COST);
     const code = String(crypto.randomInt(100000, 999999));
     if (process.env.NODE_ENV === 'development')
       debugLog(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
@@ -691,20 +708,42 @@ authRouter.post(
     const codeHash = hashRefreshToken(code);
 
     debugLog('[register] Creating user record');
-    const user = await prisma.user.create({
-      data: {
-        email: sanitizedEmail,
-        password_hash,
-        display_name,
-        email_verified: false,
-        email_verification_code: codeHash,
-        email_verification_expires: exp,
-        preferences: initialPreferences,
-        ...buildAuthStateColumns(authStatePatch),
-        ...(dobColumnWrite ? deriveParentalConsentFields(dobColumnWrite.date_of_birth) : {}),
-        ...(dobColumnWrite ?? {}),
-      },
-    });
+    let user;
+    try {
+      user = await prisma.user.create({
+        data: {
+          email: sanitizedEmail,
+          password_hash,
+          display_name,
+          email_verified: false,
+          email_verification_code: codeHash,
+          email_verification_expires: exp,
+          preferences: initialPreferences,
+          // Record ToS acceptance: the signup form gates submission on the
+          // "I agree to the Terms of Service and Privacy Policy" checkbox, so a
+          // successful registration is an affirmative agreement. Bump
+          // CURRENT_TERMS_VERSION when the ToS changes materially.
+          terms_accepted_at: new Date(),
+          terms_version: CURRENT_TERMS_VERSION,
+          ...buildAuthStateColumns(authStatePatch),
+          ...(dobColumnWrite ? deriveParentalConsentFields(dobColumnWrite.date_of_birth) : {}),
+          ...(dobColumnWrite ?? {}),
+        },
+      });
+    } catch (createErr: any) {
+      if (createErr?.code === 'P2002') {
+        const existingUser = await prisma.user.findFirst({
+          where: { email: { equals: sanitizedEmail, mode: 'insensitive' } },
+          select: { id: true },
+        });
+        if (existingUser) {
+          throw new ConflictError('Email already registered', {
+            errorCode: 'EMAIL_ALREADY_REGISTERED',
+          });
+        }
+      }
+      throw createErr;
+    }
     if (process.env.NODE_ENV === 'development')
       debugLog(
         `[verify-code] [register] Code hash stored in DB for user ${user.id} (expires ${exp.toISOString()})`
@@ -808,12 +847,6 @@ authRouter.post(
       await recordLoginFailure(sanitizedEmail);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    if (user.banned)
-      return res.status(403).json({
-        error: 'Account banned',
-        ban_reason: user.ban_reason || null,
-        banned_until: user.banned_until || null,
-      });
     if (!user.password_hash) {
       await recordLoginFailure(sanitizedEmail);
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -824,6 +857,19 @@ authRouter.post(
     }
     // Success — clear the failure counter so this account isn't half-locked.
     await clearLoginFailures(sanitizedEmail);
+
+    // Reveal ban status ONLY after credentials verify. Returning this 403
+    // (with ban_reason) before the password check let anyone enumerate
+    // accounts and read ban reasons using any password — undercutting the
+    // DUMMY_BCRYPT_HASH timing-equalization above. A wrong password on a
+    // banned account now returns the same generic 401 as any other account;
+    // only the real owner (correct password) learns the account is banned.
+    if (user.banned)
+      return res.status(403).json({
+        error: 'Account banned',
+        ban_reason: user.ban_reason || null,
+        banned_until: user.banned_until || null,
+      });
 
     // Mint a fresh token pair for this login without invalidating the user's
     // other active devices. Forced security events (password change, bans,
@@ -1886,7 +1932,7 @@ authRouter.post(
     // Success — clear failure tracking and reset the code
     await clearResetFailures(sanitizedEmail);
 
-    const password_hash = await bcrypt.hash(password, 10);
+    const password_hash = await bcrypt.hash(password, PASSWORD_BCRYPT_COST);
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -1931,7 +1977,7 @@ authRouter.post(
     if (!isValid) return res.status(401).json({ error: 'Current password is incorrect' });
 
     // Hash new password
-    const password_hash = await bcrypt.hash(new_password, 10);
+    const password_hash = await bcrypt.hash(new_password, PASSWORD_BCRYPT_COST);
 
     // Update password and revoke all refresh tokens atomically
     await prisma.user.update({

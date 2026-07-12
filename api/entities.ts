@@ -1,46 +1,47 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth, { invalidateMeCache } from './auth';
 import {
-    httpDelete,
-    httpGet,
-    httpPatch,
-    httpPost,
-    httpPostLongTimeout,
-    httpPostWithOptions,
-    httpPut,
+  httpDelete,
+  httpGet,
+  httpPatch,
+  httpPost,
+  httpPostLongTimeout,
+  httpPostWithOptions,
+  httpPut,
 } from './http';
 import { validateAuthenticatedUser, validateOnboardingCompletion } from './schemas/auth';
 import {
-    validateEvent,
-    validateEventArray,
-    validateEventRsvpArray,
-    validateEventSummaryArray,
+  validateEvent,
+  validateEventArray,
+  validateEventRsvpArray,
+  validateEventSummaryArray,
 } from './schemas/event';
 import {
-    validateOrganization,
-    validateOrganizationAdminSummary,
-    validateOrganizationArray,
-    validateOrganizationReviewSummaryArray,
+  validateOrganization,
+  validateOrganizationAdminSummary,
+  validateOrganizationArray,
+  validateOrganizationReviewSummaryArray,
 } from './schemas/organization';
+import { validateProgramScreenSummary } from './schemas/program';
 import {
-    validateFollowedTeamArray,
-    validateTeam,
-    validateTeamAdminSummary,
-    validateTeamArray,
-    validateTeamScreenSummary,
+  validateFollowedTeamArray,
+  validateTeam,
+  validateTeamAdminSummary,
+  validateTeamArray,
+  validateTeamScreenSummary,
 } from './schemas/team';
 import type {
-    CompleteOnboardingPayload,
-    CreateAdPayload,
-    CreateEventPayload,
-    CreateGamePayload,
-    CreatePostPayload,
-    UpdateAdPayload,
-    UpdateEventPayload,
-    UpdateGamePayload,
-    UpdateMePayload,
-    UpdatePostPayload,
-    UpdatePreferencesPayload,
+  CompleteOnboardingPayload,
+  CreateAdPayload,
+  CreateEventPayload,
+  CreateGamePayload,
+  CreatePostPayload,
+  UpdateAdPayload,
+  UpdateEventPayload,
+  UpdateGamePayload,
+  UpdateMePayload,
+  UpdatePostPayload,
+  UpdatePreferencesPayload,
 } from './types';
 
 export const User = {
@@ -211,8 +212,7 @@ export const User = {
     httpPost(`/users/${encodeURIComponent(userId)}/accept-follow`, {}),
   rejectFollow: (userId: string) =>
     httpPost(`/users/${encodeURIComponent(userId)}/reject-follow`, {}),
-  suggested: (limit?: number) =>
-    httpGet(`/users/me/suggested${limit ? `?limit=${limit}` : ''}`),
+  suggested: (limit?: number) => httpGet(`/users/me/suggested${limit ? `?limit=${limit}` : ''}`),
 };
 
 export const DataExport = {
@@ -239,6 +239,7 @@ export const Game = {
       teamId?: string;
       mapView?: boolean; // v1.0.2: restricts server-side to games this week only
       teamless?: boolean; // curated/marquee events with no real team matchup
+      following?: boolean; // Discover calendar: scope to viewer's followed teams
     }
   ) => {
     const params: string[] = [];
@@ -260,6 +261,7 @@ export const Game = {
     if (options?.teamId) params.push(`team_id=${encodeURIComponent(options.teamId)}`);
     if (options?.mapView) params.push('map_view=true');
     if (options?.teamless) params.push('teamless=true');
+    if (options?.following) params.push('following=true');
     const qs = params.length ? `?${params.join('&')}` : '';
     return httpGet('/games' + qs, {}, 15000, 2);
   },
@@ -307,6 +309,14 @@ export const Game = {
     httpPut(
       `/games/${encodeURIComponent(id)}/approve`,
       reason ? { approval_status: approval, reason } : { approval_status: approval }
+    ),
+  // Opponent-approval workflow: games awaiting a decision from a team the
+  // caller manages, and the accept/decline action itself.
+  opponentPending: () => httpGet('/games/opponent-pending', {}, 15000, 1),
+  decideOpponentApproval: (id: string, decision: 'approve' | 'decline', reason?: string) =>
+    httpPost(
+      `/games/${encodeURIComponent(id)}/opponent-approval`,
+      reason ? { decision, reason } : { decision }
     ),
   stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`, {}, 15000, 1),
   // Story creation can be slower under server load; allow a longer timeout but avoid retries to prevent duplicates.
@@ -645,8 +655,12 @@ export const Organization = {
     onboarding?: boolean;
   }) => httpPost(data.onboarding === true ? '/organizations/create' : '/organizations', data),
   createWithTeams: (data: any) => httpPost('/organizations/create', data),
-  invite: (organizationId: string, email: string, role?: string) =>
-    httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),
+  invite: (organizationId: string, identifier: string, role?: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, {
+      identifier,
+      email: identifier,
+      role,
+    }),
   transferOwnership: (organizationId: string, newOwnerId: string) =>
     httpPost(`/organizations/${encodeURIComponent(organizationId)}/transfer-ownership`, {
       new_owner_id: newOwnerId,
@@ -662,9 +676,12 @@ export const Organization = {
   declineInvite: (inviteId: string) =>
     httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/decline`, {}),
   myJoinRequests: () => httpGet('/organizations/join-requests/me'),
-  // Organization join requests (coach/admin workflows)
-  requestToJoin: (organizationId: string, message?: string, teamId?: string) =>
-    httpPost(`/organizations/join-requests`, { organization_id: organizationId, message, team_id: teamId }),
+  programs: (organizationId: string) =>
+    httpGet(`/organizations/${encodeURIComponent(organizationId)}/programs`),
+  createProgram: (organizationId: string, data: { sport: string; name?: string }) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/programs`, data),
+  // Organization join requests (coach onboarding submits via httpPost directly;
+  // these are the admin review workflows)
   getJoinRequests: (organizationId: string, status?: 'pending' | 'approved' | 'rejected') => {
     const params: string[] = [];
     if (status) params.push('status=' + encodeURIComponent(status));
@@ -689,14 +706,21 @@ export const Team = {
   list: (
     q?: string,
     mine?: boolean,
-    options?: { directory?: boolean; limit?: number; organization_id?: string }
+    options?: {
+      directory?: boolean;
+      limit?: number;
+      organization_id?: string;
+      excludeDemoLeagues?: boolean;
+    }
   ): Promise<any> => {
     const params: string[] = [];
     if (q) params.push(`q=${encodeURIComponent(q)}`);
     if (mine) params.push('mine=1');
     if (options?.directory) params.push('directory=1');
     if (typeof options?.limit === 'number') params.push(`limit=${String(options.limit)}`);
-    if (options?.organization_id) params.push(`organization_id=${encodeURIComponent(options.organization_id)}`);
+    if (options?.organization_id)
+      params.push(`organization_id=${encodeURIComponent(options.organization_id)}`);
+    if (options?.excludeDemoLeagues) params.push('exclude_demo_leagues=1');
     const qs = params.length ? '?' + params.join('&') : '';
     return httpGet('/teams' + qs).then(data => validateTeamArray('teams.list', data));
   },
@@ -784,8 +808,15 @@ export const Team = {
     });
     return httpPut('/teams/' + encodeURIComponent(id), payload);
   },
-  invite: (teamId: string, email: string, role?: string) =>
-    httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, { email, role }),
+  // Accepts an email OR a @username. An identifier containing '@' that also
+  // has a domain part is treated as email; otherwise it's sent as a username
+  // for the server to resolve to the person's canonical account.
+  invite: (teamId: string, identifier: string, role?: string) => {
+    const value = identifier.trim().replace(/^@/, '');
+    const looksLikeEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);
+    const body = looksLikeEmail ? { email: value, role } : { username: value, role };
+    return httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, body);
+  },
   cancelInvite: (teamId: string, inviteId: string) =>
     httpPost(
       `/teams/${encodeURIComponent(teamId)}/invites/${encodeURIComponent(inviteId)}/cancel`,
@@ -809,6 +840,15 @@ export const Team = {
     httpPost(`/teams/${encodeURIComponent(teamId)}/transfer-ownership`, {
       new_owner_id: newOwnerId,
     }),
+};
+
+export const Program = {
+  screenSummary: (id: string): Promise<any> =>
+    httpGet(`/programs/${encodeURIComponent(id)}/screen-summary`).then(data =>
+      validateProgramScreenSummary('program.screenSummary', data)
+    ),
+  follow: (id: string) => httpPost(`/programs/${encodeURIComponent(id)}/follow`, {}),
+  unfollow: (id: string) => httpDelete(`/programs/${encodeURIComponent(id)}/follow`),
 };
 
 export const Support = {
@@ -906,33 +946,24 @@ export const Subscriptions = {
 export const TeamMemberships = {
   create: (data: { team_id: string; user_id: string; role?: string }) =>
     httpPost('/team-memberships', data),
-  update: (membershipId: string, data: { role?: string; custom_position?: string | null; status?: 'active' | 'archived' }) =>
-    httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
+  update: (
+    membershipId: string,
+    data: { role?: string; custom_position?: string | null; status?: 'active' | 'archived' }
+  ) => httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
   delete: (membershipId: string) =>
     httpDelete(`/team-memberships/${encodeURIComponent(membershipId)}`),
   searchUsers: (teamId: string, q: string) =>
-    httpGet(`/team-memberships/search-users?teamId=${encodeURIComponent(teamId)}&q=${encodeURIComponent(q)}`),
-  // Team join requests
-  requestToJoin: (teamId: string, message?: string) =>
-    httpPost('/team-memberships/join-requests', { team_id: teamId, message }),
-  getJoinRequests: (teamId: string) =>
-    httpGet(`/team-memberships/join-requests?teamId=${encodeURIComponent(teamId)}`),
-  myJoinRequests: () => httpGet('/team-memberships/join-requests/my'),
-  approveJoinRequest: (requestId: string) =>
-    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
-  rejectJoinRequest: (requestId: string, reason?: string) =>
-    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/reject`, {
-      rejection_reason: reason,
-    }),
-  cancelJoinRequest: (requestId: string) =>
-    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/reject`, {
-      rejection_reason: 'Cancelled by requester',
-    }),
+    httpGet(
+      `/team-memberships/search-users?teamId=${encodeURIComponent(teamId)}&q=${encodeURIComponent(q)}`
+    ),
 };
 
 export const TeamInvites = {
-  create: (data: { team_id: string; email: string; role?: string }) =>
-    httpPost('/team-invites', data),
+  create: (data: { team_id: string; identifier?: string; email?: string; role?: string }) =>
+    httpPost('/team-invites', {
+      ...data,
+      identifier: data.identifier || data.email,
+    }),
 };
 
 export const Notification = {
@@ -1013,29 +1044,41 @@ export const Advertisement = {
     httpPost(`/ads/${encodeURIComponent(adId)}/review`, {
       action,
       note,
-      ...(overrideBannerFlag ? { override_banner_flag: true, override_reason: overrideReason } : {}),
+      ...(overrideBannerFlag
+        ? { override_banner_flag: true, override_reason: overrideReason }
+        : {}),
     }),
   report: (adId: string, reason: string, details?: string) =>
     httpPost('/reports', { target_type: 'ad', target_id: adId, reason, details }),
 };
 
 export const Search = {
-  unified: (q: string, limit: number = 10) => {
+  unified: (q: string, limit: number = 10, options?: { excludeDemoLeagues?: boolean }) => {
     const params = new URLSearchParams();
     params.set('q', q);
     if (limit) params.set('limit', String(limit));
+    if (options?.excludeDemoLeagues) params.set('exclude_demo_leagues', '1');
     return httpGet('/search?' + params.toString());
   },
 };
 
 export const Highlights = {
-  fetch: (params: { country?: string; lat?: number; lng?: number; limit?: number } = {}) => {
+  fetch: (
+    params: {
+      country?: string;
+      lat?: number;
+      lng?: number;
+      limit?: number;
+      sort?: 'trending' | 'recent' | 'top';
+    } = {}
+  ) => {
     const q: string[] = [];
     q.push('v2=1');
     if (params.country) q.push('country=' + encodeURIComponent(params.country));
     if (typeof params.lat === 'number') q.push('lat=' + encodeURIComponent(String(params.lat)));
     if (typeof params.lng === 'number') q.push('lng=' + encodeURIComponent(String(params.lng)));
     if (params.limit) q.push('limit=' + encodeURIComponent(String(params.limit)));
+    if (params.sort) q.push('sort=' + encodeURIComponent(params.sort));
     return httpGet('/highlights' + (q.length ? '?' + q.join('&') : ''));
   },
 };

@@ -33,6 +33,7 @@ import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+import { sendError } from '../lib/http/sendError.js';
 
 export const postsRouter = Router();
 registerIdValidation(postsRouter);
@@ -314,18 +315,13 @@ postsRouter.get(
 
     if (req.query.game_id) {
       const gameId = String(req.query.game_id);
-      // Handle sample game IDs (stored in title field with [SAMPLE_GAME:...] marker)
-      if (/^sample-/i.test(gameId)) {
-        where.title = { startsWith: `[SAMPLE_GAME:${gameId}]` };
-      } else {
-        // Match posts tied to the game directly (game_id) OR via one of its
-        // events (event_id). Symmetric with the event_id branch below; keeps
-        // legacy rows that only carry one column visible on the game feed.
-        where.AND = [
-          ...(Array.isArray(where.AND) ? where.AND : []),
-          { OR: [{ game_id: gameId }, { event: { game_id: gameId } }] },
-        ];
-      }
+      // Match posts tied to the game directly (game_id) OR via one of its
+      // events (event_id). Symmetric with the event_id branch below; keeps
+      // legacy rows that only carry one column visible on the game feed.
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        { OR: [{ game_id: gameId }, { event: { game_id: gameId } }] },
+      ];
     }
     if (req.query.team_id) {
       const teamId = String(req.query.team_id);
@@ -677,9 +673,6 @@ postsRouter.post(
   requireOnboarded as any,
   postCreationLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
-    // Sample game IDs (sample-*) are handled downstream — stored in title with [SAMPLE_GAME:] prefix
-    // instead of game_id (which has a foreign key constraint). See line ~604.
-
     // v1.0.2 pass 8: banned check (symmetric with DMs + comments)
     const banner = await prisma.user.findUnique({
       where: { id: req.user!.id },
@@ -724,6 +717,10 @@ postsRouter.post(
     let country_code: string | null = null;
     let admin1: string | null = null;
     let place_name: string | null = null;
+    // The country from an ACTUAL geocode (device GPS or zip lookup), as opposed
+    // to the 'US' fallback. Only this reliable value is learned into the
+    // author's preferences below — never the fallback.
+    let geocodedCountry: string | null = null;
 
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const prefs = await prisma.user.findUnique({
@@ -734,16 +731,24 @@ postsRouter.post(
     const loc = (data as any).location || {};
     const hasDeviceOriginLocation =
       loc?.source === 'device' && typeof loc.lat === 'number' && typeof loc.lng === 'number';
+    // Never leave country_code null — a null drops the post from the
+    // country-scoped Highlights feed (which hard-filters country_code).
+    // 'US' matches the read-side default in app/highlights.tsx.
     if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
       lat = loc.lat;
       lng = loc.lng;
       try {
         const rev = await reverseGeocode(lat as number, lng as number);
-        country_code = rev.country_code || preferCountry;
+        geocodedCountry = rev.country_code || null;
+        country_code = rev.country_code || preferCountry || 'US';
         admin1 = rev.admin_area || null;
         place_name = rev.place_name || null;
       } catch (err: unknown) {
         debugLog('[posts] reverseGeocode failed, using fallback:', (err as Error)?.message ?? err);
+        // Don't let a geocode failure null out the country — fall back to the
+        // user's preferred country so the post still qualifies for the
+        // country-scoped Highlights feed (which hard-filters on country_code).
+        country_code = country_code ?? preferCountry ?? 'US';
       }
     } else if (loc.zip || (prefs?.preferences as any)?.zip_code) {
       try {
@@ -751,46 +756,56 @@ postsRouter.post(
         const gg = await geocodeZip(zip, preferCountry);
         lat = gg.lat;
         lng = gg.lng;
-        country_code = gg.country_code || preferCountry;
+        geocodedCountry = gg.country_code || null;
+        country_code = gg.country_code || preferCountry || 'US';
       } catch (err: unknown) {
         debugLog('[posts] geocodeZip failed, using fallback:', (err as Error)?.message ?? err);
+        // Same fallback as the reverseGeocode branch: a geocode failure must not
+        // null out the country, or the post drops out of the Highlights feed.
+        country_code = country_code ?? preferCountry ?? 'US';
       }
     } else {
-      country_code = preferCountry || null;
+      country_code = preferCountry || 'US';
+    }
+
+    // Learn the author's country from this reliable geocode so the
+    // country-scoped Highlights read stops defaulting them to 'US'. Single
+    // source of truth: preferences.country_code — set once here when the user
+    // has no country yet, read everywhere else (post write default, Highlights
+    // viewer country, geocodeZip). We never persist the 'US' fallback, which
+    // would lock a non-US user (e.g. a Canadian) into the wrong country.
+    if (geocodedCountry && !preferCountry) {
+      try {
+        const basePrefs =
+          prefs?.preferences && typeof prefs.preferences === 'object'
+            ? (prefs.preferences as Record<string, unknown>)
+            : {};
+        await prisma.user.update({
+          where: { id: req.user.id },
+          data: { preferences: { ...basePrefs, country_code: geocodedCountry } },
+        });
+      } catch (err: unknown) {
+        debugLog(
+          '[posts] failed to persist learned country to preferences:',
+          (err as Error)?.message ?? err
+        );
+      }
     }
 
     // ⚠️ GEOFENCING CHECK FOR EVENT POSTS
-    // If this is an event-specific post, verify user is at the venue
-    // Skip geofencing for sample events/games (IDs starting with "sample-") - these are demo content
+    // If this is an event-specific post, verify user is at the venue.
+    // (2026-07-09: the sample- demo-content carve-out is retired — sample ids
+    // no longer skip geofencing or get [SAMPLE_GAME:] title markers. The
+    // stripSampleGameTitle serializer stays: old DB rows still carry markers.)
     const eventId = (data as any).event_id;
     const gameId = data.game_id;
-    const isSampleEvent = eventId && /^sample-/i.test(String(eventId));
-    const isSampleGame = gameId && /^sample-/i.test(String(gameId));
 
-    // For sample events, we can't use game_id (foreign key constraint)
-    // Store sample game_id in title field with special marker for querying
-    let finalGameId: string | null = null;
-    let finalTitle = data.title || null;
+    let finalGameId: string | null = gameId ?? null;
+    const finalTitle = data.title || null;
     // Event id derived from the game's primary event during the geofencing
     // lookup below — reused when denormalizing the link so we don't re-query.
     let derivedEventIdFromGame: string | null = null;
-    if (isSampleGame && gameId) {
-      // Store sample game_id in title: [SAMPLE_GAME:sample-warriors-cavaliers] Original Title
-      const titlePrefix = `[SAMPLE_GAME:${gameId}]`;
-      finalTitle = finalTitle ? `${titlePrefix} ${finalTitle}` : titlePrefix;
-      finalGameId = null; // Don't set game_id for sample events (foreign key constraint)
-      debugLog(`✅ Sample game detected (${gameId}) - storing in title, skipping geofencing`);
-    } else if (isSampleEvent && eventId) {
-      debugLog(`✅ Sample event detected (${eventId}) - skipping geofencing check`);
-      finalGameId = null;
-    } else if (gameId) {
-      finalGameId = gameId;
-    }
-
-    // Allow posting to sample events/games without geofencing
-    if (isSampleEvent || isSampleGame) {
-      debugLog(`✅ Sample event/game detected (${eventId || gameId}) - skipping geofencing check`);
-    } else if (eventId || gameId) {
+    if (eventId || gameId) {
       // Check geofencing for real events or games (games have associated events)
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -898,7 +913,7 @@ postsRouter.post(
     // Attach the post directly to its event (real, non-sample events only) so it
     // associates with event-only pages that have no game, and so its author can
     // qualify for the open-ended post-event upload window via event_id.
-    let finalEventId = eventId && !isSampleEvent ? String(eventId) : null;
+    let finalEventId = eventId ? String(eventId) : null;
 
     // Denormalize the event/game link in BOTH directions. A post tied to a
     // game or event must carry game_id AND event_id whenever both exist, so
@@ -1265,8 +1280,12 @@ postsRouter.get(
       user_vote = pollVote?.poll_option_id || null;
     }
 
+    // Drop precise capture coordinates: `post` comes from an `include:` query
+    // (all scalar columns), and lat/lng must never reach clients — they expose
+    // where a user (often a minor) was filmed. country_code stays; it is coarse.
+    const { lat: _lat, lng: _lng, ...postForResponse } = post;
     const response = {
-      ...post,
+      ...postForResponse,
       title: stripSampleGameTitle(post.title), // Clean sample game marker from title
       has_upvoted,
       has_bookmarked,
@@ -1749,7 +1768,15 @@ postsRouter.post(
 postsRouter.delete(
   '/:id',
   requireAuth as any,
-  requireOnboarded as any,
+  // NO requireOnboarded here — on purpose.
+  //
+  // Deleting your own content is a data right, not a "coach feature". This route
+  // used to sit behind requireOnboarded, which 403s a coach whose approval is
+  // PENDING/REJECTED, and a coach whose accepted agreement version is stale
+  // (requireOnboarded.ts:134-149). Those users could delete their own COMMENT
+  // (that route has only requireAuth) but not their own POST — an inconsistency,
+  // not a policy. Authorization is still fully enforced below: author, team coach,
+  // or admin only.
   asyncHandler(async (req: AuthedRequest, res) => {
     const postId = String(req.params.id);
     const userId = req.user!.id;
@@ -1761,7 +1788,29 @@ postsRouter.delete(
       });
 
       if (!post) {
-        return res.status(404).json({ error: 'Post not found' });
+        // Idempotent retry path (2026-07-08 incident): a client that timed out and
+        // retried after the delete actually landed must get a fast success, not a 404
+        // it surfaces as "Failed to delete post". Authorization is re-checked so an
+        // unauthorized caller still sees the same 404 as a nonexistent post.
+        const alreadyDeleted = await prisma.post.findFirst({
+          where: { id: postId, deleted_at: { not: null } },
+          select: { id: true, author_id: true, team_id: true, game_id: true, deleted_at: true },
+        });
+        if (alreadyDeleted) {
+          const retryIsAuthor = alreadyDeleted.author_id === userId;
+          const retryIsCoach = retryIsAuthor
+            ? false
+            : await isCoachOfPostTeam(userId, alreadyDeleted);
+          const retryIsAdmin = retryIsAuthor || retryIsCoach ? false : await getIsAdmin(req as any);
+          if (retryIsAuthor || retryIsCoach || retryIsAdmin) {
+            return res.json({
+              message: 'Post deleted successfully',
+              deleted_at: alreadyDeleted.deleted_at!.toISOString(),
+              already_deleted: true,
+            });
+          }
+        }
+        return sendError(res, 404, 'Post not found');
       }
 
       const isAuthor = post.author_id === userId;
@@ -1773,10 +1822,22 @@ postsRouter.delete(
           .json({ error: 'You can only delete your own posts or posts on your team page' });
       }
 
+      // Soft-delete FIRST, as a single autocommit statement — deliberately NOT an
+      // interactive transaction. 2026-07-08 incident: a ~70s Postgres WAL/disk stall
+      // left the old $transaction's COMMIT hanging past its 5s budget while it held
+      // the Post row lock, so 23 client retries piled up behind it, all failed with
+      // P2028, and the stuck transactions exhausted the connection pool (broke
+      // unrelated auth checks). The notification cleanup below is cosmetic and must
+      // not gate or share fate with the user-visible delete.
       const deletedAt = new Date();
-      await prisma.$transaction(async tx => {
+      await prisma.post.update({ where: { id: postId }, data: { deleted_at: deletedAt } });
+
+      // Best-effort cleanup: remove notifications pointing at the deleted post and
+      // its comments. A failure here leaves only stale notifications (their taps
+      // already handle missing posts); never fail the delete over it.
+      try {
         // audit-allow unbounded: delete must enumerate every comment id on the post to clear linked notifications
-        const commentIds = await tx.comment.findMany({
+        const commentIds = await prisma.comment.findMany({
           where: { post_id: postId },
           select: { id: true },
         });
@@ -1789,9 +1850,14 @@ postsRouter.delete(
           delete notificationWhere.post_id;
         }
 
-        await tx.notification.deleteMany({ where: notificationWhere });
-        await tx.post.update({ where: { id: postId }, data: { deleted_at: deletedAt } });
-      });
+        await prisma.notification.deleteMany({ where: notificationWhere });
+      } catch (cleanupErr) {
+        console.warn(
+          '[posts] notification cleanup after delete failed for post',
+          postId,
+          cleanupErr
+        );
+      }
 
       // Destroy the Cloudinary asset so deleted media doesn't stay publicly
       // retrievable by URL. Fire-and-forget — we don't want a Cloudinary hiccup

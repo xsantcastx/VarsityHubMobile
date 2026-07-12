@@ -1,9 +1,6 @@
 import { StyleSheet, Text, useColorScheme } from 'react-native';
 import { Colors } from '@/constants/Colors';
-import {
-  LegalDocumentScreen,
-  LegalSectionCard,
-} from '@/components/settings/LegalDocumentShared';
+import { LegalDocumentScreen, LegalSectionCard } from '@/components/settings/LegalDocumentShared';
 
 export default function DMCAScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -40,7 +37,9 @@ export default function DMCAScreen() {
       />
 
       <Text style={[styles.footer, { color: C.mutedText }]}>
-          VarsityHub respects the intellectual property rights of all sports organizations and their broadcast partners. We are committed to working cooperatively with rights holders to address any concerns promptly.
+        VarsityHub respects the intellectual property rights of all sports organizations and their
+        broadcast partners. We are committed to working cooperatively with rights holders to address
+        any concerns promptly.
       </Text>
     </LegalDocumentScreen>
   );

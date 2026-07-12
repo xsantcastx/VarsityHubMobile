@@ -1,10 +1,11 @@
+import EventChip from '@/components/EventChip';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { getAuthSnapshot } from '@/utils/authState';
-import AppLinks from '@/utils/links';
+import AppLinks, { buildNativeSharePayload } from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image as ExpoImage } from 'expo-image';
@@ -36,14 +37,14 @@ try {
   /* native module not available */
 }
 // @ts-ignore legacy export shape
-import { Event, Highlights, Organization, Post, Team, User } from '@/api/entities';
+import { Event, Highlights, Organization, Post, Search, Team, User } from '@/api/entities';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { getCloudinaryVideoPreviewUrl } from '@/utils/media';
+import { getCloudinaryVideoPreviewUrl, resolveMediaType } from '@/utils/media';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
 type TabType = 'trending' | 'recent' | 'top';
@@ -86,6 +87,8 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
     lng: typeof input.lng === 'number' ? input.lng : undefined,
     country_code: typeof input.country_code === 'string' ? input.country_code : undefined,
     sport: typeof input.sport === 'string' ? input.sport : undefined,
+    game_id: input.game_id ?? input.game?.id ?? null,
+    event_id: input.event_id ?? input.event?.id ?? null,
     _score: typeof input._score === 'number' ? input._score : undefined,
   };
 };
@@ -208,7 +211,7 @@ const HighlightCard = ({
   colorScheme: 'light' | 'dark';
   onUpvote?: (item: HighlightItem) => void;
 }) => {
-  const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
+  const isVideo = resolveMediaType(item.media_url, item.media_type) === 'video';
   const category = getSportCategory(item.sport, item.title, item.content);
   const hasMedia = !!item.media_url;
   const previewUrl =
@@ -362,6 +365,13 @@ const HighlightCard = ({
             </Text>
           </Pressable>
 
+          <EventChip
+            gameId={item.game_id}
+            eventId={item.event_id}
+            variant="card"
+            style={{ marginBottom: 8 }}
+          />
+
           {/* Stats Row */}
           <View style={styles.statsRow}>
             <Pressable
@@ -411,11 +421,7 @@ const HighlightCard = ({
                     String(item.id),
                     item.caption || (sanitizeTitle(item.title) ?? undefined)
                   );
-                  await Share.share({
-                    message: link.shareMessage,
-                    url: link.webUrl,
-                    title: sanitizeTitle(item.title) || 'VarsityHub Highlight',
-                  });
+                  await Share.share(buildNativeSharePayload(link.shareMessage, link.webUrl));
                 } catch {
                   try {
                     const mod = await import('expo-clipboard').catch(() => null);
@@ -517,7 +523,10 @@ function HighlightsScreen() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ['highlights', user?.id ?? 'guest'],
+    queryKey: ['highlights', activeTab, user?.id ?? 'guest'],
+    // Keep the previous tab's list on screen while the new tab loads —
+    // prevents a full-screen spinner flash on every tab switch.
+    placeholderData: (prev: any) => prev,
     queryFn: async () => {
       const me: any = await getAuthSnapshot(checkAuth, user).catch((error: any) => {
         if (__DEV__) console.warn('[Highlights] Failed to load user:', error?.message || error);
@@ -541,22 +550,26 @@ function HighlightsScreen() {
             ? me.lng
             : undefined;
 
-      // Request better data with more posts
       const payload = await Highlights.fetch({
         country,
-        limit: 50,
+        limit: activeTab === 'top' ? 10 : 50,
         lat,
         lng,
+        sort: activeTab,
       });
 
-      // Store raw ranking data for badge calculations
+      // New servers return { sort, items }; old servers return the legacy
+      // { nationalTop, ranked } buckets — keep both shapes working.
+      const rawItems = Array.isArray(payload?.items) ? payload.items : null;
       const rawNationalTop = Array.isArray(payload?.nationalTop) ? payload.nationalTop : [];
       const rawRanked = Array.isArray(payload?.ranked) ? payload.ranked : [];
 
       // Cache all the raw posts for faster loading when navigating to post detail
-      postCache.setBatch([...rawNationalTop, ...rawRanked]);
+      postCache.setBatch(rawItems ?? [...rawNationalTop, ...rawRanked]);
 
       return {
+        tab: activeTab,
+        rawItems,
         rawNationalTop,
         rawRanked,
         // Location for ranking calculations, only when both coordinates are valid
@@ -569,6 +582,9 @@ function HighlightsScreen() {
   });
 
   const userLocation = highlightsPayload?.userLocation;
+  // Tab the currently-rendered payload belongs to — lags activeTab while a
+  // tab switch is in flight (placeholderData shows the old tab's list).
+  const dataTab = highlightsPayload?.tab ?? activeTab;
   const nationalTop = useMemo(
     () =>
       (highlightsPayload?.rawNationalTop ?? [])
@@ -581,14 +597,14 @@ function HighlightsScreen() {
       (highlightsPayload?.rawRanked ?? []).map(mapHighlightItem).filter(Boolean) as HighlightItem[],
     [highlightsPayload]
   );
-  // Merge all highlights from different buckets, de-duplicated by ID
+  // Server-sorted items when available; legacy bucket merge otherwise.
+  const serverSorted = highlightsPayload?.rawItems != null;
   const highlights = useMemo(() => {
-    const mapped = [
+    const source = highlightsPayload?.rawItems ?? [
       ...(highlightsPayload?.rawNationalTop ?? []),
       ...(highlightsPayload?.rawRanked ?? []),
-    ]
-      .map(mapHighlightItem)
-      .filter(Boolean) as HighlightItem[];
+    ];
+    const mapped = source.map(mapHighlightItem).filter(Boolean) as HighlightItem[];
     return Array.from(new Map(mapped.map(item => [item.id, item])).values());
   }, [highlightsPayload]);
 
@@ -606,70 +622,60 @@ function HighlightsScreen() {
   }, [refetch]);
 
   // Global search function for teams, events, users, and posts
-  const performGlobalSearch = useCallback(
-    async (query: string) => {
-      if (!query.trim()) {
-        setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
-        setSearching(false);
-        return;
+  const performGlobalSearch = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const [teamsRes, eventsRes, usersRes, orgsRes, unifiedRes] = await Promise.all([
+        Team.list(query, false, { limit: 5 }).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Team search failed:', error?.message || error);
+          return [];
+        }),
+        Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Event search failed:', error?.message || error);
+          return [];
+        }),
+        User.listAll(query, 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] User search failed:', error?.message || error);
+          return [];
+        }),
+        Organization.list(query, 5).catch((error: any) => {
+          if (__DEV__)
+            console.warn('[Highlights] Organization search failed:', error?.message || error);
+          return [];
+        }),
+        // Posts search must go through the server — the local `highlights`
+        // array is only the current tab's already-loaded top 10-50 items
+        // (itself country/media/date filtered), so a real post that isn't
+        // in that small window was unfindable no matter how good the query.
+        Search.unified(query, 10).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Post search failed:', error?.message || error);
+          return null;
+        }),
+      ]);
+
+      const teams = Array.isArray(teamsRes) ? teamsRes.slice(0, 5) : [];
+      const events = Array.isArray(eventsRes) ? eventsRes.slice(0, 5) : [];
+      const users = Array.isArray(usersRes) ? usersRes.slice(0, 5) : [];
+      const organizations = Array.isArray(orgsRes) ? orgsRes.slice(0, 5) : [];
+      const rawPosts = Array.isArray(unifiedRes?.posts) ? unifiedRes.posts : [];
+      const posts = rawPosts.map(mapHighlightItem).filter(Boolean) as HighlightItem[];
+
+      setSearchResults({ teams, events, users, organizations, posts });
+    } catch (err: any) {
+      if (__DEV__) {
+        if (__DEV__) console.error('[Highlights] Search failed:', err?.message || err);
       }
-
-      setSearching(true);
-      try {
-        const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
-          Team.list(query, false, { limit: 5 }).catch((error: any) => {
-            if (__DEV__) console.warn('[Highlights] Team search failed:', error?.message || error);
-            return [];
-          }),
-          Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch((error: any) => {
-            if (__DEV__) console.warn('[Highlights] Event search failed:', error?.message || error);
-            return [];
-          }),
-          User.listAll(query, 5).catch((error: any) => {
-            if (__DEV__) console.warn('[Highlights] User search failed:', error?.message || error);
-            return [];
-          }),
-          Organization.list(query, 5).catch((error: any) => {
-            if (__DEV__)
-              console.warn('[Highlights] Organization search failed:', error?.message || error);
-            return [];
-          }),
-        ]);
-
-        const teams = Array.isArray(teamsRes) ? teamsRes.slice(0, 5) : [];
-        const events = Array.isArray(eventsRes) ? eventsRes.slice(0, 5) : [];
-        const users = Array.isArray(usersRes) ? usersRes.slice(0, 5) : [];
-        const organizations = Array.isArray(orgsRes) ? orgsRes.slice(0, 5) : [];
-
-        // Filter posts
-        const posts = highlights
-          .filter(item => {
-            const title = (item.title || '').toLowerCase();
-            const caption = (item.caption || '').toLowerCase();
-            const content = (item.content || '').toLowerCase();
-            const authorName = (item.author?.display_name || '').toLowerCase();
-            const queryLower = query.toLowerCase();
-            return (
-              title.includes(queryLower) ||
-              caption.includes(queryLower) ||
-              content.includes(queryLower) ||
-              authorName.includes(queryLower)
-            );
-          })
-          .slice(0, 10);
-
-        setSearchResults({ teams, events, users, organizations, posts });
-      } catch (err: any) {
-        if (__DEV__) {
-          if (__DEV__) console.error('[Highlights] Search failed:', err?.message || err);
-        }
-        setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
-      } finally {
-        setSearching(false);
-      }
-    },
-    [highlights]
-  );
+      setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
+    } finally {
+      setSearching(false);
+    }
+  }, []);
 
   // Debounced search
   useEffect(() => {
@@ -680,68 +686,34 @@ function HighlightsScreen() {
   }, [searchQuery, performGlobalSearch]);
 
   const getFilteredHighlights = useCallback(() => {
-    let filtered = [...highlights];
+    // New servers return each tab pre-sorted — render their order verbatim.
+    // Defensive cap: a stale 50-item list must never render under a
+    // Top-labeled payload.
+    if (serverSorted) return dataTab === 'top' ? highlights.slice(0, 10) : highlights;
 
-    // Don't filter by search query here - that's handled by search results view
-
-    switch (activeTab) {
+    // Legacy-server fallback: one consistent engagement metric for every
+    // post (the old code compared server _score against raw engagement,
+    // which are incompatible scales).
+    const engagement = (p: HighlightItem) => (p.upvotes_count || 0) + (p._count?.comments || 0) * 2;
+    const list = [...highlights];
+    switch (dataTab) {
       case 'trending':
-        // TRENDING: Top 3 posts first (numbered #1, #2, #3), then algorithm.
-        // Product rule: Trending never shows posts older than 14 days, so a
-        // stale-but-viral post can't keep ranking #1.
-        filtered = filtered.filter(
-          p => Date.now() - new Date(p.created_at || 0).getTime() <= 14 * 86400000
-        );
-        filtered.sort((a, b) => {
-          // Calculate engagement score (upvotes + comments * 2)
-          const aEngagement = (a.upvotes_count || 0) + (a._count?.comments || 0) * 2;
-          const bEngagement = (b.upvotes_count || 0) + (b._count?.comments || 0) * 2;
-
-          // If scores exist, use them; otherwise use engagement
-          const aScore = a._score || aEngagement;
-          const bScore = b._score || bEngagement;
-
-          return bScore - aScore;
-        });
-
-        // Top 3 are explicitly shown first
-        const top3 = filtered.slice(0, 3);
-        const rest = filtered.slice(3);
-
-        // Sort rest by trending algorithm (recency boost + engagement)
-        rest.sort((a, b) => {
-          const aRecency = new Date(a.created_at || 0).getTime() > Date.now() - 86400000 ? 5 : 0;
-          const bRecency = new Date(b.created_at || 0).getTime() > Date.now() - 86400000 ? 5 : 0;
-          const aTotal = (a._score || 0) + aRecency;
-          const bTotal = (b._score || 0) + bRecency;
-          return bTotal - aTotal;
-        });
-
-        return [...top3, ...rest];
-
+        // Product rule: Trending never shows posts older than 14 days.
+        return list
+          .filter(p => Date.now() - new Date(p.created_at || 0).getTime() <= 14 * 86400000)
+          .sort((a, b) => engagement(b) - engagement(a));
       case 'recent':
-        // RECENT: Most recent posts globally, pure chronological
-        filtered.sort((a, b) => {
-          const aTime = new Date(a.created_at || 0).getTime();
-          const bTime = new Date(b.created_at || 0).getTime();
-          return bTime - aTime; // Newest first
-        });
-        return filtered; // All posts, ordered by time
-
-      case 'top':
-        // TOP: Top 10 posts with most engagement over the last month (product
-        // rule: "most engagement in a month"), numbered #1-#10.
-        filtered = filtered.filter(
-          p => Date.now() - new Date(p.created_at || 0).getTime() <= 30 * 86400000
+        return list.sort(
+          (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
         );
-        filtered.sort((a, b) => {
-          const aInteraction = (a.upvotes_count || 0) + (a._count?.comments || 0) * 1.5;
-          const bInteraction = (b.upvotes_count || 0) + (b._count?.comments || 0) * 1.5;
-          return bInteraction - aInteraction;
-        });
-        return filtered.slice(0, 10); // Limit to top 10 only
+      case 'top':
+        // Product rule: top 10 by engagement over the last month.
+        return list
+          .filter(p => Date.now() - new Date(p.created_at || 0).getTime() <= 30 * 86400000)
+          .sort((a, b) => engagement(b) - engagement(a))
+          .slice(0, 10);
     }
-  }, [highlights, activeTab]);
+  }, [highlights, dataTab, serverSorted]);
 
   const handleHighlightPress = useCallback(
     (item: HighlightItem, index?: number, filtered?: HighlightItem[]) => {
@@ -771,7 +743,7 @@ function HighlightsScreen() {
       Keyboard.dismiss();
       const eventId = event?.id || event?.event_id;
       if (eventId) {
-        void router.push(buildEventDetailRoute(eventId));
+        void router.push(buildEventDetailRoute(eventId, event?.game_id ?? event?.gameId));
         return;
       }
 
@@ -786,24 +758,27 @@ function HighlightsScreen() {
     [router]
   );
 
-  // Patch one post's vote fields inside the cached raw payload (both
-  // buckets); the mapped highlights/nationalTop/ranked memos re-derive.
+  // Patch one post's vote fields inside every cached tab payload (items +
+  // legacy buckets); the mapped highlights memo re-derives per tab.
   const patchHighlight = useCallback(
     (postId: string, patch: (h: any) => any) => {
-      queryClient.setQueryData(['highlights', user?.id ?? 'guest'], (old: any) => {
+      queryClient.setQueriesData({ queryKey: ['highlights'] }, (old: any) => {
         if (!old) return old;
-        const apply = (arr: any[]) =>
-          (arr ?? []).map(h =>
-            String(h?.id ?? h?.post_id ?? h?.highlight_id) === postId ? patch(h) : h
-          );
+        const apply = (arr: any[] | null | undefined) =>
+          Array.isArray(arr)
+            ? arr.map(h =>
+                String(h?.id ?? h?.post_id ?? h?.highlight_id) === postId ? patch(h) : h
+              )
+            : arr;
         return {
           ...old,
+          rawItems: apply(old.rawItems),
           rawNationalTop: apply(old.rawNationalTop),
           rawRanked: apply(old.rawRanked),
         };
       });
     },
-    [queryClient, user?.id]
+    [queryClient]
   );
 
   const handleUpvote = useCallback(
@@ -857,7 +832,7 @@ function HighlightsScreen() {
       <HighlightCard
         item={item}
         index={index}
-        currentTab={activeTab}
+        currentTab={dataTab}
         nationalTop={nationalTop}
         ranked={ranked}
         userLocation={userLocation}
@@ -1253,7 +1228,7 @@ function HighlightsScreen() {
                     key={post.id}
                     item={post}
                     index={idx}
-                    currentTab={activeTab}
+                    currentTab={dataTab}
                     nationalTop={nationalTop}
                     ranked={ranked}
                     userLocation={userLocation}

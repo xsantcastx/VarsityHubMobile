@@ -35,6 +35,8 @@ import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { sanitizeText } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { buildOpponentLink } from '@/utils/gameOpponent';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import { AppearancePreset } from './components/AppearancePicker';
@@ -223,6 +225,9 @@ function CreateFanEventScreen() {
   const [selectedTeam, setSelectedTeam] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [opponent, setOpponent] = useState('');
+  // Set only when the user picks a suggestion — links the real Team row.
+  // Cleared on free-text edits (free text = display-only placeholder).
+  const [opponentTeamId, setOpponentTeamId] = useState('');
   const [opponentSuggestions, setOpponentSuggestions] = useState<
     Array<{ id: string; name: string }>
   >([]);
@@ -381,6 +386,7 @@ function CreateFanEventScreen() {
   // Opponent team search
   const handleOpponentChange = useCallback((text: string) => {
     setOpponent(text);
+    setOpponentTeamId(''); // typing = free-text placeholder, drop the link
     setErrors(prev => ({ ...prev, opponent: '' }));
     if (opponentTimerRef.current) clearTimeout(opponentTimerRef.current);
     if (text.trim().length < 2) {
@@ -454,7 +460,7 @@ function CreateFanEventScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      ...pickerMediaTypesProp(),
       allowsEditing: true,
       // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
       // crop at the displayed ratio so uploads aren't re-cropped at render time.
@@ -487,7 +493,7 @@ function CreateFanEventScreen() {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      ...pickerMediaTypesProp(),
       allowsEditing: true,
       aspect: [16, 9],
       quality: 0.9,
@@ -604,6 +610,10 @@ function CreateFanEventScreen() {
         } else if (gameType === 'away' && selectedTeamId) {
           gamePayload.away_team_id = selectedTeamId;
         }
+        // Link the opponent's Team row when one was picked from suggestions
+        // (manage-season's handleSaveGame already does this; this surface was
+        // missed in the July 4th round — see 2026-07-05 plan doc).
+        Object.assign(gamePayload, buildOpponentLink(gameType, opponentTeamId));
 
         await Game.create(gamePayload);
       } else {
@@ -1006,6 +1016,7 @@ function CreateFanEventScreen() {
                     ]}
                     onPress={() => {
                       setOpponent(t.name);
+                      setOpponentTeamId(String(t.id));
                       setOpponentSuggestions([]);
                       setErrors(prev => ({ ...prev, opponent: '' }));
                     }}

@@ -3,14 +3,14 @@ import { Stack, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import type { TextInput } from 'react-native';
 import {
-    ActivityIndicator,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-    useColorScheme
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
@@ -18,6 +18,7 @@ import { User } from '@/api/entities';
 import { AuthenticatedEntryGuard } from '@/components/auth/AuthenticatedEntryGuard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import PasswordInput from '@/components/PasswordInput';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
@@ -32,11 +33,8 @@ import { getOAuthExistingAccountMessage } from '@/utils/oauthErrors';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
-const {
-  AppleAuthenticationButton,
-  AppleAuthenticationButtonType,
-  AppleAuthenticationButtonStyle,
-} = AppleAuthentication;
+const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } =
+  AppleAuthentication;
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -52,7 +50,12 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
-  const { signInWithGoogle, loading: googleLoading, ready: googleReady, isConfigured: googleConfigured } = useGoogleAuth();
+  const {
+    signInWithGoogle,
+    loading: googleLoading,
+    ready: googleReady,
+    isConfigured: googleConfigured,
+  } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
   const { user, hasSession, checkAuth, registerPushToken, signOut } = useAuth();
   const insets = useSafeAreaInsets();
@@ -101,18 +104,17 @@ export default function SignInScreen() {
     router.replace(landingRoute as any);
   };
 
-  const { handleSignOutToContinue, handleContinueExistingSession } =
-    useExistingSessionActions({
-      authBusy,
-      signOut,
-      setSigningOut,
-      setError,
-      user,
-      checkAuth,
-      routeCurrentUser,
-      expiredMessage: 'Your saved session expired. Please sign in again.',
-      restoreFailedMessage: 'We could not restore your saved session. Please sign in again.',
-    });
+  const { handleSignOutToContinue, handleContinueExistingSession } = useExistingSessionActions({
+    authBusy,
+    signOut,
+    setSigningOut,
+    setError,
+    user,
+    checkAuth,
+    routeCurrentUser,
+    expiredMessage: 'Your saved session expired. Please sign in again.',
+    restoreFailedMessage: 'We could not restore your saved session. Please sign in again.',
+  });
 
   const onSubmit = async () => {
     if (submitInFlightRef.current) return;
@@ -197,11 +199,16 @@ export default function SignInScreen() {
     } catch (e: any) {
       const errMsg = e?.message || 'Login failed';
       const status = e?.status || e?.response?.status;
-      captureBreadcrumb('Sign-in failed', 'auth.sign_in', {
-        method: 'email',
-        status: status ?? 'unknown',
-      }, 'warning');
-      
+      captureBreadcrumb(
+        'Sign-in failed',
+        'auth.sign_in',
+        {
+          method: 'email',
+          status: status ?? 'unknown',
+        },
+        'warning'
+      );
+
       // Show user-friendly error messages
       if (status === 401) {
         setError('Invalid email or password. Please try again.');
@@ -212,9 +219,13 @@ export default function SignInScreen() {
         const bannedUntil = e?.data?.banned_until || e?.response?.data?.banned_until;
         if (bannedUntil) {
           const until = new Date(bannedUntil).toLocaleDateString();
-          setError(`Your account is temporarily suspended until ${until}.${banReason ? ` Reason: ${banReason}` : ''}`);
+          setError(
+            `Your account is temporarily suspended until ${until}.${banReason ? ` Reason: ${banReason}` : ''}`
+          );
         } else {
-          setError(banReason || 'This account has been banned. Please contact support@varsityhub.app.');
+          setError(
+            banReason || 'This account has been banned. Please contact support@varsityhub.app.'
+          );
         }
       } else if (e?.isNetworkError === true || errMsg.startsWith('Cannot connect to server')) {
         // Preserve the host-specific transport error from api/http.ts so the
@@ -222,7 +233,11 @@ export default function SignInScreen() {
         // internet" hides the difference between "wrong baked-in host on a
         // stale binary" and "actually offline".
         setError(errMsg);
-      } else if (errMsg.includes('Network') || errMsg.includes('timeout') || errMsg.includes('fetch')) {
+      } else if (
+        errMsg.includes('Network') ||
+        errMsg.includes('timeout') ||
+        errMsg.includes('fetch')
+      ) {
         // Don't tell the user to "check your internet" — OfflineBanner owns
         // that message and has real NetInfo evidence. If we hit this fallback,
         // the device is online (banner would be up otherwise) and the request
@@ -233,15 +248,12 @@ export default function SignInScreen() {
       } else {
         setError(errMsg || 'Login failed. Please try again.');
       }
-      
+
       // Capture error with context
-      captureException(
-        typeof e === 'string' ? new Error(e) : e,
-        {
-          tags: { context: 'email-password-login' },
-          extra: { response: e?.data?.error || e?.response?.data, status },
-        }
-      );
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'email-password-login' },
+        extra: { response: e?.data?.error || e?.response?.data, status },
+      });
     } finally {
       setLoading(false);
       submitInFlightRef.current = false;
@@ -292,15 +304,22 @@ export default function SignInScreen() {
           captureException(err, { tags: { context: 'push-token-register-google-login' } });
         });
       } catch (authError: any) {
-        if (__DEV__) console.warn('[sign-in] checkAuth after Google login failed:', authError?.message);
+        if (__DEV__)
+          console.warn('[sign-in] checkAuth after Google login failed:', authError?.message);
         setError('Sign-in succeeded but we could not load your profile. Please try again.');
       }
     } catch (e: any) {
-      // Silently ignore user cancellation
+      // Silently ignore user cancellation (native). On web, a "dismiss" also
+      // covers the popup closing on an OAuth error page (e.g. a Google config
+      // problem) — indistinguishable from a user cancel — so surface a soft
+      // retry message instead of failing invisibly.
       if (e?.code === 'CANCELLED' || e?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
         captureBreadcrumb('Sign-in cancelled', 'auth.sign_in', {
           method: 'google',
         });
+        if (Platform.OS === 'web') {
+          setError('Google sign-in was closed before completing. Please try again.');
+        }
         return;
       }
 
@@ -312,16 +331,25 @@ export default function SignInScreen() {
         return;
       }
       const oauthConflictMessage = getOAuthExistingAccountMessage(e, 'Google');
-      captureBreadcrumb('Sign-in failed', 'auth.sign_in', {
-        method: 'google',
-      }, 'warning');
-      
+      captureBreadcrumb(
+        'Sign-in failed',
+        'auth.sign_in',
+        {
+          method: 'google',
+        },
+        'warning'
+      );
+
       // Show user-friendly error
       if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
         // Preserve host-specific transport error so the banner names the
         // host that failed — same fix as the email/password path in 012030df.
         setError(message);
-      } else if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
+      } else if (
+        message.includes('Network') ||
+        message.includes('timeout') ||
+        message.includes('fetch')
+      ) {
         // OfflineBanner owns the "check your internet" message. See
         // email-login fallback above for the full reasoning.
         setError('Connection hiccup. Please try again.');
@@ -332,11 +360,10 @@ export default function SignInScreen() {
       } else {
         setError(message || 'Google sign-in failed. Please try again.');
       }
-      
-      captureException(
-        typeof e === 'string' ? new Error(e) : e,
-        { tags: { context: 'google-signin' } }
-      );
+
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'google-signin' },
+      });
     } finally {
       submitInFlightRef.current = false;
     }
@@ -396,7 +423,8 @@ export default function SignInScreen() {
           captureException(err, { tags: { context: 'push-token-register-apple-login' } });
         });
       } catch (authError: any) {
-        if (__DEV__) console.warn('[sign-in] checkAuth after Apple login failed:', authError?.message);
+        if (__DEV__)
+          console.warn('[sign-in] checkAuth after Apple login failed:', authError?.message);
         setError('Sign-in succeeded but we could not load your profile. Please try again.');
       }
     } catch (e: any) {
@@ -416,11 +444,16 @@ export default function SignInScreen() {
         return;
       }
       const oauthConflictMessage = getOAuthExistingAccountMessage(e, 'Apple');
-      captureBreadcrumb('Sign-in failed', 'auth.sign_in', {
-        method: 'apple',
-        status: e?.status ?? 'unknown',
-      }, 'warning');
-      
+      captureBreadcrumb(
+        'Sign-in failed',
+        'auth.sign_in',
+        {
+          method: 'apple',
+          status: e?.status ?? 'unknown',
+        },
+        'warning'
+      );
+
       // Show user-friendly error
       if (message.includes('not available in the simulator') || message.includes('simulator')) {
         setError('Apple Sign-In requires a real device. Use email/password in the simulator.');
@@ -429,7 +462,11 @@ export default function SignInScreen() {
       } else if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
         // Preserve host-specific transport error — same fix as 012030df.
         setError(message);
-      } else if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
+      } else if (
+        message.includes('Network') ||
+        message.includes('timeout') ||
+        message.includes('fetch')
+      ) {
         // OfflineBanner owns the "check your internet" message. See
         // email-login fallback above for the full reasoning.
         setError('Connection hiccup. Please try again.');
@@ -441,27 +478,36 @@ export default function SignInScreen() {
         setError(message || 'Apple sign-in failed. Please try again.');
       }
 
-      captureException(
-        typeof e === 'string' ? new Error(e) : e,
-        { tags: { context: 'apple-signin' } }
-      );
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'apple-signin' },
+      });
     } finally {
       submitInFlightRef.current = false;
     }
   };
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: palette.background, borderLeftWidth: 0, borderRightWidth: 0 }]} edges={['top']}>
+    <SafeAreaView
+      style={[
+        styles.root,
+        { backgroundColor: palette.background, borderLeftWidth: 0, borderRightWidth: 0 },
+      ]}
+      edges={['top']}
+    >
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
-        <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(24, insets.bottom) }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          style={[styles.flex, { borderWidth: 0 }]}
-          automaticallyAdjustKeyboardInsets
-        >
-          <View style={[styles.header, { borderWidth: 0 }]}>
-            <View style={[
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(24, insets.bottom) },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        style={[styles.flex, { borderWidth: 0 }]}
+        automaticallyAdjustKeyboardInsets
+      >
+        <View style={[styles.header, { borderWidth: 0 }]}>
+          <View
+            style={[
               styles.logoContainer,
               {
                 backgroundColor: '#FFFFFF',
@@ -482,231 +528,274 @@ export default function SignInScreen() {
                       shadowRadius: 16,
                     }),
                 elevation: 8,
-              }
-            ]}>
-              <Image
-                source={require('../assets/images/logo.png')}
-                style={styles.logo}
-                contentFit="contain"
-                accessibilityLabel="VarsityHub logo"
-              />
-            </View>
-            <Text style={[styles.title, { color: palette.text }]}>Welcome back</Text>
-            <Text style={[styles.subtitle, { color: palette.mutedText }]}>Sign in to keep your community in sync.</Text>
-          </View>
-
-          <View
-            style={[
-              styles.card,
-              {
-                backgroundColor: palette.elevated,
-                borderColor: error ? palette.destructive : palette.border,
-                borderWidth: error ? 3 : 2,
               },
             ]}
           >
-            {sessionGuardActive ? (
-              <AuthenticatedEntryGuard
-                email={user?.email}
-                onContinue={() => void handleContinueExistingSession()}
-                onSignOut={() => void handleSignOutToContinue()}
-                signingOut={signingOut}
-              />
-            ) : null}
-            {error ? (
-              <Text style={[styles.error, { color: palette.destructive }]}>{error}</Text>
-            ) : null}
-
-            {!sessionGuardActive && Platform.OS === 'ios' ? (
-              <View pointerEvents={authBusy ? 'none' : 'auto'} style={authBusy ? styles.buttonDisabled : undefined}>
-                <AppleAuthenticationButton
-                  onPress={handleAppleLogin}
-                  buttonType={AppleAuthenticationButtonType.SIGN_IN}
-                  buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
-                  cornerRadius={8}
-                  style={{ width: '100%', height: 50, marginBottom: 0, borderWidth: 2, borderColor: palette.border }}
-                  accessibilityLabel="Sign in with Apple"
-                />
-              </View>
-            ) : null}
-
-            {!sessionGuardActive && googleReady ? (
-              <Pressable
-                style={[styles.googleButton, authBusy && styles.buttonDisabled, { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 2 }]}
-                onPress={handleGoogleLogin}
-                disabled={authBusy}
-                accessibilityRole="button"
-                accessibilityLabel="Continue with Google"
-                accessibilityHint="Double tap to sign in with your Google account"
-              >
-                <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.googleIcon} />
-                {googleLoading ? (
-                  <ActivityIndicator size="small" color="#4285F4" />
-                ) : (
-                  <Text style={[styles.googleButtonText, { color: palette.text }]}>Continue with Google</Text>
-                )}
-              </Pressable>
-            ) : googleConfigured ? (
-              // Client IDs are configured but the auth request hasn't initialized yet — show loading
-              <View
-                style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 2 }]}
-                accessibilityRole="text"
-                accessibilityLabel="Google sign in loading"
-              >
-                <Ionicons name="logo-google" size={20} color={palette.mutedText} style={styles.googleIcon} />
-                <ActivityIndicator size="small" color={palette.mutedText} style={{ marginLeft: 8 }} />
-              </View>
-            ) : (
-              // Client IDs are genuinely missing — show unavailable
-              <View
-                style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: palette.surface, borderColor: palette.border, borderWidth: 2 }]}
-                accessibilityRole="text"
-                accessibilityLabel="Google sign in not available"
-              >
-                <Ionicons name="logo-google" size={20} color={palette.mutedText} style={styles.googleIcon} />
-                <View style={{ flex: 1 }}>
-                <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign-in temporarily unavailable</Text>
-                  <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>
-                    Please use email or Apple sign-in to continue.
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {!sessionGuardActive ? (
-              <>
-                <View style={styles.divider}>
-                  <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
-                  <Text style={[styles.dividerText, { color: palette.mutedText }]}>or</Text>
-                  <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
-                </View>
-
-                <View style={styles.fieldSpacing}>
-                  <Text style={[styles.label, { color: palette.mutedText }]}>Email</Text>
-                  <Input
-                    testID="sign-in-email"
-                    placeholder="name@school.edu"
-                    value={email}
-                    onChangeText={setEmail}
-                    editable={!authBusy}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    autoComplete="email"
-                    textContentType="emailAddress"
-                    keyboardType="email-address"
-                    returnKeyType="next"
-                    onFocus={() => setEmailFocused(true)}
-                    onBlur={() => setEmailFocused(false)}
-                    onSubmitEditing={() => passwordRef.current?.focus()}
-                    placeholderTextColor={palette.mutedText}
-                    accessibilityLabel="Email"
-                    accessibilityHint="Enter your email address"
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: palette.surface,
-                        borderColor: getInputBorderColor(emailFocused, emailInvalid),
-                        borderWidth: emailFocused || emailInvalid ? 3 : 2,
-                        color: palette.text,
-                        ...(Platform.OS === 'web'
-                          ? {
-                              boxShadow: emailFocused
-                                ? `0px 0px 8px ${palette.tint}2e`
-                                : 'none',
-                            }
-                          : {
-                              shadowColor: emailFocused ? palette.tint : 'transparent',
-                              shadowOpacity: emailFocused ? 0.18 : 0,
-                              shadowOffset: { width: 0, height: 0 },
-                              shadowRadius: 8,
-                            }),
-                      },
-                    ]}
-                  />
-                </View>
-
-                <View style={styles.fieldSpacing}>
-                  <Text style={[styles.label, { color: palette.mutedText }]}>Password</Text>
-                  <Input
-                    ref={passwordRef}
-                    testID="sign-in-password"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChangeText={setPassword}
-                    editable={!authBusy}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    autoComplete="current-password"
-                    textContentType="password"
-                    returnKeyType="go"
-                    onFocus={() => setPasswordFocused(true)}
-                    onBlur={() => setPasswordFocused(false)}
-                    onSubmitEditing={() => void onSubmit()}
-                    placeholderTextColor={palette.mutedText}
-                    accessibilityLabel="Password"
-                    accessibilityHint="Enter your password"
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: palette.surface,
-                        borderColor: getInputBorderColor(passwordFocused, passwordInvalid),
-                        borderWidth: passwordFocused || passwordInvalid ? 3 : 2,
-                        color: palette.text,
-                        ...(Platform.OS === 'web'
-                          ? {
-                              boxShadow: passwordFocused
-                                ? `0px 0px 8px ${palette.tint}2e`
-                                : 'none',
-                            }
-                          : {
-                              shadowColor: passwordFocused ? palette.tint : 'transparent',
-                              shadowOpacity: passwordFocused ? 0.18 : 0,
-                              shadowOffset: { width: 0, height: 0 },
-                              shadowRadius: 8,
-                            }),
-                      },
-                    ]}
-                  />
-                </View>
-
-                <Pressable
-                  style={styles.forgotLink}
-                  onPress={() => void router.push('/forgot-password')}
-                  disabled={authBusy}
-                  accessibilityRole="button"
-                  accessibilityLabel="Forgot password?"
-                  accessibilityHint="Double tap to reset your password"
-                >
-                  <Text style={[styles.forgotLinkText, { color: palette.tint }]}>Forgot password?</Text>
-                </Pressable>
-
-                <Button
-                  onPress={onSubmit}
-                  disabled={authBusy}
-                  accessibilityLabel={authBusy ? 'Signing in' : 'Sign In'}
-                  accessibilityHint="Double tap to sign in with email and password"
-                >
-                  {loading ? <ActivityIndicator color="white" /> : 'Sign In'}
-                </Button>
-              </>
-            ) : null}
+            <Image
+              source={require('../assets/images/logo.png')}
+              style={styles.logo}
+              contentFit="contain"
+              accessibilityLabel="VarsityHub logo"
+            />
           </View>
+          <Text style={[styles.title, { color: palette.text }]}>Welcome back</Text>
+          <Text style={[styles.subtitle, { color: palette.mutedText }]}>
+            Sign in to keep your community in sync.
+          </Text>
+        </View>
 
-          {!sessionGuardActive ? (
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: palette.elevated,
+              borderColor: error ? palette.destructive : palette.border,
+              borderWidth: error ? 3 : 2,
+            },
+          ]}
+        >
+          {sessionGuardActive ? (
+            <AuthenticatedEntryGuard
+              email={user?.email}
+              onContinue={() => void handleContinueExistingSession()}
+              onSignOut={() => void handleSignOutToContinue()}
+              signingOut={signingOut}
+            />
+          ) : null}
+          {error ? (
+            <Text style={[styles.error, { color: palette.destructive }]}>{error}</Text>
+          ) : null}
+
+          {!sessionGuardActive && Platform.OS === 'ios' ? (
+            <View
+              pointerEvents={authBusy ? 'none' : 'auto'}
+              style={authBusy ? styles.buttonDisabled : undefined}
+            >
+              <AppleAuthenticationButton
+                onPress={handleAppleLogin}
+                buttonType={AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={
+                  colorScheme === 'dark'
+                    ? AppleAuthenticationButtonStyle.WHITE
+                    : AppleAuthenticationButtonStyle.BLACK
+                }
+                cornerRadius={8}
+                style={{
+                  width: '100%',
+                  height: 50,
+                  marginBottom: 0,
+                  borderWidth: 2,
+                  borderColor: palette.border,
+                }}
+                accessibilityLabel="Sign in with Apple"
+              />
+            </View>
+          ) : null}
+
+          {!sessionGuardActive && googleReady ? (
             <Pressable
-              style={styles.footer}
-              onPress={() => void router.replace('/sign-up')}
+              style={[
+                styles.googleButton,
+                authBusy && styles.buttonDisabled,
+                { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 2 },
+              ]}
+              onPress={handleGoogleLogin}
               disabled={authBusy}
               accessibilityRole="button"
-              accessibilityLabel="Need an account? Create one"
-              accessibilityHint="Double tap to go to sign up"
+              accessibilityLabel="Continue with Google"
+              accessibilityHint="Double tap to sign in with your Google account"
             >
-              <Text style={[styles.footerText, { color: palette.mutedText }]}>Need an account?</Text>
-              <Text style={[styles.footerLink, { color: palette.tint }]}>Create one</Text>
+              <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.googleIcon} />
+              {googleLoading ? (
+                <ActivityIndicator size="small" color="#4285F4" />
+              ) : (
+                <Text style={[styles.googleButtonText, { color: palette.text }]}>
+                  Continue with Google
+                </Text>
+              )}
             </Pressable>
+          ) : googleConfigured ? (
+            // Client IDs are configured but the auth request hasn't initialized yet — show loading
+            <View
+              style={[
+                styles.googleButton,
+                styles.disabledGoogleButton,
+                { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 2 },
+              ]}
+              accessibilityRole="text"
+              accessibilityLabel="Google sign in loading"
+            >
+              <Ionicons
+                name="logo-google"
+                size={20}
+                color={palette.mutedText}
+                style={styles.googleIcon}
+              />
+              <ActivityIndicator size="small" color={palette.mutedText} style={{ marginLeft: 8 }} />
+            </View>
+          ) : (
+            // Client IDs are genuinely missing — show unavailable
+            <View
+              style={[
+                styles.googleButton,
+                styles.disabledGoogleButton,
+                { backgroundColor: palette.surface, borderColor: palette.border, borderWidth: 2 },
+              ]}
+              accessibilityRole="text"
+              accessibilityLabel="Google sign in not available"
+            >
+              <Ionicons
+                name="logo-google"
+                size={20}
+                color={palette.mutedText}
+                style={styles.googleIcon}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>
+                  Google sign-in temporarily unavailable
+                </Text>
+                <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>
+                  Please use email or Apple sign-in to continue.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {!sessionGuardActive ? (
+            <>
+              <View style={styles.divider}>
+                <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
+                <Text style={[styles.dividerText, { color: palette.mutedText }]}>or</Text>
+                <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
+              </View>
+
+              <View style={styles.fieldSpacing}>
+                <Text style={[styles.label, { color: palette.mutedText }]}>Email</Text>
+                <Input
+                  testID="sign-in-email"
+                  placeholder="name@school.edu"
+                  value={email}
+                  onChangeText={setEmail}
+                  editable={!authBusy}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  keyboardType="email-address"
+                  returnKeyType="next"
+                  onFocus={() => setEmailFocused(true)}
+                  onBlur={() => setEmailFocused(false)}
+                  onSubmitEditing={() => passwordRef.current?.focus()}
+                  placeholderTextColor={palette.mutedText}
+                  accessibilityLabel="Email"
+                  accessibilityHint="Enter your email address"
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: palette.surface,
+                      borderColor: getInputBorderColor(emailFocused, emailInvalid),
+                      borderWidth: emailFocused || emailInvalid ? 3 : 2,
+                      color: palette.text,
+                      ...(Platform.OS === 'web'
+                        ? {
+                            boxShadow: emailFocused ? `0px 0px 8px ${palette.tint}2e` : 'none',
+                          }
+                        : {
+                            shadowColor: emailFocused ? palette.tint : 'transparent',
+                            shadowOpacity: emailFocused ? 0.18 : 0,
+                            shadowOffset: { width: 0, height: 0 },
+                            shadowRadius: 8,
+                          }),
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.fieldSpacing}>
+                <Text style={[styles.label, { color: palette.mutedText }]}>Password</Text>
+                <PasswordInput
+                  ref={passwordRef}
+                  testID="sign-in-password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChangeText={setPassword}
+                  editable={!authBusy}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="current-password"
+                  textContentType="password"
+                  returnKeyType="go"
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => setPasswordFocused(false)}
+                  onSubmitEditing={() => void onSubmit()}
+                  placeholderTextColor={palette.mutedText}
+                  accessibilityLabel="Password"
+                  accessibilityHint="Enter your password"
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: palette.surface,
+                      borderColor: getInputBorderColor(passwordFocused, passwordInvalid),
+                      borderWidth: passwordFocused || passwordInvalid ? 3 : 2,
+                      color: palette.text,
+                      ...(Platform.OS === 'web'
+                        ? {
+                            boxShadow: passwordFocused ? `0px 0px 8px ${palette.tint}2e` : 'none',
+                          }
+                        : {
+                            shadowColor: passwordFocused ? palette.tint : 'transparent',
+                            shadowOpacity: passwordFocused ? 0.18 : 0,
+                            shadowOffset: { width: 0, height: 0 },
+                            shadowRadius: 8,
+                          }),
+                    },
+                  ]}
+                />
+              </View>
+
+              <Pressable
+                style={styles.forgotLink}
+                onPress={() => void router.push('/forgot-password')}
+                disabled={authBusy}
+                accessibilityRole="button"
+                accessibilityLabel="Forgot password?"
+                accessibilityHint="Double tap to reset your password"
+              >
+                <Text style={[styles.forgotLinkText, { color: palette.tint }]}>
+                  Forgot password?
+                </Text>
+              </Pressable>
+
+              <Button
+                onPress={onSubmit}
+                disabled={authBusy}
+                accessibilityLabel={authBusy ? 'Signing in' : 'Sign In'}
+                accessibilityHint="Double tap to sign in with email and password"
+              >
+                {loading ? (
+                  <ActivityIndicator color={palette.background} />
+                ) : (
+                  <Text style={{ color: palette.background, fontWeight: '700' }}>Sign In</Text>
+                )}
+              </Button>
+            </>
           ) : null}
-        </ScrollView>
+        </View>
+
+        {!sessionGuardActive ? (
+          <Pressable
+            style={styles.footer}
+            onPress={() => void router.replace('/sign-up')}
+            disabled={authBusy}
+            accessibilityRole="button"
+            accessibilityLabel="Need an account? Create one"
+            accessibilityHint="Double tap to go to sign up"
+          >
+            <Text style={[styles.footerText, { color: palette.mutedText }]}>Need an account?</Text>
+            <Text style={[styles.footerLink, { color: palette.tint }]}>Create one</Text>
+          </Pressable>
+        ) : null}
+      </ScrollView>
     </SafeAreaView>
   );
 }

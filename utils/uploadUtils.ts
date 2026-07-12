@@ -2,7 +2,7 @@
  * File upload utilities for VarsityHub mobile app
  */
 
-import { uploadFile as uploadWithAuth } from '../api/upload';
+import { uploadFile as uploadWithAuth, UploadOptions } from '../api/upload';
 import { getApiBaseUrl } from '../api/http';
 
 export interface UploadResponse {
@@ -28,13 +28,15 @@ export interface FileToUpload {
  * @returns Promise with upload response
  */
 export async function uploadFile(
-  file: FileToUpload, 
-  _isMedia: boolean = false
+  file: FileToUpload,
+  _isMedia: boolean = false,
+  options?: UploadOptions
 ): Promise<UploadResponse> {
   try {
-    if (__DEV__) console.log('Starting upload:', { name: file.name, uri: file.uri, type: file.type });
+    if (__DEV__)
+      console.log('Starting upload:', { name: file.name, uri: file.uri, type: file.type });
     const uploadType = file.type || 'application/octet-stream';
-    const result = await uploadWithAuth(getApiBaseUrl(), file.uri, file.name, uploadType);
+    const result = await uploadWithAuth(getApiBaseUrl(), file.uri, file.name, uploadType, options);
     const normalized: UploadResponse = {
       url: String(result?.url || ''),
       path: typeof result?.path === 'string' ? result.path : String(result?.url || ''),
@@ -44,8 +46,7 @@ export async function uploadFile(
           : _isMedia
             ? 'image'
             : getFileTypeFromMime(uploadType),
-      mime:
-        typeof result?.mime === 'string' && result.mime.length > 0 ? result.mime : uploadType,
+      mime: typeof result?.mime === 'string' && result.mime.length > 0 ? result.mime : uploadType,
       size: typeof result?.size === 'number' ? result.size : file.size || 0,
       originalName:
         typeof result?.originalName === 'string' && result.originalName.length > 0
@@ -58,7 +59,9 @@ export async function uploadFile(
     if (__DEV__) console.error('Upload error:', error);
     // Provide more detailed error information
     if (error instanceof TypeError && error.message === 'Network request failed') {
-      throw new Error('Network error: Cannot connect to server. Please check your internet connection and server status.');
+      throw new Error(
+        'Network error: Cannot connect to server. Please check your internet connection and server status.'
+      );
     }
     throw error;
   }
@@ -69,8 +72,11 @@ export async function uploadFile(
  * @param file - Image file to upload
  * @returns Promise with upload response
  */
-export async function uploadImage(file: FileToUpload): Promise<UploadResponse> {
-  return uploadFile(file, true);
+export async function uploadImage(
+  file: FileToUpload,
+  options?: UploadOptions
+): Promise<UploadResponse> {
+  return uploadFile(file, true, options);
 }
 
 /**
@@ -78,8 +84,11 @@ export async function uploadImage(file: FileToUpload): Promise<UploadResponse> {
  * @param file - Document file to upload
  * @returns Promise with upload response
  */
-export async function uploadDocument(file: FileToUpload): Promise<UploadResponse> {
-  return uploadFile(file, false);
+export async function uploadDocument(
+  file: FileToUpload,
+  options?: UploadOptions
+): Promise<UploadResponse> {
+  return uploadFile(file, false, options);
 }
 
 /**
@@ -89,11 +98,11 @@ export async function uploadDocument(file: FileToUpload): Promise<UploadResponse
  */
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 

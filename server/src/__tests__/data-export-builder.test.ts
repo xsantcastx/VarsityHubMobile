@@ -2,7 +2,7 @@
  * GDPR data export — builder domain registry coverage.
  *
  * Pins the domain list by behavior: the spec-agreed v1 scope calls out
- * 24 distinct files (profile, preferences, billing summary, teams,
+ * 25 distinct files (profile, preferences, billing summary, teams,
  * memberships, follows, posts, comments, messages, etc.). If a future
  * refactor silently drops one, this test fails loudly before it ships.
  *
@@ -19,6 +19,7 @@ describe('Data export domain registry', () => {
     'teams_owned.json',
     'team_memberships.json',
     'team_follows.json',
+    'program_follows.json',
     'organization_memberships.json',
     'organization_follows.json',
     'organization_join_requests.json',

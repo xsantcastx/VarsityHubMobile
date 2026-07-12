@@ -145,7 +145,7 @@ describeDb('Team entitlement enforcement', () => {
         data: {
           team_id: lockedTeamId,
           email: `team-entitlement-locked-invitee-${ts}@example.com`,
-          role: 'member',
+          role: 'assistant_coach',
         },
       })
     ).id;
@@ -156,7 +156,7 @@ describeDb('Team entitlement enforcement', () => {
         data: {
           team_id: unlockedTeamId,
           email: `team-entitlement-roster-invitee-${ts}@example.com`,
-          role: 'member',
+          role: 'assistant_coach',
         },
       })
     ).id;
@@ -257,11 +257,15 @@ describeDb('Team entitlement enforcement', () => {
     if (!prisma) return;
 
     if (createdInviteIds.length) {
-      await prisma.teamInvite.deleteMany({ where: { id: { in: createdInviteIds } } }).catch(() => {});
+      await prisma.teamInvite
+        .deleteMany({ where: { id: { in: createdInviteIds } } })
+        .catch(() => {});
     }
 
     if (createdMembershipIds.length) {
-      await prisma.teamMembership.deleteMany({ where: { id: { in: createdMembershipIds } } }).catch(() => {});
+      await prisma.teamMembership
+        .deleteMany({ where: { id: { in: createdMembershipIds } } })
+        .catch(() => {});
     }
 
     if (createdTeamIds.length) {
@@ -269,7 +273,9 @@ describeDb('Team entitlement enforcement', () => {
     }
 
     if (orgId) {
-      await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+      await prisma.organizationMembership
+        .deleteMany({ where: { organization_id: orgId } })
+        .catch(() => {});
       await prisma.organization.delete({ where: { id: orgId } }).catch(() => {});
     }
 
@@ -285,14 +291,12 @@ describeDb('Team entitlement enforcement', () => {
       .expect(200);
 
     expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body).toHaveLength(3);
+    expect(res.body).toHaveLength(4);
     expect(res.body.map((team: any) => team.id)).not.toContain(lockedTeamId);
   });
 
   it('keeps public team detail readable but blocks privileged access to locked teams', async () => {
-    await request(app)
-      .get(`/teams/${lockedTeamId}`)
-      .expect(200);
+    await request(app).get(`/teams/${lockedTeamId}`).expect(200);
 
     const lockedRes = await request(app)
       .get(`/teams/${lockedTeamId}`)
@@ -314,7 +318,7 @@ describeDb('Team entitlement enforcement', () => {
     const inviteRes = await request(app)
       .post(`/teams/${lockedTeamId}/invite`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ email: `new-locked-invite-${ts}@example.com`, role: 'member' })
+      .send({ email: `new-locked-invite-${ts}@example.com`, role: 'assistant_coach' })
       .expect(403);
 
     expect(inviteRes.body.error).toBe('TEAM_PLAN_LOCKED');

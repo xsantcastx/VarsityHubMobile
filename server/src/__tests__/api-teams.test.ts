@@ -1,6 +1,6 @@
 /**
  * API Integration Tests - Team Endpoints
- * 
+ *
  * Tests actual HTTP endpoints for team management:
  * - POST /teams (create team with role validation)
  * - GET /teams/limits (check team creation limits)
@@ -113,7 +113,12 @@ describe('API Team Endpoints', () => {
     ownerManagedCoachId = ownerManagedCoach.id;
     ownerManagedCoachToken = signJwt({ id: ownerManagedCoachId });
     await prisma.organizationMembership.create({
-      data: { organization_id: testOrgId, user_id: ownerManagedCoachId, role: 'manager', status: 'active' },
+      data: {
+        organization_id: testOrgId,
+        user_id: ownerManagedCoachId,
+        role: 'manager',
+        status: 'active',
+      },
       select: { id: true },
     });
   });
@@ -131,14 +136,13 @@ describe('API Team Endpoints', () => {
       if (teamIds.length > 0) {
         await prisma.post.deleteMany({ where: { team_id: { in: teamIds } } }).catch(() => {});
         await prisma.event.deleteMany({ where: { team_id: { in: teamIds } } }).catch(() => {});
-        await prisma.game.deleteMany({
-          where: {
-            OR: [
-              { home_team_id: { in: teamIds } },
-              { away_team_id: { in: teamIds } },
-            ],
-          },
-        }).catch(() => {});
+        await prisma.game
+          .deleteMany({
+            where: {
+              OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+            },
+          })
+          .catch(() => {});
       }
 
       // Clean up team memberships
@@ -254,7 +258,7 @@ describe('API Team Endpoints', () => {
         },
       });
 
-      const maxTeams = 3;
+      const maxTeams = 4;
 
       // If at limit, should reject
       if (ownedTeamsCount >= maxTeams) {
@@ -355,9 +359,7 @@ describe('API Team Endpoints', () => {
       expect(refreshedEvent?.team_id).toBe(team.id);
       expect(refreshedPost?.team_id).toBe(team.id);
 
-      const listResponse = await request(app)
-        .get('/teams')
-        .expect(200);
+      const listResponse = await request(app).get('/teams').expect(200);
 
       expect(Array.isArray(listResponse.body)).toBe(true);
       expect(listResponse.body.some((entry: any) => entry.id === team.id)).toBe(false);
@@ -378,9 +380,21 @@ describe('API Team Endpoints', () => {
     });
 
     it('uses the organization source of truth for paid_by_owner coaches', async () => {
-      const orgTeamCount = await prisma.team.count({
-        where: { organization_id: testOrgId },
-      });
+      // Phase 4 billing unit: distinct ACTIVE billable sport programs, not raw
+      // team rows. Since teams are now auto-grouped into a per-sport program on
+      // create (require-a-program), the billable count = distinct programs with
+      // an active team PLUS any ungrouped active teams — mirroring the server's
+      // countBillableProgramsForContext org branch. (Same-sport teams collapse
+      // into one program, so this is NOT the raw active-team count.)
+      const [orgProgramCount, orgUngroupedActive] = await Promise.all([
+        prisma.sportProgram.count({
+          where: { organization_id: testOrgId, teams: { some: { status: 'active' } } },
+        }),
+        prisma.team.count({
+          where: { organization_id: testOrgId, status: 'active', program_id: null },
+        }),
+      ]);
+      const expectedBillablePrograms = orgProgramCount + orgUngroupedActive;
       const personalOwnerCount = await prisma.teamMembership.count({
         where: {
           user_id: ownerManagedCoachId,
@@ -395,14 +409,16 @@ describe('API Team Endpoints', () => {
         .expect(200);
 
       expect(personalOwnerCount).toBe(0);
-      expect(response.body.owned_teams).toBe(orgTeamCount);
-      expect(response.body.max_teams).toBe(3);
+      // Org source of truth (paid_by_owner coach): count reflects the org's
+      // billable programs, not the coach's personally-owned teams (0).
+      expect(response.body.owned_programs).toBe(expectedBillablePrograms);
+      expect(response.body.owned_teams).toBe(expectedBillablePrograms);
+      expect(response.body.max_programs).toBe(5);
+      expect(response.body.max_teams).toBe(5);
     });
 
     it('should require authentication', async () => {
-      const response = await request(app)
-        .get('/teams/limits')
-        .expect(401);
+      const response = await request(app).get('/teams/limits').expect(401);
 
       expect(response.body).toHaveProperty('error');
     });
@@ -419,9 +435,7 @@ describe('API Team Endpoints', () => {
     });
 
     it('should require authentication', async () => {
-      const response = await request(app)
-        .get('/teams/managed')
-        .expect(401);
+      const response = await request(app).get('/teams/managed').expect(401);
 
       expect(response.body).toHaveProperty('error');
     });
@@ -899,9 +913,7 @@ describe('API Team Endpoints', () => {
         ],
       });
 
-      const publicResponse = await request(app)
-        .get(`/teams/${team.id}/screen-summary`)
-        .expect(200);
+      const publicResponse = await request(app).get(`/teams/${team.id}/screen-summary`).expect(200);
 
       expect(publicResponse.body.team?.id).toBe(team.id);
       expect(publicResponse.body.permissions?.can_manage).toBe(false);
@@ -1180,5 +1192,73 @@ describe('API Team Endpoints', () => {
         .deleteMany({ where: { id: { in: [currentOwner.id, newOwner.id] } } })
         .catch(() => {});
     });
+  });
+});
+
+describe('GET /teams — exclude_demo_leagues opt-in flag', () => {
+  const ts = Date.now();
+  let orgId: string;
+  let realTeamId: string;
+  let demoTeamId: string;
+
+  beforeAll(async () => {
+    ({ prisma } = await import('../lib/prisma.js'));
+    const org = await prisma.organization.create({
+      data: {
+        name: `Demo Flag Org ${ts}`,
+        org_type: 'club',
+        admin_approved: true,
+        status: 'active',
+        updated_at: new Date(),
+      },
+      select: { id: true },
+    });
+    orgId = org.id;
+
+    const realTeam = await prisma.team.create({
+      data: {
+        name: `Demo Flag Real Team ${ts}`,
+        organization_id: orgId,
+        status: 'active',
+      },
+      select: { id: true },
+    });
+    realTeamId = realTeam.id;
+
+    const demoTeam = await prisma.team.create({
+      data: {
+        name: `Demo Flag Fifa Team ${ts}`,
+        organization_id: orgId,
+        status: 'active',
+        league: 'International Cup 2026',
+      },
+      select: { id: true },
+    });
+    demoTeamId = demoTeam.id;
+  });
+
+  afterAll(async () => {
+    await prisma.team
+      .deleteMany({ where: { id: { in: [realTeamId, demoTeamId] } } })
+      .catch(() => {});
+    await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
+  });
+
+  it('includes the FIFA demo team by default', async () => {
+    const res = await request(app)
+      .get(`/teams?q=${encodeURIComponent(`Demo Flag`)}`)
+      .expect(200);
+    const ids = res.body.map((t: any) => t.id);
+    expect(ids).toContain(realTeamId);
+    expect(ids).toContain(demoTeamId);
+  });
+
+  it('excludes the FIFA demo team when exclude_demo_leagues=1 is passed', async () => {
+    const res = await request(app)
+      .get(`/teams?q=${encodeURIComponent(`Demo Flag`)}&exclude_demo_leagues=1`)
+      .expect(200);
+    const ids = res.body.map((t: any) => t.id);
+    expect(ids).toContain(realTeamId);
+    expect(ids).not.toContain(demoTeamId);
   });
 });

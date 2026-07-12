@@ -1,6 +1,6 @@
 /**
  * EventMap Component
- * 
+ *
  * Displays events on an interactive map with markers
  * Supports location-based filtering and current location
  */
@@ -12,17 +12,20 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { getMapProvider } from '@/utils/maps';
+import { clusterByCoordinate } from '@/utils/mapClustering';
 
-import { EventMapProps } from './EventMap.types';
+import { EventMapData, EventMapProps } from './EventMap.types';
 
 export type { EventMapData, EventMapProps } from './EventMap.types';
 
@@ -39,8 +42,10 @@ export default function EventMap({
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
   const [showEmptyState, setShowEmptyState] = useState(true);
+  // The events sharing one map point when a cluster pin is tapped (picker list).
+  const [selectedCluster, setSelectedCluster] = useState<EventMapData[] | null>(null);
   const isUserInteractionRef = useRef(false);
-  
+
   // Use initialRegion if provided, otherwise default to USA-wide view
   const defaultRegion: Region = initialRegion || {
     latitude: 39.8, // Default to center of USA
@@ -60,9 +65,14 @@ export default function EventMap({
           const { status } = await Location.requestForegroundPermissionsAsync();
           if (status !== 'granted') {
             if (__DEV__) console.warn('Location permission not granted');
-            captureBreadcrumb('Map location permission denied', 'map.location', {
-              screen: 'EventMap',
-            }, 'warning');
+            captureBreadcrumb(
+              'Map location permission denied',
+              'map.location',
+              {
+                screen: 'EventMap',
+              },
+              'warning'
+            );
             setLoading(false);
             return;
           }
@@ -73,20 +83,28 @@ export default function EventMap({
           // Auto-center on user location if no specific region was requested
           if (!initialRegion) {
             setTimeout(() => {
-              mapRef.current?.animateToRegion({
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-                latitudeDelta: 0.15,
-                longitudeDelta: 0.15,
-              }, 800);
+              mapRef.current?.animateToRegion(
+                {
+                  latitude: location.coords.latitude,
+                  longitude: location.coords.longitude,
+                  latitudeDelta: 0.15,
+                  longitudeDelta: 0.15,
+                },
+                800
+              );
             }, 400);
           }
         }
       } catch (error) {
         if (__DEV__) console.error('Error getting location:', error);
-        captureBreadcrumb('Map location lookup failed', 'map.location', {
-          screen: 'EventMap',
-        }, 'warning');
+        captureBreadcrumb(
+          'Map location lookup failed',
+          'map.location',
+          {
+            screen: 'EventMap',
+          },
+          'warning'
+        );
       } finally {
         setLoading(false);
       }
@@ -95,8 +113,16 @@ export default function EventMap({
 
   // Filter events that have coordinates (use != null so lat/lng of 0 are accepted)
   const eventsWithCoordinates = events.filter(
-    (event) => event.latitude != null && event.longitude != null
+    event => event.latitude != null && event.longitude != null
   );
+
+  // Group markers that share (near-)identical coordinates so a multi-day event
+  // at one venue doesn't stack N markers on one pixel and read as a single pin
+  // (the "7 events, 1 visible pin" bug). Groups of one render as a normal
+  // marker; groups of many render as one numbered cluster pin that opens a
+  // picker. Pure JS (no native clustering module) → OTA-safe. Pinned by
+  // __tests__/mapClustering.test.ts.
+  const clusters: EventMapData[][] = clusterByCoordinate(eventsWithCoordinates);
 
   // Center map on all events
   const fitToEvents = useCallback(() => {
@@ -105,7 +131,7 @@ export default function EventMap({
       event_count: eventsWithCoordinates.length,
     });
 
-    const coordinates = eventsWithCoordinates.map((event) => ({
+    const coordinates = eventsWithCoordinates.map(event => ({
       latitude: event.latitude!,
       longitude: event.longitude!,
     }));
@@ -136,13 +162,16 @@ export default function EventMap({
       has_user_location: true,
     });
     isUserInteractionRef.current = true;
-    mapRef.current?.animateToRegion({
-      latitude: userLocation.coords.latitude,
-      longitude: userLocation.coords.longitude,
-      latitudeDelta: 0.1,
-      longitudeDelta: 0.1,
-    }, 1000);
-    
+    mapRef.current?.animateToRegion(
+      {
+        latitude: userLocation.coords.latitude,
+        longitude: userLocation.coords.longitude,
+        latitudeDelta: 0.1,
+        longitudeDelta: 0.1,
+      },
+      1000
+    );
+
     // Reset flag after animation completes
     setTimeout(() => {
       isUserInteractionRef.current = false;
@@ -203,32 +232,56 @@ export default function EventMap({
           // Don't update state to avoid re-render loop
         }}
       >
-        {eventsWithCoordinates.map((event) => (
-          <Marker
-            key={event.id}
-            coordinate={{
-              latitude: event.latitude!,
-              longitude: event.longitude!,
-            }}
-            pinColor={getMarkerColor(event.type)}
-            // v1.0.3: single-tap takes the user straight to the detail. The previous
-            // two-tap flow (callout preview → details) was rejected as "two pages."
-            // Keep onCalloutPress as a belt-and-braces fallback in case the native
-            // callout still surfaces on some platforms.
-            onPress={() => {
-              captureBreadcrumb('Map marker pressed', 'map.navigation', {
-                event_type: event.type || 'unknown',
-              });
-              openEventFromMarker(event.id, event.type);
-            }}
-            onCalloutPress={() => {
-              captureBreadcrumb('Map marker callout pressed', 'map.navigation', {
-                event_type: event.type || 'unknown',
-              });
-              openEventFromMarker(event.id, event.type);
-            }}
-          />
-        ))}
+        {clusters.map(group => {
+          const lead = group[0];
+          const coordinate = { latitude: lead.latitude!, longitude: lead.longitude! };
+
+          // Multiple events at the same point → one numbered cluster pin. Tapping
+          // it opens a picker so every co-located event is reachable (zooming
+          // can't separate markers that share an exact coordinate).
+          if (group.length > 1) {
+            return (
+              <Marker
+                key={`cluster-${coordinate.latitude},${coordinate.longitude}`}
+                coordinate={coordinate}
+                onPress={() => {
+                  captureBreadcrumb('Map cluster pressed', 'map.navigation', {
+                    cluster_size: group.length,
+                  });
+                  setSelectedCluster(group);
+                }}
+              >
+                <View style={[styles.clusterPin, { backgroundColor: Colors[colorScheme].tint }]}>
+                  <Text style={styles.clusterPinText}>{group.length}</Text>
+                </View>
+              </Marker>
+            );
+          }
+
+          return (
+            <Marker
+              key={lead.id}
+              coordinate={coordinate}
+              pinColor={getMarkerColor(lead.type)}
+              // v1.0.3: single-tap takes the user straight to the detail. The previous
+              // two-tap flow (callout preview → details) was rejected as "two pages."
+              // Keep onCalloutPress as a belt-and-braces fallback in case the native
+              // callout still surfaces on some platforms.
+              onPress={() => {
+                captureBreadcrumb('Map marker pressed', 'map.navigation', {
+                  event_type: lead.type || 'unknown',
+                });
+                openEventFromMarker(lead.id, lead.type);
+              }}
+              onCalloutPress={() => {
+                captureBreadcrumb('Map marker callout pressed', 'map.navigation', {
+                  event_type: lead.type || 'unknown',
+                });
+                openEventFromMarker(lead.id, lead.type);
+              }}
+            />
+          );
+        })}
       </MapView>
 
       {/* Control Buttons */}
@@ -236,46 +289,27 @@ export default function EventMap({
         {/* Center on Events Button */}
         {eventsWithCoordinates.length > 0 && (
           <TouchableOpacity
-            style={[
-              styles.controlButton,
-              { backgroundColor: Colors[colorScheme].background },
-            ]}
+            style={[styles.controlButton, { backgroundColor: Colors[colorScheme].background }]}
             onPress={fitToEvents}
           >
-            <Ionicons
-              name="locate"
-              size={24}
-              color={Colors[colorScheme].tint}
-            />
+            <Ionicons name="locate" size={24} color={Colors[colorScheme].tint} />
           </TouchableOpacity>
         )}
 
         {/* Center on User Button */}
         {showUserLocation && userLocation && (
           <TouchableOpacity
-            style={[
-              styles.controlButton,
-              { backgroundColor: Colors[colorScheme].background },
-            ]}
+            style={[styles.controlButton, { backgroundColor: Colors[colorScheme].background }]}
             onPress={centerOnUser}
           >
-            <Ionicons
-              name="navigate"
-              size={24}
-              color={Colors[colorScheme].tint}
-            />
+            <Ionicons name="navigate" size={24} color={Colors[colorScheme].tint} />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Event Count */}
       {eventsWithCoordinates.length > 0 && (
-        <View
-          style={[
-            styles.eventCount,
-            { backgroundColor: Colors[colorScheme].background },
-          ]}
-        >
+        <View style={[styles.eventCount, { backgroundColor: Colors[colorScheme].background }]}>
           <Text style={[styles.eventCountText, { color: Colors[colorScheme].text }]}>
             {eventsWithCoordinates.length} event{eventsWithCoordinates.length !== 1 ? 's' : ''}
           </Text>
@@ -286,40 +320,92 @@ export default function EventMap({
       {eventsWithCoordinates.length === 0 && dataLoaded && showEmptyState && (
         <View style={styles.noEventsContainer}>
           <TouchableOpacity
-            style={[
-              styles.noEventsCard,
-              { backgroundColor: Colors[colorScheme].background },
-            ]}
+            style={[styles.noEventsCard, { backgroundColor: Colors[colorScheme].background }]}
             onPress={() => setShowEmptyState(false)}
             activeOpacity={0.9}
           >
-            <Ionicons
-              name="map-outline"
-              size={48}
-              color={Colors[colorScheme].tint}
-            />
+            <Ionicons name="map-outline" size={48} color={Colors[colorScheme].tint} />
             <Text style={[styles.noEventsTitle, { color: Colors[colorScheme].text }]}>
               No Games with Locations Yet
             </Text>
-            <Text
-              style={[styles.noEventsDescription, { color: Colors[colorScheme].mutedText }]}
-            >
-              Games will appear on the map once they have location data added. Teams can add locations when creating games.
+            <Text style={[styles.noEventsDescription, { color: Colors[colorScheme].mutedText }]}>
+              Games will appear on the map once they have location data added. Teams can add
+              locations when creating games.
             </Text>
             <View style={styles.emptyStateHints}>
               <View style={styles.hint}>
                 <Ionicons name="information-circle" size={16} color={Colors[colorScheme].tint} />
-                <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>Create games with locations to see them on the map</Text>
+                <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>
+                  Create games with locations to see them on the map
+                </Text>
               </View>
             </View>
-            <Text
-              style={[styles.noEventsDismiss, { color: Colors[colorScheme].mutedText }]}
-            >
+            <Text style={[styles.noEventsDismiss, { color: Colors[colorScheme].mutedText }]}>
               Tap to dismiss
             </Text>
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Cluster picker — tapping a numbered cluster pin lists the co-located events */}
+      <Modal
+        visible={!!selectedCluster}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedCluster(null)}
+      >
+        <TouchableOpacity
+          style={styles.clusterModalBackdrop}
+          activeOpacity={1}
+          onPress={() => setSelectedCluster(null)}
+        >
+          <View
+            style={[styles.clusterSheet, { backgroundColor: Colors[colorScheme].background }]}
+            onStartShouldSetResponder={() => true}
+          >
+            <Text style={[styles.clusterSheetTitle, { color: Colors[colorScheme].text }]}>
+              {selectedCluster?.length ?? 0} events at this location
+            </Text>
+            <ScrollView style={styles.clusterList}>
+              {(selectedCluster ?? []).map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.clusterRow, { borderColor: Colors[colorScheme].border }]}
+                  onPress={() => {
+                    setSelectedCluster(null);
+                    openEventFromMarker(item.id, item.type);
+                  }}
+                >
+                  <View
+                    style={[styles.clusterDot, { backgroundColor: getMarkerColor(item.type) }]}
+                  />
+                  <View style={styles.clusterRowText}>
+                    <Text
+                      style={[styles.clusterRowTitle, { color: Colors[colorScheme].text }]}
+                      numberOfLines={1}
+                    >
+                      {item.title || (item.type === 'game' ? 'Game' : 'Event')}
+                    </Text>
+                    {!!item.date && (
+                      <Text
+                        style={[styles.clusterRowMeta, { color: Colors[colorScheme].mutedText }]}
+                        numberOfLines={1}
+                      >
+                        {new Date(String(item.date)).toLocaleString()}
+                      </Text>
+                    )}
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={Colors[colorScheme].mutedText}
+                  />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -330,6 +416,65 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  clusterPin: {
+    minWidth: 34,
+    height: 34,
+    borderRadius: 17,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  clusterPinText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  clusterModalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  clusterSheet: {
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 28,
+    maxHeight: '60%',
+  },
+  clusterSheetTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  clusterList: {
+    flexGrow: 0,
+  },
+  clusterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  clusterDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  clusterRowText: {
+    flex: 1,
+  },
+  clusterRowTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  clusterRowMeta: {
+    fontSize: 13,
+    marginTop: 2,
   },
   loadingContainer: {
     flex: 1,

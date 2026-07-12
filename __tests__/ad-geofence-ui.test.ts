@@ -33,7 +33,14 @@ describe('ad geofence UI', () => {
   it('passes a bounded preview region to the shared map component', () => {
     // ReachMapPreview is now a thin wrapper over GeocodedMapPreview with
     // explicit bounded deltas (the old wide-default object literal is gone).
-    expect(reachPreview).toContain('latitudeDelta={0.6}');
-    expect(reachPreview).not.toContain('latitudeDelta: 0.6');
+    expect(reachPreview).toContain('latitudeDelta={0.28}');
+    expect(reachPreview).toContain('longitudeDelta={0.28}');
+    expect(reachPreview).not.toContain('latitudeDelta: 0.28');
+  });
+
+  it('formats both mile and kilometer copy cleanly', () => {
+    expect(reachPreview).toContain('miles (');
+    expect(reachPreview).toContain(' km) of ZIP ${zipCode}');
+    expect(reachPreview).toContain('miles / ${radiusKmLabel} km');
   });
 });

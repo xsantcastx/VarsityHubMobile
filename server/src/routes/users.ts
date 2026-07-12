@@ -491,6 +491,10 @@ function mapPostForPayload(post: any) {
     media_url: post.media_url ?? null,
     media_type: detectMediaType(post.media_url),
     preview_url: getVideoPreviewUrl(post.media_url),
+    // Event/game linkage — every post surface must be able to offer
+    // "open the event page" (EventChip); mirrors serializeFeedPost.
+    game_id: post.game_id ?? null,
+    event_id: post.event_id ?? null,
     caption: post.content ?? null,
     upvotes_count: post.upvotes_count ?? 0,
     comments_count: post._count?.comments ?? 0,
@@ -842,7 +846,7 @@ usersRouter.delete(
           await (sendEmail as any)({
             to: userEmail,
             subject: 'VarsityHub Account Deleted',
-            text: 'Your VarsityHub account has been permanently deleted. All your data has been removed. If you did not request this, contact support@varsityhub.app immediately.',
+            text: 'Your VarsityHub account has been deleted and your personal information anonymized immediately. Some content you posted may remain visible but is no longer linked to your identity, and your anonymized account is permanently removed within 30 days. If you did not request this, contact support@varsityhub.app immediately.',
           });
         } catch {
           /* best-effort */

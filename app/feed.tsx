@@ -7,6 +7,7 @@ import {
   Alert,
   FlatList,
   Image as RNImage,
+  InteractionManager,
   Modal,
   Platform,
   Pressable,
@@ -875,8 +876,17 @@ export default function FeedScreen() {
 
   useEffect(() => {
     if (!games.length) return;
-    void preloadVoteSummaries(games.slice(0, 12));
-    void preloadRsvpSummaries(games);
+    // Defer the vote/RSVP badge preloads until after the navigation transition
+    // and first paint settle. These are non-critical badge counts (poll totals,
+    // RSVP state), so running them off the critical path stops them from
+    // contending with the /feed/bundle content fetch for bandwidth on entry —
+    // the "too many calls at once" the user reported. Same deferral pattern as
+    // GameDetailsScreen/profile.
+    const handle = InteractionManager.runAfterInteractions(() => {
+      void preloadVoteSummaries(games.slice(0, 12));
+      void preloadRsvpSummaries(games);
+    });
+    return () => handle.cancel();
   }, [games, preloadVoteSummaries, preloadRsvpSummaries]);
 
   // Refresh feed data + unread counts on focus, then poll every 60s while visible.
@@ -1109,10 +1119,10 @@ export default function FeedScreen() {
       return result;
     }
 
-    // Normally insert after the second event (index 1), but if there is only a
-    // single upcoming event, clamp to it (index 0) so the ad/promo card still
+    // Normally insert after the third event (index 2), but if there are fewer
+    // upcoming events, clamp to the last one so the ad/promo card still
     // appears instead of silently disappearing.
-    const adInsertIndex = Math.min(1, upcomingEvents.length - 1);
+    const adInsertIndex = Math.min(2, upcomingEvents.length - 1);
 
     upcomingEvents.forEach((event, index) => {
       result.push(event);
@@ -2552,7 +2562,9 @@ const styles = StyleSheet.create({
   },
   singleEventCard: {
     width: '100%',
-    aspectRatio: 4 / 5, // More Instagram-like (taller, similar to 4:5 Instagram posts)
+    // Matches the event detail page's fixed banner height (GameDetailsScreen
+    // bannerHeight) so the same photo isn't cropped differently here vs there.
+    height: 240,
     borderRadius: 18,
     overflow: 'hidden',
     position: 'relative',

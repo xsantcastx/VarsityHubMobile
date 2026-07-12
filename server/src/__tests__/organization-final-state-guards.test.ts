@@ -17,8 +17,9 @@ describe('organization final-state guards', () => {
       approvalServiceSrc.indexOf('export async function approveOrganization'),
       approvalServiceSrc.indexOf('export async function rejectOrganization')
     );
-    expect(approveOrgSlice).toContain(
-      "if (org.status === 'rejected') return { error: 'Organization already rejected'"
+    // prettier may wrap the guard's `return {` onto its own line — tolerate both.
+    expect(approveOrgSlice).toMatch(
+      /if \(org\.status === 'rejected'\)\s*return \{\s*error: 'Organization already rejected'/
     );
     expect(approveOrgSlice).toContain(
       "where: { id: orgId, admin_approved: false, status: { not: 'rejected' } }"
@@ -29,8 +30,9 @@ describe('organization final-state guards', () => {
     const start = approvalServiceSrc.indexOf('export async function rejectOrganization');
     const end = approvalServiceSrc.indexOf('  // ── Fire-and-forget notifications ──', start);
     const rejectOrgSlice = approvalServiceSrc.slice(start, end);
-    expect(rejectOrgSlice).toContain(
-      "if (org.admin_approved) return { error: 'Organization already approved'"
+    // prettier may wrap the guard's `return {` onto its own line — tolerate both.
+    expect(rejectOrgSlice).toMatch(
+      /if \(org\.admin_approved\)\s*return \{\s*error: 'Organization already approved'/
     );
     expect(rejectOrgSlice).toContain(
       "where: { id: orgId, status: { not: 'rejected' }, admin_approved: false }"

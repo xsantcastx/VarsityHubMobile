@@ -26,47 +26,27 @@ import SwipeBackContainer from '@/components/SwipeBackContainer';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import { Colors } from '@/constants/Colors';
+import {
+  isNativeVideoTrimSupported,
+  MAX_IMAGE_SIZE_BYTES,
+  MAX_VIDEO_SIZE_BYTES,
+  MAX_VIDEO_SIZE_MB,
+  VIDEO_CAPTURE_PRESET,
+} from '@/constants/video';
 import { useAuth } from '@/context/AuthProvider';
 import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
-import { getAuthSnapshot } from '@/utils/authState';
-import { compressVideoSafe } from '@/utils/compressVideo';
+import { prepareVideoForUpload, uploadTimeoutMsForSize } from '@/utils/compressVideo';
 import { sanitizeText } from '@/utils/formUtils';
 import { ICLOUD_ERROR_MESSAGE, ICLOUD_ERROR_TITLE, isICloudError } from '@/utils/isICloudError';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
-import { pickerMediaTypeFor } from '@/utils/picker';
+import { pickerAllMediaTypesProp, pickerMediaTypeFor } from '@/utils/picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-let VideoThumbnails: any = null;
-try {
-  VideoThumbnails = require('expo-video-thumbnails');
-} catch {
-  /* native module not available */
-}
-
-// Retry thumbnail generation at multiple timestamps
-const generateVideoThumbnail = async (
-  videoUri: string,
-  setVideoThumbnailUri: (uri: string) => void
-) => {
-  const times = [0, 1000, 3000];
-  for (const time of times) {
-    try {
-      const thumb = await VideoThumbnails?.getThumbnailAsync?.(videoUri, { time, quality: 0.7 });
-      if (thumb?.uri) {
-        setVideoThumbnailUri(thumb.uri);
-        return;
-      }
-    } catch (e) {
-      if (__DEV__) console.warn(`[CreatePost] Thumbnail failed at time=${time}:`, e);
-    }
-  }
-  if (__DEV__) console.warn('[CreatePost] All thumbnail attempts failed');
-};
 
 // Media validation constants
 const ALLOWED_IMAGE_TYPES = [
@@ -81,8 +61,7 @@ const ALLOWED_IMAGE_TYPES = [
   'image/heif-sequence',
 ];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_IMAGE_SIZE = MAX_IMAGE_SIZE_BYTES;
 
 // Validation helpers
 const validateMediaType = (mimeType: string | undefined, mediaType: 'image' | 'video'): boolean => {
@@ -104,12 +83,6 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
   }
 };
 
-// Helper to detect sample events (IDs starting with "sample-")
-const isSampleEvent = (id?: string | null): boolean => {
-  if (!id) return false;
-  return /^sample-/i.test(String(id).trim());
-};
-
 function CreatePostScreen() {
   const router = useRouter();
   const { user, checkAuth, loading: authLoading } = useAuth();
@@ -118,7 +91,6 @@ function CreatePostScreen() {
   const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
   const gameId = params?.gameId ? String(params.gameId) : undefined;
   const postType = params?.type === 'highlight' ? 'highlight' : 'post';
-  const _isSample = isSampleEvent(gameId);
   const {
     location,
     loading: _locLoading,
@@ -156,7 +128,6 @@ function CreatePostScreen() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [postSuccess, setPostSuccess] = useState(false);
   const [trimmedUri, setTrimmedUri] = useState<string | null>(null);
-  const [videoThumbnailUri, setVideoThumbnailUri] = useState<string | null>(null);
   const showPrecisionWarning =
     Platform.OS === 'android' &&
     permissionGranted &&
@@ -164,6 +135,7 @@ function CreatePostScreen() {
     !precisionBannerDismissed;
   const locationReady =
     typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
+  const canTrimVideo = isNativeVideoTrimSupported(Platform.OS);
   const [draftReady, setDraftReady] = useState(false);
   const [contentConsent, setContentConsent] = useState(false);
   const draftLoadedRef = useRef(false);
@@ -179,7 +151,6 @@ function CreatePostScreen() {
   // Reset trim state and content consent when media changes
   useEffect(() => {
     setTrimmedUri(null);
-    setVideoThumbnailUri(null);
     setContentConsent(false);
   }, [picked?.uri]);
 
@@ -334,37 +305,6 @@ function CreatePostScreen() {
     if (__DEV__) console.warn('[CreatePost] useEffect gameId:', gameId);
     if (!gameId) return;
 
-    // For sample events, create a mock game object - these don't exist in the database
-    if (__DEV__)
-      console.warn('[CreatePost] isSampleEvent check:', gameId, '->', isSampleEvent(gameId));
-    if (isSampleEvent(gameId)) {
-      // Parse sample event ID to extract team names (e.g., "sample-warriors-cavaliers")
-      const parts = gameId
-        .replace(/^sample-/i, '')
-        .split(/[-_]+/)
-        .filter(Boolean);
-      const homeTeam = parts[0]
-        ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1)
-        : 'Home Team';
-      const awayTeam = parts[1]
-        ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1)
-        : 'Away Team';
-
-      const mockGame = {
-        id: gameId,
-        title: `${homeTeam} vs ${awayTeam}`,
-        home_team: homeTeam,
-        away_team: awayTeam,
-        date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days from now
-        location: 'Sample Arena',
-        distance: null,
-      };
-      setSuggestedGame(mockGame);
-      setSelectedGameId(gameId);
-      setError(null);
-      return;
-    }
-
     void (async () => {
       try {
         const game = await Game.get(gameId);
@@ -465,8 +405,7 @@ function CreatePostScreen() {
         allowsEditing: false, // Don't crop - preserve original photo
         quality: media === 'image' ? 0.85 : undefined,
         exif: false,
-        videoMaxDuration: 30,
-        videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
+        videoExportPreset: VIDEO_CAPTURE_PRESET,
       } as any);
       if (!r.canceled && r.assets && r.assets[0]) {
         const a = { ...r.assets[0], uri: await materializeICloudAssetIfNeeded(r.assets[0].uri) };
@@ -485,13 +424,15 @@ function CreatePostScreen() {
 
         // Validate file size
         const fileSize = await getFileSizeFromUri(a.uri);
-        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
-        const maxSizeMB = media === 'image' ? 10 : 100;
+        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE_BYTES;
+        const maxSizeMB = media === 'image' ? 10 : MAX_VIDEO_SIZE_MB;
 
         if (fileSize > maxSize) {
           Alert.alert(
             'File Too Large',
-            `The selected ${media} is too large. Maximum size is ${maxSizeMB}MB.`
+            media === 'video'
+              ? `This video is ${Math.round(fileSize / (1024 * 1024))}MB — the limit is ${maxSizeMB}MB. Trim it shorter or record at a lower resolution and try again.`
+              : `The selected ${media} is too large. Maximum size is ${maxSizeMB}MB.`
           );
           return;
         }
@@ -515,15 +456,8 @@ function CreatePostScreen() {
                 );
             }
           }
-        } else {
-          // Compress video before upload (falls back silently if native module unavailable)
-          uri = await compressVideoSafe(uri);
         }
         setPicked({ uri, type: media, mime: mimeType });
-        // Generate thumbnail for video preview immediately
-        if (media === 'video') {
-          void generateVideoThumbnail(uri, setVideoThumbnailUri);
-        }
       }
     } catch (error: any) {
       if (__DEV__) console.error('[CreatePost] Image picker error:', error);
@@ -550,19 +484,12 @@ function CreatePostScreen() {
         ]);
         return;
       }
-      // Version-safe mediaTypes: new SDK uses MediaType array, old SDK uses MediaTypeOptions
-      const anyIP = ImagePicker as any;
-      const cameraMediaTypes = anyIP?.MediaType
-        ? [anyIP.MediaType.Images, anyIP.MediaType.Videos]
-        : anyIP.MediaTypeOptions?.All;
-
       const r = await ImagePicker.launchCameraAsync({
-        mediaTypes: cameraMediaTypes,
+        ...pickerAllMediaTypesProp(),
         allowsEditing: false,
         quality: 0.85,
         exif: false,
-        videoMaxDuration: 30,
-        videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
+        videoExportPreset: VIDEO_CAPTURE_PRESET,
         legacy: false,
       } as any);
       if (!r.canceled && r.assets && r.assets[0]) {
@@ -586,8 +513,8 @@ function CreatePostScreen() {
 
         // Validate file size
         const fileSize = await getFileSizeFromUri(a.uri);
-        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
-        const maxSizeMB = media === 'image' ? 10 : 100;
+        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE_BYTES;
+        const maxSizeMB = media === 'image' ? 10 : MAX_VIDEO_SIZE_MB;
 
         if (fileSize > maxSize) {
           Alert.alert(
@@ -616,14 +543,8 @@ function CreatePostScreen() {
                 );
             }
           }
-        } else {
-          // Compress video before upload (falls back silently if native module unavailable)
-          uri = await compressVideoSafe(uri);
         }
         setPicked({ uri, type: media, mime: mimeType });
-        if (media === 'video') {
-          void generateVideoThumbnail(uri, setVideoThumbnailUri);
-        }
       }
     } catch (error: any) {
       if (__DEV__) console.error('[CreatePost] Camera error:', error);
@@ -643,7 +564,7 @@ function CreatePostScreen() {
 
   // Proactive geofence + time window check when a game is selected
   const geofenceWarning = useMemo(() => {
-    if (!suggestedGame || !selectedGameId || isSampleEvent(selectedGameId)) return null;
+    if (!suggestedGame || !selectedGameId) return null;
     // Seeded demo matchups (Duke v UNC, Cavs v Warriors) skip the client
     // warning — server's [DEMO_MATCHUP] carve-out already bypasses geofence
     // and posting-window checks for these Game rows only.
@@ -728,7 +649,7 @@ function CreatePostScreen() {
 
     // Proactive geofence check: if posting to a real event and location is not available, prompt first.
     // Seeded demo matchups bypass the location gate — server carve-out accepts uploads without coords.
-    const isRealGame = selectedGameId && !isSampleEvent(selectedGameId);
+    const isRealGame = Boolean(selectedGameId);
     const gameHasCoords =
       typeof suggestedGame?.latitude === 'number' || typeof suggestedGame?.venue_lat === 'number';
     if (isRealGame && gameHasCoords && !locationReady && !isDemoMatchupGame) {
@@ -762,44 +683,45 @@ function CreatePostScreen() {
 
     try {
       let finalMediaUrl = '';
-      let finalThumbnailUrl = '';
       if (picked?.uri) {
         if (__DEV__) console.warn('[CreatePost] Uploading media...');
         const { getApiBaseUrl } = await import('@/api/http');
         const base = getApiBaseUrl();
         const name = picked.type === 'image' ? 'image.jpg' : 'video.mp4';
         const mime = picked.mime || (picked.type === 'image' ? 'image/jpeg' : 'video/mp4');
-        const uploadUri = picked.type === 'video' && trimmedUri ? trimmedUri : picked.uri;
-        // Upload main file and thumbnail in parallel for speed
+        const sourceUri = picked.type === 'video' && trimmedUri ? trimmedUri : picked.uri;
+        const prepared = picked.type === 'video' ? await prepareVideoForUpload(sourceUri) : null;
+        const uploadUri = prepared ? prepared.uri : sourceUri;
+        // Video previews are derived client-side from the Cloudinary media URL,
+        // so we upload a single canonical video asset instead of a second
+        // thumbnail file and extra signature/upload call.
         const mainUpload = uploadFile(base, uploadUri, name, mime, {
           onProgress: pct => setUploadProgress(pct),
+          ...(prepared ? { timeoutMs: uploadTimeoutMsForSize(prepared.finalSizeBytes) } : {}),
         }).catch((uploadErr: any) => {
           const msg: string = uploadErr?.message || '';
           console.error('[CreatePost] Media upload failed:', msg);
           if (msg.includes('timeout') || msg.includes('Timeout')) {
-            throw new Error('Upload timed out. Please check your connection and try again.');
+            const timeoutErr: any = new Error(
+              'Upload timed out. Please check your connection and try again.'
+            );
+            timeoutErr.status = uploadErr?.status;
+            throw timeoutErr;
           }
           // Surface the actual underlying error so it's debuggable
-          throw new Error(msg || 'Media upload failed. Please try again.');
+          const rewrapped: any = new Error(msg || 'Media upload failed. Please try again.');
+          rewrapped.status = uploadErr?.status;
+          throw rewrapped;
         });
-        const thumbUpload =
-          picked.type === 'video' && videoThumbnailUri
-            ? uploadFile(base, videoThumbnailUri, 'thumbnail.jpg', 'image/jpeg').catch(e => {
-                if (__DEV__) console.warn('[CreatePost] Thumbnail upload failed:', e);
-                return null;
-              })
-            : Promise.resolve(null);
-
-        const [res, thumbRes] = await Promise.all([mainUpload, thumbUpload]);
+        const res = await mainUpload;
         finalMediaUrl = res?.url || '';
         if (!finalMediaUrl) {
           throw new Error('Media upload succeeded but returned no URL. Please try again.');
         }
-        if (thumbRes) finalThumbnailUrl = thumbRes?.url || '';
         if (__DEV__) console.warn('[CreatePost] Upload complete:', finalMediaUrl);
-        // Clean up temp files (trimmed video, thumbnail) after successful upload
+        // Clean up temp trimmed files after successful upload
         try {
-          const filesToClean = [trimmedUri, videoThumbnailUri].filter(
+          const filesToClean = [trimmedUri].filter(
             (f): f is string => !!f && f.startsWith(LegacyFileSystem.cacheDirectory || '')
           );
           for (const f of filesToClean) {
@@ -818,22 +740,9 @@ function CreatePostScreen() {
       const payload: Record<string, any> = {
         content: trimmedContent,
         media_url: finalMediaUrl || undefined,
-        preview_url: finalThumbnailUrl || undefined,
         type: postType,
         location: locationPayload,
       };
-
-      // Send game_id for both real and sample events
-      // The server detects sample events by checking if game_id starts with "sample-"
-      // For sample events, server stores game_id in title field to avoid foreign key constraint
-      const isSelectedSample = isSampleEvent(selectedGameId);
-      if (__DEV__)
-        console.warn(
-          '[CreatePost] selectedGameId:',
-          selectedGameId,
-          '| isSample:',
-          isSelectedSample
-        );
 
       if (selectedGameId) {
         payload.game_id = selectedGameId;
@@ -843,8 +752,7 @@ function CreatePostScreen() {
         console.warn('[CreatePost] Final payload keys:', Object.keys(payload).join(', '));
 
       // Require event link for highlight posts to ensure they surface on the event page
-      // But allow sample events to bypass this requirement
-      if (postType === 'highlight' && !payload.game_id && !isSelectedSample) {
+      if (postType === 'highlight' && !payload.game_id) {
         throw new Error('Please attach an event to share a highlight.');
       }
 
@@ -858,41 +766,6 @@ function CreatePostScreen() {
       } catch (error) {
         // Non-critical: draft clearing failed, but post was created successfully
         if (__DEV__) console.warn('[CreatePost] Failed to clear draft:', error);
-      }
-
-      if (isSelectedSample && selectedGameId) {
-        try {
-          const me = await getAuthSnapshot(checkAuth, user).catch(() => null);
-          const isVideo = picked?.type === 'video';
-          const newPost = {
-            id: created?.id ? String(created.id) : `local-${Date.now()}`,
-            content: trimmedContent,
-            caption: trimmedContent,
-            media_url: finalMediaUrl || null,
-            media_type: isVideo ? 'video' : picked?.type === 'image' ? 'image' : null,
-            preview_url: isVideo ? finalThumbnailUrl || null : null,
-            created_at: new Date().toISOString(),
-            upvotes_count: 0,
-            comments_count: 0,
-            author: me
-              ? {
-                  id: String(me.id ?? 'me'),
-                  username: me.username ?? me.display_name ?? 'me',
-                  display_name: me.display_name ?? me.username ?? 'Me',
-                  avatar_url: me.avatar_url ?? null,
-                }
-              : null,
-          };
-          const cache = await settings.getJson<Record<string, any[]>>(
-            settings.SETTINGS_KEYS.SAMPLE_EVENT_POSTS,
-            {} as any
-          );
-          const existing = Array.isArray(cache[selectedGameId]) ? cache[selectedGameId] : [];
-          cache[selectedGameId] = [newPost, ...existing].slice(0, 200);
-          await settings.setJson(settings.SETTINGS_KEYS.SAMPLE_EVENT_POSTS, cache);
-        } catch (cacheErr) {
-          if (__DEV__) console.warn('[CreatePost] Failed to cache sample post:', cacheErr);
-        }
       }
 
       setPreviewVisible(false);
@@ -913,7 +786,6 @@ function CreatePostScreen() {
           status: e?.status,
           data: e?.data,
           selectedGameId,
-          isSample: isSampleEvent(selectedGameId),
         });
       const issues = (e?.data?.issues || []) as { message: string }[];
       if (e?.status === 409 && e?.data?.code === 'DUPLICATE_POST') {
@@ -927,7 +799,7 @@ function CreatePostScreen() {
         setError(issues.map(i => i.message).join('\n'));
       } else {
         // Provide more helpful error messages
-        if (e?.status === 404 && selectedGameId && !isSampleEvent(selectedGameId)) {
+        if (e?.status === 404 && selectedGameId) {
           setError(
             'Event not found. Please remove the event attachment and try again, or select a different event.'
           );
@@ -976,7 +848,11 @@ function CreatePostScreen() {
             );
           }
         } else {
-          setError(e?.message || 'Failed to create post. Please try again.');
+          setError(
+            e?.status === 429
+              ? 'You have hit the hourly upload limit. Wait a few minutes and try again.'
+              : e?.message || 'Failed to create post. Please try again.'
+          );
         }
       }
     } finally {
@@ -1120,13 +996,17 @@ function CreatePostScreen() {
                 ) : (
                   <>
                     <VideoPlayer uri={trimmedUri ?? picked.uri} style={styles.previewMedia} />
-                    <VideoTrimmer
-                      uri={picked.uri}
-                      onTrimComplete={u => setTrimmedUri(u)}
-                      onTrimReset={() => setTrimmedUri(null)}
-                    />
+                    {canTrimVideo ? (
+                      <VideoTrimmer
+                        uri={picked.uri}
+                        onTrimComplete={u => setTrimmedUri(u)}
+                        onTrimReset={() => setTrimmedUri(null)}
+                      />
+                    ) : null}
                     <Text style={[styles.cropHint, { color: Colors[colorScheme].mutedText }]}>
-                      Trim your video using the handles above.
+                      {canTrimVideo
+                        ? 'Trim your video using the handles above.'
+                        : 'Web uploads the selected video as-is. Trimming is available in the iOS and Android app.'}
                     </Text>
                   </>
                 )}
@@ -1230,11 +1110,7 @@ function CreatePostScreen() {
                   paddingHorizontal: 16,
                   paddingVertical: 14,
                 }}
-                onPress={() =>
-                  nearbyGames.length > 1 && !isSampleEvent(selectedGameId)
-                    ? setEventSelectorVisible(true)
-                    : null
-                }
+                onPress={() => (nearbyGames.length > 1 ? setEventSelectorVisible(true) : null)}
                 accessibilityRole="button"
                 accessibilityLabel={`Tagged game: ${suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}`}
               >
@@ -1243,7 +1119,7 @@ function CreatePostScreen() {
                     {suggestedGame.title ||
                       `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}
                   </Text>
-                  {!isSampleEvent(selectedGameId) && suggestedGame.date && (
+                  {suggestedGame.date && (
                     <Text style={{ color: '#A0A0A0', fontSize: 13, marginTop: 2 }}>
                       {new Date(suggestedGame.date).toLocaleDateString([], {
                         month: 'short',

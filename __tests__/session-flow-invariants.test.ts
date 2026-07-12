@@ -139,6 +139,26 @@ describe('session-expired event bus — client wiring invariants', () => {
       expect(handlerMatch).toContain('session_expired:');
     });
 
+    it('exempts session-expiry from the routing-loop guard so the terminal redirect always fires', () => {
+      // The wedge: api/http.ts returns `new Promise(() => {})` on a dead session
+      // (the anti-Alert-stacking design pinned above). That hang is only safe if
+      // the AuthProvider redirect actually unmounts the screen. The routing-loop
+      // guard could `return false` without navigating — and the unauthenticated
+      // entry route `/(tabs)/feed` is family `tabs`, the hottest redirect bucket —
+      // so a session-expiry redirect could be swallowed, leaving the screen mounted
+      // and the Promise hung forever (permanent spinner, force-quit to recover).
+      //
+      // The guard must be bypassed for session-expiry (a terminal, once-only
+      // redirect, not a loop). Assert the bypass exists AND is wired into the
+      // suppression condition — not just declared.
+      expect(authProvider).toMatch(/reason\.startsWith\(\s*['"]session_expired['"]\s*\)/);
+      const guardBlock =
+        authProvider.match(
+          /isTerminalSessionRedirect[\s\S]{0,200}recentFamilyRedirects\.length >= 2/
+        )?.[0] || '';
+      expect(guardBlock).toMatch(/!isTerminalSessionRedirect\s*&&/);
+    });
+
     it('clears local user state on session-expired (does not leave stale /me data)', () => {
       // Look for the handler block — contains state clears and a redirect.
       const handlerMatch = authProvider.match(/handleSessionExpired[\s\S]{0,2500}/)?.[0] || '';

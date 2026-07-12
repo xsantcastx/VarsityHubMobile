@@ -25,7 +25,7 @@ export interface AuthedRequest extends Request {
 // Routes that never need auth — skip DB lookup entirely.
 // Keep exact-match pages separate from prefixes so `/support/contact` and
 // `/support/feedback` still hydrate req.user for the authenticated API.
-const PUBLIC_EXACT_PATHS = new Set(['/privacy-policy', '/terms', '/support', '/account-deletion']);
+const PUBLIC_EXACT_PATHS = new Set(['/privacy-policy', '/support', '/account-deletion']);
 const PUBLIC_PREFIXES = ['/health', '/.well-known'];
 
 export async function authMiddleware(req: AuthedRequest, _res: Response, next: NextFunction) {

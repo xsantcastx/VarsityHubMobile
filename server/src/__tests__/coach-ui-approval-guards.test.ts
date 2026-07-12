@@ -139,17 +139,25 @@ describe('coach approval UI guards', () => {
     }
   );
 
-  it('event approvals is coach-gated through useRequireCoach with a redirecting fallback', () => {
-    expect(eventApprovalsScreen).toContain(
-      'const loaders: Promise<void>[] = [loadEvents(), loadTeamInvites(), loadOrgRequests()];'
+  it('event approvals is staff-gated through useRequireTeamManagement with a redirecting fallback', () => {
+    // Deliberately omits the array prefix so adding another loader (e.g. the
+    // opponent-approval game requests) doesn't break this contract. Matched as a
+    // whitespace-tolerant regex, not a literal substring: Prettier reflowed the
+    // Promise.all onto one loader per line, which silently broke the old
+    // `toContain('loadEvents(), loadTeamInvites(), loadOrgRequests()')` even
+    // though the behavior never changed.
+    expect(eventApprovalsScreen).toMatch(
+      /loadEvents\(\),\s*loadTeamInvites\(\),\s*loadOrgRequests\(\)/
     );
     expect(eventApprovalsScreen).toContain('useAuth');
-    // The screen is the coach review hub: useRequireCoach owns the redirect
-    // (approved-but-blocked coaches go to coach-agreement, never a pending
-    // screen) and CoachAccessRedirecting renders while it happens. Roster
-    // invites for non-coaches live on app/team-invites.tsx.
+    // Role-barrier model: reviewing approvals is an "authorized user"
+    // function, so the screen gates on the membership-aware
+    // useRequireTeamManagement (admits manager/assistant_coach memberships,
+    // not just coaches) and CoachAccessRedirecting renders while it redirects
+    // users with nothing to manage. Roster invites for non-coaches live on
+    // app/team-invites.tsx.
     expect(eventApprovalsScreen).toContain(
-      'const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();'
+      'const { canManage, loading: coachLoading } = useRequireTeamManagement();'
     );
     expect(eventApprovalsScreen).toContain('return <CoachAccessRedirecting');
   });
@@ -192,10 +200,13 @@ describe('coach approval UI guards', () => {
     expect(step3LeagueScreen).toMatch(/\{canSearchForExistingOrganization && showSearch \?/);
   });
 
-  it('join-existing onboarding copy points to the league owner as decision maker', () => {
-    expect(step3LeagueScreen).toContain("ownerName: 'the league owner'");
-    expect(step3LeagueScreen).toContain('Optional message to league owner');
-    expect(pendingApprovalScreen).toContain("params.ownerName || 'the league owner'");
+  it('join-existing onboarding copy points to the organization owner as decision maker', () => {
+    // The invariant is that the owner is named as the decision maker, not the exact
+    // noun. Product renamed "league owner" -> "organization owner" across all three
+    // sites; the copy is consistent, so assert the current noun in one place.
+    expect(step3LeagueScreen).toContain("ownerName: 'the organization owner'");
+    expect(step3LeagueScreen).toContain('Optional message to organization owner');
+    expect(pendingApprovalScreen).toContain("params.ownerName || 'the organization owner'");
   });
 
   it('client admin access requires a verified admin account before showing admin screens', () => {

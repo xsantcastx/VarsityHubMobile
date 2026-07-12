@@ -13,6 +13,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { getGradientForColor } from '@/utils/theme';
 import { queryClient } from '@/lib/queryClient';
+import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -82,16 +83,16 @@ const toFeedPost = (item: any): FeedPost | null => {
     media_url: media,
     media_type,
     preview_url: typeof item?.preview_url === 'string' ? item.preview_url : null,
-    caption: item?.caption ?? item?.content ?? '',
+    caption: item?.caption ?? item?.content ?? sanitizeTitle(item?.title) ?? null,
     upvotes_count: item?.upvotes_count ?? 0,
     comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
     bookmarks_count: item?.bookmarks_count ?? 0,
     created_at: item?.created_at ?? null,
     author: item?.author
       ? {
-          id: String(item.author.id ?? id),
-          username: item.author.username ?? null,
-          avatar_url: item.author.avatar_url ?? null,
+          id: String(item.author.id ?? item.author.user_id ?? id),
+          username: item.author.username ?? item.author.display_name ?? null,
+          avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null,
         }
       : null,
     has_upvoted: Boolean(item?.has_upvoted),
@@ -104,6 +105,29 @@ const toFeedPost = (item: any): FeedPost | null => {
     event_id: item?.event_id ?? item?.event?.id ?? null,
   };
 };
+
+function mergeProfileSnapshot(
+  nextProfile: CurrentUser | null,
+  previousProfile: CurrentUser | null
+) {
+  if (!nextProfile) return nextProfile;
+  if (!previousProfile || String(previousProfile.id || '') !== String(nextProfile.id || '')) {
+    return nextProfile;
+  }
+
+  return {
+    ...previousProfile,
+    ...nextProfile,
+    avatar_url: nextProfile.avatar_url ?? previousProfile.avatar_url,
+    bio: nextProfile.bio ?? previousProfile.bio,
+    created_at: nextProfile.created_at ?? previousProfile.created_at,
+    _count: nextProfile._count ?? previousProfile._count,
+    preferences: {
+      ...(previousProfile.preferences || {}),
+      ...(nextProfile.preferences || {}),
+    },
+  };
+}
 
 type CurrentUser = {
   id?: string | number;
@@ -137,6 +161,8 @@ export default function ProfileScreen() {
   const isInitialMount = useRef(true);
   const lastUsernameRef = useRef<string | null>(null);
   const meRef = useRef<CurrentUser | null>(null);
+  const lastResolvedProfileKeyRef = useRef<string | null>(null);
+  const profileLoadIdRef = useRef(0);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>(() => {
     try {
       return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts';
@@ -322,6 +348,8 @@ export default function ProfileScreen() {
 
   const loadProfile = useCallback(
     async (options?: { silent?: boolean }) => {
+      const loadId = profileLoadIdRef.current + 1;
+      profileLoadIdRef.current = loadId;
       if (profileRequestInFlight.current) return;
       profileRequestInFlight.current = true;
 
@@ -341,6 +369,10 @@ export default function ProfileScreen() {
         setCurrentUserId(currentUser?.id || null);
 
         let u: any;
+        const requestedProfileKey =
+          viewingUserId && viewingUserId !== currentUser?.id
+            ? `user:${viewingUserId}`
+            : `me:${currentUser?.id || 'self'}`;
         // If viewing another user's profile
         if (viewingUserId && viewingUserId !== currentUser?.id) {
           // Route through the react-query cache so revisiting a recently-viewed
@@ -364,10 +396,15 @@ export default function ProfileScreen() {
           }
         } else {
           // Viewing own profile
-          u = currentUser;
+          u = mergeProfileSnapshot(currentUser, meRef.current);
+        }
+
+        if (loadId !== profileLoadIdRef.current) {
+          return;
         }
 
         if (u) {
+          lastResolvedProfileKeyRef.current = requestedProfileKey;
           meRef.current = u ?? null;
           setMe(u ?? null);
         }
@@ -391,6 +428,9 @@ export default function ProfileScreen() {
         // Tab lists load via their own queries once `me` resolves (see the
         // useInfiniteQuery block above) — nothing to await here.
       } catch (e: any) {
+        if (loadId !== profileLoadIdRef.current) {
+          return;
+        }
         if (e?.status !== 404) {
           console.error('[Profile] Failed to load profile:', e);
         }
@@ -432,6 +472,13 @@ export default function ProfileScreen() {
     return () => task.cancel();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
+
+  useEffect(() => {
+    if (isInitialMount.current) return;
+    setViewerOpen(false);
+    setError(null);
+    void loadProfile({ silent: true });
+  }, [loadProfile, viewingUserId]);
 
   // Sync with user data from hooks/AuthProvider when username changes
   useEffect(() => {
@@ -1244,9 +1291,22 @@ export default function ProfileScreen() {
           >
             Sign in to create your profile, post highlights, and connect with your community.
           </Text>
-          <Button onPress={() => router.push('/sign-in')} style={{ width: '100%', marginTop: 8 }}>
+          <Pressable
+            onPress={() => router.push('/sign-in')}
+            style={{
+              width: '100%',
+              marginTop: 8,
+              backgroundColor: theme.tint,
+              paddingVertical: 14,
+              borderRadius: 12,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Sign In"
+          >
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Sign In</Text>
-          </Button>
+          </Pressable>
           <Pressable
             onPress={() => router.push('/sign-up')}
             style={{ paddingVertical: 12, width: '100%', alignItems: 'center' }}
@@ -1392,7 +1452,7 @@ export default function ProfileScreen() {
                         <Image
                           source={{
                             uri:
-                              optimizeImageUrl(media.displayImageUrl!, 500) ||
+                              optimizeImageUrl(media.previewUrl || media.displayImageUrl!, 500) ||
                               media.displayImageUrl!,
                           }}
                           style={styles.gridImage}
@@ -1518,7 +1578,7 @@ export default function ProfileScreen() {
                         <Image
                           source={{
                             uri:
-                              optimizeImageUrl(media.displayImageUrl!, 500) ||
+                              optimizeImageUrl(media.previewUrl || media.displayImageUrl!, 500) ||
                               media.displayImageUrl!,
                           }}
                           style={styles.gridImage}
@@ -1644,7 +1704,7 @@ export default function ProfileScreen() {
                         <Image
                           source={{
                             uri:
-                              optimizeImageUrl(media.displayImageUrl!, 500) ||
+                              optimizeImageUrl(media.previewUrl || media.displayImageUrl!, 500) ||
                               media.displayImageUrl!,
                           }}
                           style={styles.gridImage}
@@ -1756,20 +1816,29 @@ export default function ProfileScreen() {
         </Pressable>
       </Modal>
 
-      <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
-        <GameVerticalFeedScreen
-          onClose={() => setViewerOpen(false)}
-          showHeader
-          initialPosts={viewerItems}
-          startIndex={viewerIndex}
-          title={
-            activeTab === 'posts'
-              ? 'Your posts'
-              : activeTab === 'replies'
-                ? 'Your replies'
-                : 'Your upvotes'
-          }
-        />
+      <Modal
+        visible={viewerOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setViewerOpen(false)}
+      >
+        <View style={[styles.verticalFeedModal, { backgroundColor: theme.background }]}>
+          {viewerOpen ? (
+            <GameVerticalFeedScreen
+              onClose={() => setViewerOpen(false)}
+              showHeader
+              initialPosts={viewerItems}
+              startIndex={viewerIndex}
+              title={
+                activeTab === 'posts'
+                  ? 'Your posts'
+                  : activeTab === 'replies'
+                    ? 'Your replies'
+                    : 'Your upvotes'
+              }
+            />
+          ) : null}
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -1778,6 +1847,10 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  verticalFeedModal: {
+    flex: 1,
+    backgroundColor: '#020617',
   },
   center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#b91c1c', textAlign: 'center' },

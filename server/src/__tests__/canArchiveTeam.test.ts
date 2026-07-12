@@ -22,7 +22,7 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
   },
 }));
 
-const { canArchiveTeam } = await import('../lib/teamAuthorization.js');
+const { canArchiveTeam, TEAM_ADMIN_ROLES } = await import('../lib/teamAuthorization.js');
 
 beforeEach(() => {
   teamMembershipFindFirst.mockReset();
@@ -80,7 +80,14 @@ describe('canArchiveTeam', () => {
     teamMembershipFindFirst.mockResolvedValue({ id: 'm1' });
     await canArchiveTeam('u1', 'team1');
     const whereArg = (teamMembershipFindFirst.mock.calls[0] as any)[0].where;
-    expect(whereArg.role.in).toEqual(['owner', 'manager']);
+    // Role-barrier model (2026-07-06): archiving is full administration, so the
+    // query must use TEAM_ADMIN_ROLES (owner, coach) — NOT the wider staff tier.
+    // This assertion previously hardcoded ['owner','manager'], which predates the
+    // barrier; asserting against the exported constant keeps it from rotting again.
+    expect(whereArg.role.in).toEqual([...TEAM_ADMIN_ROLES]);
+    // The security invariant, stated directly: a manager must never pass this gate.
+    expect(whereArg.role.in).not.toContain('manager');
+    expect(whereArg.role.in).not.toContain('assistant_coach');
     expect(whereArg.status).toBe('active');
   });
 });

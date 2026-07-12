@@ -212,6 +212,19 @@ export function NotificationTapHandler() {
             break;
           }
 
+          case 'game_opponent_approval_requested':
+            pushRoute('/event-approvals');
+            break;
+
+          case 'game_opponent_approved':
+          case 'game_opponent_declined': {
+            const gameId = str(data.game_id);
+            if (gameId) {
+              pushRoute({ pathname: '/game/[id]', params: { id: gameId } });
+            }
+            break;
+          }
+
           case 'post_removed':
             pushRoute('/(tabs)/feed');
             break;

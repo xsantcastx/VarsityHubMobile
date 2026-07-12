@@ -41,7 +41,9 @@ export async function setBool(key: string, value: boolean): Promise<void> {
 export async function getJson<T = any>(key: string, fallback: T): Promise<T> {
   const v = await getItem(key);
   if (!v) return fallback;
-  try { return JSON.parse(v) as T; } catch (error) {
+  try {
+    return JSON.parse(v) as T;
+  } catch (error) {
     if (__DEV__) console.warn('[settings] JSON parse failed for key:', key, error);
     return fallback;
   }
@@ -68,9 +70,14 @@ export const SETTINGS_KEYS = {
   NOTIFY_FOLLOW: 'notify_followers',
   LOCAL_ADS: 'local_ads', // stored drafts of submitted local ads
   POST_DRAFT: 'post_draft', // draft for create post
-  SAMPLE_EVENT_POSTS: 'sample_event_posts', // local cache for sample event posts
 };
 
 export default {
-  getBool, setBool, getJson, setJson, getString, setString, SETTINGS_KEYS,
+  getBool,
+  setBool,
+  getJson,
+  setJson,
+  getString,
+  setString,
+  SETTINGS_KEYS,
 };

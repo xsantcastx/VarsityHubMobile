@@ -15,7 +15,9 @@ async function cleanupStripeBillingForDeletedUserLazy(params: {
  * Default retention for anonymized accounts before hard-delete. The soft-delete
  * / anonymize pass runs at self-serve time; the nightly cron picks up rows
  * whose `deleted_at` is older than this window. 30 days gives us a
- * dispute-reversal buffer and matches our privacy-policy disclosure.
+ * dispute-reversal buffer for the primary DB. Note: the privacy policy
+ * separately discloses that residual backup copies are purged within 90 days —
+ * that is a distinct, longer window for backup systems, not this cron.
  */
 export const ANONYMIZED_USER_RETENTION_DAYS_DEFAULT = 30;
 

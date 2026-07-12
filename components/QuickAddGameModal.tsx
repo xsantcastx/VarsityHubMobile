@@ -9,12 +9,14 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { formatGameTime, isPastGameDate } from '@/utils/gameFormHelpers';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
@@ -457,7 +459,7 @@ export default function QuickAddGameModal({
     setOpponentSearchLoading(true);
     opponentSearchTimerRef.current = setTimeout(async () => {
       try {
-        const res = await Team.list(q, false, { limit: 20 });
+        const res = await Team.list(q, false, { limit: 20, excludeDemoLeagues: true });
         const results: TeamOption[] = (Array.isArray(res) ? res : [])
           .filter((t: any) => t.name !== currentTeam)
           .map((t: any) => ({
@@ -670,7 +672,7 @@ export default function QuickAddGameModal({
       }
 
       const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        ...pickerMediaTypesProp(),
         allowsEditing: true,
         // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
         // crop at the displayed ratio so uploads aren't re-cropped at render time.
@@ -700,7 +702,7 @@ export default function QuickAddGameModal({
       }
 
       const pickerResult = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        ...pickerMediaTypesProp(),
         allowsEditing: true,
         // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
         // crop at the displayed ratio so uploads aren't re-cropped at render time.
@@ -787,11 +789,7 @@ export default function QuickAddGameModal({
             </Pressable>
 
             <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>
-              {initialData
-                ? 'Edit Event'
-                : isCompetitive
-                  ? 'Add Game'
-                  : `Add ${EVENT_TYPES.find(et => et.value === eventType)?.label || 'Event'}`}
+              {initialData ? 'Edit Event' : isCompetitive ? 'Add Game' : 'Add Event'}
             </Text>
 
             <Pressable
@@ -1553,7 +1551,11 @@ export default function QuickAddGameModal({
                     {bannerUrl ? (
                       // Show custom uploaded banner
                       <View style={styles.customBannerContainer}>
-                        <Image source={{ uri: bannerUrl }} style={styles.customBannerImage} />
+                        <Image
+                          source={{ uri: bannerUrl }}
+                          style={styles.customBannerImage}
+                          resizeMode="cover"
+                        />
                         <View style={styles.customBannerActions}>
                           <Pressable
                             style={[
@@ -1589,19 +1591,39 @@ export default function QuickAddGameModal({
                           >
                             {/* Render MatchBanner so appearance and images are visible in the preview */}
                             <MatchBanner
-                              leftImage={getTeamLogo(getHomeAwayTeams().homeTeam) || undefined}
-                              rightImage={getTeamLogo(getHomeAwayTeams().awayTeam) || undefined}
-                              leftName={getHomeAwayTeams().homeTeam}
-                              rightName={getHomeAwayTeams().awayTeam}
-                              height={120}
+                              leftImage={
+                                isCompetitive
+                                  ? getTeamLogo(getHomeAwayTeams().homeTeam) || undefined
+                                  : undefined
+                              }
+                              rightImage={
+                                isCompetitive
+                                  ? getTeamLogo(getHomeAwayTeams().awayTeam) || undefined
+                                  : undefined
+                              }
+                              leftName={
+                                isCompetitive
+                                  ? getHomeAwayTeams().homeTeam
+                                  : eventTitle.trim() || 'Event'
+                              }
+                              rightName={
+                                isCompetitive
+                                  ? getHomeAwayTeams().awayTeam
+                                  : EVENT_TYPES.find(t => t.value === eventType)?.label || 'Event'
+                              }
+                              height={240}
                               variant="compact"
                               leftColor={
-                                (teams.find(t => t.name === getHomeAwayTeams().homeTeam) as any)
-                                  ?.color
+                                isCompetitive
+                                  ? (teams.find(t => t.name === getHomeAwayTeams().homeTeam) as any)
+                                      ?.color
+                                  : undefined
                               }
                               rightColor={
-                                (teams.find(t => t.name === getHomeAwayTeams().awayTeam) as any)
-                                  ?.color
+                                isCompetitive
+                                  ? (teams.find(t => t.name === getHomeAwayTeams().awayTeam) as any)
+                                      ?.color
+                                  : undefined
                               }
                               appearance={appearance}
                             />
@@ -1690,6 +1712,249 @@ export default function QuickAddGameModal({
               }}
             />
           )}
+
+          {/* Current Team Picker Modal */}
+          <Modal
+            visible={showCurrentTeamPicker}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowCurrentTeamPicker(false)}
+          >
+            <View style={styles.pickerOverlay}>
+              <View
+                style={[
+                  styles.pickerContainer,
+                  { backgroundColor: Colors[colorScheme].background },
+                ]}
+              >
+                <View style={styles.pickerHeader}>
+                  <Pressable onPress={() => setShowCurrentTeamPicker(false)}>
+                    <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>
+                      Cancel
+                    </Text>
+                  </Pressable>
+                  <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>
+                    Select Your Team
+                  </Text>
+                  <View style={{ width: 50 }} />
+                </View>
+                <ScrollView style={styles.pickerList}>
+                  {teams.map(team => (
+                    <Pressable
+                      key={team.id}
+                      style={[
+                        styles.pickerItem,
+                        { borderBottomColor: Colors[colorScheme].border },
+                        currentTeam === team.name && {
+                          backgroundColor: Colors[colorScheme].surface,
+                        },
+                      ]}
+                      onPress={() => {
+                        setCurrentTeam(team.name);
+                        setStoredCurrentTeamId(team.id); // Update team ID when team changes
+                        if (errors.currentTeam) {
+                          setErrors(prev => ({ ...prev, currentTeam: '' }));
+                        }
+                        setShowCurrentTeamPicker(false);
+                      }}
+                    >
+                      <View style={styles.pickerItemContent}>
+                        <View style={styles.teamLogoContainer}>
+                          {team.logo ? (
+                            <Image source={{ uri: team.logo }} style={styles.teamLogoImage} />
+                          ) : (
+                            <Text style={styles.teamLogoText}>🏆</Text>
+                          )}
+                        </View>
+                        <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
+                          {team.name}
+                        </Text>
+                      </View>
+                      {currentTeam === team.name && (
+                        <Ionicons name="checkmark" size={20} color="#007AFF" />
+                      )}
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Opponent Team Picker Modal */}
+          <Modal
+            visible={showOpponentPicker}
+            transparent
+            animationType="slide"
+            onRequestClose={() => {
+              setShowOpponentPicker(false);
+              setOpponentSearchText('');
+              setOpponentSearchResults([]);
+              if (opponentSearchTimerRef.current) clearTimeout(opponentSearchTimerRef.current);
+            }}
+          >
+            <KeyboardAvoidingView
+              style={styles.pickerOverlay}
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+              <View
+                style={[
+                  styles.pickerContainer,
+                  { backgroundColor: Colors[colorScheme].background },
+                ]}
+              >
+                <View style={styles.pickerHeader}>
+                  <Pressable
+                    onPress={() => {
+                      setShowOpponentPicker(false);
+                      setOpponentSearchText('');
+                      setOpponentSearchResults([]);
+                      if (opponentSearchTimerRef.current)
+                        clearTimeout(opponentSearchTimerRef.current);
+                    }}
+                  >
+                    <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>
+                      Cancel
+                    </Text>
+                  </Pressable>
+                  <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>
+                    Select Opponent
+                  </Text>
+                  <View style={{ width: 50 }} />
+                </View>
+
+                {/* Search Bar */}
+                <View
+                  style={[
+                    styles.searchContainer,
+                    { borderBottomColor: Colors[colorScheme].border },
+                  ]}
+                >
+                  <Ionicons name="search-outline" size={20} color={Colors[colorScheme].mutedText} />
+                  <TextInput
+                    style={[styles.searchInput, { color: Colors[colorScheme].text }]}
+                    placeholder="Search VarsityHub teams..."
+                    placeholderTextColor={Colors[colorScheme].mutedText}
+                    value={opponentSearchText}
+                    onChangeText={handleOpponentSearchChange}
+                    autoCapitalize="words"
+                    autoFocus
+                  />
+                  {opponentSearchLoading ? (
+                    <ActivityIndicator size="small" color={Colors[colorScheme].mutedText} />
+                  ) : opponentSearchText.length > 0 ? (
+                    <Pressable
+                      onPress={() => {
+                        setOpponentSearchText('');
+                        setOpponentSearchResults([]);
+                        if (opponentSearchTimerRef.current)
+                          clearTimeout(opponentSearchTimerRef.current);
+                      }}
+                    >
+                      <Ionicons
+                        name="close-circle"
+                        size={20}
+                        color={Colors[colorScheme].mutedText}
+                      />
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
+                  {/* Existing VarsityHub team results */}
+                  {displayedOpponentTeams.map(team => (
+                    <Pressable
+                      key={team.id}
+                      style={[
+                        styles.pickerItem,
+                        { borderBottomColor: Colors[colorScheme].border },
+                        opponent === team.name && { backgroundColor: Colors[colorScheme].surface },
+                      ]}
+                      onPress={() => {
+                        setOpponent(team.name);
+                        setOpponentTeamId(team.id);
+                        if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
+                        setOpponentSearchText('');
+                        setOpponentSearchResults([]);
+                        setShowOpponentPicker(false);
+                      }}
+                    >
+                      <View style={styles.pickerItemContent}>
+                        <View style={styles.teamLogoContainer}>
+                          {team.logo ? (
+                            <Image source={{ uri: team.logo }} style={styles.teamLogoImage} />
+                          ) : (
+                            <Text style={styles.teamLogoText}>🏆</Text>
+                          )}
+                        </View>
+                        <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
+                          {team.name}
+                        </Text>
+                      </View>
+                      {opponent === team.name && (
+                        <Ionicons name="checkmark" size={20} color="#007AFF" />
+                      )}
+                    </Pressable>
+                  ))}
+
+                  {/* No results message */}
+                  {opponentSearchText.trim().length > 0 &&
+                    !opponentSearchLoading &&
+                    displayedOpponentTeams.length === 0 && (
+                      <View style={styles.noResultsContainer}>
+                        <Text
+                          style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}
+                        >
+                          No VarsityHub teams found for "{opponentSearchText}"
+                        </Text>
+                      </View>
+                    )}
+
+                  {/* Manual entry — ALWAYS visible when text is present, even during loading */}
+                  {opponentSearchText.trim().length > 0 && (
+                    <Pressable
+                      style={[
+                        styles.pickerItem,
+                        {
+                          borderBottomColor: Colors[colorScheme].border,
+                          backgroundColor: Colors[colorScheme].surface,
+                        },
+                      ]}
+                      onPress={() => {
+                        const name = opponentSearchText.trim();
+                        setOpponent(name);
+                        setOpponentTeamId(''); // No team ID — manual entry
+                        if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
+                        setOpponentSearchText('');
+                        setOpponentSearchResults([]);
+                        if (opponentSearchTimerRef.current)
+                          clearTimeout(opponentSearchTimerRef.current);
+                        setOpponentSearchLoading(false);
+                        setShowOpponentPicker(false);
+                      }}
+                    >
+                      <View style={styles.pickerItemContent}>
+                        <View style={styles.teamLogoContainer}>
+                          <Ionicons
+                            name="add-circle-outline"
+                            size={24}
+                            color={Colors[colorScheme].tint}
+                          />
+                        </View>
+                        <Text
+                          style={[
+                            styles.pickerItemText,
+                            { color: Colors[colorScheme].tint, fontWeight: '600' },
+                          ]}
+                        >
+                          Use "{opponentSearchText.trim()}" as opponent
+                        </Text>
+                      </View>
+                    </Pressable>
+                  )}
+                </ScrollView>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
         </View>
       </Modal>
 
@@ -1717,228 +1982,6 @@ export default function QuickAddGameModal({
           }
         }}
       />
-
-      {/* Current Team Picker Modal */}
-      <Modal
-        visible={showCurrentTeamPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowCurrentTeamPicker(false)}
-      >
-        <View style={styles.pickerOverlay}>
-          <View
-            style={[styles.pickerContainer, { backgroundColor: Colors[colorScheme].background }]}
-          >
-            <View style={styles.pickerHeader}>
-              <Pressable onPress={() => setShowCurrentTeamPicker(false)}>
-                <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>
-                  Cancel
-                </Text>
-              </Pressable>
-              <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>
-                Select Your Team
-              </Text>
-              <View style={{ width: 50 }} />
-            </View>
-            <ScrollView style={styles.pickerList}>
-              {teams.map(team => (
-                <Pressable
-                  key={team.id}
-                  style={[
-                    styles.pickerItem,
-                    { borderBottomColor: Colors[colorScheme].border },
-                    currentTeam === team.name && { backgroundColor: Colors[colorScheme].surface },
-                  ]}
-                  onPress={() => {
-                    setCurrentTeam(team.name);
-                    setStoredCurrentTeamId(team.id); // Update team ID when team changes
-                    if (errors.currentTeam) {
-                      setErrors(prev => ({ ...prev, currentTeam: '' }));
-                    }
-                    setShowCurrentTeamPicker(false);
-                  }}
-                >
-                  <View style={styles.pickerItemContent}>
-                    <View style={styles.teamLogoContainer}>
-                      {team.logo ? (
-                        <Image source={{ uri: team.logo }} style={styles.teamLogoImage} />
-                      ) : (
-                        <Text style={styles.teamLogoText}>🏆</Text>
-                      )}
-                    </View>
-                    <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
-                      {team.name}
-                    </Text>
-                  </View>
-                  {currentTeam === team.name && (
-                    <Ionicons name="checkmark" size={20} color="#007AFF" />
-                  )}
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Opponent Team Picker Modal */}
-      <Modal
-        visible={showOpponentPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          setShowOpponentPicker(false);
-          setOpponentSearchText('');
-          setOpponentSearchResults([]);
-          if (opponentSearchTimerRef.current) clearTimeout(opponentSearchTimerRef.current);
-        }}
-      >
-        <View style={styles.pickerOverlay}>
-          <View
-            style={[styles.pickerContainer, { backgroundColor: Colors[colorScheme].background }]}
-          >
-            <View style={styles.pickerHeader}>
-              <Pressable
-                onPress={() => {
-                  setShowOpponentPicker(false);
-                  setOpponentSearchText('');
-                  setOpponentSearchResults([]);
-                  if (opponentSearchTimerRef.current) clearTimeout(opponentSearchTimerRef.current);
-                }}
-              >
-                <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>
-                  Cancel
-                </Text>
-              </Pressable>
-              <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>
-                Select Opponent
-              </Text>
-              <View style={{ width: 50 }} />
-            </View>
-
-            {/* Search Bar */}
-            <View
-              style={[styles.searchContainer, { borderBottomColor: Colors[colorScheme].border }]}
-            >
-              <Ionicons name="search-outline" size={20} color={Colors[colorScheme].mutedText} />
-              <TextInput
-                style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-                placeholder="Search VarsityHub teams..."
-                placeholderTextColor={Colors[colorScheme].mutedText}
-                value={opponentSearchText}
-                onChangeText={handleOpponentSearchChange}
-                autoCapitalize="words"
-                autoFocus
-              />
-              {opponentSearchLoading ? (
-                <ActivityIndicator size="small" color={Colors[colorScheme].mutedText} />
-              ) : opponentSearchText.length > 0 ? (
-                <Pressable
-                  onPress={() => {
-                    setOpponentSearchText('');
-                    setOpponentSearchResults([]);
-                    if (opponentSearchTimerRef.current)
-                      clearTimeout(opponentSearchTimerRef.current);
-                  }}
-                >
-                  <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
-                </Pressable>
-              ) : null}
-            </View>
-
-            <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
-              {/* Existing VarsityHub team results */}
-              {displayedOpponentTeams.map(team => (
-                <Pressable
-                  key={team.id}
-                  style={[
-                    styles.pickerItem,
-                    { borderBottomColor: Colors[colorScheme].border },
-                    opponent === team.name && { backgroundColor: Colors[colorScheme].surface },
-                  ]}
-                  onPress={() => {
-                    setOpponent(team.name);
-                    setOpponentTeamId(team.id);
-                    if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
-                    setOpponentSearchText('');
-                    setOpponentSearchResults([]);
-                    setShowOpponentPicker(false);
-                  }}
-                >
-                  <View style={styles.pickerItemContent}>
-                    <View style={styles.teamLogoContainer}>
-                      {team.logo ? (
-                        <Image source={{ uri: team.logo }} style={styles.teamLogoImage} />
-                      ) : (
-                        <Text style={styles.teamLogoText}>🏆</Text>
-                      )}
-                    </View>
-                    <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
-                      {team.name}
-                    </Text>
-                  </View>
-                  {opponent === team.name && (
-                    <Ionicons name="checkmark" size={20} color="#007AFF" />
-                  )}
-                </Pressable>
-              ))}
-
-              {/* No results message */}
-              {opponentSearchText.trim().length > 0 &&
-                !opponentSearchLoading &&
-                displayedOpponentTeams.length === 0 && (
-                  <View style={styles.noResultsContainer}>
-                    <Text style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}>
-                      No VarsityHub teams found for "{opponentSearchText}"
-                    </Text>
-                  </View>
-                )}
-
-              {/* Manual entry — ALWAYS visible when text is present, even during loading */}
-              {opponentSearchText.trim().length > 0 && (
-                <Pressable
-                  style={[
-                    styles.pickerItem,
-                    {
-                      borderBottomColor: Colors[colorScheme].border,
-                      backgroundColor: Colors[colorScheme].surface,
-                    },
-                  ]}
-                  onPress={() => {
-                    const name = opponentSearchText.trim();
-                    setOpponent(name);
-                    setOpponentTeamId(''); // No team ID — manual entry
-                    if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
-                    setOpponentSearchText('');
-                    setOpponentSearchResults([]);
-                    if (opponentSearchTimerRef.current)
-                      clearTimeout(opponentSearchTimerRef.current);
-                    setOpponentSearchLoading(false);
-                    setShowOpponentPicker(false);
-                  }}
-                >
-                  <View style={styles.pickerItemContent}>
-                    <View style={styles.teamLogoContainer}>
-                      <Ionicons
-                        name="add-circle-outline"
-                        size={24}
-                        color={Colors[colorScheme].tint}
-                      />
-                    </View>
-                    <Text
-                      style={[
-                        styles.pickerItemText,
-                        { color: Colors[colorScheme].tint, fontWeight: '600' },
-                      ]}
-                    >
-                      Use "{opponentSearchText.trim()}" as opponent
-                    </Text>
-                  </View>
-                </Pressable>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </>
   );
 }
@@ -2230,9 +2273,10 @@ const styles = StyleSheet.create({
   },
   customBannerImage: {
     width: '100%',
-    // Preview the uploaded photo at the same 4:5 ratio the event card displays,
-    // so what the user sees here is what actually ships to the feed.
-    aspectRatio: 4 / 5,
+    // Preview the uploaded photo at the same fixed height the event detail
+    // page renders it at (GameDetailsScreen bannerHeight), so what the user
+    // sees here is the size that actually ships.
+    height: 240,
     borderRadius: 12,
     backgroundColor: '#D1D5DB',
   },

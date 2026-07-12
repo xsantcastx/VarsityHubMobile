@@ -47,7 +47,12 @@ describe('POST /team-memberships — add member', () => {
         approval_status: 'APPROVED',
         coach_agreement_accepted_at: new Date(),
         coach_agreement_version: 1,
-        preferences: { role: 'coach', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString(), coach_agreement_version: 1 },
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+          coach_agreement_version: 1,
+        },
       },
     });
     coachId = coach.id;
@@ -88,7 +93,16 @@ describe('POST /team-memberships — add member', () => {
 
     await prisma.user.update({
       where: { id: coachId },
-      data: { organization_id: orgId, preferences: { role: 'coach', onboarding_completed: true, organization_id: orgId, coach_agreement_accepted_at: new Date().toISOString(), coach_agreement_version: 1 } },
+      data: {
+        organization_id: orgId,
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          organization_id: orgId,
+          coach_agreement_accepted_at: new Date().toISOString(),
+          coach_agreement_version: 1,
+        },
+      },
     });
 
     await prisma.organizationMembership.create({
@@ -116,7 +130,7 @@ describe('POST /team-memberships — add member', () => {
   it('401 when unauthenticated', async () => {
     const res = await request(app)
       .post('/team-memberships')
-      .send({ team_id: teamId, user_id: fanId, role: 'member' });
+      .send({ team_id: teamId, user_id: fanId, role: 'assistant_coach' });
     expect(res.status).toBe(401);
   });
 
@@ -124,7 +138,7 @@ describe('POST /team-memberships — add member', () => {
     const res = await request(app)
       .post('/team-memberships')
       .set('Authorization', `Bearer ${outsiderToken}`)
-      .send({ team_id: teamId, user_id: fanId, role: 'member' });
+      .send({ team_id: teamId, user_id: fanId, role: 'assistant_coach' });
     expect(res.status).toBe(403);
   });
 
@@ -132,7 +146,7 @@ describe('POST /team-memberships — add member', () => {
     const res = await request(app)
       .post('/team-memberships')
       .set('Authorization', `Bearer ${coachToken}`)
-      .send({ team_id: teamId, user_id: fanId, role: 'member' });
+      .send({ team_id: teamId, user_id: fanId, role: 'assistant_coach' });
     expect(res.status).toBe(201);
     // Route returns the membership object directly (not wrapped in { membership })
     expect(res.body.team_id).toBe(teamId);
@@ -171,7 +185,12 @@ describe('PATCH /team-memberships/:id — role change', () => {
         approval_status: 'APPROVED',
         coach_agreement_accepted_at: new Date(),
         coach_agreement_version: 1,
-        preferences: { role: 'coach', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString(), coach_agreement_version: 1 },
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+          coach_agreement_version: 1,
+        },
       },
     });
     coachId = coach.id;
@@ -196,13 +215,21 @@ describe('PATCH /team-memberships/:id — role change', () => {
     });
     orgId = org.id;
     await prisma.user.update({ where: { id: coachId }, data: { organization_id: orgId } });
-    await prisma.organizationMembership.create({ data: { organization_id: orgId, user_id: coachId, role: 'owner' } });
+    await prisma.organizationMembership.create({
+      data: { organization_id: orgId, user_id: coachId, role: 'owner' },
+    });
 
-    const team = await prisma.team.create({ data: { name: `Patch Team ${Date.now()}`, organization_id: orgId } });
+    const team = await prisma.team.create({
+      data: { name: `Patch Team ${Date.now()}`, organization_id: orgId },
+    });
     teamId = team.id;
 
-    await prisma.teamMembership.create({ data: { team_id: teamId, user_id: coachId, role: 'owner', status: 'active' } });
-    const m = await prisma.teamMembership.create({ data: { team_id: teamId, user_id: memberId, role: 'member', status: 'active' } });
+    await prisma.teamMembership.create({
+      data: { team_id: teamId, user_id: coachId, role: 'owner', status: 'active' },
+    });
+    const m = await prisma.teamMembership.create({
+      data: { team_id: teamId, user_id: memberId, role: 'member', status: 'active' },
+    });
     membershipId = m.id;
   });
 
@@ -253,7 +280,12 @@ describe('DELETE /team-memberships/:id — remove member', () => {
         approval_status: 'APPROVED',
         coach_agreement_accepted_at: new Date(),
         coach_agreement_version: 1,
-        preferences: { role: 'coach', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString(), coach_agreement_version: 1 },
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+          coach_agreement_version: 1,
+        },
       },
     });
     coachId = coach.id;
@@ -277,13 +309,21 @@ describe('DELETE /team-memberships/:id — remove member', () => {
     });
     orgId = org.id;
     await prisma.user.update({ where: { id: coachId }, data: { organization_id: orgId } });
-    await prisma.organizationMembership.create({ data: { organization_id: orgId, user_id: coachId, role: 'owner' } });
+    await prisma.organizationMembership.create({
+      data: { organization_id: orgId, user_id: coachId, role: 'owner' },
+    });
 
-    const team = await prisma.team.create({ data: { name: `Del Team ${Date.now()}`, organization_id: orgId } });
+    const team = await prisma.team.create({
+      data: { name: `Del Team ${Date.now()}`, organization_id: orgId },
+    });
     teamId = team.id;
 
-    await prisma.teamMembership.create({ data: { team_id: teamId, user_id: coachId, role: 'owner', status: 'active' } });
-    const m = await prisma.teamMembership.create({ data: { team_id: teamId, user_id: memberId, role: 'member', status: 'active' } });
+    await prisma.teamMembership.create({
+      data: { team_id: teamId, user_id: coachId, role: 'owner', status: 'active' },
+    });
+    const m = await prisma.teamMembership.create({
+      data: { team_id: teamId, user_id: memberId, role: 'member', status: 'active' },
+    });
     membershipId = m.id;
   });
 

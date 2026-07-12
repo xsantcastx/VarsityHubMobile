@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { gameRowTitle } from '@/utils/eventTitle';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -33,6 +34,12 @@ export interface Game {
     team: number;
     opponent: number;
   };
+  // event_type/title let non-competitive rows (fundraiser, watch party, etc.)
+  // render their own title instead of "vs TBD" — see utils/eventTitle.ts.
+  // Left undefined by any consumer that doesn't pass them, which
+  // gameRowTitle() treats as competitive — identical to today's behavior.
+  event_type?: string | null;
+  title?: string | null;
 }
 
 export interface GameCardProps {
@@ -47,9 +54,9 @@ export interface GameCardProps {
 /**
  * Reusable Game Card Component
  * Replaces 10+ duplicated game card implementations (250+ lines)
- * 
+ *
  * @example
- * <GameCard 
+ * <GameCard
  *   game={game}
  *   onPress={handlePress}
  *   onEdit={handleEdit}
@@ -57,18 +64,20 @@ export interface GameCardProps {
  *   showActions={true}
  * />
  */
-export function GameCard({ 
-  game, 
-  onPress, 
-  onEdit, 
-  onDelete, 
+export function GameCard({
+  game,
+  onPress,
+  onEdit,
+  onDelete,
   showActions = false,
-  style 
+  style,
 }: GameCardProps) {
   const colorScheme = useColorScheme() ?? 'light';
 
   // Format date and time
-  const gameDate = game.scheduled_date ? format(new Date(game.scheduled_date), 'MMM dd, yyyy') : 'TBD';
+  const gameDate = game.scheduled_date
+    ? format(new Date(game.scheduled_date), 'MMM dd, yyyy')
+    : 'TBD';
   const gameTime = game.scheduled_time || 'TBD';
 
   // Determine game type badge color
@@ -98,13 +107,12 @@ export function GameCard({
   };
 
   // Determine if game is past
-  const isPastGame = game.scheduled_date 
-    ? new Date(game.scheduled_date) < new Date()
-    : false;
+  const isPastGame = game.scheduled_date ? new Date(game.scheduled_date) < new Date() : false;
 
-  const firstMediaUrl = Array.isArray(game.media) && game.media.length > 0
-    ? (game.media[0]?.thumbnail_url || game.media[0]?.url || null)
-    : null;
+  const firstMediaUrl =
+    Array.isArray(game.media) && game.media.length > 0
+      ? game.media[0]?.thumbnail_url || game.media[0]?.url || null
+      : null;
   const cardImage = game.cover_image_url || game.banner_url || firstMediaUrl || null;
 
   return (
@@ -116,11 +124,7 @@ export function GameCard({
     >
       {/* Preview Image — always fills top 150px; falls back to gradient */}
       {cardImage ? (
-        <Image
-          source={{ uri: cardImage }}
-          style={styles.cardImage}
-          contentFit="cover"
-        />
+        <Image source={{ uri: cardImage }} style={styles.cardImage} contentFit="cover" />
       ) : (
         <LinearGradient
           colors={['#1e293b', '#0f172a']}
@@ -132,113 +136,95 @@ export function GameCard({
 
       {/* Card Content */}
       <View style={styles.cardContent}>
-
-      {/* Header: Opponent and Type Badge */}
-      <View style={styles.header}>
-        <Text 
-          style={[
-            styles.opponent, 
-            typography.heading,
-            { color: Colors[colorScheme].text }
-          ]}
-          numberOfLines={1}
-        >
-          vs {game.opponent_name || 'TBD'}
-        </Text>
-        {getGameTypeBadge()}
-      </View>
-
-      {/* Date and Time */}
-      <View style={styles.infoRow}>
-        <MaterialIcons name="event" size={16} color={Colors[colorScheme].mutedText} />
-        <Text 
-          style={[
-            styles.infoText, 
-            typography.body,
-            { color: Colors[colorScheme].mutedText }
-          ]}
-        >
-          {gameDate}
-        </Text>
-        <MaterialIcons 
-          name="access-time" 
-          size={16} 
-          color={Colors[colorScheme].mutedText} 
-          style={styles.iconSpacing}
-        />
-        <Text 
-          style={[
-            styles.infoText, 
-            typography.body,
-            { color: Colors[colorScheme].mutedText }
-          ]}
-        >
-          {gameTime}
-        </Text>
-      </View>
-
-      {/* Location (if available) */}
-      {game.location && (
-        <View style={styles.infoRow}>
-          <MaterialIcons name="location-on" size={16} color={Colors[colorScheme].mutedText} />
-          <Text 
-            style={[
-              styles.infoText, 
-              typography.body,
-              { color: Colors[colorScheme].mutedText }
-            ]}
+        {/* Header: Opponent and Type Badge */}
+        <View style={styles.header}>
+          <Text
+            style={[styles.opponent, typography.heading, { color: Colors[colorScheme].text }]}
             numberOfLines={1}
           >
-            {game.location}
+            {gameRowTitle({
+              event_type: game.event_type,
+              title: game.title,
+              opponent: game.opponent_name,
+            })}
           </Text>
+          {getGameTypeBadge()}
         </View>
-      )}
 
-      {/* Score (for past games) */}
-      {isPastGame && (game.home_score !== null || game.away_score !== null) && (
-        <View style={styles.scoreRow}>
-          <Text 
-            style={[
-              styles.scoreText, 
-              typography.title,
-              { color: Colors[colorScheme].text }
-            ]}
+        {/* Date and Time */}
+        <View style={styles.infoRow}>
+          <MaterialIcons name="event" size={16} color={Colors[colorScheme].mutedText} />
+          <Text
+            style={[styles.infoText, typography.body, { color: Colors[colorScheme].mutedText }]}
           >
-            {game.home_score ?? '-'} - {game.away_score ?? '-'}
+            {gameDate}
+          </Text>
+          <MaterialIcons
+            name="access-time"
+            size={16}
+            color={Colors[colorScheme].mutedText}
+            style={styles.iconSpacing}
+          />
+          <Text
+            style={[styles.infoText, typography.body, { color: Colors[colorScheme].mutedText }]}
+          >
+            {gameTime}
           </Text>
         </View>
-      )}
 
-      {/* Action Buttons */}
-      {showActions && (onEdit || onDelete) && (
-        <View style={styles.actions}>
-          {onEdit && (
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation();
-                onEdit(game);
-              }}
-              style={[styles.actionButton, { backgroundColor: '#2196F3' }]}
+        {/* Location (if available) */}
+        {game.location && (
+          <View style={styles.infoRow}>
+            <MaterialIcons name="location-on" size={16} color={Colors[colorScheme].mutedText} />
+            <Text
+              style={[styles.infoText, typography.body, { color: Colors[colorScheme].mutedText }]}
+              numberOfLines={1}
             >
-              <MaterialIcons name="edit" size={16} color="white" />
-              <Text style={[styles.actionText, typography.caption]}>Edit</Text>
-            </Pressable>
-          )}
-          {onDelete && (
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation();
-                onDelete(game);
-              }}
-              style={[styles.actionButton, { backgroundColor: '#f44336' }]}
-            >
-              <MaterialIcons name="delete" size={16} color="white" />
-              <Text style={[styles.actionText, typography.caption]}>Delete</Text>
-            </Pressable>
-          )}
-        </View>
-      )}
-      </View>{/* end cardContent */}
+              {game.location}
+            </Text>
+          </View>
+        )}
+
+        {/* Score (for past games) */}
+        {isPastGame && (game.home_score !== null || game.away_score !== null) && (
+          <View style={styles.scoreRow}>
+            <Text style={[styles.scoreText, typography.title, { color: Colors[colorScheme].text }]}>
+              {game.home_score ?? '-'} - {game.away_score ?? '-'}
+            </Text>
+          </View>
+        )}
+
+        {/* Action Buttons */}
+        {showActions && (onEdit || onDelete) && (
+          <View style={styles.actions}>
+            {onEdit && (
+              <Pressable
+                onPress={e => {
+                  e.stopPropagation();
+                  onEdit(game);
+                }}
+                style={[styles.actionButton, { backgroundColor: '#2196F3' }]}
+              >
+                <MaterialIcons name="edit" size={16} color="white" />
+                <Text style={[styles.actionText, typography.caption]}>Edit</Text>
+              </Pressable>
+            )}
+            {onDelete && (
+              <Pressable
+                onPress={e => {
+                  e.stopPropagation();
+                  onDelete(game);
+                }}
+                style={[styles.actionButton, { backgroundColor: '#f44336' }]}
+              >
+                <MaterialIcons name="delete" size={16} color="white" />
+                <Text style={[styles.actionText, typography.caption]}>Delete</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+      </View>
+      {/* end cardContent */}
     </Card>
   );
 }

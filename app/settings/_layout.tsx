@@ -95,12 +95,6 @@ export default function SettingsLayout() {
         }}
       />
       <Stack.Screen
-        name="terms-of-service"
-        options={{
-          title: 'Terms of Service',
-        }}
-      />
-      <Stack.Screen
         name="request-host-event"
         options={{
           title: 'Request to Host Event',

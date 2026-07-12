@@ -14,6 +14,7 @@ import {
   sendStaffMemberJoinedEmail,
 } from '../lib/email.js';
 import { sendError } from '../lib/http/sendError.js';
+import { InviteIdentifierError, resolveInviteIdentifier } from '../lib/inviteIdentifier.js';
 import { redactEmail } from '../lib/logRedaction.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import {
@@ -21,6 +22,7 @@ import {
   isOrganizationOwner as isOrganizationOwnerScoped,
   ORGANIZATION_OWNER_ROLE,
 } from '../lib/organizationAuthorization.js';
+import { isCanonicalSport } from '../lib/sportsTaxonomy.js';
 import {
   approveJoinRequest,
   denyJoinRequest,
@@ -207,6 +209,8 @@ function serializeOrganizationAdminEvent(event: any) {
     event_type: event.event_type || null,
     status: event.status || null,
     approval_status: event.approval_status || null,
+    // Dedupe key: lets clients collapse a game-linked event onto its game row.
+    game_id: event.game_id || null,
   };
 }
 
@@ -1212,10 +1216,16 @@ organizationsRouter.post(
   })
 );
 
-const inviteUserSchema = z.object({
-  email: z.string().email(),
-  role: z.string().optional(),
-});
+const inviteUserSchema = z
+  .object({
+    identifier: z.string().trim().min(1).optional(),
+    email: z.string().trim().email().optional(),
+    role: z.string().optional(),
+  })
+  .refine(data => Boolean(data.identifier || data.email), {
+    message: 'Username or email is required',
+    path: ['identifier'],
+  });
 
 // Invite user to organization
 // Rule B: No plan gate on the inviting user — authorized users are covered by the org owner's plan.
@@ -1232,8 +1242,9 @@ organizationsRouter.post(
       const parsed = inviteUserSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
-      const { email, role } = parsed.data;
-      const inviteEmail = email.trim().toLowerCase();
+      const { identifier, email, role } = parsed.data;
+      const resolvedIdentifier = await resolveInviteIdentifier(prisma, identifier || email || '');
+      const inviteEmail = resolvedIdentifier.email;
 
       // Validate role against allowed org roles
       if (role && !isValidOrganizationInviteRole(role)) {
@@ -1242,17 +1253,28 @@ organizationsRouter.post(
           .json({ error: `Invalid role. Must be one of: ${VALID_ORG_INVITE_ROLES.join(', ')}` });
       }
 
-      // Check if user is a member of the organization
-      const membership = await getOrganizationMembership(req.user!.id, id);
-
-      if (!membership || !isOrganizationAdmin(membership.role)) {
-        return res.status(403).json({ error: 'Insufficient permissions' });
+      // Role-barrier model (2026-07-06): the organization owner is the ONLY
+      // one who manages the organization — org managers no longer get invite
+      // power (superseding the old "managers may invite at member level"
+      // rule; managers/coaches still keep team-level roster+event approvals).
+      // Owner-only, incl. legacy league_owner_id owners (isOrganizationOwnerScoped).
+      if (!(await isOrganizationOwnerScoped(req.user!.id, id))) {
+        return sendError(res, 403, 'Only the organization owner can invite members.');
       }
-
-      // PERMISSION-001: Managers can invite members but not other managers.
-      // Only owners can elevate someone to manager role.
-      if (role === 'manager' && membership.role !== 'owner') {
-        return res.status(403).json({ error: 'Only organization owners can invite managers.' });
+      if (resolvedIdentifier.resolvedUserId) {
+        const existingMembership = await prisma.organizationMembership.findFirst({
+          where: {
+            organization_id: id,
+            user_id: resolvedIdentifier.resolvedUserId,
+            status: 'active',
+          },
+          select: { id: true },
+        });
+        if (existingMembership) {
+          return sendError(res, 409, 'That user is already a member of this organization.', {
+            code: 'ALREADY_MEMBER',
+          });
+        }
       }
       // PLAN LIMITS: Enforce authorized user caps based on ORG OWNER's plan (Rule B).
       // Authorized users are covered by the coach's plan — never charged individually.
@@ -1390,6 +1412,9 @@ organizationsRouter.post(
 
       return res.status(201).json(invite);
     } catch (err: any) {
+      if (err instanceof InviteIdentifierError) {
+        return sendError(res, err.statusCode, err.message, { code: err.code });
+      }
       if (err?.status && err?.body) {
         return res.status(err.status).json(err.body);
       }
@@ -1424,8 +1449,9 @@ organizationsRouter.post(
     const userId = req.user?.id || null;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const [membership, isPlatformAdmin, invite] = await Promise.all([
-      getOrganizationMembership(userId, organizationId),
+    // Owner-only (incl. legacy league_owner_id owners) or platform admin.
+    const [isOwner, isPlatformAdmin, invite] = await Promise.all([
+      isOrganizationOwnerScoped(userId, organizationId),
       isCurrentUserPlatformAdmin(req),
       prisma.organizationInvite.findUnique({
         where: { id: inviteId },
@@ -1437,10 +1463,9 @@ organizationsRouter.post(
       return res.status(404).json({ error: 'Invite not found' });
     }
 
-    if (!isPlatformAdmin && (!membership || !isOrganizationAdmin(membership.role))) {
-      return res.status(403).json({
-        error: 'PERMISSION_DENIED',
-        message: 'Only organization admins can cancel invites.',
+    if (!isPlatformAdmin && !isOwner) {
+      return sendError(res, 403, 'PERMISSION_DENIED', {
+        message: 'Only the organization owner can cancel invites.',
       });
     }
 
@@ -1981,8 +2006,7 @@ organizationsRouter.get(
     // admin (org-scoped god-override), matching the canReviewCoachRequests
     // flag GET /organizations/:id already advertises to admins.
     const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
-    const membership = await getOrganizationMembership(req.user!.id, id);
-    if (!isPlatformAdmin && (!membership || membership.role !== 'owner')) {
+    if (!isPlatformAdmin && !(await isOrganizationOwnerScoped(req.user!.id, id))) {
       return sendError(res, 403, 'Only the organization owner can review coach requests');
     }
 
@@ -2027,11 +2051,11 @@ organizationsRouter.post(
       // Coach admission is decided by the organization owner — or a platform
       // admin (org-scoped god-override). The self-approval IDOR guard above
       // still applies to admins.
+      // Owner-only (incl. legacy league_owner_id owners) or platform admin.
       const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
-      const membership = await getOrganizationMembership(req.user!.id, joinRequest.organization_id);
       if (
         !isPlatformAdmin &&
-        (!membership || membership.status !== 'active' || membership.role !== 'owner')
+        !(await isOrganizationOwnerScoped(req.user!.id, joinRequest.organization_id))
       ) {
         return sendError(res, 403, 'Only the organization owner can approve coach requests');
       }
@@ -2077,13 +2101,17 @@ organizationsRouter.post(
         return res.status(404).json({ error: 'Join request not found' });
       }
 
-      // Coach admission is decided by the organization owner — or a platform
-      // admin (org-scoped god-override).
+      // IDOR: prevent self-denial (defense-in-depth) — mirrors the approve route
+      // (uses the error envelope per verify:error-envelope).
+      if (joinRequest.user_id === req.user!.id) {
+        return sendError(res, 403, 'You cannot deny your own join request.');
+      }
+
+      // Owner-only (incl. legacy league_owner_id owners) or platform admin.
       const isPlatformAdmin = await isCurrentUserPlatformAdmin(req);
-      const membership = await getOrganizationMembership(req.user!.id, joinRequest.organization_id);
       if (
         !isPlatformAdmin &&
-        (!membership || membership.status !== 'active' || membership.role !== 'owner')
+        !(await isOrganizationOwnerScoped(req.user!.id, joinRequest.organization_id))
       ) {
         return sendError(res, 403, 'Only the organization owner can reject coach requests');
       }
@@ -2410,7 +2438,10 @@ organizationsRouter.post(
       where: { organization_id: orgId, user_id: req.user.id, role: 'owner', status: 'active' },
       select: { id: true },
     });
-    if (!currentOwnership) {
+    // A legacy owner (league_owner_id pointer, no membership row) is still the
+    // owner and may transfer. currentOwnership stays null for them — the
+    // demotion step below is skipped since there's no row to demote.
+    if (!currentOwnership && !(await isOrganizationOwnerScoped(req.user.id, orgId))) {
       return res.status(403).json({ error: 'Only the current owner can transfer ownership' });
     }
 
@@ -2437,11 +2468,17 @@ organizationsRouter.post(
         data: { league_owner_id: new_owner_id },
         select: { id: true },
       }),
-      prisma.organizationMembership.update({
-        where: { id: currentOwnership.id },
-        data: { role: 'manager' },
-        select: { id: true },
-      }),
+      // Demote the old owner's membership row — skipped for a legacy owner who
+      // never had one (they simply stop being the league_owner_id pointer).
+      ...(currentOwnership
+        ? [
+            prisma.organizationMembership.update({
+              where: { id: currentOwnership.id },
+              data: { role: 'manager' },
+              select: { id: true },
+            }),
+          ]
+        : []),
       prisma.organizationMembership.update({
         where: { id: newOwnerMembership.id },
         data: { role: 'owner' },
@@ -3271,6 +3308,83 @@ organizationsRouter.get(
         events: upcomingEvents.map(serializeOrganizationAdminEvent),
       },
     });
+  })
+);
+
+// ── Sport programs (Phase 1 of the sport-program pivot) ──────────────
+const createProgramSchema = z.object({
+  sport: z.string().min(1).max(100),
+  name: z.string().trim().min(1).max(120).optional(),
+});
+
+// POST /organizations/:id/programs — org owner or any active org member
+// (approved coaches land as org 'member'); same tier as team creation.
+organizationsRouter.post(
+  '/:id/programs',
+  requireAuth as any,
+  requireVerified as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
+    const orgId = String(req.params.id);
+    const parsed = createProgramSchema.safeParse(req.body);
+    if (!parsed.success)
+      return sendError(res, 400, 'Validation failed', {
+        details: parsed.error.flatten().fieldErrors,
+      });
+    if (!isCanonicalSport(parsed.data.sport))
+      return sendError(res, 400, 'INVALID_SPORT', {
+        message: 'sport must be a canonical slug from the sports taxonomy.',
+      });
+
+    const isOwner = await isOrganizationOwnerScoped(req.user.id, orgId);
+    const membership = isOwner
+      ? null
+      : await prisma.organizationMembership.findFirst({
+          where: { organization_id: orgId, user_id: req.user.id, status: 'active' },
+          select: { id: true },
+        });
+    if (!isOwner && !membership) return sendError(res, 403, 'PERMISSION_DENIED');
+
+    try {
+      const program = await prisma.sportProgram.create({
+        data: {
+          organization_id: orgId,
+          sport: parsed.data.sport,
+          name: parsed.data.name ?? null,
+        },
+      });
+      return res.status(201).json({ ok: true, program });
+    } catch (err: any) {
+      if (err?.code === 'P2002')
+        return sendError(res, 409, 'PROGRAM_EXISTS', {
+          message: 'This organization already has that sport program.',
+        });
+      throw err;
+    }
+  })
+);
+
+// GET /organizations/:id/programs — any authenticated user (public info)
+organizationsRouter.get(
+  '/:id/programs',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const orgId = String(req.params.id);
+    const programs = await prisma.sportProgram.findMany({
+      where: { organization_id: orgId },
+      orderBy: [{ sport: 'asc' }],
+      take: 200,
+      include: {
+        teams: {
+          where: { status: 'active' },
+          select: { id: true, name: true, level: true, gender: true },
+          orderBy: { created_at: 'asc' },
+          take: 25,
+        },
+      },
+    });
+    return res.json({ programs });
   })
 );
 

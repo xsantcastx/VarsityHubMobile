@@ -37,6 +37,8 @@ type SavedPost = {
   } | null;
   upvotes_count?: number;
   comments_count?: number;
+  game_id?: string | null;
+  event_id?: string | null;
 };
 
 const mapSavedPost = (raw: any): SavedPost | null => {
@@ -63,6 +65,8 @@ const mapSavedPost = (raw: any): SavedPost | null => {
       : null,
     upvotes_count: typeof raw.upvotes_count === 'number' ? raw.upvotes_count : undefined,
     comments_count: typeof raw.comments_count === 'number' ? raw.comments_count : undefined,
+    game_id: raw.game_id ?? raw.game?.id ?? null,
+    event_id: raw.event_id ?? raw.event?.id ?? null,
   };
 };
 

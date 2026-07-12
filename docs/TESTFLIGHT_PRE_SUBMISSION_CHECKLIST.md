@@ -13,6 +13,7 @@
 **Issue:** `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` is empty in `app.json`
 
 **Location:** `app.json` line 139
+
 ```json
 "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "",
 ```
@@ -20,6 +21,7 @@
 **Impact:** Payments will not work in TestFlight build
 
 **Fix:**
+
 1. Get production Stripe publishable key from Stripe Dashboard
 2. Add to `eas.json` production env (already there) ✅
 3. **Add to `app.json` if needed for build-time**:
@@ -34,6 +36,7 @@
 **Issue:** `EXPO_PUBLIC_NODE_ENV` is set to "development" in `app.json`
 
 **Location:** `app.json` line 135
+
 ```json
 "EXPO_PUBLIC_NODE_ENV": "development",
 ```
@@ -41,8 +44,9 @@
 **Impact:** May affect error handling, logging, feature flags
 
 **Fix:**
+
 - ✅ `eas.json` production profile sets correct env vars
-- ⚠️  **Verify EAS build uses production env, not app.json default**
+- ⚠️ **Verify EAS build uses production env, not app.json default**
 
 **Status:** ⚠️ **REVIEW** - Verify EAS build uses production profile
 
@@ -51,6 +55,7 @@
 **Issue:** `EXPO_PUBLIC_SENTRY_DSN` is empty in `app.json`
 
 **Location:** `app.json` line 138
+
 ```json
 "EXPO_PUBLIC_SENTRY_DSN": "",
 ```
@@ -86,7 +91,6 @@
 ### Legal Documents ✅
 
 - ✅ **Privacy Policy**: `PRIVACY_POLICY.md` exists
-- ✅ **Terms of Service**: `TERMS_OF_SERVICE.md` exists
 
 ### App Store Requirements ✅
 
@@ -111,6 +115,7 @@
 ### Before Building
 
 - [ ] **Verify EAS build uses production profile** (not development)
+
   ```bash
   eas build --platform ios --profile production
   ```
@@ -132,6 +137,7 @@
 ### Before Submitting to TestFlight
 
 - [ ] **Commit all changes**
+
   ```bash
   git add .
   git commit -m "chore: prepare for TestFlight submission v1.0.1"
@@ -139,12 +145,14 @@
   ```
 
 - [ ] **Run TypeScript check** ✅
+
   ```bash
   npm run typecheck
   # Result: 0 errors ✅
   ```
 
 - [ ] **Run lint check** ⚠️
+
   ```bash
   npm run lint
   # May fail if .env access blocked - check manually
@@ -211,29 +219,34 @@
 ## 📊 PRE-SUBMISSION VERIFICATION
 
 **Run this command before building:**
+
 ```bash
 npm run validate:pre-launch
 ```
 
 **Expected Output:**
+
 - ✅ All critical checks pass
-- ⚠️  Warnings are acceptable (version, .env access)
+- ⚠️ Warnings are acceptable (version, .env access)
 
 ---
 
 ## 🚀 BUILD COMMAND
 
 **Production Build:**
+
 ```bash
 eas build --platform ios --profile production
 ```
 
 **Submit to TestFlight (after build completes):**
+
 ```bash
 eas submit --platform ios --profile production
 ```
 
 **Or manually:**
+
 1. Download .ipa from EAS dashboard
 2. Upload via Xcode → Window → Organizer
 3. Submit to App Store Connect
@@ -246,12 +259,14 @@ eas submit --platform ios --profile production
 
 **Critical Issues**: None (all optional/review items)
 
-**Warnings**: 
+**Warnings**:
+
 - Stripe key (verify EAS production env has it)
 - NODE_ENV (verify EAS uses production profile)
 - Sentry DSN (optional)
 
-**Recommendation**: 
+**Recommendation**:
+
 1. ✅ Verify Stripe key in EAS production env
 2. ✅ Commit all changes
 3. ✅ Build and submit

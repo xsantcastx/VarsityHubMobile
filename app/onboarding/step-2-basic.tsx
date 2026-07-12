@@ -749,16 +749,16 @@ export default function Step2Basic() {
       )}
 
       <Text style={styles.label}>
-        Zip code {ob.role !== 'coach' && <Text style={styles.muted}>(optional)</Text>}
+        Zip / Postal code {ob.role !== 'coach' && <Text style={styles.muted}>(optional)</Text>}
       </Text>
       <Input
         testID="onboarding-step2-zip-input"
         value={zip}
         onChangeText={setZip}
-        autoCapitalize="none"
-        placeholder="12345"
-        keyboardType="numeric"
-        maxLength={5}
+        autoCapitalize="characters"
+        placeholder="e.g. 12345 or M5V 3L9"
+        keyboardType="default"
+        maxLength={10}
       />
       <ZipCodeMapPreview
         zipCode={zip}

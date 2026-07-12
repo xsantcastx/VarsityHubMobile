@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack } from 'expo-router';
 import { ReactNode } from 'react';
-import { ActivityIndicator, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
@@ -66,7 +66,9 @@ export function VerificationCodeScreenBase({
       <Text style={[styles.title, { color: theme.text }]}>Check Your Email</Text>
       <Text style={[styles.subtitle, { color: theme.mutedText }]}>{subtitle}</Text>
 
-      {screenError || gate.error ? <Text style={styles.error}>{screenError || gate.error}</Text> : null}
+      {screenError || gate.error ? (
+        <Text style={styles.error}>{screenError || gate.error}</Text>
+      ) : null}
       {screenInfo || gate.info ? <Text style={styles.info}>{screenInfo || gate.info}</Text> : null}
 
       {devCode ? (
@@ -84,12 +86,12 @@ export function VerificationCodeScreenBase({
           onChangeText={(value: string) => {
             const cleaned = value.replace(/[^0-9]/g, '');
             gate.setCode(cleaned);
-            if (cleaned.length === 6) {
+            // Patient auto-submit: verify when 6 digits are in, but never
+            // dismiss the keyboard first — if the code is wrong the user
+            // keeps their input and can correct it immediately.
+            if (cleaned.length === 6 && !gate.loading && !isVerified) {
               setTimeout(() => {
-                Keyboard.dismiss();
-                if (!gate.loading && !isVerified) {
-                  void onVerify();
-                }
+                void onVerify();
               }, 150);
             }
           }}
@@ -119,7 +121,9 @@ export function VerificationCodeScreenBase({
 
       {!isVerified ? (
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.mutedText }]}>Didn't receive the code?</Text>
+          <Text style={[styles.footerText, { color: theme.mutedText }]}>
+            Didn't receive the code?
+          </Text>
           <Pressable onPress={onResend} disabled={gate.loading || gate.resendCooldown > 0}>
             <Text
               style={[
@@ -142,7 +146,9 @@ export function VerificationCodeScreenBase({
       ) : null}
 
       {isVerified && verifiedHintText ? (
-        <Text style={[styles.autoRedirectText, { color: theme.mutedText }]}>{verifiedHintText}</Text>
+        <Text style={[styles.autoRedirectText, { color: theme.mutedText }]}>
+          {verifiedHintText}
+        </Text>
       ) : null}
     </>
   );
@@ -159,7 +165,9 @@ export function VerificationCodeScreenBase({
         }}
       />
       {useKeyboardAwareScroll ? (
-        <KeyboardAwareScreen contentContainerStyle={styles.scrollContent}>{content}</KeyboardAwareScreen>
+        <KeyboardAwareScreen contentContainerStyle={styles.scrollContent}>
+          {content}
+        </KeyboardAwareScreen>
       ) : (
         <View style={styles.centerContent}>{content}</View>
       )}

@@ -195,16 +195,15 @@ else
 fi
 
 if rg -q "/privacy-policy" server/src/routes/publicSite.ts &&
-   rg -q "/terms" server/src/routes/publicSite.ts &&
    rg -q "/support" server/src/routes/publicSite.ts &&
    rg -q "/account-deletion" server/src/routes/publicSite.ts; then
-  pass "Public privacy, terms, support, and account-deletion routes exist"
+  pass "Public privacy, support, and account-deletion routes exist"
 else
-  fail "Public legal/support/account-deletion routes are incomplete"
+  fail "Public privacy/support/account-deletion routes are incomplete"
 fi
 
 if rg -q "Delete Account" app/settings/index.tsx &&
-   rg -q "delete\\('/users/me'|delete\\('/me'" server/src/routes/users.ts server/src/routes/auth.ts; then
+   rg -qU "delete\\(\\s*'/users/me'|delete\\(\\s*'/me'" server/src/routes/users.ts server/src/routes/auth.ts; then
   pass "In-app account deletion UI and server deletion endpoint both exist"
 else
   fail "Account deletion flow is incomplete"
@@ -219,10 +218,15 @@ else
   fail "Billing flow invariants for Play policy are missing or have drifted"
 fi
 
-if bash -lc 'cd "'"$PROJECT_ROOT"'" && export JAVA_HOME=$(/usr/libexec/java_home -v 17) && export PATH="$JAVA_HOME/bin:$PATH" && ./android/gradlew -p android bundleRelease -m >/dev/null'; then
+GRADLE_DRYRUN_LOG="$(mktemp)"
+if bash -lc 'cd "'"$PROJECT_ROOT"'" && export JAVA_HOME=$(/usr/libexec/java_home -v 17) && export PATH="$JAVA_HOME/bin:$PATH" && ./android/gradlew -p android bundleRelease -m' >"$GRADLE_DRYRUN_LOG" 2>&1; then
   pass "Gradle can configure bundleRelease for Play upload"
+elif grep -qiE "Unsupported class file major version|incompatible Java|Unsupported Java|requires (a )?(JVM|JDK|Java)|configured to use JVM|invalid source release|class file version" "$GRADLE_DRYRUN_LOG"; then
+  warn "bundleRelease dry-run hit a LOCAL Java toolchain mismatch, not a repo problem (Gradle needs JDK 17; a running Gradle daemon on a newer JDK also causes this). Try './android/gradlew --stop' and re-run. EAS cloud builds are unaffected. Log: $GRADLE_DRYRUN_LOG"
+elif grep -q "SDK location not found" "$GRADLE_DRYRUN_LOG"; then
+  warn "bundleRelease dry-run could not find a LOCAL Android SDK (set ANDROID_HOME or android/local.properties), not a repo problem. EAS cloud builds are unaffected. Log: $GRADLE_DRYRUN_LOG"
 else
-  fail "bundleRelease Gradle dry-run failed"
+  fail "bundleRelease Gradle dry-run failed (log: $GRADLE_DRYRUN_LOG)"
 fi
 
 if npm --prefix "$PROJECT_ROOT/server" test -- --runInBand src/__tests__/public-site-routes.test.ts src/__tests__/iap-config-invariants.test.ts >/dev/null; then

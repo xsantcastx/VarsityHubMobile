@@ -35,6 +35,12 @@ config.resolver.extraNodeModules = {
 // Shim native-only modules on web so Metro doesn't try to bundle them
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === 'split-on-first') {
+    return {
+      type: 'sourceFile',
+      filePath: path.resolve(__dirname, 'shims/split-on-first.js'),
+    };
+  }
   if (moduleName === 'expo-modules-core') {
     return {
       type: 'sourceFile',

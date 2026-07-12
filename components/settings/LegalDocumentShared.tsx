@@ -19,27 +19,21 @@ type LegalSectionCardProps = {
   colorScheme: ColorScheme;
 };
 
-export function LegalDocumentScreen({
-  title,
-  colorScheme,
-  children,
-}: LegalDocumentScreenProps) {
+export function LegalDocumentScreen({ title, colorScheme, children }: LegalDocumentScreenProps) {
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
       edges={['bottom']}
     >
-      <Stack.Screen options={{ title }} />
+      {/* headerShown so these screens keep a title bar when mounted at the
+          root stack (public web routes) where headers are globally hidden */}
+      <Stack.Screen options={{ title, headerShown: true }} />
       <ScrollView contentContainerStyle={styles.content}>{children}</ScrollView>
     </SafeAreaView>
   );
 }
 
-export function LegalSectionCard({
-  title,
-  body,
-  colorScheme,
-}: LegalSectionCardProps) {
+export function LegalSectionCard({ title, body, colorScheme }: LegalSectionCardProps) {
   return (
     <View
       style={[

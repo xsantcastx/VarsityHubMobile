@@ -1,14 +1,12 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { SERVER_ROOKIE_TEAM_LIMIT } from './planDefinitions.js';
 import {
   buildAuthStateColumns,
   getPreferencesObject,
   mergeAuthStateIntoPreferences,
 } from './userAuthState.js';
-import {
-  buildBillingStateColumns,
-  mergeBillingStateIntoPreferences,
-} from './userBillingState.js';
+import { buildBillingStateColumns, mergeBillingStateIntoPreferences } from './userBillingState.js';
 
 type PrismaLike = PrismaClient | Prisma.TransactionClient;
 
@@ -21,7 +19,7 @@ export const APP_REVIEW_ORG_NAME = 'VarsityHub Review League';
 export const APP_REVIEW_TEAM_NAME = 'VarsityHub Review Team';
 export const APP_REVIEW_AD_NAME = 'VarsityHub Review Coach Demo Ad';
 export const APP_REVIEW_AGREEMENT_VERSION = 1;
-export const APP_REVIEW_MAX_TEAMS = 3;
+export const APP_REVIEW_MAX_TEAMS = SERVER_ROOKIE_TEAM_LIMIT;
 
 const BASE_PREFERENCES = {
   affiliation: 'school',

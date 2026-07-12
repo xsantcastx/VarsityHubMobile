@@ -28,11 +28,17 @@ const isMissingPollSchemaError = (error: any): boolean => {
   return /Poll/i.test(table) || /Poll/i.test(column) || /Poll/i.test(message);
 };
 
-const withMediaPreview = (post: any) => ({
-  ...post,
-  media_type: detectMediaType(post.media_url),
-  preview_url: getVideoPreviewUrl(post.media_url),
-});
+const withMediaPreview = (post: any) => {
+  // Strip precise capture coordinates: lat/lng feed the isLocal ranking boost
+  // above and must never reach clients — they expose where a user (often a
+  // minor) was filmed. country_code stays; it is coarse.
+  const { lat: _lat, lng: _lng, ...rest } = post;
+  return {
+    ...rest,
+    media_type: detectMediaType(rest.media_url),
+    preview_url: getVideoPreviewUrl(rest.media_url),
+  };
+};
 
 async function getZipCoordinatesWithFallback(
   zipCode: string
@@ -85,14 +91,13 @@ async function getFollowedPostsPage(
     const followedAuthorIds = followRows.map(r => r.following_id);
     followedFeedMeta = { following_count: followedAuthorIds.length };
 
-    if (followedAuthorIds.length === 0) {
-      return { items: [], nextCursor: null, followed_feed_meta: followedFeedMeta };
-    }
-
+    // A user's own posts always belong in their followed feed — without this,
+    // anyone who follows nobody sees a permanently empty Feed (671d87d3).
+    const authorPool = [...new Set([currentUserId, ...followedAuthorIds])];
     const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
     const allowedAuthorIds = allExcluded.length
-      ? followedAuthorIds.filter(id => !allExcluded.includes(id))
-      : followedAuthorIds;
+      ? authorPool.filter(id => !allExcluded.includes(id))
+      : authorPool;
 
     where.OR = [{ author_id: { in: allowedAuthorIds } }, { type: 'admin_broadcast' }];
   } else {
@@ -210,6 +215,10 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
     upvotes_count: true,
     created_at: true,
     author_id: true,
+    // Event/game linkage — every post surface must be able to offer
+    // "open the event page" (mirrors highlightPostSelect).
+    game_id: true,
+    event_id: true,
     author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
     lat: true,
     lng: true,

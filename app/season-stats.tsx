@@ -1,11 +1,20 @@
 import { Colors } from '@/constants/Colors';
+import { formatLevelLabel } from '@/constants/programs';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 // @ts-ignore JS exports
 import { Game as GameAPI, Team as TeamAPI } from '@/api/entities';
@@ -51,10 +60,17 @@ interface GameResult {
 function computeTeamStats(games: any[], teamId: string): TeamStats {
   const completed = games.filter((g: any) => g.status === 'completed' && g.winner);
 
-  let wins = 0, losses = 0, ties = 0;
-  let pointsFor = 0, pointsAgainst = 0;
-  let homeWins = 0, homeLosses = 0, homeTies = 0;
-  let awayWins = 0, awayLosses = 0, awayTies = 0;
+  let wins = 0,
+    losses = 0,
+    ties = 0;
+  let pointsFor = 0,
+    pointsAgainst = 0;
+  let homeWins = 0,
+    homeLosses = 0,
+    homeTies = 0;
+  let awayWins = 0,
+    awayLosses = 0,
+    awayTies = 0;
 
   for (const g of completed) {
     const isHome = g.home_team_id === teamId;
@@ -66,13 +82,16 @@ function computeTeamStats(games: any[], teamId: string): TeamStats {
 
     if (g.winner === 'tie') {
       ties++;
-      if (isHome) homeTies++; else awayTies++;
+      if (isHome) homeTies++;
+      else awayTies++;
     } else if ((g.winner === 'home' && isHome) || (g.winner === 'away' && !isHome)) {
       wins++;
-      if (isHome) homeWins++; else awayWins++;
+      if (isHome) homeWins++;
+      else awayWins++;
     } else {
       losses++;
-      if (isHome) homeLosses++; else awayLosses++;
+      if (isHome) homeLosses++;
+      else awayLosses++;
     }
   }
 
@@ -80,7 +99,9 @@ function computeTeamStats(games: any[], teamId: string): TeamStats {
   const winPercentage = gamesPlayed > 0 ? wins / gamesPlayed : 0;
 
   // Streak: count consecutive same results from most recent
-  const sorted = [...completed].filter((g: any) => g.date).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const sorted = [...completed]
+    .filter((g: any) => g.date)
+    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
   let streak = '-';
   if (sorted.length > 0) {
     const getOutcome = (g: any) => {
@@ -170,89 +191,94 @@ function SeasonStatsScreen() {
   const [managedTeams, setManagedTeams] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = useCallback(async (teamIdToLoad?: string | null) => {
-    try {
-      setError(null);
-      let tid = teamIdToLoad ?? activeTeamId;
+  const loadData = useCallback(
+    async (teamIdToLoad?: string | null) => {
+      try {
+        setError(null);
+        let tid = teamIdToLoad ?? activeTeamId;
 
-      // If no teamId, pick first managed team
-      if (!tid) {
-        try {
-          const teams = await TeamAPI.managed();
-          const teamList = Array.isArray(teams) ? teams : (teams?.teams ?? []);
-          setManagedTeams(teamList);
-          if (teamList.length > 0) {
-            tid = teamList[0].id;
-            setActiveTeamId(tid);
-            setTeamName(teamList[0].name || '');
-          } else {
+        // If no teamId, pick first managed team
+        if (!tid) {
+          try {
+            const teams = await TeamAPI.managed();
+            const teamList = Array.isArray(teams) ? teams : (teams?.teams ?? []);
+            setManagedTeams(teamList);
+            if (teamList.length > 0) {
+              tid = teamList[0].id;
+              setActiveTeamId(tid);
+              setTeamName(teamList[0].name || '');
+            } else {
+              setLoading(false);
+              setError('No managed teams found');
+              return;
+            }
+          } catch {
             setLoading(false);
-            setError('No managed teams found');
+            setError('Could not load teams');
             return;
           }
-        } catch {
-          setLoading(false);
-          setError('Could not load teams');
-          return;
         }
-      }
 
-      // Fetch team details, games, and members in parallel
-      const resolvedTid = tid!;
-      const [gamesRes, membersRes] = await Promise.all([
-        GameAPI.list('-date', { limit: 100, teamId: resolvedTid }),
-        TeamAPI.members(resolvedTid).catch(() => []),
-      ]);
+        // Fetch team details, games, and members in parallel
+        const resolvedTid = tid!;
+        const [gamesRes, membersRes] = await Promise.all([
+          GameAPI.list('-date', { limit: 100, teamId: resolvedTid }),
+          TeamAPI.members(resolvedTid).catch(() => []),
+        ]);
 
-      // If we don't have team name yet, fetch it
-      if (!teamName && tid) {
-        try {
-          const team = await TeamAPI.get(tid);
-          setTeamName(team?.name || '');
-        } catch {
-          // non-critical
+        // If we don't have team name yet, fetch it
+        if (!teamName && tid) {
+          try {
+            const team = await TeamAPI.get(tid);
+            setTeamName(team?.name || '');
+          } catch {
+            // non-critical
+          }
         }
+
+        // Normalize games list
+        const allGames: any[] = Array.isArray(gamesRes)
+          ? gamesRes
+          : (gamesRes?.games ?? gamesRes?.items ?? []);
+
+        // Filter to games this team played in
+        const teamGames = allGames.filter(
+          (g: any) => g.home_team_id === tid || g.away_team_id === tid
+        );
+
+        // Compute stats
+        const stats = computeTeamStats(teamGames, tid!);
+        setTeamStats(stats);
+
+        // Build game results
+        setGameResults(buildGameResults(teamGames, tid!));
+
+        // Build player list from members
+        const membersList = Array.isArray(membersRes) ? membersRes : (membersRes?.members ?? []);
+        const players: PlayerStat[] = membersList.map((m: any) => ({
+          id: m.id || m.user_id || String(Math.random()),
+          name: m.display_name || m.name || m.email || 'Unknown',
+          position: m.custom_position || m.position || '-',
+          gamesPlayed: stats.gamesPlayed, // team-level games played (no per-player tracking)
+          role: m.role || 'member',
+        }));
+        setPlayerStats(players);
+      } catch (err: any) {
+        if (__DEV__) console.error('[SeasonStats] Error loading data:', err);
+        setError(err?.message || 'Failed to load stats');
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-
-      // Normalize games list
-      const allGames: any[] = Array.isArray(gamesRes) ? gamesRes : (gamesRes?.games ?? gamesRes?.items ?? []);
-
-      // Filter to games this team played in
-      const teamGames = allGames.filter(
-        (g: any) => g.home_team_id === tid || g.away_team_id === tid
-      );
-
-      // Compute stats
-      const stats = computeTeamStats(teamGames, tid!);
-      setTeamStats(stats);
-
-      // Build game results
-      setGameResults(buildGameResults(teamGames, tid!));
-
-      // Build player list from members
-      const membersList = Array.isArray(membersRes) ? membersRes : (membersRes?.members ?? []);
-      const players: PlayerStat[] = membersList.map((m: any) => ({
-        id: m.id || m.user_id || String(Math.random()),
-        name: m.display_name || m.name || m.email || 'Unknown',
-        position: m.custom_position || m.position || '-',
-        gamesPlayed: stats.gamesPlayed, // team-level games played (no per-player tracking)
-        role: m.role || 'player',
-      }));
-      setPlayerStats(players);
-    } catch (err: any) {
-      if (__DEV__) console.error('[SeasonStats] Error loading data:', err);
-      setError(err?.message || 'Failed to load stats');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [activeTeamId, teamName]);
+    },
+    [activeTeamId, teamName]
+  );
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
       void loadData(params.teamId ?? null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadData is stable; only re-run on teamId change
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- loadData is stable; only re-run on teamId change
     }, [params.teamId])
   );
 
@@ -293,7 +319,12 @@ function SeasonStatsScreen() {
     headerStyle: { backgroundColor: theme.background },
     headerTintColor: theme.text,
     headerLeft: () => (
-      <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
+      <Pressable
+        onPress={() => {
+          safeGoBack(router);
+        }}
+        style={{ paddingLeft: 8 }}
+      >
         <MaterialIcons name="chevron-left" size={24} color={theme.tint} />
       </Pressable>
     ),
@@ -305,9 +336,7 @@ function SeasonStatsScreen() {
         <Stack.Screen options={screenOptions} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.tint} />
-          <Text style={[styles.loadingText, { color: theme.mutedText }]}>
-            Loading stats...
-          </Text>
+          <Text style={[styles.loadingText, { color: theme.mutedText }]}>Loading stats...</Text>
         </View>
       </View>
     );
@@ -324,9 +353,7 @@ function SeasonStatsScreen() {
           }
         >
           <MaterialIcons name="bar-chart" size={48} color={theme.mutedText} />
-          <Text style={[styles.emptyTitle, { color: theme.text }]}>
-            No Stats Available
-          </Text>
+          <Text style={[styles.emptyTitle, { color: theme.text }]}>No Stats Available</Text>
           <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>
             {error || 'No team data found. Pull to refresh.'}
           </Text>
@@ -344,53 +371,64 @@ function SeasonStatsScreen() {
 
       {/* Team Selector */}
       {showTeamSelector && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.teamSelectorContainer} contentContainerStyle={styles.teamSelectorContent}>
-          {managedTeams.map((t: any) => (
-            <Pressable
-              key={t.id}
-              style={[
-                styles.teamSelectorChip,
-                {
-                  backgroundColor: activeTeamId === t.id ? theme.tint : theme.surface,
-                  borderColor: theme.border,
-                },
-              ]}
-              onPress={() => {
-                setActiveTeamId(t.id);
-                setTeamName(t.name || '');
-                setLoading(true);
-                void loadData(t.id);
-              }}
-            >
-              <Text
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.teamSelectorContainer}
+          contentContainerStyle={styles.teamSelectorContent}
+        >
+          {managedTeams.map((t: any) => {
+            const levelLabel = formatLevelLabel(t.level);
+            return (
+              <Pressable
+                key={t.id}
                 style={[
-                  styles.teamSelectorText,
-                  { color: activeTeamId === t.id ? '#fff' : theme.text },
+                  styles.teamSelectorChip,
+                  {
+                    backgroundColor: activeTeamId === t.id ? theme.tint : theme.surface,
+                    borderColor: theme.border,
+                  },
                 ]}
-                numberOfLines={1}
+                onPress={() => {
+                  setActiveTeamId(t.id);
+                  setTeamName(t.name || '');
+                  setLoading(true);
+                  void loadData(t.id);
+                }}
               >
-                {t.name}
-              </Text>
-            </Pressable>
-          ))}
+                <Text
+                  style={[
+                    styles.teamSelectorText,
+                    { color: activeTeamId === t.id ? '#fff' : theme.text },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {t.name}
+                  {levelLabel ? ` · ${levelLabel}` : ''}
+                </Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
       )}
 
       {/* Header Stats Overview */}
-      <View style={[styles.headerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <LinearGradient
-          colors={[theme.tint, theme.tint + '80']}
-          style={styles.statsGradient}
-        >
+      <View
+        style={[styles.headerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      >
+        <LinearGradient colors={[theme.tint, theme.tint + '80']} style={styles.statsGradient}>
           <View style={styles.seasonHeader}>
             <View style={styles.seasonInfo}>
               <Text style={styles.seasonTitle}>{teamName || 'Season Stats'}</Text>
               <Text style={styles.recordText}>
-                {formatRecord(teamStats.wins, teamStats.losses, teamStats.ties)} • {(teamStats.winPercentage * 100).toFixed(1)}% Win Rate
+                {formatRecord(teamStats.wins, teamStats.losses, teamStats.ties)} •{' '}
+                {(teamStats.winPercentage * 100).toFixed(1)}% Win Rate
               </Text>
             </View>
             {teamStats.streak !== '-' && (
-              <View style={[styles.streakBadge, { backgroundColor: getStreakColor(teamStats.streak) }]}>
+              <View
+                style={[styles.streakBadge, { backgroundColor: getStreakColor(teamStats.streak) }]}
+              >
                 <Text style={styles.streakText}>{teamStats.streak}</Text>
               </View>
             )}
@@ -406,7 +444,10 @@ function SeasonStatsScreen() {
               <Text style={styles.quickStatLabel}>Points Against</Text>
             </View>
             <View style={styles.quickStat}>
-              <Text style={styles.quickStatNumber}>{teamStats.pointDifferential > 0 ? '+' : ''}{teamStats.pointDifferential}</Text>
+              <Text style={styles.quickStatNumber}>
+                {teamStats.pointDifferential > 0 ? '+' : ''}
+                {teamStats.pointDifferential}
+              </Text>
               <Text style={styles.quickStatLabel}>Differential</Text>
             </View>
             <View style={styles.quickStat}>
@@ -419,19 +460,16 @@ function SeasonStatsScreen() {
 
       {/* Tab Navigation */}
       <View style={[styles.tabContainer, { backgroundColor: theme.surface }]}>
-        {(['team', 'players', 'games'] as const).map((tab) => (
+        {(['team', 'players', 'games'] as const).map(tab => (
           <Pressable
             key={tab}
             style={[
               styles.tab,
-              { backgroundColor: selectedTab === tab ? theme.tint : 'transparent' }
+              { backgroundColor: selectedTab === tab ? theme.tint : 'transparent' },
             ]}
             onPress={() => setSelectedTab(tab)}
           >
-            <Text style={[
-              styles.tabText,
-              { color: selectedTab === tab ? '#fff' : theme.text }
-            ]}>
+            <Text style={[styles.tabText, { color: selectedTab === tab ? '#fff' : theme.text }]}>
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </Text>
           </Pressable>
@@ -441,45 +479,58 @@ function SeasonStatsScreen() {
       <ScrollView
         style={{ flex: 1 }}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[theme.tint]}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.tint]} />
         }
         showsVerticalScrollIndicator={false}
       >
         {selectedTab === 'team' && (
           <View style={styles.tabContent}>
             {teamStats.gamesPlayed === 0 ? (
-              <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.sectionCard,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+              >
                 <Text style={[styles.emptyTabText, { color: theme.mutedText }]}>
-                  No completed games yet. Stats will appear once games have been played and results recorded.
+                  No completed games yet. Stats will appear once games have been played and results
+                  recorded.
                 </Text>
               </View>
             ) : (
               <>
                 {/* Overall Record */}
-                <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                    Overall Record
-                  </Text>
+                <View
+                  style={[
+                    styles.sectionCard,
+                    { backgroundColor: theme.surface, borderColor: theme.border },
+                  ]}
+                >
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Overall Record</Text>
 
                   <View style={styles.recordGrid}>
                     <View style={styles.recordItem}>
-                      <Text style={[styles.recordValue, { color: '#10B981' }]}>{teamStats.wins}</Text>
+                      <Text style={[styles.recordValue, { color: '#10B981' }]}>
+                        {teamStats.wins}
+                      </Text>
                       <Text style={[styles.recordLabel, { color: theme.text }]}>Wins</Text>
                     </View>
                     <View style={styles.recordItem}>
-                      <Text style={[styles.recordValue, { color: '#EF4444' }]}>{teamStats.losses}</Text>
+                      <Text style={[styles.recordValue, { color: '#EF4444' }]}>
+                        {teamStats.losses}
+                      </Text>
                       <Text style={[styles.recordLabel, { color: theme.text }]}>Losses</Text>
                     </View>
                     <View style={styles.recordItem}>
-                      <Text style={[styles.recordValue, { color: theme.mutedText }]}>{teamStats.ties}</Text>
+                      <Text style={[styles.recordValue, { color: theme.mutedText }]}>
+                        {teamStats.ties}
+                      </Text>
                       <Text style={[styles.recordLabel, { color: theme.text }]}>Ties</Text>
                     </View>
                     <View style={styles.recordItem}>
-                      <Text style={[styles.recordValue, { color: theme.text }]}>{teamStats.gamesPlayed}</Text>
+                      <Text style={[styles.recordValue, { color: theme.text }]}>
+                        {teamStats.gamesPlayed}
+                      </Text>
                       <Text style={[styles.recordLabel, { color: theme.text }]}>Played</Text>
                     </View>
                   </View>
@@ -491,8 +542,8 @@ function SeasonStatsScreen() {
                           styles.percentageFill,
                           {
                             width: `${teamStats.winPercentage * 100}%`,
-                            backgroundColor: theme.tint
-                          }
+                            backgroundColor: theme.tint,
+                          },
                         ]}
                       />
                     </View>
@@ -503,7 +554,12 @@ function SeasonStatsScreen() {
                 </View>
 
                 {/* Home vs Away */}
-                <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <View
+                  style={[
+                    styles.sectionCard,
+                    { backgroundColor: theme.surface, borderColor: theme.border },
+                  ]}
+                >
                   <Text style={[styles.sectionTitle, { color: theme.text }]}>
                     Home vs Away Performance
                   </Text>
@@ -528,7 +584,12 @@ function SeasonStatsScreen() {
                 </View>
 
                 {/* Scoring Stats */}
-                <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <View
+                  style={[
+                    styles.sectionCard,
+                    { backgroundColor: theme.surface, borderColor: theme.border },
+                  ]}
+                >
                   <Text style={[styles.sectionTitle, { color: theme.text }]}>
                     Scoring Statistics
                   </Text>
@@ -569,27 +630,36 @@ function SeasonStatsScreen() {
                     <Text style={[styles.differentialLabel, { color: theme.text }]}>
                       Point Differential
                     </Text>
-                    <Text style={[
-                      styles.differentialValue,
-                      { color: teamStats.pointDifferential >= 0 ? '#10B981' : '#EF4444' }
-                    ]}>
-                      {teamStats.pointDifferential > 0 ? '+' : ''}{teamStats.pointDifferential}
+                    <Text
+                      style={[
+                        styles.differentialValue,
+                        { color: teamStats.pointDifferential >= 0 ? '#10B981' : '#EF4444' },
+                      ]}
+                    >
+                      {teamStats.pointDifferential > 0 ? '+' : ''}
+                      {teamStats.pointDifferential}
                     </Text>
                   </View>
                 </View>
 
                 {/* Recent Form */}
-                <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                    Recent Form
-                  </Text>
+                <View
+                  style={[
+                    styles.sectionCard,
+                    { backgroundColor: theme.surface, borderColor: theme.border },
+                  ]}
+                >
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Form</Text>
 
                   <View style={styles.formContainer}>
                     <View style={styles.formStat}>
-                      <Text style={[styles.formLabel, { color: theme.text }]}>
-                        Current Streak
-                      </Text>
-                      <View style={[styles.formBadge, { backgroundColor: getStreakColor(teamStats.streak) }]}>
+                      <Text style={[styles.formLabel, { color: theme.text }]}>Current Streak</Text>
+                      <View
+                        style={[
+                          styles.formBadge,
+                          { backgroundColor: getStreakColor(teamStats.streak) },
+                        ]}
+                      >
                         <Text style={styles.formBadgeText}>{teamStats.streak}</Text>
                       </View>
                     </View>
@@ -605,7 +675,14 @@ function SeasonStatsScreen() {
                               key={index}
                               style={[
                                 styles.formResult,
-                                { backgroundColor: result === 'W' ? '#10B981' : result === 'L' ? '#EF4444' : '#6B7280' }
+                                {
+                                  backgroundColor:
+                                    result === 'W'
+                                      ? '#10B981'
+                                      : result === 'L'
+                                        ? '#EF4444'
+                                        : '#6B7280',
+                                },
                               ]}
                             >
                               <Text style={styles.formResultText}>{result}</Text>
@@ -623,18 +700,27 @@ function SeasonStatsScreen() {
 
         {selectedTab === 'players' && (
           <View style={styles.tabContent}>
-            <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                Team Members
-              </Text>
+            <View
+              style={[
+                styles.sectionCard,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Team Members</Text>
 
               {playerStats.length === 0 ? (
                 <Text style={[styles.emptyTabText, { color: theme.mutedText }]}>
-                  No team members found. Invite players to your team to see them here.
+                  No staff members yet. Add coaches or managers to your team to see them here.
                 </Text>
               ) : (
                 playerStats.map((player, index) => (
-                  <View key={player.id} style={[styles.playerCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                  <View
+                    key={player.id}
+                    style={[
+                      styles.playerCard,
+                      { backgroundColor: theme.background, borderColor: theme.border },
+                    ]}
+                  >
                     <View style={styles.playerHeader}>
                       <View style={styles.playerInfo}>
                         <View style={[styles.playerRank, { backgroundColor: theme.card }]}>
@@ -696,30 +782,50 @@ function SeasonStatsScreen() {
 
         {selectedTab === 'games' && (
           <View style={styles.tabContent}>
-            <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                Game Results
-              </Text>
+            <View
+              style={[
+                styles.sectionCard,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Game Results</Text>
 
               {gameResults.length === 0 ? (
                 <Text style={[styles.emptyTabText, { color: theme.mutedText }]}>
                   No games found for this team yet.
                 </Text>
               ) : (
-                gameResults.map((game) => (
-                  <View key={game.id} style={[styles.gameCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                gameResults.map(game => (
+                  <View
+                    key={game.id}
+                    style={[
+                      styles.gameCard,
+                      { backgroundColor: theme.background, borderColor: theme.border },
+                    ]}
+                  >
                     <View style={styles.gameCardHeader}>
                       <Text style={[styles.gameDate, { color: theme.mutedText }]}>
                         {formatDate(game.date)}
                       </Text>
                       {game.result ? (
-                        <View style={[styles.gameResultBadge, { backgroundColor: getResultColor(game.result) }]}>
+                        <View
+                          style={[
+                            styles.gameResultBadge,
+                            { backgroundColor: getResultColor(game.result) },
+                          ]}
+                        >
                           <Text style={styles.gameResultBadgeText}>{game.result}</Text>
                         </View>
                       ) : (
-                        <View style={[styles.gameResultBadge, { backgroundColor: theme.mutedText }]}>
+                        <View
+                          style={[styles.gameResultBadge, { backgroundColor: theme.mutedText }]}
+                        >
                           <Text style={styles.gameResultBadgeText}>
-                            {game.status === 'upcoming' ? 'TBD' : game.status === 'cancelled' ? 'CAN' : '-'}
+                            {game.status === 'upcoming'
+                              ? 'TBD'
+                              : game.status === 'cancelled'
+                                ? 'CAN'
+                                : '-'}
                           </Text>
                         </View>
                       )}
@@ -733,25 +839,36 @@ function SeasonStatsScreen() {
 
                     <View style={styles.gameScoreLine}>
                       <View style={styles.gameTeam}>
-                        <Text style={[
-                          styles.gameTeamName,
-                          { color: theme.text, fontWeight: game.isHome ? '800' : '500' }
-                        ]} numberOfLines={1}>
+                        <Text
+                          style={[
+                            styles.gameTeamName,
+                            { color: theme.text, fontWeight: game.isHome ? '800' : '500' },
+                          ]}
+                          numberOfLines={1}
+                        >
                           {game.homeTeamName}
                         </Text>
-                        {game.isHome && <Text style={[styles.homeIndicator, { color: theme.tint }]}>(H)</Text>}
+                        {game.isHome && (
+                          <Text style={[styles.homeIndicator, { color: theme.tint }]}>(H)</Text>
+                        )}
                       </View>
                       <Text style={[styles.gameScore, { color: theme.text }]}>
-                        {game.homeScore !== null ? game.homeScore : '-'} - {game.awayScore !== null ? game.awayScore : '-'}
+                        {game.homeScore !== null ? game.homeScore : '-'} -{' '}
+                        {game.awayScore !== null ? game.awayScore : '-'}
                       </Text>
                       <View style={[styles.gameTeam, { alignItems: 'flex-end' }]}>
-                        <Text style={[
-                          styles.gameTeamName,
-                          { color: theme.text, fontWeight: !game.isHome ? '800' : '500' }
-                        ]} numberOfLines={1}>
+                        <Text
+                          style={[
+                            styles.gameTeamName,
+                            { color: theme.text, fontWeight: !game.isHome ? '800' : '500' },
+                          ]}
+                          numberOfLines={1}
+                        >
                           {game.awayTeamName}
                         </Text>
-                        {!game.isHome && <Text style={[styles.homeIndicator, { color: theme.tint }]}>(A)</Text>}
+                        {!game.isHome && (
+                          <Text style={[styles.homeIndicator, { color: theme.tint }]}>(A)</Text>
+                        )}
                       </View>
                     </View>
                   </View>

@@ -9,14 +9,14 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    useColorScheme,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useColorScheme,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -26,7 +26,7 @@ const AGREEMENT_POINTS = [
   'No broadcast footage or copyrighted content. All uploads must be original.',
   "Athlete content may involve NIL rights. Follow your school's media policies.",
   "You are responsible for your team's compliance with school and conference policies.",
-  "You agree to VarsityHub's Terms of Service and Community Guidelines.",
+  "You agree to VarsityHub's privacy policy.",
 ];
 
 function CoachAgreementScreen() {
@@ -121,7 +121,9 @@ function CoachAgreementScreen() {
             )}
           </Pressable>
         ) : (
-          <View style={[styles.pendingBanner, { backgroundColor: C.surface, borderColor: C.border }]}>
+          <View
+            style={[styles.pendingBanner, { backgroundColor: C.surface, borderColor: C.border }]}
+          >
             <MaterialIcons name="hourglass-empty" size={18} color={C.mutedText} />
             <Text style={[styles.pendingText, { color: C.mutedText }]}>
               Awaiting admin approval before you can accept the agreement.

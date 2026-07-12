@@ -142,9 +142,13 @@ describe('(tabs) navigator registry', () => {
     function scan(dir: string) {
       for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
         const rel = `${dir}/${entry.name}`;
-        if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== '__tests__') {
           scan(rel);
-        } else if (entry.isFile() && /\.(tsx?|jsx?)$/.test(entry.name)) {
+        } else if (
+          entry.isFile() &&
+          /\.(tsx?|jsx?)$/.test(entry.name) &&
+          !/\.test\.(tsx?|jsx?)$/.test(entry.name)
+        ) {
           const src = readFile(rel);
           const lines = src.split('\n');
           lines.forEach((line, i) => {
@@ -178,9 +182,13 @@ describe('(tabs) navigator registry', () => {
     function scan(dir: string) {
       for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
         const rel = `${dir}/${entry.name}`;
-        if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== '__tests__') {
           scan(rel);
-        } else if (entry.isFile() && /\.(tsx?|jsx?)$/.test(entry.name)) {
+        } else if (
+          entry.isFile() &&
+          /\.(tsx?|jsx?)$/.test(entry.name) &&
+          !/\.test\.(tsx?|jsx?)$/.test(entry.name)
+        ) {
           const src = readFile(rel);
           const lines = src.split('\n');
           lines.forEach((line, i) => {

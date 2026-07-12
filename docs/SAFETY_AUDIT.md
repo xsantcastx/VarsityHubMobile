@@ -9,14 +9,14 @@
 
 ### When User A Blocks User B — What Can B Still Do?
 
-| Action | Can B Do It? | Server-Side Enforced? | Location |
-|--------|--------------|------------------------|----------|
-| **See A's posts in feed** | ✅ Yes | ❌ No | `posts.ts` GET `/` — no block filter |
-| **Send A messages** | ❌ No | ✅ Yes | `messages.ts` POST `/` — returns 403 MESSAGE_BLOCKED |
-| **Comment on A's posts** | ✅ Yes | ❌ No | `posts.ts` POST `/:id/comments` — no block check |
-| **View A's profile** | ✅ Yes | ❌ No | No block filter on user/profile endpoints |
-| **Follow A** | ✅ Yes | ❌ No | No block check on follows |
-| **See messages list with A** | ✅ Yes | ❌ No | GET `/messages` returns all conversations; no filter for blocked users |
+| Action                       | Can B Do It? | Server-Side Enforced? | Location                                                               |
+| ---------------------------- | ------------ | --------------------- | ---------------------------------------------------------------------- |
+| **See A's posts in feed**    | ✅ Yes       | ❌ No                 | `posts.ts` GET `/` — no block filter                                   |
+| **Send A messages**          | ❌ No        | ✅ Yes                | `messages.ts` POST `/` — returns 403 MESSAGE_BLOCKED                   |
+| **Comment on A's posts**     | ✅ Yes       | ❌ No                 | `posts.ts` POST `/:id/comments` — no block check                       |
+| **View A's profile**         | ✅ Yes       | ❌ No                 | No block filter on user/profile endpoints                              |
+| **Follow A**                 | ✅ Yes       | ❌ No                 | No block check on follows                                              |
+| **See messages list with A** | ✅ Yes       | ❌ No                 | GET `/messages` returns all conversations; no filter for blocked users |
 
 ### Blocking Implementation
 
@@ -37,12 +37,12 @@
 
 ### How Many Taps to Report a Post?
 
-| Flow | Taps | Notes |
-|------|------|-------|
-| **From post in feed** | N/A | No "Report" option on PostCard. Only author sees ellipsis menu (Edit/Delete). |
-| **From post detail** | N/A | No Report option on post-detail screen. |
-| **From Settings** | 4+ | Settings → Report Abuse → fill form (subject, details, email) → Submit |
-| **From message thread** | 3+ | Message thread → Safety menu → Report user → Report Abuse form |
+| Flow                    | Taps | Notes                                                                         |
+| ----------------------- | ---- | ----------------------------------------------------------------------------- |
+| **From post in feed**   | N/A  | No "Report" option on PostCard. Only author sees ellipsis menu (Edit/Delete). |
+| **From post detail**    | N/A  | No Report option on post-detail screen.                                       |
+| **From Settings**       | 4+   | Settings → Report Abuse → fill form (subject, details, email) → Submit        |
+| **From message thread** | 3+   | Message thread → Safety menu → Report user → Report Abuse form                |
 
 ### In-Post Report
 
@@ -65,11 +65,11 @@
 
 ### Summary (Reporting)
 
-| Question | Answer |
-|----------|--------|
-| Taps to report a post from feed? | Not possible — no in-post report option |
-| Feedback after report? | ✅ Yes (Report Abuse form shows success alert) |
-| Content hidden from reporter? | ❌ No |
+| Question                         | Answer                                         |
+| -------------------------------- | ---------------------------------------------- |
+| Taps to report a post from feed? | Not possible — no in-post report option        |
+| Feedback after report?           | ✅ Yes (Report Abuse form shows success alert) |
+| Content hidden from reporter?    | ❌ No                                          |
 
 ---
 
@@ -84,28 +84,28 @@
 
 ### Other Age Restrictions
 
-| Area | Protection? | Notes |
-|------|-------------|-------|
-| **Messaging (minor → non-followed)** | ✅ Yes | Minor cannot message users they don't follow |
-| **Messaging (adult → minor)** | ❌ No | No restriction; adults can DM minors |
-| **Posts / feed** | ❌ No | No age-based content filtering |
-| **Comments** | ❌ No | No age restriction on who can comment |
-| **Events / RSVP** | ❌ No | No age checks |
-| **Group chats** | ❌ No | No age checks (not audited in depth) |
-| **Follows** | ❌ No | No age restriction on who can follow whom |
+| Area                                 | Protection? | Notes                                        |
+| ------------------------------------ | ----------- | -------------------------------------------- |
+| **Messaging (minor → non-followed)** | ✅ Yes      | Minor cannot message users they don't follow |
+| **Messaging (adult → minor)**        | ❌ No       | No restriction; adults can DM minors         |
+| **Posts / feed**                     | ❌ No       | No age-based content filtering               |
+| **Comments**                         | ❌ No       | No age restriction on who can comment        |
+| **Events / RSVP**                    | ❌ No       | No age checks                                |
+| **Group chats**                      | ❌ No       | No age checks (not audited in depth)         |
+| **Follows**                          | ❌ No       | No age restriction on who can follow whom    |
 
 ### Data Model
 
 - **DOB:** Stored in `User.preferences.dob` (optional string). Used only in messaging.
-- **Terms:** `app/settings/terms-of-service.tsx` states "Users aged 13–17 must have parental consent" — policy only, not enforced in code.
+- **Policy text:** `app/settings/privacy-policy.tsx` states "Users between 13 and 17 must have parental or guardian consent to use the Service" — policy only, not enforced in code.
 
 ### Summary (Under-18)
 
-| Question | Answer |
-|----------|--------|
-| Can minors see all content? | ✅ Yes — no content filtering by age |
-| Can adults message minors freely? | ✅ Yes — no adult→minor restriction |
-| Is age policy enforced? | Partial — only minor→non-followed is blocked |
+| Question                          | Answer                                       |
+| --------------------------------- | -------------------------------------------- |
+| Can minors see all content?       | ✅ Yes — no content filtering by age         |
+| Can adults message minors freely? | ✅ Yes — no adult→minor restriction          |
+| Is age policy enforced?           | Partial — only minor→non-followed is blocked |
 
 ---
 
@@ -136,11 +136,11 @@
 
 ## 5. Endpoint Summary
 
-| Endpoint | Block Check | Age Check |
-|----------|-------------|-----------|
-| `GET /posts` | ❌ | ❌ |
-| `POST /posts/:id/comments` | ❌ | ❌ |
-| `GET /messages` | ❌ | N/A |
-| `POST /messages` | ✅ | Partial (minor→adult only) |
-| `GET /users/:id` | ❌ | N/A |
-| `POST /users/:id/follow` | ❌ | N/A |
+| Endpoint                   | Block Check | Age Check                  |
+| -------------------------- | ----------- | -------------------------- |
+| `GET /posts`               | ❌          | ❌                         |
+| `POST /posts/:id/comments` | ❌          | ❌                         |
+| `GET /messages`            | ❌          | N/A                        |
+| `POST /messages`           | ✅          | Partial (minor→adult only) |
+| `GET /users/:id`           | ❌          | N/A                        |
+| `POST /users/:id/follow`   | ❌          | N/A                        |

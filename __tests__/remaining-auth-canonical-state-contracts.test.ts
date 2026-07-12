@@ -49,10 +49,10 @@ describe('remaining auth canonical state contracts', () => {
     expect(createPostScreen).not.toContain('const me = await User.me().catch(() => null);');
 
     expect(discoverScreen).toContain(
-      "import { getAuthSnapshot, getCanonicalRole } from '@/utils/authState';"
+      "import { getAuthSnapshot, getCanonicalOrganizationId } from '@/utils/authState';"
     );
     expect(discoverScreen).toContain('const { user, checkAuth } = useAuth();');
-    expect(discoverScreen).toContain('currentUser = await getAuthSnapshot(checkAuth, user);');
+    expect(discoverScreen).toContain('await getAuthSnapshot(checkAuth, user)');
     expect(discoverScreen).not.toContain('user = await User.me();');
 
     // edit-profile is the one allowlisted force-refresh screen (see

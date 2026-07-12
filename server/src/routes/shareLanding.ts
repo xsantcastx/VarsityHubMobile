@@ -33,8 +33,7 @@ import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma.js';
 
 const APP_STORE_URL =
-  process.env.IOS_APP_STORE_URL ||
-  'https://apps.apple.com/us/app/varsityhub/id6758405187';
+  process.env.IOS_APP_STORE_URL || 'https://apps.apple.com/us/app/varsityhub/id6758405187';
 const PLAY_STORE_URL =
   process.env.ANDROID_PLAY_STORE_URL ||
   'https://play.google.com/store/apps/details?id=com.xsantcastx.varsityhub';
@@ -42,7 +41,16 @@ const PLAY_STORE_URL =
 /** Routes the OS may try to deep-link via universal links. Mirrors the
  *  AASA `paths` and Android `intentFilters` pathPrefixes. Anything else
  *  on a shareable host falls through unhandled. */
-const SHAREABLE_PATHS = ['/posts', '/games', '/teams', '/users', '/events', '/join', '/share'] as const;
+const SHAREABLE_PATHS = [
+  '/posts',
+  '/games',
+  '/teams',
+  '/users',
+  '/events',
+  '/programs',
+  '/join',
+  '/share',
+] as const;
 
 // Crawlers / link-preview bots that set Accept: */* (or even nothing) but
 // do want OG tags. Match against User-Agent so we don't false-positive on
@@ -84,8 +92,9 @@ const shareLandingLimiter = rateLimit({
 });
 
 function escapeHtml(s: unknown): string {
-  return String(s ?? '').replace(/[&<>"']/g, (c) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)
+  return String(s ?? '').replace(
+    /[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!
   );
 }
 
@@ -185,8 +194,6 @@ function renderLanding(meta: LandingMeta, legalBaseUrl: string): string {
 
   <div class="footer">
     <a href="${safeLegalBaseUrl}/privacy-policy">Privacy</a>
-    &nbsp;·&nbsp;
-    <a href="${safeLegalBaseUrl}/terms">Terms</a>
   </div>
 </body>
 </html>`;
@@ -257,12 +264,13 @@ async function gameLanding(req: Request, res: Response, next: NextFunction) {
   const meta: LandingMeta = game
     ? {
         title: game.title || 'VarsityHub Game',
-        description: [
-          game.location && `at ${game.location}`,
-          game.date && new Date(game.date).toLocaleDateString(undefined, { dateStyle: 'long' }),
-        ]
-          .filter(Boolean)
-          .join(' · ') || undefined,
+        description:
+          [
+            game.location && `at ${game.location}`,
+            game.date && new Date(game.date).toLocaleDateString(undefined, { dateStyle: 'long' }),
+          ]
+            .filter(Boolean)
+            .join(' · ') || undefined,
         url: fullUrl(req),
       }
     : genericLanding(req);
@@ -289,6 +297,60 @@ async function teamLanding(req: Request, res: Response, next: NextFunction) {
         title: team.name || 'VarsityHub Team',
         description: team.description || undefined,
         imageUrl: team.logo_url || undefined,
+        url: fullUrl(req),
+      }
+    : genericLanding(req);
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  return res.send(renderLanding(meta, requestOrigin(req)));
+}
+
+// Sport program label — deliberately NOT importing the client sports
+// taxonomy (constants/sports.ts) to keep this server route dependency-free.
+// Trade-off: this title-cases the raw slug ("track_field" -> "Track Field")
+// instead of using the taxonomy's exact display names, which is close
+// enough for a share-link preview and avoids a client/server coupling.
+function sportProgramLabel(program: { sport: string; name: string | null }): string {
+  if (program.name) return program.name;
+  return String(program.sport || '')
+    .split('_')
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+function programLandingTitle(program: {
+  sport: string;
+  name: string | null;
+  organization?: { name: string } | null;
+}): string {
+  const label = sportProgramLabel(program);
+  const orgName = program.organization?.name;
+  return orgName ? `${orgName} — ${label}` : label;
+}
+
+async function programLanding(req: Request, res: Response, next: NextFunction) {
+  if (!wantsHtml(req)) return next();
+  const id = String(req.params.id || '').trim();
+  if (!id) return next();
+
+  const program = await prisma.sportProgram
+    .findUnique({
+      where: { id },
+      select: {
+        sport: true,
+        name: true,
+        logo_url: true,
+        organization: { select: { name: true } },
+      },
+    })
+    .catch(() => null);
+
+  const meta: LandingMeta = program
+    ? {
+        title: programLandingTitle(program),
+        imageUrl: program.logo_url || undefined,
         url: fullUrl(req),
       }
     : genericLanding(req);
@@ -371,6 +433,7 @@ shareLandingRouter.use(shareLandingLimiter);
 shareLandingRouter.get('/posts/:id', postLanding);
 shareLandingRouter.get('/games/:id', gameLanding);
 shareLandingRouter.get('/teams/:id', teamLanding);
+shareLandingRouter.get('/programs/:id', programLanding);
 shareLandingRouter.get('/users/:id', userLanding);
 shareLandingRouter.get('/events/:id', eventLanding);
 // Invite/share routes get the generic landing — no DB lookup needed since

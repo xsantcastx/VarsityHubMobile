@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 
 interface VideoPlayerProps {
-  uri: string;
+  uri?: string | null;
   style?: StyleProp<ViewStyle>;
   onEnd?: () => void;
   autoPlay?: boolean;
@@ -31,8 +31,12 @@ export function VideoPlayer({
   const [retryKey, setRetryKey] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-  const source = React.useMemo(() => ({ uri }), [uri]);
+  // Callers pass mediaUrl! assertions; a missing uri must not crash the
+  // player. Pass a null source (expo-video accepts it) and render the
+  // error overlay below instead of skipping hooks with an early return.
+  const source = React.useMemo(() => (uri ? { uri } : null), [uri]);
   const player = useVideoPlayer(source, p => {
+    if (!uri) return;
     p.volume = 1.0;
     p.muted = false;
     if (autoPlay && !paused) {
@@ -106,12 +110,16 @@ export function VideoPlayer({
         allowsFullscreen
         allowsPictureInPicture
       />
-      {isLoading && !errorMessage ? (
+      {!uri ? (
+        <View style={styles.overlay}>
+          <Text style={styles.errorTitle}>Video unavailable</Text>
+        </View>
+      ) : isLoading && !errorMessage ? (
         <View style={styles.overlay}>
           <ActivityIndicator size="small" color="#fff" />
         </View>
       ) : null}
-      {errorMessage ? (
+      {uri && errorMessage ? (
         <Pressable
           onPress={() => {
             setIsLoading(true);

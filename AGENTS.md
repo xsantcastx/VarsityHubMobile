@@ -37,31 +37,40 @@ New code composes with these single patterns; never stack a parallel mechanism:
 - **Startup-once work → `runClusterOnce`** (`distributedLock.ts`); scheduler worker runs on all replicas. No new leader election.
 - **Cross-replica state lives in Redis** (rate limit DB 1, BullMQ DB 0, cache DB 2, locks, socket adapter). No in-process shared state — it breaks under `numReplicas>1` (`railway.toml`).
 - **RLS is enabled-not-forced** (dormant). NEVER `FORCE` without a non-owner DB role + `SET LOCAL app.current_user_id` middleware; `start.sh` auto-applies migrations to prod on every deploy.
+- **Sport-program layer (2026-07, Phase 0+1, ships dark; re-keyed 2026-07-10)**: `SportProgram` groups a team's siblings by `(organization_id, sport)` — unique constraint, so an org has at most one program per sport, full stop. `Team.gender` (`boys`/`girls`/`coed`) and `Team.level` (`varsity`/`jv`/`freshman`/`middle_school`/`unified`/`other`) are both nullable team attributes — a program's boys' and girls' teams are sibling level teams inside the same program, not separate programs. `Team.program_id` is nullable and additive — existing teams are unaffected until backfilled. Canonical sports live in `shared/sports-taxonomy.json`, loaded server-side by `server/src/lib/sportsTaxonomy.ts` (`normalizeSportToSlug`) and client-side by `constants/sports.ts`, which feeds the create-team sport picker. `server/scripts/backfill-sport-programs.ts` is the one-time migration path — dry-run by default, reports unresolved teams, never guesses a program. Program endpoints: `POST /organizations/:id/programs` is gated to the org owner or an active org member; `GET /organizations/:id/programs` is any authenticated user (public read). Billing still counts teams, not programs — the per-sport billing re-unit is Phase 4 and not yet built, and now counts one unit per SPORT (not per sport-gender pair), which lowers the expected unit count for schools running both boys' and girls' teams in a sport.
+- **Sport-program public page (2026-07, Phase 3)**: `app/program-page.tsx` is the canonical public surface for a sport program — collapsible level folders (first expanded, e.g. "Boys Varsity" / "Girls JV" — level folders carry the gender label since gender is a team attribute, not a program key), a follow button, and the standard four states. A level team's own page (`app/team-page.tsx`) still exists and renders normally on its own, but redirects once to `/program-page` whenever the team has a `program_id` (guarded by a ref latch + `params.from !== 'program'` so the program page linking back to a level team doesn't bounce). Three new endpoints: `GET /programs/:id/screen-summary` (program + `levels[]`, each with its serialized team and that level's games, plus counts — `server/src/routes/programs.ts`), `POST /programs/:id/follow` and `DELETE /programs/:id/follow`, and `GET /programs/:id` (branded share-landing page, `server/src/routes/shareLanding.ts`, falls back to a generic landing for unknown ids). Screen-summary privacy-filters level teams via `isTeamHiddenFromViewer` — hidden teams drop out of both `levels` and the `counts`, and an all-hidden program still returns 200 with `levels: []`. **Follow is a `ProgramFollow` intent ledger (`@@id([user_id, program_id])`) layered on top of the existing `TeamFollow` fan-out — feed clauses (`feed.ts`, `posts.ts`) are unchanged and still read `TeamFollow` only.** `is_following`/`followers_count` are intent-based: a `ProgramFollow` row means the viewer follows the program, and `followers_count` is a `ProgramFollow` count — this fixes the old union-read bug where following one level team made the whole program read as followed. `POST /follow` writes the `ProgramFollow` ledger row and fans out a `TeamFollow` row for every current active level team, stamped `via_program_id` (createMany + skipDuplicates, idempotent). `DELETE /follow` is lossless: it removes the `ProgramFollow` row plus only the `TeamFollow` rows stamped with _this_ program's id, so a pre-existing direct follow of a level team (unstamped) survives the unfollow. A level team added to a program later is reconciled exactly, not left stale: `fanOutProgramFollowersToTeam` (`server/src/lib/programFollowFanout.ts`) stamps a `TeamFollow` for every existing `ProgramFollow` user, awaited but wrapped so it can never fail the create/PUT request on team create and team PUT; it caps at 5000 followers per call and logs+captures when truncated, with a reconcile-script backstop for the overflow case still a documented follow-up (not yet built). This fan-out runs regardless of the newly-added team's privacy — a coach adding a private team to a program deliberately reaches existing followers; surfacing that to the coach before they add the team is a deferred UX follow-up. No `TEAM_FOLLOWED` notification fan-out on program follow (would spam staff once per follower). Group chats stay per level team — there is no program-level group chat. Deep links: `/programs` is in `SHAREABLE_PATHS` and the iOS `IOS_PATHS` AASA list, `AppLinks.program()`, and `program`/`programs` both map to `/program-page` in `utils/deepLinks.ts`. The Android `/programs` intent filter added to `app.json` is **native config — it ships only via `eas build`, never via `eas update` OTA.**
 
 ## Available Agent Types
 
 ### Explore
+
 **When to use:** Finding files by pattern, searching code for keywords, answering "how does X work" questions.
 **Example tasks:**
+
 - "Where are all the places we call `sendPushNotification`?"
 - "How does the refresh token flow work end to end?"
 - "Find all screens that use `useLocalSearchParams`"
 
 ### Plan
+
 **When to use:** Before any non-trivial feature or refactor. Use this to design the approach before touching code.
 **Example tasks:**
+
 - "Plan how to add a game scheduling feature"
 - "How should I restructure the onboarding flow to support a new role type?"
 - "What's the safest way to migrate the ad booking logic?"
 
 ### general-purpose (default)
+
 **When to use:** Multi-step tasks that involve reading, editing, and running commands together.
 **Example tasks:**
+
 - "Fix the coach approval flow end to end"
 - "Debug why push notifications aren't arriving"
 - "Audit the admin dashboard for security gaps"
 
 ### claude-code-guide
+
 **When to use:** Questions about Claude Code itself — hooks, slash commands, MCP servers, plugins, settings.
 
 ---
@@ -69,30 +78,35 @@ New code composes with these single patterns; never stack a parallel mechanism:
 ## VarsityHub-Specific Agent Patterns
 
 ### Debugging a server issue
+
 1. Start with Explore to find the relevant route (`server/src/routes/`)
 2. Trace the full data flow: client call → middleware → handler → Prisma → response
 3. Check Railway logs for the relevant log prefix (`[org-get]`, `[notif]`, etc.)
 4. Test with a real API payload — don't rely on static analysis
 
 ### Adding a new screen
+
 1. Use Plan agent first to decide: tab screen or sub-screen? root Stack or hiddenTab?
 2. Register in `app/_layout.tsx` (root Stack) AND `app/(tabs)/_layout.tsx` (hiddenTab) if it's a sub-screen
 3. Use `safeGoBack` for back navigation, never raw `router.back()`
 4. Add `headerShown: false` and implement your own back button
 
 ### Touching the server (Express routes)
+
 - Server is at `server/src/routes/`
 - Middleware: `authMiddleware` (JWT + DB lookup), `requireAuth`, `requireVerified`, `requireOnboarded`
 - Business rules are enforced server-side — don't bypass with client flags
 - Railway auto-deploys from `main` — test locally first with `railway run npm run dev`
 
 ### Touching the email system
+
 - Do not rely on hardcoded template-count summaries in docs; check `TEMPLATE_IDS`, `REQUIRED_TEMPLATE_KEYS`, and `RECOMMENDED_TEMPLATE_KEYS` in `server/src/lib/email.ts`
 - All other templates degrade silently — always add a plain-text fallback
 - Email functions are in `server/src/lib/email.ts`
 - BullMQ queue with concurrency 5, max 20/sec
 
 ### Touching release/readiness flow
+
 - Canonical release path is `docs/release/RELEASE_WORKFLOW.md`
 - Use `npm run release:verify:local` for code, regression, approval, and local gates
 - Use `npm run release:verify:build` for EAS/build-readiness gates
@@ -100,6 +114,7 @@ New code composes with these single patterns; never stack a parallel mechanism:
 - Final launch sign-off lives in `docs/release/LAUNCH_READINESS_GATE.md`
 
 ### Payment changes
+
 - iOS: Apple IAP only — never add Stripe links on iOS paths
 - Android subscriptions: Google Play Billing via `react-native-iap`, server-verified at `POST /payments/google/verify-purchase` — never route Android subscription checkout to Stripe (Play policy)
 - Android ads: Stripe PaymentSheet (ads use Stripe on Android + web; only subscriptions use Play Billing)
@@ -108,6 +123,7 @@ New code composes with these single patterns; never stack a parallel mechanism:
 - Ad booking horizon is 56 days max — enforced server-side
 
 ### Push notification changes
+
 - `sendPushNotification(userId, title, body, data)` in `server/src/lib/notifications.ts`
 - Always `.catch(() => {})` — push failure must never block the main response
 - Check `[notif]` log prefix in Railway for delivery confirmation
@@ -127,11 +143,13 @@ New code composes with these single patterns; never stack a parallel mechanism:
 
 ## Post-mapper Consistency Rule
 
-Two post mapper functions exist and MUST stay in sync:
-- `mapHighlightToFeedPost` in `app/game-details/GameVerticalFeedScreen.tsx` — used for highlights API data
-- `toFeedPost` in `app/profile.tsx` and `app/features/navigation/screens/ProfileScreen.tsx` — used for profile post data
+Three LIVE post mapper functions exist and MUST stay in sync:
 
-When fixing a field mapping in one, always check and fix the other. Caption/content/title fallback chains, `has_upvoted`, `has_bookmarked`, `author` shape — if they diverge, bugs appear in one context but not the other. Regression test: `app/game-details/__tests__/GameVerticalFeedScreen.caption.test.ts`.
+- `mapHighlightToFeedPost` in `app/game-details/GameVerticalFeedScreen.tsx` — used for highlights API data (the parity reference)
+- `toFeedPost` in `app/profile.tsx` — used for profile post data (the `/profile` + `/(tabs)/profile` route)
+- `toFeedPost` in `app/team-page.tsx` — used for the team-page post viewer
+
+When fixing a field mapping in one, always check and fix the other two. Caption/content/title fallback chains, `preview_url`, `has_upvoted`, `has_bookmarked`, `author` shape (`id`/`username`/`display_name`/`avatar_url` fallbacks) — if they diverge, bugs appear in one context but not the others. Enforced by `app/game-details/__tests__/post-mapper-consistency.test.ts` (full-chain parity across all three live mappers) and `app/game-details/__tests__/GameVerticalFeedScreen.caption.test.ts` (caption chain). NOTE: a fourth copy formerly lived in `app/features/navigation/screens/ProfileScreen.tsx`; that screen was orphaned dead code and has been deleted.
 
 ## Git Workflow
 
@@ -152,6 +170,10 @@ npx tsc --noEmit --project server/tsconfig.json
 npm run verify:error-envelope
 ```
 
+## Team Role-Barrier Model (2026-07-06)
+
+`server/src/lib/teamAuthorization.ts` splits team/org authorization into two tiers: `canAdministerTeam()` (team owner/coach, or org owner — settings, invites, roster add/remove/role-change, ownership transfer) vs `canManageTeam()`/`canManageAnyTeam()` (also admits team manager/assistant_coach and org manager — event/game create + approve/deny ONLY). Organization management (`isOrgOwner()`) is owner-only — org managers have zero admin power. Athletes/parents/members have no admin functions. New mutation endpoints must pick the correct tier explicitly. Athlete self-service team join requests were removed 2026-07-09 (rosters are coach-invite/direct-add only; the `TeamJoinRequest` table remains in the DB but nothing writes to it). Also 2026-07-09: teams hold STAFF ONLY — the `player`/`parent`/`member` team roles are retired (assignable: manager/coach/assistant_coach/equipment/health_wellness); athletes connect by following. `TeamRole` enum keeps retired values (no migration); legacy athlete rows are archived via `server/scripts/archive-athlete-team-memberships.ts`; invite-accept 410s retired-role invites.
+
 ## Security Invariants (Do Not Break)
 
 - **No client-controlled security-critical state** — payment status, approval state, role, and plan are always server-authoritative
@@ -160,15 +182,15 @@ npm run verify:error-envelope
 - **Deep link params use allowlist** — `buildRouteParams()` in `utils/deepLinks.ts` enforces per-route key allowlists
 - **Webhook lock failures return 503** (not 500) so Stripe retries
 - **Apple IAP cert chain pins to `CN=Apple Root CA - G3`** exactly
-- **Org invite role escalation** — only owners can invite at `manager` role
+- **Org invite creation is owner-only** — only the organization owner creates/revokes org invites; org managers have no invite power
 - **Payment-success non-auth errors surface on final retry** — no silent swallowing
 
 ## Security & Architecture Audit Standard
 
 > Canonical full version lives in `CLAUDE.md` (`## Security & Architecture Audit Standard`), including the per-rule `Verify:` clauses. This section mirrors it for Codex; keep the two aligned when either changes.
 
-Every audit rule is one of four types — **[AUDIT]** what a reviewer checks, **[ENG]** how code must be structured, **[BIZ]** VarsityHub-specific logic, **[GATE]** objective pass/fail. Every rule must be testable (state how we know it passed). Classify findings by **exploitability × blast radius × recoverability**, not bare severity. Every finding ships with proof (files, repro, expected vs actual, fix); every fix ships with verification (typecheck, test, before/after repro, release risk).
+Every audit rule is one of four types — **[AUDIT]** what a reviewer checks, **[ENG]** how code must be structured, **[BIZ]** VarsityHub-specific logic, **[GATE]** objective pass/fail. Every rule must be testable (state how we know it passed). Run the threat-model phase first: auth bypass, privilege escalation, payment spoofing, IDOR, webhook replay, stale-cache abuse, and deep-link injection. Classify findings by **exploitability × blast radius × recoverability**, not bare severity. Every finding ships with proof (files, repro, expected vs actual, fix); every fix ships with verification (typecheck, test, before/after repro, release risk).
 
-**Commandments:** Thin routes, thick features · Backend validation is law, frontend is guidance · No client-controlled security-critical state · One source of truth per domain object · Every protected action checks auth/role/plan/ownership server-side · Every async flow is idempotent · No silent failures in user or payment flows · No duplicate logic across routes/features · Every screen handles loading/error/success/empty · Every deep link fails gracefully and safely · Every admin action is auditable · Every release change is testable and reversible.
+**Commandments:** Thin routes, logic one layer down · Backend validation is law, frontend is guidance · No client-controlled security-critical state · One source of truth per domain object · Every protected action checks auth/role/plan/ownership server-side · Every async flow is idempotent · No silent failures and no fallback that changes security posture · No duplicate logic across routes/features · Every screen handles loading/error/success/empty · Every deep link fails gracefully and safely · Every admin action is auditable · Coordinate cross-replica via Redis, never in-process · Every release change is testable and reversible.
 
-**PR gate (must all pass):** client + server `tsc` 0 new errors · no unbounded `findMany` · no `req.user` without `requireAuth` · no `sgMail.send` outside providers · no hardcoded dark text colors · screens don't call `fetch` directly · `npm run audit:navigation` shows 0 REVIEW · validation parity frontend↔Zod (or `// intent:` note) · four UI states on async screens · no silent `catch {}` in auth/payment flows · webhooks/jobs idempotent · admin actions emit `AdminActivityLog` · security fix has before/after repro · schema change has migration status + rollback note.
+**PR gate (must all pass):** client + server `tsc` 0 new errors · no unbounded `findMany` · no `req.user` without `requireAuth` · no `sgMail.send` outside providers · no hardcoded dark text colors · screens don't call `fetch` directly · `npm run audit:navigation` shows 0 REVIEW · validation parity frontend↔Zod (or `// intent:` note) · four UI states on async screens · no silent `catch {}` in auth/payment flows · no fallback that changes security posture · webhooks/jobs idempotent · admin actions emit `AdminActivityLog` · security fix has before/after repro · schema change has migration status + rollback note.

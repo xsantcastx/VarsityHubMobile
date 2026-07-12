@@ -7,7 +7,7 @@ import { APP_REVIEW_EMAIL } from './appReviewFixture.js';
 function parseEmailList(raw: string | undefined): string[] {
   return (raw || '')
     .split(',')
-    .map((e) => e.trim().toLowerCase())
+    .map(e => e.trim().toLowerCase())
     .filter(Boolean);
 }
 
@@ -39,8 +39,43 @@ export const PLATFORM_ADMIN_EMAILS: string[] = [
   'customerservice@varsityhub.app',
 ];
 
+/**
+ * TEST-ONLY admin identities.
+ *
+ * The hardcoded floor above is correct and must stay — but it makes admin routes
+ * untestable: there are 3 admin identities, jest runs with maxWorkers=2, and five
+ * suites need their own admin. Sharing one user row across concurrent suites races
+ * on upsert and cross-contaminates AdminActivityLog actor assertions.
+ *
+ * So: an explicit, test-only widening, honored ONLY when NODE_ENV === 'test'.
+ * Modeled on the DISABLE_RATE_LIMITING guard in middleware/rateLimiters.ts —
+ * setting this in production is fatal at startup, not a warning, because a
+ * soft-warn is how privilege-escalation foot-guns ship.
+ *
+ * Before this existed, the five suites did `process.env.ADMIN_EMAILS = adminEmail`,
+ * which has granted nothing since 56a0ad5e (#83) hardcoded the floor. They failed
+ * with `403 Admin only` on every CI run and nobody noticed, because main has no
+ * branch protection. Do NOT "fix" that by making ADMIN_EMAILS grant access again.
+ */
+const rawTestPlatformAdmins = process.env.TEST_PLATFORM_ADMIN_EMAILS || '';
+if (rawTestPlatformAdmins && process.env.NODE_ENV === 'production') {
+  console.error(
+    '[FATAL] TEST_PLATFORM_ADMIN_EMAILS is set. It grants platform-admin access and must NEVER be set in production. Refusing to start.'
+  );
+  process.exit(1);
+}
+
+/** Read at call time (not module load) so tests can set it inside beforeAll. */
+function getTestPlatformAdminEmails(): string[] {
+  if (process.env.NODE_ENV !== 'test') return [];
+  return parseEmailList(process.env.TEST_PLATFORM_ADMIN_EMAILS);
+}
+
 function getPlatformAdminAccessEmails(): string[] {
-  return withAppReviewAdminAccess(PLATFORM_ADMIN_EMAILS.map((e) => e.trim().toLowerCase()));
+  return withAppReviewAdminAccess([
+    ...PLATFORM_ADMIN_EMAILS.map(e => e.trim().toLowerCase()),
+    ...getTestPlatformAdminEmails(),
+  ]);
 }
 
 function getCurrentAdminNotificationEmails(): string[] {
@@ -90,7 +125,7 @@ export const SUPER_ADMIN_EMAIL = 'customerservice@varsityhub.app';
  * dedupes, so customerservice@varsityhub.app is guaranteed present.
  */
 export function getApprovalNotificationEmails(): string[] {
-  const emails = getAllAdminEmails().map((e) => e.toLowerCase());
+  const emails = getAllAdminEmails().map(e => e.toLowerCase());
   const superAdmin = SUPER_ADMIN_EMAIL.toLowerCase();
   return emails.includes(superAdmin) ? emails : [...emails, superAdmin];
 }

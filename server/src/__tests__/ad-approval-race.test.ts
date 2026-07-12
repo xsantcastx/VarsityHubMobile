@@ -31,14 +31,18 @@ describe('ad approval race guard', () => {
   });
 
   it('rejectAd claims the pending row before attempting a refund', () => {
-    expect(rejectBody).toMatch(/prisma\.\$transaction\(async \(tx\)/);
+    // Arrow param may or may not carry parens (`async tx =>` / `async (tx) =>`).
+    expect(rejectBody).toMatch(/prisma\.\$transaction\(async \(?tx\)?/);
     expect(rejectBody).toMatch(/tx\.ad\.updateMany/);
     expect(rejectBody).toMatch(/status:\s*'pending'/);
   });
 
-  it('rejectAd does not call stripe.refunds.create before the guarded transaction block', () => {
-    const txIndex = rejectBody.indexOf("const guard = await prisma.$transaction");
-    const refundIndex = rejectBody.indexOf('stripe.refunds.create');
+  it('rejectAd issues the refund only after the guarded transaction claims the pending row', () => {
+    // The Stripe call itself lives in the shared, idempotency-keyed issueAdRefund
+    // helper (covered by ad-refund-reconcile.contract.test.ts). rejectAd must
+    // only invoke it after the pending row has been claimed in the transaction.
+    const txIndex = rejectBody.indexOf('const guard = await prisma.$transaction');
+    const refundIndex = rejectBody.indexOf('issueAdRefund(');
     expect(txIndex).toBeGreaterThanOrEqual(0);
     expect(refundIndex).toBeGreaterThan(txIndex);
   });

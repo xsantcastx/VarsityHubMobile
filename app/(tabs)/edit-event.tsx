@@ -11,11 +11,12 @@ import {
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { buildEventDetailHref } from '@/utils/eventRoutes';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
@@ -39,7 +40,11 @@ import { Event } from '@/api/entities';
 
 export default function EditEventScreen() {
   const { user } = useAuth();
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  // Role-barrier model: event create/edit/approve-deny is an "authorized
+  // user" function (manager/assistant_coach included) — gate on the
+  // membership-aware hook, not the coach-role-only useRequireCoach that
+  // wrongly bounced non-coach staff. Server still authorizes per-event.
+  const { canManage: canAccessCoachTools, loading: coachLoading } = useRequireTeamManagement();
   const router = useRouter();
   const { id, fallback } = useLocalSearchParams<{ id?: string; fallback?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
@@ -185,7 +190,7 @@ export default function EditEventScreen() {
       permissionMessage: 'Photo library permission is needed to upload an event photo.',
       launchPicker: () =>
         ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          ...pickerMediaTypesProp(),
           allowsEditing: true,
           // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
           // crop at the displayed ratio so uploads aren't re-cropped at render time.
@@ -202,7 +207,7 @@ export default function EditEventScreen() {
       permissionMessage: 'Camera permission is needed to take an event photo.',
       launchPicker: () =>
         ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          ...pickerMediaTypesProp(),
           allowsEditing: true,
           // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
           // crop at the displayed ratio so uploads aren't re-cropped at render time.

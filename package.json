@@ -1,7 +1,7 @@
 {
   "name": "varsityhubmobile",
   "main": "expo-router/entry",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "scripts": {
     "start": "expo start",
     "predev": "lsof -ti:8081 | xargs kill -9 2>/dev/null || true; lsof -ti:4000 | xargs kill -9 2>/dev/null || true",
@@ -62,6 +62,7 @@
     "verify:version": "bash scripts/verify-latest-version.sh",
     "submit:ios": "eas submit --platform ios --profile production",
     "submit:android": "eas submit --platform android --profile production",
+    "update:production": "node scripts/guard-ota-clean-tree.js && cross-env SENTRY_DISABLE_AUTO_UPLOAD= eas update --branch production",
     "server:install": "cd server && npm install",
     "server:dev": "cd server && npm run dev",
     "server:db:migrate": "cd server && npx prisma migrate dev --name init",
@@ -88,7 +89,8 @@
     "test:coverage": "jest --coverage --runInBand",
     "stash:apply": "bash scripts/safe-stash-apply.sh",
     "check:conflicts": "rg -l \"^<<<<<<< |^>>>>>>> |^=======$\" --glob \"*.ts\" --glob \"*.tsx\" --glob \"*.js\" app components hooks utils api context constants lib shared server/src 2>/dev/null && echo \"Conflicts found!\" || echo \"No conflicts found.\"",
-    "format": "npx prettier --write \"app/**/*.{ts,tsx,js,jsx}\" \"components/**/*.{ts,tsx,js,jsx}\" \"hooks/**/*.{ts,tsx,js,jsx}\" \"utils/**/*.{ts,tsx,js,jsx}\" \"api/**/*.{ts,tsx,js,jsx}\" \"context/**/*.{ts,tsx,js,jsx}\" \"constants/**/*.{ts,tsx,js,jsx}\" \"__tests__/**/*.{ts,tsx}\" \"server/src/**/*.{ts,tsx,js,jsx}\" \"*.{js,json,md}\" \"docs/**/*.md\""
+    "format": "npx prettier --write \"app/**/*.{ts,tsx,js,jsx}\" \"components/**/*.{ts,tsx,js,jsx}\" \"hooks/**/*.{ts,tsx,js,jsx}\" \"utils/**/*.{ts,tsx,js,jsx}\" \"api/**/*.{ts,tsx,js,jsx}\" \"context/**/*.{ts,tsx,js,jsx}\" \"constants/**/*.{ts,tsx,js,jsx}\" \"__tests__/**/*.{ts,tsx}\" \"server/src/**/*.{ts,tsx,js,jsx}\" \"*.{js,json,md}\" \"docs/**/*.md\"",
+    "audit:duplication": "npx --yes jscpd@3.5.10 --config .jscpd.json"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -151,6 +153,7 @@
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-calendars": "^1.1313.0",
+    "react-native-compressor": "^1.16.0",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-google-places-autocomplete": "^2.6.4",
     "react-native-iap": "^14.7.14",
@@ -199,7 +202,8 @@
         "enabled": true,
         "exclude": [
           "react-native-iap",
-          "lottie-ios"
+          "lottie-ios",
+          "react-native-compressor"
         ],
         "listUnknownPackages": false
       },

@@ -9,6 +9,7 @@ const IOS_PATHS = [
   '/posts/*',
   '/games/*',
   '/teams/*',
+  '/programs/*',
   '/users/*',
   '/events/*',
   '/join/*',

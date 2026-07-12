@@ -2,6 +2,8 @@ import { Game, Post, Team } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { gameRowTitle } from '@/utils/eventTitle';
+import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
 import { getGradientForColor } from '@/utils/theme';
@@ -38,6 +40,7 @@ type LeagueTeam = {
     id?: string;
     name?: string | null;
   } | null;
+  program_id?: string | null;
   created_at?: string;
   _count?: {
     members?: number;
@@ -106,17 +109,19 @@ const toFeedPost = (item: any): FeedPost | null => {
     media_url: media,
     media_type,
     preview_url: typeof item?.preview_url === 'string' ? item.preview_url : null,
-    caption: item?.caption ?? item?.content ?? '',
+    game_id: item?.game_id ?? item?.game?.id ?? null,
+    event_id: item?.event_id ?? item?.event?.id ?? null,
+    caption: item?.caption ?? item?.content ?? sanitizeTitle(item?.title) ?? null,
     upvotes_count: item?.upvotes_count ?? 0,
     comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
     bookmarks_count: item?.bookmarks_count ?? 0,
     created_at: item?.created_at ?? null,
     author: item?.author
       ? {
-          id: String(item.author.id ?? id),
-          username: (item.author as any).username ?? null,
+          id: String(item.author.id ?? item.author.user_id ?? id),
+          username: item.author.username ?? item.author.display_name ?? null,
           display_name: (item.author as any).display_name ?? null,
-          avatar_url: item.author.avatar_url ?? null,
+          avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null,
         }
       : null,
     has_upvoted: Boolean(item?.has_upvoted),
@@ -370,6 +375,22 @@ function TeamScreen() {
     setIsFollowing(!!(data.team as any).is_following);
     setTeamThemeColor('#3B82F6');
   }, [teamQuery.data]);
+
+  // Redirect legacy team links to the canonical program page once the team
+  // has loaded and it belongs to a program. `from=program` breaks the loop
+  // when the program page's own folder header pushed us here on purpose.
+  // The ref latch guarantees this fires at most once per mount — never on
+  // every render, and never while the query has no data yet.
+  const redirectedToProgramRef = useRef(false);
+  useEffect(() => {
+    if (redirectedToProgramRef.current) return;
+    if (teamQuery.isPending) return;
+    const programId = team?.program_id;
+    if (!programId) return;
+    if (params.from === 'program') return;
+    redirectedToProgramRef.current = true;
+    router.replace({ pathname: '/program-page', params: { id: programId } }); // nav-safe: canonical program page supersedes the level-team page; from=program bypasses
+  }, [team, teamQuery.isPending, params.from, router]);
 
   // Pick up server-side edits (e.g. renamed team) when the screen regains focus.
   // The callback must NOT depend on `teamQuery`: the query result object gets a
@@ -694,9 +715,12 @@ function TeamScreen() {
                 }}
               >
                 {isFollowing ? (
-                  <Ionicons name="checkmark" size={18} color={theme.text} />
+                  // audit: fixed white on the fixed green button (theme-independent bg)
+                  <Ionicons name="checkmark" size={18} color="#FFFFFF" />
                 ) : (
-                  <Ionicons name="person-add" size={16} color={theme.text} />
+                  // audit: fixed dark glyph on the fixed yellow button — theme.text was
+                  // near-white in dark mode (~1.2:1 on #FFD600, near-invisible)
+                  <Ionicons name="person-add" size={16} color="#1A1A1A" />
                 )}
               </Pressable>
             )}
@@ -1297,6 +1321,7 @@ function TeamScreen() {
             const gameType = g.game_type || 'Game';
             const hasScore = g.home_score != null || g.away_score != null;
             const gameId = g.id ? String(g.id) : null;
+            const rowTitle = gameRowTitle({ ...g, opponent });
             return (
               <Pressable
                 disabled={!gameId}
@@ -1304,7 +1329,7 @@ function TeamScreen() {
                   gameId && router.push({ pathname: '/game/[id]', params: { id: gameId } } as any)
                 }
                 accessibilityRole="button"
-                accessibilityLabel={`Open event vs ${opponent} on ${dateStr}`}
+                accessibilityLabel={`Open event ${rowTitle} on ${dateStr}`}
                 style={({ pressed }) => [
                   styles.eventRow,
                   { backgroundColor: theme.card, borderColor: theme.border },
@@ -1316,7 +1341,7 @@ function TeamScreen() {
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={[styles.eventTitle, { color: theme.text }]} numberOfLines={1}>
-                    vs {opponent}
+                    {rowTitle}
                   </Text>
                   <Text style={[styles.eventTypeText, { color: theme.mutedText }]}>{gameType}</Text>
                 </View>

@@ -4,6 +4,7 @@ import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
+import { gameRowTitle } from '@/utils/eventTitle';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery } from '@tanstack/react-query';
@@ -51,6 +52,7 @@ type TeamGame = {
   location?: string | null;
   home_team?: string | null;
   away_team?: string | null;
+  event_type?: string | null;
 };
 
 type TeamInvite = {
@@ -137,6 +139,7 @@ export default function TeamAdminScreen() {
   type TeamAdminQueryData = {
     selectedTeamId: string;
     team: TeamResponse | null;
+    canAdminister: boolean;
     members: TeamMember[];
     pendingInvites: TeamInvite[];
     games: TeamGame[];
@@ -169,6 +172,11 @@ export default function TeamAdminScreen() {
       return {
         selectedTeamId: nextTeamId,
         team: summary?.team ?? null,
+        // Full-administration tier (owner/head coach/org owner). Add-player,
+        // archive/restore member, and cancel-invite all require it server-side;
+        // the staff tier (managers/assistant_coaches) that this screen admits
+        // must NOT see those actions or they 403.
+        canAdminister: (summary as any)?.permissions?.can_administer === true,
         members: Array.isArray(summary?.members) ? (summary.members as TeamMember[]) : [],
         pendingInvites: Array.isArray((summary as any)?.pending_invites)
           ? ((summary as any).pending_invites as TeamInvite[])
@@ -179,6 +187,7 @@ export default function TeamAdminScreen() {
   });
 
   const team = data?.team ?? null;
+  const canAdminister = data?.canAdminister ?? false;
   const members = data?.members ?? [];
   const pendingInvites = data?.pendingInvites ?? [];
   const games = data?.games ?? [];
@@ -310,8 +319,8 @@ export default function TeamAdminScreen() {
     async (user: UserSearchResult) => {
       if (!selectedTeamId) return;
       Alert.alert(
-        'Add to roster',
-        `Add ${user.display_name || user.username || 'this user'} as a player?`,
+        'Add to staff',
+        `Add ${user.display_name || user.username || 'this user'} as an assistant coach? You can change their role afterwards from My Team.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -321,14 +330,14 @@ export default function TeamAdminScreen() {
                 await TeamMemberships.create({
                   team_id: selectedTeamId,
                   user_id: user.id,
-                  role: 'player',
+                  role: 'assistant_coach',
                 });
                 setSearchQuery('');
                 setSearchResults([]);
                 await refetch();
               } catch (err: unknown) {
-                const message = err instanceof Error ? err.message : 'Failed to add player';
-                Alert.alert('Unable to add player', message);
+                const message = err instanceof Error ? err.message : 'Failed to add staff member';
+                Alert.alert('Unable to add staff member', message);
               }
             },
           },
@@ -453,19 +462,6 @@ export default function TeamAdminScreen() {
                     >
                       <Text style={styles.primaryButtonText}>Manage Roster</Text>
                     </Pressable>
-                    <Pressable
-                      onPress={() =>
-                        router.push({
-                          pathname: '/team-join-requests',
-                          params: { teamId: selectedTeamId, teamName: team?.name || '' },
-                        } as any)
-                      }
-                      style={[styles.secondaryButton, { borderColor: theme.border }]}
-                    >
-                      <Text style={[styles.secondaryButtonText, { color: theme.text }]}>
-                        Join Requests
-                      </Text>
-                    </Pressable>
                   </>
                 ) : null}
               </View>
@@ -539,50 +535,54 @@ export default function TeamAdminScreen() {
               >
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Roster</Text>
 
-                {/* Add player by search */}
-                <TextInput
-                  style={[
-                    styles.searchInput,
-                    {
-                      backgroundColor: theme.background,
-                      borderColor: theme.border,
-                      color: theme.text,
-                    },
-                  ]}
-                  placeholder="Search users to add…"
-                  placeholderTextColor={theme.mutedText}
-                  value={searchQuery}
-                  onChangeText={handleSearchUsers}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {searching ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={theme.tint}
-                    style={{ marginVertical: 6 }}
-                  />
-                ) : null}
-                {searchResults.length > 0 ? (
-                  <View style={[styles.searchResultsContainer, { borderColor: theme.border }]}>
-                    {searchResults.map(user => (
-                      <Pressable
-                        key={user.id}
-                        style={[styles.searchResultRow, { borderColor: theme.border }]}
-                        onPress={() => void handleAddUser(user)}
-                      >
-                        <Text style={[styles.rowTitle, { color: theme.text }]}>
-                          {user.display_name || user.username || user.id}
-                        </Text>
-                        {user.username ? (
-                          <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                            @{user.username}
-                          </Text>
-                        ) : null}
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
+                {/* Add staff by search — full-administration only (server 403s the staff tier) */}
+                {canAdminister && (
+                  <>
+                    <TextInput
+                      style={[
+                        styles.searchInput,
+                        {
+                          backgroundColor: theme.background,
+                          borderColor: theme.border,
+                          color: theme.text,
+                        },
+                      ]}
+                      placeholder="Search users to add…"
+                      placeholderTextColor={theme.mutedText}
+                      value={searchQuery}
+                      onChangeText={handleSearchUsers}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    {searching ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={theme.tint}
+                        style={{ marginVertical: 6 }}
+                      />
+                    ) : null}
+                    {searchResults.length > 0 ? (
+                      <View style={[styles.searchResultsContainer, { borderColor: theme.border }]}>
+                        {searchResults.map(user => (
+                          <Pressable
+                            key={user.id}
+                            style={[styles.searchResultRow, { borderColor: theme.border }]}
+                            onPress={() => void handleAddUser(user)}
+                          >
+                            <Text style={[styles.rowTitle, { color: theme.text }]}>
+                              {user.display_name || user.username || user.id}
+                            </Text>
+                            {user.username ? (
+                              <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                                @{user.username}
+                              </Text>
+                            ) : null}
+                          </Pressable>
+                        ))}
+                      </View>
+                    ) : null}
+                  </>
+                )}
 
                 {members.length === 0 ? (
                   <Text style={[styles.metaText, { color: theme.mutedText }]}>
@@ -606,29 +606,31 @@ export default function TeamAdminScreen() {
                           {member.position ? `  |  ${member.position}` : ''}
                         </Text>
                       </View>
-                      <Pressable
-                        onPress={() => void handleToggleMemberStatus(member)}
-                        disabled={actingMemberId === member.id}
-                        style={[
-                          styles.actionButton,
-                          member.status === 'archived'
-                            ? styles.restoreButton
-                            : styles.archiveButton,
-                        ]}
-                      >
-                        <Text
+                      {canAdminister && (
+                        <Pressable
+                          onPress={() => void handleToggleMemberStatus(member)}
+                          disabled={actingMemberId === member.id}
                           style={[
-                            styles.actionButtonText,
-                            { color: Colors[colorScheme].mutedText },
+                            styles.actionButton,
+                            member.status === 'archived'
+                              ? styles.restoreButton
+                              : styles.archiveButton,
                           ]}
                         >
-                          {actingMemberId === member.id
-                            ? '…'
-                            : member.status === 'archived'
-                              ? 'Restore'
-                              : 'Archive'}
-                        </Text>
-                      </Pressable>
+                          <Text
+                            style={[
+                              styles.actionButtonText,
+                              { color: Colors[colorScheme].mutedText },
+                            ]}
+                          >
+                            {actingMemberId === member.id
+                              ? '…'
+                              : member.status === 'archived'
+                                ? 'Restore'
+                                : 'Archive'}
+                          </Text>
+                        </Pressable>
+                      )}
                     </View>
                   ))
                 )}
@@ -658,9 +660,12 @@ export default function TeamAdminScreen() {
                     >
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.rowTitle, { color: theme.text }]}>
-                          {game.home_team && game.away_team
-                            ? `${game.home_team} vs ${game.away_team}`
-                            : game.title || 'Game'}
+                          {gameRowTitle({
+                            event_type: game.event_type,
+                            title: game.title,
+                            opponent: game.away_team,
+                            away_team: game.away_team,
+                          })}
                         </Text>
                         <Text style={[styles.metaText, { color: theme.mutedText }]}>
                           {formatDate(game.date)}
@@ -723,20 +728,24 @@ export default function TeamAdminScreen() {
                             {invite.created_at ? `  |  ${formatDate(invite.created_at)}` : ''}
                           </Text>
                         </View>
-                        <Pressable
-                          testID={`team-admin-cancel-invite-${invite.id}`}
-                          disabled={actingInviteId === invite.id}
-                          onPress={() => void handleCancelInvite(invite)}
-                          style={[
-                            styles.secondaryButton,
-                            styles.destructiveButton,
-                            { borderColor: theme.destructive },
-                          ]}
-                        >
-                          <Text style={[styles.secondaryButtonText, { color: theme.destructive }]}>
-                            {actingInviteId === invite.id ? '...' : 'Cancel'}
-                          </Text>
-                        </Pressable>
+                        {canAdminister && (
+                          <Pressable
+                            testID={`team-admin-cancel-invite-${invite.id}`}
+                            disabled={actingInviteId === invite.id}
+                            onPress={() => void handleCancelInvite(invite)}
+                            style={[
+                              styles.secondaryButton,
+                              styles.destructiveButton,
+                              { borderColor: theme.destructive },
+                            ]}
+                          >
+                            <Text
+                              style={[styles.secondaryButtonText, { color: theme.destructive }]}
+                            >
+                              {actingInviteId === invite.id ? '...' : 'Cancel'}
+                            </Text>
+                          </Pressable>
+                        )}
                       </View>
                     ))
                   )}

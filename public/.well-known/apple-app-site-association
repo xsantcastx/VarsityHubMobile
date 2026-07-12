@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "B5H8F69RW5.com.varsithub.varsityhub-ios",
+        "paths": ["/games/*", "/posts/*", "/teams/*", "/events/*", "/organizations/*", "/share*"]
+      }
+    ]
+  }
+}

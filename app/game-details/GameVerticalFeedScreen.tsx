@@ -1,4 +1,5 @@
 import CollageView, { type CollageData } from '@/components/CollageView';
+import EventChip from '@/components/EventChip';
 import ExpandableText from '@/components/ExpandableText';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -8,9 +9,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useEventListener } from 'expo';
 import { Image } from 'expo-image';
+import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as MediaLibrary from 'expo-media-library';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -38,13 +40,42 @@ import { httpGet } from '@/api/http';
 import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getAuthSnapshot } from '@/utils/authState';
+import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import events from '@/utils/events';
-import { optimizeImageUrl } from '@/utils/imageUrl';
-import { AppLinks } from '@/utils/links';
+import { optimizeImageUrl, optimizeVideoUrl } from '@/utils/imageUrl';
+import { AppLinks, buildNativeSharePayload } from '@/utils/links';
 import { resolveMediaType } from '@/utils/media';
 import { promptForSignIn } from '@/utils/requireSignIn';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
+const VIDEO_SHARE_CACHE_DIR = `${FileSystem.cacheDirectory || ''}shared-videos/`;
+
+function getVideoShareExtension(url: string) {
+  const cleanUrl = url.split('#')[0]?.split('?')[0] || url;
+  const match = cleanUrl.match(/\.([a-z0-9]{2,5})$/i);
+  return match ? `.${match[1].toLowerCase()}` : '.mp4';
+}
+
+async function getCachedShareableVideoUri(post: FeedPost) {
+  if (!post.media_url) {
+    throw new Error('Missing video URL');
+  }
+  if (!FileSystem.cacheDirectory) {
+    throw new Error('Video cache unavailable');
+  }
+
+  const localUri = `${VIDEO_SHARE_CACHE_DIR}${post.id}${getVideoShareExtension(post.media_url)}`;
+  const existing = await FileSystem.getInfoAsync(localUri);
+  if (existing.exists) {
+    return localUri;
+  }
+
+  await FileSystem.makeDirectoryAsync(VIDEO_SHARE_CACHE_DIR, { intermediates: true }).catch(
+    () => {}
+  );
+  await FileSystem.downloadAsync(optimizeVideoUrl(post.media_url) || post.media_url, localUri);
+  return localUri;
+}
 
 const FastImage = ({ source, style, resizeMode }: any) => (
   <Image
@@ -166,6 +197,7 @@ const FeedCard = memo(
     onSharePost,
     onToggleFollow: _onToggleFollow,
     onOpenAuthorProfile,
+    onOpenLinkedContext,
     onDoubleTap,
     onDeletePost,
     onEditPost,
@@ -184,6 +216,7 @@ const FeedCard = memo(
     onSharePost: () => void;
     onToggleFollow: () => void;
     onOpenAuthorProfile: () => void;
+    onOpenLinkedContext: () => void;
     onDoubleTap: () => void;
     onDeletePost?: () => void;
     onEditPost?: (caption: string) => void;
@@ -210,7 +243,10 @@ const FeedCard = memo(
     // a JPEG. Combined with the FlatList window that was enough memory
     // pressure to blank expo-image bitmaps app-wide (white grids/avatars).
     const videoSource = useMemo(
-      () => (post.media_type === 'video' && post.media_url ? { uri: post.media_url } : null),
+      () =>
+        post.media_type === 'video' && post.media_url
+          ? { uri: optimizeVideoUrl(post.media_url) || post.media_url }
+          : null,
       [post.media_type, post.media_url]
     );
     const imageSource = useMemo(
@@ -451,7 +487,10 @@ const FeedCard = memo(
           )}
         </Pressable>
 
-        <View style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}
+        >
           <Pressable
             onPress={post.author?.id ? onOpenAuthorProfile : undefined}
             disabled={!post.author?.id}
@@ -459,15 +498,24 @@ const FeedCard = memo(
           >
             <Text style={styles.authorNameBottom}>{authorLabel}</Text>
           </Pressable>
+          <EventChip
+            gameId={post.game_id}
+            eventId={post.event_id}
+            onPress={onOpenLinkedContext}
+            style={styles.eventChipRow}
+          />
           <ExpandableText
             text={post.caption}
-            maxLines={3}
+            maxLines={1}
             style={styles.captionText}
             expandStyle={styles.captionToggle}
           />
         </View>
 
-        <View style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 24, 96) }]}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 24, 96) }]}
+        >
           {/* Avatar tap opens the poster profile. The previous "+" follow
               badge overlay (red-on-avatar) was removed in v1.0.3 at user
               request — it cluttered the viewer and duplicated the follow
@@ -714,6 +762,23 @@ function GameVerticalFeedScreen({
     }
   }, [onClose, router]);
 
+  const navigateFromViewer = useCallback(
+    (target: Href) => {
+      const runNavigation = () => {
+        void router.push(target);
+      };
+
+      if (onClose) {
+        onClose();
+        requestAnimationFrame(runNavigation);
+        return;
+      }
+
+      runNavigation();
+    },
+    [onClose, router]
+  );
+
   const [game, setGame] = useState<GameSummary | null>(null);
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -926,11 +991,12 @@ function GameVerticalFeedScreen({
 
       const currentCursor = reset ? null : cursorRef.current;
       try {
-        const page = await Post.feedForGame(gameId, {
-          cursor: currentCursor,
-          limit: 6,
-          sort: 'trending',
-        });
+        const page = await Post.filterPage(
+          { game_id: gameId, type: 'highlight' },
+          currentCursor,
+          6,
+          'trending'
+        );
         const items = Array.isArray(page?.items) ? page.items : [];
         const filtered = items.filter(p => {
           const n = normalizeUrl((p as any)?.media_url);
@@ -1071,7 +1137,7 @@ function GameVerticalFeedScreen({
       if (!user) {
         promptForSignIn(
           () => {
-            void router.push('/sign-in');
+            navigateFromViewer('/sign-in');
           },
           {
             message: 'Sign in to upvote posts.',
@@ -1112,7 +1178,7 @@ function GameVerticalFeedScreen({
         }));
       }
     },
-    [router, updatePost, user]
+    [navigateFromViewer, updatePost, user]
   );
 
   const handleToggleBookmark = useCallback(
@@ -1120,7 +1186,7 @@ function GameVerticalFeedScreen({
       if (!user) {
         promptForSignIn(
           () => {
-            void router.push('/sign-in');
+            navigateFromViewer('/sign-in');
           },
           {
             message: 'Sign in to save posts.',
@@ -1150,7 +1216,7 @@ function GameVerticalFeedScreen({
         }));
       }
     },
-    [router, updatePost, user]
+    [navigateFromViewer, updatePost, user]
   );
 
   const handleToggleFollow = useCallback(
@@ -1158,7 +1224,7 @@ function GameVerticalFeedScreen({
       if (!user) {
         promptForSignIn(
           () => {
-            void router.push('/sign-in');
+            navigateFromViewer('/sign-in');
           },
           {
             message: 'Sign in to follow creators.',
@@ -1189,21 +1255,48 @@ function GameVerticalFeedScreen({
         }));
       }
     },
-    [optimisticUpdateAllFromAuthor, router, user]
+    [navigateFromViewer, optimisticUpdateAllFromAuthor, user]
   );
 
   const handleOpenAuthorProfile = useCallback(
     (post: FeedPost) => {
       const authorId = post.author?.id;
       if (!authorId) return;
-      void router.push(`/user-profile?id=${encodeURIComponent(String(authorId))}`);
+      navigateFromViewer(`/user-profile?id=${encodeURIComponent(String(authorId))}`);
     },
-    [router]
+    [navigateFromViewer]
   );
 
-  const handleShare = useCallback((post: FeedPost) => {
+  const navigateToLinkedContext = useCallback(
+    (post: FeedPost) => {
+      if (post.game_id && String(post.game_id).trim()) {
+        navigateFromViewer({ pathname: '/game/[id]', params: { id: String(post.game_id).trim() } });
+        return;
+      }
+      if (post.event_id && String(post.event_id).trim()) {
+        navigateFromViewer(buildEventDetailRoute(String(post.event_id).trim()));
+      }
+    },
+    [navigateFromViewer]
+  );
+
+  const handleShare = useCallback(async (post: FeedPost) => {
+    if (post.media_type === 'video' && post.media_url) {
+      try {
+        const localUri = await getCachedShareableVideoUri(post);
+        await Share.share({ url: localUri });
+        return;
+      } catch (error) {
+        if (__DEV__) {
+          console.warn(
+            '[GameVerticalFeed] Video file share failed, falling back to link share:',
+            error
+          );
+        }
+      }
+    }
     const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
-    Share.share({ message: shareLink.shareMessage, url: shareLink.webUrl }).catch(() => {});
+    Share.share(buildNativeSharePayload(shareLink.shareMessage, shareLink.webUrl)).catch(() => {});
   }, []);
 
   const handleCopyLink = useCallback(async (post: FeedPost) => {
@@ -1315,7 +1408,7 @@ function GameVerticalFeedScreen({
     if (!user) {
       promptForSignIn(
         () => {
-          void router.push('/sign-in');
+          navigateFromViewer('/sign-in');
         },
         {
           message: 'Sign in to comment on posts.',
@@ -1353,7 +1446,7 @@ function GameVerticalFeedScreen({
     } finally {
       setCommentSending(false);
     }
-  }, [commentInput, commentSending, commentTarget, updatePost, meInfo, router, user]);
+  }, [commentInput, commentSending, commentTarget, updatePost, meInfo, navigateFromViewer, user]);
 
   const handleDoubleTap = useCallback(
     (post: FeedPost) => {
@@ -1376,6 +1469,7 @@ function GameVerticalFeedScreen({
         onSharePost={() => handleShare(item)}
         onToggleFollow={() => handleToggleFollow(item)}
         onOpenAuthorProfile={() => handleOpenAuthorProfile(item)}
+        onOpenLinkedContext={() => navigateToLinkedContext(item)}
         onDoubleTap={() => handleDoubleTap(item)}
         onDeletePost={() => handleDeletePost(item)}
         onEditPost={(newCaption: string) => handleEditPost(item, newCaption)}
@@ -1394,6 +1488,7 @@ function GameVerticalFeedScreen({
       handleDeletePost,
       handleEditPost,
       handleOpenAuthorProfile,
+      navigateToLinkedContext,
       handleReportPost,
       handleShare,
       handleToggleBookmark,
@@ -1493,12 +1588,14 @@ function GameVerticalFeedScreen({
           ) : (
             <View style={styles.emptyState}>
               <Text style={[styles.emptyStateTitle, { color: Colors[colorScheme].text }]}>
-                No posts yet
+                {gameId ? 'No highlights yet' : 'No posts yet'}
               </Text>
               <Text
                 style={[styles.emptyStateCaption, { color: Colors[colorScheme].tabIconDefault }]}
               >
-                Be the first to create a post for this game.
+                {gameId
+                  ? 'Be the first to share a highlight for this game.'
+                  : 'Be the first to create a post for this game.'}
               </Text>
             </View>
           )
@@ -1506,7 +1603,10 @@ function GameVerticalFeedScreen({
       />
 
       {showHeader && !usingInitial ? (
-        <View style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}
+        >
           <Pressable style={styles.backBtn} onPress={handleBack}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </Pressable>
@@ -1518,7 +1618,10 @@ function GameVerticalFeedScreen({
           </View>
         </View>
       ) : usingInitial ? (
-        <View style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}
+        >
           <Pressable style={styles.backBtn} onPress={handleBack}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </Pressable>
@@ -1723,6 +1826,9 @@ const styles = StyleSheet.create({
     left: 16,
     right: 88,
     bottom: 12,
+    zIndex: 20,
+    elevation: 20,
+    pointerEvents: 'box-none',
   },
   authorNameBottom: {
     color: '#fff',
@@ -1739,6 +1845,10 @@ const styles = StyleSheet.create({
   },
   authorNameButton: {
     alignSelf: 'flex-start',
+  },
+  eventChipRow: {
+    marginTop: 6,
+    marginBottom: 2,
   },
   captionText: {
     color: '#fff',
@@ -1790,6 +1900,9 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 24,
     alignItems: 'center',
+    zIndex: 20,
+    elevation: 20,
+    pointerEvents: 'box-none',
   },
   railAvatarWrap: {
     marginBottom: 28,
@@ -1823,6 +1936,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    zIndex: 30,
+    elevation: 30,
     pointerEvents: 'box-none',
   },
   backBtn: {

@@ -8,7 +8,6 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 const centerTab = read('components/ui/CenterTabButton.tsx');
 const createPost = read('app/(tabs)/create-post.tsx');
 const profile = read('app/profile.tsx');
-const navProfile = read('app/features/navigation/screens/ProfileScreen.tsx');
 const discover = read('app/(tabs)/discover/mobile-community.tsx');
 const publicEvent = read('app/public-event.tsx');
 const gameDetails = read('app/game-details/GameDetailsScreen.tsx');
@@ -19,9 +18,12 @@ const submitAd = read('components/SubmitAdScreenBase.tsx');
 
 describe('guest create-entry contracts', () => {
   it('routes generic create entry points through /create instead of the raw composer', () => {
-    expect(centerTab).toContain("void router.push('/create');");
+    // The center "+" tab deliberately goes straight to the composer (device-test
+    // feedback, commit d66c6029: team creation stays in coach Quick Actions). The
+    // composer self-guards auth (see next test), so this is safe. Other generic
+    // entry points (profile, discover) still funnel through the /create hub.
+    expect(centerTab).toContain("void router.push('/create-post');");
     expect(profile).toContain("onPress={() => void router.push('/create')}");
-    expect(navProfile).toContain("onPress={() => void router.push('/create')}");
     expect(discover).toContain("onPress={() => void router.push('/create')}");
   });
 

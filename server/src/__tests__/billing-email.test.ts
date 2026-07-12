@@ -55,7 +55,9 @@ describe('Billing Email JSON', () => {
     ]);
     expect(payload.templateData.additional_context).toContain('fully refunded');
     expect(payload.templateData.privacy_policy_url).toBe('https://varsityhub.app/privacy-policy');
-    expect(payload.templateData.community_guidelines_url).toBe('https://varsityhub.app/terms');
+    expect(payload.templateData.community_guidelines_url).toBe(
+      'https://varsityhub.app/privacy-policy'
+    );
     expect(payload.templateData.website_url).toBe('https://varsityhub.app');
     expect(payload.templateData.support_url).toBe('https://varsityhub.app/support');
   });

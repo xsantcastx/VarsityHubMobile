@@ -33,11 +33,14 @@ export default function ZipCodeScreen() {
 
   const onSave = async () => {
     const v = zip.trim();
-    if (v && !isValidZip(v)) { Alert.alert('Invalid ZIP/Postal Code'); return; }
+    if (v && !isValidZip(v)) {
+      Alert.alert('Invalid ZIP/Postal Code');
+      return;
+    }
     setSaving(true);
     try {
       await User.updatePreferences({ zip_code: v || null });
-      const fresh = await checkAuth().catch((error) => {
+      const fresh = await checkAuth().catch(error => {
         if (__DEV__) console.warn('[zip-code] checkAuth failed after save:', error);
         return null;
       });
@@ -58,19 +61,25 @@ export default function ZipCodeScreen() {
   };
 
   return (
-    <SettingsFormScreen
-      title="ZIP Code"
-      headerTitle="ZIP / Postal Code"
-      colorScheme={colorScheme}
-    >
-      <Input placeholder="94105" value={zip} onChangeText={setZip} keyboardType="number-pad" style={{ marginBottom: 12 }} />
+    <SettingsFormScreen title="ZIP Code" headerTitle="ZIP / Postal Code" colorScheme={colorScheme}>
+      <Input
+        placeholder="e.g. 94105 or M5V 3L9"
+        value={zip}
+        onChangeText={setZip}
+        keyboardType="default"
+        autoCapitalize="characters"
+        maxLength={10}
+        style={{ marginBottom: 12 }}
+      />
       <ZipCodeMapPreview
         zipCode={zip}
         title="Your Location"
         subtitle={`Content near ZIP ${zip || 'your area'} will be prioritized for you`}
         showCircle={false}
       />
-      <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+      <Button onPress={onSave} disabled={saving}>
+        {saving ? 'Saving…' : 'Save'}
+      </Button>
     </SettingsFormScreen>
   );
 }
