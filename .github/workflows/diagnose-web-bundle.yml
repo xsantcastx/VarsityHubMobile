@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Fetch homepage and find JS bundle URLs
         run: |
-          curl -sS -w '\nHTTP_STATUS:%{http_code}\n' https://varsityhub.app/ -o index.html
+          curl -sSL -w '\nHTTP_STATUS:%{http_code} FINAL_URL:%{url_effective}\n' https://varsityhub.app/ -o index.html
           echo "--- index.html head ---"
           head -c 3000 index.html
           echo ""
@@ -23,7 +23,7 @@ jobs:
 
       - name: Fetch each JS bundle and search for the fix marker
         run: |
-          BASE="https://varsityhub.app"
+          BASE="https://www.varsityhub.app"
           for path in $(grep -oE '(src)="[^"]*\.js"' index.html | sed -E 's/^src="//; s/"$//'); do
             case "$path" in
               http*) url="$path" ;;
