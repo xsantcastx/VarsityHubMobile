@@ -115,7 +115,10 @@ const config: AppConfig = {
     }
 
     if (normalizedEnvUrl) {
-      if (!forceRemoteApi || !/localhost|127\.0\.0\.1/.test(normalizedEnvUrl)) {
+      const isLocalhostEnv = /localhost|127\.0\.0\.1/.test(normalizedEnvUrl);
+      // A localhost API URL must never be honored in a production build, even
+      // if EXPO_PUBLIC_FORCE_REMOTE_API is disabled via a stale .env.
+      if (!isLocalhostEnv || __DEV__) {
         return normalizedEnvUrl;
       }
     }

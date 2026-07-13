@@ -1,5 +1,4 @@
 import express from 'express';
-import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { approveCoach, rejectCoach } from '../lib/approvalService.js';
@@ -24,7 +23,6 @@ import {
   getTransactionSummary,
 } from '../lib/transactionLogger.js';
 import { invalidateMeCacheForUser, updateUserAndInvalidate } from '../lib/userCache.js';
-import { wipeCloudinary, wipeDatabase } from '../lib/wipeProduction.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { adminLimiter } from '../middleware/rateLimiters.js';
@@ -264,40 +262,6 @@ adminRouter.post(
   authMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => handleCoachReview(req, res, 'reject'))
 );
-
-/**
- * POST /admin/wipe-database
- * One-time production wipe. Only available when WIPE_TOKEN is set in env.
- * Call with header: X-Wipe-Token: <WIPE_TOKEN>. Remove WIPE_TOKEN after use.
- */
-const WIPE_TOKEN = process.env.WIPE_TOKEN;
-if (WIPE_TOKEN) {
-  adminRouter.post(
-    '/wipe-database',
-    requireVerified as any,
-    requireAdminMiddleware as any,
-    asyncHandler(async (req, res) => {
-      // Double gate: requires both admin auth AND correct wipe token
-      const token = req.headers['x-wipe-token'];
-      if (token !== WIPE_TOKEN) {
-        return res.status(401).json({ error: 'Invalid or missing X-Wipe-Token' });
-      }
-      try {
-        const dbResult = await wipeDatabase(prisma);
-        const cloudResult = await wipeCloudinary();
-        return res.json({
-          ok: true,
-          message: 'Production wipe complete. Remove WIPE_TOKEN from Railway after this.',
-          database: dbResult.deleted,
-          cloudinaryDeleted: cloudResult.deleted,
-        });
-      } catch (err) {
-        console.error('[admin] wipe-database error:', err);
-        return res.status(500).json({ error: 'Wipe failed' });
-      }
-    })
-  );
-}
 
 /**
  * GET /admin/dashboard
@@ -1071,88 +1035,6 @@ adminRouter.post(
     }
 
     return res.json({ ok: true, banned: false });
-  })
-);
-
-/**
- * POST /admin/wipe-production
- * Wipes all data except the demo account. Admin-only, requires confirmation header.
- */
-adminRouter.post(
-  '/wipe-production',
-  requireVerified as any,
-  requireAdminMiddleware as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    if (req.headers['x-confirm-wipe'] !== 'YES_WIPE_EVERYTHING') {
-      return res
-        .status(400)
-        .json({ error: 'Missing confirmation header: x-confirm-wipe: YES_WIPE_EVERYTHING' });
-    }
-
-    const demo = await prisma.user.findFirst({ where: { email: 'demo@varsityhub.app' } });
-    const adminEmail =
-      (process.env.ADMIN_EMAILS || '')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean)[0] || '';
-    const admin = adminEmail ? await prisma.user.findFirst({ where: { email: adminEmail } }) : null;
-    const keepIds = [demo?.id, admin?.id].filter(Boolean) as string[];
-    if (keepIds.length === 0) {
-      return res.status(500).json({
-        error: 'Wipe aborted: no preserved admin/demo account found',
-      });
-    }
-
-    await prisma.$transaction(async tx => {
-      // Use raw SQL to bypass FK constraints, but keep the whole wipe atomic.
-      await tx.$executeRaw`DELETE FROM "Story"`;
-      await tx.$executeRaw`DELETE FROM "GameVote"`;
-      await tx.$executeRaw`DELETE FROM "EventRsvp"`;
-      await tx.$executeRaw`DELETE FROM "AdReservation"`;
-      await tx.$executeRaw`DELETE FROM "Ad"`;
-      await tx.$executeRaw`DELETE FROM "PollVote"`;
-      await tx.$executeRaw`DELETE FROM "PollOption"`;
-      await tx.$executeRaw`DELETE FROM "Poll"`;
-      await tx.$executeRaw`DELETE FROM "PostUpvote"`;
-      await tx.$executeRaw`DELETE FROM "PostBookmark"`;
-      await tx.$executeRaw`DELETE FROM "CategoryAssignment"`;
-      await tx.$executeRaw`DELETE FROM "Comment"`;
-      await tx.$executeRaw`DELETE FROM "Notification"`;
-      await tx.$executeRaw`DELETE FROM "Message"`;
-      await tx.$executeRaw`DELETE FROM "Follows"`;
-      await tx.$executeRaw`DELETE FROM "TeamFollow"`;
-      await tx.$executeRaw`DELETE FROM "OrganizationFollow"`;
-      await tx.$executeRaw`DELETE FROM "CategoryFollow"`;
-      await tx.$executeRaw`DELETE FROM "BlockedUser"`;
-      await tx.$executeRaw`DELETE FROM "GroupChatMessage"`;
-      await tx.$executeRaw`DELETE FROM "GroupChatMember"`;
-      await tx.$executeRaw`DELETE FROM "GroupChat"`;
-      await tx.$executeRaw`DELETE FROM "Post"`;
-      await tx.$executeRaw`DELETE FROM "Event"`;
-      await tx.$executeRaw`DELETE FROM "Game"`;
-      await tx.$executeRaw`DELETE FROM "TeamMembership"`;
-      await tx.$executeRaw`DELETE FROM "TeamInvite"`;
-      await tx.$executeRaw`DELETE FROM "Team"`;
-      await tx.$executeRaw`DELETE FROM "OrganizationMembership"`;
-      await tx.$executeRaw`DELETE FROM "OrganizationJoinRequest"`;
-      await tx.$executeRaw`DELETE FROM "Organization"`;
-      await tx.$executeRaw`DELETE FROM "UserWarning"`;
-      await tx.$executeRaw`DELETE FROM "AbuseReport"`;
-      await tx.$executeRaw`DELETE FROM "AdminActivityLog"`;
-      await tx.$executeRaw(
-        Prisma.sql`DELETE FROM "RefreshToken" WHERE "user_id" NOT IN (${Prisma.join(keepIds)})`
-      );
-      await tx.$executeRaw(
-        Prisma.sql`DELETE FROM "User" WHERE "id" NOT IN (${Prisma.join(keepIds)})`
-      );
-    });
-
-    const remaining = await prisma.user.count();
-    return res.json({
-      ok: true,
-      message: `Wiped. Users remaining: ${remaining}`,
-      demo_kept: !!demo,
-    });
   })
 );
 

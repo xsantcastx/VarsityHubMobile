@@ -245,7 +245,7 @@ export function getApiBaseUrl(): string {
   const finalUrl = preferLocalDevUrl
     ? localDevUrl
     : normalizedEnvUrl
-      ? !isLocalhostEnv || __DEV__ || !forceRemoteApi
+      ? !isLocalhostEnv || __DEV__
         ? normalizedEnvUrl
         : PRODUCTION_URL
       : __DEV__ && !forceRemoteApi && localDevUrl

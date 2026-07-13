@@ -23,6 +23,12 @@ dist-verify/
 *.apk
 *.aab
 *.xlsx
+# Never upload local dotenv files to EAS builds — app.config.js reads process.env
+# at build time, so a stale local .env (e.g. EXPO_PUBLIC_USE_LOCAL_API=1) could
+# otherwise bake localhost into a production binary. Build env comes from eas.json.
+.env
+.env.*
+!.env.example
 service-account-key.json
 android/keystore.properties
 android/*.keystore

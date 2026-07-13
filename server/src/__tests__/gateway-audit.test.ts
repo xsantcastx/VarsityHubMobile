@@ -67,7 +67,8 @@ describe('gateway audit invariants', () => {
     });
 
     it('auth routes mounted under authLimiter at app level', () => {
-      expect(app).toMatch(/authLimiter[^)]*authRouter|'\/auth'[^)]*authLimiter/);
+      // The /auth mount uses authMountLimiter (renamed from authLimiter); accept either name.
+      expect(app).toMatch(/auth(Mount)?Limiter[^)]*authRouter|'\/auth'[^)]*auth(Mount)?Limiter/);
     });
 
     it('defaultApiLimiter applied at parent router level', () => {

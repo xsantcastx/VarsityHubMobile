@@ -1,6 +1,6 @@
 /**
  * Shared production wipe logic: database (preserve schema, categories, promo codes) and optional Cloudinary.
- * Used by scripts/wipe-production.ts and POST /admin/wipe-database.
+ * Used by scripts/wipe-production.ts (CLI only — there is deliberately no HTTP wipe endpoint).
  */
 
 import crypto from 'node:crypto';
