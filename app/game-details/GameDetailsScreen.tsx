@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import ExpandableText from '@/components/ExpandableText';
 import {
   isNativeVideoTrimSupported,
   MAX_VIDEO_SIZE_BYTES,
@@ -2495,7 +2496,14 @@ const GameDetailsScreen = () => {
 
               <View style={styles.section}>
                 {displayDescription ? (
-                  <Text style={styles.bodyText}>{displayDescription}</Text>
+                  // Long (often seeded) descriptions used to render unclamped
+                  // and push the whole page down — keep it small and simple.
+                  <ExpandableText
+                    text={displayDescription}
+                    maxLines={3}
+                    style={styles.bodyText}
+                    expandStyle={{ color: Colors[colorScheme].tint }}
+                  />
                 ) : (
                   <Text style={styles.muted}>No description yet.</Text>
                 )}
