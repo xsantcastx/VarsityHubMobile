@@ -39,3 +39,100 @@ describe('program labels', () => {
     ]);
   });
 });
+
+import { buildProgramDisplayPlan, filterProgramGames } from '@/constants/programs';
+
+describe('program display plan (one page per sport)', () => {
+  const entry = (
+    level: string | null,
+    gender: string | null,
+    teamId: string,
+    games: any[] = []
+  ) => ({
+    level,
+    team: { id: teamId, gender },
+    games,
+  });
+  const g = (id: string, date: string | null) => ({ id, date });
+
+  it('shows the gender toggle only when more than one gender bucket exists', () => {
+    const both = buildProgramDisplayPlan([
+      entry('varsity', 'boys', 't1'),
+      entry('varsity', 'girls', 't2'),
+    ]);
+    expect(both.showGenderToggle).toBe(true);
+    expect(both.genderOptions.map(o => o.label)).toEqual(['Boys', 'Girls']);
+
+    const one = buildProgramDisplayPlan([
+      entry('varsity', 'boys', 't1'),
+      entry('jv', 'boys', 't2'),
+    ]);
+    expect(one.showGenderToggle).toBe(false);
+    expect(one.genderOptions.map(o => o.value)).toEqual(['boys']);
+  });
+
+  it('buckets coed and unknown genders together as Coed', () => {
+    const plan = buildProgramDisplayPlan([
+      entry('varsity', 'coed', 't1'),
+      entry('other', null, 't2'),
+    ]);
+    expect(plan.showGenderToggle).toBe(false);
+    expect(plan.genderOptions).toEqual([{ value: 'coed', label: 'Coed' }]);
+  });
+
+  it('offers level chips only when the selected gender has more than one level', () => {
+    const plan = buildProgramDisplayPlan([
+      entry('varsity', 'boys', 't1'),
+      entry('jv', 'boys', 't2'),
+      entry('varsity', 'girls', 't3'),
+    ]);
+    expect(plan.levelChipsFor('boys').map(c => c.label)).toEqual(['All', 'Varsity', 'JV']);
+    expect(plan.levelChipsFor('girls')).toEqual([]);
+  });
+
+  it('merges games across the selected gender levels, sorted by date, tagged with a level label', () => {
+    const plan = buildProgramDisplayPlan([
+      entry('jv', 'boys', 't2', [g('late', '2026-02-08T00:00:00.000Z')]),
+      entry('varsity', 'boys', 't1', [g('early', '2026-02-01T00:00:00.000Z'), g('nodate', null)]),
+      entry('varsity', 'girls', 't3', [g('girls', '2026-02-02T00:00:00.000Z')]),
+    ]);
+    const games = filterProgramGames(plan, 'boys', 'all');
+    expect(games.map(x => x.game.id)).toEqual(['early', 'late', 'nodate']);
+    expect(games[0].levelLabel).toBe('Varsity');
+    expect(games[1].levelLabel).toBe('JV');
+    expect(games[0].teamId).toBe('t1');
+  });
+
+  it('filters by a specific level chip', () => {
+    const plan = buildProgramDisplayPlan([
+      entry('varsity', 'boys', 't1', [g('v1', '2026-02-01T00:00:00.000Z')]),
+      entry('jv', 'boys', 't2', [g('j1', '2026-02-02T00:00:00.000Z')]),
+    ]);
+    expect(filterProgramGames(plan, 'boys', 'jv').map(x => x.game.id)).toEqual(['j1']);
+  });
+
+  it('a single-team program needs no toggle and no chips', () => {
+    const plan = buildProgramDisplayPlan([
+      entry('other', 'coed', 't1', [g('a', '2026-07-12T00:00:00.000Z')]),
+    ]);
+    expect(plan.showGenderToggle).toBe(false);
+    expect(plan.levelChipsFor('coed')).toEqual([]);
+    expect(filterProgramGames(plan, 'coed', 'all').map(x => x.game.id)).toEqual(['a']);
+  });
+});
+
+describe('program display plan — intra-program games', () => {
+  it('a game between two level teams of the same program renders once, attributed to the higher level', () => {
+    // Server maps a game to BOTH its home and away team (programs.ts groups by
+    // home_team_id AND away_team_id), so a Varsity-vs-JV scrimmage arrives in
+    // two level entries. The merged feed must dedupe by game id.
+    const scrimmage = { id: 'gx', date: '2026-02-03T00:00:00.000Z' };
+    const plan = buildProgramDisplayPlan([
+      { level: 'jv', team: { id: 't2', gender: 'boys' }, games: [scrimmage] },
+      { level: 'varsity', team: { id: 't1', gender: 'boys' }, games: [scrimmage] },
+    ]);
+    const rows = filterProgramGames(plan, 'boys', 'all');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].levelLabel).toBe('Varsity');
+  });
+});

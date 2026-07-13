@@ -5,7 +5,7 @@ import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { gameRowTitle } from '@/utils/eventTitle';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
-import { safeGoBack } from '@/utils/navigation';
+import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -389,7 +389,7 @@ function TeamScreen() {
     if (!programId) return;
     if (params.from === 'program') return;
     redirectedToProgramRef.current = true;
-    router.replace({ pathname: '/program-page', params: { id: programId } }); // nav-safe: canonical program page supersedes the level-team page; from=program bypasses
+    replaceAsRedirect(router, { pathname: '/program-page', params: { id: programId } } as any); // nav-safe: canonical program page supersedes the level-team page; from=program bypasses; marked so this hop never becomes a back target
   }, [team, teamQuery.isPending, params.from, router]);
 
   // Pick up server-side edits (e.g. renamed team) when the screen regains focus.

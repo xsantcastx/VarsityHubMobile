@@ -4,10 +4,9 @@ import { Program } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import {
+  buildProgramDisplayPlan,
+  filterProgramGames,
   formatProgramLabel,
-  formatTeamFolderLabel,
-  genderRank,
-  levelRank,
 } from '@/constants/programs';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { gameRowTitle } from '@/utils/eventTitle';
@@ -17,7 +16,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -59,12 +58,25 @@ function ProgramScreen() {
     setFollowersCount(data.program.followers_count ?? 0);
   }, [data]);
 
-  // Collapse state per folder index. A folder is expanded when its override is
-  // set; otherwise the first folder (index 0) is expanded by default.
-  const [overrides, setOverrides] = useState<Record<number, boolean>>({});
-  const isExpanded = (idx: number) => (idx in overrides ? overrides[idx] : idx === 0);
-  const toggleFolder = (idx: number) =>
-    setOverrides(prev => ({ ...prev, [idx]: !(idx in prev ? prev[idx] : idx === 0) }));
+  // One page per sport: controls only exist when they disambiguate.
+  // Overrides are null until the user taps; the effective values derive from
+  // the display plan so a data refresh can never strand an invalid selection.
+  const [genderOverride, setGenderOverride] = useState<string | null>(null);
+  const [levelOverride, setLevelOverride] = useState<string>('all');
+  const displayPlan = useMemo(
+    () => buildProgramDisplayPlan((data?.levels ?? []) as ProgramLevel[]),
+    [data?.levels]
+  );
+  const activeGender =
+    genderOverride && displayPlan.genderOptions.some(o => o.value === genderOverride)
+      ? genderOverride
+      : (displayPlan.genderOptions[0]?.value ?? 'coed');
+  const levelChips = displayPlan.levelChipsFor(activeGender);
+  const activeLevel = levelChips.some(c => c.value === levelOverride) ? levelOverride : 'all';
+  const gameRows = useMemo(
+    () => filterProgramGames(displayPlan, activeGender, activeLevel),
+    [displayPlan, activeGender, activeLevel]
+  );
 
   const handleFollow = async () => {
     if (!programId || followLoading) return;
@@ -114,7 +126,7 @@ function ProgramScreen() {
     </Pressable>
   );
 
-  const renderGameRow = (g: any, viewedTeamId: string) => {
+  const renderGameRow = (g: any, viewedTeamId: string, levelTag?: string | null) => {
     const rawDate = g.scheduled_date || g.date;
     const dateStr = rawDate
       ? new Date(rawDate).toLocaleDateString('en-US', {
@@ -128,6 +140,9 @@ function ProgramScreen() {
       ? g.home_team || g.opponent_name || 'TBD'
       : g.opponent_name || g.away_team || g.awayTeam || g.away_team_name || 'TBD';
     const gameType = g.game_type || 'Game';
+    // Level tag replaces per-level folders: rows stay attributable inside the
+    // single merged feed. Single-level programs skip the tag (nothing to tell apart).
+    const subtitle = levelTag ? `${levelTag} · ${gameType}` : gameType;
     const hasScore = g.home_score != null || g.away_score != null;
     const gameId = g.id ? String(g.id) : null;
     const rowTitle = gameRowTitle({ ...g, opponent });
@@ -153,7 +168,7 @@ function ProgramScreen() {
           <Text style={[styles.eventTitle, { color: theme.text }]} numberOfLines={1}>
             {rowTitle}
           </Text>
-          <Text style={[styles.eventTypeText, { color: theme.mutedText }]}>{gameType}</Text>
+          <Text style={[styles.eventTypeText, { color: theme.mutedText }]}>{subtitle}</Text>
         </View>
         {hasScore && (
           <Text style={[styles.eventScore, { color: theme.text }]}>
@@ -226,14 +241,7 @@ function ProgramScreen() {
     );
   }
 
-  // Folder order is stable across genders: level rank first, then gender, so
-  // "Boys Varsity" precedes "Girls Varsity" precedes "Boys JV" regardless of
-  // the server's canonical level-only sort.
-  const levels = [...((data?.levels ?? []) as ProgramLevel[])].sort((a, b) => {
-    const byLevel = levelRank(a.level) - levelRank(b.level);
-    if (byLevel !== 0) return byLevel;
-    return genderRank(a.team?.gender) - genderRank(b.team?.gender);
-  });
+  const levels = (data?.levels ?? []) as ProgramLevel[];
   const counts = data?.counts ?? { levels: 0, teams: 0, games: 0 };
   const title = formatProgramLabel({
     id: program.id,
@@ -353,7 +361,10 @@ function ProgramScreen() {
           </View>
         </View>
 
-        {/* Level folders */}
+        {/* One page per sport: gender toggle + level chips + one merged feed.
+            Controls render only when they disambiguate — a single-team program
+            is just a plain schedule. Level teams have no public page; the
+            level tag on each row keeps games attributable. */}
         {levels.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="folder-open-outline" size={40} color={theme.mutedText} />
@@ -362,68 +373,86 @@ function ProgramScreen() {
             </Text>
           </View>
         ) : (
-          levels.map((lvl, idx) => {
-            const expanded = isExpanded(idx);
-            const folderLabel = formatTeamFolderLabel({
-              gender: lvl.team?.gender,
-              level: lvl.level,
-            });
-            const teamId = String(lvl.team?.id ?? '');
-            const games = Array.isArray(lvl.games) ? lvl.games : [];
-            return (
-              <View key={teamId || `level-${idx}`} style={styles.folder}>
-                <Pressable
-                  testID={`program-folder-header-${idx}`}
-                  onPress={() => toggleFolder(idx)}
-                  style={[
-                    styles.folderHeader,
-                    { backgroundColor: theme.card, borderColor: theme.border },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityState={{ expanded }}
-                  accessibilityLabel={`${folderLabel}, ${games.length} games`}
-                >
-                  <Ionicons
-                    name={expanded ? 'chevron-down' : 'chevron-forward'}
-                    size={18}
-                    color={theme.mutedText}
-                  />
-                  <View style={styles.folderTitleWrap}>
-                    <Text style={[styles.folderTitle, { color: theme.text }]} numberOfLines={1}>
-                      {folderLabel}
-                    </Text>
-                    <Text style={[styles.folderCount, { color: theme.mutedText }]}>
-                      {games.length} {games.length === 1 ? 'game' : 'games'}
-                    </Text>
-                  </View>
-                  <Pressable
-                    testID={`program-folder-teampage-${idx}`}
-                    hitSlop={8}
-                    onPress={() =>
-                      teamId &&
-                      router.push(`/team-page?id=${encodeURIComponent(teamId)}&from=program` as any)
-                    }
-                    disabled={!teamId}
-                    accessibilityRole="button"
-                    accessibilityLabel="Open team page"
-                    style={styles.teamPageLink}
-                  >
-                    <Text style={[styles.teamPageLinkText, { color: theme.tint }]}>Team page</Text>
-                    <Ionicons name="open-outline" size={14} color={theme.tint} />
-                  </Pressable>
-                </Pressable>
-
-                {expanded &&
-                  (games.length === 0 ? (
-                    <Text style={[styles.folderEmpty, { color: theme.mutedText }]}>
-                      No games scheduled
-                    </Text>
-                  ) : (
-                    games.map(g => renderGameRow(g, teamId))
-                  ))}
+          <View style={styles.feedSection}>
+            {displayPlan.showGenderToggle && (
+              <View style={[styles.genderToggle, { borderColor: theme.border }]}>
+                {displayPlan.genderOptions.map(opt => {
+                  const selected = opt.value === activeGender;
+                  return (
+                    <Pressable
+                      key={opt.value}
+                      testID={`program-gender-${opt.value}`}
+                      onPress={() => {
+                        setGenderOverride(opt.value);
+                        setLevelOverride('all');
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      accessibilityLabel={`Show ${opt.label} teams`}
+                      style={[styles.genderSegment, selected && { backgroundColor: theme.tint }]}
+                    >
+                      <Text
+                        style={[
+                          styles.genderSegmentText,
+                          // audit: fixed white on the theme.tint segment bg
+                          { color: selected ? '#FFFFFF' : theme.mutedText },
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
-            );
-          })
+            )}
+
+            {levelChips.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.levelChipsRow}
+              >
+                {levelChips.map(chip => {
+                  const selected = chip.value === activeLevel;
+                  return (
+                    <Pressable
+                      key={chip.value}
+                      testID={`program-level-chip-${chip.value}`}
+                      onPress={() => setLevelOverride(chip.value)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      style={[
+                        styles.levelChip,
+                        {
+                          borderColor: selected ? theme.tint : theme.border,
+                          backgroundColor: selected ? theme.tint + '22' : theme.card,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.levelChipText,
+                          { color: selected ? theme.tint : theme.mutedText },
+                        ]}
+                      >
+                        {chip.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            {gameRows.length === 0 ? (
+              <Text style={[styles.folderEmpty, { color: theme.mutedText }]}>
+                No games scheduled
+              </Text>
+            ) : (
+              gameRows.map(row =>
+                renderGameRow(row.game, row.teamId, levelChips.length > 0 ? row.levelLabel : null)
+              )
+            )}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -538,21 +567,24 @@ const styles = StyleSheet.create({
   emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12 },
   emptyTitle: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
 
-  folder: { marginTop: 12, paddingHorizontal: 16 },
-  folderHeader: {
+  feedSection: { marginTop: 16, paddingHorizontal: 16 },
+  genderToggle: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    borderWidth: 1,
+    borderRadius: 999,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  genderSegment: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 999 },
+  genderSegmentText: { fontSize: 14, fontWeight: '600' },
+  levelChipsRow: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
+  levelChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
     borderWidth: 1,
   },
-  folderTitleWrap: { flex: 1, minWidth: 0 },
-  folderTitle: { fontSize: 16, fontWeight: '700' },
-  folderCount: { fontSize: 13, marginTop: 2 },
-  teamPageLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  teamPageLinkText: { fontSize: 13, fontWeight: '600' },
+  levelChipText: { fontSize: 13, fontWeight: '600' },
   folderEmpty: { fontSize: 14, paddingVertical: 12, paddingHorizontal: 4 },
 
   eventRow: {

@@ -785,7 +785,10 @@ function CreateTeamScreen() {
           text: 'View Team',
           onPress: () => {
             if (teamId) {
-              router.push({ pathname: '/team-page', params: { id: teamId } } as never);
+              router.push({
+                pathname: '/team-page',
+                params: { id: teamId, from: 'program' },
+              } as never);
             } else {
               if (__DEV__)
                 console.warn(

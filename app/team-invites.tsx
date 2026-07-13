@@ -24,7 +24,9 @@ function TeamInvitesScreen() {
     typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
       ? params.fallback.trim()
       : '/(tabs)/notifications/index';
-  const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
+  const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(
+    null
+  );
   const { invites, loading, error: invitesError, refresh } = useTeamInvites<Invite>();
   const [processingId, setProcessingId] = useState<string | null>(null);
   const prioritizedInvites = params.id
@@ -44,17 +46,19 @@ function TeamInvitesScreen() {
           message: 'You have successfully joined the team. Would you like to view the team now?',
           options: [
             { label: 'Later', onPress: () => {}, color: Colors.light.mutedText },
-            { label: 'View Team', onPress: () => router.push(`/team-page?id=${teamId}`), color: '#2563eb' }
-          ]
+            {
+              label: 'View Team',
+              onPress: () => router.push(`/team-page?id=${teamId}&from=program`),
+              color: '#2563eb',
+            },
+          ],
         });
       }
     } catch (err) {
       setModal({
         title: 'Error',
         message: err instanceof Error ? err.message : 'Failed to accept invite',
-        options: [
-          { label: 'OK', onPress: () => {}, color: '#2563eb' }
-        ]
+        options: [{ label: 'OK', onPress: () => {}, color: '#2563eb' }],
       });
     } finally {
       setProcessingId(null);
@@ -70,9 +74,7 @@ function TeamInvitesScreen() {
       setModal({
         title: 'Error',
         message: err instanceof Error ? err.message : 'Failed to decline invite',
-        options: [
-          { label: 'OK', onPress: () => {}, color: '#2563eb' }
-        ]
+        options: [{ label: 'OK', onPress: () => {}, color: '#2563eb' }],
       });
     } finally {
       setProcessingId(null);
@@ -87,28 +89,65 @@ function TeamInvitesScreen() {
       onBack={() => {
         safeGoBack(router, explicitFallback);
       }}
-      subtitle={params.id && prioritizedInvites.some(invite => invite.id === params.id) ? (
-        <Text style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText, marginBottom: 8 }]}>
-          Your emailed invitation is at the top of the list.
-        </Text>
-      ) : null}
+      subtitle={
+        params.id && prioritizedInvites.some(invite => invite.id === params.id) ? (
+          <Text
+            style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText, marginBottom: 8 }]}
+          >
+            Your emailed invitation is at the top of the list.
+          </Text>
+        ) : null
+      }
     >
-      {loading && <View style={sharedStyles.loading}><ActivityIndicator /></View>}
+      {loading && (
+        <View style={sharedStyles.loading}>
+          <ActivityIndicator />
+        </View>
+      )}
       {invitesError && !loading && <Text style={sharedStyles.error}>{invitesError}</Text>}
-      {!loading && invites.length === 0 && <Text style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText }]}>No pending invites.</Text>}
+      {!loading && invites.length === 0 && (
+        <Text style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText }]}>
+          No pending invites.
+        </Text>
+      )}
       {!loading && prioritizedInvites.length > 0 && (
         <FlatList
           data={prioritizedInvites}
-          keyExtractor={(i) => i.id}
+          keyExtractor={i => i.id}
           renderItem={({ item }) => (
-            <View style={[sharedStyles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+            <View
+              style={[
+                sharedStyles.card,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
               <View style={{ flex: 1 }}>
-                <Text style={[sharedStyles.name, { color: Colors[colorScheme].text }]}>{item.team?.name || 'Team'}</Text>
-                <Text style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText }]}>Role: {item.role || 'member'}</Text>
+                <Text style={[sharedStyles.name, { color: Colors[colorScheme].text }]}>
+                  {item.team?.name || 'Team'}
+                </Text>
+                <Text style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText }]}>
+                  Role: {item.role || 'member'}
+                </Text>
               </View>
               <View style={sharedStyles.actions}>
-                <Button size="sm" onPress={() => accept(item.id, item.team?.id)} disabled={!!processingId}><Text>Accept</Text></Button>
-                <Button size="sm" variant="outline" onPress={() => decline(item.id)} disabled={!!processingId}><Text>Decline</Text></Button>
+                <Button
+                  size="sm"
+                  onPress={() => accept(item.id, item.team?.id)}
+                  disabled={!!processingId}
+                >
+                  <Text>Accept</Text>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onPress={() => decline(item.id)}
+                  disabled={!!processingId}
+                >
+                  <Text>Decline</Text>
+                </Button>
               </View>
             </View>
           )}

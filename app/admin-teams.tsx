@@ -9,7 +9,15 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 import { safeGoBack } from '@/utils/navigation';
@@ -28,7 +36,8 @@ function AdminTeamsScreen() {
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     try {
       const list = await TeamApi.listAllAdmin('', 100);
       setTeams(Array.isArray(list) ? list : []);
@@ -38,12 +47,16 @@ function AdminTeamsScreen() {
           ? 'Your admin session expired. Please sign in again.'
           : e?.status === 403
             ? 'Access denied (admin only).'
-            : (e?.message || 'Failed to load teams')
+            : e?.message || 'Failed to load teams'
       );
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [isAdmin]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const toggleTeamSelection = (teamId: string) => {
     const newSet = new Set(selectedTeams);
@@ -65,7 +78,7 @@ function AdminTeamsScreen() {
 
   const bulkDelete = async () => {
     if (selectedTeams.size === 0) return;
-    
+
     Alert.alert(
       'Delete Teams',
       `Delete ${selectedTeams.size} team${selectedTeams.size > 1 ? 's' : ''}? This cannot be undone.`,
@@ -78,18 +91,26 @@ function AdminTeamsScreen() {
             setDeleting(true);
             try {
               const teamIds = Array.from(selectedTeams);
-              const results = await Promise.allSettled(teamIds.map((teamId) => TeamApi.delete(teamId)));
+              const results = await Promise.allSettled(
+                teamIds.map(teamId => TeamApi.delete(teamId))
+              );
               const sessionExpiry = results.find(
-                (result) => result.status === 'rejected' && isSessionExpiryError(result.reason)
+                result => result.status === 'rejected' && isSessionExpiryError(result.reason)
               );
               if (sessionExpiry) {
                 return;
               }
-              const failed = results.filter((result) => result.status === 'rejected').length;
+              const failed = results.filter(result => result.status === 'rejected').length;
               if (failed > 0) {
-                Alert.alert('Partial Success', `Deleted ${teamIds.length - failed} team(s), ${failed} failed`);
+                Alert.alert(
+                  'Partial Success',
+                  `Deleted ${teamIds.length - failed} team(s), ${failed} failed`
+                );
               } else {
-                Alert.alert('Success', `Deleted ${teamIds.length} team${teamIds.length > 1 ? 's' : ''}`);
+                Alert.alert(
+                  'Success',
+                  `Deleted ${teamIds.length} team${teamIds.length > 1 ? 's' : ''}`
+                );
               }
               setSelectedTeams(new Set());
               setBulkMode(false);
@@ -102,8 +123,8 @@ function AdminTeamsScreen() {
             } finally {
               setDeleting(false);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -145,7 +166,10 @@ function AdminTeamsScreen() {
           >
             <Text
               style={{
-                color: selectedTeams.size > 0 ? Colors[colorScheme].destructive : Colors[colorScheme].mutedText,
+                color:
+                  selectedTeams.size > 0
+                    ? Colors[colorScheme].destructive
+                    : Colors[colorScheme].mutedText,
                 fontWeight: '600',
               }}
             >
@@ -173,54 +197,63 @@ function AdminTeamsScreen() {
       }}
       headerRight={renderHeaderRight}
     >
-      
       {loading ? (
         <View style={{ padding: 24, alignItems: 'center' }}>
           <ActivityIndicator color={theme.tint} />
         </View>
       ) : null}
-      
+
       {error ? (
-        <Text style={[sharedStyles.centeredError, { color: Colors[colorScheme].destructive }]}>{error}</Text>
+        <Text style={[sharedStyles.centeredError, { color: Colors[colorScheme].destructive }]}>
+          {error}
+        </Text>
       ) : null}
-      
+
       {!loading && !error && (
         <FlatList
           data={teams}
-          keyExtractor={(t) => String(t.id)}
+          keyExtractor={t => String(t.id)}
           renderItem={({ item }) => (
-            <Pressable 
+            <Pressable
               style={[
                 styles.row,
-                { 
-                  backgroundColor: theme.card, 
-                  borderColor: theme.border 
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
                 },
-                bulkMode && selectedTeams.has(String(item.id)) && {
-                  borderColor: theme.tint,
-                  borderWidth: 2
-                }
+                bulkMode &&
+                  selectedTeams.has(String(item.id)) && {
+                    borderColor: theme.tint,
+                    borderWidth: 2,
+                  },
               ]}
               onPress={() => {
                 if (bulkMode) {
                   toggleTeamSelection(String(item.id));
                 } else {
-                  router.push({ pathname: '/team-page', params: { id: item.id } } as any);
+                  router.push({
+                    pathname: '/team-page',
+                    params: { id: item.id, from: 'program' },
+                  } as any);
                 }
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 {bulkMode && (
-                  <View style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 12,
-                    borderWidth: 2,
-                    borderColor: selectedTeams.has(String(item.id)) ? theme.tint : '#d1d5db',
-                    backgroundColor: selectedTeams.has(String(item.id)) ? theme.tint : 'transparent',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
+                  <View
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: 12,
+                      borderWidth: 2,
+                      borderColor: selectedTeams.has(String(item.id)) ? theme.tint : '#d1d5db',
+                      backgroundColor: selectedTeams.has(String(item.id))
+                        ? theme.tint
+                        : 'transparent',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
                     {selectedTeams.has(String(item.id)) && (
                       <Ionicons name="checkmark" size={16} color="#ffffff" />
                     )}
@@ -245,8 +278,10 @@ function AdminTeamsScreen() {
                   </View>
                 </View>
                 {!bulkMode && (
-                  <Pressable 
-                    onPress={() => void router.push({ pathname: '/edit-team', params: { id: item.id } } as any)}
+                  <Pressable
+                    onPress={() =>
+                      void router.push({ pathname: '/edit-team', params: { id: item.id } } as any)
+                    }
                     style={{ padding: 8 }}
                   >
                     <Ionicons name="pencil" size={20} color={theme.tint} />

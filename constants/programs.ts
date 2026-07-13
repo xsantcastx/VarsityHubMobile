@@ -82,6 +82,113 @@ export function genderRank(gender: string | null | undefined): number {
 }
 
 /**
+ * Display plan for the one-page-per-sport program surface: controls only
+ * appear when they disambiguate something. Gender toggle only when more than
+ * one gender bucket exists; level chips only when the selected gender spans
+ * more than one level; a single-team program renders a plain feed.
+ * Unknown/null genders bucket with coed.
+ */
+type ProgramLevelInput = {
+  level: string | null;
+  team: { id?: string | number | null; gender?: string | null } & Record<string, any>;
+  games: Record<string, any>[];
+};
+
+export type ProgramDisplayPlan = {
+  genderOptions: { value: TeamGender; label: string }[];
+  showGenderToggle: boolean;
+  levelChipsFor: (gender: string) => { value: string; label: string }[];
+  entriesFor: (gender: string) => ProgramLevelInput[];
+};
+
+function genderBucket(gender: string | null | undefined): TeamGender {
+  return gender === 'boys' || gender === 'girls' ? gender : 'coed';
+}
+
+export function buildProgramDisplayPlan(levels: ProgramLevelInput[]): ProgramDisplayPlan {
+  const byGender = new Map<TeamGender, ProgramLevelInput[]>();
+  for (const entry of levels) {
+    const bucket = genderBucket(entry.team?.gender);
+    byGender.set(bucket, [...(byGender.get(bucket) ?? []), entry]);
+  }
+
+  const genderOptions = GENDER_OPTIONS.filter(o => byGender.has(o.value));
+
+  const entriesFor = (gender: string) =>
+    [...(byGender.get(genderBucket(gender)) ?? [])].sort(
+      (a, b) => levelRank(a.level) - levelRank(b.level)
+    );
+
+  const levelChipsFor = (gender: string) => {
+    const distinct = [...new Set(entriesFor(gender).map(e => e.level ?? 'other'))];
+    if (distinct.length <= 1) return [];
+    return [
+      { value: 'all', label: 'All' },
+      ...distinct
+        .sort((a, b) => levelRank(a) - levelRank(b))
+        .map(level => ({ value: level, label: formatLevelLabel(level) ?? 'Other' })),
+    ];
+  };
+
+  return {
+    genderOptions,
+    showGenderToggle: genderOptions.length > 1,
+    levelChipsFor,
+    entriesFor,
+  };
+}
+
+export type ProgramGameRow = {
+  game: Record<string, any>;
+  teamId: string;
+  levelLabel: string | null;
+};
+
+/**
+ * The merged events feed for the current toggle/chip selection: every game of
+ * the selected gender's level teams (or one level when a chip is active),
+ * ascending by date with dateless games last, each tagged with its level so
+ * rows stay attributable without separate team pages.
+ */
+export function filterProgramGames(
+  plan: ProgramDisplayPlan,
+  gender: string,
+  level: string
+): ProgramGameRow[] {
+  const entries = plan
+    .entriesFor(gender)
+    .filter(e => level === 'all' || (e.level ?? 'other') === level);
+  // The server maps a game to BOTH its home and away team, so an
+  // intra-program matchup arrives in two level entries. Dedupe by game id;
+  // entriesFor is level-rank sorted, so the higher level's copy wins.
+  const seenGameIds = new Set<string>();
+  const rows: ProgramGameRow[] = entries.flatMap(e =>
+    (Array.isArray(e.games) ? e.games : [])
+      .filter(game => {
+        const id = game?.id != null ? String(game.id) : null;
+        if (!id) return true;
+        if (seenGameIds.has(id)) return false;
+        seenGameIds.add(id);
+        return true;
+      })
+      .map(game => ({
+        game,
+        teamId: String(e.team?.id ?? ''),
+        levelLabel: formatLevelLabel(e.level),
+      }))
+  );
+  return rows.sort((a, b) => {
+    const at = a.game?.scheduled_date || a.game?.date;
+    const bt = b.game?.scheduled_date || b.game?.date;
+    const ams = at ? new Date(at).getTime() : NaN;
+    const bms = bt ? new Date(bt).getTime() : NaN;
+    if (!Number.isFinite(ams)) return 1;
+    if (!Number.isFinite(bms)) return -1;
+    return ams - bms;
+  });
+}
+
+/**
  * Groups teams by `program_id`, preserving first-appearance order within and
  * across groups. Grouped (non-null program) sections come first; teams with a
  * null `program_id` land in a single trailing group. Shared by manage-teams
