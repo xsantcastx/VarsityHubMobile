@@ -1,0 +1,37 @@
+name: Diagnose Web Bundle Deploy
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-web-bundle.yml'
+
+jobs:
+  diagnose:
+    name: Check if varsityhub.app has the feed-query fix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch homepage and find JS bundle URLs
+        run: |
+          curl -sS -w '\nHTTP_STATUS:%{http_code}\n' https://varsityhub.app/ -o index.html
+          echo "--- index.html head ---"
+          head -c 3000 index.html
+          echo ""
+          echo "--- script src tags ---"
+          grep -oE '(src|href)="[^"]*\.(js|css)"' index.html | sort -u
+
+      - name: Fetch each JS bundle and search for the fix marker
+        run: |
+          BASE="https://varsityhub.app"
+          for path in $(grep -oE '(src)="[^"]*\.js"' index.html | sed -E 's/^src="//; s/"$//'); do
+            case "$path" in
+              http*) url="$path" ;;
+              /*) url="$BASE$path" ;;
+              *) url="$BASE/$path" ;;
+            esac
+            echo "=== $url ==="
+            curl -sS -w '\nHTTP_STATUS:%{http_code} SIZE:%{size_download}\n' "$url" -o bundle.js || echo "fetch failed"
+            echo "feed-games-upcoming marker count: $(grep -c 'feed-games-upcoming' bundle.js || true)"
+            echo "feedGameQueries marker count: $(grep -c 'buildFeedGameQueries\|FEED_LIVE_LOOKBACK' bundle.js || true)"
+          done
