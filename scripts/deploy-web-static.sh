@@ -60,6 +60,38 @@ cat > "$DEPLOY_DIR/vercel.json" <<'EOF'
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/((?!\\.well-known/).*)",
+      "has": [{ "type": "host", "value": "varsityhub.app" }],
+      "destination": "https://www.varsityhub.app/$1",
+      "permanent": true
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/events/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "https://api-production-8ac3.up.railway.app/og/events/:id"
+    },
+    {
+      "source": "/games/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "https://api-production-8ac3.up.railway.app/og/games/:id"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -69,6 +101,14 @@ cat > "$DEPLOY_DIR/vercel.json" <<'EOF'
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(self)" }
       ]
+    },
+    {
+      "source": "/.well-known/apple-app-site-association",
+      "headers": [{ "key": "Content-Type", "value": "application/json" }]
+    },
+    {
+      "source": "/.well-known/assetlinks.json",
+      "headers": [{ "key": "Content-Type", "value": "application/json" }]
     },
     {
       "source": "/_expo/static/(.*)",

@@ -115,10 +115,11 @@ function normalizeAnalyticsProperties(
 
 export function initAnalytics() {
   if (analyticsInitialized) return;
-  if (!POSTHOG_API_KEY) {
-    if (__DEV__) console.log('[analytics] PostHog API key not set — analytics disabled');
+  if (__DEV__) {
+    console.log('[analytics] dev build — PostHog disabled');
     return;
   }
+  if (!POSTHOG_API_KEY) return;
   posthog = new PostHog(POSTHOG_API_KEY, {
     host: POSTHOG_HOST,
     enableSessionReplay: false,
