@@ -10,7 +10,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -111,9 +111,14 @@ export default function EventMap({
     })();
   }, [showUserLocation, initialRegion]);
 
-  // Filter events that have coordinates (use != null so lat/lng of 0 are accepted)
-  const eventsWithCoordinates = events.filter(
-    event => event.latitude != null && event.longitude != null
+  // Filter events that have coordinates (use != null so lat/lng of 0 are accepted).
+  // MUST be memoized: this array's identity drives the auto-fit effect below.
+  // An unmemoized filter creates a new array every render, which used to
+  // re-fire the "fit all pins" zoom on every state change (tapping a cluster
+  // pin zoomed the map OUT to the continental view).
+  const eventsWithCoordinates = useMemo(
+    () => events.filter(event => event.latitude != null && event.longitude != null),
+    [events]
   );
 
   // Group markers that share (near-)identical coordinates so a multi-day event
@@ -122,7 +127,10 @@ export default function EventMap({
   // marker; groups of many render as one numbered cluster pin that opens a
   // picker. Pure JS (no native clustering module) → OTA-safe. Pinned by
   // __tests__/mapClustering.test.ts.
-  const clusters: EventMapData[][] = clusterByCoordinate(eventsWithCoordinates);
+  const clusters: EventMapData[][] = useMemo(
+    () => clusterByCoordinate(eventsWithCoordinates),
+    [eventsWithCoordinates]
+  );
 
   // Center map on all events
   const fitToEvents = useCallback(() => {
@@ -142,14 +150,19 @@ export default function EventMap({
     });
   }, [eventsWithCoordinates]);
 
-  // Auto-zoom to events when they first load
+  // Auto-zoom to events ONCE per data load. Latched on the (memoized) events
+  // array identity: a genuine reload (new array from setEvents) re-fits, but
+  // re-renders from unrelated state changes (cluster picker open/close, etc.)
+  // never do — re-firing here is what made the map zoom out on every tap.
+  const lastAutoFitEventsRef = useRef<EventMapData[] | null>(null);
   useEffect(() => {
-    if (eventsWithCoordinates.length > 0 && dataLoaded && !loading) {
-      // Small delay to ensure map is fully mounted
-      const timer = setTimeout(() => fitToEvents(), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [eventsWithCoordinates.length, dataLoaded, fitToEvents, loading]);
+    if (eventsWithCoordinates.length === 0 || !dataLoaded || loading) return;
+    if (lastAutoFitEventsRef.current === eventsWithCoordinates) return;
+    lastAutoFitEventsRef.current = eventsWithCoordinates;
+    // Small delay to ensure map is fully mounted
+    const timer = setTimeout(() => fitToEvents(), 500);
+    return () => clearTimeout(timer);
+  }, [eventsWithCoordinates, dataLoaded, fitToEvents, loading]);
 
   // Center map on user location
   const centerOnUser = () => {
