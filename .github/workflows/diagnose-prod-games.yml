@@ -1,0 +1,30 @@
+name: Diagnose Production Games Feed
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-prod-games.yml'
+
+jobs:
+  diagnose:
+    name: Hit live production /games endpoint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health check
+        run: |
+          echo "=== /health ==="
+          curl -sS -w '\nHTTP_STATUS:%{http_code}\n' https://api-production-8ac3.up.railway.app/health || echo "curl failed: $?"
+
+      - name: Games list (exactly what the app's feed calls)
+        run: |
+          echo "=== GET /games?sort=date&limit=30&from=<now-3d> ==="
+          FROM=$(date -u -d '-3 days' +%Y-%m-%dT%H:%M:%S.000Z)
+          echo "from=$FROM"
+          curl -sS -w '\nHTTP_STATUS:%{http_code}\n' "https://api-production-8ac3.up.railway.app/games?sort=date&limit=30&from=$FROM" || echo "curl failed: $?"
+
+      - name: Games list without date filter (sanity check)
+        run: |
+          echo "=== GET /games?sort=date&limit=10 (no from) ==="
+          curl -sS -w '\nHTTP_STATUS:%{http_code}\n' "https://api-production-8ac3.up.railway.app/games?sort=date&limit=10" || echo "curl failed: $?"
