@@ -18,18 +18,21 @@ The Team ID `B5H8F69RW5` in `eas.json` doesn't match your Apple Developer accoun
 ### Step 1: Find Your Correct Team ID
 
 **Option A: Apple Developer Portal**
+
 1. Go to https://developer.apple.com/account
 2. Sign in with your Apple ID
 3. Click **Membership** in the sidebar
 4. Your **Team ID** is displayed (format: `XXXXXXXXXX` - 10 characters)
 
 **Option B: App Store Connect**
+
 1. Go to https://appstoreconnect.apple.com
 2. Sign in with your Apple ID
 3. Click **Users and Access** → **Keys**
 4. Your **Team ID** is shown at the top
 
 **Option C: EAS CLI**
+
 ```bash
 # Check if you're logged in
 eas whoami
@@ -42,6 +45,7 @@ eas credentials
 ```
 
 **Option D: Xcode**
+
 1. Open Xcode
 2. Xcode → Settings → Accounts
 3. Select your Apple ID
@@ -60,7 +64,7 @@ Once you have your correct Team ID, update `eas.json`:
       "ios": {
         "appleId": "sanchezemil82@gmail.com",
         "ascAppId": "6754257357",
-        "appleTeamId": "YOUR_CORRECT_TEAM_ID"  // ← Update this
+        "appleTeamId": "YOUR_CORRECT_TEAM_ID" // ← Update this
       }
     }
   }
@@ -74,6 +78,7 @@ Once you have your correct Team ID, update `eas.json`:
 ### Step 3: Verify Apple ID Access
 
 Make sure:
+
 - ✅ Your Apple ID (`sanchezemil82@gmail.com`) has access to the team
 - ✅ You're an **Admin** or **App Manager** (not just Developer)
 - ✅ Your Apple Developer Program membership is active
@@ -130,6 +135,7 @@ eas build --platform ios --profile production
 **Symptom:** Team ID doesn't match
 
 **Fix:**
+
 - Make sure `appleId` in `eas.json` matches the Apple ID you use for App Store Connect
 - Verify this Apple ID has access to the team
 
@@ -138,6 +144,7 @@ eas build --platform ios --profile production
 **Symptom:** "Unable to find a team"
 
 **Fix:**
+
 - Check if your Apple ID is added to the team in App Store Connect
 - Verify you have Admin or App Manager role (not just Developer)
 - Contact team admin to add you if needed
@@ -147,6 +154,7 @@ eas build --platform ios --profile production
 **Symptom:** Access denied
 
 **Fix:**
+
 - Check if Apple Developer Program membership is active
 - Renew if expired: https://developer.apple.com/programs/renew/
 
@@ -155,6 +163,7 @@ eas build --platform ios --profile production
 **Symptom:** Wrong team selected
 
 **Fix:**
+
 - If you belong to multiple teams, make sure you're using the correct Team ID
 - The Team ID should match the team that owns App ID `6754257357`
 

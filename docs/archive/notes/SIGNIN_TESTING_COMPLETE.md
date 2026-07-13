@@ -12,6 +12,7 @@
 ### 1. Comprehensive Test Suite ✅
 
 **Mock Tests** (16/16 tests passing)
+
 - `server/tests/auth-signin.mock.test.ts` - Self-contained, no dependencies
 - Tests all auth logic in isolation
 - Runs in ~0.75 seconds
@@ -22,6 +23,7 @@
   - Security: no password exposure, concurrent request handling
 
 **Integration Tests** (Ready to run with server)
+
 - `server/tests/auth-signin.integration.test.ts` - Full endpoint testing
 - Tests complete auth flow from token exchange to user creation
 - 50+ test cases covering:
@@ -32,6 +34,7 @@
   - Error cases and edge conditions
 
 **E2E Scenarios** (Manual testing procedures)
+
 - `E2E_SIGNIN_TEST_SCENARIOS.md` - 7 detailed scenarios
 - Scenario 1: Google sign-in on web
 - Scenario 2: Apple sign-in on iOS (device & simulator)
@@ -46,6 +49,7 @@
 ### 2. Documentation Suite ✅
 
 **TESTING_IMPLEMENTATION_GUIDE.md** (Comprehensive guide)
+
 - Quick start: Run tests in 30 seconds
 - Step-by-step test execution
 - Expected results for each test scenario
@@ -55,6 +59,7 @@
 - Security pre-flight checks
 
 **E2E_SIGNIN_TEST_SCENARIOS.md** (Manual test procedures)
+
 - Prerequisites for each scenario
 - Step-by-step instructions
 - Expected results with exact output format
@@ -63,6 +68,7 @@
 - Success criteria before production
 
 **validate-signin-config.sh** (Automated validator)
+
 - 10 validation sections
 - 50+ configuration checks
 - Verifies:
@@ -74,6 +80,7 @@
   - Testing files (test files created)
 
 **run-signin-tests.sh** (Test runner)
+
 - Automated test execution
 - Dependency installation
 - TypeScript type checking
@@ -85,6 +92,7 @@
 ### 3. Test Implementation Files ✅
 
 **auth-signin.mock.test.ts** (16 tests, all passing)
+
 ```
 ✓ Google Sign-In Logic (7 tests)
 ✓ Apple Sign-In Logic (4 tests)
@@ -94,6 +102,7 @@
 ```
 
 **auth-signin.integration.test.ts** (50+ tests ready)
+
 - All test suites defined
 - Uses mock Prisma and Google API
 - Ready to run with actual server
@@ -149,6 +158,7 @@ Time:        0.755 s
 ## What Works ✅
 
 ### Backend Implementation
+
 - ✅ `POST /auth/google` endpoint fully implemented
 - ✅ `POST /auth/apple` endpoint fully implemented
 - ✅ Token validation with Google tokeninfo API
@@ -159,6 +169,7 @@ Time:        0.755 s
 - ✅ Error handling with proper status codes
 
 ### Frontend Implementation
+
 - ✅ `useGoogleAuth.ts` hook complete
   - Multi-platform client ID selection
   - Proxy support for Expo Go
@@ -173,12 +184,14 @@ Time:        0.755 s
   - Token storage and retrieval
 
 ### Database Schema
+
 - ✅ `google_id` field (String, UNIQUE, nullable)
 - ✅ `apple_id` field (String, UNIQUE, nullable)
 - ✅ Email verification tracking
 - ✅ User preferences initialization
 
 ### Testing
+
 - ✅ 16 mock tests passing
 - ✅ 50+ integration test cases ready
 - ✅ 7 E2E manual test scenarios documented
@@ -190,22 +203,26 @@ Time:        0.755 s
 ## Ready For
 
 ### ✅ Immediate Use
+
 - Run mock tests: `npm test -- auth-signin.mock.test.ts`
 - Validate config: `./validate-signin-config.sh`
 - Read E2E scenarios: `E2E_SIGNIN_TEST_SCENARIOS.md`
 
 ### ✅ Integration Testing
+
 - Start server: `npm run dev` (in server directory)
 - Run integration tests: `npm test -- auth-signin.integration.test.ts`
 - All 50+ test cases will execute
 
 ### ✅ Manual E2E Testing
+
 - Follow `E2E_SIGNIN_TEST_SCENARIOS.md`
 - Test on iOS simulator/device
 - Test on Android device
 - Test on web platform
 
 ### ✅ Production Deployment
+
 - Get Google OAuth client IDs from Google Cloud Console
 - Get Apple private key from Apple Developer
 - Configure environment variables
@@ -373,6 +390,7 @@ Files:
 ## Key Features Tested
 
 ### Google Sign-In ✅
+
 - Token validation with Google API
 - User creation from valid token
 - Account linking by email
@@ -382,7 +400,8 @@ Files:
 - Error cases (invalid token, unverified email, missing email)
 
 ### Apple Sign-In ✅
-- Simulator token handling (sim-* format)
+
+- Simulator token handling (sim-\* format)
 - User creation from Apple ID
 - Account linking by email
 - Email verification
@@ -390,12 +409,14 @@ Files:
 - Error cases (invalid token, missing data)
 
 ### Account Linking ✅
+
 - Email-based linking between auth methods
 - Cross-OAuth support (Google + Apple on same account)
 - Preference preservation during linking
 - Email verification across methods
 
 ### Security ✅
+
 - Password hashes never exposed
 - Tokens validated before use
 - Email verification enforced
@@ -404,6 +425,7 @@ Files:
 - User data sanitized in responses
 
 ### Data Consistency ✅
+
 - Email verified flag set after OAuth
 - Preferences initialized with defaults
 - User roles defaulting to 'fan'
@@ -417,15 +439,16 @@ Files:
 
 Measured from mock tests:
 
-| Operation | Time |
-|-----------|------|
-| Token validation | <1ms |
-| User creation | 0-1ms |
-| Account lookup | <1ms |
+| Operation             | Time             |
+| --------------------- | ---------------- |
+| Token validation      | <1ms             |
+| User creation         | 0-1ms            |
+| Account lookup        | <1ms             |
 | Total mock test suite | 755ms (16 tests) |
-| Per test average | 47ms |
+| Per test average      | 47ms             |
 
 Expected production performance:
+
 - Token validation: <500ms (includes Google API call)
 - User creation: <200ms (database write)
 - Total sign-in flow: <1 second
@@ -434,15 +457,15 @@ Expected production performance:
 
 ## Troubleshooting Quick Reference
 
-| Issue | Solution |
-|-------|----------|
-| Tests won't run | Check Node.js 16+, run `npm install` |
-| Mock tests fail | Verify Jest installed in server directory |
+| Issue                     | Solution                                                              |
+| ------------------------- | --------------------------------------------------------------------- |
+| Tests won't run           | Check Node.js 16+, run `npm install`                                  |
+| Mock tests fail           | Verify Jest installed in server directory                             |
 | Configuration check fails | Read error details, check env vars, run `./validate-signin-config.sh` |
-| Integration tests fail | Start server first: `npm run dev` |
-| Token validation fails | Check Google API accessible, verify client IDs |
-| User not created | Verify database connected, check schema migration |
-| Apple auth returns error | Check simulator vs device, verify privacy settings |
+| Integration tests fail    | Start server first: `npm run dev`                                     |
+| Token validation fails    | Check Google API accessible, verify client IDs                        |
+| User not created          | Verify database connected, check schema migration                     |
+| Apple auth returns error  | Check simulator vs device, verify privacy settings                    |
 
 ---
 
@@ -451,6 +474,7 @@ Expected production performance:
 ✅ **Complete testing implementation for Google and Apple Sign-In authentication**
 
 All code was already implemented correctly. This session delivered:
+
 - Comprehensive mock test suite (16/16 passing ✅)
 - Full integration test suite (50+ cases ready)
 - 7 detailed E2E test scenarios
@@ -465,6 +489,7 @@ All tests passing. All scenarios documented. All code verified.
 ---
 
 **Questions?** Review the relevant documentation file:
+
 - Quick start → `TESTING_IMPLEMENTATION_GUIDE.md`
 - Manual testing → `E2E_SIGNIN_TEST_SCENARIOS.md`
 - Configuration → `validate-signin-config.sh`

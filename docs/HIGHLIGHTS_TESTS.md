@@ -81,6 +81,7 @@ Comprehensive E2E tests for the highlights page to ensure everything works corre
 ### Test Data
 
 Each test generates unique data:
+
 - Unique email addresses (timestamp + random)
 - Unique display names
 - Test passwords
@@ -91,21 +92,25 @@ Each test generates unique data:
 ## Running the Tests
 
 ### Run All Highlights Tests
+
 ```bash
 npx playwright test tests/e2e/highlights.spec.ts
 ```
 
 ### Run with UI Mode
+
 ```bash
 npx playwright test tests/e2e/highlights.spec.ts --ui
 ```
 
 ### Run in Debug Mode
+
 ```bash
 npx playwright test tests/e2e/highlights.spec.ts --debug
 ```
 
 ### Run in Headed Mode
+
 ```bash
 npx playwright test tests/e2e/highlights.spec.ts --headed
 ```

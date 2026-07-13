@@ -8,6 +8,7 @@
 ## ✅ What's Live
 
 ### 1. **Web Version** (Google Chrome)
+
 - **URL**: http://localhost:8081
 - **Status**: ✅ Running locally
 - **Access**: Open in any web browser
@@ -15,6 +16,7 @@
 - **Map Component**: Graceful web fallback (maps show placeholder on web, full functionality on mobile)
 
 **Features Available:**
+
 - User authentication (email/password, Google OAuth)
 - Browse sports teams & events
 - View team details
@@ -23,6 +25,7 @@
 - Dark/light mode support
 
 **Recent Fixes:**
+
 - Metro config updated to handle native-only modules
 - `ReachMapPreview` component now has web fallback
 - Web platform check prevents native imports on web
@@ -30,6 +33,7 @@
 ---
 
 ### 2. **iOS TestFlight Build** (In Progress)
+
 - **Target Device**: iPhone 14 Pro (and all iOS devices)
 - **Build Profile**: Production
 - **Build Number**: 16
@@ -37,6 +41,7 @@
 - **Expected Duration**: 15-20 minutes
 
 **Build Details:**
+
 ```
 Platform: iOS
 Profile: production
@@ -47,6 +52,7 @@ Auto-Submit: Enabled (auto-submit to App Store Connect)
 ```
 
 **What's Included:**
+
 - Full native iOS app for iPhone 14 Pro
 - Google Sign In (configured)
 - Apple Sign In (newly added with JWT verification)
@@ -62,6 +68,7 @@ Auto-Submit: Enabled (auto-submit to App Store Connect)
 ## 📋 Build Configuration
 
 ### Environment Variables (Production)
+
 ```
 EXPO_PUBLIC_API_URL=https://api-production-8ac3.up.railway.app
 EXPO_PUBLIC_FORCE_REMOTE_API=1
@@ -73,6 +80,7 @@ EXPO_PUBLIC_GOOGLE_FORCE_PROXY=0
 ```
 
 ### Apple Sign In Configuration
+
 ```
 Key ID: LS9X6BV22K
 Bundle ID: com.xsantcastx.varsityhub
@@ -81,6 +89,7 @@ Credentials: Managed by Expo
 ```
 
 ### iOS App Details
+
 - **Bundle Identifier**: com.xsantcastx.varsityhub
 - **Orientation**: Portrait
 - **Supports Tablets**: Yes
@@ -92,6 +101,7 @@ Credentials: Managed by Expo
 ## 🔧 Technical Changes Made
 
 ### 1. Metro Config Update
+
 **File**: `metro.config.js`
 
 ```javascript
@@ -108,15 +118,18 @@ config.resolver.blockList = [
 **Purpose**: Prevent native module imports from breaking web bundle
 
 ### 2. ReachMapPreview Component Update
+
 **File**: `components/ReachMapPreview.tsx`
 
 **Changes**:
+
 - Conditional import of `react-native-maps` (native only)
 - Web platform check returns placeholder UI
 - Shows "Map preview available on mobile" message
 - Displays reach area info (ZIP code + radius)
 
 **Imports**:
+
 ```typescript
 // Only import MapView on native platforms
 let MapView, Circle, Marker, PROVIDER_GOOGLE;
@@ -133,6 +146,7 @@ if (Platform.OS === 'web') {
 ```
 
 **Styles Added**:
+
 - `webPlaceholder`: 300px height, centered icon + text
 - `placeholderSubtext`: Secondary text for zip/radius display
 
@@ -141,11 +155,13 @@ if (Platform.OS === 'web') {
 ## 📱 Web Version Usage
 
 ### Access Points
+
 1. **Local Development**: `http://localhost:8081`
 2. **Preview in Browser**: Works with Chrome, Safari, Firefox, Edge
 3. **Responsive**: Mobile-friendly on tablet/desktop browsers
 
 ### Testing on Web
+
 1. Open Chrome DevTools (F12)
 2. Toggle device toolbar (Cmd+Shift+M) to test mobile layout
 3. Test with iPhone 14 Pro dimensions: 393 × 852px
@@ -157,6 +173,7 @@ if (Platform.OS === 'web') {
    - Dark/light mode toggle
 
 ### Known Limitations (Web)
+
 - Maps component not available (shows placeholder)
 - Native APIs (camera, location) may have limited browser support
 - Push notifications require service worker setup
@@ -167,6 +184,7 @@ if (Platform.OS === 'web') {
 ## 🍎 iOS TestFlight Version
 
 ### Build Status
+
 ```
 Project: VarsityHub iOS
 Build #: 16
@@ -178,16 +196,19 @@ ETA: 15-20 minutes
 ### After Build Completes
 
 **1. App Store Connect**
+
 - Build automatically submitted for TestFlight
 - Review by Apple: ~24-48 hours
 - Status visible in: https://appstoreconnect.apple.com/
 
 **2. TestFlight Testers**
+
 - Distribution to internal testers: Immediate
 - Distribution to external testers: After Apple review
 - Invite link: Sent via email to registered testers
 
 **3. Next Steps**
+
 ```bash
 # Monitor build progress
 watch "eas build"
@@ -202,6 +223,7 @@ watch "eas build"
 ## 🧪 Testing Checklist for iOS TestFlight
 
 ### Authentication
+
 - [ ] Email registration works
 - [ ] Email login works
 - [ ] Google Sign In works
@@ -210,6 +232,7 @@ watch "eas build"
 - [ ] User preferences saved correctly
 
 ### Core Features
+
 - [ ] Browse teams and events
 - [ ] Search and filter teams
 - [ ] Create/edit team posts
@@ -219,6 +242,7 @@ watch "eas build"
 - [ ] Dark/light mode toggle
 
 ### Mobile-Specific
+
 - [ ] Camera access works (for photos)
 - [ ] Photo library access works
 - [ ] Location services work
@@ -227,6 +251,7 @@ watch "eas build"
 - [ ] App performance on iPhone 14 Pro
 
 ### Security
+
 - [ ] API calls use HTTPS
 - [ ] Tokens stored securely
 - [ ] No hardcoded secrets in logs
@@ -238,6 +263,7 @@ watch "eas build"
 ## 📊 Build Metrics
 
 ### Code Quality (Last Session)
+
 - **TypeScript Errors**: 0
 - **Linting Warnings**: Clean (eslint-autofix applied)
 - **Test Coverage**: 2/2 passing (mobile) + 55/55 passing (server)
@@ -245,11 +271,13 @@ watch "eas build"
 - **Dependencies**: All up-to-date
 
 ### App Size Estimates
+
 - **iOS IPA**: ~80-100 MB (typical React Native app)
 - **Bundled Assets**: ~5-10 MB
 - **Compressed Download**: ~30-40 MB
 
 ### Performance Targets
+
 - **Cold Start**: < 3 seconds
 - **Hot Reload**: < 1 second
 - **API Response**: < 500ms (avg)
@@ -260,6 +288,7 @@ watch "eas build"
 ## 🔐 Security Status
 
 ### Apple Sign In Integration
+
 - ✅ JWT verification against Apple JWKS
 - ✅ Token signature validation
 - ✅ Issuer validation (https://appleid.apple.com)
@@ -268,6 +297,7 @@ watch "eas build"
 - ✅ Secure key storage (server/.keys/.gitignore)
 
 ### General Security
+
 - ✅ Cloudinary hardening (no vulnerable SDKs)
 - ✅ HTTPS only in production
 - ✅ JWT-based authentication
@@ -280,11 +310,13 @@ watch "eas build"
 ## 📈 Next Steps
 
 ### Immediate (Now)
+
 1. ✅ Web version running locally - **DONE**
 2. ⏳ Waiting for iOS TestFlight build to complete
 3. Monitor build progress via EAS dashboard
 
 ### Short-term (After Build)
+
 1. Test on real iPhone 14 Pro with TestFlight
 2. Verify all auth methods work (email, Google, Apple)
 3. Check Apple Sign In token flow
@@ -292,6 +324,7 @@ watch "eas build"
 5. Test real-time features (messaging, notifications)
 
 ### Medium-term
+
 1. Fix any TestFlight issues reported by testers
 2. Complete App Store submission if needed
 3. Monitor error logs and analytics
@@ -299,6 +332,7 @@ watch "eas build"
 5. Update documentation based on feedback
 
 ### Before Production Release
+
 1. ✅ Security review - COMPLETE (Snyk clean)
 2. ✅ Code review - COMPLETE (0 TypeScript errors)
 3. ✅ Performance testing - NEEDED
@@ -310,6 +344,7 @@ watch "eas build"
 ## 🚀 Deployment Commands
 
 ### Start Web Dev Server
+
 ```bash
 cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile
 npm run web
@@ -317,6 +352,7 @@ npm run web
 ```
 
 ### Build iOS for TestFlight
+
 ```bash
 # Full build with submission
 eas build --platform ios --profile production --auto-submit
@@ -326,11 +362,13 @@ eas build --platform ios --profile production
 ```
 
 ### Build Android (when ready)
+
 ```bash
 eas build --platform android --profile production
 ```
 
 ### Monitor Builds
+
 ```bash
 # Watch build progress
 watch "curl -s https://api.eas.dev/v1/builds | grep -i varsity"
@@ -354,6 +392,7 @@ open https://appstoreconnect.apple.com/
 ## ✨ Summary
 
 **VarsityHub is now:**
+
 - 🌐 **Live on web** (localhost:8081) with full functionality
 - 📱 **Building for iOS TestFlight** with production credentials
 - 🔐 **Secure** with Apple Sign In JWT verification
@@ -361,6 +400,7 @@ open https://appstoreconnect.apple.com/
 - 🚀 **Ready for external testing** via TestFlight
 
 **Team can now:**
+
 1. Test web version in Chrome for quick feedback
 2. Wait for iOS build to complete (~15-20 min)
 3. Install TestFlight build on iPhone 14 Pro
@@ -370,6 +410,7 @@ open https://appstoreconnect.apple.com/
 ---
 
 **Questions?** Check logs at:
+
 - Web: See Chrome DevTools console
 - iOS: Monitor `testflight_build.log`
 - Errors: Check EAS dashboard at https://expo.dev/

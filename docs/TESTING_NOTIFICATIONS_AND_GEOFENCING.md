@@ -3,7 +3,9 @@
 ## Quick Answer to Your Questions
 
 ### Do I need another service?
+
 **NO!** Both features use built-in Expo services:
+
 - **Push Notifications**: Expo Push Notification Service (FREE, built-in)
 - **Location Access**: Expo Location (FREE, uses native device GPS)
 
@@ -22,6 +24,7 @@ curl "https://YOUR_API_DOMAIN/test-notifications/verification-status?email=test@
 ```
 
 **Response sample**
+
 ```json
 {
   "success": true,
@@ -47,12 +50,14 @@ curl "https://YOUR_API_DOMAIN/test-notifications/verification-status?email=test@
 ## Prerequisites
 
 1. **Install Backend Dependency:**
+
 ```bash
 cd server
 npm install expo-server-sdk
 ```
 
 2. **Rebuild TypeScript:**
+
 ```bash
 npm run build
 # or
@@ -79,7 +84,7 @@ import { User } from '@/api/entities';
 const registerPushNotifications = async () => {
   // Request permission
   const { status } = await Notifications.requestPermissionsAsync();
-  
+
   if (status !== 'granted') {
     Alert.alert('Permission Denied', 'Enable notifications in settings');
     return;
@@ -89,16 +94,16 @@ const registerPushNotifications = async () => {
   const tokenData = await Notifications.getExpoPushTokenAsync({
     projectId: 'YOUR_PROJECT_ID', // Get from app.json expo.extra.eas.projectId
   });
-  
+
   const token = tokenData.data;
   console.log('📱 Push token:', token);
 
   // Save to backend
-  await User.updatePreferences({ 
+  await User.updatePreferences({
     push_token: token,
-    notifications_enabled: true 
+    notifications_enabled: true,
   });
-  
+
   Alert.alert('Success', 'Notifications enabled!');
 };
 ```
@@ -114,6 +119,7 @@ curl http://localhost:4000/test-notifications/test/check-token \
 ```
 
 **Expected Response:**
+
 ```json
 {
   "has_token": true,
@@ -187,7 +193,7 @@ if (status !== 'granted') {
 const location = await Location.getCurrentPositionAsync({});
 console.log('📍 Your location:', {
   lat: location.coords.latitude,
-  lng: location.coords.longitude
+  lng: location.coords.longitude,
 });
 ```
 
@@ -206,6 +212,7 @@ curl -X POST http://localhost:4000/test-notifications/test/distance \
 ```
 
 **Response:**
+
 ```json
 {
   "distance_miles": "0.87",
@@ -248,6 +255,7 @@ curl -X POST http://localhost:4000/test-notifications/test/geofence \
 ```
 
 **If you're AT the location:**
+
 ```json
 {
   "allowed": true,
@@ -262,6 +270,7 @@ curl -X POST http://localhost:4000/test-notifications/test/geofence \
 ```
 
 **If you're too far away:**
+
 ```json
 {
   "allowed": false,
@@ -324,6 +333,7 @@ curl http://localhost:4000/test-notifications/test/upcoming-games \
 ```
 
 **Response:**
+
 ```json
 {
   "current_time": "2025-11-17T20:00:00.000Z",
@@ -349,7 +359,7 @@ npm run cron:game-reminders
 ```
 
 **You should receive a notification:**
-"Game reminder: Reminder Test Game" 
+"Game reminder: Reminder Test Game"
 "Your game starts in 12 hours at Test Stadium"
 
 ---
@@ -381,23 +391,23 @@ export default function App() {
     // Handle notification taps
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
-      
+
       console.log('📱 Notification tapped:', data);
-      
+
       // Navigate based on notification type
       switch (data.type) {
         case 'new_message':
           router.push('/messages');
           break;
-          
+
         case 'post_interaction':
           router.push(`/post-detail?id=${data.post_id}`);
           break;
-          
+
         case 'new_follower':
           router.push(`/profile?id=${data.follower_id}`);
           break;
-          
+
         case 'game_reminder':
           router.push(`/event-detail?id=${data.event_id}`);
           break;
@@ -418,7 +428,7 @@ export default function App() {
 
 const createEventPost = async () => {
   if (!eventId) return;
-  
+
   // 1. Request location permission
   const { status } = await Location.requestForegroundPermissionsAsync();
   if (status !== 'granted') {
@@ -444,9 +454,9 @@ const createEventPost = async () => {
       location: {
         lat: location.coords.latitude,
         lng: location.coords.longitude,
-      }
+      },
     });
-    
+
     Alert.alert('Success', 'Posted to event!');
     router.back();
   } catch (error: any) {
@@ -454,12 +464,10 @@ const createEventPost = async () => {
     if (error.status === 403) {
       const message = error.data?.message || 'You must be at the venue to post';
       const distance = error.data?.distance;
-      
+
       Alert.alert(
         'Location Verification Failed',
-        distance 
-          ? `${message}\n\nYou are ${distance.toFixed(1)} miles away.`
-          : message
+        distance ? `${message}\n\nYou are ${distance.toFixed(1)} miles away.` : message
       );
     } else {
       Alert.alert('Error', 'Failed to create post');
@@ -477,6 +485,7 @@ const createEventPost = async () => {
 ### Push Notifications Not Working
 
 1. **Check token is saved:**
+
    ```bash
    curl http://localhost:4000/test-notifications/test/check-token \
      -H "Authorization: Bearer YOUR_TOKEN"
@@ -500,9 +509,11 @@ const createEventPost = async () => {
 ### Geofencing Not Working
 
 1. **Check event has coordinates:**
+
    ```bash
    curl http://localhost:4000/events/YOUR_EVENT_ID
    ```
+
    Should have `latitude` and `longitude` fields
 
 2. **Verify location permission:**
@@ -522,6 +533,7 @@ const createEventPost = async () => {
 ## Production Deployment
 
 1. **Install dependency:**
+
    ```bash
    cd server && npm install expo-server-sdk
    ```
@@ -532,6 +544,7 @@ const createEventPost = async () => {
    - **Crontab**: `0 * * * * cd /path/to/server && npm run cron:game-reminders`
 
 3. **Remove test endpoints** (or add admin auth):
+
    ```typescript
    // In server/src/index.ts
    if (process.env.NODE_ENV !== 'production') {

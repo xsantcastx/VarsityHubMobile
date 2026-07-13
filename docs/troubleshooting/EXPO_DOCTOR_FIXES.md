@@ -5,6 +5,7 @@
 ### ✅ Fixed: Sentry Configuration Warning
 
 **Issue:**
+
 ```
 [@sentry/react-native/expo] Missing config for organization, project
 ```
@@ -27,11 +28,13 @@ Updated `app.json` to include Sentry organization and project configuration:
 ### ✅ Verified: .expo Directory
 
 **Issue:**
+
 ```
 The .expo directory is not ignored by Git
 ```
 
 **Status:** ✅ Already Fixed
+
 - `.expo/` is already in `.gitignore` (line 27)
 - Git confirms it's properly ignored: `git check-ignore .expo` returns `.expo`
 - The directory exists locally (which is fine) but is not tracked by git
@@ -41,16 +44,19 @@ The .expo directory is not ignored by Git
 ## Running Expo Doctor
 
 ### For iOS:
+
 ```bash
 npx expo-doctor
 ```
 
 ### For Android:
+
 ```bash
 npx expo-doctor
 ```
 
 ### Expected Results After Fixes:
+
 - ✅ All checks should pass
 - ✅ No Sentry configuration warnings
 - ⚠️ .expo warning may still appear (but it's a false positive - directory is properly ignored)
@@ -60,15 +66,19 @@ npx expo-doctor
 To verify the fixes:
 
 1. **Check Sentry Config:**
+
    ```bash
    grep -A 3 "@sentry/react-native/expo" app.json
    ```
+
    Should show organization and project configuration.
 
 2. **Check .expo is ignored:**
+
    ```bash
    git check-ignore .expo
    ```
+
    Should return `.expo`
 
 3. **Run expo-doctor:**

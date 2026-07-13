@@ -7,11 +7,13 @@
 ## What's Fixed
 
 ### 🔴 Critical: Admin Onboarding Bug (Commit 99dc67b)
+
 **Problem**: Admin accounts were incorrectly forced through onboarding steps instead of landing on the feed.
 
 **Root Cause**: Backend `/me` endpoint had merge order backwards—database user preferences were overriding admin defaults.
 
 **Fix**: Reversed merge parameter order in `server/src/routes/auth.ts` (line 477)
+
 ```typescript
 // Before (WRONG):
 const prefs = mergePreferences(defaults, user.preferences || {});
@@ -25,9 +27,11 @@ const prefs = mergePreferences(user.preferences || {}, defaults);
 ---
 
 ### 🟡 Important: Frontend Onboarding Persistence
+
 **Problem**: Users forced through onboarding on every app restart even after completing it once.
 
 **Fix**: Added AsyncStorage caching in `context/AuthProvider.tsx`
+
 - Instant routing on cold start (no blank screen waiting for API)
 - Prevents race conditions between local and server state
 - Clears on logout so new accounts see onboarding if needed
@@ -37,6 +41,7 @@ const prefs = mergePreferences(user.preferences || {}, defaults);
 ---
 
 ### 🟢 Minor: Health Check Blocker (Commit 48ca7f4)
+
 **Problem**: `/health` endpoint reported `ready: false` indefinitely due to missing SendGrid email templates.
 
 **Fix**: Marked SendGrid as optional integration in `server/src/routes/health.ts` (line 29)
@@ -47,11 +52,11 @@ const prefs = mergePreferences(user.preferences || {}, defaults);
 
 ## Commits Included
 
-| Hash | Message | File(s) Changed |
-|------|---------|-----------------|
-| `9574f0c` | docs: comprehensive final solution | ONBOARDING_LOOP_FINAL_SOLUTION.md |
-| `48ca7f4` | fix: mark SendGrid as optional service | server/src/routes/health.ts |
-| `99dc67b` | CRITICAL FIX: Admin onboarding_completed must override DB values | server/src/routes/auth.ts |
+| Hash      | Message                                                          | File(s) Changed                   |
+| --------- | ---------------------------------------------------------------- | --------------------------------- |
+| `9574f0c` | docs: comprehensive final solution                               | ONBOARDING_LOOP_FINAL_SOLUTION.md |
+| `48ca7f4` | fix: mark SendGrid as optional service                           | server/src/routes/health.ts       |
+| `99dc67b` | CRITICAL FIX: Admin onboarding_completed must override DB values | server/src/routes/auth.ts         |
 
 ## Verification Checklist
 
@@ -69,12 +74,14 @@ const prefs = mergePreferences(user.preferences || {}, defaults);
 Before marking as "Ready for Production":
 
 1. **Admin Account Test**
+
    ```
    Email: emilmancero@gmail.com
    Expected: Land on feed (NOT onboarding)
    ```
 
 2. **New User Flow**
+
    ```
    Sign up with new email
    Expected: Show 9-step onboarding
@@ -83,6 +90,7 @@ Before marking as "Ready for Production":
    ```
 
 3. **Cold Restart Test**
+
    ```
    Force quit app
    Reopen app
@@ -90,6 +98,7 @@ Before marking as "Ready for Production":
    ```
 
 4. **Account Switch Test**
+
    ```
    Sign out
    Sign in as different user
@@ -112,6 +121,7 @@ Before marking as "Ready for Production":
 ## Rollback Plan
 
 If issues arise:
+
 1. Revert commits in order: `48ca7f4` → `99dc67b`
 2. Push to main to trigger Railway redeploy
 3. Rebuild and redeploy app binary

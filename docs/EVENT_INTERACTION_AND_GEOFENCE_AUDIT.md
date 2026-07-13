@@ -10,6 +10,7 @@
 ### 1. Can a fan find an event on the map?
 
 **✅ Yes**
+
 - **Game map** (`game-map.tsx`): Fetches games (`Game.list`) and events (`GET /events`), displays markers with coordinates
 - **EventMap component:** Renders markers for games (red) and events (teal); tap opens callout with title, location, date
 - **Navigation:** Tap game → `/(tabs)/feed/game/[id]`; tap event → `/event-detail?id=...`
@@ -18,6 +19,7 @@
 ### 2. View the event page?
 
 **✅ Yes**
+
 - **Event detail** (`event-detail.tsx`): Full event info, RSVP, share
 - **Game detail** (`GameDetailsScreen.tsx`): Game page with associated event; RSVP uses `event_id` from game summary
 - **Public event** (`public-event.tsx`): Event posts/highlights for sample or real events
@@ -25,6 +27,7 @@
 ### 3. Can they RSVP?
 
 **✅ Yes**
+
 - **API:** `POST /events/:id/rsvp` with `{ going: true|false }` or `{ attending: true|false }`
 - **Places:** Feed (RSVPBadge), event-detail, GameDetailsScreen
 - **Restrictions:** Past events return 400 "Event has passed"; capacity enforced (403 if full)
@@ -33,6 +36,7 @@
 ### 4. Does the attendee count update?
 
 **✅ Yes**
+
 - **Server:** Returns `{ going, count, capacity }` after RSVP
 - **Client:** `setRsvpCount(response.count)` (feed), `setAttendeesCount(res.count)` (event-detail), `rsvpCount` in GameDetailsScreen
 - **Real-time:** No push; count updates when user RSVPs. Other viewers see updated count on next load/refresh.
@@ -40,6 +44,7 @@
 ### 5. Can they share the event?
 
 **✅ Yes**
+
 - **event-detail:** `useShareLink({ kind: 'event', id, title, contextLines })` with Share button
 - **GameDetailsScreen:** Share via `useShareLink` for game/event
 - **Feed:** RSVP badge does not share; share is on event/game detail pages
@@ -47,6 +52,7 @@
 ### 6. Do they receive a confirmation email after RSVP?
 
 **✅ Yes** (fixed)
+
 - **`sendEventRsvpConfirmedEmail`** exists in `server/src/lib/email.ts` and is wired to `SENDGRID_EVENT_RSVP_CONFIRMED_TEMPLATE_ID`
 - **Now invoked:** `POST /events/:id/rsvp` in `events.ts` calls `sendEventRsvpConfirmedEmail` after successful RSVP create
 - **Payload:** Event title, date, time, location, user name, event link; sent to user's email (best-effort, non-blocking)
@@ -66,6 +72,7 @@ The code uses **3 km** for regular posts. The user asked about 2 km; the impleme
 ### When within 3 km — can they post?
 
 **✅ Yes**
+
 - **Server:** `verifyEventPostingPermission()` returns `{ allowed: true, distance }` when user is within 3 km
 - **Bypass:** Admins and team members (home/away) skip geofencing
 - **Sample events:** IDs starting with `sample-` bypass geofencing
@@ -74,6 +81,7 @@ The code uses **3 km** for regular posts. The user asked about 2 km; the impleme
 ### When outside 3 km — are they blocked with a clear message?
 
 **✅ Yes**
+
 - **Server response:** `403` with:
   - `error: 'TOO_FAR_FROM_VENUE'`
   - `message: 'You must be within 3 km of the venue to post.'`
@@ -88,11 +96,11 @@ The code uses **3 km** for regular posts. The user asked about 2 km; the impleme
 
 ### Other geofence error codes
 
-| Code | Message |
-|------|---------|
-| `LOCATION_REQUIRED` | "Location access required. You must be at the game venue to post." |
-| `POSTING_WINDOW_CLOSED` | "Posting opens [date] and closes [date]." |
-| `EVENT_NOT_FOUND` | "Event not found" |
+| Code                    | Message                                                            |
+| ----------------------- | ------------------------------------------------------------------ |
+| `LOCATION_REQUIRED`     | "Location access required. You must be at the game venue to post." |
+| `POSTING_WINDOW_CLOSED` | "Posting opens [date] and closes [date]."                          |
+| `EVENT_NOT_FOUND`       | "Event not found"                                                  |
 
 ### Location source for geofence
 
@@ -104,17 +112,17 @@ The code uses **3 km** for regular posts. The user asked about 2 km; the impleme
 
 ## Summary
 
-| Question | Answer |
-|----------|--------|
-| Find event on map? | ✅ Yes |
-| View event page? | ✅ Yes |
-| RSVP? | ✅ Yes |
-| Attendee count updates? | ✅ Yes (on RSVP; no real-time push) |
-| Share event? | ✅ Yes |
-| RSVP confirmation email? | ❌ No (function exists but not called) |
-| Post when within geofence? | ✅ Yes (3 km) |
-| Blocked when outside? | ✅ Yes, with clear message |
-| Geofence radius | 3 km (not 2 km) |
+| Question                   | Answer                                 |
+| -------------------------- | -------------------------------------- |
+| Find event on map?         | ✅ Yes                                 |
+| View event page?           | ✅ Yes                                 |
+| RSVP?                      | ✅ Yes                                 |
+| Attendee count updates?    | ✅ Yes (on RSVP; no real-time push)    |
+| Share event?               | ✅ Yes                                 |
+| RSVP confirmation email?   | ❌ No (function exists but not called) |
+| Post when within geofence? | ✅ Yes (3 km)                          |
+| Blocked when outside?      | ✅ Yes, with clear message             |
+| Geofence radius            | 3 km (not 2 km)                        |
 
 ---
 

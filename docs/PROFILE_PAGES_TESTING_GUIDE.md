@@ -5,6 +5,7 @@ This guide provides comprehensive testing scenarios for the User, Team, and Orga
 ## 🎯 Overview
 
 All profile pages (User, Team, Organization) now follow a consistent design pattern:
+
 - **Header Banner** with gradient/background image
 - **Settings Icon** (top-right, admin-only for teams/orgs)
 - **Profile Picture Overlay** (circular, overlapping banner)
@@ -26,6 +27,7 @@ npx tsx scripts/test-profile-pages.ts
 ```
 
 This script tests:
+
 - Server health
 - User profile data loading
 - Posts/Replies/Upvotes tabs
@@ -48,6 +50,7 @@ This script tests:
 **Objective**: Verify user profile displays correctly with all tabs and data
 
 **Steps**:
+
 1. **Sign in** to the app
 2. **Navigate to Profile** (tap profile icon in bottom nav)
 3. **Verify Header**:
@@ -86,6 +89,7 @@ This script tests:
    - [ ] Tabs are readable
 
 **Expected Results**:
+
 - ✅ All elements display correctly
 - ✅ Tabs switch smoothly
 - ✅ Data loads without errors
@@ -99,6 +103,7 @@ This script tests:
 **Objective**: Verify team profile shows correct UI based on user permissions
 
 **Steps**:
+
 1. **As Team Admin/Owner**:
    - [ ] Navigate to a team you own/manage
    - [ ] Verify Settings icon appears in top-right
@@ -122,6 +127,7 @@ This script tests:
    - [ ] Replies/Upvotes tabs show empty states (or data if implemented)
 
 **Expected Results**:
+
 - ✅ Admin features only visible to admins
 - ✅ Non-admins see read-only profile
 - ✅ All data displays correctly
@@ -134,6 +140,7 @@ This script tests:
 **Objective**: Verify organization profile shows correct UI based on user permissions
 
 **Steps**:
+
 1. **As Organization Admin/Owner**:
    - [ ] Navigate to an organization you manage
    - [ ] Verify Settings icon appears in top-right
@@ -157,6 +164,7 @@ This script tests:
    - [ ] Replies/Upvotes tabs show empty states (or data if implemented)
 
 **Expected Results**:
+
 - ✅ Admin features only visible to admins
 - ✅ Non-admins see read-only profile
 - ✅ All data displays correctly
@@ -169,6 +177,7 @@ This script tests:
 **Objective**: Verify navigation between different profile types works smoothly
 
 **Steps**:
+
 1. **User → Team**:
    - [ ] From user profile, find a team link/mention
    - [ ] Tap to navigate to team profile
@@ -191,6 +200,7 @@ This script tests:
    - [ ] All deep links work correctly
 
 **Expected Results**:
+
 - ✅ Navigation is smooth
 - ✅ No crashes or errors
 - ✅ Back button works correctly
@@ -203,6 +213,7 @@ This script tests:
 **Objective**: Verify app handles edge cases gracefully
 
 **Steps**:
+
 1. **Missing Data**:
    - [ ] Profile with no avatar → Placeholder displays
    - [ ] Profile with no bio → Bio section hidden
@@ -229,6 +240,7 @@ This script tests:
    - [ ] No layout breaks
 
 **Expected Results**:
+
 - ✅ All edge cases handled gracefully
 - ✅ Error messages are clear
 - ✅ Loading states work
@@ -241,6 +253,7 @@ This script tests:
 **Objective**: Verify all profile pages are readable in dark mode
 
 **Steps**:
+
 1. **Switch to Dark Mode**:
    - [ ] Enable dark mode in system settings
    - [ ] Navigate to user profile
@@ -261,6 +274,7 @@ This script tests:
    - [ ] All are readable
 
 **Expected Results**:
+
 - ✅ All text is readable in dark mode
 - ✅ No hardcoded dark colors
 - ✅ Contrast is sufficient
@@ -271,6 +285,7 @@ This script tests:
 ## 🔍 Code Verification Checklist
 
 ### User Profile (`app/profile.tsx`)
+
 - [ ] Tabs: "Posts", "Replies", "Upvotes" (not "Interactions")
 - [ ] Join date with calendar icon
 - [ ] Following/Followers as inline text
@@ -280,6 +295,7 @@ This script tests:
 - [ ] Profile picture overlay positioned correctly
 
 ### Team Profile (`app/team-page.tsx`)
+
 - [ ] Header banner with gradient
 - [ ] Settings icon (admin-only)
 - [ ] Profile picture overlay (team logo)
@@ -289,6 +305,7 @@ This script tests:
 - [ ] Tabs: "Posts", "Replies", "Upvotes"
 
 ### Organization Profile (`app/organization.tsx`)
+
 - [ ] Header banner with gradient
 - [ ] Settings icon (admin-only)
 - [ ] Profile picture overlay (org avatar)
@@ -320,6 +337,7 @@ npx expo start
 ## 📊 Success Criteria
 
 All tests should pass:
+
 - ✅ Automated test suite: 100% pass rate
 - ✅ Manual testing: All scenarios pass
 - ✅ No linting errors
@@ -334,18 +352,23 @@ All tests should pass:
 ## 🐛 Common Issues and Fixes
 
 ### Issue: Settings icon not appearing for admin
+
 **Fix**: Check `isTeamAdmin` or `isOrgAdmin` state is set correctly based on membership check
 
 ### Issue: Tabs not switching
+
 **Fix**: Verify `activeTab` state is updated correctly in `onPress` handlers
 
 ### Issue: Dark mode text not readable
+
 **Fix**: Ensure all text colors use `theme.text` or `theme.mutedText`, not hardcoded colors
 
 ### Issue: Profile picture not displaying
+
 **Fix**: Check `avatar_url` or `logo_url` is valid and image component handles errors
 
 ### Issue: Join date not showing
+
 **Fix**: Verify `created_at` field exists in user/team/org data and date parsing works
 
 ---

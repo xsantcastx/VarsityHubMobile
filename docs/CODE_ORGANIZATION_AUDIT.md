@@ -1,4 +1,5 @@
 # Code & Branch Organization Audit
+
 **Date:** January 12, 2025
 
 ---
@@ -10,6 +11,7 @@
 **Main Branch:** `main` ✅
 
 **Remote Branches (25+):**
+
 - ✅ Active: `main`, `develop`
 - ⚠️ Old/Stale: Multiple `dependabot/*` branches (7+)
 - ⚠️ Old/Stale: Multiple `snyk-upgrade/*` branches (6+)
@@ -25,12 +27,14 @@
 #### ⚠️ Issue 1: Duplicate Screen Files
 
 **Potential Duplicates Found:**
+
 - `app/feed.tsx` vs `app/(tabs)/feed/index.tsx`
 - `app/highlights.tsx` vs `app/(tabs)/highlights/index.tsx`
 - `app/messages.tsx` vs `app/(tabs)/messages/index.tsx`
 - `app/profile.tsx` vs `app/(tabs)/profile/index.tsx`
 
 **Analysis:** Need to verify if these are:
+
 1. **Duplicates** - Same content, should consolidate
 2. **Different** - Serve different purposes, keep both
 3. **Redirects** - One redirects to the other
@@ -42,6 +46,7 @@
 #### ⚠️ Issue 2: Root Directory Clutter
 
 **Too Many Files in Root:**
+
 ```
 Root Directory (~80+ files):
 - Documentation files (*.md) - Should be in docs/
@@ -51,7 +56,8 @@ Root Directory (~80+ files):
 - Build artifacts - Should be .gitignored
 ```
 
-**Recommendation:** 
+**Recommendation:**
+
 1. Move all `.md` files to `docs/` (except README.md)
 2. Move all `.sh` scripts to `scripts/`
 3. Move all `.mjs` scripts to `scripts/`
@@ -63,13 +69,15 @@ Root Directory (~80+ files):
 #### ⚠️ Issue 3: Import Path Inconsistencies
 
 **Found Relative Imports:**
+
 - `app/(tabs)/team-contacts.tsx`: `import ... from '../utils/uploadUtils'`
 - `app/(tabs)/create-team.tsx`: `import ... from '../api/http'`
 - `app/(tabs)/edit-team.tsx`: `import ... from '../api/http'`
 - `app/(tabs)/edit-profile.tsx`: `import ... from '../api/http'`
 - `app/(tabs)/discover/mobile-community.tsx`: `import ... from '../../game-details/...'`
 
-**Recommendation:** 
+**Recommendation:**
+
 - Use absolute imports (`@/utils/...`, `@/api/...`) consistently
 - Configure path aliases in `tsconfig.json`
 
@@ -78,6 +86,7 @@ Root Directory (~80+ files):
 #### ⚠️ Issue 4: Screen File Location
 
 **Screens Still in `app/` (Not in `(tabs)`):**
+
 - `app/feed.tsx` - Should be in `(tabs)/feed/` or removed if duplicate
 - `app/highlights.tsx` - Should be in `(tabs)/highlights/` or removed if duplicate
 - `app/messages.tsx` - Should be in `(tabs)/messages/` or removed if duplicate
@@ -87,6 +96,7 @@ Root Directory (~80+ files):
 - Many admin screens - Should be organized better
 
 **Recommendation:**
+
 1. Move remaining screens to `(tabs)/` if they need tab bar
 2. Or organize into logical folders (`admin/`, `settings/`, etc.)
 
@@ -95,6 +105,7 @@ Root Directory (~80+ files):
 ### Server Organization
 
 **✅ Good Structure:**
+
 ```
 server/src/
 ├── routes/        # API endpoints (organized by feature)
@@ -111,6 +122,7 @@ server/src/
 ### Components Organization
 
 **✅ Good Structure:**
+
 ```
 components/
 ├── ui/           # Reusable UI components
@@ -187,16 +199,19 @@ components/
 ## 📋 Action Plan
 
 ### Immediate (Today)
+
 1. ✅ Verify duplicate screens and consolidate
 2. ✅ Move remaining screens to `(tabs)/` if needed
 3. ✅ Fix import path inconsistencies
 
 ### Short-term (This Week)
+
 4. Clean up root directory (move files to appropriate folders)
 5. Clean up old git branches
 6. Update documentation structure
 
 ### Long-term (This Month)
+
 7. Standardize screen organization
 8. Create comprehensive folder structure guide
 9. Set up pre-commit hooks for organization checks

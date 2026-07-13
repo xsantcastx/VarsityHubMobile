@@ -13,19 +13,21 @@ Completed retention and engagement email system for P2 (low-priority but high-im
 ## What's Implemented
 
 ### 1. Season Wrap-Up Email
+
 - **Trigger:** `seasons.wrap_up`
 - **When:** Season is locked/concluded by coach
 - **Recipient:** Head coach
 - **Purpose:** Celebrate season achievements, drive next season signup
 
 **Data:**
+
 ```typescript
 {
   coach_name: string;
   team_name: string;
   season_year: number;
   games_played: number;
-  win_loss_record: string;     // e.g., "15-3"
+  win_loss_record: string; // e.g., "15-3"
   season_highlights_url: string;
   next_season_signup_url: string;
 }
@@ -37,17 +39,19 @@ Completed retention and engagement email system for P2 (low-priority but high-im
 ---
 
 ### 2. Post Highlight Milestone Email
+
 - **Trigger:** `posts.milestone_reached`
 - **When:** Post reaches reaction milestones (100, 250, 500, 1000)
 - **Recipient:** Post creator (athlete)
 - **Purpose:** Celebrate viral content, drive engagement and shares
 
 **Data:**
+
 ```typescript
 {
   creator_name: string;
-  milestone_number: number;     // 100, 250, 500, or 1000
-  post_preview_url: string;     // Image/thumbnail
+  milestone_number: number; // 100, 250, 500, or 1000
+  post_preview_url: string; // Image/thumbnail
   post_title: string;
   share_link: string;
   reactions_link: string;
@@ -60,20 +64,22 @@ Completed retention and engagement email system for P2 (low-priority but high-im
 ---
 
 ### 3. Athlete Follower Notification Email
+
 - **Trigger:** `follows.athlete_followed`
 - **When:** New follower follows an athlete
 - **Recipient:** Athlete
 - **Purpose:** Build community, warm up DM channel
 
 **Data:**
+
 ```typescript
 {
   athlete_name: string;
   follower_name: string;
   follower_profile_url: string;
-  follow_back_link: string;     // One-click follow back
-  dm_link: string;               // Direct message link
-  follower_stats: string;        // e.g., "joined 3 months ago, follows 45"
+  follow_back_link: string; // One-click follow back
+  dm_link: string; // Direct message link
+  follower_stats: string; // e.g., "joined 3 months ago, follows 45"
 }
 ```
 
@@ -83,12 +89,14 @@ Completed retention and engagement email system for P2 (low-priority but high-im
 ---
 
 ### 4. Account Recovery Confirmation Email
+
 - **Trigger:** `auth.account_recovery`
 - **When:** User resets password or changes email address
 - **Recipient:** User
 - **Purpose:** Security audit trail, enable undo within 24 hours
 
 **Data:**
+
 ```typescript
 {
   user_name: string;
@@ -107,12 +115,14 @@ Completed retention and engagement email system for P2 (low-priority but high-im
 ---
 
 ### 5. Profile Completion Nudge Email
+
 - **Trigger:** `onboarding.profile_incomplete`
 - **When:** User hasn't completed required profile fields after 3 days
 - **Recipient:** New user (athlete)
 - **Purpose:** Increase profile completion rate, improve recruiter visibility
 
 **Data:**
+
 ```typescript
 {
   user_name: string;
@@ -129,20 +139,22 @@ Completed retention and engagement email system for P2 (low-priority but high-im
 ---
 
 ### 6. Dormant User Digest Email
+
 - **Trigger:** `onboarding.dormant_user_digest`
 - **When:** User hasn't opened app for 14+ days (cron job runs daily)
 - **Recipient:** Athlete (not coaches, who stay engaged)
 - **Purpose:** Reactivation hook with personalized local content
 
 **Data:**
+
 ```typescript
 {
   user_name: string;
-  days_absent: number;          // 14+
+  days_absent: number; // 14+
   nearby_games_count: number;
-  nearby_games_list: string;    // Formatted list with dates/locations
+  nearby_games_list: string; // Formatted list with dates/locations
   trending_posts_count: number;
-  open_app_link: string;        // Deep link with source=dormant-digest
+  open_app_link: string; // Deep link with source=dormant-digest
   explore_link: string;
 }
 ```
@@ -155,6 +167,7 @@ Completed retention and engagement email system for P2 (low-priority but high-im
 ## Testing Results
 
 ### Jest Tests ✅
+
 ```
 PASS  Email Queue System (16/16 passing)
     P0: Reservation & Payments (6 tests)
@@ -185,15 +198,18 @@ Time: 1.55 s
 ```
 
 ### Security Scan ✅
+
 ```
 snyk code scan: 0 security issues
 Severity threshold: high
 ```
 
 ### Linting ✅
+
 ```
 ✖ 371 problems (0 errors, 371 warnings)
 ```
+
 - 0 new parsing errors
 - No security warnings
 - Warnings are style/unused vars (incrementally fixable)
@@ -226,6 +242,7 @@ Complete Email Queue System (16 Job Types)
 ```
 
 **All jobs:**
+
 - Use Bull queue with Redis persistence
 - Implement exponential backoff retry (3 attempts max)
 - Include comprehensive logging
@@ -242,24 +259,28 @@ Complete Email Queue System (16 Job Types)
 import { emailQueue } from '../lib/queue.js';
 
 // Queue email job after event
-await emailQueue.add(jobType, {
-  to: recipientEmail,
-  // ... job-specific data
-}, {
-  attempts: 3,
-  backoff: {
-    type: 'exponential',
-    delay: 2000,
+await emailQueue.add(
+  jobType,
+  {
+    to: recipientEmail,
+    // ... job-specific data
   },
-});
+  {
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 2000,
+    },
+  }
+);
 ```
 
 ### Example: Post Milestone
 
 ```typescript
 // In posts.ts or reaction handler
-const reactionCount = await prisma.reaction.count({ 
-  where: { post_id: postId } 
+const reactionCount = await prisma.reaction.count({
+  where: { post_id: postId },
 });
 
 if (reactionCount === 100 && !post.milestone_100_sent) {
@@ -284,16 +305,17 @@ if (reactionCount === 100 && !post.milestone_100_sent) {
 
 ```typescript
 // In cron/dormant-user-digest.ts
-cron.schedule('0 9 * * *', async () => {  // 9 AM daily
+cron.schedule('0 9 * * *', async () => {
+  // 9 AM daily
   const dormantUsers = await prisma.user.findMany({
     where: {
       account_type: 'athlete',
       sessions: {
         none: {
-          created_at: { gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) }
-        }
-      }
-    }
+          created_at: { gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) },
+        },
+      },
+    },
   });
 
   for (const user of dormantUsers) {
@@ -318,20 +340,21 @@ cron.schedule('0 9 * * *', async () => {  // 9 AM daily
 
 ## Performance & Scaling
 
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Job Processing | 1 job/sec (tunable) | Can increase with `queue.process(type, concurrency, handler)` |
-| Memory | < 50MB base | Redis stores job state, minimal memory bloat |
-| Retry Logic | 3x exponential backoff | Handles transient failures (SendGrid rate limits, etc.) |
-| Job Persistence | 100% | All jobs stored in Redis, survives restarts |
-| Queue Cleanup | Overnight task | Removes jobs >7 days (completed) / >30 days (failed) |
-| Health Monitoring | Every 4 hours | Alerts on >10 failed jobs, stuck delayed jobs |
+| Metric            | Value                  | Notes                                                         |
+| ----------------- | ---------------------- | ------------------------------------------------------------- |
+| Job Processing    | 1 job/sec (tunable)    | Can increase with `queue.process(type, concurrency, handler)` |
+| Memory            | < 50MB base            | Redis stores job state, minimal memory bloat                  |
+| Retry Logic       | 3x exponential backoff | Handles transient failures (SendGrid rate limits, etc.)       |
+| Job Persistence   | 100%                   | All jobs stored in Redis, survives restarts                   |
+| Queue Cleanup     | Overnight task         | Removes jobs >7 days (completed) / >30 days (failed)          |
+| Health Monitoring | Every 4 hours          | Alerts on >10 failed jobs, stuck delayed jobs                 |
 
 ---
 
 ## Deployment Checklist
 
 ### P0 (Complete)
+
 - [x] 3 email functions created
 - [x] 3 job handlers implemented
 - [x] Triggers wired in routes (ads.ts, payments.ts)
@@ -339,23 +362,27 @@ cron.schedule('0 9 * * *', async () => {  // 9 AM daily
 - [x] Snyk verified (0 issues)
 
 ### P1 (Complete)
+
 - [x] 4 email functions created
 - [x] 4 job handlers implemented
 - [x] Tests created (not yet wired in routes)
 - [x] Snyk verified (0 issues)
 
 ### P2 (Complete)
+
 - [x] 6 email functions created
 - [x] 6 job handlers implemented
 - [x] Tests created (not yet wired in routes)
 - [x] Snyk verified (0 issues)
 
 ### SendGrid Templates
+
 - [ ] Create SendGrid template for each P0/P1/P2 email type
 - [ ] Update `server/src/lib/email.ts` TEMPLATE_IDS with real IDs
 - [ ] Test with real SendGrid account
 
 ### Production Hardening
+
 - [ ] Add email rate limiting (prevent spam)
 - [ ] Implement dead-letter queue for persistent failures
 - [ ] Add metrics/instrumentation (Datadog, CloudWatch)
@@ -394,11 +421,13 @@ cron.schedule('0 9 * * *', async () => {  // 9 AM daily
 ### New/Modified Files
 
 **Created/Modified:**
+
 - `server/src/lib/email.ts` - Added 16 email functions (6 P0 + 4 P1 + 6 P2)
 - `server/src/workers/emailWorker.ts` - Added 16 job handlers + imports
 - `server/src/__tests__/email-queue.test.ts` - Added 16 test cases
 
 **Total Changes:**
+
 - 16 email functions
 - 16 job handlers
 - 16 Jest tests
@@ -409,13 +438,13 @@ cron.schedule('0 9 * * *', async () => {  // 9 AM daily
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| Email not sending | Check SendGrid API key, verify template ID exists |
-| Job stuck in queue | Run `monitor-queue.sh`, check overnight cleanup logs |
-| Duplicate emails sent | Check job ID uniqueness, verify no accidental requeues |
-| High failure rate | Check SendGrid rate limits (100/sec), verify recipient emails |
-| Tests timeout | Increase Jest timeout in jest.config.js, close open handles |
+| Issue                 | Solution                                                      |
+| --------------------- | ------------------------------------------------------------- |
+| Email not sending     | Check SendGrid API key, verify template ID exists             |
+| Job stuck in queue    | Run `monitor-queue.sh`, check overnight cleanup logs          |
+| Duplicate emails sent | Check job ID uniqueness, verify no accidental requeues        |
+| High failure rate     | Check SendGrid rate limits (100/sec), verify recipient emails |
+| Tests timeout         | Increase Jest timeout in jest.config.js, close open handles   |
 
 ---
 

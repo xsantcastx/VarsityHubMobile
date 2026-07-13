@@ -11,6 +11,7 @@
 Apple's App Store Connect (`appstoreconnect.apple.com`) is experiencing infrastructure issues (502 Bad Gateway errors). This is **Apple's problem**, not ours. We cannot fix Apple's servers.
 
 **Correlation Keys Seen:**
+
 - `MTZTI7GTBMXHGGKNOR5MVYSYZQQ`
 - `TR4N4YLTHUKUJ43V54KDKWH3IP4`
 - `P4LCEHD2POPE7OO3WT62SYWI3I`
@@ -20,6 +21,7 @@ Apple's App Store Connect (`appstoreconnect.apple.com`) is experiencing infrastr
 ## ✅ What We Know
 
 ### Build #25 Status
+
 - **Build:** #25 completed successfully ✅
 - **Status:** Uploaded to TestFlight automatically during build ✅
 - **Build ID:** `863e63bc-1c02-40a4-9d42-596c7495b1fc`
@@ -27,6 +29,7 @@ Apple's App Store Connect (`appstoreconnect.apple.com`) is experiencing infrastr
 - **Auto-Submission:** Build logs show "Done. Successfully exported and signed"
 
 ### From Build Logs:
+
 ```
 ⌛ Submitting iOS build...
 Going to upload updated app to App Store Connect
@@ -42,24 +45,29 @@ Successfully exported and signed the ipa file:
 ## 🔧 Alternative Ways to Verify
 
 ### Option 1: Check EAS Dashboard (No Apple Login Required)
+
 1. Go to: https://expo.dev/accounts/[your-account]/projects/varsityhub/builds
 2. Find Build #25
 3. Check status - should show "Finished" ✅
 4. Look for "Submitted to App Store Connect" indicator
 
 ### Option 2: Check Build Status via CLI
+
 ```bash
 cd /Users/varsityhub/VarsityHubMobile
 eas build:list --platform ios --limit 1
 ```
 
 This will show:
+
 - Build status (should be "finished")
 - Submission status
 - Build artifacts URL
 
 ### Option 3: Wait and Retry App Store Connect
+
 Apple's servers typically recover within 1-2 hours. Try:
+
 1. Wait 30 minutes
 2. Try accessing: https://appstoreconnect.apple.com/apps/6754257357
 3. If still down, wait another 30 minutes and retry
@@ -71,17 +79,20 @@ Apple's servers typically recover within 1-2 hours. Try:
 Once App Store Connect is accessible again:
 
 ### Step 1: Verify Build is in TestFlight
+
 1. Go to: https://appstoreconnect.apple.com/apps/6754257357/testflight/ios
 2. Check if Build #25 appears in TestFlight builds
 3. Status should be "Processing" or "Ready to Test"
 
 ### Step 2: Complete TestFlight Setup (if needed)
+
 1. Fill out compliance questionnaire (if prompted)
 2. Add internal testers
 3. Add "What to Test" notes
 4. Wait for processing to complete (~10-30 minutes)
 
 ### Step 3: Submit for App Store Review
+
 1. Go to: https://appstoreconnect.apple.com/apps/6754257357/appstore
 2. Navigate to: Version Management
 3. Select Build #25 from TestFlight
@@ -96,17 +107,20 @@ Once App Store Connect is accessible again:
 If after Apple servers recover, Build #25 is NOT in TestFlight:
 
 ### Manual Submission via CLI
+
 ```bash
 cd /Users/varsityhub/VarsityHubMobile
 eas submit --platform ios --profile production --latest
 ```
 
 This will:
+
 1. Find Build #25
 2. Upload to App Store Connect
 3. Add to TestFlight automatically
 
 ### Manual Submission via Transporter
+
 1. Download `.ipa` from EAS dashboard
 2. Open Transporter app: `open -a "Transporter"`
 3. Drag `.ipa` file into Transporter
@@ -154,4 +168,4 @@ If App Store Connect is down for more than 4 hours:
 
 ---
 
-*Last updated: January 20, 2026*
+_Last updated: January 20, 2026_

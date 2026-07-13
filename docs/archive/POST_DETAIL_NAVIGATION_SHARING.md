@@ -13,6 +13,7 @@ Enhanced the Post Detail screen (`app/post-detail.tsx`) to provide comprehensive
 ### 1. **Enhanced Header with Dual Action Buttons**
 
 #### Send to Friend Button
+
 - **Icon**: Send outline (paper airplane)
 - **Location**: Header (right side, before share button)
 - **Functionality**: Opens action sheet with two options:
@@ -20,6 +21,7 @@ Enhanced the Post Detail screen (`app/post-detail.tsx`) to provide comprehensive
   - **Share Externally**: Opens native share sheet
 
 #### Share Button
+
 - **Icon**: Share outline
 - **Location**: Header (right side)
 - **Functionality**: Opens native share sheet with:
@@ -33,6 +35,7 @@ Enhanced the Post Detail screen (`app/post-detail.tsx`) to provide comprehensive
 New pressable card displays when post is associated with a team:
 
 **Visual Design**:
+
 - Icon: People outline (teal/blue)
 - Team name in bold
 - Sport type in muted text
@@ -40,12 +43,14 @@ New pressable card displays when post is associated with a team:
 - Matches game info card styling
 
 **Data Sources** (checks multiple fields):
+
 - `post.team_id`
 - `post.team?.id`
 - `post.team?.name`
 - `post.team?.sport`
 
 **Navigation**:
+
 - Taps navigate to: `/team-profile?id={teamId}`
 
 ### 3. **Quick Links Section**
@@ -53,6 +58,7 @@ New pressable card displays when post is associated with a team:
 A new section at the bottom of post content providing one-tap access to related pages:
 
 **Visual Design**:
+
 - Border separator above section
 - "QUICK LINKS" uppercase title
 - Horizontal row of pill-shaped buttons
@@ -62,16 +68,19 @@ A new section at the bottom of post content providing one-tap access to related 
 **Available Links** (conditionally rendered):
 
 #### View Event
+
 - **Icon**: Basketball (blue)
 - **Condition**: `post.game?.id` exists
 - **Navigation**: `/game-detail?id={gameId}`
 
 #### View Team
+
 - **Icon**: People (green)
 - **Condition**: `post.team_id` or `post.team?.id` exists
 - **Navigation**: `/team-profile?id={teamId}`
 
 #### View Profile
+
 - **Icon**: Person (purple)
 - **Condition**: `post.author_id` exists
 - **Navigation**: `/user-profile?id={authorId}`
@@ -79,6 +88,7 @@ A new section at the bottom of post content providing one-tap access to related 
 ### 4. **Improved Share Functionality**
 
 #### Enhanced Message Composition
+
 ```typescript
 // Before: Simple title + URL
 "Check out: {title}"
@@ -92,11 +102,13 @@ https://varsityhub.com/post/{id}"
 ```
 
 #### Native Share Sheet Metadata
+
 - **Title**: Post title or "VarsityHub Post"
 - **Message**: Full formatted message with context
 - **URL**: Direct link to post
 
 #### Send to Friend Options
+
 - **VarsityHub DM**: Pre-fills message with post link
 - **External Share**: Uses native share (SMS, WhatsApp, etc.)
 
@@ -144,7 +156,7 @@ const onShare = async () => {
 const onSendToFriend = () => {
   Alert.alert('Send to Friend', 'Choose how to send this post', [
     { text: 'Via VarsityHub DM', onPress: () => router.push(`/messages?sharePost=${id}`) },
-    { text: 'Share Externally', onPress: onShare }
+    { text: 'Share Externally', onPress: onShare },
   ]);
 };
 ```
@@ -152,32 +164,33 @@ const onSendToFriend = () => {
 #### New Components
 
 **Team Card**:
+
 ```tsx
-{(post.team_id || post.team) && (
-  <Pressable 
-    style={styles.teamInfo}
-    onPress={() => router.push(`/team-profile?id={teamId}`)}
-  >
-    <Ionicons name="people-outline" size={20} />
-    <View style={styles.teamDetails}>
-      <Text style={styles.teamTitle}>{post.team?.name}</Text>
-      <Text style={styles.teamSport}>{post.team?.sport}</Text>
-    </View>
-    <Ionicons name="chevron-forward" size={20} />
-  </Pressable>
-)}
+{
+  (post.team_id || post.team) && (
+    <Pressable style={styles.teamInfo} onPress={() => router.push(`/team-profile?id={teamId}`)}>
+      <Ionicons name="people-outline" size={20} />
+      <View style={styles.teamDetails}>
+        <Text style={styles.teamTitle}>{post.team?.name}</Text>
+        <Text style={styles.teamSport}>{post.team?.sport}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} />
+    </Pressable>
+  );
+}
 ```
 
 **Quick Links Section**:
+
 ```tsx
-{(post.game?.id || post.team_id || post.author_id) && (
-  <View style={styles.quickLinks}>
-    <Text style={styles.quickLinksTitle}>Quick Links</Text>
-    <View style={styles.quickLinksRow}>
-      {/* Event, Team, Profile buttons */}
+{
+  (post.game?.id || post.team_id || post.author_id) && (
+    <View style={styles.quickLinks}>
+      <Text style={styles.quickLinksTitle}>Quick Links</Text>
+      <View style={styles.quickLinksRow}>{/* Event, Team, Profile buttons */}</View>
     </View>
-  </View>
-)}
+  );
+}
 ```
 
 ### New Styles
@@ -258,20 +271,24 @@ quickLinkText: {
 ### Navigation Paths
 
 #### From Post to Event
+
 1. **Option A**: Tap game card in post content
 2. **Option B**: Tap "View Event" in Quick Links
 
 #### From Post to Team
+
 1. **Option A**: Tap team card in post content (new)
 2. **Option B**: Tap "View Team" in Quick Links (new)
 
 #### From Post to User Profile
+
 1. **Option A**: Tap author avatar/name
 2. **Option B**: Tap "View Profile" in Quick Links
 
 ### Sharing Flows
 
 #### Share to Social Media
+
 ```
 User Flow:
 1. Tap share icon in header
@@ -282,6 +299,7 @@ User Flow:
 ```
 
 #### Send to VarsityHub Friend
+
 ```
 User Flow:
 1. Tap send icon in header
@@ -294,6 +312,7 @@ User Flow:
 ```
 
 #### Send via External App
+
 ```
 User Flow:
 1. Tap send icon in header
@@ -311,11 +330,13 @@ User Flow:
 ### Colors
 
 **Quick Link Icons**:
+
 - Event (Basketball): `#2563EB` (Blue)
 - Team (People): `#10B981` (Green)
 - Profile (Person): `#8B5CF6` (Purple)
 
 **Theme Adaptation**:
+
 - All backgrounds adapt to light/dark mode
 - Text colors use theme-aware `Colors[colorScheme]`
 - Borders use theme-aware border colors
@@ -369,8 +390,9 @@ interface Post {
     home_team?: string;
     away_team?: string;
   };
-  team_id?: string;  // Direct team reference
-  team?: {           // Populated team object
+  team_id?: string; // Direct team reference
+  team?: {
+    // Populated team object
     id: string;
     name: string;
     sport?: string;
@@ -382,16 +404,19 @@ interface Post {
 ### Fallback Behavior
 
 **Missing team data**:
+
 - Team card won't render if neither `team_id` nor `team` exists
 - "View Team" quick link won't appear
 - No errors thrown
 
 **Missing game data**:
+
 - Game card won't render if `game` is null
 - "View Event" quick link won't appear
 - No errors thrown
 
 **Missing author data**:
+
 - Author info shows "Anonymous" fallback
 - "View Profile" quick link won't appear if `author_id` is missing
 - Avatar shows default person icon
@@ -401,6 +426,7 @@ interface Post {
 ## Testing Checklist
 
 ### Visual Testing
+
 - [ ] Header shows both send and share buttons
 - [ ] Send button icon is paper airplane
 - [ ] Share button icon is share outline
@@ -412,6 +438,7 @@ interface Post {
 - [ ] Theme colors adapt in light/dark mode
 
 ### Interaction Testing
+
 - [ ] Tapping send button opens action sheet
 - [ ] "Via VarsityHub DM" navigates to messages
 - [ ] "Share Externally" opens native share
@@ -424,6 +451,7 @@ interface Post {
 - [ ] "View Profile" button navigates to user profile
 
 ### Share Content Testing
+
 - [ ] Share message includes post title
 - [ ] Share message includes game matchup (if exists)
 - [ ] Share message includes author name
@@ -432,6 +460,7 @@ interface Post {
 - [ ] Share title is set correctly
 
 ### Edge Case Testing
+
 - [ ] Post with no game data (game card hidden)
 - [ ] Post with no team data (team card hidden)
 - [ ] Post with no author (shows "Anonymous")
@@ -441,6 +470,7 @@ interface Post {
 - [ ] Multiple quick links fit on screen
 
 ### Navigation Testing
+
 - [ ] Back navigation works from all destinations
 - [ ] Messages screen receives sharePost parameter
 - [ ] Game detail screen loads correctly
@@ -448,6 +478,7 @@ interface Post {
 - [ ] User profile screen loads correctly
 
 ### Platform Testing
+
 - [ ] iOS: Share sheet shows apps correctly
 - [ ] iOS: Safe area respected in header
 - [ ] Android: Share sheet shows apps correctly
@@ -459,12 +490,15 @@ interface Post {
 ## Known Limitations
 
 ### 1. Messages Pre-fill
+
 Currently navigates to messages with query parameter `?sharePost={id}`. The messages screen must be updated to:
+
 - Detect `sharePost` query parameter
 - Pre-fill message with post link
 - Allow user to select recipient
 
 **Future Enhancement**:
+
 ```typescript
 // In messages screen
 const { sharePost } = useLocalSearchParams();
@@ -476,15 +510,18 @@ useEffect(() => {
 ```
 
 ### 2. Team Data Availability
+
 Some posts may not have team associations. The UI gracefully handles this by:
+
 - Not rendering team card
 - Not showing "View Team" quick link
 - Still allowing navigation to event/profile
 
 **Backend Consideration**:
 Ensure post API returns team data when available. Example query:
+
 ```sql
-SELECT p.*, 
+SELECT p.*,
        json_build_object('id', t.id, 'name', t.name, 'sport', t.sport) as team
 FROM posts p
 LEFT JOIN teams t ON p.team_id = t.id
@@ -492,6 +529,7 @@ WHERE p.id = $1;
 ```
 
 ### 3. Deep Link Validation
+
 Quick Links assume destination screens exist and handle invalid IDs. Add validation:
 
 ```typescript
@@ -508,6 +546,7 @@ router.push(`/team-profile?id=${teamId}`);
 ## Future Enhancements
 
 ### 1. **Share Analytics**
+
 Track share events to measure engagement:
 
 ```typescript
@@ -525,6 +564,7 @@ const onShare = async () => {
 ```
 
 ### 2. **Share Preview**
+
 Generate rich link previews for social media:
 
 ```typescript
@@ -536,6 +576,7 @@ Generate rich link previews for social media:
 ```
 
 ### 3. **Copy Link Button**
+
 Add direct copy to clipboard:
 
 ```typescript
@@ -548,6 +589,7 @@ const onCopyLink = async () => {
 ```
 
 ### 4. **Share to Story**
+
 Allow users to share post to their VarsityHub story:
 
 ```typescript
@@ -557,6 +599,7 @@ const onShareToStory = () => {
 ```
 
 ### 5. **QR Code Share**
+
 Generate QR code for in-person sharing:
 
 ```typescript
@@ -571,6 +614,7 @@ const [showQR, setShowQR] = useState(false);
 ```
 
 ### 6. **Share Customization**
+
 Allow users to edit message before sharing:
 
 ```typescript
@@ -584,6 +628,7 @@ const [shareMessage, setShareMessage] = useState('');
 ```
 
 ### 7. **Team Members List**
+
 Show team roster in Quick Links:
 
 ```typescript
@@ -599,6 +644,7 @@ Show team roster in Quick Links:
 ```
 
 ### 8. **Related Posts**
+
 Show other posts from same event/team:
 
 ```typescript
@@ -615,9 +661,11 @@ Show other posts from same event/team:
 ## Troubleshooting
 
 ### Share Sheet Not Opening
+
 **Issue**: Native share doesn't work on simulator
 
 **Solution**: Test on physical device
+
 ```bash
 # iOS
 expo run:ios --device
@@ -627,15 +675,18 @@ expo run:android --device
 ```
 
 ### Team Card Not Showing
+
 **Issue**: Team data not populating
 
 **Debug**:
+
 ```typescript
 console.log('Post team_id:', post.team_id);
 console.log('Post team:', post.team);
 ```
 
 **Fix**: Ensure API returns team data
+
 ```typescript
 // In API response
 {
@@ -650,9 +701,11 @@ console.log('Post team:', post.team);
 ```
 
 ### Navigation Not Working
+
 **Issue**: Quick Links don't navigate
 
 **Debug**:
+
 ```typescript
 const handleTeamPress = () => {
   const teamId = post.team_id || post.team?.id;
@@ -665,11 +718,13 @@ const handleTeamPress = () => {
 **Fix**: Verify route exists in `app/` directory
 
 ### Action Sheet Not Appearing
+
 **Issue**: Send to Friend action sheet doesn't show
 
 **Platform**: Android might not support `Alert.alert` with buttons
 
 **Solution**: Use `ActionSheetIOS` or custom modal
+
 ```typescript
 import { ActionSheetIOS, Platform } from 'react-native';
 
@@ -680,7 +735,7 @@ const onSendToFriend = () => {
         options: ['Cancel', 'Via VarsityHub DM', 'Share Externally'],
         cancelButtonIndex: 0,
       },
-      (buttonIndex) => {
+      buttonIndex => {
         if (buttonIndex === 1) router.push(`/messages?sharePost=${id}`);
         if (buttonIndex === 2) onShare();
       }
@@ -696,6 +751,7 @@ const onSendToFriend = () => {
 ## Performance Considerations
 
 ### 1. **Conditional Rendering**
+
 Quick Links section only renders when data exists:
 
 ```typescript
@@ -708,6 +764,7 @@ Quick Links section only renders when data exists:
 ```
 
 ### 2. **Memoized Navigation Handlers**
+
 Consider memoizing for complex posts:
 
 ```typescript
@@ -717,15 +774,14 @@ const handleEventPress = useCallback(() => {
 ```
 
 ### 3. **Icon Pre-loading**
+
 Ionicons are vector-based, no pre-loading needed. But for custom icons:
 
 ```typescript
 import { Asset } from 'expo-asset';
 
 useEffect(() => {
-  Asset.loadAsync([
-    require('@/assets/icons/custom-share.png'),
-  ]);
+  Asset.loadAsync([require('@/assets/icons/custom-share.png')]);
 }, []);
 ```
 
@@ -765,15 +821,18 @@ useEffect(() => {
 ## Related Files
 
 ### Modified
+
 - `app/post-detail.tsx` - Main post detail screen
 
 ### Referenced
+
 - `app/game-detail.tsx` - Event/game detail screen
 - `app/team-profile.tsx` - Team profile screen
 - `app/user-profile.tsx` - User profile screen
 - `app/messages.tsx` - Messages/DM screen (needs update for sharePost)
 
 ### Constants
+
 - `constants/Colors.ts` - Theme colors
 
 ---
@@ -794,5 +853,5 @@ Users can now seamlessly explore related content and share posts across multiple
 
 ---
 
-*Implementation by VarsityHub Development Team*
-*Last Updated: October 13, 2025*
+_Implementation by VarsityHub Development Team_
+_Last Updated: October 13, 2025_

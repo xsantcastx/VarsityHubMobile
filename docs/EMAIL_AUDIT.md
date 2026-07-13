@@ -16,6 +16,7 @@ The VarsityHub email system uses **SendGrid** as the primary provider with a que
 ## Current Architecture
 
 ### Email Provider
+
 - **Primary**: SendGrid (via `@sendgrid/mail` package)
 - **Fallback**: None (emails fail silently if SendGrid not configured)
 - **Legacy**: Nodemailer installed but not actively used
@@ -36,21 +37,25 @@ The VarsityHub email system uses **SendGrid** as the primary provider with a que
 ### Email Types
 
 #### Critical (Auth Flow)
+
 - ✅ Email verification (`sendVerificationEmail`)
 - ✅ Password reset (`sendPasswordResetEmail`)
 
 #### Team/Organization
+
 - ✅ Team invites (`sendTeamInviteEmail`)
 - ✅ Organization invites (`sendOrganizationInviteEmail`)
 - ✅ Join request notifications (`sendJoinRequestToAdmin`, `sendJoinRequestApproved`, `sendJoinRequestDenied`)
 - ✅ Organization approval/denial (`sendOrganizationApprovalEmail`, `sendOrganizationDenialEmail`)
 
 #### Administrative
+
 - ✅ Abuse reports (`sendAbuseReportNotification`)
 - ✅ Content moderation (`sendContentModerationEmail`)
 - ✅ Billing notices (`sendBillingNoticeEmail`)
 
 #### Generic/Transactional
+
 - Multiple generic functions for events, payments, etc.
 
 ---
@@ -58,6 +63,7 @@ The VarsityHub email system uses **SendGrid** as the primary provider with a que
 ## Current Implementation Details
 
 ### File Structure
+
 ```
 server/src/lib/email.ts          # Main email service (689 lines)
 server/src/jobs/queues.ts        # Queue definitions
@@ -68,6 +74,7 @@ server/src/routes/organizations.ts  # Org email triggers
 ```
 
 ### Email Templates
+
 - **Type**: SendGrid Dynamic Templates
 - **Storage**: Template IDs stored in environment variables
 - **Template Files**: `sendgrid-templates/*.html` (for reference)
@@ -76,11 +83,13 @@ server/src/routes/organizations.ts  # Org email triggers
 ### Environment Variables
 
 #### Required
+
 - `SENDGRID_API_KEY` - SendGrid API key
 - `EMAIL_FROM` or `FROM_EMAIL` - Sender email address
 - `APP_BASE_URL` - Base URL for links in emails
 
 #### Template IDs (12+)
+
 - `SENDGRID_VERIFICATION_TEMPLATE_ID`
 - `SENDGRID_PASSWORD_RESET_TEMPLATE_ID`
 - `SENDGRID_TEAM_INVITE_TEMPLATE_ID`
@@ -95,6 +104,7 @@ server/src/routes/organizations.ts  # Org email triggers
 - `SENDGRID_BILLING_NOTICE_TEMPLATE_ID`
 
 #### Optional
+
 - `CUSTOMER_SERVICE_EMAIL` - For abuse reports
 - `REDIS_URL` - For email queue (optional)
 
@@ -214,6 +224,7 @@ server/src/routes/organizations.ts  # Org email triggers
 ## Missing Features
 
 ### Required
+
 - ✅ Retry logic (only in queue)
 - ✅ Timeout protection
 - ✅ Structured logging
@@ -222,6 +233,7 @@ server/src/routes/organizations.ts  # Org email triggers
 - ✅ Provider abstraction
 
 ### Nice to Have
+
 - Email delivery tracking
 - Bounce handling
 - Unsubscribe handling
@@ -255,6 +267,7 @@ server/src/routes/organizations.ts  # Org email triggers
 ## Recommendations
 
 ### Phase 1: Standardization (Current Task)
+
 1. Create centralized EmailService abstraction
 2. Add provider abstraction layer
 3. Standardize error handling
@@ -263,6 +276,7 @@ server/src/routes/organizations.ts  # Org email triggers
 6. Add structured logging
 
 ### Phase 2: Hardening
+
 1. Add email validation
 2. Add template data validation
 3. Add rate limiting
@@ -270,6 +284,7 @@ server/src/routes/organizations.ts  # Org email triggers
 5. Add startup validation
 
 ### Phase 3: Monitoring
+
 1. Add delivery tracking
 2. Add bounce handling
 3. Add email analytics
@@ -280,11 +295,13 @@ server/src/routes/organizations.ts  # Org email triggers
 ## Current Email Flow
 
 ### Direct Sending (Synchronous)
+
 ```
 Route Handler → email.ts function → SendGrid API → Response
 ```
 
 ### Queue-Based Sending (Asynchronous)
+
 ```
 Route Handler → queueEmail() → BullMQ Queue → Email Worker → SendGrid API → Response
 ```

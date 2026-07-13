@@ -5,12 +5,14 @@
 Your repository is **ready** for AugmentCode integration. Here's what we found:
 
 ### ✅ Existing CI/CD Setup
+
 - **CI Workflows**: Comprehensive CI with lint, typecheck, and repo health checks
 - **Security Scanning**: Snyk security scanning already configured
 - **PR Gates**: All checks must pass before merge
 - **Multiple Workflows**: 14 GitHub Actions workflows for various checks
 
 ### ✅ Compatible Configuration
+
 - **TypeScript/JavaScript**: Primary language (fully supported)
 - **React Native/Expo**: Mobile framework (supported)
 - **Node.js**: Backend (supported)
@@ -33,13 +35,15 @@ Your repository is **ready** for AugmentCode integration. Here's what we found:
 #### Recommended Settings for Your Repo:
 
 **Branches to Review:**
+
 - ✅ `main` (required)
 - ✅ `develop` (if you use it)
 - ✅ All pull requests
 
 **File Patterns:**
+
 - **Include**: `**/*.{ts,tsx,js,jsx}` (TypeScript/JavaScript files)
-- **Exclude**: 
+- **Exclude**:
   - `node_modules/**`
   - `**/*.test.{ts,tsx}`
   - `**/*.spec.{ts,tsx}`
@@ -47,12 +51,14 @@ Your repository is **ready** for AugmentCode integration. Here's what we found:
   - `build/**`
 
 **Severity Levels:**
+
 - ✅ **Critical**: Block PR
 - ✅ **High**: Block PR
 - ⚠️ **Medium**: Comment only (don't block)
 - ℹ️ **Low**: Comment only (don't block)
 
 **Review Focus:**
+
 - ✅ Security vulnerabilities
 - ✅ Performance issues
 - ✅ Code quality & best practices
@@ -65,6 +71,7 @@ Your repository is **ready** for AugmentCode integration. Here's what we found:
 AugmentCode will work **alongside** your existing checks:
 
 **Current CI Checks:**
+
 1. ✅ Repo Health (`check-repo-health.sh`)
 2. ✅ Lint (`npm run lint`)
 3. ✅ Typecheck (`npm run typecheck`)
@@ -72,6 +79,7 @@ AugmentCode will work **alongside** your existing checks:
 5. ✅ Tests (`npm test`)
 
 **AugmentCode Adds:**
+
 - AI-powered code review
 - Context-aware suggestions
 - Best practice recommendations
@@ -82,6 +90,7 @@ AugmentCode will work **alongside** your existing checks:
 ### Step 4: Configure Notifications
 
 **Recommended Settings:**
+
 - ✅ **PR Comments**: Post review as PR comments
 - ✅ **Status Checks**: Add as optional status check (don't block merge)
 - ⚠️ **Email Alerts**: Only for critical issues
@@ -90,6 +99,7 @@ AugmentCode will work **alongside** your existing checks:
 ### Step 5: Test the Integration
 
 1. **Create a Test PR:**
+
    ```bash
    git checkout -b test-augmentcode
    # Make a small change
@@ -106,17 +116,20 @@ AugmentCode will work **alongside** your existing checks:
 ### For Your Tech Stack
 
 **TypeScript/React Native Focus:**
+
 - Enable React Native best practices
 - Enable Expo-specific patterns
 - Enable TypeScript strict mode checks
 
 **Security Focus:**
+
 - Complement Snyk (not replace)
 - Focus on code-level security (not dependencies)
 - Check for hardcoded secrets
 - Validate input sanitization
 
 **Performance Focus:**
+
 - React component optimization
 - Image loading patterns
 - State management efficiency
@@ -126,16 +139,19 @@ AugmentCode will work **alongside** your existing checks:
 
 **Current Setup:**
 Your CI already requires:
+
 - ✅ Repo health check
 - ✅ Lint pass
 - ✅ Typecheck pass
 
 **Recommended AugmentCode Setting:**
+
 - **Status Check**: Optional (not required for merge)
 - **Reason**: AugmentCode is advisory, your CI is enforcement
 - **Alternative**: Make it required if you want AI review to block PRs
 
 To make it required:
+
 1. Go to: Repo Settings → Branches → `main`
 2. Under "Require status checks":
 3. Add `augmentcode/code-review` ✅
@@ -166,6 +182,7 @@ To make it required:
 ### AugmentCode Not Reviewing PRs
 
 **Check:**
+
 1. App is installed: GitHub Settings → Installed GitHub Apps
 2. Repository is selected in AugmentCode dashboard
 3. Branch is configured (main, develop, etc.)
@@ -174,6 +191,7 @@ To make it required:
 ### Too Many Comments
 
 **Adjust:**
+
 - Increase minimum severity threshold
 - Exclude more file patterns
 - Reduce review scope
@@ -181,19 +199,20 @@ To make it required:
 ### Missing Reviews
 
 **Check:**
+
 - File patterns include your file types
 - Branch is in configured list
 - App permissions are correct
 
 ## Comparison: AugmentCode vs Snyk
 
-| Feature | Snyk | AugmentCode |
-|---------|------|-------------|
-| **Focus** | Security vulnerabilities | Code quality & best practices |
-| **Scope** | Dependencies + SAST | Code review & patterns |
-| **Integration** | CI/CD blocking | PR comments |
-| **Use Case** | Security enforcement | Code quality advisory |
-| **Compatibility** | ✅ Works together | ✅ Works together |
+| Feature           | Snyk                     | AugmentCode                   |
+| ----------------- | ------------------------ | ----------------------------- |
+| **Focus**         | Security vulnerabilities | Code quality & best practices |
+| **Scope**         | Dependencies + SAST      | Code review & patterns        |
+| **Integration**   | CI/CD blocking           | PR comments                   |
+| **Use Case**      | Security enforcement     | Code quality advisory         |
+| **Compatibility** | ✅ Works together        | ✅ Works together             |
 
 **Recommendation**: Use both! They complement each other.
 

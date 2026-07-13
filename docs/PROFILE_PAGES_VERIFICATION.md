@@ -5,6 +5,7 @@
 All three profile pages have been updated to match the design specification.
 
 ### User Profile (`app/profile.tsx`)
+
 - ✅ Tabs: "Posts", "Replies", "Upvotes" (replaced "Interactions")
 - ✅ Join date with calendar icon (`me?.created_at`)
 - ✅ Following/Followers as inline text format
@@ -15,6 +16,7 @@ All three profile pages have been updated to match the design specification.
 - ✅ "Edit profile" button visible
 
 ### Team Profile (`app/team-page.tsx`)
+
 - ✅ Header banner with gradient (`headerBannerContainer`, `headerBanner`)
 - ✅ Settings icon (admin-only, `isTeamAdmin` check)
 - ✅ Profile picture overlay (team logo, `profilePictureOverlay`)
@@ -25,6 +27,7 @@ All three profile pages have been updated to match the design specification.
 - ✅ Admin permission check implemented
 
 ### Organization Profile (`app/organization.tsx`)
+
 - ✅ Header banner with gradient (`headerBannerContainer`, `headerBanner`)
 - ✅ Settings icon (admin-only, `isOrgAdmin` check)
 - ✅ Profile picture overlay (org avatar, `profilePictureOverlay`)
@@ -85,18 +88,21 @@ npx tsx scripts/test-profile-pages.ts
 ## 🔍 Real-World Use Case Tests
 
 ### Test 1: New User Onboarding → Profile View
+
 1. Sign up as new user
 2. Complete onboarding
 3. Navigate to profile
 4. **Expected**: Profile displays with all elements, empty states for tabs
 
 ### Test 2: Active User Profile
+
 1. Sign in as existing user with posts
 2. Navigate to profile
 3. Switch between Posts/Replies/Upvotes tabs
 4. **Expected**: All tabs load data correctly, smooth transitions
 
 ### Test 3: Team Admin Workflow
+
 1. Sign in as team owner/coach
 2. Navigate to team profile
 3. Verify settings and edit buttons appear
@@ -104,11 +110,13 @@ npx tsx scripts/test-profile-pages.ts
 5. **Expected**: Can edit team details
 
 ### Test 4: Non-Admin Team View
+
 1. Sign in as regular user
 2. Navigate to team profile (not owned)
 3. **Expected**: Settings and edit buttons hidden, read-only view
 
 ### Test 5: Organization Admin Workflow
+
 1. Sign in as organization owner/admin
 2. Navigate to organization profile
 3. Verify settings and edit buttons appear
@@ -116,6 +124,7 @@ npx tsx scripts/test-profile-pages.ts
 5. **Expected**: Can edit organization details
 
 ### Test 6: Navigation Flow
+
 1. Start at user profile
 2. Navigate to team profile
 3. Navigate to organization profile
@@ -123,11 +132,13 @@ npx tsx scripts/test-profile-pages.ts
 5. **Expected**: Smooth navigation, no crashes
 
 ### Test 7: Dark Mode
+
 1. Enable dark mode
 2. View all three profile types
 3. **Expected**: All text readable, no hardcoded dark colors
 
 ### Test 8: Empty States
+
 1. View profile with no posts
 2. View profile with no replies
 3. View profile with no upvotes
@@ -144,6 +155,7 @@ npx tsx scripts/test-profile-pages.ts
 ```
 
 The test suite verifies:
+
 - ✅ Server connectivity
 - ✅ User profile data loading
 - ✅ Posts/Replies/Upvotes tabs functionality

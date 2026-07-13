@@ -19,6 +19,7 @@ The post-clone script is at **`ios/ci_scripts/ci_post_clone.sh`** (same director
 ## Setup in Xcode
 
 1. Open the workspace in Xcode:
+
    ```bash
    open ios/VarsityHub.xcworkspace
    ```
@@ -40,8 +41,8 @@ If your app needs env vars (e.g. API keys), add them in the workflow’s **Envir
 
 ## Troubleshooting
 
-| Issue | Fix |
-|-------|-----|
-| CocoaPods UTF-8 error | Already handled in `ci_post_clone.sh` |
-| `GetEnv.NoBoolean: TRUE is not a boolean` | Script sets `CI="true"`; if issues persist, consider a `getenv` patch |
-| Build fails on `pod install` | Ensure `ios/Podfile` and `ios/Podfile.lock` are committed (Pods/ is gitignored) |
+| Issue                                     | Fix                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------- |
+| CocoaPods UTF-8 error                     | Already handled in `ci_post_clone.sh`                                           |
+| `GetEnv.NoBoolean: TRUE is not a boolean` | Script sets `CI="true"`; if issues persist, consider a `getenv` patch           |
+| Build fails on `pod install`              | Ensure `ios/Podfile` and `ios/Podfile.lock` are committed (Pods/ is gitignored) |

@@ -3,6 +3,7 @@
 ## Summary
 
 Implemented a comprehensive error handling system with:
+
 - Base `AppError` class
 - Specialized error subclasses
 - Centralized error handling middleware
@@ -11,6 +12,7 @@ Implemented a comprehensive error handling system with:
 ## Files Created
 
 ### Error Classes
+
 - `server/src/lib/errors/AppError.ts` - Base error class
 - `server/src/lib/errors/ValidationError.ts` - 400 Bad Request
 - `server/src/lib/errors/AuthenticationError.ts` - 401 Unauthorized
@@ -21,12 +23,15 @@ Implemented a comprehensive error handling system with:
 - `server/src/lib/errors/index.ts` - Centralized exports
 
 ### Middleware
+
 - `server/src/middleware/errorHandler.ts` - Error handling middleware + asyncHandler wrapper
 
 ## Changes Made
 
 ### 1. Error Classes
+
 All errors extend `AppError` with:
+
 - `statusCode` - HTTP status code
 - `errorCode` - Internal error code
 - `publicMessage` - Safe message for clients
@@ -36,13 +41,16 @@ All errors extend `AppError` with:
 - `getLogDetails()` - Full error details for logging
 
 ### 2. Error Handler Middleware
+
 Handles:
+
 - `AppError` instances (operational errors)
 - Zod validation errors (auto-converted to ValidationError)
 - Prisma errors (auto-converted to appropriate error types)
 - Unknown errors (500 with safe message)
 
 ### 3. Updated Register Endpoint
+
 - Uses `asyncHandler` wrapper
 - Throws `ValidationError` for invalid input
 - Throws `ConflictError` for duplicate email

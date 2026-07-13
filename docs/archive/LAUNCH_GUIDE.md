@@ -3,11 +3,13 @@
 ## Quick Start
 
 ### 1. Validate Your Setup
+
 ```bash
 npm run validate:pre-launch
 ```
 
 This will check:
+
 - ✅ All required configuration files
 - ✅ Google Maps API keys
 - ✅ App icons and assets
@@ -17,11 +19,13 @@ This will check:
 ### 2. Build for Production
 
 #### Option A: Interactive Build Script (Recommended)
+
 ```bash
 npm run build:production
 ```
 
 #### Option B: Build Specific Platform
+
 ```bash
 # iOS only
 npm run build:ios
@@ -57,6 +61,7 @@ npm run submit:android
    - Service account key created
 
 3. **EAS CLI Installed**
+
    ```bash
    npm install -g eas-cli
    eas login
@@ -79,6 +84,7 @@ npm run submit:android
 ## Configuration Checklist
 
 ### app.json
+
 - [ ] Version number set correctly
 - [ ] iOS Google Maps API key added
 - [ ] Android Google Maps API key added
@@ -86,12 +92,14 @@ npm run submit:android
 - [ ] Permissions properly configured
 
 ### eas.json
+
 - [ ] Apple ID configured
 - [ ] App Store Connect App ID configured
 - [ ] Apple Team ID configured
 - [ ] Google Play service account key path set
 
 ### .env
+
 - [ ] Production API URL: `https://api-production-8ac3.up.railway.app`
 - [ ] All Google OAuth client IDs configured
 - [ ] Environment set to `production`
@@ -132,9 +140,11 @@ npm run submit:android
    - Automatically signs with your certificates
 
 2. **Auto-Submit** (if configured)
+
    ```bash
    npm run submit:ios
    ```
+
    - Uploads to App Store Connect
    - You review and submit for review
 
@@ -153,9 +163,11 @@ npm run submit:android
    - EAS creates `.aab` (App Bundle)
 
 2. **Auto-Submit** (if configured)
+
    ```bash
    npm run submit:android
    ```
+
    - Uploads to Play Console
    - Published to selected track
 
@@ -208,7 +220,8 @@ When you need to release an update:
 ### Build Fails
 
 **Problem**: Build fails on EAS  
-**Solution**: 
+**Solution**:
+
 - Check build logs at expo.dev
 - Verify all credentials are correct
 - Ensure no TypeScript errors: `npm run lint`
@@ -217,6 +230,7 @@ When you need to release an update:
 
 **iOS Rejection**  
 Common reasons:
+
 - Missing privacy policy
 - Incomplete metadata
 - Guideline violations
@@ -224,6 +238,7 @@ Common reasons:
 
 **Android Rejection**  
 Common reasons:
+
 - Missing content rating
 - Privacy policy issues
 - Permissions not justified
@@ -232,6 +247,7 @@ Common reasons:
 
 **Problem**: Google Maps not displaying  
 **Solution**:
+
 - Verify API keys in app.json
 - Check API restrictions in Google Cloud Console
 - Enable required APIs:

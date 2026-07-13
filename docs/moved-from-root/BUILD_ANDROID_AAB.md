@@ -31,17 +31,21 @@ eas build --platform android --profile preview
 ## Build Options
 
 ### Production Profile (Google Play Store)
+
 ```bash
 eas build --platform android --profile production
 ```
+
 - Creates AAB for Google Play Store
 - Distribution: `store`
 - Auto-increments version code
 
 ### Preview Profile (Internal Testing)
+
 ```bash
-eas build --platform android --profile preview  
+eas build --platform android --profile preview
 ```
+
 - Creates AAB for internal testing track
 - Distribution: `internal`
 - Good for QA testing before production
@@ -51,11 +55,13 @@ eas build --platform android --profile preview
 ## Monitor Build Progress
 
 **Check build status:**
+
 ```bash
 eas build:list --platform android
 ```
 
 **View build logs:**
+
 ```bash
 eas build:view [BUILD_ID]
 ```
@@ -94,6 +100,7 @@ https://expo.dev/accounts/varsity-hub/projects/varsityhub/builds
 ## Troubleshooting
 
 **If build fails:**
+
 ```bash
 # Check build logs
 eas build:view [BUILD_ID]
@@ -106,6 +113,7 @@ eas credentials
 ```
 
 **Common Issues:**
+
 - Keystore not found → Check `service-account-key.json` exists
 - API key missing → Verify environment variables in `eas.json`
 - Build timeout → Retry the build

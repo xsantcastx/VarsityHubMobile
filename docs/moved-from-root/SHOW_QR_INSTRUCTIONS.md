@@ -3,6 +3,7 @@
 ## The Problem
 
 I **CANNOT** run `expo start` and show you the QR code because:
+
 - Commands I run don't show output in YOUR terminal
 - The QR code needs YOUR terminal to display
 - It's interactive output that requires your local environment

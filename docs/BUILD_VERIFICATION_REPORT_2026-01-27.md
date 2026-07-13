@@ -90,6 +90,7 @@ After comprehensive verification, your iOS and Android builds are **ready to pro
 **Status**: ⚠️ Warning (NOT a blocker)
 
 **Why it's safe:**
+
 - `SENTRY_ALLOW_FAILURE=true` is set in **all** build profiles (development, preview, production)
 - This means builds will **succeed even if Sentry token is missing**
 - Sentry upload will be skipped, but build continues
@@ -97,6 +98,7 @@ After comprehensive verification, your iOS and Android builds are **ready to pro
 **Action**: Optional - Add token later if you want Sentry source maps uploaded during builds
 
 **How to add (optional):**
+
 ```bash
 eas secret:create --scope project --name SENTRY_AUTH_TOKEN --value YOUR_TOKEN
 ```
@@ -106,6 +108,7 @@ eas secret:create --scope project --name SENTRY_AUTH_TOKEN --value YOUR_TOKEN
 **Status**: ⚠️ Warning (NOT a blocker)
 
 **Why it's safe:**
+
 - Only needed for **Play Store submission**, not for builds
 - Builds will work fine without it
 - You can add it later when submitting to Play Store
@@ -117,6 +120,7 @@ eas secret:create --scope project --name SENTRY_AUTH_TOKEN --value YOUR_TOKEN
 **Status**: ⚠️ Network issue (NOT a real problem)
 
 **Why it's safe:**
+
 - This was a network connectivity issue in the verification environment
 - Not a code or configuration problem
 - Expo Doctor will run fine during actual EAS builds (EAS has network access)
@@ -128,6 +132,7 @@ eas secret:create --scope project --name SENTRY_AUTH_TOKEN --value YOUR_TOKEN
 **Status**: ⚠️ Network issue (NOT a real problem)
 
 **Why it's safe:**
+
 - Network access was blocked in verification environment
 - Your API URL is configured correctly: `https://api-production-8ac3.up.railway.app`
 - The app will connect fine when running
@@ -141,16 +146,19 @@ eas secret:create --scope project --name SENTRY_AUTH_TOKEN --value YOUR_TOKEN
 You can now safely run:
 
 ### iOS Production Build
+
 ```bash
 eas build --platform ios --profile production
 ```
 
 ### Android Production Build
+
 ```bash
 eas build --platform android --profile production
 ```
 
 ### Both Platforms
+
 ```bash
 eas build --platform all --profile production
 ```
@@ -197,23 +205,23 @@ The verification script found **NO blocking errors**. The warnings are:
 
 ## 📊 **Final Status**
 
-| Check | Status | Blocks Build? |
-|-------|--------|---------------|
-| TypeScript | ✅ Pass | No |
-| Linting | ✅ Pass | No |
-| Critical Files | ✅ Pass | No |
-| Sentry Config | ✅ Pass | No |
-| Android Config | ✅ Pass | No |
-| iOS Config | ✅ Pass | No |
-| Dependencies | ✅ Pass | No |
-| Environment | ✅ Pass | No |
-| Assets | ✅ Pass | No |
-| Versions | ✅ Pass | No |
-| EAS Config | ✅ Pass | No |
-| Bundle IDs | ✅ Pass | No |
-| Google Maps | ✅ Pass | No |
-| Apple Credentials | ✅ Pass | No |
-| Release Readiness | ✅ Pass | No |
+| Check             | Status  | Blocks Build? |
+| ----------------- | ------- | ------------- |
+| TypeScript        | ✅ Pass | No            |
+| Linting           | ✅ Pass | No            |
+| Critical Files    | ✅ Pass | No            |
+| Sentry Config     | ✅ Pass | No            |
+| Android Config    | ✅ Pass | No            |
+| iOS Config        | ✅ Pass | No            |
+| Dependencies      | ✅ Pass | No            |
+| Environment       | ✅ Pass | No            |
+| Assets            | ✅ Pass | No            |
+| Versions          | ✅ Pass | No            |
+| EAS Config        | ✅ Pass | No            |
+| Bundle IDs        | ✅ Pass | No            |
+| Google Maps       | ✅ Pass | No            |
+| Apple Credentials | ✅ Pass | No            |
+| Release Readiness | ✅ Pass | No            |
 
 **Result**: ✅ **READY FOR BUILD**
 
@@ -224,6 +232,7 @@ The verification script found **NO blocking errors**. The warnings are:
 **Proceed with builds.** All critical checks passed. The warnings are non-blocking and won't cause build failures.
 
 If you want extra confidence, you can:
+
 1. Run a preview build first: `eas build --platform ios --profile preview`
 2. Test the preview build
 3. Then run production builds

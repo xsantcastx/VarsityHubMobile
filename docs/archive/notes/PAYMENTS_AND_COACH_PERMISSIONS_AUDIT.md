@@ -1,4 +1,5 @@
 # 💳 Payments & Coach Permissions Audit
+
 **December 11, 2025**
 
 ---
@@ -7,13 +8,13 @@
 
 The payments and coach permissions system is **production-ready with consistent enforcement**. Plan definitions, permission gates, and payment flows are correctly implemented across frontend and backend. However, there are **4 gaps** identified that should be addressed before full launch:
 
-| Category | Status | Confidence |
-|----------|--------|------------|
-| **Plan Definitions** | ✅ Complete | 95% |
-| **Permission Enforcement** | ✅ Correct | 98% |
-| **Payment Processing** | ✅ Working | 95% |
-| **Coach Limits UI** | ⚠️ Missing | 70% (lacks proactive feedback) |
-| **Plan Metadata** | ⚠️ Scattered | 75% (needs centralization) |
+| Category                   | Status       | Confidence                     |
+| -------------------------- | ------------ | ------------------------------ |
+| **Plan Definitions**       | ✅ Complete  | 95%                            |
+| **Permission Enforcement** | ✅ Correct   | 98%                            |
+| **Payment Processing**     | ✅ Working   | 95%                            |
+| **Coach Limits UI**        | ⚠️ Missing   | 70% (lacks proactive feedback) |
+| **Plan Metadata**          | ⚠️ Scattered | 75% (needs centralization)     |
 
 ---
 
@@ -22,23 +23,25 @@ The payments and coach permissions system is **production-ready with consistent 
 ### Plan Definitions
 
 **Current Location:** Three separate sources define plan behavior:
+
 1. `context/OnboardingContext.tsx` (Plan type definition)
 2. `app/onboarding/step-3-plan.tsx` (PLAN_OPTIONS array with UI/pricing)
 3. `server/src/routes/teams.ts` & `organizations.ts` (Enforcement logic)
 
 **Plan Matrix:**
 
-| Feature | Rookie | Veteran | Legend |
-|---------|--------|---------|--------|
-| **Teams** | 2 free | Unlimited | Unlimited |
-| **Cost** | Free | $0.99/team/month (3+ only) | $20/year |
-| **Authorized Users/Team** | 1 | 2 | Unlimited |
-| **Extracurricular Clubs** | ✗ | ✗ | ✓ |
-| **Org-Level Authorizations** | 1 | 2×team_count | Unlimited |
+| Feature                      | Rookie | Veteran                    | Legend    |
+| ---------------------------- | ------ | -------------------------- | --------- |
+| **Teams**                    | 2 free | Unlimited                  | Unlimited |
+| **Cost**                     | Free   | $0.99/team/month (3+ only) | $20/year  |
+| **Authorized Users/Team**    | 1      | 2                          | Unlimited |
+| **Extracurricular Clubs**    | ✗      | ✗                          | ✓         |
+| **Org-Level Authorizations** | 1      | 2×team_count               | Unlimited |
 
 ### Code Locations
 
 **Frontend (Step 3 Plan Selection):**
+
 ```tsx
 // app/onboarding/step-3-plan.tsx (lines 12-48)
 const PLAN_OPTIONS: PlanOption[] = [
@@ -81,6 +84,7 @@ const PLAN_OPTIONS: PlanOption[] = [
 ```
 
 **Key Observations:**
+
 - ✅ Plans clearly communicated to users
 - ✅ Price IDs set for Stripe integration
 - ⚠️ No centralized definition—changes require updates in 3+ places
@@ -95,6 +99,7 @@ const PLAN_OPTIONS: PlanOption[] = [
 **Backend Enforcement:** `server/src/routes/teams.ts`
 
 **Lines 81-101 (GET /teams/limits):**
+
 ```typescript
 teamsRouter.get('/limits', authMiddleware as any, async (req: AuthedRequest, res) => {
   // Returns:
@@ -108,6 +113,7 @@ teamsRouter.get('/limits', authMiddleware as any, async (req: AuthedRequest, res
 ```
 
 **Lines 285-310 (Team Creation POST):**
+
 ```typescript
 // Check team ownership limit based on plan
 const plan = prefs.plan || 'rookie';
@@ -121,12 +127,13 @@ if (ownedTeamsCount >= maxTeams) {
     error: 'Team limit reached',
     message: `${plan === 'rookie' ? 'Rookie' : 'Higher tier'} plan allows ${maxTeams} teams`,
     code: 'TEAM_LIMIT_EXCEEDED',
-    upgrade_url: `${process.env.APP_BASE_URL}/upgrade?from=team_limit`
+    upgrade_url: `${process.env.APP_BASE_URL}/upgrade?from=team_limit`,
   });
 }
 ```
 
 **Lines 527-555 (Extracurricular Clubs):**
+
 ```typescript
 // Legend tier restriction: Only Legend users can create extracurricular clubs
 if (clubType === 'extracurricular' && userPlan !== 'legend') {
@@ -158,16 +165,17 @@ if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
 if (req.user && currentOrg?.created_by === req.user.id) {
   const plan = prefs.plan || 'rookie';
   let limit: number | null = null;
-  
-  if (plan === 'rookie') limit = 1;           // 1 authorized user
+
+  if (plan === 'rookie')
+    limit = 1; // 1 authorized user
   else if (plan === 'veteran') {
-    limit = (teamCountTotal * 2) || 12;       // 2 per team (or 12 fallback)
+    limit = teamCountTotal * 2 || 12; // 2 per team (or 12 fallback)
   }
   // legend => unlimited (limit stays null)
-  
+
   if (limit !== null) {
     const totalAuthorized = await prisma.organizationMember.count({
-      where: { organization_id: org_id, status: 'active' }
+      where: { organization_id: org_id, status: 'active' },
     });
     if (totalAuthorized >= limit) {
       return res.status(403).json({
@@ -182,12 +190,12 @@ if (req.user && currentOrg?.created_by === req.user.id) {
 
 **Permission Check Results:**
 
-| Action | Rookie | Veteran | Legend | Enforcement |
-|--------|--------|---------|--------|--------------|
-| Create 3rd team | ❌ 403 | ✅ OK | ✅ OK | **Server-side, returns 403** |
-| Create extracurricular club | ❌ 403 | ❌ 403 | ✅ OK | **Server-side, returns 403** |
-| Authorize 2nd user (1 team) | ❌ 403 | ✅ OK | ✅ OK | **Server-side, returns 403** |
-| Authorize 2nd user (in org) | ❌ 403 | ✅ OK (if ≤ 2×team count) | ✅ OK | **Server-side, returns 403** |
+| Action                      | Rookie | Veteran                   | Legend | Enforcement                  |
+| --------------------------- | ------ | ------------------------- | ------ | ---------------------------- |
+| Create 3rd team             | ❌ 403 | ✅ OK                     | ✅ OK  | **Server-side, returns 403** |
+| Create extracurricular club | ❌ 403 | ❌ 403                    | ✅ OK  | **Server-side, returns 403** |
+| Authorize 2nd user (1 team) | ❌ 403 | ✅ OK                     | ✅ OK  | **Server-side, returns 403** |
+| Authorize 2nd user (in org) | ❌ 403 | ✅ OK (if ≤ 2×team count) | ✅ OK  | **Server-side, returns 403** |
 
 **Key Finding:** ✅ All permission gates are enforced at the backend. Frontend receives 403 errors on limit violations.
 
@@ -211,14 +219,14 @@ const handleSubscribe = async () => {
     });
     return;
   }
-  
+
   // On Android: Create Stripe checkout session
   try {
     const response = await fetch(`${base}/payments/subscribe`, {
       method: 'POST',
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         plan: selectedTier,
-        promo_code: promoCode.trim() || undefined 
+        promo_code: promoCode.trim() || undefined
       }),
     });
     const data = await response.json();
@@ -235,26 +243,29 @@ const handleSubscribe = async () => {
 ```typescript
 billingRouter.post('/checkout/create-session', async (req: AuthedRequest, res) => {
   const { plan, team_count } = req.body;
-  
+
   // Validate plan
-  if (!['veteran','legend'].includes(String(plan))) {
+  if (!['veteran', 'legend'].includes(String(plan))) {
     return res.status(400).json({ error: 'Invalid plan' });
   }
-  
+
   // Create Stripe session
   const session = await stripe.checkout.sessions.create({
     customer_email: email,
     mode: 'subscription',
-    line_items: [{ 
-      price: plan === 'veteran' ? veteranPrice : legendPrice,
-      quantity: plan === 'veteran' 
-        ? Math.max(0, team_count - 2) || 1  // Charge for teams beyond 2 free ones
-        : 1
-    }],
+    line_items: [
+      {
+        price: plan === 'veteran' ? veteranPrice : legendPrice,
+        quantity:
+          plan === 'veteran'
+            ? Math.max(0, team_count - 2) || 1 // Charge for teams beyond 2 free ones
+            : 1,
+      },
+    ],
     success_url: `${FRONTEND_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-    metadata: { user_id, plan, team_count }
+    metadata: { user_id, plan, team_count },
   });
-  
+
   return res.json({ session_id, url: session.url });
 });
 ```
@@ -270,7 +281,7 @@ if (event.type === 'checkout.session.completed') {
   const session = event.data.object;
   const userId = session.metadata?.user_id;
   const plan = session.metadata?.plan;
-  
+
   // Update user in database
   await prisma.user.update({
     where: { id: userId },
@@ -280,10 +291,10 @@ if (event.type === 'checkout.session.completed') {
       stripe_customer_id: session.customer?.toString(),
       preferences: {
         ...existingPrefs,
-        plan,           // Update plan in preferences JSON
-        payment_pending: false
-      }
-    }
+        plan, // Update plan in preferences JSON
+        payment_pending: false,
+      },
+    },
   });
 }
 ```
@@ -300,16 +311,16 @@ useEffect(() => {
       const me = await User.me();
       const plan = me?.preferences?.plan;
       const pending = me?.preferences?.payment_pending;
-      
+
       if ((plan === 'veteran' || plan === 'legend') && pending === false) {
-        setSessionVerified(true);  // ✅ Payment confirmed
+        setSessionVerified(true); // ✅ Payment confirmed
       }
     } catch (_error) {
       // If verification fails, allow manual continue
       console.warn('[payment-success] User.me() failed');
     }
   };
-  
+
   verifyPayment();
 }, [params.session_id]);
 ```
@@ -344,6 +355,7 @@ useEffect(() => {
 ```
 
 **Key Points:**
+
 - ✅ Fans skip plan selection entirely
 - ✅ Coaches always enter onboarding with plan choice
 - ✅ Rookie is free pathway; Veteran/Legend require Stripe
@@ -353,7 +365,8 @@ useEffect(() => {
 
 ## ⚠️ Gaps & Opportunities
 
-### ✅ Gap 1: Frontend "Create Team" Button Lacks Proactive Limits UI *(Resolved)*
+### ✅ Gap 1: Frontend "Create Team" Button Lacks Proactive Limits UI _(Resolved)_
+
 **Severity:** Medium → **Resolved 2025-12-??**  
 **Fix:** `app/create-team.tsx`, `api/entities.ts`
 
@@ -367,7 +380,8 @@ useEffect(() => {
 
 ---
 
-### ✅ Gap 2: Centralized Plan Metadata *(Resolved)*
+### ✅ Gap 2: Centralized Plan Metadata _(Resolved)_
+
 **Severity:** Low → **Resolved 2025-12-11**  
 **Fix:** `shared/plan-definitions.json`, `constants/plans.ts`, `server/src/lib/planLimits.ts`
 
@@ -380,7 +394,8 @@ useEffect(() => {
 
 ---
 
-### ✅ Gap 3: Payment Success Polling *(Resolved)*
+### ✅ Gap 3: Payment Success Polling _(Resolved)_
+
 **Severity:** Low → **Resolved 2025-12-11**  
 **Fix:** `app/payment-success.tsx`
 
@@ -393,7 +408,8 @@ useEffect(() => {
 
 ---
 
-### ✅ Gap 4: Billing Copy References *(Resolved)*
+### ✅ Gap 4: Billing Copy References _(Resolved)_
+
 **Severity:** Low → **Resolved 2025-12-11**  
 **Fix:** `app/billing.tsx`
 
@@ -409,23 +425,27 @@ useEffect(() => {
 ## ✅ What's Working Well
 
 ### 1. Backend Permission Gates Are Solid ✅
+
 - Server enforces all plan limits correctly
 - Returns appropriate 403 errors with upgrade URLs
 - Plan checks happen before team/user creation
 - Extracurricular clubs limited to Legend only
 
 ### 2. Payment Flow Is Complete ✅
+
 - Stripe integration working (create session → checkout → webhook → update user)
 - Android/iOS distinction handled (iOS directed to web portal)
 - Webhook updates user.preferences.plan immediately
 - Payment-success screen verifies completion
 
 ### 3. Email Verification Leads to Correct Onboarding ✅
+
 - Coaches routed to 9-step onboarding with plan selection
 - Fans skip to feed
 - Plan choice determines next flow (Rookie free → continue, Veteran/Legend → Stripe)
 
 ### 4. Role-Based Gating Is Working ✅
+
 - Only coaches see plan selection
 - Fans never reach subscription paywall
 - Admin bypass working for testing
@@ -435,7 +455,9 @@ useEffect(() => {
 ## 📊 Testing Recommendations
 
 ### Test Case 1: Rookie Coach Creates 2 Teams
+
 **Steps:**
+
 1. Sign up as coach, verify email
 2. Select Rookie plan (free)
 3. Complete onboarding
@@ -446,7 +468,9 @@ useEffect(() => {
 **Expected UI Fix:** After implementing Gap 1, step 6 should show disabled button: "Team limit reached (2 max)"
 
 ### Test Case 2: Veteran Upgrade
+
 **Steps:**
+
 1. Start as Rookie coach
 2. Create 2 teams
 3. Navigate to subscription paywall (or via failed team creation)
@@ -459,7 +483,9 @@ useEffect(() => {
 **Expected Result:** After payment webhook completes, user.preferences.plan === 'veteran' and can create unlimited additional teams
 
 ### Test Case 3: Legend Plan (Extracurricular Clubs)
+
 **Steps:**
+
 1. Sign up as coach, upgrade to Legend ($20/year)
 2. Create regular team → ✅ Success
 3. Try to create extracurricular club (Theater, Chess, etc.) → ✅ Should succeed
@@ -472,16 +498,19 @@ useEffect(() => {
 ## 🔍 Code Quality Findings
 
 ### Type Safety ✅
+
 - Plan types properly defined: `type Plan = 'rookie' | 'veteran' | 'legend'`
 - No string literals for plan checks (mostly)
 - Preferences JSON structure consistent
 
 ### Error Handling ✅
+
 - All API endpoints return meaningful error messages
 - Upgrade URLs provided when limits hit
 - Frontend shows alerts when limits reached
 
 ### Data Consistency ⚠️
+
 - Plan metadata scattered across 3 files
 - No single source of truth for plan features/limits
 - Risk of frontend/backend plan definitions diverging
@@ -490,26 +519,27 @@ useEffect(() => {
 
 ## 📝 Audit Checklist
 
-| Item | Status | Evidence |
-|------|--------|----------|
-| Plans clearly defined | ✅ | PLAN_OPTIONS in step-3-plan.tsx |
-| Plan limits enforced server-side | ✅ | teams.ts & organizations.ts |
-| Payment processing working | ✅ | Stripe webhook updates user.preferences.plan |
-| Email verification → onboarding → plan | ✅ | AuthProvider routes correctly |
-| Rookie free, Veteran/Legend paid | ✅ | priceId: null for Rookie, Stripe IDs for others |
-| Coaches can't see unauthorized actions | ✅ | 403 errors on limit exceed |
-| Admin bypass working | ✅ | ADMIN_EMAILS check in auth |
-| Payment success page verifies | ✅ | Checks User.me() for updated plan |
-| Proactive team limits UI | ✅ | app/create-team.tsx fetches `/teams/limits`, disables CTA, shows upgrade link |
-| Centralized plan metadata | ✅ | shared/plan-definitions.json + planLimits helpers |
-| Billing copy up to date | ✅ | app/billing.tsx pulls copy from PLAN_DEFINITIONS |
-| Webhook retry logic | ✅ | payment-success.tsx polling + status UI |
+| Item                                   | Status | Evidence                                                                      |
+| -------------------------------------- | ------ | ----------------------------------------------------------------------------- |
+| Plans clearly defined                  | ✅     | PLAN_OPTIONS in step-3-plan.tsx                                               |
+| Plan limits enforced server-side       | ✅     | teams.ts & organizations.ts                                                   |
+| Payment processing working             | ✅     | Stripe webhook updates user.preferences.plan                                  |
+| Email verification → onboarding → plan | ✅     | AuthProvider routes correctly                                                 |
+| Rookie free, Veteran/Legend paid       | ✅     | priceId: null for Rookie, Stripe IDs for others                               |
+| Coaches can't see unauthorized actions | ✅     | 403 errors on limit exceed                                                    |
+| Admin bypass working                   | ✅     | ADMIN_EMAILS check in auth                                                    |
+| Payment success page verifies          | ✅     | Checks User.me() for updated plan                                             |
+| Proactive team limits UI               | ✅     | app/create-team.tsx fetches `/teams/limits`, disables CTA, shows upgrade link |
+| Centralized plan metadata              | ✅     | shared/plan-definitions.json + planLimits helpers                             |
+| Billing copy up to date                | ✅     | app/billing.tsx pulls copy from PLAN_DEFINITIONS                              |
+| Webhook retry logic                    | ✅     | payment-success.tsx polling + status UI                                       |
 
 ---
 
 ## 🎯 Priority Fixes (Before Launch)
 
 ### ✅ Completed: Billing Copy Refresh (Gap 4)
+
 **Delivered:** `app/billing.tsx`
 
 - Plan card + feature list derive from `PLAN_DEFINITIONS`.
@@ -517,15 +547,18 @@ useEffect(() => {
 - Removed “demo subtotal” phrasing; promo section now reflects production flows.
 
 ### ✅ Completed: Proactive Team Limits UI (Gap 1)
+
 **Delivered:** `app/create-team.tsx`, `api/entities.ts`  
 **Result:** Coaches now see their plan tier, owned/max teams, remaining slots, and a disabled CTA with upgrade link when limits are hit. `/teams/limits` errors surface inline instead of silently failing.
 
 ### ✅ Completed: Payment Verification Polling (Gap 3)
+
 - Managed retry loop with cleanup, attempt counter, and last-checked timestamp.
 - Manual “Check status” resets attempts + timers for deterministic retrials.
 - Dev logs gated by `__DEV__` to keep prod builds clean.
 
 ### ✅ Completed: Centralized Plans Config (Gap 2)
+
 - Canonical data file: `shared/plan-definitions.json`.
 - Frontend wrapper: `constants/plans.ts` (typed helpers, normalizePlan).
 - Backend helpers: `server/src/lib/planLimits.ts` used by teams/orgs/subscription middleware.
@@ -535,6 +568,7 @@ useEffect(() => {
 ## 🎓 Knowledge Base Entries
 
 ### How to Add a New Plan
+
 1. Add plan to PLAN_DEFINITIONS (once centralized)
 2. Update step-3-plan.tsx PLAN_OPTIONS
 3. Update teams.ts team creation limits
@@ -543,11 +577,13 @@ useEffect(() => {
 6. Add test case for new plan
 
 ### How Veteran Pricing Works
+
 - First 2 teams: Free
 - Teams 3+: $2.50/month each (prorated on signup, then subscription)
 - Example: 5 teams = 3 × $2.50 = $7.50/month
 
 ### Plan Change Logic
+
 - User can upgrade at any time (button in subscription-paywall.tsx)
 - Downgrade not yet implemented (cancel via web link)
 - Plan change is reflected in User.me() after webhook processes
@@ -561,6 +597,7 @@ useEffect(() => {
 The payments and permissions system is **correctly implemented and working**. Permission gates are enforced server-side, payment flows are complete, and the integration with email verification and onboarding is solid.
 
 **Recommended Launch Status:**
+
 - ✅ **Ship with current code** (all gates working, no data loss)
 - ⚠️ **Plan P1-P2 fixes for post-launch v1.0.1** (UX improvements)
 - 📋 **Document plan changes process** to prevent future inconsistencies

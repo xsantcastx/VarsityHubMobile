@@ -9,20 +9,26 @@
 ## Quick Navigation
 
 ### For QA Testers
+
 👉 **Start here**: [`QA_TESTING_CHECKLIST.md`](./QA_TESTING_CHECKLIST.md)
+
 - 5 executable test scenarios with pass/fail matrix
 - Takes ~30 minutes to complete
 - All steps documented with expected outcomes
 
 ### For Product/Release Managers
+
 👉 **Start here**: [`RELEASE_NOTES_v1.0.0.md`](./RELEASE_NOTES_v1.0.0.md)
+
 - What's fixed (critical, important, minor)
 - Commits included in this release
 - Verification checklist and sign-off requirements
 - Rollback plan if needed
 
 ### For Engineers/Technical Review
+
 👉 **Start here**: [`ONBOARDING_LOOP_FINAL_SOLUTION.md`](./ONBOARDING_LOOP_FINAL_SOLUTION.md)
+
 - Root cause analysis for each bug
 - Code-level explanation of all three fixes
 - Before/after code comparison
@@ -34,17 +40,19 @@
 ## Release Summary
 
 ### The Problem
+
 Users were stuck in an infinite onboarding loop:
+
 - After completing 9-step onboarding, users forced through it again on every restart
 - Admin accounts incorrectly shown onboarding instead of feed
 - Frontend-backend state misalignment causing race conditions
 
 ### The Solution (3 Fixes)
 
-| Fix | Component | Commit | Impact |
-|-----|-----------|--------|--------|
-| **Admin Merge Order** | Backend (`auth.ts` line 477) | `99dc67b` | Admins now correctly skip onboarding |
-| **Frontend Persistence** | Frontend (`AuthProvider.tsx`) | `2690e5e` | Instant routing on cold start via AsyncStorage |
+| Fix                      | Component                     | Commit    | Impact                                                  |
+| ------------------------ | ----------------------------- | --------- | ------------------------------------------------------- |
+| **Admin Merge Order**    | Backend (`auth.ts` line 477)  | `99dc67b` | Admins now correctly skip onboarding                    |
+| **Frontend Persistence** | Frontend (`AuthProvider.tsx`) | `2690e5e` | Instant routing on cold start via AsyncStorage          |
 | **Health Check Cleanup** | Backend (`health.ts` line 29) | `48ca7f4` | API reports ready without blocking on optional services |
 
 ### All Commits in This Release
@@ -66,23 +74,25 @@ Users were stuck in an infinite onboarding loop:
 
 ## Verification Status
 
-| Check | Status | Evidence |
-|-------|--------|----------|
-| Code compiles | ✅ | Clean build in CI, no errors |
-| Security scan | ✅ | Snyk: 0 vulnerabilities |
-| Backend logic | ✅ | Merge order verified at line 477 |
-| Frontend logic | ✅ | AsyncStorage + routing verified |
-| Documentation | ✅ | 3 comprehensive docs committed |
-| Git history | ✅ | All commits in main branch |
-| Deployment | ✅ | Live on Railway production |
+| Check          | Status | Evidence                         |
+| -------------- | ------ | -------------------------------- |
+| Code compiles  | ✅     | Clean build in CI, no errors     |
+| Security scan  | ✅     | Snyk: 0 vulnerabilities          |
+| Backend logic  | ✅     | Merge order verified at line 477 |
+| Frontend logic | ✅     | AsyncStorage + routing verified  |
+| Documentation  | ✅     | 3 comprehensive docs committed   |
+| Git history    | ✅     | All commits in main branch       |
+| Deployment     | ✅     | Live on Railway production       |
 
 ---
 
 ## What Each Document Contains
 
 ### QA_TESTING_CHECKLIST.md
+
 **For**: QA engineers & testers  
 **Contains**:
+
 - 5 test scenarios (admin, new user, cold restart, account switch, health check)
 - Step-by-step instructions with expected outcomes
 - Pass/fail matrix for each test
@@ -94,8 +104,10 @@ Users were stuck in an infinite onboarding loop:
 ---
 
 ### RELEASE_NOTES_v1.0.0.md
+
 **For**: Product managers, release leads, stakeholders  
 **Contains**:
+
 - Executive summary of fixes
 - What's critical vs. important vs. minor
 - Testing requirements (linked to QA checklist)
@@ -109,8 +121,10 @@ Users were stuck in an infinite onboarding loop:
 ---
 
 ### ONBOARDING_LOOP_FINAL_SOLUTION.md
+
 **For**: Engineers, code reviewers, technical documentation  
 **Contains**:
+
 - Root cause analysis for each bug
 - Before/after code for all fixes
 - Why each fix works
@@ -127,23 +141,27 @@ Users were stuck in an infinite onboarding loop:
 ## Release Workflow
 
 ### 1. QA Execution (Now)
+
 - [ ] QA team downloads/clones latest main
 - [ ] QA team executes `QA_TESTING_CHECKLIST.md` (5 scenarios)
 - [ ] QA team documents results and signs off
 
 ### 2. QA Sign-Off
+
 - [ ] All 5 tests pass ✅
 - [ ] QA tester name, date, signature in checklist
 - [ ] Create issue/ticket if any test fails
 - [ ] Notify release lead of status
 
 ### 3. Release Approval (Upon QA Pass)
+
 - [ ] Release lead reviews QA sign-off
 - [ ] Release lead verifies commit history in main
 - [ ] Release lead confirms security scan passed
 - [ ] Create release tag: `git tag -a v1.0.0-qa-approved`
 
 ### 4. Production Deployment
+
 - [ ] Deploy app binary via EAS (Expo)
 - [ ] Monitor Railway backend health (should report `ready: true`)
 - [ ] Verify `/health` endpoint responding
@@ -151,6 +169,7 @@ Users were stuck in an infinite onboarding loop:
 - [ ] Monitor error logs for 24 hours
 
 ### 5. Post-Launch
+
 - [ ] User feedback collection (Discord, support channel)
 - [ ] Monitor onboarding completion rates
 - [ ] Track "users stuck on onboarding" support tickets (should ➡️ 0)
@@ -160,12 +179,12 @@ Users were stuck in an infinite onboarding loop:
 
 ## Key Contacts & Roles
 
-| Role | Name | Contact |
-|------|------|---------|
-| Release Lead | ___________ | ___________ |
-| QA Lead | ___________ | ___________ |
-| Engineering Lead | ___________ | ___________ |
-| Product Owner | ___________ | ___________ |
+| Role             | Name               | Contact            |
+| ---------------- | ------------------ | ------------------ |
+| Release Lead     | \***\*\_\_\_\*\*** | \***\*\_\_\_\*\*** |
+| QA Lead          | \***\*\_\_\_\*\*** | \***\*\_\_\_\*\*** |
+| Engineering Lead | \***\*\_\_\_\*\*** | \***\*\_\_\_\*\*** |
+| Product Owner    | \***\*\_\_\_\*\*** | \***\*\_\_\_\*\*** |
 
 ---
 
@@ -215,9 +234,9 @@ A: After QA signs off and release lead approves. Recommend deploying during busi
 
 ## Revision History
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | Dec 10, 2025 | Initial release package |
+| Version | Date         | Changes                 |
+| ------- | ------------ | ----------------------- |
+| 1.0     | Dec 10, 2025 | Initial release package |
 
 ---
 

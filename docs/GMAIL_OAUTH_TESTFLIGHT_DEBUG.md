@@ -1,14 +1,17 @@
 # 🔴 CRITICAL: Gmail/Google OAuth TestFlight Debug Guide
 
 ## Problem Statement
+
 Gmail login fails in TestFlight builds but works in development. This is a common iOS OAuth configuration issue.
 
 ## Root Causes (Check These First)
 
 ### 1. iOS Bundle ID Mismatch
+
 **Current Bundle ID:** `com.varsithub.varsityhub-ios` (from `app.json` / `app.config.js`)
 
 **Action Required:**
+
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Navigate to: APIs & Services → Credentials
 3. Find your OAuth 2.0 Client ID for iOS
@@ -16,6 +19,7 @@ Gmail login fails in TestFlight builds but works in development. This is a commo
 5. Case-sensitive! Must match exactly.
 
 **Common Mistakes:**
+
 - ❌ Wrong bundle: `com.varsithub.VarsityHub-ios` (capital V)
 - ❌ Wrong bundle: `com.example.varsityhub`
 - ❌ Missing iOS client ID entirely
@@ -26,6 +30,7 @@ Gmail login fails in TestFlight builds but works in development. This is a commo
 ### 2. OAuth Client IDs Configuration
 
 **Current Environment Variables Needed:**
+
 ```bash
 # .env file (server)
 GOOGLE_OAUTH_CLIENT_IDS=<comma-separated-list>
@@ -37,6 +42,7 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=<your-web-client-id>.apps.googleusercontent.com
 ```
 
 **Check Current Setup:**
+
 ```typescript
 // File: hooks/useGoogleAuth.ts (lines 19-20)
 const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
@@ -44,6 +50,7 @@ const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 ```
 
 **Verification Steps:**
+
 1. Check that iOS client ID exists in Google Console
 2. Copy the FULL client ID (ends with `.apps.googleusercontent.com`)
 3. Add to EAS build secrets OR app.json `extra` config
@@ -54,6 +61,7 @@ const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 ### 3. Redirect URI Configuration
 
 **Required Redirect URIs for iOS:**
+
 ```
 varsityhubmobile://
 com.varsithub.varsityhub-ios://
@@ -61,11 +69,13 @@ com.googleusercontent.apps.514463516787-dm665i3u3a6un7eties8q73eik17vcs3:/oauthr
 ```
 
 **Where to Add:**
+
 1. Google Cloud Console → OAuth 2.0 Client → Authorized redirect URIs
 2. Add BOTH schemes above
 3. Save changes
 
 **TestFlight Specific:**
+
 - TestFlight uses the same bundle ID as production
 - Redirect URIs must match the app scheme in `app.json`
 - Current scheme: `varsityhubmobile` (from app.json line 7)
@@ -78,21 +88,27 @@ com.googleusercontent.apps.514463516787-dm665i3u3a6un7eties8q73eik17vcs3:/oauthr
 
 ```typescript
 // Lines 13-16
-const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process.env.GOOGLE_OAUTH_AUDIENCE || '')
+const GOOGLE_ALLOWED_AUDIENCES = (
+  process.env.GOOGLE_OAUTH_CLIENT_IDS ||
+  process.env.GOOGLE_OAUTH_AUDIENCE ||
+  ''
+)
   .split(',')
-  .map((value) => value.trim())
-  .filter((value) => value.length > 0);
+  .map(value => value.trim())
+  .filter(value => value.length > 0);
 ```
 
 **Action Required:**
+
 1. Ensure `GOOGLE_OAUTH_CLIENT_IDS` in server `.env` includes:
    - iOS client ID
-   - Android client ID  
+   - Android client ID
    - Web client ID (if used)
 2. Format: `id1.apps.googleusercontent.com,id2.apps.googleusercontent.com`
 3. NO spaces, comma-separated
 
 **Test Backend Validation:**
+
 ```bash
 # In server directory
 echo $GOOGLE_OAUTH_CLIENT_IDS
@@ -104,9 +120,11 @@ echo $GOOGLE_OAUTH_CLIENT_IDS
 ## 5. TestFlight-Specific Checks
 
 ### Info.plist Configuration
+
 **File:** `ios/VarsityHub/Info.plist` (auto-generated)
 
 **Required Keys:**
+
 ```xml
 <key>CFBundleURLTypes</key>
 <array>
@@ -122,6 +140,7 @@ echo $GOOGLE_OAUTH_CLIENT_IDS
 ```
 
 **How to Verify:**
+
 1. After EAS build, download the `.ipa`
 2. Unzip and check `Info.plist`
 3. Ensure URL schemes are present
@@ -131,6 +150,7 @@ echo $GOOGLE_OAUTH_CLIENT_IDS
 ## Step-by-Step Fix Process
 
 ### Step 1: Verify Google Console Setup
+
 ```bash
 # Checklist:
 ☐ iOS OAuth client exists
@@ -143,6 +163,7 @@ echo $GOOGLE_OAUTH_CLIENT_IDS
 ```
 
 ### Step 2: Update Environment Variables
+
 ```bash
 # Server .env
 GOOGLE_OAUTH_CLIENT_IDS=<ios-id>,<android-id>,<web-id>
@@ -153,6 +174,7 @@ EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=<android-client-id>
 ```
 
 ### Step 3: Rebuild with EAS
+
 ```bash
 # Clear old build
 eas build:cancel
@@ -165,6 +187,7 @@ eas build --platform ios --profile preview
 ```
 
 ### Step 4: Test in TestFlight
+
 1. Install new build
 2. Attempt Google sign-in
 3. Check error logs:
@@ -178,21 +201,26 @@ eas build --platform ios --profile preview
 ## Common Error Messages & Fixes
 
 ### Error: "Google authentication failed"
+
 **Cause:** Backend rejected the token (audience mismatch)
 **Fix:** Add iOS client ID to `GOOGLE_OAUTH_CLIENT_IDS` in server .env
 
 ### Error: "Invalid Google credential"
+
 **Cause:** Token missing `sub` or `email` fields
 **Fix:** Check Google Console → OAuth consent screen → Scopes include:
+
 - `email`
 - `profile`
 - `openid`
 
 ### Error: "Google sign-in cancelled"
+
 **Cause:** User canceled or redirect failed
 **Fix:** Verify redirect URIs in Google Console
 
 ### Error: "Google sign in is not configured"
+
 **Cause:** Client IDs not loaded in app
 **Fix:** Check `useGoogleAuth.ts` - ensure `isConfigured` returns true
 
@@ -201,7 +229,9 @@ eas build --platform ios --profile preview
 ## Debugging Tools
 
 ### 1. Check Current Config in App
+
 Add temporary debug screen:
+
 ```typescript
 // In app/env-debug.tsx (already exists)
 console.log('iOS Client ID:', process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID);
@@ -209,6 +239,7 @@ console.log('Android Client ID:', process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_
 ```
 
 ### 2. Server-Side Token Validation Logs
+
 ```typescript
 // In server/src/routes/auth.ts (line 91+)
 console.log('[auth/google] Token audience:', payload.aud);
@@ -216,6 +247,7 @@ console.log('[auth/google] Allowed audiences:', GOOGLE_ALLOWED_AUDIENCES);
 ```
 
 ### 3. Expo Auth Session Debugging
+
 ```typescript
 // In hooks/useGoogleAuth.ts
 console.log('Auth request config:', requestConfig);
@@ -226,13 +258,13 @@ console.log('Redirect URI:', redirectUri);
 
 ## Quick Reference
 
-| Component | File | Key Lines |
-|-----------|------|-----------|
-| Google OAuth Hook | `hooks/useGoogleAuth.ts` | 19-25 (client config) |
-| Sign-in Screen | `app/sign-in.tsx` | 76-95 (Google login) |
-| Backend Validation | `server/src/routes/auth.ts` | 13-16, 86-140 |
-| Bundle Config | `app.json` | Line 29 (iOS bundleIdentifier) |
-| Redirect Scheme | `app.json` | Line 7 (scheme) |
+| Component          | File                        | Key Lines                      |
+| ------------------ | --------------------------- | ------------------------------ |
+| Google OAuth Hook  | `hooks/useGoogleAuth.ts`    | 19-25 (client config)          |
+| Sign-in Screen     | `app/sign-in.tsx`           | 76-95 (Google login)           |
+| Backend Validation | `server/src/routes/auth.ts` | 13-16, 86-140                  |
+| Bundle Config      | `app.json`                  | Line 29 (iOS bundleIdentifier) |
+| Redirect Scheme    | `app.json`                  | Line 7 (scheme)                |
 
 ---
 
@@ -251,6 +283,7 @@ console.log('Redirect URI:', redirectUri);
 ## Production Deployment Checklist
 
 Before submitting to App Store:
+
 - [ ] All Google client IDs added to environment
 - [ ] Bundle ID matches Google Console exactly
 - [ ] Redirect URIs configured
@@ -269,6 +302,7 @@ Before submitting to App Store:
 ---
 
 ## Last Updated
+
 **Date:** {{ current_date }}
 **Status:** 🔴 CRITICAL - Blocking TestFlight users
 **Priority:** URGENT - Fix before public beta

@@ -13,6 +13,7 @@ The new strict linting rules catch **484 issues** across the codebase. Nothing i
 ### Pattern A: Awaited Promises (Preferred)
 
 **Before:**
+
 ```typescript
 const handleSave = () => {
   saveToDB(data); // ❌ floating promise
@@ -20,6 +21,7 @@ const handleSave = () => {
 ```
 
 **After:**
+
 ```typescript
 const handleSave = async () => {
   await saveToDB(data); // ✅ awaited
@@ -33,16 +35,18 @@ const handleSave = async () => {
 Use when you intentionally don't care about the result (e.g., navigation, tracking).
 
 **Before:**
+
 ```typescript
 Alert.alert('Success', 'Saved!', [
-  { text: 'OK', onPress: () => router.push('/home') } // ❌ floating
+  { text: 'OK', onPress: () => router.push('/home') }, // ❌ floating
 ]);
 ```
 
 **After:**
+
 ```typescript
 Alert.alert('Success', 'Saved!', [
-  { text: 'OK', onPress: () => void router.push('/home') } // ✅ explicit void
+  { text: 'OK', onPress: () => void router.push('/home') }, // ✅ explicit void
 ]);
 ```
 
@@ -53,6 +57,7 @@ Alert.alert('Success', 'Saved!', [
 ### Pattern C: Catch Errors (For Background Tasks)
 
 **Before:**
+
 ```typescript
 useEffect(() => {
   fetchData(); // ❌ floating
@@ -60,6 +65,7 @@ useEffect(() => {
 ```
 
 **After:**
+
 ```typescript
 useEffect(() => {
   void fetchData().catch(console.error); // ✅ handled
@@ -67,6 +73,7 @@ useEffect(() => {
 ```
 
 Or with an async IIFE:
+
 ```typescript
 useEffect(() => {
   (async () => {
@@ -84,16 +91,19 @@ useEffect(() => {
 ### Pattern D: Router Calls in Event Handlers
 
 **Before:**
+
 ```typescript
 <Pressable onPress={() => router.push('/profile')}>
 ```
 
 **After:**
+
 ```typescript
 <Pressable onPress={() => void router.push('/profile')}>
 ```
 
 **Common locations:**
+
 - Alert button handlers
 - Navigation links
 - Redirect after API calls
@@ -107,19 +117,23 @@ useEffect(() => {
 ### Pattern A: Rename Ignored Variables
 
 **Before:**
+
 ```typescript
 try {
   await apiCall();
-} catch (error) { // ❌ 'error' defined but never used
+} catch (error) {
+  // ❌ 'error' defined but never used
   Alert.alert('Failed');
 }
 ```
 
 **After:**
+
 ```typescript
 try {
   await apiCall();
-} catch (_error) { // ✅ prefixed with _
+} catch (_error) {
+  // ✅ prefixed with _
   Alert.alert('Failed');
 }
 ```
@@ -129,12 +143,14 @@ try {
 ### Pattern B: Delete Dead Code
 
 **Before:**
+
 ```typescript
 const [loading, setLoading] = useState(false); // ❌ 'loading' never used
 const [data, setData] = useState(null);
 ```
 
 **After:**
+
 ```typescript
 const [data, setData] = useState(null); // ✅ removed unused state
 ```
@@ -144,18 +160,21 @@ const [data, setData] = useState(null); // ✅ removed unused state
 ### Pattern C: Destructure Only What You Need
 
 **Before:**
+
 ```typescript
 const { id, title, author } = post; // ❌ 'title' and 'author' unused
 return <Text>{id}</Text>;
 ```
 
 **After:**
+
 ```typescript
 const { id } = post; // ✅ only used properties
 return <Text>{id}</Text>;
 ```
 
 Or rename:
+
 ```typescript
 const { id, title: _title, author: _author } = post;
 ```
@@ -169,16 +188,19 @@ const { id, title: _title, author: _author } = post;
 ### Pattern A: Replace console.log
 
 **Before:**
+
 ```typescript
 console.log('User signed in:', user); // ❌ warning
 ```
 
 **After (Production):**
+
 ```typescript
 console.warn('[auth] User signed in:', user); // ✅ allowed
 ```
 
 **After (Dev-Only):**
+
 ```typescript
 if (__DEV__) {
   console.log('[auth] User signed in:', user); // ✅ gated
@@ -190,12 +212,14 @@ if (__DEV__) {
 ### Pattern B: Remove Debug Logs
 
 **Before:**
+
 ```typescript
 console.log('data:', data);
 console.log('loading:', loading);
 ```
 
 **After:**
+
 ```typescript
 // Removed debug logs
 ```
@@ -209,6 +233,7 @@ console.log('loading:', loading);
 ### Pattern A: Add Missing Dependencies
 
 **Before:**
+
 ```typescript
 useEffect(() => {
   fetchUser(userId);
@@ -216,6 +241,7 @@ useEffect(() => {
 ```
 
 **After:**
+
 ```typescript
 useEffect(() => {
   void fetchUser(userId).catch(console.error);
@@ -227,6 +253,7 @@ useEffect(() => {
 ### Pattern B: Remove Stale Dependencies
 
 **Before:**
+
 ```typescript
 useCallback(() => {
   return data;
@@ -234,6 +261,7 @@ useCallback(() => {
 ```
 
 **After:**
+
 ```typescript
 useCallback(() => {
   return data;
@@ -245,6 +273,7 @@ useCallback(() => {
 ## File-by-File Strategy
 
 ### Priority 1: Active Shipping Screens (Fix First)
+
 - ✅ `app/event-detail.tsx` - **DONE**
 - `app/game-details/GameDetailsScreen.tsx`
 - `app/highlights.tsx`
@@ -252,11 +281,13 @@ useCallback(() => {
 - `app/messages.tsx`
 
 ### Priority 2: Auth & Settings
+
 - `app/sign-in.tsx`
 - `app/sign-up.tsx`
 - `app/settings/index.tsx`
 
 ### Priority 3: Admin & Secondary Features
+
 - `app/admin-*.tsx`
 - `app/onboarding/*.tsx`
 - `app/team-*.tsx`
@@ -268,6 +299,7 @@ useCallback(() => {
 ### Changes Made:
 
 **1. Router calls in Alert handlers:**
+
 ```diff
 - { text: 'Sign In', onPress: () => router.push('/sign-in') }
 + { text: 'Sign In', onPress: () => void router.push('/sign-in') }
@@ -280,6 +312,7 @@ useCallback(() => {
 ## Common Patterns in VarsityHub Codebase
 
 ### API Calls
+
 ```typescript
 // ❌ Before
 const handleVote = () => {
@@ -299,6 +332,7 @@ const handleVote = async () => {
 ```
 
 ### Story Uploads
+
 ```typescript
 // ❌ Before
 const addStory = () => {
@@ -318,6 +352,7 @@ const addStory = async () => {
 ```
 
 ### RSVP Toggles
+
 ```typescript
 // ❌ Before
 const toggleRsvp = () => {
@@ -342,18 +377,21 @@ const toggleRsvp = async () => {
 ## Quick Wins (Easy Fixes)
 
 ### 1. Alert Handlers - Add `void` to router.push
+
 ```bash
 # Find all instances:
 grep -r "onPress.*router.push\|onPress.*router.replace" app/
 ```
 
 ### 2. useEffect Promises - Add .catch()
+
 ```bash
 # Find all instances:
 grep -r "useEffect.*=>" app/ | grep -v "await"
 ```
 
-### 3. Unused Variables - Prefix with _
+### 3. Unused Variables - Prefix with \_
+
 ```bash
 # Common patterns:
 catch (error) → catch (_error)
@@ -380,16 +418,19 @@ npm run typecheck
 ## Expected Results
 
 ### Before Cleanup:
+
 ```
 ✖ 484 problems (156 errors, 328 warnings)
 ```
 
 ### After Priority 1 Cleanup (~10 files):
+
 ```
 ✖ ~300 problems (mostly warnings)
 ```
 
 ### After Full Cleanup:
+
 ```
 ✔ No problems found
 ```
@@ -424,6 +465,7 @@ find app/ -name "*.tsx" -exec sed -i '' 's/onPress={() => router\.push/onPress={
 ## Summary Checklist
 
 For each file:
+
 - [ ] Add `await` to async calls in handlers
 - [ ] Add `void` to fire-and-forget router calls
 - [ ] Rename unused error vars to `_error`

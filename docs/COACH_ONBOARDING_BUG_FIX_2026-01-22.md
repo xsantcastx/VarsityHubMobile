@@ -9,13 +9,15 @@
 ## 🐛 The Bug
 
 ### Location
+
 [app/onboarding/index.tsx:73-78](../app/onboarding/index.tsx#L73-L78)
 
 ### What Was Wrong
 
 ```typescript
 // BEFORE (BROKEN):
-if (progress >= 5 && progress < 4) {  // ❌ IMPOSSIBLE CONDITION
+if (progress >= 5 && progress < 4) {
+  // ❌ IMPOSSIBLE CONDITION
   setProgress(4);
   setHasNavigated(true);
   router.replace('/onboarding/step-6-authorized-users');
@@ -24,12 +26,14 @@ if (progress >= 5 && progress < 4) {  // ❌ IMPOSSIBLE CONDITION
 ```
 
 **The Critical Issue:**
+
 - The condition `progress >= 5 && progress < 4` is **mathematically impossible**
 - A number cannot be both ≥5 AND <4 at the same time
 - This meant coaches would **NEVER** be redirected to step 6 when needed
 - Coaches could skip step 6 (Authorized Users) entirely
 
 ### Impact
+
 - Coaches completing onboarding would skip the "Authorized Users" step
 - Progress validation was not working correctly
 - The flow could jump from step 4 directly to step 7
@@ -60,6 +64,7 @@ return;
 ### Additional Fixes
 
 1. **Added missing `setProgress` to destructuring** (line 10):
+
    ```typescript
    const { progress, state, isLoaded, setProgress } = useOnboarding();
    ```
@@ -102,6 +107,7 @@ Step 10 (index 8): Confirmation
 ## 🧪 How to Test
 
 ### Test Case 1: Fresh Coach Onboarding
+
 1. Start app with new user or reset onboarding
 2. Select "Coach / Organizer" at step 1
 3. Complete steps 2, 3, 4 in order
@@ -110,6 +116,7 @@ Step 10 (index 8): Confirmation
 6. **Verify:** No steps are skipped
 
 ### Test Case 2: Resume from Saved Progress
+
 1. Start onboarding as coach
 2. Complete through step 4
 3. Close the app
@@ -117,6 +124,7 @@ Step 10 (index 8): Confirmation
 5. **Verify:** User resumes at step 6, not step 7
 
 ### Test Case 3: Progress Validation
+
 1. Start onboarding as coach
 2. Complete through step 4
 3. Manually set progress to 5 or higher (via debug tools or AsyncStorage)
@@ -137,6 +145,7 @@ The original code attempted to validate that coaches don't skip step 6, but used
 ```
 
 This was likely a **copy-paste error** or **typo** where the developer meant:
+
 - `progress >= 5` (correct - checks if past step 6)
 - But accidentally added `&& progress < 4` (wrong - makes condition impossible)
 
@@ -154,6 +163,7 @@ This was likely a **copy-paste error** or **typo** where the developer meant:
 ### Recommendations
 
 1. **Add Unit Tests:**
+
    ```typescript
    describe('OnboardingIndex coach validation', () => {
      it('should redirect to step 6 if progress skips past it', () => {
@@ -187,11 +197,13 @@ This was likely a **copy-paste error** or **typo** where the developer meant:
 ## 🎯 Expected Behavior After Fix
 
 ### Before Fix:
+
 - ❌ Coaches could skip step 6
 - ❌ Progress validation had impossible condition
 - ❌ Onboarding would jump from step 4 → step 7
 
 ### After Fix:
+
 - ✅ Coaches **always** go through step 6
 - ✅ Progress validation correctly checks `progress > 4`
 - ✅ Onboarding follows correct sequence: step 4 → step 6 → step 7

@@ -11,18 +11,21 @@
 ### Device-Specific Issues
 
 **iPhone (with notch/Dynamic Island):**
+
 - ✗ Content overlapping with status bar/notch
 - ✗ Top of screen cut off by notch
 - ✗ Bottom button hidden by home indicator
 - ✗ No safe area padding
 
 **Android (various devices):**
+
 - ✗ Content overlapping with status bar
 - ✗ Camera cutout covering content
 - ✗ Navigation bar hiding buttons
 - ✗ Inconsistent padding across devices
 
 **General Issues:**
+
 - ✗ Header not properly positioned
 - ✗ ScrollView content too close to edges
 - ✗ Payment button cut off on some devices
@@ -37,6 +40,7 @@
 **File:** `app/ad-calendar.tsx`
 
 **Changes:**
+
 ```typescript
 // Import SafeAreaView and Platform
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -51,6 +55,7 @@ return (
 ```
 
 **Benefits:**
+
 - ✅ Automatically avoids notches on iPhone X and newer
 - ✅ Handles camera cutouts on Android
 - ✅ Respects status bar on all devices
@@ -59,13 +64,14 @@ return (
 ### 2. **Hidden Native Header (Using Custom Header)**
 
 ```typescript
-<Stack.Screen options={{ 
+<Stack.Screen options={{
   title: 'Schedule Your Ad',
   headerShown: false // Use custom header with SafeAreaView
 }} />
 ```
 
 **Why:**
+
 - Native header doesn't respect SafeAreaView properly
 - Custom header gives better control over positioning
 - Consistent styling across iOS and Android
@@ -79,14 +85,15 @@ header: {
   // ... other styles
 }
 
-content: { 
-  padding: 16, 
+content: {
+  padding: 16,
   gap: 16,
   paddingBottom: Platform.OS === 'ios' ? 34 : 24, // Extra for iOS home indicator
 }
 ```
 
 **Benefits:**
+
 - ✅ iOS: Extra bottom padding for home indicator (34px)
 - ✅ Android: Standard padding (24px)
 - ✅ Proper spacing on all devices
@@ -109,6 +116,7 @@ header: {
 ```
 
 **Benefits:**
+
 - ✅ Solid background prevents content showing through
 - ✅ Subtle shadow adds depth
 - ✅ Consistent styling across platforms
@@ -116,13 +124,14 @@ header: {
 ### 5. **Improved ScrollView**
 
 ```typescript
-<ScrollView 
+<ScrollView
   contentContainerStyle={styles.content}
   showsVerticalScrollIndicator={false}
 >
 ```
 
 **Benefits:**
+
 - ✅ Hidden scroll indicator for cleaner look
 - ✅ Better scrolling experience
 - ✅ Proper content padding
@@ -132,23 +141,25 @@ header: {
 ## 📱 Device Coverage
 
 ### iPhone Models Tested
-| Device | Notch/Island | Status Bar | Home Indicator | Status |
-|--------|-------------|------------|----------------|---------|
-| iPhone 15 Pro | Dynamic Island | ✅ | ✅ | Safe |
-| iPhone 14 Pro | Dynamic Island | ✅ | ✅ | Safe |
-| iPhone 13 | Notch | ✅ | ✅ | Safe |
-| iPhone 12 | Notch | ✅ | ✅ | Safe |
-| iPhone SE | None | ✅ | ❌ | Safe |
-| iPhone 8 | None | ✅ | ❌ | Safe |
+
+| Device        | Notch/Island   | Status Bar | Home Indicator | Status |
+| ------------- | -------------- | ---------- | -------------- | ------ |
+| iPhone 15 Pro | Dynamic Island | ✅         | ✅             | Safe   |
+| iPhone 14 Pro | Dynamic Island | ✅         | ✅             | Safe   |
+| iPhone 13     | Notch          | ✅         | ✅             | Safe   |
+| iPhone 12     | Notch          | ✅         | ✅             | Safe   |
+| iPhone SE     | None           | ✅         | ❌             | Safe   |
+| iPhone 8      | None           | ✅         | ❌             | Safe   |
 
 ### Android Models Coverage
-| Device Type | Camera Cutout | Navigation Bar | Status |
-|------------|---------------|----------------|---------|
-| Samsung Galaxy S23 | Punch hole | ✅ | Safe |
-| Google Pixel 7 | Punch hole | ✅ | Safe |
-| OnePlus 11 | Punch hole | ✅ | Safe |
-| Generic Android 12+ | Varies | ✅ | Safe |
-| Older Android | None | ✅ | Safe |
+
+| Device Type         | Camera Cutout | Navigation Bar | Status |
+| ------------------- | ------------- | -------------- | ------ |
+| Samsung Galaxy S23  | Punch hole    | ✅             | Safe   |
+| Google Pixel 7      | Punch hole    | ✅             | Safe   |
+| OnePlus 11          | Punch hole    | ✅             | Safe   |
+| Generic Android 12+ | Varies        | ✅             | Safe   |
+| Older Android       | None          | ✅             | Safe   |
 
 ---
 
@@ -196,6 +207,7 @@ header: {
 ```
 
 **Why not 'bottom'?**
+
 - ScrollView handles bottom padding internally
 - Gives better control over payment button positioning
 - Prevents double-padding issues
@@ -217,11 +229,12 @@ const styles = StyleSheet.create({
   },
   content: {
     // ScrollView content with extra bottom padding
-  }
+  },
 });
 ```
 
 **Hierarchy:**
+
 1. `SafeAreaView` - Outermost container, handles safe areas
 2. `container` - Main content area with background
 3. `header` - Custom header bar
@@ -232,17 +245,20 @@ const styles = StyleSheet.create({
 ## 📏 Spacing & Measurements
 
 ### Header Spacing
+
 - **iOS:** `paddingTop: 8` (SafeAreaView adds status bar space)
 - **Android:** `paddingTop: 14` (More space for status bar)
 - **Bottom:** `paddingBottom: 10` (Consistent across platforms)
 
 ### Content Spacing
+
 - **Padding:** `16px` all around
 - **Gap between cards:** `16px`
 - **iOS Bottom:** `34px` (home indicator + buffer)
 - **Android Bottom:** `24px` (standard padding)
 
 ### Button Spacing
+
 - **Height:** `48px` (comfortable tap target)
 - **Bottom margin:** `12px` (from last card)
 - **Total bottom space:** iOS `34px` + button `48px` + margin `12px` = `94px`
@@ -252,6 +268,7 @@ const styles = StyleSheet.create({
 ## 🧪 Testing Checklist
 
 ### Visual Testing
+
 - [ ] **iPhone 15 Pro:** Check Dynamic Island doesn't cover header
 - [ ] **iPhone 13:** Check notch doesn't overlap content
 - [ ] **iPhone SE:** Check status bar spacing correct
@@ -259,6 +276,7 @@ const styles = StyleSheet.create({
 - [ ] **Generic Android:** Check status bar and nav bar spacing
 
 ### Functional Testing
+
 - [ ] **Header back button:** Easily tappable (not too close to notch)
 - [ ] **Calendar dates:** All dates visible and tappable
 - [ ] **Promo code input:** Visible above keyboard
@@ -266,6 +284,7 @@ const styles = StyleSheet.create({
 - [ ] **ScrollView:** Smooth scrolling without clipping
 
 ### Edge Cases
+
 - [ ] **Landscape mode:** Check layout adapts properly
 - [ ] **Large text:** Check accessibility text scaling
 - [ ] **Dark mode:** Check colors work in both modes
@@ -276,6 +295,7 @@ const styles = StyleSheet.create({
 ## 💡 Best Practices Applied
 
 ### 1. **Always Use SafeAreaView for Full-Screen Layouts**
+
 ```typescript
 // ✅ Good
 <SafeAreaView style={styles.container}>
@@ -290,38 +310,42 @@ const styles = StyleSheet.create({
 ```
 
 ### 2. **Platform-Specific Adjustments**
+
 ```typescript
 // ✅ Use Platform.OS for fine-tuning
-paddingTop: Platform.OS === 'android' ? 14 : 8
+paddingTop: Platform.OS === 'android' ? 14 : 8;
 
 // ✅ Use Platform.select for major differences
 const styles = {
   shadow: Platform.select({
     ios: { shadowOpacity: 0.05 },
-    android: { elevation: 2 }
-  })
-}
+    android: { elevation: 2 },
+  }),
+};
 ```
 
 ### 3. **Extra Bottom Padding for iOS**
+
 ```typescript
 // ✅ iOS needs more bottom space for home indicator
-paddingBottom: Platform.OS === 'ios' ? 34 : 24
+paddingBottom: Platform.OS === 'ios' ? 34 : 24;
 ```
 
 ### 4. **Hide Native Header When Using Custom**
+
 ```typescript
 // ✅ Prevents double headers
 <Stack.Screen options={{ headerShown: false }} />
 ```
 
 ### 5. **Solid Backgrounds for Headers**
+
 ```typescript
 // ✅ Prevents content bleeding through
-backgroundColor: '#FFFFFF'
+backgroundColor: '#FFFFFF';
 
 // ❌ Avoid semi-transparent
-backgroundColor: 'rgba(255,255,255,0.8)' // Content shows through
+backgroundColor: 'rgba(255,255,255,0.8)'; // Content shows through
 ```
 
 ---
@@ -329,18 +353,21 @@ backgroundColor: 'rgba(255,255,255,0.8)' // Content shows through
 ## 🎨 Design Considerations
 
 ### Color Scheme
+
 - **Safe Area:** `#FFFFFF` (white) - Clean status bar area
 - **Container:** `#F9FAFB` (light gray) - Subtle background
 - **Header:** `#FFFFFF` (white) - Elevated appearance
 - **Cards:** `#FFFFFF` (white) - Content containers
 
 ### Visual Hierarchy
+
 1. **Status bar area** - White (system UI)
 2. **Header** - White with shadow (elevated)
 3. **Content area** - Light gray (recessed)
 4. **Cards** - White (elevated content)
 
 ### Shadows & Elevation
+
 - **iOS:** Subtle shadow (`shadowOpacity: 0.05`)
 - **Android:** Minimal elevation (`elevation: 2`)
 - **Purpose:** Separate header from content
@@ -350,31 +377,36 @@ backgroundColor: 'rgba(255,255,255,0.8)' // Content shows through
 ## 📊 Measurements Reference
 
 ### iPhone Safe Areas (Portrait)
-| Device | Status Bar | Notch/Island | Home Indicator | Total Safe |
-|--------|-----------|--------------|----------------|------------|
-| iPhone 15 Pro | 59px | 37px | 34px | Top: 59px, Bottom: 34px |
-| iPhone 14 | 47px | 30px | 34px | Top: 47px, Bottom: 34px |
-| iPhone SE | 20px | 0px | 0px | Top: 20px, Bottom: 0px |
+
+| Device        | Status Bar | Notch/Island | Home Indicator | Total Safe              |
+| ------------- | ---------- | ------------ | -------------- | ----------------------- |
+| iPhone 15 Pro | 59px       | 37px         | 34px           | Top: 59px, Bottom: 34px |
+| iPhone 14     | 47px       | 30px         | 34px           | Top: 47px, Bottom: 34px |
+| iPhone SE     | 20px       | 0px          | 0px            | Top: 20px, Bottom: 0px  |
 
 ### Android Safe Areas
-| Element | Height | Notes |
-|---------|--------|-------|
-| Status Bar | ~24px | Varies by device |
-| Camera Cutout | ~30-40px | Varies by device |
-| Navigation Bar | ~48px | Varies by device |
+
+| Element        | Height   | Notes            |
+| -------------- | -------- | ---------------- |
+| Status Bar     | ~24px    | Varies by device |
+| Camera Cutout  | ~30-40px | Varies by device |
+| Navigation Bar | ~48px    | Varies by device |
 
 ---
 
 ## 🚀 Deployment Notes
 
 ### Files Modified
+
 - `app/ad-calendar.tsx` - Added SafeAreaView, platform-specific styling
 
 ### Dependencies
+
 - `react-native-safe-area-context` - Already in project
 - No new dependencies required
 
 ### Testing Required
+
 1. Test on iPhone with notch (11 or newer)
 2. Test on iPhone SE (without notch)
 3. Test on Android with camera cutout
@@ -383,6 +415,7 @@ backgroundColor: 'rgba(255,255,255,0.8)' // Content shows through
 6. Test with accessibility text scaling
 
 ### Rollout Plan
+
 1. Test thoroughly in development
 2. Beta test with real devices
 3. Deploy to production
@@ -393,7 +426,9 @@ backgroundColor: 'rgba(255,255,255,0.8)' // Content shows through
 ## 🔍 Common Issues & Solutions
 
 ### Issue: Content Still Overlapping on Android
+
 **Solution:** Check `StatusBar` translucent setting in `app.json`
+
 ```json
 {
   "expo": {
@@ -405,12 +440,15 @@ backgroundColor: 'rgba(255,255,255,0.8)' // Content shows through
 ```
 
 ### Issue: Double Padding on Bottom
+
 **Solution:** Only apply SafeAreaView edges for top/left/right, not bottom
 
 ### Issue: Header Not Positioned Correctly
+
 **Solution:** Ensure `headerShown: false` in Stack.Screen options
 
 ### Issue: Colors Look Wrong in Dark Mode
+
 **Solution:** Add `useColorScheme()` and conditional styling
 
 ---
@@ -420,6 +458,7 @@ backgroundColor: 'rgba(255,255,255,0.8)' // Content shows through
 ### How to Verify Fix Works
 
 **1. iPhone with Notch:**
+
 ```
 ✅ Header below notch/Dynamic Island
 ✅ All calendar dates visible
@@ -428,6 +467,7 @@ backgroundColor: 'rgba(255,255,255,0.8)' // Content shows through
 ```
 
 **2. Android with Camera Cutout:**
+
 ```
 ✅ Header below status bar
 ✅ Content not overlapping camera
@@ -436,6 +476,7 @@ backgroundColor: 'rgba(255,255,255,0.8)' // Content shows through
 ```
 
 **3. Older Devices:**
+
 ```
 ✅ Proper status bar spacing
 ✅ No excessive padding
@@ -456,12 +497,14 @@ backgroundColor: 'rgba(255,255,255,0.8)' // Content shows through
 ## 🎯 Success Metrics
 
 ### Before Fix
+
 - ❌ Content overlapping on 30% of devices
 - ❌ User complaints about hidden buttons
 - ❌ Calendar dates hard to tap near notch
 - ❌ Inconsistent appearance across devices
 
 ### After Fix
+
 - ✅ Perfect display on all modern devices
 - ✅ No more hidden content complaints
 - ✅ All interactive elements easily accessible

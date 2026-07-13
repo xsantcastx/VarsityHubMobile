@@ -5,24 +5,29 @@
 ## Issues Fixed
 
 ### 1. **Progress Index Bug in step-2-basic.tsx**
+
 **Problem:** When returning to confirmation from step-2, progress was set to 7 instead of 8.
 **Fix:** Changed `setProgress(7)` to `setProgress(8)` for step-10-confirmation (index 8).
 
 ### 2. **Progress Index Bugs in step-4-organization.tsx**
+
 **Problem:** Multiple places set progress to 7 when navigating to step-10-confirmation, but step-10 is index 8.
 **Fix:** Changed all instances of `setProgress(7)` to `setProgress(8)` when navigating to confirmation.
 
 ### 3. **Progress Index Bugs in step-6-authorized-users.tsx**
+
 **Problem:** When returning to confirmation, progress was set to 7 instead of 8.
 **Fix:** Changed `setProgress(7)` to `setProgress(8)` for step-10-confirmation.
 
 ### 4. **Router.pathname TypeScript Error in onboarding/index.tsx**
+
 **Problem:** `router.pathname` doesn't exist in expo-router, causing TypeScript error.
 **Fix:** Replaced with `useSegments()` hook to check current route segments.
 
 ## Progress Index Reference
 
 The stepRoutes array in `app/onboarding/index.tsx`:
+
 - Index 0: `/onboarding/step-1-role`
 - Index 1: `/onboarding/step-2-basic`
 - Index 2: `/onboarding/step-3-plan`
@@ -36,6 +41,7 @@ The stepRoutes array in `app/onboarding/index.tsx`:
 ## Verification Checklist
 
 All progress indices have been verified to match the stepRoutes array:
+
 - ✅ Step 1 → Step 2: progress = 1
 - ✅ Step 2 → Step 3: progress = 2
 - ✅ Step 3 → Step 4: progress = 3
@@ -49,6 +55,7 @@ All progress indices have been verified to match the stepRoutes array:
 ## Testing Instructions
 
 1. **Start the app in simulator:**
+
    ```bash
    npm start
    # Then press 'i' for iOS simulator or 'a' for Android

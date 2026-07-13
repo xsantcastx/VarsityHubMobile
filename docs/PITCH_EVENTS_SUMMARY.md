@@ -15,7 +15,8 @@ I analyzed the **pitch events** system (fan event creation with approval workflo
 
 ### ✅ 1. Approval/Rejection Idempotency (CRITICAL)
 
-**Problem**: 
+**Problem**:
+
 - Could approve already-approved events (no validation)
 - Could reject already-rejected events (no validation)
 - No state checking before updates
@@ -28,7 +29,8 @@ I analyzed the **pitch events** system (fan event creation with approval workflo
 
 ### ✅ 2. Fans Can View Their Own Events (HIGH PRIORITY)
 
-**Problem**: 
+**Problem**:
+
 - No endpoint for fans to see their submitted events
 - No way to track event status (pending/approved/rejected)
 - Fans don't know what happened to their submissions
@@ -41,7 +43,8 @@ I analyzed the **pitch events** system (fan event creation with approval workflo
 
 ### ✅ 3. Fans Can Edit Pending Events (HIGH PRIORITY)
 
-**Problem**: 
+**Problem**:
+
 - Fans couldn't edit events after submission
 - Must delete and recreate if they made a mistake
 - Loses place in approval queue
@@ -54,7 +57,8 @@ I analyzed the **pitch events** system (fan event creation with approval workflo
 
 ### ✅ 4. Enhanced Event Creation Response (MEDIUM)
 
-**Problem**: 
+**Problem**:
+
 - Response didn't include pending count
 - Fans didn't know how many events they had pending
 - Unclear limit status
@@ -98,30 +102,35 @@ I analyzed the **pitch events** system (fan event creation with approval workflo
 ## Testing Scenarios
 
 ### ✅ Test 1: Fan Views Own Events
+
 ```bash
 GET /events/my-events
 # Returns: List of fan's events with approval_status
 ```
 
 ### ✅ Test 2: Fan Edits Pending Event
+
 ```bash
 PATCH /events/{id} { title: "Updated Title" }
 # Should succeed if event is pending
 ```
 
 ### ✅ Test 3: Fan Tries to Edit Approved Event
+
 ```bash
 PATCH /events/{id} { title: "New Title" }
 # Should fail: 400 "Only pending events can be edited"
 ```
 
 ### ✅ Test 4: Coach Approves Already-Approved Event
+
 ```bash
 PUT /events/{id}/approve {}
 # Should fail: 400 "Event already approved"
 ```
 
 ### ✅ Test 5: Event Creation Response
+
 ```bash
 POST /events { ... }
 # Response includes: { pending_count: 1, limit: 3, ... }
@@ -150,6 +159,7 @@ POST /events { ... }
 ## Conclusion
 
 The pitch events system had **critical issues** that would have caused:
+
 - User frustration (can't track submissions)
 - State confusion (duplicate approvals)
 - Poor UX (can't fix mistakes)

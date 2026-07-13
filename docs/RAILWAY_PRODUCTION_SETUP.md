@@ -44,7 +44,7 @@ https://api-production-8ac3.up.railway.app
 ✅ **Easier management** - One deployment, one database  
 ✅ **Consistent data** - No local vs remote sync issues  
 ✅ **Better testing** - Test against real production environment  
-✅ **Simplified debugging** - All logs in one place  
+✅ **Simplified debugging** - All logs in one place
 
 ---
 
@@ -60,11 +60,13 @@ https://api-production-8ac3.up.railway.app
 ## Verification
 
 The app will automatically:
+
 - Use Railway production URL
 - Fall back to Railway if any private IP detected
 - Log the API base URL on first request (check console)
 
 **Expected console output:**
+
 ```
 [http] API base: https://api-production-8ac3.up.railway.app
 ```
@@ -74,6 +76,7 @@ The app will automatically:
 ## Testing
 
 1. **Start the app:**
+
    ```bash
    npm run dev
    # or

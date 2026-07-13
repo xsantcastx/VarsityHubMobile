@@ -67,14 +67,14 @@
 
 ## Billing / Agreement / Relaunch
 
-| Check                                                                    | Result | Notes |
-| ------------------------------------------------------------------------ | ------ | ----- |
+| Check                                                                     | Result | Notes |
+| ------------------------------------------------------------------------- | ------ | ----- |
 | Missing-agreement account redirects to agreement until acceptance         |        |       |
 | Missing-agreement account gains coach access immediately after acceptance |        |       |
-| Veteran account retains entitlements after app restart              |        |       |
-| Legend account retains entitlements after app restart               |        |       |
-| Paid-by-owner account shows covered billing state                   |        |       |
-| Rookie account sees correct premium upsell path                     |        |       |
+| Veteran account retains entitlements after app restart                    |        |       |
+| Legend account retains entitlements after app restart                     |        |       |
+| Paid-by-owner account shows covered billing state                         |        |       |
+| Rookie account sees correct premium upsell path                           |        |       |
 
 ## Deep Link / Notification Entry
 

@@ -4,11 +4,12 @@
 
 **App:** VarsityHub Mobile v1.0.1 (SDK 54)  
 **Status:** Ready for EAS builds  
-**Last Verified:** 2025-12-05  
+**Last Verified:** 2025-12-05
 
 ## EAS Configuration
 
 ### Files
+
 - `eas.json` - Build profiles configured
 - `app.json` - Expo configuration with Google Maps key
 - `.env` - All secrets and API endpoints configured
@@ -16,36 +17,44 @@
 ### Build Profiles Available
 
 #### iOS Preview Build
+
 ```bash
 eas build --platform ios --profile preview
 ```
+
 - **Target:** TestFlight (Ad Hoc)
 - **Signing:** Automatic
 - **Distribution:** TestFlight beta
 - **Use Case:** QA testing before production
 
 #### iOS Production Build
+
 ```bash
 eas build --platform ios --profile production
 ```
+
 - **Target:** App Store
 - **Signing:** App Store distribution
 - **Distribution:** App Store Connect
 - **Requirements:** App Store Connect credentials
 
 #### Android Preview Build
+
 ```bash
 eas build --platform android --profile preview
 ```
+
 - **Target:** Internal testing track
 - **Build Type:** APK or AAB
 - **Distribution:** Google Play internal testing
 - **Use Case:** QA testing before production
 
 #### Android Production Build
+
 ```bash
 eas build --platform android --profile production
 ```
+
 - **Target:** Google Play Store
 - **Build Type:** AAB (Android App Bundle)
 - **Distribution:** Google Play Store
@@ -56,6 +65,7 @@ eas build --platform android --profile production
 ## Build Steps
 
 ### 1. Verify Code Ready
+
 ```bash
 cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile
 
@@ -66,6 +76,7 @@ npm run doctor      # ✅ Passed expected
 ```
 
 ### 2. Commit & Push Latest
+
 ```bash
 git status          # Verify working tree clean
 git log --oneline -5  # Check recent commits
@@ -75,11 +86,13 @@ git push origin main
 ### 3. Build for Preview (Testing)
 
 #### iOS Preview (TestFlight)
+
 ```bash
 eas build --platform ios --profile preview --wait
 ```
 
 Expected output:
+
 ```
 ✅ Build started
 📱 Build URL: https://expo.dev/@xsantcastx/VarsityHub/builds/[BUILD_ID]
@@ -87,6 +100,7 @@ Expected output:
 ```
 
 Once build completes:
+
 1. Open Expo dashboard URL
 2. Download provisioning profile if needed
 3. Visit TestFlight in App Store Connect
@@ -94,11 +108,13 @@ Once build completes:
 5. Distribute beta build
 
 #### Android Preview (Google Play Internal)
+
 ```bash
 eas build --platform android --profile preview --wait
 ```
 
 Once build completes:
+
 1. Sign into Google Play Console
 2. Go to Internal testing track
 3. Upload AAB
@@ -106,6 +122,7 @@ Once build completes:
 5. Send invite link
 
 ### 4. Testing (Phase)
+
 - Distribute to QA team
 - Collect feedback on TestFlight/Google Play Console
 - Monitor Sentry for crash reports
@@ -114,11 +131,13 @@ Once build completes:
 ### 5. Build for Production (Release)
 
 #### iOS Production (App Store)
+
 ```bash
 eas build --platform ios --profile production --wait
 ```
 
 Once complete:
+
 1. Upload to App Store Connect
 2. Add release notes
 3. Submit for review
@@ -126,11 +145,13 @@ Once complete:
 5. Release to App Store
 
 #### Android Production (Google Play Store)
+
 ```bash
 eas build --platform android --profile production --wait
 ```
 
 Once complete:
+
 1. Upload to Google Play Console
 2. Add release notes
 3. Set release type (Staged Rollout recommended for first release)
@@ -143,6 +164,7 @@ Once complete:
 ## Build Monitoring
 
 ### During Build
+
 ```bash
 # Watch build progress
 eas build --platform ios --profile preview
@@ -152,6 +174,7 @@ open https://expo.dev/@xsantcastx/VarsityHub/builds
 ```
 
 ### After Build
+
 1. **Check Sentry** - Monitor error rates
 2. **Review TestFlight Feedback** - Bug reports from testers
 3. **Monitor Crashes** - ANR rates, unhandled exceptions
@@ -159,12 +182,12 @@ open https://expo.dev/@xsantcastx/VarsityHub/builds
 
 ### Common Issues & Solutions
 
-| Issue | Solution |
-|-------|----------|
-| Build fails | Check `git log`, verify .env secrets, run `npm install` |
-| Signing errors | Verify Apple Developer credentials in EAS settings |
-| Play Store rejection | Check Google Play policies, review app behavior |
-| Slow builds | Can take 15-20 min first time; subsequent builds faster |
+| Issue                | Solution                                                |
+| -------------------- | ------------------------------------------------------- |
+| Build fails          | Check `git log`, verify .env secrets, run `npm install` |
+| Signing errors       | Verify Apple Developer credentials in EAS settings      |
+| Play Store rejection | Check Google Play policies, review app behavior         |
+| Slow builds          | Can take 15-20 min first time; subsequent builds faster |
 
 ---
 
@@ -197,6 +220,7 @@ All values should be production/verified values (not test keys).
 ## Release Checklist
 
 ### Pre-Build
+
 - [ ] All feature branches merged to main
 - [ ] `npm run typecheck` passes (0 errors)
 - [ ] `npm run lint` passes (0 errors)
@@ -207,6 +231,7 @@ All values should be production/verified values (not test keys).
 - [ ] All commits pushed to main
 
 ### Build Phase
+
 - [ ] Preview build completes successfully
 - [ ] QA testing passes (no critical bugs)
 - [ ] Sentry error rate normal
@@ -214,6 +239,7 @@ All values should be production/verified values (not test keys).
 - [ ] Internal feedback collected
 
 ### Production Release
+
 - [ ] All QA feedback addressed
 - [ ] Production build created
 - [ ] App Store/Play Store submission ready
@@ -221,6 +247,7 @@ All values should be production/verified values (not test keys).
 - [ ] Team notified of release schedule
 
 ### Post-Release
+
 - [ ] Monitor Sentry for crashes
 - [ ] Check crash/ANR rates for 24 hours
 - [ ] Monitor store ratings/reviews
@@ -240,13 +267,14 @@ All values should be production/verified values (not test keys).
 
 ## Build History
 
-| Version | Platform | Status | Date | Notes |
-|---------|----------|--------|------|-------|
-| 1.0.1 | iOS/Android | Ready for build | 2025-12-05 | Launch verification complete |
+| Version | Platform    | Status          | Date       | Notes                        |
+| ------- | ----------- | --------------- | ---------- | ---------------------------- |
+| 1.0.1   | iOS/Android | Ready for build | 2025-12-05 | Launch verification complete |
 
 ---
 
 **Next Action:** When ready to test, run:
+
 ```bash
 eas build --platform ios --profile preview --wait
 ```

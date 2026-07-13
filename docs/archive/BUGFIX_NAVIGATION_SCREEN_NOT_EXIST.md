@@ -16,6 +16,7 @@ Fixed the recurring "This screen does not exist" error that appeared when pressi
 Users experienced navigation errors in two scenarios:
 
 ### 1. App Startup
+
 ```
 Error: "This screen does not exist"
 When: Opening the app
@@ -23,6 +24,7 @@ Cause: No index route defined, router tries to go to "/" which doesn't exist
 ```
 
 ### 2. Back Button on iPhone
+
 ```
 Error: "This screen does not exist"
 When: Pressing back button/swipe gesture
@@ -30,6 +32,7 @@ Cause: Router tries to navigate to root "/" but no handler exists
 ```
 
 ### User Impact
+
 - ❌ Broken user experience on app start
 - ❌ Back button unusable on many screens
 - ❌ Confusing error messages
@@ -40,9 +43,11 @@ Cause: Router tries to navigate to root "/" but no handler exists
 ## Root Causes
 
 ### 1. Missing Index Route
+
 The app had no `app/index.tsx` file, so when expo-router tried to navigate to the root path `/`, it couldn't find a screen to render.
 
 **File Structure Before**:
+
 ```
 app/
 ├── _layout.tsx          ← Root layout
@@ -55,12 +60,15 @@ app/
 **Missing**: `app/index.tsx`
 
 ### 2. Invalid Navigation Redirects
+
 The `_layout.tsx` was trying to redirect to routes that didn't always exist:
+
 - `/highlights` - Not a valid standalone route
 - `/(tabs)/feed` - Overly specific, should use `/(tabs)`
 - Redirects on every navigation state change
 
 ### 3. Incorrect Public Routes List
+
 Missing `forgot-password` and `reset-password` from public routes, causing redirect loops.
 
 ---
@@ -77,16 +85,16 @@ export default function Index() {
     (async () => {
       try {
         const me = await User.me();
-        
+
         if (me) {
           // User is logged in
           const needsOnboarding = me?.preferences?.onboarding_completed === false;
-          
+
           if (needsOnboarding) {
             router.replace('/onboarding/step-2-basic');
           } else {
             const userRole = me?.preferences?.role || 'fan';
-            
+
             if (userRole === 'coach') {
               router.replace('/manage-teams');
             } else {
@@ -107,6 +115,7 @@ export default function Index() {
 ```
 
 **Key Features**:
+
 - ✅ Handles app startup navigation
 - ✅ Checks user authentication
 - ✅ Routes based on user role
@@ -116,6 +125,7 @@ export default function Index() {
 ### 2. Fixed Navigation Logic in `_layout.tsx`
 
 **Before**:
+
 ```typescript
 const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email']);
 // Missing forgot-password, reset-password
@@ -131,13 +141,14 @@ router.replace('/(tabs)/feed'); // ❌ Overly aggressive
 ```
 
 **After**:
+
 ```typescript
 const publicRoutes = new Set([
-  'sign-in', 
-  'sign-up', 
+  'sign-in',
+  'sign-up',
   'verify-email',
-  'forgot-password',    // ✅ Added
-  'reset-password'      // ✅ Added
+  'forgot-password', // ✅ Added
+  'reset-password', // ✅ Added
 ]);
 
 if (isPublic && me) {
@@ -156,6 +167,7 @@ if (status === 401 || status === 403) {
 ### 3. Updated Stack Screen Configuration
 
 **Before**:
+
 ```typescript
 <Stack>
   <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -164,6 +176,7 @@ if (status === 401 || status === 403) {
 ```
 
 **After**:
+
 ```typescript
 <Stack screenOptions={{ headerShown: false }}>
   <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -173,6 +186,7 @@ if (status === 401 || status === 403) {
 ```
 
 **Changes**:
+
 - ✅ Added `index` screen registration
 - ✅ Set default `screenOptions` to avoid repetition
 - ✅ Proper screen hierarchy
@@ -182,6 +196,7 @@ if (status === 401 || status === 403) {
 ## Navigation Flow After Fix
 
 ### App Startup Flow
+
 ```
 1. App loads → index.tsx
 2. Check authentication
@@ -193,6 +208,7 @@ if (status === 401 || status === 403) {
 ```
 
 ### Back Button Flow
+
 ```
 1. User presses back on any screen
 2. Navigation stack pops
@@ -203,6 +219,7 @@ if (status === 401 || status === 403) {
 ```
 
 ### Role-Based Landing
+
 ```
 Coach:
 sign-in → index → /manage-teams
@@ -219,12 +236,14 @@ sign-up → index → /onboarding/step-2-basic → index → /(tabs)
 ## Files Modified
 
 ### 1. `app/index.tsx` (NEW)
+
 - Entry point for app
 - Handles authentication check
 - Routes based on user state
 - Shows loading indicator
 
 ### 2. `app/_layout.tsx` (MODIFIED)
+
 - Added `index` screen to Stack
 - Fixed public routes list
 - Improved redirect logic
@@ -238,6 +257,7 @@ sign-up → index → /onboarding/step-2-basic → index → /(tabs)
 ## Testing Checklist
 
 ### App Startup
+
 - [ ] Cold start shows loading then navigates correctly
 - [ ] Logged in fan → /(tabs)
 - [ ] Logged in coach → /manage-teams
@@ -246,6 +266,7 @@ sign-up → index → /onboarding/step-2-basic → index → /(tabs)
 - [ ] Network error → /sign-in
 
 ### Back Button
+
 - [ ] Back from any screen works
 - [ ] Back to root goes to index
 - [ ] No "screen does not exist" errors
@@ -253,6 +274,7 @@ sign-up → index → /onboarding/step-2-basic → index → /(tabs)
 - [ ] Hardware back works (Android)
 
 ### Navigation
+
 - [ ] All deeplinks work
 - [ ] Tab switching works
 - [ ] Screen stacking works
@@ -260,6 +282,7 @@ sign-up → index → /onboarding/step-2-basic → index → /(tabs)
 - [ ] Auth flow works
 
 ### Edge Cases
+
 - [ ] Airplane mode startup
 - [ ] Token expired
 - [ ] Onboarding incomplete
@@ -271,6 +294,7 @@ sign-up → index → /onboarding/step-2-basic → index → /(tabs)
 ## Common Scenarios
 
 ### Scenario 1: New User Signup
+
 ```
 1. User signs up
 2. Token saved
@@ -285,6 +309,7 @@ sign-up → index → /onboarding/step-2-basic → index → /(tabs)
 ```
 
 ### Scenario 2: Coach Login
+
 ```
 1. User logs in with coach credentials
 2. Token saved
@@ -295,6 +320,7 @@ sign-up → index → /onboarding/step-2-basic → index → /(tabs)
 ```
 
 ### Scenario 3: Back Button from Deep Screen
+
 ```
 1. User at: /post-detail
 2. Presses back
@@ -306,6 +332,7 @@ sign-up → index → /onboarding/step-2-basic → index → /(tabs)
 ```
 
 ### Scenario 4: App Restart While Logged In
+
 ```
 1. User opens app
 2. Loads index.tsx
@@ -321,27 +348,33 @@ sign-up → index → /onboarding/step-2-basic → index → /(tabs)
 ## Why This Fix Works
 
 ### 1. Proper Entry Point
+
 Every expo-router app needs an index route. This is the default screen when no specific route is provided. Without it, the router has nowhere to go when at root level.
 
 ### 2. Centralized Auth Logic
+
 Having auth checks in `index.tsx` centralizes the logic instead of spreading it across `_layout.tsx` with complex conditions that run on every navigation change.
 
 ### 3. Clear Redirect Rules
+
 ```typescript
 // Simple, clear rules:
 Authenticated + Onboarding Incomplete → /onboarding
-Authenticated + Coach → /manage-teams  
+Authenticated + Coach → /manage-teams
 Authenticated + Fan → /(tabs)
 Not Authenticated → /sign-in
 ```
 
 ### 4. Reduced Navigation Churn
+
 `_layout.tsx` now only handles:
+
 - Onboarding flow protection
 - Initial login redirect (when on public route)
 - Auth error handling
 
 It **doesn't** redirect on:
+
 - Every navigation state change
 - Network errors (unless auth related)
 - Random navigation events
@@ -350,43 +383,53 @@ It **doesn't** redirect on:
 
 ## Alternative Solutions Considered
 
-### Option 1: Default Route in _layout.tsx ❌
+### Option 1: Default Route in \_layout.tsx ❌
+
 **Problem**: Still no index screen, back button issues persist
 **Decision**: Rejected
 
 ### Option 2: Disable Back Button ❌
+
 **Problem**: Poor UX, not iOS compliant
 **Decision**: Rejected
 
 ### Option 3: Deep Linking Fallback ❌
+
 **Problem**: Doesn't solve root cause
 **Decision**: Rejected
 
 ### ✅ Option 4: Index Route + Simplified Navigation
-**Benefits**: 
+
+**Benefits**:
+
 - Standard expo-router pattern
 - Clear entry point
 - Back button works naturally
 - Easy to understand
-**Decision**: **SELECTED**
+  **Decision**: **SELECTED**
 
 ---
 
 ## Best Practices Applied
 
 ### 1. Single Source of Truth
+
 `index.tsx` is the single entry point for navigation decisions.
 
 ### 2. Fail Safe
+
 Always has a fallback (`/sign-in` on error).
 
 ### 3. Loading States
+
 Shows `ActivityIndicator` while determining route.
 
 ### 4. Type Safety
+
 Uses `as any` only where TypeScript's route types are overly restrictive.
 
 ### 5. Error Handling
+
 Catches all errors and redirects safely.
 
 ---
@@ -394,11 +437,13 @@ Catches all errors and redirects safely.
 ## Performance Impact
 
 ### Before
+
 - Multiple navigation checks on every state change
 - Potential redirect loops
 - Unnecessary re-renders
 
 ### After
+
 - Single check on app load
 - Minimal redirects
 - Clear navigation flow
@@ -410,7 +455,9 @@ Catches all errors and redirects safely.
 ## Future Improvements
 
 ### 1. Route Guards
+
 Create a higher-order component for protected routes:
+
 ```typescript
 export function ProtectedRoute({ children, requiredRole }) {
   const user = useUser();
@@ -422,7 +469,9 @@ export function ProtectedRoute({ children, requiredRole }) {
 ```
 
 ### 2. Deep Link Handler
+
 Add a dedicated deep link handler in index.tsx:
+
 ```typescript
 if (initialURL) {
   router.replace(initialURL);
@@ -431,7 +480,9 @@ if (initialURL) {
 ```
 
 ### 3. Navigation Analytics
+
 Track navigation events:
+
 ```typescript
 analytics.logEvent('app_navigation', {
   from: previousRoute,
@@ -445,6 +496,7 @@ analytics.logEvent('app_navigation', {
 ## Related Issues Fixed
 
 This fix also resolves:
+
 - ✅ App crash on startup (some devices)
 - ✅ Infinite redirect loops
 - ✅ "Cannot read property 'key' of undefined" errors
@@ -460,10 +512,10 @@ This fix also resolves:
 ✅ **Added**: Public routes (`forgot-password`, `reset-password`)  
 ✅ **Improved**: Back button behavior on all screens  
 ✅ **Resolved**: "This screen does not exist" errors  
-✅ **Result**: Smooth navigation with proper iOS back button support  
+✅ **Result**: Smooth navigation with proper iOS back button support
 
 The app now has a proper entry point that handles all navigation scenarios correctly, including app startup and back button presses.
 
 ---
 
-*Bug Fix Documentation - VarsityHub Development Team*
+_Bug Fix Documentation - VarsityHub Development Team_

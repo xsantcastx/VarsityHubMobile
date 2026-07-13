@@ -1,17 +1,21 @@
 # Fast Refresh Fix for Expo SDK 54
 
 ## Problem
+
 Fast Refresh was not working in Expo SDK 54 with React Native Reanimated v4.
 
 ## Root Cause
+
 In Expo SDK 54, React Native Reanimated v4 requires using `react-native-worklets/plugin` instead of `react-native-reanimated/plugin` in the Babel configuration. Using the wrong plugin breaks Fast Refresh.
 
 ## Solution Applied
 
 ### 1. Updated Babel Configuration
+
 **File:** `babel.config.js`
 
 **Changed:**
+
 ```javascript
 // ❌ OLD (breaks Fast Refresh in SDK 54)
 'react-native-reanimated/plugin',
@@ -23,9 +27,11 @@ In Expo SDK 54, React Native Reanimated v4 requires using `react-native-worklets
 **Why:** In SDK 54, Reanimated v4 moved the Babel plugin to the `react-native-worklets` package. The plugin MUST be the last item in the plugins array.
 
 ### 2. Updated Metro Configuration
+
 **File:** `metro.config.js`
 
 **Added:**
+
 ```javascript
 config.transformer = {
   ...config.transformer,
@@ -44,6 +50,7 @@ config.transformer = {
 ## Verification Steps
 
 1. **Clear Metro cache:**
+
    ```bash
    npx expo start --dev-client --clear
    ```
@@ -74,11 +81,13 @@ config.transformer = {
 ## If Fast Refresh Still Doesn't Work
 
 1. **Kill all Metro/Node processes:**
+
    ```bash
    pkill -9 node expo metro
    ```
 
 2. **Clear all caches:**
+
    ```bash
    rm -rf node_modules/.cache
    rm -rf .expo
@@ -86,6 +95,7 @@ config.transformer = {
    ```
 
 3. **Restart Metro:**
+
    ```bash
    npx expo start --dev-client --clear
    ```

@@ -29,12 +29,13 @@
 # Run comprehensive test
 npx tsx scripts/test-all-emails.ts
 
-# Expected output: 
+# Expected output:
 # ✅ All 28+ tests shown
 # 📊 SUCCESS RATE: 100%
 ```
 
 **Success Criteria:**
+
 - [ ] No fatal errors during test run
 - [ ] Console shows `SUCCESS RATE: 100%` (or close to it)
 - [ ] `test-results.json` file created in project root
@@ -83,6 +84,7 @@ Check inbox for these 5 emails:
   - Action: Allow/deny action should be available if applicable
 
 **Verification Notes:**
+
 ```
 ✓ Subject lines must be clear and descriptive
 ✓ All variables must populate (name, code, date, device, location)
@@ -103,7 +105,7 @@ Check for these 8 emails:
   - Appeal link: Should be present and clickable
 
 - [ ] **Report Dismissed Email**
-  - Subject: Should reference "Report Dismissed" 
+  - Subject: Should reference "Report Dismissed"
   - Variables: Report ID (rep_002), reason present
   - Dismissal reason: "No violation found" should show
   - Appeal link: Should be available
@@ -139,6 +141,7 @@ Check for these 8 emails:
   - Appeal link: Should be present (last chance to appeal)
 
 **Verification Notes:**
+
 ```
 ✓ Suspension emails must show correct day counts (7 vs 45)
 ✓ All dates must be formatted correctly
@@ -197,6 +200,7 @@ Check for these 8 emails:
   - Cancel: Cancel RSVP link should work
 
 **Verification Notes:**
+
 ```
 ✓ Event details (name, date, time, location) must all be present
 ✓ Dates must be formatted consistently
@@ -268,6 +272,7 @@ Check for these 9 emails:
   - Action: Dashboard link should work
 
 **Verification Notes:**
+
 ```
 ✓ All invitation links must be unique (not duplicated)
 ✓ Personal names must populate correctly
@@ -296,6 +301,7 @@ Check for these 2 emails:
   - Action: Billing portal link should work
 
 **Verification Notes:**
+
 ```
 ✓ Payment amounts and last 4 digits must be accurate
 ✓ Dates must be formatted consistently
@@ -310,6 +316,7 @@ Check for these 2 emails:
 ### 🔍 **For Each Email Received, Check:**
 
 **1. Subject Line** (Most Critical)
+
 ```
 □ Subject line is present (NOT blank)
 □ Subject is descriptive and clear
@@ -318,6 +325,7 @@ Check for these 2 emails:
 ```
 
 **2. Images & Styling**
+
 ```
 □ Logo/images load immediately (NO "Show Images" click required)
 □ Images have HTTPS URLs (checked in source)
@@ -327,6 +335,7 @@ Check for these 2 emails:
 ```
 
 **3. Variables & Personalization**
+
 ```
 □ Personal name (Emil) appears throughout email
 □ Event names, team names, organization names match what was sent
@@ -337,6 +346,7 @@ Check for these 2 emails:
 ```
 
 **4. Links & Actions**
+
 ```
 □ All action links are present and clickable
 □ Links are properly formatted (NOT wrapped/broken)
@@ -346,6 +356,7 @@ Check for these 2 emails:
 ```
 
 **5. Content & Tone**
+
 ```
 □ Message is clear and understandable
 □ Email has appropriate tone for type (urgent for security, friendly for invites)
@@ -361,6 +372,7 @@ Check for these 2 emails:
 ### ❌ Email Not Received
 
 **Check:**
+
 - [ ] Spam/Junk folder (move to Inbox if found)
 - [ ] Wait additional 2-3 minutes (sometimes slow)
 - [ ] Check email address is correct: `emilmancero@gmail.com`
@@ -369,6 +381,7 @@ Check for these 2 emails:
 - [ ] Check SendGrid dashboard for delivery errors
 
 **If Still Missing:**
+
 - [ ] Verify SendGrid API key is correct
 - [ ] Verify template IDs are correct in `server/.env`
 - [ ] Check SendGrid Suppressions tab (email might be suppressed)
@@ -379,6 +392,7 @@ Check for these 2 emails:
 **Indicates:** SendGrid template not configured with subject line
 
 **Fix:**
+
 - [ ] Go to SendGrid > Dynamic Templates
 - [ ] Click on each template showing missing subject
 - [ ] Go to "Settings" tab
@@ -390,6 +404,7 @@ Check for these 2 emails:
 **Indicates:** HTTP URLs still in template (should be HTTPS)
 
 **Fix:**
+
 - [ ] Check email source/raw (right-click > View Message Source)
 - [ ] Look for `<img src="http://...">` (should be `https://`)
 - [ ] Go to SendGrid template HTML
@@ -401,6 +416,7 @@ Check for these 2 emails:
 **Indicates:** Variable names in template don't match backend
 
 **Fix:**
+
 1. Check which variables are missing:
    - [ ] Check in test email (variables appear blank or as {{variable}})
 2. Identify the template name
@@ -411,6 +427,7 @@ Check for these 2 emails:
 7. Test again
 
 **Example:**
+
 - If template has `{{event_name}}` but backend sends `eventName`
 - Either: (a) Change template to `{{eventName}}`
 - Or: (b) Change backend to send `event_name` too (already fixed in 3 templates)
@@ -427,12 +444,14 @@ Check for these 2 emails:
 **Test Email:** emilmancero@gmail.com
 
 **Results Summary:**
+
 - Total Emails Tested: 28+
 - Emails Received: [X]/28+
 - Emails with Issues: [Y]/28+
 - Success Rate: [X/28+ × 100]%
 
 **Category Summary:**
+
 - Auth & Security: [X]/5 ✓
 - Moderation & Trust: [X]/8 ✓
 - Event Management: [X]/8 ✓
@@ -440,11 +459,13 @@ Check for these 2 emails:
 - Billing & Payment: [X]/2 ✓
 
 **Issues Found:**
+
 1. [Template name]: [Issue description]
 2. [Template name]: [Issue description]
-...
+   ...
 
 **Status:**
+
 - [ ] ALL TESTS PASS - Ready for production
 - [ ] MINOR ISSUES - Can proceed with fixes post-launch
 - [ ] CRITICAL ISSUES - Must fix before production launch
@@ -454,9 +475,9 @@ Check for these 2 emails:
 
 ## Sign-Off
 
-**Checklist Complete:** Date: _______ Time: _______
+**Checklist Complete:** Date: **\_\_\_** Time: **\_\_\_**
 
-**Tested By:** _________________ **Verified By:** _________________
+**Tested By:** **\*\*\*\***\_**\*\*\*\*** **Verified By:** **\*\*\*\***\_**\*\*\*\***
 
 **Ready for Production Deployment?** YES / NO / WITH EXCEPTIONS
 
@@ -470,4 +491,3 @@ Check for these 2 emails:
 - **Nice to Have:** Additional styling, advanced animations
 - **Blocking Issues:** Missing subjects, broken images, unpopulated variables
 - **Non-Blocking Issues:** Minor styling differences, font variations (can fix in follow-up)
-

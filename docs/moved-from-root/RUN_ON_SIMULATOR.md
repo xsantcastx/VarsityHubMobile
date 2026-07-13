@@ -3,6 +3,7 @@
 ## The Problem
 
 You're seeing:
+
 ```
 CommandError: No development build (com.varsithub.varsityhub) for this project is installed.
 ```
@@ -14,14 +15,17 @@ This happens because `expo start` is running in dev-client mode, which expects a
 ## Solution: Use `expo run:ios` Instead
 
 **Step 1: Stop the current Expo server**
+
 - Press `Ctrl+C` in your terminal to stop `expo start`
 
 **Step 2: Run on simulator directly**
+
 ```bash
 npx expo run:ios
 ```
 
 This command will:
+
 - ✅ Build the app automatically
 - ✅ Install it on the iOS Simulator
 - ✅ Start Metro bundler
@@ -46,6 +50,7 @@ This command will:
 ## After It's Running
 
 Once the app is on the simulator:
+
 - ✅ You can edit code in real-time
 - ✅ Changes hot-reload automatically
 - ✅ No need to rebuild (unless you change native code)
@@ -57,6 +62,7 @@ Once the app is on the simulator:
 If you prefer using `expo start` with the simulator:
 
 **Option 1: Build dev client first**
+
 ```bash
 # Build development client for simulator
 eas build --profile development --platform ios --local
@@ -66,6 +72,7 @@ npx expo start --dev-client
 ```
 
 **Option 2: Use regular expo start (won't work with custom modules)**
+
 ```bash
 # This won't work because you have custom native modules
 npx expo start
@@ -91,6 +98,7 @@ npx expo run:ios
 ## Troubleshooting
 
 **"Simulator not found"**
+
 ```bash
 # Open Simulator manually
 open -a Simulator
@@ -100,6 +108,7 @@ npx expo run:ios
 ```
 
 **"Build failed"**
+
 ```bash
 # Clean and rebuild
 cd ios && pod install && cd ..
@@ -107,6 +116,7 @@ npx expo run:ios --clean
 ```
 
 **"Xcode not found"**
+
 - Install Xcode from App Store
 - Run: `xcode-select --install`
 

@@ -1,11 +1,13 @@
 # Dark Mode Text Readability Fixes
 
 ## Summary
+
 Found **885 instances** of hardcoded colors across app screens. Focused on fixing text readability for both light and dark modes.
 
 ## Pattern to Follow
 
 ### ✅ Correct Pattern:
+
 ```tsx
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -28,6 +30,7 @@ const palette = Colors[colorScheme];
 ```
 
 ### ❌ Avoid:
+
 ```tsx
 // Hardcoded colors - won't adapt to dark mode
 <Text style={{ color: '#111827' }}>Text</Text>
@@ -40,6 +43,7 @@ const palette = Colors[colorScheme];
 From `constants/Colors.ts`:
 
 **Light Mode:**
+
 - `text`: '#11181C' - Main text
 - `mutedText`: '#6B7280' - Secondary/muted text
 - `background`: '#FFFFFF' - Main background
@@ -50,6 +54,7 @@ From `constants/Colors.ts`:
 - `tint`: '#0a7ea4' - Primary accent
 
 **Dark Mode:**
+
 - `text`: '#F5F5F5' - Main text
 - `mutedText`: '#94a3b8' - Secondary/muted text
 - `background`: '#0f172a' - Main background
@@ -62,6 +67,7 @@ From `constants/Colors.ts`:
 ## Files Fixed
 
 ### ✅ Completed:
+
 1. **app/profile.tsx** - All text colors use theme
 2. **app/sign-in.tsx** - Logo container, buttons, error text
 3. **app/feed.tsx** - Search box, verification banner
@@ -74,22 +80,23 @@ From `constants/Colors.ts`:
 10. **components/ReachMapPreview.tsx** - Legend border
 11. **app/components/RsvpSheet.tsx** - Handle
 12. **components/QuickAddGameModal.tsx** - Toggle thumb
-13. **app/sign-up.tsx**, **app/settings/*.tsx**, **app/(tabs)/*.tsx** (various)
+13. **app/sign-up.tsx**, **app/settings/\*.tsx**, **app/(tabs)/\*.tsx** (various)
 
 ### 🔄 Remaining (lower priority):
+
 - Some onboarding steps
 - Game details screens (complex)
 
 ## Common Replacements
 
-| Hardcoded Color | Replace With | Use Case |
-|----------------|--------------|----------|
-| `#111827`, `#374151`, `#1f2937` | `palette.text` | Main text |
-| `#6B7280`, `#94a3b8`, `#9CA3AF` | `palette.mutedText` | Secondary text |
-| `#FFFFFF`, `#fff` | `palette.card` or `palette.background` | White backgrounds |
-| `#E5E7EB`, `#D1D5DB` | `palette.border` | Borders |
-| `#F3F4F6`, `#F5F9FF` | `palette.surface` | Surface backgrounds |
-| `#b91c1c`, `#DC2626` | `palette.destructive` | Error text |
+| Hardcoded Color                 | Replace With                           | Use Case            |
+| ------------------------------- | -------------------------------------- | ------------------- |
+| `#111827`, `#374151`, `#1f2937` | `palette.text`                         | Main text           |
+| `#6B7280`, `#94a3b8`, `#9CA3AF` | `palette.mutedText`                    | Secondary text      |
+| `#FFFFFF`, `#fff`               | `palette.card` or `palette.background` | White backgrounds   |
+| `#E5E7EB`, `#D1D5DB`            | `palette.border`                       | Borders             |
+| `#F3F4F6`, `#F5F9FF`            | `palette.surface`                      | Surface backgrounds |
+| `#b91c1c`, `#DC2626`            | `palette.destructive`                  | Error text          |
 
 ## Priority Order
 

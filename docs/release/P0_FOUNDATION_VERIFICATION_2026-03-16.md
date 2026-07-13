@@ -15,8 +15,9 @@ This report captures verification evidence for existing and newly added P0 found
 npm audit --omit=dev --json
 ```
 
-Result: **PASS**  
-- high: 0  
+Result: **PASS**
+
+- high: 0
 - critical: 0
 
 ## Server production dependency audit
@@ -25,8 +26,9 @@ Result: **PASS**
 npm --prefix server audit --omit=dev --json
 ```
 
-Result: **PASS**  
-- high: 0  
+Result: **PASS**
+
+- high: 0
 - critical: 0
 
 ---
@@ -42,6 +44,7 @@ npm --prefix server run verify:rate-limits
 Result: **PASS** (`21/21` checks passed)
 
 Validated sensitive coverage for:
+
 - Auth (`/register`, `/login`, `/refresh`, `/verify/request`, `/verify/send`, `/verify/confirm`)
 - Payments (`/checkout`, `/create-payment-sheet`, `/finalize-session`, `/cancel-intent`, `/subscribe`, `/subscription/cancel`, `/update-subscription-quantity`, Apple/Google receipt verification routes)
 - Uploads (`/cloudinary-signature`, `/sign`, `/`, `/files`, `/avatar`)
@@ -57,10 +60,12 @@ npm --prefix server run test:payments:confidence
 ```
 
 Result: **PASS**
+
 - test suites: 3 passed
 - tests: 8 passed
 
 Covers:
+
 - distributed lock behavior (local fallback dedupe)
 - transaction status updates by session/payment-intent/subscription references
 - checkout finalization for membership + ad transactions
@@ -79,6 +84,7 @@ npm --prefix server run verify:production-health
 Result: **PASS**
 
 Verified from production `/health?include=payments`:
+
 - all required integrations true: `database`, `jwt`, `cloudinary`, `stripe`, `sendgrid`, `googleOAuth`, `googleMaps`, `appleIAP`, `sentry`, `redis`
 - `ready = true`
 - payments config reports `stripe_configured = true` and `has_webhook_secret = true`
@@ -97,6 +103,7 @@ Result: **SKIPPED in this environment**
 Reason: `REDIS_URL` not set.
 
 Action for staging/production:
+
 - rerun with shared Redis configured to validate multi-process lock behavior.
 
 ---
@@ -115,6 +122,7 @@ npm --prefix server run load:smoke
 Result: **PASS**
 
 Observed status behavior:
+
 - `/auth/login` invalid creds -> `401/429` (expected)
 - `/posts` -> `200`
 - `/uploads/sign` -> `401` without token (expected)
@@ -134,7 +142,7 @@ npm run verify:p0:foundation
 
 Result: **PASS**  
 This command now verifies in one run:
+
 - root/server production dependency audits
 - sensitive endpoint rate-limit coverage
 - payment confidence foundation suite
-

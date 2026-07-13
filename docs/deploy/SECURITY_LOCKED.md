@@ -8,44 +8,54 @@
 This document locks in the essential fixes made to get the app production-ready.
 
 ### 1. ✅ Redis Connection Pool Fix (Prevents Upload Failures)
+
 **File**: `server/src/middleware/rateLimiters.ts`
 **Issue**: Rate limiter and job queues were sharing Redis connection, causing "maxRetriesPerRequest: 20" errors on uploads
 **Solution**: Separate Redis connection for rate limiter with `maxRetriesPerRequest: null`
 **Impact**: Uploads now work reliably without connection pool exhaustion
 
 ### 2. ✅ Build Script Fix (Docker/Railway Compatible)
+
 **File**: `server/package.json`
 **Issue**: Build script couldn't find `plan-definitions.json` in Docker environment
 **Solution**: Try multiple paths: `../shared/` (local) → `./shared/` (Docker)
 **Impact**: Backend builds successfully on Railway
 
 ### 3. ✅ Upload Retry Logic Enhancement
+
 **File**: `api/upload.ts`
-**Changes**: 
+**Changes**:
+
 - Increased retries from 5 to 8
 - Increased backoff from 1s to 2s
 - Better error messages for server overload
-**Impact**: Uploads survive temporary backend issues
+  **Impact**: Uploads survive temporary backend issues
 
 ### 4. ✅ Jest Testing Configuration
+
 **File**: `jest.config.js`, `.vscode/settings.json`
 **Changes**:
+
 - Fixed module aliases for @/ui/tokens
 - Excluded problematic async tests
 - Configured VS Code Jest extension
-**Result**: 37/40 tests passing, all critical tests verified
+  **Result**: 37/40 tests passing, all critical tests verified
 
 ### 5. ✅ Dark Mode Logo Fix
+
 **File**: `app/sign-in.tsx`
-**Changes**: 
+**Changes**:
+
 - Cloudinary URL with conditional backgrounds
 - Dark mode: `#2C2C2E`
 - Light mode: `#FFFFFF`
-**Impact**: Logo visible in both light and dark modes
+  **Impact**: Logo visible in both light and dark modes
 
 ### 6. ✅ Coach Onboarding Flow
+
 **File**: `app/onboarding/step-1-role.tsx`
-**Verified**: 
+**Verified**:
+
 - New coaches start at step 2
 - Returning coaches resume at saved progress
 - Fan flow simplified to step 7

@@ -10,11 +10,13 @@
 ### TypeScript Configuration
 
 **Current Settings:**
+
 - `strict: false` - TypeScript strict mode disabled
 - `noImplicitAny: false` - Allows implicit any types
 - `skipLibCheck: true` - Skips type checking of declaration files
 
 **Why This Way:**
+
 - Codebase is production-ready with current settings
 - Audit reports show 0 critical type errors
 - Pragmatic `any` usage in acceptable places (photo picker, refs)
@@ -23,6 +25,7 @@
 ### ESLint Configuration
 
 **Current Settings:**
+
 - Flat config format (ESLint 8.x compatible)
 - React Native + TypeScript rules enabled
 - Floating promises: `warn` (not error - intentional for fire-and-forget)
@@ -34,6 +37,7 @@
 ### Prettier Configuration
 
 **Current Settings:**
+
 - Semi-colons: enabled
 - Single quotes: enabled
 - Print width: 100
@@ -52,12 +56,14 @@
 **Recommendation:** Enable incrementally (not required)
 
 **Why:** The codebase is production-ready without strict mode. Enabling it would require:
+
 - Fixing implicit `any` types
 - Adding null checks
 - Updating function signatures
 - Estimated: 100+ type errors to fix
 
 **How to Enable Incrementally:**
+
 1. Enable `strictNullChecks` first (safest)
 2. Enable `noImplicitAny` for new files only
 3. Gradually enable other strict flags
@@ -71,11 +77,12 @@
 **Recommendation:** Minor improvements only
 
 **Suggested Additions:**
+
 ```javascript
 // eslint.config.js
 rules: {
   // Existing rules...
-  
+
   // Optional additions:
   '@typescript-eslint/no-explicit-any': 'warn', // Warn on explicit any
   '@typescript-eslint/prefer-const': 'warn', // Prefer const over let
@@ -103,7 +110,7 @@ Add comments to `tsconfig.json` explaining the configuration:
   "compilerOptions": {
     "strict": false, // Disabled for pragmatic any usage (photo picker, refs)
     "noImplicitAny": false, // Allowed for flexibility in React Native
-    "skipLibCheck": true, // Speeds up compilation
+    "skipLibCheck": true // Speeds up compilation
   }
 }
 ```
@@ -127,29 +134,32 @@ Document why configurations are set this way (this file).
 
 ## Configuration Files Summary
 
-| File | Status | Recommendation |
-|------|--------|----------------|
-| `tsconfig.json` | ✅ Production-ready | Add comments explaining settings |
-| `eslint.config.js` | ✅ Well configured | Optional: Add more rule comments |
-| `.prettierrc` | ✅ Well configured | No changes needed |
-| `.editorconfig` | ✅ Well configured | No changes needed |
-| `babel.config.js` | ✅ Well configured | No changes needed |
+| File               | Status              | Recommendation                   |
+| ------------------ | ------------------- | -------------------------------- |
+| `tsconfig.json`    | ✅ Production-ready | Add comments explaining settings |
+| `eslint.config.js` | ✅ Well configured  | Optional: Add more rule comments |
+| `.prettierrc`      | ✅ Well configured  | No changes needed                |
+| `.editorconfig`    | ✅ Well configured  | No changes needed                |
+| `babel.config.js`  | ✅ Well configured  | No changes needed                |
 
 ---
 
 ## Implementation Priority
 
 ### Priority 1: Documentation (Safe)
+
 - ✅ Add comments to config files
 - ✅ Document configuration decisions
 - ✅ Create this documentation file
 
 ### Priority 2: Optional Improvements (Long-term)
-- ⚠️  Consider enabling `strictNullChecks` incrementally
-- ⚠️  Consider adding more ESLint rules (non-breaking)
-- ⚠️  Consider adding pre-commit hooks (Husky)
+
+- ⚠️ Consider enabling `strictNullChecks` incrementally
+- ⚠️ Consider adding more ESLint rules (non-breaking)
+- ⚠️ Consider adding pre-commit hooks (Husky)
 
 ### Priority 3: Major Changes (Not Recommended)
+
 - ❌ Enable full TypeScript strict mode (would break current build)
 - ❌ Change ESLint rules to errors (would break CI)
 - ❌ Change Prettier formatting (would reformat entire codebase)
@@ -161,6 +171,7 @@ Document why configurations are set this way (this file).
 **Current Configuration:** ✅ Production-ready
 
 **Recommendations:**
+
 1. **No immediate changes needed** - configuration is appropriate
 2. **Document decisions** - explain why settings are configured this way
 3. **Incremental improvements** - enable strict checks gradually if desired

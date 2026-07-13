@@ -3,10 +3,12 @@
 ## Step 1: Fix Port Conflict ⚡
 
 **Option A (Easiest):** Just use port 8082
+
 - In your terminal, press `Y` when asked "Use port 8082 instead?"
 - Metro will start on port 8082
 
 **Option B:** Kill existing process manually
+
 ```bash
 kill 19194
 # Then run: npm run dev
@@ -17,11 +19,13 @@ kill 19194
 ## Step 2: Start Metro Bundler 🚀
 
 Once port is free, run:
+
 ```bash
 npm run dev
 ```
 
 Wait for Metro to start. You'll see:
+
 ```
 › Metro waiting on exp://...
 ```
@@ -31,11 +35,13 @@ Wait for Metro to start. You'll see:
 ## Step 3: Launch iOS Simulator 📱
 
 In the Metro terminal, press:
+
 ```
 i
 ```
 
 Or manually:
+
 ```bash
 npx expo run:ios
 ```
@@ -67,11 +73,13 @@ If text changes immediately without app restart → Fast Refresh works!
 ## Troubleshooting
 
 **If Fast Refresh doesn't work:**
+
 - Press `r` in Metro terminal for manual reload
 - Check for syntax errors in your code
 - Restart Metro: `Ctrl+C` then `npm run dev`
 
 **If Map still shows error:**
+
 - Make sure you rebuilt after pod install: `npx expo run:ios`
 - Check `ios/VarsityHub/Info.plist` has `GMSApiKey`
 

@@ -12,6 +12,7 @@
 
 **Category:** Duplicate logic  
 **Locations:**
+
 - `app/manage-season.tsx:199-202` — `.toISOString().split('T')[0]` for ISO dates
 - `app/manage-season.tsx:1880, 2040, 2156` — `.toLocaleDateString()` for display
 - `app/team-viewer.tsx:110-111` — mixed `.toISOString().split('T')[0]` and `.toLocaleTimeString()`
@@ -21,6 +22,7 @@
 
 **Canonical Recommendation:**  
 Create `utils/dateFormat.ts` with three canonical functions:
+
 - `formatDateISO(date: Date | string): string` → `YYYY-MM-DD` for form inputs / comparisons
 - `formatDateDisplay(date: Date | string): string` → localized display (e.g., "Mar 20, 2026")
 - `formatTimeDisplay(date: Date | string): string` → localized time (e.g., "2:30 PM")
@@ -35,6 +37,7 @@ Use these consistently everywhere. This prevents locale bugs and centralizes for
 
 **Category:** API call drift  
 **Locations:**
+
 - `app/verify-identity.tsx:245-250` — Checks `error?.status ?? error?.response?.status`, uses `error?.message || error?.data?.error`
 - `app/game-photos.tsx:34-35` — Generic `setError(true)`, no error message extraction
 - `app/team-viewer.tsx:73-74` — Uses `error?.message || 'Failed to load team data'`
@@ -44,6 +47,7 @@ Use these consistently everywhere. This prevents locale bugs and centralizes for
 
 **Canonical Recommendation:**  
 Create `utils/apiErrors.ts` with helper:
+
 ```typescript
 function extractErrorMessage(err: any, fallback: string = 'Request failed'): string {
   return err?.message || err?.data?.error || fallback;
@@ -60,6 +64,7 @@ Replace all error extraction with this. Document that our http.ts errors always 
 
 **Category:** State management drift  
 **Locations:**
+
 - `hooks/useUser.ts` — Custom hook wrapping `User.me()`, returns `{ user, loading, error, refresh }`
 - `hooks/useTeamOptions.ts` — Custom hook wrapping `Team.list()`, same pattern
 - `hooks/useOrganizationSearch.ts` — Custom hook, different return shape: `{ organizations, loading, error, search, clear }`
@@ -79,6 +84,7 @@ Create a generic `useAsyncData<T>` hook wrapping standard loading/error/refresh 
 
 **Category:** Duplicate logic  
 **Locations:**
+
 - `hooks/useRequireCoach.ts:15-37` — Checks `user?.approval_status === 'APPROVED'`, reads `coach_agreement_version`
 - `context/AuthProvider.tsx` — Also reads `approval_status` and `required_coach_agreement_version`
 - Multiple screens in `app/coach-*` — Inline role checks like `user?.preferences?.role === 'coach'`
@@ -87,6 +93,7 @@ Create a generic `useAsyncData<T>` hook wrapping standard loading/error/refresh 
 
 **Canonical Recommendation:**  
 Create `utils/roleChecks.ts` with canonical functions:
+
 ```typescript
 export function isCoach(user: AuthUser | null): boolean { ... }
 export function isApprovedCoach(user: AuthUser | null): boolean { ... }
@@ -106,6 +113,7 @@ Use these everywhere instead of inline checks. Single source of truth.
 
 **Category:** Styling / component drift  
 **Locations:**
+
 - `components/ui/AccessibleButton.tsx:29` — Standalone button with a11y props
 - `components/ui/PrimaryButton.tsx:13` — Wraps `Button` with color override
 - `components/ui/button.tsx:25` — Base `Button`, exported as default
@@ -124,6 +132,7 @@ Keep only `components/ui/button.tsx` as canonical. Remove `AccessibleButton.tsx`
 
 **Category:** Component drift  
 **Locations:**
+
 - `components/AddGameModal.tsx` — Custom modal with form fields
 - `components/BulkScheduleModal.tsx` — Custom modal with table
 - `components/ZipAlternativesModal.tsx` — Custom modal with list
@@ -144,6 +153,7 @@ Create `components/ui/ModalBase.tsx` with common structure. Refactor the 5 modal
 
 **Category:** Duplicate logic  
 **Locations:**
+
 - `app/verify-identity.tsx:118-135` — Displays `error` state as `<Text>{error}</Text>`
 - `app/settings/request-host-event.tsx:156-162` — Uses `errors` object with per-field display
 - `app/team-viewer.tsx:90-95` — Uses `<ErrorAlert>{error}</ErrorAlert>` (custom component)
@@ -162,6 +172,7 @@ Create `components/ui/ErrorAlert.tsx` with consistent styling. Use in all forms/
 
 **Category:** Duplicate logic  
 **Locations:**
+
 - `app/manage-season.tsx` — Checks `user?.preferences?.role === 'coach'` inline
 - `app/team-viewer.tsx` — Checks `user?.is_admin` inline
 - `hooks/useRequireAdmin.ts` — Reads `isAdmin` from `useAuth()`
@@ -183,6 +194,7 @@ Consolidate in `utils/roleChecks.ts` (see finding #4). All screens should import
 
 **Category:** Type drift  
 **Locations:**
+
 - `api/entities.ts:Post.listPage()` — Returns `{ items: [], nextCursor: null }`
 - `api/entities.ts:Notification.listPage()` — Returns `{ items: [], cursor: null, nextCursor: null }` (both `cursor` and `nextCursor`)
 - `api/entities.ts:Message.filter()` — Returns raw response (unclear structure)
@@ -200,6 +212,7 @@ Standardize paginated response shape: `{ items: T[], nextCursor: string | null }
 
 **Category:** Duplicate logic  
 **Locations:**
+
 - `app/manage-season.tsx:767` — `new Date(Date.UTC(...))` explicitly uses UTC
 - `app/team-viewer.tsx:111` — `.toLocaleTimeString()` uses device timezone
 - No consolidated timezone documentation
@@ -208,6 +221,7 @@ Standardize paginated response shape: `{ items: T[], nextCursor: string | null }
 
 **Canonical Recommendation:**  
 Document timezone handling: all timestamps in DB are UTC. Create `utils/timezone.ts` with helpers:
+
 - `formatEventTime(utcDateString): string` — Always display device timezone
 
 **Effort:** `M` (2-3 hours: audit all time-related code, add helpers, update ~10-15 call sites)
@@ -218,6 +232,7 @@ Document timezone handling: all timestamps in DB are UTC. Create `utils/timezone
 
 **Category:** Type drift  
 **Locations:**
+
 - `api/schemas/team.ts` — Has Zod schema and validators
 - `api/schemas/organization.ts` — Same pattern
 - **No** `api/schemas/event.ts` — Event responses not validated
@@ -235,6 +250,7 @@ Create `api/schemas/event.ts` with Zod schema matching server's `serializeEvent`
 
 **Category:** Type drift  
 **Locations:**
+
 - `api/types.ts:CreatePostPayload` — Defines what can be created
 - `api/entities.ts:Post.listPage()` — Uses `PostPage<T = any>`
 - **No canonical Post type** — No validation of returned posts

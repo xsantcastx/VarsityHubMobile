@@ -1,4 +1,5 @@
 # VarsityHub — Pre-Build QA Checklist
+
 > Updated 2026-03-28. Run through every section before any App Store submission.
 > Legend: ✅ Pass · ❌ Fail · ⚠️ Warning / Partial
 
@@ -7,6 +8,7 @@
 ## 1. AUTH FLOWS
 
 ### Email / Password
+
 - [ ] Register with new email → 6-digit verification code arrives
 - [ ] Wrong verification code → specific error shown
 - [ ] Correct code → proceeds to onboarding
@@ -19,6 +21,7 @@
 - [ ] Repeated failed logins → 429 rate-limit message shown to user
 
 ### Apple Sign-In
+
 - [ ] Button visible on iOS only
 - [ ] Tap → system sheet appears
 - [ ] Complete → account created or logged in
@@ -26,6 +29,7 @@
 - [ ] Existing email-account → merged, not duplicated
 
 ### Google Sign-In (**requires new native build v1.1.1+**)
+
 - [ ] Button enabled (not "temporarily unavailable")
 - [ ] Tap → browser opens Google consent page
 - [ ] Complete → redirected back to app via `com.googleusercontent.apps.*` scheme
@@ -33,6 +37,7 @@
 - [ ] Cancel mid-flow → returns to sign-in gracefully (no crash)
 
 ### Session Management
+
 - [ ] Logout → token cleared, redirected to sign-in
 - [ ] Silent token refresh works (no involuntary logout on 401)
 - [ ] Session persists across full app restarts
@@ -43,6 +48,7 @@
 ## 2. ONBOARDING
 
 ### Fan (2 steps)
+
 - [ ] Step 1: select Fan → continues
 - [ ] Step 2: username + DOB + zip → Continue enabled only when all valid
 - [ ] Keyboard does not cover inputs on **iOS** and **Android**
@@ -50,6 +56,7 @@
 - [ ] Complete → home feed
 
 ### Coach (3 steps)
+
 - [ ] Step 1: select Coach → continues
 - [ ] Step 2: username + DOB + zip
 - [ ] Step 3: league name + org selection
@@ -61,6 +68,7 @@
 - [ ] After approval: "View Your Organization" navigates correctly
 
 ### Guards
+
 - [ ] Cannot reach (tabs) without completing onboarding
 - [ ] Unverified user cannot complete onboarding
 - [ ] Back on step 1 → stays inside onboarding (no escape)
@@ -137,6 +145,7 @@
 ## 8. TEAMS
 
 ### Create
+
 - [ ] All fields validate
 - [ ] Logo upload → preview shown
 - [ ] Submit → team created, navigates to team hub
@@ -144,12 +153,14 @@
 - [ ] Veteran/Legend: no limit
 
 ### Hub
+
 - [ ] Team profile loads
 - [ ] Roster list loads
 - [ ] Edit team (coach/owner only) → saves
 - [ ] Delete team (owner only) → confirmation → deleted
 
 ### Roster
+
 - [ ] Invite by username → invite sent
 - [ ] Accept invite → appears on roster
 - [ ] Remove player → gone from roster
@@ -157,6 +168,7 @@
 - [ ] Roster limit per plan enforced
 
 ### Invites
+
 - [ ] TEAM_INVITE notification received
 - [ ] Accept → joins team
 - [ ] Decline → invite removed
@@ -192,6 +204,7 @@
 ## 11. NOTIFICATIONS (test each type)
 
 In-app notification center:
+
 - [ ] FOLLOW — someone follows you
 - [ ] UPVOTE — post upvoted
 - [ ] COMMENT — post commented
@@ -207,6 +220,7 @@ In-app notification center:
 - [ ] ORG_APPROVED — org approved
 
 Behavior:
+
 - [ ] Unread badge shows on tab
 - [ ] Mark all read → badge clears
 - [ ] Tap notification → correct screen opens
@@ -230,6 +244,7 @@ Behavior:
 ## 13. ADVERTISEMENTS
 
 ### Advertiser (Veteran/Legend only)
+
 - [ ] Rookie tries to create ad → blocked with "plan required" error
 - [ ] Ad form validates: business name, email, banner URL, zip code
 - [ ] Upload banner → preview shown
@@ -237,16 +252,19 @@ Behavior:
 - [ ] Ad approval pending → Railway log shows `[ads] for-feed` correctly excluding unpaid ad
 
 ### Admin Review
+
 - [ ] Pending ad visible in admin dashboard
 - [ ] Approve → status = active, advertiser notified
 - [ ] Reject with note → status = rejected, note in email
 
 ### Payment
+
 - [ ] Book dates → Stripe payment sheet opens
 - [ ] Complete payment → ad status = active
 - [ ] Failed payment → ad stays draft
 
 ### Feed Display
+
 - [ ] Active ad shown to user **inside** target zip (within 9 km)
 - [ ] Active ad **NOT** shown to user outside target zip
 - [ ] DB-level bounding box working: Railway log shows `take: 20` result not 50
@@ -257,16 +275,19 @@ Behavior:
 ## 14. PAYMENTS & SUBSCRIPTIONS
 
 ### Stripe (Android)
+
 - [ ] Upgrade → PaymentSheet opens
 - [ ] Valid card → success; plan updates immediately
 - [ ] Cancel subscription → downgraded at period end
 
 ### Apple IAP (iOS)
+
 - [ ] Upgrade → Apple purchase sheet
 - [ ] Complete → plan updates
 - [ ] Restore purchases → plan restored
 
 ### Plan Enforcement (server-side)
+
 - [ ] Rookie: cannot create 3rd team
 - [ ] Rookie: cannot create ads
 - [ ] Veteran/Legend: no team limit
@@ -300,18 +321,18 @@ Behavior:
 
 ## 17. EMAIL DELIVERY (send and verify each)
 
-| Email | Trigger | Check |
-|-------|---------|-------|
-| Verification code | Register | Code present, legible |
-| Password reset | Forgot password | Link works, expires after use |
-| Password changed | Change password | Security alert arrives |
-| Join request approved (league owner) | Admin approves coach | Arrives to coach |
-| Join request approved (admin) | Admin route approves | Arrives to coach |
-| Ad pending review | Advertiser submits | Arrives to admin email |
-| Ad approved | Admin approves ad | Arrives to advertiser |
-| Ad rejected | Admin rejects ad | Note included |
-| Event approved | Admin approves event | Arrives to organizer |
-| Event rejected | Admin rejects event | Arrives to organizer |
+| Email                                | Trigger              | Check                         |
+| ------------------------------------ | -------------------- | ----------------------------- |
+| Verification code                    | Register             | Code present, legible         |
+| Password reset                       | Forgot password      | Link works, expires after use |
+| Password changed                     | Change password      | Security alert arrives        |
+| Join request approved (league owner) | Admin approves coach | Arrives to coach              |
+| Join request approved (admin)        | Admin route approves | Arrives to coach              |
+| Ad pending review                    | Advertiser submits   | Arrives to admin email        |
+| Ad approved                          | Admin approves ad    | Arrives to advertiser         |
+| Ad rejected                          | Admin rejects ad     | Note included                 |
+| Event approved                       | Admin approves event | Arrives to organizer          |
+| Event rejected                       | Admin rejects event  | Arrives to organizer          |
 
 ---
 

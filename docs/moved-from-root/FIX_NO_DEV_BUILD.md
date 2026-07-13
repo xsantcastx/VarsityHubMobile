@@ -3,11 +3,13 @@
 ## The Problem
 
 You keep seeing:
+
 ```
 CommandError: No development build (com.varsithub.varsityhub) for this project is installed.
 ```
 
 This happens because:
+
 1. `expo start` defaults to `--dev-client` mode for apps with custom native modules
 2. Dev-client mode REQUIRES a pre-built development client app
 3. You don't have one installed yet
@@ -25,6 +27,7 @@ npx expo run:ios
 ```
 
 **What this does:**
+
 - ✅ Builds the app WITH all native modules
 - ✅ Installs it on simulator automatically
 - ✅ Starts Metro bundler
@@ -62,6 +65,7 @@ npx expo start
 ## 🎯 Recommended: Just Use `expo run:ios`
 
 **Why this is best:**
+
 - ✅ One command, no setup
 - ✅ Works immediately
 - ✅ No waiting for separate dev build
@@ -69,6 +73,7 @@ npx expo start
 - ✅ Subsequent runs are fast (cached)
 
 **Command:**
+
 ```bash
 npx expo run:ios
 ```
@@ -84,6 +89,7 @@ That's it! Wait 5-10 minutes first time, then it's instant.
    - Press `Ctrl+C`
 
 2. **Run the build command:**
+
    ```bash
    npx expo run:ios
    ```
@@ -100,6 +106,7 @@ That's it! Wait 5-10 minutes first time, then it's instant.
 ## Why `expo start` Doesn't Work
 
 When you run `expo start`:
+
 - Expo detects your app has custom native modules
 - It automatically uses `--dev-client` mode
 - Dev-client mode needs a pre-built app
@@ -112,6 +119,7 @@ When you run `expo start`:
 ## After First Build
 
 Once `npx expo run:ios` completes successfully:
+
 - The app is installed on simulator
 - You can now use `expo start` + press 'i' if you want
 - But `npx expo run:ios` is still easier

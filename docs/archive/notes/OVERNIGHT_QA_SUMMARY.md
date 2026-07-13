@@ -2,13 +2,13 @@
 
 ## Latest Run – December 10, 2025 @ 02:00 EST
 
-- **Build Status**: `1.0.1 (37)` uploaded to App Store Connect at 01:54 AM and is now in **Processing** (internal TestFlight testers can install as soon as Apple finishes processing). Artifact: https://expo.dev/artifacts/eas/2B7arveT3Q8urJVogjj5TB.ipa  
+- **Build Status**: `1.0.1 (37)` uploaded to App Store Connect at 01:54 AM and is now in **Processing** (internal TestFlight testers can install as soon as Apple finishes processing). Artifact: https://expo.dev/artifacts/eas/2B7arveT3Q8urJVogjj5TB.ipa
 - **Queued Build**: `6b345e0b-8880-4bba-80d7-8e5512d7a5aa` remains in progress on Expo. Cancel if the new provisioning profile needs to be applied immediately.
 - **Lint**: `npm run lint` completed in ~2 s with 371 warnings / 0 errors (log timestamp appended to `lint-overnight-results.log`). Hot spots remain `app/team-contacts.tsx`, `app/feed.tsx`, and `app/game-details/*` for unused vars + floating promises.
 - **Tests**: `npm test` passed 2/2 specs (OfflineBanner suite). `jest-results.log` updated.
 - **TypeScript**: `npm run typecheck` passed with no diagnostics. `typecheck-results.log` updated.
-- **Action Items (overnight)**:  
-  1. Regenerate the App Store provisioning profile via `npx eas credentials -p ios --skip-credentials-json` → “Set up new provisioning profile” to replace the cached `4b58ca01…` profile without Push/Apple Sign-In entitlements.  
+- **Action Items (overnight)**:
+  1. Regenerate the App Store provisioning profile via `npx eas credentials -p ios --skip-credentials-json` → “Set up new provisioning profile” to replace the cached `4b58ca01…` profile without Push/Apple Sign-In entitlements.
   2. Capture TestFlight tester instructions + QA priorities in `MORNING_HANDOFF.md` before handoff.
 
 ---
@@ -26,6 +26,7 @@ Overnight automation session executed all pre-build quality checks and optimizat
 ## Build Status
 
 ### Remote EAS iOS Build
+
 - **Status**: ⏳ IN PROGRESS
 - **Build URL**: https://expo.dev/accounts/xsantcastx/projects/varsityhub/builds/7b6fb092-212a-4353-b8b1-69c24531572c
 - **Upload**: ✅ COMPLETED (195 MB uploaded in 2m 4s)
@@ -38,6 +39,7 @@ Overnight automation session executed all pre-build quality checks and optimizat
 ## QA Results
 
 ### 1. TypeScript Type Checking ✅ PASSED
+
 ```
 Status: COMPLETED
 Result: PASSED - No type errors detected
@@ -50,6 +52,7 @@ Log File: typecheck-results.log
 ---
 
 ### 2. Linting 🟡 WARNINGS ONLY (No Errors)
+
 ```
 Status: COMPLETED
 Result: 380 warnings, 0 errors
@@ -58,6 +61,7 @@ Log File: lint-overnight-results.log
 ```
 
 **Warning Categories**:
+
 - **156 warnings**: Unused variables (prefixed with `_` but still flagged)
 - **98 warnings**: Floating promises (missing `await` or `.catch()`)
 - **58 warnings**: Unused function parameters
@@ -67,6 +71,7 @@ Log File: lint-overnight-results.log
 - **8 warnings**: Other (duplicate vars, unused imports, etc.)
 
 **Top Files Needing Cleanup** (by warning count):
+
 1. `app/team-contacts.tsx` - 52 warnings
 2. `app/game-details/GameDetailsScreen.tsx` - 24 warnings
 3. `app/game-details/GameVerticalFeedScreen.tsx` - 47 warnings
@@ -78,6 +83,7 @@ Log File: lint-overnight-results.log
 ---
 
 ### 3. Expo Doctor Health Check 🔴 4 ISSUES DETECTED
+
 ```
 Status: COMPLETED
 Result: 13/17 checks passed, 4 checks failed
@@ -88,6 +94,7 @@ Log File: doctor-overnight-results.log
 **Issues Detected**:
 
 #### Issue 1: ❌ Invalid app.json Properties
+
 ```
 Fields: 'homepage', 'privacy', 'supportURL'
 Severity: LOW (schema validation only, does not break builds)
@@ -96,6 +103,7 @@ Recommendation: Remove or move to custom metadata section
 ```
 
 #### Issue 2: ⚠️ Duplicate Dependencies
+
 ```
 Package: react-native-safe-area-context
 Version Conflict: 5.6.2 (main) vs 4.5.0 (from react-native-calendars)
@@ -105,6 +113,7 @@ Recommendation: Deduplicate with `npx npm-force-resolutions` or update react-nat
 ```
 
 #### Issue 3: ⚠️ Non-CNG Project Configuration Mismatch
+
 ```
 Issue: Native folders (ios/android) exist but app.json has Prebuild config
 Affected Fields: orientation, icon, scheme, userInterfaceStyle, locales, ios, android, plugins, androidStatusBar
@@ -114,6 +123,7 @@ Recommendation: Either remove native folders (use Prebuild) or manually sync con
 ```
 
 #### Issue 4: ❌ Package Version Mismatches (3 packages)
+
 ```
 jest-expo: 51.0.4 (should be ~54.0.14) - MAJOR version mismatch
 @sentry/react-native: 7.7.0 (should be ~7.2.0) - MINOR version mismatch
@@ -130,6 +140,7 @@ Recommendation: Run `npx expo install --check` to upgrade
 ## Security Analysis
 
 ### Snyk Code Scan (Required per .github/instructions/snyk_rules.instructions.md)
+
 ```
 Status: ⏹️ NOT EXECUTED
 Reason: Awaiting remote build completion for newly generated code validation
@@ -137,6 +148,7 @@ Next Step: Run `mcp_snyk_snyk_code_scan` on all modified files from current sess
 ```
 
 **Files Modified This Session Requiring Snyk Scan**:
+
 - `app/role-onboarding.tsx` (6 icon fixes)
 - `ios/.swiftlint.yml` (new native config)
 - `NATIVE_TOOLS_SETUP.md` (documentation)
@@ -147,6 +159,7 @@ Next Step: Run `mcp_snyk_snyk_code_scan` on all modified files from current sess
 ## Build Environment
 
 ### Apple Developer Credentials ✅ VALIDATED
+
 - **Apple ID**: sanchezemil82@gmail.com
 - **Team ID**: B5H8F69RW5
 - **Distribution Certificate**: MM55SASRHC (valid until Nov 19, 2026)
@@ -155,6 +168,7 @@ Next Step: Run `mcp_snyk_snyk_code_scan` on all modified files from current sess
 - **Entitlements**: Push Notifications (production), Sign in with Apple
 
 ### Build Configuration
+
 - **Expo SDK**: 54.0.0
 - **React Native**: 0.76.5
 - **EAS CLI**: 1.0.243 (local), latest (remote)
@@ -166,12 +180,14 @@ Next Step: Run `mcp_snyk_snyk_code_scan` on all modified files from current sess
 ## Recommended Actions
 
 ### Immediate (Before App Store Submission)
+
 1. ✅ **Monitor Remote Build**: Check build completion at https://expo.dev
 2. ⚠️ **Fix Duplicate Dependencies**: Resolve `react-native-safe-area-context` conflict
 3. ⚠️ **Update Package Versions**: Run `npx expo install --check` to fix 3 mismatches
 4. ℹ️ **Clean app.json**: Remove unsupported fields (`homepage`, `privacy`, `supportURL`)
 
 ### Short-Term (Next Sprint)
+
 1. 🧹 **Code Cleanup**: Address 380 lint warnings
    - Remove unused variables (prefix with `_` or delete)
    - Add proper error handling to floating promises
@@ -181,6 +197,7 @@ Next Step: Run `mcp_snyk_snyk_code_scan` on all modified files from current sess
 3. 🧪 **Run Tests**: Execute Jest and Playwright suites (not run overnight)
 
 ### Medium-Term (Maintenance)
+
 1. 📱 **Resolve Prebuild Strategy**: Decide on managed (Prebuild) vs bare workflow
 2. 📦 **Dependency Audit**: Review all 3rd-party packages for updates
 3. 🎨 **Icon Verification**: Test all 6 fixed icons on physical device
@@ -192,6 +209,7 @@ Next Step: Run `mcp_snyk_snyk_code_scan` on all modified files from current sess
 **Reason**: Focused on build initiation and static analysis for overnight automation.
 
 **Pending Test Suites**:
+
 - `npm run test` - Jest unit tests
 - `npm run test:smoke` - Playwright E2E smoke tests
 - `npm run server:db:migrate` - Database migration validation
@@ -221,12 +239,14 @@ open https://expo.dev/accounts/xsantcastx/projects/varsityhub/builds/7b6fb092-21
 ## Session Artifacts
 
 **Log Files Generated**:
+
 - `eas-remote-build.log` - Remote EAS build output (currently writing)
 - `typecheck-results.log` - TypeScript type checking results
 - `lint-overnight-results.log` - Linting warnings report
 - `doctor-overnight-results.log` - Expo health check results
 
 **Documentation Created**:
+
 - `OVERNIGHT_QA_SUMMARY.md` - This comprehensive summary
 - `NATIVE_TOOLS_SETUP.md` - Native development tools guide (6.1KB)
 - `NATIVE_TOOLS_SESSION_SUMMARY.md` - Previous session summary
@@ -255,6 +275,7 @@ open https://expo.dev/accounts/xsantcastx/projects/varsityhub/builds/7b6fb092-21
 ## 🌙 Latest Overnight Session (Dec 8/9, 2025)
 
 ### Code Quality Checks (PASSED)
+
 ✅ **TypeScript**: 0 type errors  
 ✅ **ESLint**: 371 warnings (non-blocking), 0 errors  
 ✅ **Mobile iOS Code**: Security scan clean (0 issues)  
@@ -262,23 +283,27 @@ open https://expo.dev/accounts/xsantcastx/projects/varsityhub/builds/7b6fb092-21
 ⚠️ **Backend Dependencies**: 1 CRITICAL (elliptic CVE-2024-48948)
 
 ### Build Optimization
+
 ✅ Local build artifacts cleaned (ios/build, android/build, .gradle)  
 ✅ .easignore verified & optimized  
 ✅ Expected upload size: ~220-250MB (down from 300MB)  
 ✅ Savings: ~20-25%
 
 ### Build Status
+
 📦 **Build #27** - Kicked off 12:17 AM, in progress  
 ⏱️ Expected completion: ~1-2 hours  
 📍 Fallback: Build #38 (32MB, verified working) available
 
 ### Pre-Launch Action Items
+
 🔴 **CRITICAL**: Fix elliptic vulnerability (`npm update elliptic` in server/)  
 🟡 **RECOMMENDED**: Clean 371 lint warnings (non-blocking)  
 🟢 **VERIFIED**: Icon fixes committed (commit aaa3a52)  
 🟢 **VERIFIED**: Provisioning profile has Push + Apple Sign-In
 
 ### Morning Handoff
+
 1. Check Build #27 completion status
 2. If successful → TestFlight submission ready
 3. If failed → Use Build #38 fallback

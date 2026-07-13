@@ -3,6 +3,7 @@
 ## Quick Reload (Fastest)
 
 **In the iOS Simulator:**
+
 - Press **`Cmd + R`** to reload the app
 - Or: **Device → Shake** → Select "Reload"
 
@@ -25,6 +26,7 @@ npx expo start --dev-client --scheme varsityhubmobile --host localhost --port 80
 ```
 
 This will:
+
 - Start Metro bundler on port 8081
 - Enable Fast Refresh
 - Clear cache for fresh start
@@ -53,17 +55,20 @@ This will rebuild and reinstall the app in the simulator.
 ## Troubleshooting
 
 ### Metro Not Connecting
+
 1. Check if Metro is running: Look for "Metro waiting on..." in terminal
 2. Check port 8081: `lsof -i :8081`
 3. Restart Metro: Stop (Ctrl+C) and run `npm run dev` again
 
 ### Changes Not Appearing
+
 1. Press `Cmd + R` in simulator
 2. Check Metro terminal for errors
 3. Clear cache: `npm run dev` (includes --clear flag)
 4. Full rebuild: `npm run ios`
 
 ### Simulator Not Opening
+
 1. Open manually: Xcode → Open Developer Tool → Simulator
 2. Or run: `open -a Simulator`
 

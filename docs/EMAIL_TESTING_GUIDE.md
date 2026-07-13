@@ -15,6 +15,7 @@ grep -E "SENDGRID_API_KEY|EMAIL_FROM|SENDGRID_.*_TEMPLATE_ID" .env
 ```
 
 **What to check:**
+
 - ✅ `SENDGRID_API_KEY` is set (should start with `SG.`)
 - ✅ `EMAIL_FROM` is set (e.g., `noreply@varsityhub.app`)
 - ✅ Required template IDs are configured:
@@ -28,6 +29,7 @@ grep -E "SENDGRID_API_KEY|EMAIL_FROM|SENDGRID_.*_TEMPLATE_ID" .env
 The server includes test email endpoints at `/test-emails/*`. These allow you to send test emails without triggering real user flows.
 
 #### Start the server:
+
 ```bash
 cd server
 npm run dev
@@ -36,6 +38,7 @@ npm run dev
 #### Test endpoints:
 
 **Verification Email:**
+
 ```bash
 curl -X POST http://localhost:3001/test-emails/verification \
   -H "Content-Type: application/json" \
@@ -47,6 +50,7 @@ curl -X POST http://localhost:3001/test-emails/verification \
 ```
 
 **Password Reset Email:**
+
 ```bash
 curl -X POST http://localhost:3001/test-emails/password-reset \
   -H "Content-Type: application/json" \
@@ -57,6 +61,7 @@ curl -X POST http://localhost:3001/test-emails/password-reset \
 ```
 
 **Team Invite Email:**
+
 ```bash
 curl -X POST http://localhost:3001/test-emails/team-invite \
   -H "Content-Type: application/json" \
@@ -70,6 +75,7 @@ curl -X POST http://localhost:3001/test-emails/team-invite \
 ```
 
 **Organization Invite Email:**
+
 ```bash
 curl -X POST http://localhost:3001/test-emails/org-invite \
   -H "Content-Type: application/json" \
@@ -82,6 +88,7 @@ curl -X POST http://localhost:3001/test-emails/org-invite \
 ```
 
 **Transaction Report:**
+
 ```bash
 curl -X POST http://localhost:3001/test-emails/transaction-report \
   -H "Content-Type: application/json" \
@@ -100,12 +107,14 @@ npx tsx scripts/test-all-emails.ts
 ```
 
 This will:
+
 - Test all 40+ email templates
 - Send test emails to your configured test email
 - Generate a `test-results.json` report
 - Show pass/fail status for each email type
 
 **Output:**
+
 - ✅ Green checkmarks for successful sends
 - ❌ Red X for failed sends
 - Summary with pass rate percentage
@@ -119,6 +128,7 @@ npx tsx scripts/test-email-system.ts
 ```
 
 This will:
+
 - ✅ Check SendGrid API key configuration
 - ✅ Verify email template IDs
 - ✅ Test email library functions
@@ -128,16 +138,19 @@ This will:
 ### 5. **Test Real User Flows**
 
 #### Test Email Verification:
+
 1. Create a new user account (or use existing unverified account)
 2. Request verification code: `POST /auth/verify/request`
 3. Check your email for verification code
 
 #### Test Password Reset:
+
 1. Go to forgot password flow
 2. Enter your email: `POST /auth/password/request-reset`
 3. Check your email for reset code
 
 #### Test Team Invite:
+
 1. Create a team invitation
 2. Send invite via API or UI
 3. Check invitee's email for invite link
@@ -160,6 +173,7 @@ Use this checklist to verify emails are working:
 ### Emails not sending?
 
 1. **Check SendGrid Status:**
+
    ```bash
    # In server directory
    node -e "console.log(process.env.SENDGRID_API_KEY ? '✅ Configured' : '❌ Missing')"
@@ -208,6 +222,7 @@ Use this checklist to verify emails are working:
 The system includes tests for:
 
 ### Auth & Security (5 emails)
+
 - ✅ Email verification
 - ✅ Password reset
 - ✅ Password changed
@@ -215,6 +230,7 @@ The system includes tests for:
 - ✅ Login from new device
 
 ### Moderation & Trust (7 emails)
+
 - ✅ Report resolved
 - ✅ Report dismissed
 - ✅ Account warning
@@ -224,6 +240,7 @@ The system includes tests for:
 - ✅ Permanent ban
 
 ### Events (7 emails)
+
 - ✅ Event submission received
 - ✅ Event approved
 - ✅ Event denied
@@ -233,6 +250,7 @@ The system includes tests for:
 - ✅ RSVP confirmed
 
 ### Team & Organization (9 emails)
+
 - ✅ Organization invitation
 - ✅ Team invitation
 - ✅ Athlete invitation
@@ -244,6 +262,7 @@ The system includes tests for:
 - ✅ User confirmation
 
 ### Billing (2+ emails)
+
 - ✅ Payment failed
 - ✅ Subscription expiring
 - ✅ Payment succeeded (via Stripe webhook)

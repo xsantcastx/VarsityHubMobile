@@ -1,4 +1,5 @@
 # Onboarding Changes Tracker
+
 **Session Date:** November 16, 2025  
 **Last Updated:** December 12, 2025 (Autocomplete + Org Metadata)
 
@@ -7,9 +8,11 @@
 ## ⚡ Latest: Autocomplete + Organization Metadata Flow (Dec 12, 2025)
 
 ### Summary
+
 Organizations now require canonical location metadata (`place_id`, `formatted_address`, `lat/lng`) to prevent duplicates and enable location-based search. Step 4 onboarding enforces autocomplete selection before submission.
 
 ### Key Changes
+
 1. **Database:** Added `formatted_address`, `place_id` to `Organization` model (migration `20251212090000_add_organization_place_id`)
 2. **Backend:** New endpoints `/geocoding/autocomplete`, `/geocoding/place-details`, `/organizations/check-duplicate`; duplicate guard checks `place_id` first, then normalized name+zip
 3. **Mobile Step 4:** Enforced autocomplete, inline duplicate warning, email verification guard, success toast after creation
@@ -19,6 +22,7 @@ Organizations now require canonical location metadata (`place_id`, `formatted_ad
 7. **Logging:** Reusable middleware with request IDs, timing, payment-specific logging
 
 ### Verification
+
 - **Test 1:** Autocomplete enforcement—button disabled until suggestion selected
 - **Test 2:** Duplicate detection—yellow warning + backend 409 error for duplicates
 - **Test 3:** Email verification guard—blocks unverified users with alert
@@ -29,13 +33,16 @@ Organizations now require canonical location metadata (`place_id`, `formatted_ad
 - **Test 8:** Logs show `[uuid] → GET /path` and `[uuid] 💳 Payment Request` with session IDs
 
 ### Rollback
+
 ```bash
 cd server
 npx prisma migrate resolve --rolled-back 20251212090000_add_organization_place_id
 ```
+
 Remove autocomplete enforcement from `step-4-organization.tsx` by omitting `&& !!selectedPlace` from `canContinue`.
 
 ### Support Scripts
+
 ```bash
 node server/scripts/verify-organizations.ts  # View org metadata table
 ```
@@ -49,13 +56,15 @@ node server/scripts/verify-organizations.ts  # View org metadata table
 ### ✅ Step 1: Role Selection (`app/onboarding/step-1-role.tsx`)
 
 #### Fan Account
+
 - ✅ Changed "Connect with other fans" → "Pitch events for your community"
 - ✅ Removed "Quick setup process"
-- ✅ Updated upgrade note: "*Fan accounts can be upgraded to athlete/staff*"
+- ✅ Updated upgrade note: "_Fan accounts can be upgraded to athlete/staff_"
 - ✅ Split into two bullets: "- Upon coach approval"
 - ✅ Grammar fix: "first-time coaches" (hyphenated)
 
 **Current Features:**
+
 ```
 ✓ Follow your favorite teams
 ✓ Get game updates and highlights
@@ -65,11 +74,13 @@ node server/scripts/verify-organizations.ts  # View org metadata table
 ```
 
 #### Rookie Account
+
 - ✅ Removed "(Coach)" from title - now just "Rookie"
 - ✅ Changed "(ex: Men's and Women's Soccer)" → "Example: Men's and Women's Soccer"
 - ✅ Grammar fix: "first-time coaches" (hyphenated)
 
 **Current Features:**
+
 ```
 ✓ Perfect for first-time coaches
 ✓ First two teams free
@@ -78,9 +89,11 @@ node server/scripts/verify-organizations.ts  # View org metadata table
 ```
 
 #### Coach/Organizer Account
+
 - ✅ Replaced "Communication features" → "Unlimited teams and authorized users"
 
 **Current Features:**
+
 ```
 ✓ Create and manage teams
 ✓ Organize games and events
@@ -94,35 +107,44 @@ node server/scripts/verify-organizations.ts  # View org metadata table
 ## Pending Changes (To Discuss)
 
 ### Step 2: Email Verification
+
 - [ ] Review copy/messaging
 - [ ] Any permission-related notes?
 
 ### Step 3: Profile Setup
+
 - [ ] Different fields for different account types?
 - [ ] Required vs optional fields by role?
 
 ### Step 4: Team Creation (Coach/Rookie only)
+
 - [ ] Clarify 2-team limit messaging for Rookie
 - [ ] Add upgrade prompt when limit reached?
 
 ### Step 5: League/Sport Selection
+
 - [ ] Any changes needed?
 
 ### Step 6: Authorized Users (Coach only)
+
 - [ ] Add messaging about Rookie vs Veteran vs Legend limits
 - [ ] Skip for Rookie accounts?
 
 ### Step 7: Profile Photo
+
 - [ ] Any changes?
 
 ### Step 8: Interests/Categories
+
 - [ ] Different for each account type?
 
 ### Step 9: Welcome/Quick Start
+
 - [ ] Customize actions by account type
 - [ ] Match the promises from Step 1
 
 ### Step 10: Confirmation
+
 - [ ] Update role descriptions to match Step 1
 
 ---
@@ -130,6 +152,7 @@ node server/scripts/verify-organizations.ts  # View org metadata table
 ## Backend Implementation Notes
 
 ### Critical: Role-Based Feature Access
+
 1. **Fan Permissions:**
    - ⚠️ Event pitching needs API endpoint
    - ⚠️ Upgrade request system needs database table
@@ -148,6 +171,7 @@ node server/scripts/verify-organizations.ts  # View org metadata table
    - ✅ Full team management
 
 ### Database Changes Needed
+
 - [ ] Add `role` column to User table (currently in preferences JSON)
 - [ ] Create `PitchedEvent` table for fan event proposals
 - [ ] Create `UpgradeRequest` table for fan→athlete transitions
@@ -155,6 +179,7 @@ node server/scripts/verify-organizations.ts  # View org metadata table
 - [ ] Add `event_type` to Event table (game/fundraiser/watch_party)
 
 ### API Endpoints Needed
+
 - [ ] `POST /events/pitch` - Fan pitches event
 - [ ] `GET /events/pitched` - Coach views pitches
 - [ ] `PATCH /events/pitched/:id/approve` - Approve pitch
@@ -176,6 +201,7 @@ node server/scripts/verify-organizations.ts  # View org metadata table
 ## 📍 Autocomplete + Org Metadata: Detailed Documentation
 
 ### Schema Changes
+
 **File:** `server/prisma/schema.prisma`  
 **Migration:** `server/prisma/migrations/20251212090000_add_organization_place_id/migration.sql`
 
@@ -184,17 +210,20 @@ model Organization {
   // ... existing fields ...
   formatted_address String? @db.VarChar(500)
   place_id          String? @db.VarChar(255)
-  
+
   @@index([place_id])
 }
 ```
 
 ### Backend: Geocoding Service
+
 **Files:**
+
 - `server/src/lib/geocoding.ts`: Core geocoding logic, caching, batch operations
 - `server/src/routes/geocoding.ts`: HTTP endpoints
 
 **New Endpoints:**
+
 ```typescript
 POST /geocoding/autocomplete?q=<query>&limit=<number>
 // Returns: [{ place_id, description, structured_formatting }]
@@ -205,6 +234,7 @@ POST /geocoding/place-details
 ```
 
 **Helper Function:**
+
 ```typescript
 resolveOrganizationLocation(locationData: {
   place_id?, formatted_address?, location?, zip_code?, latitude?, longitude?
@@ -219,12 +249,14 @@ resolveOrganizationLocation(locationData: {
 ```
 
 ### Backend: Organization Endpoints
+
 **File:** `server/src/routes/organizations.ts`
 
 **Updated Endpoints:**
+
 ```typescript
-POST /organizations
-POST /organizations/create
+POST / organizations;
+POST / organizations / create;
 // Accept: place_id, formatted_address, latitude, longitude
 // Call: resolveOrganizationLocation to normalize
 // Duplicate guard:
@@ -234,17 +266,20 @@ POST /organizations/create
 ```
 
 **New Endpoint:**
+
 ```typescript
-POST /organizations/check-duplicate
+POST / organizations / check - duplicate;
 // Body: { place_id?, name, zip_code? }
 // Returns: { exists: boolean, duplicate_of?: { id, name } }
 // Used by UI for pre-submit validation
 ```
 
 ### Frontend: Step 4 Organization
+
 **File:** `app/onboarding/step-4-organization.tsx`
 
 **Location Autocomplete:**
+
 ```tsx
 const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
 const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -266,6 +301,7 @@ const requestLocationSuggestions = useCallback((text: string) => {
 ```
 
 **Enforcement:**
+
 ```tsx
 const canContinue = useMemo(() => {
   if (saving || alreadyExists) return false;
@@ -274,26 +310,33 @@ const canContinue = useMemo(() => {
 ```
 
 **Duplicate Warning:**
+
 ```tsx
-const handleSelectLocation = useCallback((suggestion: PlaceSuggestion) => {
-  setSelectedPlace(suggestion);
-  setLocation(suggestion.description);
-  // Check for duplicates
-  (async () => {
-    const res = await httpPost('/organizations/check-duplicate', {
-      place_id: suggestion.place_id,
-      name: orgName.trim(),
-    });
-    if (res && res.exists) {
-      setDuplicateWarning(`An organization at "${suggestion.description}" already exists. Use Search to find it.`);
-    } else {
-      setDuplicateWarning(null);
-    }
-  })();
-}, [orgName]);
+const handleSelectLocation = useCallback(
+  (suggestion: PlaceSuggestion) => {
+    setSelectedPlace(suggestion);
+    setLocation(suggestion.description);
+    // Check for duplicates
+    (async () => {
+      const res = await httpPost('/organizations/check-duplicate', {
+        place_id: suggestion.place_id,
+        name: orgName.trim(),
+      });
+      if (res && res.exists) {
+        setDuplicateWarning(
+          `An organization at "${suggestion.description}" already exists. Use Search to find it.`
+        );
+      } else {
+        setDuplicateWarning(null);
+      }
+    })();
+  },
+  [orgName]
+);
 ```
 
 **Email Verification Guard:**
+
 ```tsx
 const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
 
@@ -311,7 +354,7 @@ const onContinue = async () => {
       'Please verify your email address before creating an organization.',
       [
         { text: 'Verify Now', onPress: () => router.push('/verify-email') },
-        { text: 'Cancel', style: 'cancel' }
+        { text: 'Cancel', style: 'cancel' },
       ]
     );
     return;
@@ -321,20 +364,23 @@ const onContinue = async () => {
 ```
 
 **Success Toast:**
+
 ```tsx
 const org = await Organization.createOrganization(payload);
-Alert.alert(
-  'Organization Created!',
-  `"${orgName.trim()}" has been created successfully.`,
-  [{ text: 'Continue', onPress: () => {
-    // Navigate to Step 6
-    setProgress(5);
-    router.push('/onboarding/step-6-authorized-users');
-  }}]
-);
+Alert.alert('Organization Created!', `"${orgName.trim()}" has been created successfully.`, [
+  {
+    text: 'Continue',
+    onPress: () => {
+      // Navigate to Step 6
+      setProgress(5);
+      router.push('/onboarding/step-6-authorized-users');
+    },
+  },
+]);
 ```
 
 ### Frontend: API Client
+
 **File:** `api/geocoding.ts`
 
 ```typescript
@@ -351,12 +397,15 @@ export async function autocompleteLocations(
   query: string,
   limit: number = 5
 ): Promise<PlaceSuggestion[]> {
-  const res = await httpGet(`/geocoding/autocomplete?q=${encodeURIComponent(query)}&limit=${limit}`);
+  const res = await httpGet(
+    `/geocoding/autocomplete?q=${encodeURIComponent(query)}&limit=${limit}`
+  );
   return res?.suggestions || [];
 }
 ```
 
 ### Seed Data
+
 **File:** `server/prisma/seed.ts`
 
 ```typescript
@@ -371,22 +420,23 @@ const westhill = await prisma.organization.upsert({
     formatted_address: 'Westhill High School, Stamford, CT 06902, USA',
     zip_code: '06902',
     status: 'active',
-  }
+  },
 });
 
 // Similar for Greenwich High School and Stamford Youth Soccer Club
 ```
 
 ### Tests
+
 **File:** `server/tests/organizations.test.ts`
 
 ```typescript
 test('duplicate check by place_id rejects same location', async () => {
   const org1 = await prisma.organization.create({
-    data: { name: 'Test Org', place_id: 'ChIJTest123', zip_code: '06902', status: 'active' }
+    data: { name: 'Test Org', place_id: 'ChIJTest123', zip_code: '06902', status: 'active' },
   });
   const existing = await prisma.organization.findFirst({
-    where: { place_id: 'ChIJTest123', status: 'active' }
+    where: { place_id: 'ChIJTest123', status: 'active' },
   });
   expect(existing?.id).toBe(org1.id);
 });
@@ -400,6 +450,7 @@ test('geocodeLocation returns coordinates for valid address', async () => {
 ```
 
 ### Logging Middleware
+
 **File:** `server/src/middleware/logging.ts`
 
 ```typescript
@@ -433,6 +484,7 @@ export function paymentLogging(req, res, next) {
 ```
 
 ### Environment Variables
+
 ```bash
 # Required for autocomplete to work
 GOOGLE_PLACES_API_KEY=your_key_here
@@ -441,6 +493,7 @@ GOOGLE_MAPS_API_KEY=your_key_here
 ```
 
 ### Production Checklist
+
 - [ ] Set `GOOGLE_PLACES_API_KEY` in Railway/prod env
 - [ ] Monitor Google Places API quota (daily per-project limits)
 - [ ] Set up alerts for API quota exhaustion
@@ -451,8 +504,9 @@ GOOGLE_MAPS_API_KEY=your_key_here
 ---
 
 **Documentation Complete** ✅
-   - Different permissions?
-   - Do they both need coach approval?
+
+- Different permissions?
+- Do they both need coach approval?
 
 2. **Event Pitching:**
    - Can fans pitch to ANY team or only teams they follow?
@@ -491,5 +545,4 @@ GOOGLE_MAPS_API_KEY=your_key_here
 
 ## Notes for Next Session
 
-*Add any observations or ideas here as we continue...*
-
+_Add any observations or ideas here as we continue..._

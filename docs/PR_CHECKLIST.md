@@ -11,6 +11,7 @@ payments, approvals, ownership, geofencing, or other privileged flows.
 
 ```md
 ### Secure Borders (Required)
+
 - [ ] Protected mutations touched here enforce auth + role + plan + ownership server-side where applicable
 - [ ] No client-controlled field can set role, plan, approval, payment, or ownership state
 - [ ] Privileged flows fail closed on missing/malformed params (public navigation can fail gracefully)

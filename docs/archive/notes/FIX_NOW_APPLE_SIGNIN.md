@@ -1,6 +1,7 @@
 # 🚀 Run This NOW - Fix Apple Sign-In Production Issue
 
 ## The Problem
+
 Your production database is **missing the `apple_id` column**, causing all Apple Sign-In attempts to fail with a 500 error, creating the infinite onboarding loop.
 
 ## The Fix (Choose ONE Method)
@@ -17,11 +18,13 @@ Your production database is **missing the `apple_id` column**, causing all Apple
    - This opens a terminal in your production environment
 
 3. **Run Migration**:
+
    ```bash
    npx prisma migrate deploy
    ```
 
 4. **Verify**:
+
    ```bash
    npx prisma db execute --stdin <<< "SELECT column_name FROM information_schema.columns WHERE table_name='User' AND column_name='apple_id';"
    ```
@@ -39,22 +42,23 @@ Your production database is **missing the `apple_id` column**, causing all Apple
 2. **Click "Query" tab**
 
 3. **Paste and Execute**:
+
    ```sql
    -- Add apple_id column if it doesn't exist
-   DO $$ 
+   DO $$
    BEGIN
        IF NOT EXISTS (
-           SELECT 1 FROM information_schema.columns 
+           SELECT 1 FROM information_schema.columns
            WHERE table_name='User' AND column_name='apple_id'
        ) THEN
            ALTER TABLE "User" ADD COLUMN "apple_id" TEXT;
            CREATE UNIQUE INDEX "User_apple_id_key" ON "User"("apple_id");
        END IF;
    END $$;
-   
+
    -- Verify
-   SELECT column_name, data_type, is_nullable 
-   FROM information_schema.columns 
+   SELECT column_name, data_type, is_nullable
+   FROM information_schema.columns
    WHERE table_name='User' AND column_name='apple_id';
    ```
 
@@ -71,6 +75,7 @@ Your production database is **missing the `apple_id` column**, causing all Apple
 If your Railway is configured to run migrations on deploy:
 
 1. **Make a Trivial Change**:
+
    ```bash
    cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile
    git commit --allow-empty -m "trigger migration deployment"
@@ -91,6 +96,7 @@ If your Railway is configured to run migrations on deploy:
 After running the migration:
 
 ### Test 1: API Endpoint Direct
+
 ```bash
 curl -X POST https://api-production-8ac3.up.railway.app/auth/apple \
   -H "Content-Type: application/json" \
@@ -101,6 +107,7 @@ curl -X POST https://api-production-8ac3.up.railway.app/auth/apple \
 **Not**: `{"error": "Failed to authenticate with Apple"}`
 
 ### Test 2: In the App
+
 1. Open app in iOS simulator
 2. Tap "Continue with Apple"
 3. Complete Face ID/Touch ID
@@ -113,6 +120,7 @@ curl -X POST https://api-production-8ac3.up.railway.app/auth/apple \
 ## Why This Fix Works
 
 **Before Fix**:
+
 ```
 User taps Apple Sign-In
   ↓
@@ -130,6 +138,7 @@ INFINITE LOOP
 ```
 
 **After Fix**:
+
 ```
 User taps Apple Sign-In
   ↓
@@ -155,6 +164,7 @@ Stays logged in - NO LOOP! ✅
 ## Troubleshooting
 
 ### If Migration Fails
+
 - **Error**: "relation 'User' does not exist"
   - **Fix**: Wrong database or schema. Check DATABASE_URL points to production
 
@@ -165,7 +175,9 @@ Stays logged in - NO LOOP! ✅
   - **Fix**: Database user needs ALTER TABLE permission
 
 ### If Apple Sign-In Still Fails After Migration
+
 1. Check Railway logs for the actual error:
+
    ```bash
    railway logs --service api
    ```

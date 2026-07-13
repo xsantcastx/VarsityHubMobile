@@ -82,7 +82,7 @@ Comprehensive E2E tests for the **feed page** and **messaging** functionality to
 
 - `generateTestData()` - Creates unique test user data
 - `createUser()` - Creates user via API
-- `loginUser()` - Logs in user via API  
+- `loginUser()` - Logs in user via API
 - `createPost()` - Creates a post via API
 - `createGame()` - Creates a game/event via API
 - `sendMessage()` - Sends a message via API
@@ -90,6 +90,7 @@ Comprehensive E2E tests for the **feed page** and **messaging** functionality to
 ### Test Data
 
 Each test generates unique data:
+
 - Unique email addresses (timestamp + random)
 - Unique display names
 - Test passwords
@@ -97,6 +98,7 @@ Each test generates unique data:
 ### Resilient Selectors
 
 Tests use flexible selectors that work even if UI changes:
+
 - Text-based selectors with regex
 - Aria-label selectors
 - Multiple fallback options
@@ -107,6 +109,7 @@ Tests use flexible selectors that work even if UI changes:
 ## Running the Tests
 
 ### Run All Feed & Messaging Tests
+
 ```bash
 npm run test:e2e
 # or specifically:
@@ -114,6 +117,7 @@ npx playwright test tests/e2e/feed-messaging.spec.ts
 ```
 
 ### Run Specific Test Suite
+
 ```bash
 # Feed tests only
 npx playwright test tests/e2e/feed-messaging.spec.ts -g "Feed Page"
@@ -123,16 +127,19 @@ npx playwright test tests/e2e/feed-messaging.spec.ts -g "Messaging"
 ```
 
 ### Run with UI Mode (Recommended for debugging)
+
 ```bash
 npx playwright test tests/e2e/feed-messaging.spec.ts --ui
 ```
 
 ### Run in Debug Mode
+
 ```bash
 npx playwright test tests/e2e/feed-messaging.spec.ts --debug
 ```
 
 ### Run in Headed Mode (See browser)
+
 ```bash
 npx playwright test tests/e2e/feed-messaging.spec.ts --headed
 ```
@@ -144,11 +151,13 @@ npx playwright test tests/e2e/feed-messaging.spec.ts --headed
 Before running tests:
 
 1. **Start the server**:
+
    ```bash
    npm run server:dev
    ```
 
 2. **Start the web app** (in another terminal):
+
    ```bash
    npm run web:playwright
    ```
@@ -167,7 +176,7 @@ Before running tests:
 ✅ User views feed with content  
 ✅ User sees games and events in feed  
 ✅ User refreshes feed to see new content  
-✅ User sees empty state when no content  
+✅ User sees empty state when no content
 
 ### Messaging
 
@@ -176,11 +185,11 @@ Before running tests:
 ✅ User views a message thread  
 ✅ User replies to a message  
 ✅ User sees empty state when no messages  
-✅ User cannot message blocked users  
+✅ User cannot message blocked users
 
 ### Integration
 
-✅ User shares a post via message  
+✅ User shares a post via message
 
 ---
 
@@ -236,6 +245,7 @@ Before running tests:
 ### Tests Fail to Find Elements
 
 **Solution**:
+
 - Check if app is running: `npm run web:playwright`
 - Verify API is running: `npm run server:dev`
 - Check browser console for errors
@@ -244,6 +254,7 @@ Before running tests:
 ### Authentication Issues
 
 **Solution**:
+
 - Verify token is set in localStorage
 - Check token format and expiration
 - Ensure user is created and verified
@@ -252,6 +263,7 @@ Before running tests:
 ### Message Sending Fails
 
 **Solution**:
+
 - Check recipient exists
 - Verify blocking status
 - Check age policy restrictions (under-18 must follow recipient)
@@ -261,6 +273,7 @@ Before running tests:
 ### Feed Not Loading
 
 **Solution**:
+
 - Verify posts/games exist in database
 - Check API endpoints: `GET /posts`, `GET /games`
 - Verify authentication token is valid
@@ -279,6 +292,7 @@ Before running tests:
 ## Next Steps
 
 1. **Run the tests** to verify they work:
+
    ```bash
    npm run test:e2e
    ```

@@ -35,11 +35,13 @@ The only thing that needs manual verification is whether `SENTRY_AUTH_TOKEN` is 
 ### Check if Token Exists
 
 Run this command to check:
+
 ```bash
 eas env:list --environment production | grep SENTRY_AUTH_TOKEN
 ```
 
 Or check all environments:
+
 ```bash
 eas env:list --environment production
 eas env:list --environment preview
@@ -58,13 +60,14 @@ If `SENTRY_AUTH_TOKEN` is not set, you need to:
    - Copy the token
 
 2. **Set in EAS (for all environments):**
+
    ```bash
    # Production
    eas env:create --name SENTRY_AUTH_TOKEN --value <your-token> --environment production --visibility sensitive
-   
+
    # Preview
    eas env:create --name SENTRY_AUTH_TOKEN --value <your-token> --environment preview --visibility sensitive
-   
+
    # Development
    eas env:create --name SENTRY_AUTH_TOKEN --value <your-token> --environment development --visibility sensitive
    ```
@@ -77,11 +80,13 @@ If `SENTRY_AUTH_TOKEN` is not set, you need to:
 ## 🧪 Test Your Setup
 
 ### Run Verification Script
+
 ```bash
 bash scripts/verify-sentry-setup.sh
 ```
 
 ### Test a Build
+
 ```bash
 # This should work if SENTRY_AUTH_TOKEN is set
 eas build --platform android --profile production
@@ -103,19 +108,19 @@ eas build --platform android --profile production
 
 ## 📋 Current Configuration Summary
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| Mobile App Package | ✅ | `@sentry/react-native@~7.2.0` |
-| Server Package | ✅ | `@sentry/node@^7.91.0` |
-| DSN Configuration | ✅ | Set in `.env` |
-| Organization | ✅ | `varsity-hub` |
-| Project | ✅ | `varsityhub` |
-| Android Config | ✅ | `android/sentry.properties` |
-| iOS Config | ✅ | `ios/sentry.properties` |
-| Build Integration | ✅ | `android/app/build.gradle` |
-| App Initialization | ✅ | `app/_layout.tsx` |
-| Server Initialization | ✅ | `server/src/lib/sentry.ts` |
-| EAS Auth Token | ⚠️ | **Needs manual verification** |
+| Component             | Status | Details                       |
+| --------------------- | ------ | ----------------------------- |
+| Mobile App Package    | ✅     | `@sentry/react-native@~7.2.0` |
+| Server Package        | ✅     | `@sentry/node@^7.91.0`        |
+| DSN Configuration     | ✅     | Set in `.env`                 |
+| Organization          | ✅     | `varsity-hub`                 |
+| Project               | ✅     | `varsityhub`                  |
+| Android Config        | ✅     | `android/sentry.properties`   |
+| iOS Config            | ✅     | `ios/sentry.properties`       |
+| Build Integration     | ✅     | `android/app/build.gradle`    |
+| App Initialization    | ✅     | `app/_layout.tsx`             |
+| Server Initialization | ✅     | `server/src/lib/sentry.ts`    |
+| EAS Auth Token        | ⚠️     | **Needs manual verification** |
 
 ## 🎯 Next Steps
 

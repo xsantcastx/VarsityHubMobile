@@ -1,6 +1,7 @@
 ## Implementation Snapshot
 
 ### Completed in This Pass
+
 - **Upload Gesture Switcher (Story #14):** `app/create-post.tsx` now exposes swipe-up camera access _and_ swipe-down review mode with a modal preview, visual state indicator, and gesture animations.
 - **Feed View Consistency (Story #27):** `app/feed.tsx` renders the game feed as a 3-column grid matching the profile gallery, adds contextual stats, and modernizes the sponsored footer CTA.
 - **Google Sign-In (Story #3):**
@@ -9,26 +10,34 @@
   - **Server Endpoint:** `server/src/routes/auth.ts` verifies Google ID tokens, links existing accounts, or creates new users with `google_id`; Prisma schema stores the new nullable field.
 
 ### Still Outstanding
+
 - **Stripe Billing (Stories #4–6):** Product/price wiring, promo enforcement, and transaction reconciliation remain backend work.
 - **Calendar Sync & Media Ops (Stories #8, #17):** No changes yet—OAuth calendar import, transcoding, and storage policies still need implementation.
 - **Infrastructure Items (Stories #34–36):** Railway connection validation, Stripe charge logging, and media retention documentation are pending.
 
 ## Prisma & API Follow-Up
+
 1. **Capture Google OAuth Client IDs**
    - Populate `.env` entries: `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID` (optional), and comma-separated `GOOGLE_OAUTH_CLIENT_IDS` for server-side validation.
 2. **Run Prisma Migration**
+
    ```bash
    cd server
    npx prisma migrate dev --name add_google_id_to_user
    npx prisma generate
    ```
+
    - Confirms the new `google_id` column is applied locally. For production, follow with `npx prisma migrate deploy` during deploy.
+
 3. **Redeploy the API**
+
    ```bash
    npm run build
    npm run start   # or railway redeploy if using Railway automation
    ```
+
    - Ensure environment variables are present in staging/production before restart.
+
 4. **Smoke-Test `/auth/google`**
    - Use Postman or curl:
      ```bash

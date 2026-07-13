@@ -1,9 +1,10 @@
-/**
- * Google & Apple Sign-In - Manual E2E Test Scenarios
- * 
- * Use these scenarios to manually test the sign-in flows on iOS, Android, and Web.
- * Each scenario includes step-by-step instructions and expected results.
- */
+/\*\*
+
+- Google & Apple Sign-In - Manual E2E Test Scenarios
+-
+- Use these scenarios to manually test the sign-in flows on iOS, Android, and Web.
+- Each scenario includes step-by-step instructions and expected results.
+  \*/
 
 # E2E Test Scenarios for Google & Apple Sign-In
 
@@ -40,6 +41,7 @@ Before running E2E tests, ensure:
 ## Scenario 1: Google Sign-In on Web
 
 ### Description
+
 Test Google OAuth flow on web platform with valid credentials.
 
 ### Steps
@@ -90,6 +92,7 @@ Test Google OAuth flow on web platform with valid credentials.
    - Verify `email_verified: true`
 
 ### Expected Results
+
 - ✅ User created in database
 - ✅ Google ID linked correctly
 - ✅ Token stored and usable
@@ -97,18 +100,20 @@ Test Google OAuth flow on web platform with valid credentials.
 - ✅ No errors in console or server logs
 
 ### Troubleshooting
-| Issue | Solution |
-|-------|----------|
-| "Google credential not issued for this application" | Check `GOOGLE_ALLOWED_AUDIENCES` env var matches response `aud` field |
-| "Invalid redirect_uri" | Verify redirect URI in Google Cloud Console matches app's redirect handler |
-| CORS errors | Check server CORS config allows `https://accounts.google.com` |
-| Token validation fails | Verify Google API is accessible from server (check firewall/proxy) |
+
+| Issue                                               | Solution                                                                   |
+| --------------------------------------------------- | -------------------------------------------------------------------------- |
+| "Google credential not issued for this application" | Check `GOOGLE_ALLOWED_AUDIENCES` env var matches response `aud` field      |
+| "Invalid redirect_uri"                              | Verify redirect URI in Google Cloud Console matches app's redirect handler |
+| CORS errors                                         | Check server CORS config allows `https://accounts.google.com`              |
+| Token validation fails                              | Verify Google API is accessible from server (check firewall/proxy)         |
 
 ---
 
 ## Scenario 2: Apple Sign-In on iOS
 
 ### Description
+
 Test Apple Sign-In flow on physical iOS device or simulator.
 
 ### Steps
@@ -134,7 +139,7 @@ Test Apple Sign-In flow on physical iOS device or simulator.
 4. **Complete Authentication**
    - **Real Device**: Use Face ID or Touch ID to authenticate
    - **Simulator**: Automatic (shows mock token in logs)
-   - **Sheet Options**: 
+   - **Sheet Options**:
      - Let Apple Share My Email (default for new accounts)
      - Hide My Email (generates relay email)
 
@@ -170,6 +175,7 @@ Test Apple Sign-In flow on physical iOS device or simulator.
    - Note: Display name from Apple may be "Apple User" if not provided
 
 ### Expected Results
+
 - ✅ User created with Apple ID
 - ✅ Email verified automatically
 - ✅ Face/Touch ID works (device) or simulator fallback works
@@ -182,6 +188,7 @@ Test Apple Sign-In flow on physical iOS device or simulator.
 For simulator testing without a real Apple ID:
 
 1. **Mock Token Format**
+
    ```
    sim-<unique-identifier>
    Example: sim-test-user-1702416900000
@@ -197,19 +204,21 @@ For simulator testing without a real Apple ID:
    - Or check for simulator in code: `Platform.OS === 'ios' && Constants.appOwnership !== 'expo'`
 
 ### Troubleshooting
-| Issue | Solution |
-|-------|----------|
-| "This app does not support Sign in with Apple" | Check APPLE_BUNDLE_ID in Xcode matches team ID configuration |
-| Apple sheet doesn't appear | Verify `expo-apple-authentication` is installed and linked in native code |
-| "Invalid Apple credential" | Check private key is properly configured and not expired |
-| Token verification fails on production | Ensure production token verification endpoint is implemented (currently mocked for dev) |
-| Simulator: "User canceled" error | This is normal; code should handle gracefully |
+
+| Issue                                          | Solution                                                                                |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------- |
+| "This app does not support Sign in with Apple" | Check APPLE_BUNDLE_ID in Xcode matches team ID configuration                            |
+| Apple sheet doesn't appear                     | Verify `expo-apple-authentication` is installed and linked in native code               |
+| "Invalid Apple credential"                     | Check private key is properly configured and not expired                                |
+| Token verification fails on production         | Ensure production token verification endpoint is implemented (currently mocked for dev) |
+| Simulator: "User canceled" error               | This is normal; code should handle gracefully                                           |
 
 ---
 
 ## Scenario 3: Account Linking - Same Email
 
 ### Description
+
 Test linking Google and Apple IDs to single user account.
 
 ### Steps
@@ -240,23 +249,26 @@ Test linking Google and Apple IDs to single user account.
    - Both methods should access same user account
 
 ### Expected Results
+
 - ✅ Both OAuth methods work with same email
 - ✅ `created` flag is `false` on second method
 - ✅ User ID remains same across methods
 - ✅ User preferences preserved after linking
 
 ### Troubleshooting
-| Issue | Solution |
-|-------|----------|
-| Creates new user instead of linking | Check email matching is case-insensitive in code |
+
+| Issue                                   | Solution                                                             |
+| --------------------------------------- | -------------------------------------------------------------------- |
+| Creates new user instead of linking     | Check email matching is case-insensitive in code                     |
 | Email from Apple doesn't match existing | Use exact same email during both sign-ups; Apple may use relay email |
-| Account lock after linking | Email verification should be `true` after first OAuth attempt |
+| Account lock after linking              | Email verification should be `true` after first OAuth attempt        |
 
 ---
 
 ## Scenario 4: Onboarding Flow
 
 ### Description
+
 Verify new users are directed to onboarding after first OAuth sign-in.
 
 ### Steps
@@ -286,6 +298,7 @@ Verify new users are directed to onboarding after first OAuth sign-in.
    - After completion: `onboarding_completed: true`
 
 ### Expected Results
+
 - ✅ New users have `onboarding_completed: false`
 - ✅ Onboarding screen shown to new users
 - ✅ Existing users skip onboarding
@@ -296,6 +309,7 @@ Verify new users are directed to onboarding after first OAuth sign-in.
 ## Scenario 5: Error Handling
 
 ### Description
+
 Test error cases and recovery flows.
 
 ### Sub-Scenario 5a: Invalid Google Token
@@ -306,8 +320,9 @@ Test error cases and recovery flows.
    - Send modified request
 
 2. **Expected Response**: 401 Unauthorized
+
    ```json
-   {"error": "Google authentication failed"}
+   { "error": "Google authentication failed" }
    ```
 
 3. **User Experience**
@@ -335,8 +350,9 @@ Test error cases and recovery flows.
    - Backend checks `email_verified: true`
 
 2. **Expected Response**: 400 Bad Request
+
    ```json
-   {"error": "Google account email is not verified"}
+   { "error": "Google account email is not verified" }
    ```
 
 3. **User Experience**
@@ -353,6 +369,7 @@ Test error cases and recovery flows.
    - User should update email during onboarding
 
 ### Expected Results
+
 - ✅ Invalid credentials rejected with 401
 - ✅ Network errors handled gracefully
 - ✅ Unverified emails rejected with helpful message
@@ -364,6 +381,7 @@ Test error cases and recovery flows.
 ## Scenario 6: Multiple Devices
 
 ### Description
+
 Test that same user account works across multiple devices.
 
 ### Steps
@@ -389,6 +407,7 @@ Test that same user account works across multiple devices.
    - Changes should be visible
 
 ### Expected Results
+
 - ✅ Same account ID on both devices
 - ✅ User data synchronized across devices
 - ✅ No duplicate accounts created
@@ -399,6 +418,7 @@ Test that same user account works across multiple devices.
 ## Scenario 7: Session Management
 
 ### Description
+
 Test token expiration and session refresh.
 
 ### Steps
@@ -428,6 +448,7 @@ Test token expiration and session refresh.
    - Access protected endpoint succeeds
 
 ### Expected Results
+
 - ✅ Valid token grants access to `/me`
 - ✅ Invalid/expired token returns 401
 - ✅ Logout clears token completely
@@ -521,6 +542,7 @@ npm test -- auth-signin.integration.test.ts --watch
 ### Enable Debug Logging
 
 Add to environment:
+
 ```bash
 DEBUG=varsity:*
 LOG_LEVEL=debug
@@ -529,6 +551,7 @@ LOG_LEVEL=debug
 ### Check Server Logs
 
 Look for patterns:
+
 - `[auth/google]` - Google OAuth events
 - `[auth/apple]` - Apple OAuth events
 - `[Apple Auth]` - Client-side Apple auth
@@ -544,11 +567,13 @@ Look for patterns:
 ### Mobile Logs
 
 **iOS (Xcode)**:
+
 ```
 Window → Devices and Simulators → Select Device → View Device Logs
 ```
 
 **Android (adb)**:
+
 ```bash
 adb logcat | grep -i "varsity\|auth\|apple\|google"
 ```
@@ -557,8 +582,8 @@ adb logcat | grep -i "varsity\|auth\|apple\|google"
 
 ```sql
 -- Check user created
-SELECT id, email, google_id, apple_id, email_verified 
-FROM "User" 
+SELECT id, email, google_id, apple_id, email_verified
+FROM "User"
 WHERE email = 'test@example.com';
 
 -- Check preferences
@@ -579,6 +604,7 @@ WHERE email_verification_code IS NOT NULL;
 All of the following must pass before considering sign-in complete:
 
 ✅ **Functionality**
+
 - [ ] Google sign-in works on all platforms
 - [ ] Apple sign-in works on iOS
 - [ ] Account linking works
@@ -587,6 +613,7 @@ All of the following must pass before considering sign-in complete:
 - [ ] Error handling graceful
 
 ✅ **Security**
+
 - [ ] Tokens validated correctly
 - [ ] No credential leaks in logs
 - [ ] Secure storage implemented
@@ -594,6 +621,7 @@ All of the following must pass before considering sign-in complete:
 - [ ] Email verification enforced
 
 ✅ **Quality**
+
 - [ ] All unit tests passing
 - [ ] Integration tests passing
 - [ ] E2E tests completed
@@ -602,6 +630,7 @@ All of the following must pass before considering sign-in complete:
 - [ ] Performance acceptable
 
 ✅ **Documentation**
+
 - [ ] Configuration documented
 - [ ] Troubleshooting guide complete
 - [ ] Environment variables listed

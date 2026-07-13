@@ -9,9 +9,9 @@
 1. **`locales/en.json`**  
    Removed `name` and `displayName` so Expo no longer puts them in `values-b+en/strings.xml`. File is now `{}`.
 
-2. **Config plugin `withAndroidLintExtraTranslationFix`**  
-   - Runs after prebuild.  
-   - If `values-b+en/strings.xml` still exists and contains `name` or `displayName`, the plugin deletes that file (and the directory if empty).  
+2. **Config plugin `withAndroidLintExtraTranslationFix`**
+   - Runs after prebuild.
+   - If `values-b+en/strings.xml` still exists and contains `name` or `displayName`, the plugin deletes that file (and the directory if empty).
    - Ensures `values/strings.xml` has `name` and `displayName` with `translatable="false"` if missing.
 
 **Result:** No ExtraTranslation from `name`/`displayName`, and lintVitalRelease no longer fails for this.
@@ -36,7 +36,7 @@
 1. In [App Store Connect](https://appstoreconnect.apple.com) → Your App (e.g. 6754257357) → App Information, check **Bundle ID**.
 2. It must be exactly **`com.varsithub.varsityhub`** (same as Android).
 3. If it was created as `com.varsityhubmobile.app` (or anything else), either:
-   - Create a **new** app in ASC with bundle ID **`com.varsithub.varsityhub`** and use that app’s ASC App ID in `eas.json` → `submit.production.ios.ascAppId`, or  
+   - Create a **new** app in ASC with bundle ID **`com.varsithub.varsityhub`** and use that app’s ASC App ID in `eas.json` → `submit.production.ios.ascAppId`, or
    - Change the project back to that other bundle ID (e.g. `com.varsityhubmobile.app`) in `app.json` and in the Xcode project, then run prebuild/rebuild and submit again.
 
 After the bundle ID in the IPA and in App Store Connect match, TestFlight submit should succeed.

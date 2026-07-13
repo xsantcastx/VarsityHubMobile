@@ -1,12 +1,15 @@
 # Fix Google OAuth redirect_uri_mismatch Error
 
 ## Problem
+
 When testing Google Sign-In on `http://localhost:8081`, you get:
+
 ```
 Error 400: redirect_uri_mismatch
 ```
 
 ## Root Cause
+
 Google Cloud Console doesn't have `http://localhost:8081` authorized as a valid redirect URI for the Web OAuth Client.
 
 ## Solution: Add Redirect URI to Google Cloud Console
@@ -14,6 +17,7 @@ Google Cloud Console doesn't have `http://localhost:8081` authorized as a valid 
 ### Step-by-Step (5 minutes)
 
 1. **Go to Google Cloud Console**
+
    ```
    https://console.cloud.google.com/apis/credentials
    ```
@@ -54,11 +58,13 @@ While you're fixing Google OAuth, you can test the app with email/password:
 ## Permanent Fix for Production
 
 Once the iOS/Android builds are deployed, Google will need:
+
 - iOS Redirect: `varsityhubmobile://oauthredirect`
-- Android Redirect: `varsityhubmobile://oauthredirect`  
+- Android Redirect: `varsityhubmobile://oauthredirect`
 - Web Redirect: `https://varsityhub.app/auth/google/callback`
 
 These are **already configured** in the code at `.env`:
+
 ```
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com
 ```
@@ -68,6 +74,7 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.a
 ## Verification
 
 After adding the redirect URI, you'll see in Chrome DevTools:
+
 ```
 [google-auth] Redirect URI: http://localhost:8081
 [auth] Received ID token from Google

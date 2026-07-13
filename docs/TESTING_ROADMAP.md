@@ -26,10 +26,12 @@ Comprehensive testing plan to ensure the app is ready for real-world use. Tests 
 ## 🔴 Critical Tests Needed (Next)
 
 ### 1. Authentication & Authorization Tests
+
 **Priority**: CRITICAL  
 **Estimated Time**: 2-3 hours
 
 **Coverage**:
+
 - Sign up with email/password
 - Email verification flow
 - Sign in with email/password
@@ -46,10 +48,12 @@ Comprehensive testing plan to ensure the app is ready for real-world use. Tests 
 ---
 
 ### 2. Payment & Subscription Tests
+
 **Priority**: CRITICAL  
 **Estimated Time**: 2-3 hours
 
 **Coverage**:
+
 - Stripe checkout session creation
 - Payment processing (test cards)
 - Subscription upgrade/downgrade
@@ -63,10 +67,12 @@ Comprehensive testing plan to ensure the app is ready for real-world use. Tests 
 ---
 
 ### 3. Security Tests
+
 **Priority**: CRITICAL  
 **Estimated Time**: 3-4 hours
 
 **Coverage**:
+
 - Authentication bypass attempts
 - Authorization checks (role-based access)
 - Input validation (SQL injection, XSS)
@@ -83,10 +89,12 @@ Comprehensive testing plan to ensure the app is ready for real-world use. Tests 
 ## 🟡 High Priority Tests
 
 ### 4. Integration Tests - Complete User Journeys
+
 **Priority**: HIGH  
 **Estimated Time**: 4-5 hours
 
 **Coverage**:
+
 - Journey 1: Sign up → Verify email → Complete onboarding → Create team → Create game → RSVP
 - Journey 2: Sign in → View feed → Create post → Follow user → Send message
 - Journey 3: Coach → Create team → Invite members → Create game → Approve fan event
@@ -98,10 +106,12 @@ Comprehensive testing plan to ensure the app is ready for real-world use. Tests 
 ---
 
 ### 5. Social Features Tests
+
 **Priority**: HIGH  
 **Estimated Time**: 1-2 hours
 
 **Coverage**:
+
 - Follow/unfollow users
 - View followers/following lists
 - Block/unblock users
@@ -113,10 +123,12 @@ Comprehensive testing plan to ensure the app is ready for real-world use. Tests 
 ---
 
 ### 6. Admin Features Tests
+
 **Priority**: HIGH  
 **Estimated Time**: 2-3 hours
 
 **Coverage**:
+
 - Admin dashboard access
 - User management (ban/unban)
 - Content moderation (approve/reject events)
@@ -131,10 +143,12 @@ Comprehensive testing plan to ensure the app is ready for real-world use. Tests 
 ## 🟢 Medium Priority Tests
 
 ### 7. Performance Tests
+
 **Priority**: MEDIUM  
 **Estimated Time**: 3-4 hours
 
 **Coverage**:
+
 - API response times
 - Large dataset handling (1000+ games, posts)
 - Concurrent user requests
@@ -147,10 +161,12 @@ Comprehensive testing plan to ensure the app is ready for real-world use. Tests 
 ---
 
 ### 8. Error Handling & Edge Cases
+
 **Priority**: MEDIUM  
 **Estimated Time**: 2-3 hours
 
 **Coverage**:
+
 - Network failures (offline mode)
 - Invalid input handling
 - Permission denials (camera, location)
@@ -167,11 +183,13 @@ Comprehensive testing plan to ensure the app is ready for real-world use. Tests 
 ## Running Tests
 
 ### Run All Tests
+
 ```bash
 npm run test:all
 ```
 
 ### Run Specific Test Suites
+
 ```bash
 # Team management
 npm run test:teams
@@ -187,6 +205,7 @@ npm run test:e2e
 ```
 
 ### Run Individual Tests
+
 ```bash
 npx playwright test tests/e2e/teams.spec.ts
 npx playwright test tests/e2e/games.spec.ts
@@ -197,6 +216,7 @@ npx playwright test tests/e2e/games.spec.ts
 ## Test Coverage Goals
 
 ### Current Coverage
+
 - ✅ Feed & Messaging: 100%
 - ✅ Highlights: 100%
 - ✅ Upload: 100%
@@ -206,6 +226,7 @@ npx playwright test tests/e2e/games.spec.ts
 - ✅ Game Management: 100% ⭐ NEW
 
 ### Target Coverage
+
 - 🔴 Authentication: 0% → 100% (NEXT)
 - 🔴 Payments: 0% → 100% (NEXT)
 - 🔴 Security: 0% → 100% (NEXT)
@@ -233,6 +254,7 @@ npx playwright test tests/e2e/games.spec.ts
 ## Success Criteria
 
 ### Must Pass (Blockers)
+
 - ✅ All authentication flows work
 - ✅ Team creation and management works
 - ✅ Game creation and RSVP works
@@ -241,12 +263,14 @@ npx playwright test tests/e2e/games.spec.ts
 - ⏳ All role-based access controls work (NEXT)
 
 ### Should Pass (High Priority)
+
 - ⏳ Social features work
 - ⏳ Admin features work
 - ⏳ Complete user journeys work
 - ⏳ Error handling is graceful
 
 ### Nice to Have
+
 - ⏳ Performance meets targets
 - ⏳ Edge cases handled gracefully
 

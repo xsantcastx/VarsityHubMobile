@@ -9,19 +9,23 @@ When creating a new game in VarsityHub, you now have **location and mapping opti
 ## 🎯 Features
 
 ### 1. Location Field (Required)
+
 - Enter the game venue or address
 - Example: "Madison Square Garden, New York, NY"
 - Example: "123 Main St, Los Angeles, CA 90001"
 - Example: "Stanford Stadium"
 
 ### 2. Auto-Geocoding (Enabled by Default) ✨
+
 When you check **"📍 Auto-find coordinates"**:
+
 - The system automatically uses Google Maps to find the exact coordinates
 - Happens when you save the game
 - No manual work needed!
 - Free for the first 200 games per month
 
 **How it works:**
+
 1. Enter location: "Wrigley Field, Chicago"
 2. Check the auto-find checkbox (✓)
 3. Save the game
@@ -29,11 +33,14 @@ When you check **"📍 Auto-find coordinates"**:
 5. Game appears on the map! 🗺️
 
 ### 3. Manual Coordinates (Optional)
+
 If you uncheck auto-geocoding, you can enter coordinates manually:
+
 - **Latitude**: North/South position (e.g., `40.7505`)
 - **Longitude**: East/West position (e.g., `-73.9934`)
 
 **When to use manual:**
+
 - You already know the exact coordinates
 - The location name is ambiguous
 - You want precise control
@@ -107,6 +114,7 @@ If you uncheck auto-geocoding, you can enter coordinates manually:
 After creating games with locations:
 
 ### Discover Tab → Map View:
+
 - See markers for all games with coordinates
 - Red markers 🔴 = Games
 - Teal markers 🔵 = Events
@@ -118,17 +126,20 @@ After creating games with locations:
 ## 💡 Tips
 
 ### Best Practices:
+
 ✅ **Use full addresses**: "123 Main St, Los Angeles, CA 90001"
 ✅ **Include city & state**: "Stanford Stadium, Palo Alto, CA"
 ✅ **Famous venues work**: "Wrigley Field" or "Madison Square Garden"
 ✅ **Leave auto-geocode ON**: Easiest option!
 
 ### What to Avoid:
+
 ❌ Vague locations: "Home" or "Away"
 ❌ Just street names: "Main Street"
 ❌ No city/state: "The Stadium"
 
 ### Good Examples:
+
 - "Madison Square Garden, New York, NY"
 - "1600 Amphitheatre Parkway, Mountain View, CA"
 - "Rose Bowl Stadium, Pasadena, CA"
@@ -150,6 +161,7 @@ When you save a game with auto-geocoding enabled:
 8. **Mobile app** updates and shows success
 
 ### Server Logs:
+
 ```
 ✅ Auto-geocoded game location: Madison Square Garden, NYC → 40.7505045, -73.9934387
 POST /games 201 Created
@@ -160,12 +172,15 @@ POST /games 201 Created
 ## 🎯 Next Steps
 
 ### For Users:
+
 1. **Create games** with locations
 2. **Check the auto-geocode box** (it's on by default)
 3. **View games on the map** in Discover tab
 
 ### For Existing Games:
+
 If you have games without coordinates, run the batch geocoding script:
+
 ```bash
 cd server
 npx tsx scripts/geocode-all-games.ts
@@ -178,6 +193,7 @@ This will find coordinates for all existing games with locations!
 ## 📊 Cost
 
 Google Maps Geocoding API:
+
 - **First 200 requests/month**: FREE 🎉
 - **After 200**: $0.005 per request (half a cent)
 - **Example**: 1000 games = $4.00 total
@@ -189,17 +205,20 @@ Very affordable for most teams!
 ## 🐛 Troubleshooting
 
 ### Map shows no markers?
+
 1. Check if games have a location entered
 2. Verify auto-geocode was enabled when saving
 3. Reload the app
 4. Check server logs for geocoding errors
 
 ### "No Events with Locations" message?
+
 - Games need coordinates to appear on map
 - Run the batch geocoding script for existing games
 - New games should auto-geocode when created
 
 ### Manual coordinates not working?
+
 - Make sure you unchecked auto-geocode
 - Latitude: -90 to 90
 - Longitude: -180 to 180

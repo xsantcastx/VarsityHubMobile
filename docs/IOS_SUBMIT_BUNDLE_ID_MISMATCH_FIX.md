@@ -11,7 +11,7 @@ Your build uses bundle ID **`com.varsithub.varsityhub`**, but the App Store Conn
 1. **Check the app’s bundle ID**
    - Go to [App Store Connect](https://appstoreconnect.apple.com) → **My Apps** → open the app (the one with Apple ID **6758399345**).
    - Go to **App Information** (under General).
-   - Look at **Bundle ID**.  
+   - Look at **Bundle ID**.
      - If it shows something other than **`com.varsithub.varsityhub`** (e.g. `com.varsityhubmobile.app`), that’s the cause.
 
 2. **You cannot change a bundle ID** for an existing app. So you have two options:
@@ -44,7 +44,7 @@ Your build uses bundle ID **`com.varsithub.varsityhub`**, but the App Store Conn
 
 4. **Submit again**
    - Run: `eas submit --platform ios --latest`  
-   or re-run your build with `--auto-submit`.
+     or re-run your build with `--auto-submit`.
 
 ## Quick checklist
 

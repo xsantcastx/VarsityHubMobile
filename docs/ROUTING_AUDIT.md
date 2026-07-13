@@ -61,13 +61,13 @@ Real risk areas:
 
 ## Verified corrections to the previous draft
 
-| Previous claim | Status | Correction |
-|---|---|---|
-| "All `(tabs)` duplicates are 1-2 line stubs" | False | Only 17 of 35 duplicate pairs have tabs-side bridges. The other 17 are inverted: the real implementation lives in `app/(tabs)/` and the root file is the bridge. |
-| "Delete the `(tabs)` stubs" | Unsafe | Many root files are the stubs. Blind deletion would break root-stack navigation for screens like `edit-event`, `team-contacts`, and `create-post`. |
-| "`/profile` expects `username` and callers omit it" | False | `app/profile.tsx` reads only `id` from route params. `username` references in that file are data fields, not route params. |
-| "No route-level auth is an inconsistency" | Misframed | Guards live in screen hooks/components (`useAuth`, `useRequireCoach`, `useRequireAdmin`). That is the current app pattern. Stack declarations in Expo Router are not where this app enforces auth. |
-| "`game-detail` and `team-profile` are broken because both sides are stubs" | False | Both are bridge chains to a single implementation file. |
+| Previous claim                                                             | Status    | Correction                                                                                                                                                                                         |
+| -------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "All `(tabs)` duplicates are 1-2 line stubs"                               | False     | Only 17 of 35 duplicate pairs have tabs-side bridges. The other 17 are inverted: the real implementation lives in `app/(tabs)/` and the root file is the bridge.                                   |
+| "Delete the `(tabs)` stubs"                                                | Unsafe    | Many root files are the stubs. Blind deletion would break root-stack navigation for screens like `edit-event`, `team-contacts`, and `create-post`.                                                 |
+| "`/profile` expects `username` and callers omit it"                        | False     | `app/profile.tsx` reads only `id` from route params. `username` references in that file are data fields, not route params.                                                                         |
+| "No route-level auth is an inconsistency"                                  | Misframed | Guards live in screen hooks/components (`useAuth`, `useRequireCoach`, `useRequireAdmin`). That is the current app pattern. Stack declarations in Expo Router are not where this app enforces auth. |
+| "`game-detail` and `team-profile` are broken because both sides are stubs" | False     | Both are bridge chains to a single implementation file.                                                                                                                                            |
 
 ## How routing is actually structured
 
@@ -127,51 +127,51 @@ implementation.
 
 ### Summary counts
 
-| Pattern | Count |
-|---|---:|
-| Root implementation, tabs bridge to root | 17 |
-| Root bridge to tabs implementation | 17 |
-| Both real implementations | 1 |
+| Pattern                                  | Count |
+| ---------------------------------------- | ----: |
+| Root implementation, tabs bridge to root |    17 |
+| Root bridge to tabs implementation       |    17 |
+| Both real implementations                |     1 |
 
 ### Full duplicate-pair table
 
-| Route basename | Root side | Tabs side | Notes |
-|---|---|---|---|
-| `ad-calendar` | real implementation | bridge to root | Safe pattern |
-| `admin-ads` | real implementation | bridge to root | Safe pattern |
-| `admin-messages` | real implementation | bridge to root | Safe pattern |
-| `admin-teams` | real implementation | bridge to root | Safe pattern |
-| `admin-user-detail` | real implementation | bridge to root | Safe pattern |
-| `admin-users` | real implementation | bridge to root | Safe pattern |
-| `approvals` | bridge to tabs | real implementation | Safe pattern |
-| `create-post` | bridge to tabs | real implementation | Safe pattern |
-| `create-team` | bridge to tabs | real implementation | Safe pattern |
-| `create` | real implementation | bridge to root | Safe pattern |
-| `edit-ad` | real implementation | bridge to root | Safe pattern |
-| `edit-ad.web` | real implementation | bridge to root | Web-specific bridge |
-| `edit-event` | bridge to tabs | real implementation | Root file comment explicitly documents bridge intent |
-| `edit-organization` | bridge to tabs | real implementation | Safe pattern |
-| `edit-profile` | bridge to tabs | real implementation | Safe pattern |
-| `edit-team` | bridge to tabs | real implementation | Safe pattern |
-| `event-approvals` | bridge to tabs | real implementation | Safe pattern |
-| `event-detail` | bridge to tabs | real implementation | Safe pattern |
-| `followers` | bridge to tabs | real implementation | Safe pattern |
-| `following` | bridge to tabs | real implementation | Safe pattern |
-| `game-detail` | bridge to `game-details/GameDetailsScreen` | bridge to root | Same final implementation |
-| `game-highlights` | real implementation | bridge to root | Safe pattern |
-| `game-photos` | real implementation | bridge to root | Safe pattern |
-| `game-reviews` | real implementation | bridge to root | Safe pattern |
-| `index` | real implementation | real implementation | Special case: root splash/redirect vs tabs index redirect |
-| `manage-teams` | bridge to tabs | real implementation | Safe pattern |
-| `my-ads` | real implementation | bridge to root | Safe pattern |
-| `my-team` | bridge to tabs | real implementation | Safe pattern |
-| `organization` | bridge to tabs | real implementation | Safe pattern |
-| `submit-ad` | real implementation | bridge to root | Safe pattern |
-| `submit-ad.web` | real implementation | bridge to root | Web-specific bridge |
-| `team-contacts` | bridge to tabs | real implementation | Safe pattern |
-| `team-hub` | bridge to tabs | real implementation | Safe pattern |
-| `team-profile` | bridge to `team-page` | bridge to root | Same final implementation |
-| `verify-email` | bridge to tabs | real implementation | Safe pattern |
+| Route basename      | Root side                                  | Tabs side           | Notes                                                     |
+| ------------------- | ------------------------------------------ | ------------------- | --------------------------------------------------------- |
+| `ad-calendar`       | real implementation                        | bridge to root      | Safe pattern                                              |
+| `admin-ads`         | real implementation                        | bridge to root      | Safe pattern                                              |
+| `admin-messages`    | real implementation                        | bridge to root      | Safe pattern                                              |
+| `admin-teams`       | real implementation                        | bridge to root      | Safe pattern                                              |
+| `admin-user-detail` | real implementation                        | bridge to root      | Safe pattern                                              |
+| `admin-users`       | real implementation                        | bridge to root      | Safe pattern                                              |
+| `approvals`         | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `create-post`       | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `create-team`       | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `create`            | real implementation                        | bridge to root      | Safe pattern                                              |
+| `edit-ad`           | real implementation                        | bridge to root      | Safe pattern                                              |
+| `edit-ad.web`       | real implementation                        | bridge to root      | Web-specific bridge                                       |
+| `edit-event`        | bridge to tabs                             | real implementation | Root file comment explicitly documents bridge intent      |
+| `edit-organization` | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `edit-profile`      | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `edit-team`         | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `event-approvals`   | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `event-detail`      | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `followers`         | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `following`         | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `game-detail`       | bridge to `game-details/GameDetailsScreen` | bridge to root      | Same final implementation                                 |
+| `game-highlights`   | real implementation                        | bridge to root      | Safe pattern                                              |
+| `game-photos`       | real implementation                        | bridge to root      | Safe pattern                                              |
+| `game-reviews`      | real implementation                        | bridge to root      | Safe pattern                                              |
+| `index`             | real implementation                        | real implementation | Special case: root splash/redirect vs tabs index redirect |
+| `manage-teams`      | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `my-ads`            | real implementation                        | bridge to root      | Safe pattern                                              |
+| `my-team`           | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `organization`      | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `submit-ad`         | real implementation                        | bridge to root      | Safe pattern                                              |
+| `submit-ad.web`     | real implementation                        | bridge to root      | Web-specific bridge                                       |
+| `team-contacts`     | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `team-hub`          | bridge to tabs                             | real implementation | Safe pattern                                              |
+| `team-profile`      | bridge to `team-page`                      | bridge to root      | Same final implementation                                 |
+| `verify-email`      | bridge to tabs                             | real implementation | Safe pattern                                              |
 
 ### Special cases worth knowing
 
@@ -281,17 +281,17 @@ Recommendation:
 Measured by import fan-in across `app/`, `api/`, `hooks/`, `components/`, and
 `context/`:
 
-| Module | Approx. import count | Why it matters |
-|---|---:|---|
-| `@/constants/Colors` | 155 | Theme changes have app-wide blast radius |
-| `@/hooks/useColorScheme` | 117 | Shared visual/runtime behavior |
-| `@/api/entities` | 104 | Entity contract drift affects most screens |
-| `@/utils/navigation` | 80 | Navigation helpers influence back-stack behavior broadly |
-| `@/context/AuthProvider` | 37 | Auth, role, onboarding, and guard state fan out widely |
-| `@/api/http` | 30 | Base URL and transport changes hit the whole app |
-| `@/hooks/useRequireAdmin` | 11 | Admin guard regression affects multiple screens |
-| `@/hooks/useRequireCoach` | 10 | Coach-only routing depends on it |
-| `@/context/OnboardingContext` | 10 | Onboarding continuity across screens |
+| Module                        | Approx. import count | Why it matters                                           |
+| ----------------------------- | -------------------: | -------------------------------------------------------- |
+| `@/constants/Colors`          |                  155 | Theme changes have app-wide blast radius                 |
+| `@/hooks/useColorScheme`      |                  117 | Shared visual/runtime behavior                           |
+| `@/api/entities`              |                  104 | Entity contract drift affects most screens               |
+| `@/utils/navigation`          |                   80 | Navigation helpers influence back-stack behavior broadly |
+| `@/context/AuthProvider`      |                   37 | Auth, role, onboarding, and guard state fan out widely   |
+| `@/api/http`                  |                   30 | Base URL and transport changes hit the whole app         |
+| `@/hooks/useRequireAdmin`     |                   11 | Admin guard regression affects multiple screens          |
+| `@/hooks/useRequireCoach`     |                   10 | Coach-only routing depends on it                         |
+| `@/context/OnboardingContext` |                   10 | Onboarding continuity across screens                     |
 
 These are the modules to review first when routing/regression issues affect many
 screens at once.

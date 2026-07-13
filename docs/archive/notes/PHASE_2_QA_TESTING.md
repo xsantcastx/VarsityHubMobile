@@ -145,6 +145,7 @@ tail -f /path/to/staging/logs/app.log
 **Trigger:** `invoice.payment_succeeded` webhook
 
 **Steps:**
+
 ```bash
 # 1. Start staging server
 npm run dev
@@ -165,12 +166,14 @@ curl -X POST http://localhost:3000/subscribe \
 ```
 
 **Expected Outcome:**
+
 - ✅ Email sent to test@varsityhub.app
 - ✅ Subject: "Your Payment Receipt for Veteran Membership"
 - ✅ Contains: Plan name, amount, billing period
 - ✅ Server logs show: "[billing-email] Payment receipt email sent"
 
 **If fails:**
+
 - Check SendGrid Activity Log for bounce/error
 - Verify template ID is set in environment
 - Check server logs for error messages
@@ -183,6 +186,7 @@ curl -X POST http://localhost:3000/subscribe \
 **Trigger:** `invoice.payment_failed` webhook
 
 **Steps:**
+
 ```bash
 # 1. Trigger webhook in Stripe Dashboard
 # Event: invoice.payment_failed
@@ -192,6 +196,7 @@ curl -X POST http://localhost:3000/subscribe \
 ```
 
 **Expected Outcome:**
+
 - ✅ Email sent to test@varsityhub.app
 - ✅ Subject: "Payment Failed for..."
 - ✅ Contains: Error reason, link to update payment method
@@ -204,6 +209,7 @@ curl -X POST http://localhost:3000/subscribe \
 **Trigger:** `customer.subscription.deleted` webhook
 
 **Steps:**
+
 ```bash
 # 1. Trigger webhook in Stripe Dashboard
 # Event: customer.subscription.deleted
@@ -213,6 +219,7 @@ curl -X POST http://localhost:3000/subscribe \
 ```
 
 **Expected Outcome:**
+
 - ✅ Email sent to test@varsityhub.app
 - ✅ Subject: "Your Subscription Has Been Canceled"
 - ✅ Contains: Plan name, renewal/end date
@@ -225,6 +232,7 @@ curl -X POST http://localhost:3000/subscribe \
 **Trigger:** `customer.subscription.updated` webhook (with status=active)
 
 **Steps:**
+
 ```bash
 # 1. Trigger webhook in Stripe Dashboard
 # Event: customer.subscription.updated
@@ -235,6 +243,7 @@ curl -X POST http://localhost:3000/subscribe \
 ```
 
 **Expected Outcome:**
+
 - ✅ Email sent to test@varsityhub.app
 - ✅ Subject: "Your Payment Receipt for..."
 - ✅ Contains: Current period or final period indicator
@@ -247,6 +256,7 @@ curl -X POST http://localhost:3000/subscribe \
 **Trigger:** POST /join-requests/:id/approve
 
 **Steps:**
+
 ```bash
 # 1. Create organization join request
 #    (via UI or API)
@@ -260,6 +270,7 @@ curl -X POST http://localhost:3000/join-requests/[requestId]/approve \
 ```
 
 **Expected Outcome:**
+
 - ✅ Email sent to requester
 - ✅ Subject includes: "You've Been Approved"
 - ✅ Contains: Organization/team name
@@ -274,6 +285,7 @@ curl -X POST http://localhost:3000/join-requests/[requestId]/approve \
 **Trigger:** POST /join-requests/:id/deny
 
 **Steps:**
+
 ```bash
 # 1. Create organization join request
 #    (via UI or API)
@@ -288,6 +300,7 @@ curl -X POST http://localhost:3000/join-requests/[requestId]/deny \
 ```
 
 **Expected Outcome:**
+
 - ✅ Email sent to requester
 - ✅ Subject includes: "Your Request to Join"
 - ✅ Contains: Reason (if provided)
@@ -302,6 +315,7 @@ curl -X POST http://localhost:3000/join-requests/[requestId]/deny \
 **Trigger:** PUT /events/:id/approve
 
 **Steps:**
+
 ```bash
 # 1. Create fan event (will be pending)
 #    (via UI or API)
@@ -314,6 +328,7 @@ curl -X PUT http://localhost:3000/events/[eventId]/approve \
 ```
 
 **Expected Outcome:**
+
 - ✅ Email sent to event creator
 - ✅ Subject: "Your Event Has Been Approved"
 - ✅ Contains: Event name, date, link to view
@@ -326,6 +341,7 @@ curl -X PUT http://localhost:3000/events/[eventId]/approve \
 **Trigger:** PUT /events/:id/reject
 
 **Steps:**
+
 ```bash
 # 1. Create fan event
 #    (via UI or API)
@@ -340,6 +356,7 @@ curl -X PUT http://localhost:3000/events/[eventId]/reject \
 ```
 
 **Expected Outcome:**
+
 - ✅ Email sent to event creator
 - ✅ Subject: "Your Event Requires Review"
 - ✅ Contains: Event name, rejection reason
@@ -352,6 +369,7 @@ curl -X PUT http://localhost:3000/events/[eventId]/reject \
 **Trigger:** POST /organizations (when user hits org limit) or POST /teams (when limit hit)
 
 **Steps:**
+
 ```bash
 # 1. For rookie user, create org (hits limit after 1)
 curl -X POST http://localhost:3000/organizations \
@@ -369,6 +387,7 @@ curl -X POST http://localhost:3000/organizations \
 ```
 
 **Expected Outcome:**
+
 - ✅ Email sent to user
 - ✅ Subject: "You've Reached Your Limit"
 - ✅ Contains: Plan name (Rookie), resource type (organization)
@@ -381,6 +400,7 @@ curl -X POST http://localhost:3000/organizations \
 **Trigger:** POST /password/reset (successful password reset)
 
 **Steps:**
+
 ```bash
 # 1. Request password reset
 curl -X POST http://localhost:3000/password/request-reset \
@@ -398,6 +418,7 @@ curl -X POST http://localhost:3000/password/reset \
 ```
 
 **Expected Outcome:**
+
 - ✅ Security alert email sent to test@varsityhub.app
 - ✅ Subject: "Security Alert: password_change"
 - ✅ Contains: IP address, link to security settings
@@ -420,6 +441,7 @@ Create a file: `QA_PHASE_2_RESULTS.md`
 **Status:** [PASS/FAIL]
 
 ## Unit Testing
+
 - [x] TypeScript compilation: PASS
 - [x] Import/Export verification: PASS
 - [x] Type safety checks: PASS
@@ -427,30 +449,37 @@ Create a file: `QA_PHASE_2_RESULTS.md`
 ## Integration Testing
 
 ### Stripe Webhooks
+
 - [x] Test 1 - Payment Receipt: PASS
 - [x] Test 2 - Payment Failed: PASS
 - [x] Test 3 - Subscription Canceled: PASS
 - [x] Test 4 - Subscription Renewed: PASS
 
 ### Organization Membership
+
 - [x] Test 5 - Approval: PASS
 - [x] Test 6 - Denial: PASS
 
 ### Events
+
 - [x] Test 7 - Event Approval: PASS
 - [x] Test 8 - Event Rejection: PASS
 
 ### Plan Limits
+
 - [x] Test 9 - Plan Limit Warning: PASS
 
 ### Security
+
 - [x] Test 10 - Security Alert: PASS
 
 ## Issues Found
+
 None
 
 ## Sign-off
-**QA Lead Approval:** _____________________  
+
+**QA Lead Approval:** \***\*\*\*\*\***\_\***\*\*\*\*\***  
 **Date:** December 12, 2025
 
 **Recommendation:** ✅ READY FOR PRODUCTION
@@ -463,6 +492,7 @@ None
 ### Issue: "Email not received"
 
 **Checklist:**
+
 - [ ] Check spam folder (Gmail, Outlook often filter transactional emails)
 - [ ] Verify template ID is set in environment
 - [ ] Check SendGrid Activity Log → Email Activity
@@ -470,6 +500,7 @@ None
 - [ ] Check server logs for errors
 
 **Resolution:**
+
 1. If bounced/dropped: Check SendGrid API usage, sender domain authentication
 2. If not in Activity Log: Template ID might be wrong, verify in environment
 3. If in Activity Log but not received: Email server issue, check spam filters
@@ -483,6 +514,7 @@ None
 **Cause:** Variable name mismatch between code and SendGrid template
 
 **Resolution:**
+
 1. Review code in email.ts to see what variable names are sent
 2. Update SendGrid template to use exact same variable names (case-sensitive)
 3. Verify template uses `{{variable}}` syntax (not `{variable}` or `[variable]`)
@@ -490,11 +522,12 @@ None
 
 ---
 
-### Issue: "Server logs show '[email] SendGrid * template not configured'"
+### Issue: "Server logs show '[email] SendGrid \* template not configured'"
 
 **Cause:** Template ID environment variable not set or empty
 
 **Resolution:**
+
 1. Verify Phase 1 was completed
 2. Check environment variables are set: `echo $SENDGRID_PAYMENT_RECEIPT_TEMPLATE_ID`
 3. If empty, contact DevOps to add template IDs
@@ -507,6 +540,7 @@ None
 **Likely Cause:** SendGrid API key invalid or API quota exceeded
 
 **Resolution:**
+
 1. Verify `SENDGRID_API_KEY` is still valid
 2. Check SendGrid dashboard for API rate limits
 3. Verify email addresses are valid (not fake test addresses)
@@ -534,6 +568,7 @@ Before approving Phase 2:
 ## Success Criteria
 
 ✅ **Phase 2 is PASS when:**
+
 - All 10 test scenarios execute successfully
 - All emails arrive in test inbox
 - Email content includes correct dynamic data
@@ -546,6 +581,7 @@ Before approving Phase 2:
 ## Failure Handling
 
 ❌ **If any test fails:**
+
 1. Document the failure in detail
 2. Check troubleshooting guide above
 3. Review relevant section in `EMAIL_HOOKS_INTEGRATION_SUMMARY.md`
@@ -557,13 +593,13 @@ Before approving Phase 2:
 
 ## Timeline
 
-| Step | Task | Est. Time |
-|------|------|-----------|
-| 1 | Unit testing | 15 min |
-| 2 | Verify staging deployment | 10 min |
-| 3 | Execute 10 integration tests | 90 min |
-| 4 | Document results & sign-off | 15 min |
-| **Total** | **Phase 2 Complete** | **130 minutes** |
+| Step      | Task                         | Est. Time       |
+| --------- | ---------------------------- | --------------- |
+| 1         | Unit testing                 | 15 min          |
+| 2         | Verify staging deployment    | 10 min          |
+| 3         | Execute 10 integration tests | 90 min          |
+| 4         | Document results & sign-off  | 15 min          |
+| **Total** | **Phase 2 Complete**         | **130 minutes** |
 
 ---
 
@@ -575,6 +611,7 @@ Once Phase 2 is complete and signed off:
 > Ready for Phase 3 - Production Deployment."
 
 **Phase 3 will:**
+
 - Merge code to production
 - Deploy to production environment
 - Monitor for 30+ minutes

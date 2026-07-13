@@ -9,18 +9,18 @@
 
 The email hooks integration adds 7 new SendGrid templates connected to core backend flows:
 
-| Flow | Trigger | Email Function | Template ID Needed | Fallback |
-|------|---------|-----------------|------------------|----------|
-| Stripe: Payment Success | invoice.payment_succeeded | sendPaymentReceiptEmail | PAYMENT_RECEIPT | ❌ None |
-| Stripe: Payment Failed | invoice.payment_failed | sendPaymentFailedEmail | PAYMENT_FAILED | ❌ None |
-| Stripe: Subscription Canceled | customer.subscription.deleted | sendSubscriptionCanceledEmail | SUBSCRIPTION_CANCELED | ❌ None |
-| Stripe: Subscription Renewed | customer.subscription.updated | sendPaymentReceiptEmail | PAYMENT_RECEIPT | ❌ None |
-| Org Join: Approved | POST /join-requests/:id/approve | sendMembershipDecisionEmail | MEMBERSHIP_APPROVED | ✅ sendJoinRequestApproved |
-| Org Join: Denied | POST /join-requests/:id/deny | sendMembershipDecisionEmail | MEMBERSHIP_DENIED | ✅ sendJoinRequestDenied |
-| Event: Approved | PUT /events/:id/approve | sendEventDecisionEmail | EVENT_APPROVED | ❌ None |
-| Event: Rejected | PUT /events/:id/reject | sendEventDecisionEmail | EVENT_REJECTED | ❌ None |
-| Plan Limit: Orgs/Teams | POST endpoints | sendPlanLimitWarningEmail | PLAN_LIMIT_WARNING | ❌ None |
-| Security: Password Reset | POST /password/reset | sendSecurityAlertEmail | SECURITY_ALERT | ❌ None |
+| Flow                          | Trigger                         | Email Function                | Template ID Needed    | Fallback                   |
+| ----------------------------- | ------------------------------- | ----------------------------- | --------------------- | -------------------------- |
+| Stripe: Payment Success       | invoice.payment_succeeded       | sendPaymentReceiptEmail       | PAYMENT_RECEIPT       | ❌ None                    |
+| Stripe: Payment Failed        | invoice.payment_failed          | sendPaymentFailedEmail        | PAYMENT_FAILED        | ❌ None                    |
+| Stripe: Subscription Canceled | customer.subscription.deleted   | sendSubscriptionCanceledEmail | SUBSCRIPTION_CANCELED | ❌ None                    |
+| Stripe: Subscription Renewed  | customer.subscription.updated   | sendPaymentReceiptEmail       | PAYMENT_RECEIPT       | ❌ None                    |
+| Org Join: Approved            | POST /join-requests/:id/approve | sendMembershipDecisionEmail   | MEMBERSHIP_APPROVED   | ✅ sendJoinRequestApproved |
+| Org Join: Denied              | POST /join-requests/:id/deny    | sendMembershipDecisionEmail   | MEMBERSHIP_DENIED     | ✅ sendJoinRequestDenied   |
+| Event: Approved               | PUT /events/:id/approve         | sendEventDecisionEmail        | EVENT_APPROVED        | ❌ None                    |
+| Event: Rejected               | PUT /events/:id/reject          | sendEventDecisionEmail        | EVENT_REJECTED        | ❌ None                    |
+| Plan Limit: Orgs/Teams        | POST endpoints                  | sendPlanLimitWarningEmail     | PLAN_LIMIT_WARNING    | ❌ None                    |
+| Security: Password Reset      | POST /password/reset            | sendSecurityAlertEmail        | SECURITY_ALERT        | ❌ None                    |
 
 ---
 
@@ -80,6 +80,7 @@ The email hooks integration adds 7 new SendGrid templates connected to core back
 #### 1.2 Add Template IDs to Environment Configuration
 
 **In production .env:**
+
 ```bash
 SENDGRID_PAYMENT_RECEIPT_TEMPLATE_ID=d-[ID from step 1.1.1]
 SENDGRID_PAYMENT_FAILED_TEMPLATE_ID=d-[ID from step 1.1.2]
@@ -134,6 +135,7 @@ npm run build 2>&1 | grep -E "error|Email|sendPayment|sendEvent|sendMembership|s
 #### 2.2 Stripe Webhook Sandbox Testing
 
 **Tools Needed:**
+
 - Stripe CLI: `stripe listen --forward-to localhost:3000/payments/webhook`
 - Test credit cards (from Stripe docs)
 - ngrok or similar for local webhook testing
@@ -141,6 +143,7 @@ npm run build 2>&1 | grep -E "error|Email|sendPayment|sendEvent|sendMembership|s
 **Test Scenarios:**
 
 1. **Scenario: Successful Membership Payment**
+
    ```
    1. Start: npm run dev (server and client)
    2. Stripe CLI: stripe listen --forward-to http://localhost:3000/payments/webhook
@@ -152,6 +155,7 @@ npm run build 2>&1 | grep -E "error|Email|sendPayment|sendEvent|sendMembership|s
    ```
 
 2. **Scenario: Payment Failure**
+
    ```
    1. Same setup as #1
    2. Webhook: stripe trigger invoice.payment_failed --add object.customer_email=test@example.com
@@ -160,6 +164,7 @@ npm run build 2>&1 | grep -E "error|Email|sendPayment|sendEvent|sendMembership|s
    ```
 
 3. **Scenario: Subscription Renewal**
+
    ```
    1. Create active subscription first
    2. Webhook: stripe trigger customer.subscription.updated --add object.status=active
@@ -183,7 +188,7 @@ curl -X POST http://localhost:3000/join-requests/[requestId]/approve \
   -H "Authorization: Bearer [token]" \
   -H "Content-Type: application/json"
 
-# Expect: 
+# Expect:
 # - If MEMBERSHIP_APPROVED template configured: sendMembershipDecisionEmail sent
 # - If not configured: sendJoinRequestApproved (legacy) sent
 # Check logs for confirmation
@@ -327,6 +332,7 @@ tail -f [production-logs]
 Issue: `Property 'apiBaseUrl' does not exist on type 'AppConfig'`
 
 **Fix:**
+
 ```typescript
 // app/organizations/[id].tsx line 24
 // Change from:
@@ -338,6 +344,7 @@ const apiBaseUrl = config.apiUrl || config.API_URL || 'https://api.varsityhub.ap
 ```
 
 Also fix routing issues on lines 86, 93:
+
 - `/contact` → check if this should be `/notifications` or removed
 - `/join-organization` → check if this should be `/organizations`
 
@@ -346,6 +353,7 @@ Also fix routing issues on lines 86, 93:
 Issue: `Cannot find name 'error'. Did you mean '_error'?`
 
 **Fix:**
+
 ```typescript
 // app/team-invites.tsx line 66
 // Change from:
@@ -373,7 +381,7 @@ if (_error) {
 
 2. **Check Application Logs**
    - Look for "[billing-email]", "[events]", "[organizations]" warnings
-   - Pattern: "[*] Failed to send * email" = template not configured or SendGrid error
+   - Pattern: "[*] Failed to send \* email" = template not configured or SendGrid error
    - Action: Check template IDs, retry manually if needed
 
 3. **Verify Email Content**
@@ -439,6 +447,7 @@ git push origin main:production
 ## Success Criteria
 
 ✅ **Testing is Complete When:**
+
 - [ ] All 6 Stripe webhook scenarios tested successfully
 - [ ] All organization membership emails sent correctly
 - [ ] All event approval/rejection emails sent correctly
@@ -449,6 +458,7 @@ git push origin main:production
 - [ ] QA team signs off
 
 ✅ **Production Ready When:**
+
 - [ ] Code review approved
 - [ ] All tests passing
 - [ ] All template IDs configured
@@ -469,13 +479,13 @@ git push origin main:production
 
 ## Timeline Summary
 
-| Phase | Task | Est. Time | Owner |
-|-------|------|-----------|-------|
-| **Phase 1** | Configure SendGrid + Environment | 1-2 hours | DevOps |
-| **Phase 2** | Testing (all scenarios) | 2-3 hours | QA/Engineering |
-| **Phase 3** | Production Deployment | 1 hour | DevOps |
-| **Phase 4** | Bug Fixes (separate PRs) | 1-2 hours | Frontend |
-| **Total** | | **5-8 hours** | Team |
+| Phase       | Task                             | Est. Time     | Owner          |
+| ----------- | -------------------------------- | ------------- | -------------- |
+| **Phase 1** | Configure SendGrid + Environment | 1-2 hours     | DevOps         |
+| **Phase 2** | Testing (all scenarios)          | 2-3 hours     | QA/Engineering |
+| **Phase 3** | Production Deployment            | 1 hour        | DevOps         |
+| **Phase 4** | Bug Fixes (separate PRs)         | 1-2 hours     | Frontend       |
+| **Total**   |                                  | **5-8 hours** | Team           |
 
 ---
 

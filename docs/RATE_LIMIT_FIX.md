@@ -10,6 +10,7 @@
 ### 1. ❌ "Too many requests" Errors Blocking App Usage
 
 **Problem:**
+
 - Multiple endpoints returning 429 errors: `/highlights`, `/notifications`, `/games`
 - Rate limit was too aggressive: 500 requests per 15 minutes
 - App makes multiple requests on startup (feed, highlights, notifications, games)
@@ -17,11 +18,13 @@
 - Sign-in failing due to rate limits
 
 **Root Cause:**
+
 - Global API limiter set to 500 req/15min was too low for normal app usage
 - App startup makes ~10-20 requests simultaneously
 - No automatic retry for rate limit errors
 
 **Fix:**
+
 1. **Increased API rate limit** from 500 to 2000 requests per 15 minutes
 2. **Added retry logic** for 429 errors in http client
 3. **Added automatic retry** for GET requests (1 retry with backoff)
@@ -33,6 +36,7 @@
 ### Backend (`server/src/index.ts`)
 
 **Before:**
+
 ```typescript
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -42,11 +46,12 @@ const apiLimiter = rateLimit({
 ```
 
 **After:**
+
 ```typescript
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDev ? 100000 : 2000, // Increased 4x for normal app usage
-  skip: (req) => isDev || req.path === '/health',
+  skip: req => isDev || req.path === '/health',
   // ...
 });
 ```
@@ -54,6 +59,7 @@ const apiLimiter = rateLimit({
 ### Frontend (`api/http.ts`)
 
 **Added 429 error handling with retry:**
+
 ```typescript
 // Handle 429 Rate Limit errors with retry
 if (error.status === 429) {
@@ -71,6 +77,7 @@ if (error.status === 429) {
 ```
 
 **Added automatic retry for GET requests:**
+
 ```typescript
 export function httpGet(path: string, options: RequestInit = {}) {
   // Allow 1 retry for GET requests (helps with rate limits)
@@ -82,11 +89,11 @@ export function httpGet(path: string, options: RequestInit = {}) {
 
 ## Rate Limit Configuration
 
-| Endpoint Type | Limit | Window | Notes |
-|--------------|-------|--------|-------|
-| Auth (`/auth/*`) | 50 | 15 min | Login/register attempts |
-| API (all others) | **2000** | 15 min | **Increased from 500** |
-| Health check | Unlimited | - | Always allowed |
+| Endpoint Type    | Limit     | Window | Notes                   |
+| ---------------- | --------- | ------ | ----------------------- |
+| Auth (`/auth/*`) | 50        | 15 min | Login/register attempts |
+| API (all others) | **2000**  | 15 min | **Increased from 500**  |
+| Health check     | Unlimited | -      | Always allowed          |
 
 ---
 
@@ -96,7 +103,7 @@ export function httpGet(path: string, options: RequestInit = {}) {
 ✅ **Automatic retry** for 429 errors with exponential backoff  
 ✅ **GET requests retry once** automatically  
 ✅ **User-friendly error messages** for rate limits  
-✅ **Sign-in should work** without hitting limits  
+✅ **Sign-in should work** without hitting limits
 
 ---
 

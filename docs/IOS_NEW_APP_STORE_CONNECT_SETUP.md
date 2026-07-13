@@ -35,6 +35,7 @@ Visit: https://appstoreconnect.apple.com
 ### 3. Get the New App's ASC App ID
 
 After creating the app:
+
 1. In App Store Connect, open your new app
 2. Look at the URL - it will be something like:
    ```
@@ -81,15 +82,18 @@ eas submit --platform ios --profile production
 ## Troubleshooting
 
 **"No suitable application records were found"**
+
 - Bundle ID mismatch: Verify the bundle ID in App Store Connect matches `com.varsithub.varsityhub`
 - Wrong ASC App ID: Make sure `ascAppId` in `eas.json` matches the new app
 
 **"Bundle ID already exists"**
+
 - The bundle ID `com.varsithub.varsityhub` might already be registered
 - Check **Certificates, Identifiers & Profiles** → **Identifiers**
 - If it exists, you can use it - just make sure your app in App Store Connect uses this bundle ID
 
 **"App not found"**
+
 - Double-check the ASC App ID in the URL
 - Make sure you're using the correct Apple ID account
 - Verify the app was created successfully in App Store Connect

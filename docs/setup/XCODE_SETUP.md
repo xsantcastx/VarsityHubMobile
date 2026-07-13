@@ -19,12 +19,14 @@
 ## If You Get Build Errors
 
 ### CocoaPods Not Installed
+
 ```bash
 cd ios
 pod install
 ```
 
 ### Signing Issues
+
 1. In Xcode, select the `VarsityHub` project in the navigator
 2. Select the `VarsityHub` target
 3. Go to "Signing & Capabilities" tab
@@ -32,6 +34,7 @@ pod install
 5. Select your development team
 
 ### Clean Build
+
 - Product > Clean Build Folder (Shift+Cmd+K)
 - Then build again (Cmd+R)
 
@@ -44,6 +47,7 @@ npm run ios
 ```
 
 This will:
+
 - Build the native iOS app
 - Install dependencies
 - Launch the simulator
@@ -58,14 +62,17 @@ This will:
 ## Troubleshooting
 
 ### "No such module" errors
+
 Run: `cd ios && pod install`
 
 ### Simulator won't launch
+
 - Check Xcode > Settings > Platforms
 - Make sure iOS simulators are installed
 - Try: `xcrun simctl list devices`
 
 ### Build fails with signing errors
+
 - Make sure you have a valid Apple Developer account
 - Set your development team in Signing & Capabilities
 - For simulator builds, you can use "Personal Team" (free)

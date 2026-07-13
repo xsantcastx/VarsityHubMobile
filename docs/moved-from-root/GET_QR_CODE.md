@@ -9,6 +9,7 @@ npx expo start --dev-client --tunnel
 ```
 
 **Wait 10-15 seconds** - you'll see:
+
 - A QR code (ASCII art)
 - Connection URLs like `exp://...tunnel.exp.direct:80`
 
@@ -52,6 +53,7 @@ The QR code is ASCII art that needs to render in your terminal. I can't capture 
 ---
 
 **Run this now in your terminal:**
+
 ```bash
 npx expo start --dev-client --tunnel
 ```

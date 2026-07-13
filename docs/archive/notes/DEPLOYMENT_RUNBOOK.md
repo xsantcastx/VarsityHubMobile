@@ -6,7 +6,6 @@
 
 ---
 
-
 ## Database Changes
 
 **Schema Migration:**
@@ -83,7 +82,7 @@ cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile
 # Create tag with QA approval message
 git tag -a v1.0.0-qa-approved \
   -m "Release v1.0.0: Onboarding loop fix
-  
+
 QA Sign-Off: [QA Tester Name], [Date]
 All 5 test scenarios passed.
 
@@ -110,7 +109,6 @@ git ls-remote --tags origin | grep v1.0.0-qa-approved
 **Expected Output**: Tag visible in both local and remote
 
 ---
-
 
 ## Notification Template Smoke-Test (SendGrid)
 
@@ -186,6 +184,7 @@ eas build --platform android --auto-submit
 ```
 
 **What to expect**:
+
 - Build queues in EAS
 - Takes 5-10 minutes to compile
 - Auto-submits to TestFlight (iOS) or Google Play Console (Android)
@@ -199,6 +198,7 @@ eas build --platform android --auto-submit
 ```
 
 **Expected timeline**:
+
 - Build starts: 0:00
 - iOS build completes: ~5:00-8:00
 - Build queued for submission: ~8:00-10:00
@@ -232,6 +232,7 @@ If TestFlight build requires Apple review:
 ### Step 4.2: Submit to Production
 
 **iOS** (Manual):
+
 1. In App Store Connect, go to "Releases"
 2. Click "Create a new version"
 3. Select the reviewed build
@@ -241,6 +242,7 @@ If TestFlight build requires Apple review:
 7. Automatic rollout begins once approved
 
 **Android** (Automatic if using Play Console console):
+
 1. Builds auto-submit via `eas build --auto-submit`
 2. Monitor Google Play Console for review status
 3. Once approved, configure rollout (staged or immediate)
@@ -287,6 +289,7 @@ curl -s https://api-production-8ac3.up.railway.app/health | jq '.'
 ```
 
 **Success metrics**:
+
 - `/health` consistently returns `ready: true`
 - No spike in crash rates
 - No user reports of onboarding loop
@@ -305,22 +308,24 @@ curl -s https://api-production-8ac3.up.railway.app/health | jq '.'
 **If major issues found** (app crashes on launch, infinite loop still happening, etc.):
 
 #### Immediate Actions
+
 1. **Pause distribution** (App Store/Play Store)
    - iOS: Remove from "Scheduled Release" if not yet public
    - Android: Pause rollout to 0%
 
 2. **Revert backend** (if issue is backend-related):
+
    ```bash
    cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile
-   
+
    # Find parent of 99dc67b (the admin fix)
    git log --oneline | grep -B1 "CRITICAL FIX"
    # Should show: 6fe7345 (the commit before 99dc67b)
-   
+
    # Revert the two critical commits
    git revert 48ca7f4  # Health check
    git revert 99dc67b  # Admin merge
-   
+
    # Push to trigger Railway redeploy
    git push origin main
    ```
@@ -336,6 +341,7 @@ curl -s https://api-production-8ac3.up.railway.app/health | jq '.'
    - Set up incident call if needed
 
 #### Post-Rollback
+
 1. Root cause analysis
 2. Fix implementation
 3. Re-test with QA
@@ -347,14 +353,14 @@ curl -s https://api-production-8ac3.up.railway.app/health | jq '.'
 
 ### Metrics to Validate
 
-| Metric | Target | Actual |
-|--------|--------|--------|
-| App crash rate | No increase | ___ |
-| Onboarding completion % | Same or higher | ___ |
-| "Onboarding loop" support tickets | 0 | ___ |
-| Feed load time | < 2 seconds | ___ |
-| Admin account bypass working | 100% | ___ |
-| Cold restart instant routing | > 95% | ___ |
+| Metric                            | Target         | Actual |
+| --------------------------------- | -------------- | ------ |
+| App crash rate                    | No increase    | \_\_\_ |
+| Onboarding completion %           | Same or higher | \_\_\_ |
+| "Onboarding loop" support tickets | 0              | \_\_\_ |
+| Feed load time                    | < 2 seconds    | \_\_\_ |
+| Admin account bypass working      | 100%           | \_\_\_ |
+| Cold restart instant routing      | > 95%          | \_\_\_ |
 
 ### Post-Launch Sign-Off
 
@@ -426,30 +432,33 @@ Team: Standing by for first 24 hours. Please report any issues in #deployments.
 
 ## Contacts During Deployment
 
-| Role | Name | Phone | Slack |
-|------|------|-------|-------|
-| Release Lead | ___________ | ___________ | @___________ |
-| Engineering Lead | ___________ | ___________ | @___________ |
-| QA Lead | ___________ | ___________ | @___________ |
-| Product Lead | ___________ | ___________ | @___________ |
-| On-Call (24h) | ___________ | ___________ | @___________ |
+| Role             | Name               | Phone              | Slack               |
+| ---------------- | ------------------ | ------------------ | ------------------- |
+| Release Lead     | \***\*\_\_\_\*\*** | \***\*\_\_\_\*\*** | @\***\*\_\_\_\*\*** |
+| Engineering Lead | \***\*\_\_\_\*\*** | \***\*\_\_\_\*\*** | @\***\*\_\_\_\*\*** |
+| QA Lead          | \***\*\_\_\_\*\*** | \***\*\_\_\_\*\*** | @\***\*\_\_\_\*\*** |
+| Product Lead     | \***\*\_\_\_\*\*** | \***\*\_\_\_\*\*** | @\***\*\_\_\_\*\*** |
+| On-Call (24h)    | \***\*\_\_\_\*\*** | \***\*\_\_\_\*\*** | @\***\*\_\_\_\*\*** |
 
 ---
 
 ## Quick Reference
 
 **Key Files**:
+
 - Release package: `RELEASE_PACKAGE_INDEX.md`
 - QA checklist: `QA_TESTING_CHECKLIST.md`
 - Release notes: `RELEASE_NOTES_v1.0.0.md`
 - Technical details: `ONBOARDING_LOOP_FINAL_SOLUTION.md`
 
 **Key Commits**:
+
 - Admin fix: `99dc67b`
 - Health check: `48ca7f4`
 - Documentation: `9574f0c`, `01035bd`, `0a96e2e`, `b89121c`
 
 **Key Endpoints**:
+
 - Backend health: `https://api-production-8ac3.up.railway.app/health`
 - Backend `/me`: `https://api-production-8ac3.up.railway.app/me`
 - EAS dashboard: `https://eas.expo.dev`

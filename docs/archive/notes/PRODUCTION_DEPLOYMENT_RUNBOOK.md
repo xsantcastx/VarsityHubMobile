@@ -10,6 +10,7 @@
 ## 🚀 Pre-Deployment Checklist (Required Before Starting)
 
 ### Code Quality & Testing ✅
+
 - [ ] `npm run lint` passes with 0 errors
 - [ ] `npm run typecheck` passes with 0 errors
 - [ ] `npm run snyk-code` passes with 0 critical issues
@@ -19,6 +20,7 @@
 - [ ] All manual testing passed on staging environment
 
 ### Environment & Configuration ✅
+
 - [ ] `.env` file has all required variables set
 - [ ] `server/.env` file has all required variables set
 - [ ] Stripe is in LIVE mode (not test mode)
@@ -29,6 +31,7 @@
 - [ ] All environment variables are secured (no secrets in git)
 
 ### Build Prerequisites ✅
+
 - [ ] Node.js version: 18.x or 20.x (verify with `node --version`)
 - [ ] Expo CLI installed: `npm install -g expo-cli`
 - [ ] EAS CLI installed: `npm install -g eas-cli`
@@ -37,6 +40,7 @@
 - [ ] All tests passing on main branch in GitHub
 
 ### Apple Setup ✅
+
 - [ ] Apple Developer account active and in good standing
 - [ ] App ID created in Apple Developer (com.varsityhub.app)
 - [ ] App Store Connect app created and configured
@@ -50,6 +54,7 @@
 - [ ] Push notification certificate configured (if needed)
 
 ### Android Setup ✅
+
 - [ ] Google Play Developer account active
 - [ ] App created in Google Play Console
 - [ ] Package name matches: `com.varsityhub.app`
@@ -81,12 +86,14 @@ git diff-index --quiet HEAD --
 ```
 
 **Expected Results:**
+
 - ✅ Branch is `main`
 - ✅ No uncommitted changes
 - ✅ All files committed and pushed
 - ✅ Latest commit visible in GitHub
 
 **If Issues:**
+
 - [ ] Commit any pending changes: `git add . && git commit -m "Pre-deployment final commit"`
 - [ ] Push to GitHub: `git push origin main`
 - [ ] Run checks again
@@ -108,11 +115,13 @@ npm audit
 ```
 
 **Expected Results:**
+
 - ✅ 1,281 packages installed
 - ✅ 0 vulnerabilities found
 - ✅ All peer dependencies satisfied
 
 **If Issues:**
+
 - [ ] Run: `npm install --legacy-peer-deps` (only if needed)
 - [ ] Run: `npm audit fix` to auto-fix vulnerabilities
 - [ ] Report any security issues before proceeding
@@ -140,11 +149,13 @@ npm run snyk-code
 ```
 
 **Expected Results:**
+
 - ✅ Lint passes with 0 errors
 - ✅ TypeScript passes with 0 errors
 - ✅ Snyk code scan passes with 0 critical issues
 
 **If Issues:**
+
 - [ ] Fix any reported errors
 - [ ] Run tests again
 - [ ] DO NOT PROCEED until all pass
@@ -175,11 +186,13 @@ eas credentials show --platform ios
 ```
 
 **Expected Results:**
+
 - ✅ Successfully authenticated with Apple Developer
 - ✅ Distribution credentials visible
 - ✅ Provisioning profiles listed
 
 **If Issues:**
+
 - [ ] Verify Apple ID has access to Developer Team
 - [ ] Check Developer Team membership in Apple Developer website
 - [ ] Re-run: `eas credentials show --platform ios`
@@ -199,11 +212,13 @@ ls -la android/app/release.jks
 ```
 
 **Expected Results:**
+
 - ✅ Keystore file exists and is readable
 - ✅ Keystore password known and secure
 - ✅ Key alias and password documented
 
 **If Issues:**
+
 - [ ] Create new keystore if missing
 - [ ] Backup keystore to secure location
 - [ ] Document password in secure vault (NOT in git)
@@ -235,6 +250,7 @@ eas build:list --platform ios
 ```
 
 **Expected Results:**
+
 - ✅ Build completes successfully
 - ✅ Build artifact generated and uploaded
 - ✅ App appears in App Store Connect
@@ -288,6 +304,7 @@ eas build:list --platform android
 ```
 
 **Expected Results:**
+
 - ✅ Build completes successfully
 - ✅ AAB artifact generated and uploaded
 - ✅ App appears in Google Play Console
@@ -388,11 +405,13 @@ eas submit --platform ios
 ```
 
 **Expected Results:**
+
 - ✅ Received "Build received by App Store" email
 - ✅ Build status changes to "Waiting for Review"
 - ✅ Apple will review within 24-48 hours
 
 **App Store Review Timeline:**
+
 - 24-48 hours: Standard review (most apps)
 - 48-72 hours: May be required for complex apps
 - Expedited review available if urgent (paid option)
@@ -416,17 +435,19 @@ eas submit --platform ios
 8. Review country targeting and pricing
 9. Click: "Save and continue"
 10. Review everything carefully
-11. Click: "Review release" 
+11. Click: "Review release"
 12. Make final confirmation
 13. Click: "Rollout to production"
 ```
 
 **Expected Results:**
+
 - ✅ Release created and pending review
 - ✅ Initial rollout to staged users (if selected 25%)
 - ✅ Full rollout after 24-48 hours
 
 **Google Play Review Timeline:**
+
 - Usually approved within 2-3 hours
 - Can take up to 24 hours
 - Google Play automatically reviews for malware/policy violations
@@ -448,6 +469,7 @@ eas build:view --platform ios
 ```
 
 **iOS Review Status Flow:**
+
 ```
 Waiting for Review (1-3 hours)
     ↓
@@ -471,6 +493,7 @@ OR Rejected (review issues, will email details)
 ```
 
 **Android Rollout Status Flow:**
+
 ```
 Under review (2-3 hours usually)
     ↓
@@ -521,6 +544,7 @@ Complete rollout to 100% (after 24-48 hours)
 ```
 
 **Verification Checklist:**
+
 - [ ] App appears in both app stores
 - [ ] Version number matches (1.0.0)
 - [ ] Screenshots and description correct
@@ -621,6 +645,7 @@ Platforms: iOS (App Store) + Android (Google Play)
 ## 🎯 Post-Launch Checklist
 
 ### Day 1 After Launch:
+
 - [ ] Monitor crash reports in Firebase/Sentry
 - [ ] Check user reviews in app stores
 - [ ] Monitor server logs for errors
@@ -629,6 +654,7 @@ Platforms: iOS (App Store) + Android (Google Play)
 - [ ] Verify email system working (check sample user emails)
 
 ### Week 1:
+
 - [ ] Review aggregate crash/error reports
 - [ ] Analyze user engagement metrics
 - [ ] Monitor payment processing
@@ -637,6 +663,7 @@ Platforms: iOS (App Store) + Android (Google Play)
 - [ ] Plan any quick fixes/patches
 
 ### Month 1:
+
 - [ ] Analyze feature usage patterns
 - [ ] Review user feedback and ratings
 - [ ] Plan next version/features
@@ -648,16 +675,19 @@ Platforms: iOS (App Store) + Android (Google Play)
 ## 📞 Support Contacts
 
 **If builds fail or won't submit:**
+
 - EAS Support: https://expo.dev/support
 - Apple Developer Support: https://developer.apple.com/support
 - Google Play Support: https://support.google.com/googleplay
 
 **If app is rejected:**
+
 - Email provided by Apple or Google with reason
 - Address specific issues mentioned
 - Resubmit with explanation
 
 **Internal Support:**
+
 - Backend issues: Check server logs
 - Email issues: Check SendGrid dashboard
 - Payment issues: Check Stripe dashboard
@@ -667,14 +697,13 @@ Platforms: iOS (App Store) + Android (Google Play)
 
 ## ✅ Final Sign-Off
 
-**Deployment started:** _______________ (Date/Time)  
-**iOS submitted:** _______________ (Date/Time)  
-**iOS approved:** _______________ (Date/Time)  
-**Android submitted:** _______________ (Date/Time)  
-**Android approved:** _______________ (Date/Time)  
-**Live to users:** _______________ (Date/Time)  
+**Deployment started:** **\*\***\_\_\_**\*\*** (Date/Time)  
+**iOS submitted:** **\*\***\_\_\_**\*\*** (Date/Time)  
+**iOS approved:** **\*\***\_\_\_**\*\*** (Date/Time)  
+**Android submitted:** **\*\***\_\_\_**\*\*** (Date/Time)  
+**Android approved:** **\*\***\_\_\_**\*\*** (Date/Time)  
+**Live to users:** **\*\***\_\_\_**\*\*** (Date/Time)
 
-**Deployed by:** ___________________________  
-**Verified by:** ___________________________  
-**Notes:** ___________________________
-
+**Deployed by:** \***\*\*\*\*\*\*\***\_\_\_\***\*\*\*\*\*\*\***  
+**Verified by:** \***\*\*\*\*\*\*\***\_\_\_\***\*\*\*\*\*\*\***  
+**Notes:** \***\*\*\*\*\*\*\***\_\_\_\***\*\*\*\*\*\*\***

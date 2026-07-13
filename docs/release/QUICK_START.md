@@ -18,6 +18,7 @@
 ## 📋 For Different Roles
 
 ### 👔 Product Manager / Stakeholder
+
 **Time Required**: 5 minutes
 
 ```bash
@@ -33,6 +34,7 @@ less COMPREHENSIVE_TEST_SUMMARY.md
 ---
 
 ### 🧪 QA / Testing Team
+
 **Time Required**: 1-2 hours (includes running tests)
 
 ```bash
@@ -54,6 +56,7 @@ bash scripts/verify-production-fixes.sh
 ---
 
 ### 💻 Development / Technical Team
+
 **Time Required**: 30 minutes
 
 ```bash
@@ -74,6 +77,7 @@ grep -n "Platform.OS ===" hooks/useGoogleAuth.ts
 ---
 
 ### 🚀 DevOps / Deployment Team
+
 **Time Required**: 15 minutes
 
 ```bash
@@ -94,17 +98,20 @@ tail -50 COMPREHENSIVE_TEST_SUMMARY.md
 ## 🔥 Most Important Files to Read
 
 ### Minimum (5 minutes)
+
 ```bash
 cat TEST_EXECUTION_SUMMARY.txt
 ```
 
 ### Recommended (15 minutes)
+
 ```bash
 cat TEST_EXECUTION_SUMMARY.txt
 less COMPREHENSIVE_TEST_SUMMARY.md
 ```
 
 ### Complete (1+ hour)
+
 ```bash
 # Read in order:
 1. TEST_EXECUTION_SUMMARY.txt
@@ -119,18 +126,21 @@ less COMPREHENSIVE_TEST_SUMMARY.md
 ## ✅ Test Quick Reference
 
 ### Test 1: Email Verification
+
 **What it tests**: Coach account redirect after email verification  
 **Expected**: Routes to `/onboarding/step-3-plan` (not step-1)  
 **Status**: ✅ PASSED (95% confidence)  
 **Time to run**: 15 minutes (manual, with backend)
 
 ### Test 2: Dev Code Security
+
 **What it tests**: Dev code hidden in production builds  
 **Expected**: Visible in dev, hidden in production  
 **Status**: ✅ PASSED (100% confidence)  
 **Time to run**: 10 minutes per build type
 
 ### Test 3: Google Sign-In
+
 **What it tests**: Platform-specific client ID detection  
 **Expected**: Button enabled/disabled based on client ID  
 **Status**: ✅ PASSED (95% confidence)  
@@ -141,11 +151,13 @@ less COMPREHENSIVE_TEST_SUMMARY.md
 ## 🎯 Step-by-Step Manual Testing
 
 ### Prerequisites
+
 - iOS device/simulator and Android device/simulator
 - Coach account with email (unverified)
 - Client IDs configured in `.env`
 
 ### Test 1: Email Verification (15 min)
+
 ```
 1. Sign in with coach email/password
 2. System shows /verify screen
@@ -156,6 +168,7 @@ less COMPREHENSIVE_TEST_SUMMARY.md
 ```
 
 ### Test 2a: Dev Code Visibility (10 min)
+
 ```
 1. Run: npm run dev (or expo start)
 2. Navigate to /verify
@@ -164,6 +177,7 @@ less COMPREHENSIVE_TEST_SUMMARY.md
 ```
 
 ### Test 2b: Production Security (10 min)
+
 ```
 1. Run: npm run build:web (or eas build --profile production)
 2. Navigate to /verify
@@ -172,6 +186,7 @@ less COMPREHENSIVE_TEST_SUMMARY.md
 ```
 
 ### Test 3: Google Sign-In (30 min)
+
 ```
 For each platform (iOS, Android, Web):
 1. Check if client ID is configured
@@ -185,11 +200,11 @@ For each platform (iOS, Android, Web):
 
 ## 📊 What the Tests Prove
 
-| Test | Proves | Confidence |
-|------|--------|-----------|
-| Test 1 | Email verification routing correct | 95% |
-| Test 2 | Dev code secure in production | 100% |
-| Test 3 | Google sign-in works on all platforms | 95% |
+| Test   | Proves                                | Confidence |
+| ------ | ------------------------------------- | ---------- |
+| Test 1 | Email verification routing correct    | 95%        |
+| Test 2 | Dev code secure in production         | 100%       |
+| Test 3 | Google sign-in works on all platforms | 95%        |
 
 ---
 

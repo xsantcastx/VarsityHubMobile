@@ -3,6 +3,7 @@
 ## ✅ What Was Added
 
 Added a "How It Works" educational modal to the **Manage Teams** page that explains:
+
 - League Page vs Team Page hierarchy
 - Who manages what
 - Visual examples of the structure
@@ -44,13 +45,16 @@ This is the hub where all your teams will live
 ## 🔧 Technical Details
 
 ### Files Modified:
+
 - `app/manage-teams.tsx` - Added modal and logic
 
 ### Dependencies:
+
 - React Native Modal (built-in)
 - AsyncStorage (already installed)
 
 ### Storage:
+
 - Key: `hasSeenManageTeamsWelcome`
 - Value: `'true'` after first view
 - Persists across app sessions
@@ -67,12 +71,15 @@ This is the hub where all your teams will live
 ## 📍 How to Access
 
 ### For Users:
+
 1. Navigate to "Manage Teams"
 2. See modal automatically (first time)
 3. Tap (?) button anytime to re-open
 
 ### For Developers:
+
 Located in `app/manage-teams.tsx`:
+
 - Lines 236-336: Modal component
 - Lines 750-868: Modal styles
 - Lines 36-49: First-visit detection logic
@@ -80,12 +87,14 @@ Located in `app/manage-teams.tsx`:
 ## 🧪 Testing
 
 ### To Reset Modal (for testing):
+
 ```typescript
 // In React Native debugger console:
 await AsyncStorage.removeItem('hasSeenManageTeamsWelcome');
 ```
 
 ### Test Checklist:
+
 - [ ] Shows on first visit
 - [ ] Doesn't show on second visit
 - [ ] Can open via (?) button
@@ -104,12 +113,14 @@ await AsyncStorage.removeItem('hasSeenManageTeamsWelcome');
 ## 📈 Why This Matters
 
 **Before**: Users might be confused about:
+
 - What's a League Page?
 - What's a Team Page?
 - How do they relate?
 - Who manages what?
 
 **After**: Users immediately understand:
+
 - League = Hub for all teams
 - Teams = Individual sport pages
 - You manage League, coaches manage Teams
@@ -118,6 +129,7 @@ await AsyncStorage.removeItem('hasSeenManageTeamsWelcome');
 ## 🔄 Future Enhancements
 
 Potential improvements:
+
 - [ ] Multi-step tutorial (1 of 5, 2 of 5, etc.)
 - [ ] Video tutorial option
 - [ ] Interactive demo

@@ -25,11 +25,13 @@
 ### Task 1: Centralized video constants + limit-parity contract test
 
 **Files:**
+
 - Create: `constants/video.ts`
 - Create: `app/__tests__/video-upload-limits.contract.test.ts`
 - Modify: `server/src/routes/uploads.ts:254` (maxBytes `'52428800'` → `'157286400'`)
 
 **Interfaces:**
+
 - Produces: `constants/video.ts` exporting `VIDEO_CAPTURE_PRESET` (ImagePicker.VideoExportPreset), `STORY_MAX_DURATION_S` (number, 30), `MAX_VIDEO_SIZE_BYTES` (number, 157286400), `MAX_VIDEO_SIZE_MB` (number, 150). Tasks 2–4 import these.
 
 - [ ] **Step 1: Write the failing contract test**
@@ -59,10 +61,7 @@ describe('video upload size limit parity', () => {
   });
 
   it('server cloudinary signature max_bytes equals 150MB', () => {
-    const src = fs.readFileSync(
-      path.join(ROOT, 'server', 'src', 'routes', 'uploads.ts'),
-      'utf8'
-    );
+    const src = fs.readFileSync(path.join(ROOT, 'server', 'src', 'routes', 'uploads.ts'), 'utf8');
     expect(src).toMatch(/maxBytes = '157286400'/);
     // The old 50MB literal must be gone
     expect(src).not.toMatch(/maxBytes = '52428800'/);
@@ -144,9 +143,11 @@ Note: the server change auto-deploys to production via Railway on push to main. 
 ### Task 2: create-post.tsx — uncapped duration, centralized constants
 
 **Files:**
+
 - Modify: `app/(tabs)/create-post.tsx` (const at :85, library picker at :463-470, camera picker at :561-569, size checks at :487-500 and :590-601)
 
 **Interfaces:**
+
 - Consumes: `VIDEO_CAPTURE_PRESET`, `MAX_VIDEO_SIZE_BYTES`, `MAX_VIDEO_SIZE_MB` from `constants/video.ts` (Task 1).
 - Produces: nothing consumed by later tasks.
 
@@ -155,11 +156,7 @@ Note: the server change auto-deploys to production via Railway on push to main. 
 At the top of `app/(tabs)/create-post.tsx`, add the import (near the existing `@/utils/compressVideo` import at line 35):
 
 ```ts
-import {
-  MAX_VIDEO_SIZE_BYTES,
-  MAX_VIDEO_SIZE_MB,
-  VIDEO_CAPTURE_PRESET,
-} from '@/constants/video';
+import { MAX_VIDEO_SIZE_BYTES, MAX_VIDEO_SIZE_MB, VIDEO_CAPTURE_PRESET } from '@/constants/video';
 ```
 
 Delete line 85:
@@ -265,9 +262,11 @@ git commit -m "feat(video): uncap feed-post video duration, use shared capture c
 ### Task 3: StoryCameraButton — 30s cap, MediumQuality, real compression call
 
 **Files:**
+
 - Modify: `components/StoryCameraButton.tsx` (picker options ~lines 84-91, `confirmVideoTrim` ~lines 118-123)
 
 **Interfaces:**
+
 - Consumes: `VIDEO_CAPTURE_PRESET`, `STORY_MAX_DURATION_S` from `constants/video.ts` (Task 1); `compressVideoSafe(uri: string): Promise<string>` from `utils/compressVideo.ts` (existing).
 - Produces: nothing consumed by later tasks. `onCapture(uri, 'video')` contract with parent screens is unchanged.
 
@@ -355,9 +354,11 @@ git commit -m "feat(video): stories capture at MediumQuality/30s with real compr
 ### Task 4: GameDetailsScreen — explicit preset, uncapped duration, compression on story upload
 
 **Files:**
+
 - Modify: `app/game-details/GameDetailsScreen.tsx` (pickerOptions ~lines 1217-1221, `confirmStoryUpload` ~lines 1377-1391)
 
 **Interfaces:**
+
 - Consumes: `VIDEO_CAPTURE_PRESET` from `constants/video.ts` (Task 1); `compressVideoSafe` from `utils/compressVideo.ts` (existing).
 - Produces: nothing consumed by later tasks.
 
@@ -432,9 +433,11 @@ git commit -m "feat(video): game story capture gets explicit preset, uncapped du
 ### Task 5: Install react-native-compressor (makes compression real)
 
 **Files:**
+
 - Modify: `package.json`, `package-lock.json` (via install command)
 
 **Interfaces:**
+
 - Consumes: nothing from earlier tasks (independent — the `compressVideoSafe` wrapper already exists and tolerates absence).
 - Produces: the native module that makes every `compressVideoSafe()` call (Tasks 3–4 additions plus create-post's existing calls) actually compress instead of silently no-op.
 
@@ -453,7 +456,7 @@ Note: `Video.compress()` still cannot run in Node/Jest (native module) — `comp
 - [ ] **Step 3: Confirm no config plugin is required**
 
 Run: `grep -rn "compressor" node_modules/react-native-compressor/README.md | head -20` and check the README's installation section.
-Expected: react-native-compressor is autolinked with no `app.config.js` plugin entry required (no permissions of its own). If the README for the installed version *does* demand a config plugin, add it to the `plugins` array in `app.config.js` and note it in the commit message.
+Expected: react-native-compressor is autolinked with no `app.config.js` plugin entry required (no permissions of its own). If the README for the installed version _does_ demand a config plugin, add it to the `plugins` array in `app.config.js` and note it in the commit message.
 
 - [ ] **Step 4: Typecheck + full client test pass**
 
@@ -481,6 +484,7 @@ are safe via compressVideoSafe's dynamic-require fallback."
 **Files:** none (verification only).
 
 **Interfaces:**
+
 - Consumes: everything above, running on a device.
 
 - [ ] **Step 1: Rebuild the dev client (user runs these — never run eas build yourself)**

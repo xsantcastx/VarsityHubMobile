@@ -17,6 +17,7 @@ The app is live in the App Store. Core features (feed, teams, highlights, profil
 **Root Cause:** No endpoint to persist the device's Expo push token, and no client-side call to register it.
 
 **Changes:**
+
 - **Server:** Add `POST /auth/register-push-token` endpoint
   - Accepts `{ pushToken: string }` in request body
   - Validates it looks like an Expo push token (`ExponentPushToken[...]`)
@@ -34,6 +35,7 @@ The app is live in the App Store. Core features (feed, teams, highlights, profil
 **Root Cause:** Placeholder/missing env vars in production.
 
 **Changes:**
+
 - **Railway:** Set `STRIPE_PRICE_VETERAN` to the real Stripe price ID for the Veteran plan ($1/mo recurring)
 - **Railway:** Set `STRIPE_PRICE_LEGEND` to the real Stripe price ID for the Legend plan ($20/yr recurring)
 - **Verification:** Confirm checkout flow creates valid Stripe sessions on Android
@@ -48,6 +50,7 @@ The app is live in the App Store. Core features (feed, teams, highlights, profil
 **Root Cause:** The screen was intentionally gated pre-launch and never ungated.
 
 **Changes:**
+
 - **Client:** Remove the `ComingSoon` re-export from `admin-dashboard.tsx` so the actual dashboard renders
 - **Verification:** Confirm admin users can see and interact with the league approval UI
 - **Guard:** Ensure the screen still has proper admin role checks (it does — server enforces admin-only on the endpoints)
@@ -61,6 +64,7 @@ The app is live in the App Store. Core features (feed, teams, highlights, profil
 **Root Cause:** The admin approval path (`server/src/routes/admin.ts:173-233`) was written separately from the org-owner approval path (`server/src/routes/organizations.ts:1689-1838`) and doesn't create the membership record.
 
 **Changes:**
+
 - **Server:** In the admin coach approval handler, after setting `approval_status = APPROVED`:
   - Look up the coach's pending join request (if one exists)
   - Create the organization membership record
@@ -77,6 +81,7 @@ The app is live in the App Store. Core features (feed, teams, highlights, profil
 **Root Cause:** Needs end-to-end audit — the server has conversation support but the client may not be creating conversations before sending messages, or not fetching them correctly.
 
 **Changes:**
+
 - **Audit:** Trace the full flow: open chat → create/fetch conversation → send message → display in thread
 - **Client:** Ensure conversation is created (or fetched) before first message send
 - **Client:** Ensure message list queries by `conversation_id` and displays in order

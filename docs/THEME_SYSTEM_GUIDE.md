@@ -1,6 +1,7 @@
 # 🎨 VarsityHub Multi-Theme System
 
 ## Overview
+
 A feature-flag based theme system that allows easy activation/deactivation of sport-themed color schemes without code changes.
 
 ---
@@ -8,10 +9,12 @@ A feature-flag based theme system that allows easy activation/deactivation of sp
 ## 🎯 5 Sport-Themed Color Schemes
 
 ### 1. 🌊 **Ocean Blue** (Default/Basketball)
+
 **Vibe:** Clean, energetic, modern  
 **Best for:** Basketball, Swimming, Winter Sports
 
 #### Light Mode
+
 ```typescript
 {
   tint: '#0EA5E9',        // sky-blue-500
@@ -29,6 +32,7 @@ A feature-flag based theme system that allows easy activation/deactivation of sp
 ```
 
 #### Dark Mode
+
 ```typescript
 {
   tint: '#38BDF8',        // sky-blue-400
@@ -48,10 +52,12 @@ A feature-flag based theme system that allows easy activation/deactivation of sp
 ---
 
 ### 2. 🌲 **Forest Green** (Football/Soccer)
+
 **Vibe:** Athletic, competitive, grounded  
 **Best for:** Football, Soccer, Baseball, Rugby
 
 #### Light Mode
+
 ```typescript
 {
   tint: '#10B981',        // emerald-500
@@ -69,6 +75,7 @@ A feature-flag based theme system that allows easy activation/deactivation of sp
 ```
 
 #### Dark Mode
+
 ```typescript
 {
   tint: '#34D399',        // emerald-400
@@ -88,10 +95,12 @@ A feature-flag based theme system that allows easy activation/deactivation of sp
 ---
 
 ### 3. 🌅 **Sunset Orange** (High Energy)
+
 **Vibe:** Bold, energetic, exciting  
 **Best for:** Track & Field, Volleyball, Extreme Sports
 
 #### Light Mode
+
 ```typescript
 {
   tint: '#F97316',        // orange-500
@@ -109,6 +118,7 @@ A feature-flag based theme system that allows easy activation/deactivation of sp
 ```
 
 #### Dark Mode
+
 ```typescript
 {
   tint: '#FB923C',        // orange-400
@@ -128,10 +138,12 @@ A feature-flag based theme system that allows easy activation/deactivation of sp
 ---
 
 ### 4. 👑 **Royal Purple** (Premium/Elite)
+
 **Vibe:** Premium, elite, championship  
 **Best for:** Premium tier, Championship events, Elite teams
 
 #### Light Mode
+
 ```typescript
 {
   tint: '#9333EA',        // purple-600
@@ -149,6 +161,7 @@ A feature-flag based theme system that allows easy activation/deactivation of sp
 ```
 
 #### Dark Mode
+
 ```typescript
 {
   tint: '#C084FC',        // purple-400
@@ -168,10 +181,12 @@ A feature-flag based theme system that allows easy activation/deactivation of sp
 ---
 
 ### 5. 🔴 **Crimson Red** (Traditional)
+
 **Vibe:** Passionate, intense, traditional  
 **Best for:** Traditional sports, Rivalries, Championships
 
 #### Light Mode
+
 ```typescript
 {
   tint: '#EF4444',        // red-500
@@ -189,6 +204,7 @@ A feature-flag based theme system that allows easy activation/deactivation of sp
 ```
 
 #### Dark Mode
+
 ```typescript
 {
   tint: '#F87171',        // red-400
@@ -248,57 +264,77 @@ export const AVAILABLE_THEMES: Record<string, Theme> = {
     description: 'Clean and energetic - Perfect for basketball',
     icon: '🌊',
     enabled: true, // ← DEFAULT THEME
-    light: { /* Ocean light colors */ },
-    dark: { /* Ocean dark colors */ }
+    light: {
+      /* Ocean light colors */
+    },
+    dark: {
+      /* Ocean dark colors */
+    },
   },
-  
+
   forest: {
     id: 'forest',
     name: 'Forest Green',
     description: 'Athletic and competitive - For football & soccer',
     icon: '🌲',
     enabled: false, // ← FEATURE FLAG: Set true to activate
-    light: { /* Forest light colors */ },
-    dark: { /* Forest dark colors */ }
+    light: {
+      /* Forest light colors */
+    },
+    dark: {
+      /* Forest dark colors */
+    },
   },
-  
+
   sunset: {
     id: 'sunset',
     name: 'Sunset Orange',
     description: 'Bold and exciting - High energy sports',
     icon: '🌅',
     enabled: false,
-    light: { /* Sunset light colors */ },
-    dark: { /* Sunset dark colors */ }
+    light: {
+      /* Sunset light colors */
+    },
+    dark: {
+      /* Sunset dark colors */
+    },
   },
-  
+
   royal: {
     id: 'royal',
     name: 'Royal Purple',
     description: 'Premium and elite - Championship vibes',
     icon: '👑',
     enabled: false,
-    light: { /* Royal light colors */ },
-    dark: { /* Royal dark colors */ }
+    light: {
+      /* Royal light colors */
+    },
+    dark: {
+      /* Royal dark colors */
+    },
   },
-  
+
   crimson: {
     id: 'crimson',
     name: 'Crimson Red',
     description: 'Passionate and intense - Traditional sports',
     icon: '🔴',
     enabled: false,
-    light: { /* Crimson light colors */ },
-    dark: { /* Crimson dark colors */ }
-  }
+    light: {
+      /* Crimson light colors */
+    },
+    dark: {
+      /* Crimson dark colors */
+    },
+  },
 };
 
 // Get enabled themes only
-export const getEnabledThemes = () => 
+export const getEnabledThemes = () =>
   Object.values(AVAILABLE_THEMES).filter(theme => theme.enabled);
 
 // Get default theme
-export const getDefaultTheme = () => 
+export const getDefaultTheme = () =>
   Object.values(AVAILABLE_THEMES).find(theme => theme.enabled) || AVAILABLE_THEMES.ocean;
 ```
 
@@ -327,7 +363,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useRNColorScheme() ?? 'light';
   const [activeThemeId, setActiveThemeId] = useState(getDefaultTheme().id);
-  
+
   // Load saved theme on mount
   useEffect(() => {
     AsyncStorage.getItem('app_theme').then(saved => {
@@ -336,24 +372,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       }
     });
   }, []);
-  
+
   const activeTheme = AVAILABLE_THEMES[activeThemeId] || getDefaultTheme();
   const colors = activeTheme[systemColorScheme] || activeTheme.light;
-  
+
   const setActiveTheme = async (themeId: string) => {
     if (AVAILABLE_THEMES[themeId]?.enabled) {
       setActiveThemeId(themeId);
       await AsyncStorage.setItem('app_theme', themeId);
     }
   };
-  
+
   return (
-    <ThemeContext.Provider value={{ 
-      colors, 
-      activeThemeId, 
-      setActiveTheme, 
+    <ThemeContext.Provider value={{
+      colors,
+      activeThemeId,
+      setActiveTheme,
       availableThemes: AVAILABLE_THEMES,
-      colorScheme: systemColorScheme 
+      colorScheme: systemColorScheme
     }}>
       {children}
     </ThemeContext.Provider>
@@ -381,10 +417,10 @@ import { getEnabledThemes } from '@/constants/Themes';
 export function ThemeSelector() {
   const { activeThemeId, setActiveTheme } = useTheme();
   const enabledThemes = getEnabledThemes();
-  
+
   // Don't show selector if only one theme enabled
   if (enabledThemes.length <= 1) return null;
-  
+
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.container}>
       {enabledThemes.map(theme => (
@@ -448,6 +484,7 @@ import { getEnabledThemes } from '@/constants/Themes';
 ## 🎛️ Activation/Deactivation
 
 ### To Activate a New Theme
+
 ```typescript
 // constants/Themes.ts
 forest: {
@@ -459,6 +496,7 @@ forest: {
 ```
 
 ### To Deactivate a Theme
+
 ```typescript
 // constants/Themes.ts
 sunset: {
@@ -489,6 +527,7 @@ sunset: {
 ## 🧪 Testing
 
 ### Test Each Theme
+
 1. Enable theme in `Themes.ts`
 2. Go to Settings → Theme
 3. Select theme
@@ -501,6 +540,7 @@ sunset: {
    - Settings
 
 ### Verify
+
 - [ ] All colors look good
 - [ ] Text is readable (contrast check)
 - [ ] Buttons are tappable
@@ -515,4 +555,3 @@ sunset: {
 - **Performance:** Theme colors cached, no performance hit
 - **Easy Rollback:** Just set `enabled: false`
 - **No Breaking Changes:** Gradual migration possible
-

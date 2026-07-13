@@ -1,6 +1,7 @@
 # Production Readiness Fixes - Completed ✅
 
 ## Summary
+
 Critical production issues from the audit have been addressed. The app is now significantly more robust with proper error handling, performance improvements, and security enhancements.
 
 ---
@@ -8,12 +9,14 @@ Critical production issues from the audit have been addressed. The app is now si
 ## ✅ Implemented Fixes
 
 ### 1. PostCard Performance (CRITICAL)
+
 **Issue**: Every PostCard instance called `User.me()` API  
 **Fix**: Use `useAuth()` hook from AuthProvider instead  
 **Impact**: Reduces API calls from N cards → 1 call  
 **Files**: `components/PostCard.tsx`
 
 **Verification**:
+
 ```bash
 # Open feed and check Network tab
 # Should see only 1 /me request, not 50+
@@ -22,15 +25,18 @@ Critical production issues from the audit have been addressed. The app is now si
 ---
 
 ### 2. Error Handling (CRITICAL)
+
 **Issue**: Empty `catch {}` blocks silently swallowed errors  
 **Fix**: Added proper logging and user-facing error messages  
 **Impact**: Better debugging and UX  
-**Files**: 
+**Files**:
+
 - `components/PostCard.tsx` (upvote/bookmark error handling)
 - `components/ErrorToast.tsx` (new - global toast system)
 - `app/_layout.tsx` (integrated ErrorToastContainer)
 
 **Verification**:
+
 ```typescript
 import { showErrorToast } from '@/components/ErrorToast';
 
@@ -46,14 +52,17 @@ try {
 ---
 
 ### 3. Password Validation (SECURITY)
+
 **Issue**: Weak password requirements (8 chars only)  
 **Fix**: Enhanced validation with strength requirements  
 **Impact**: Better security posture  
-**Files**: 
+**Files**:
+
 - `utils/formUtils.ts` (validatePassword, calculatePasswordStrength)
 - `app/sign-up.tsx` (integrated validation)
 
 **Requirements**:
+
 - Minimum 8 characters
 - At least 1 uppercase letter
 - At least 1 lowercase letter
@@ -61,6 +70,7 @@ try {
 - At least 1 special character
 
 **Verification**:
+
 ```typescript
 import { validatePassword, calculatePasswordStrength } from '@/utils/formUtils';
 
@@ -74,12 +84,14 @@ console.log(strength); // { score: 4, feedback: 'Strong' }
 ---
 
 ### 4. API Configuration (TESTING/STAGING)
+
 **Issue**: Hardcoded production URL prevented staging testing  
 **Fix**: Support environment-based URL selection with safety guards  
 **Impact**: Enable staging/preview builds  
 **Files**: `api/http.ts`
 
 **How to use**:
+
 ```bash
 # Option 1: .env file
 EXPO_PUBLIC_API_URL=https://staging-api.example.com
@@ -93,11 +105,13 @@ EXPO_PUBLIC_API_URL=https://staging-api.example.com
 ```
 
 **Safety guards**:
+
 - Localhost URLs only allowed in `__DEV__` mode
 - Automatically falls back to production URL in production builds
 - Logs "custom" vs "production" in development
 
 **Verification**:
+
 ```bash
 # In app console (dev mode), you should see:
 # [http] API base: https://your-custom-url.com (custom)
@@ -108,6 +122,7 @@ EXPO_PUBLIC_API_URL=https://staging-api.example.com
 ---
 
 ### 5. LIVE Badge Logic (UI/UX)
+
 **Issue**: Showed "LIVE" for any post < 1 hour old  
 **Fix**: Changed to "NEW" badge for posts < 10 minutes old  
 **Impact**: More accurate content freshness indication  
@@ -129,18 +144,21 @@ EXPO_PUBLIC_API_URL=https://staging-api.example.com
 ## 📋 Still TODO (from audit)
 
 ### Critical Blockers:
+
 1. **Token Refresh** - Implement refresh token flow (users currently logged out on token expiry)
 2. **Subscription Verification** - Check subscription status before allowing premium features
 3. **Loading States** - Add loaders to all data-fetching screens
 4. **Empty States** - Add UI for empty lists (no posts, no messages, etc.)
 
 ### High Priority:
+
 5. **Skeleton Screens** - Better UX during loading
 6. **Real-time Messaging** - WebSocket or push notifications (currently poll-based)
 7. **Accessibility** - Add labels, test with VoiceOver/TalkBack
 8. **File Refactoring** - Split large files (create-post: 1846 lines, GameDetailsScreen: 133KB)
 
 ### Medium Priority:
+
 9. **Image Cropping** - Let users crop before upload
 10. **Offline Queue** - Retry failed operations when back online
 11. **Message Features** - Search, delete, read receipts
@@ -165,21 +183,23 @@ EXPO_PUBLIC_API_URL=https://staging-api.example.com
 ## 📞 Quick Reference
 
 ### Error Toast API
+
 ```typescript
-import { 
-  showErrorToast, 
-  showSuccessToast, 
-  showWarningToast, 
-  showInfoToast 
+import {
+  showErrorToast,
+  showSuccessToast,
+  showWarningToast,
+  showInfoToast,
 } from '@/components/ErrorToast';
 
-showErrorToast('Error message', 4000);      // 4 second duration
-showSuccessToast('Success!', 3000);         // 3 second duration
-showWarningToast('Warning', 3500);          // 3.5 second duration
-showInfoToast('Info', 3000);                // 3 second duration
+showErrorToast('Error message', 4000); // 4 second duration
+showSuccessToast('Success!', 3000); // 3 second duration
+showWarningToast('Warning', 3500); // 3.5 second duration
+showInfoToast('Info', 3000); // 3 second duration
 ```
 
 ### Password Strength Calculation
+
 ```typescript
 import { calculatePasswordStrength } from '@/utils/formUtils';
 
@@ -193,6 +213,7 @@ const strengthColor = colors[score];
 ```
 
 ### API Base URL
+
 ```typescript
 import { getApiBaseUrl } from '@/api/http';
 
@@ -204,13 +225,13 @@ console.log(baseUrl); // e.g., "https://api-production-8ac3.up.railway.app"
 
 ## 📊 Code Coverage
 
-| Component | Status | Files |
-|-----------|--------|-------|
-| Error Toast | ✅ Implemented | `components/ErrorToast.tsx`, `app/_layout.tsx` |
-| PostCard Performance | ✅ Fixed | `components/PostCard.tsx` |
-| Password Validation | ✅ Enhanced | `utils/formUtils.ts`, `app/sign-up.tsx` |
-| API Configuration | ✅ Flexible | `api/http.ts` |
-| LIVE Badge | ✅ Fixed | `app/highlights.tsx` |
+| Component            | Status         | Files                                          |
+| -------------------- | -------------- | ---------------------------------------------- |
+| Error Toast          | ✅ Implemented | `components/ErrorToast.tsx`, `app/_layout.tsx` |
+| PostCard Performance | ✅ Fixed       | `components/PostCard.tsx`                      |
+| Password Validation  | ✅ Enhanced    | `utils/formUtils.ts`, `app/sign-up.tsx`        |
+| API Configuration    | ✅ Flexible    | `api/http.ts`                                  |
+| LIVE Badge           | ✅ Fixed       | `app/highlights.tsx`                           |
 
 ---
 

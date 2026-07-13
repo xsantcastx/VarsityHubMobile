@@ -19,14 +19,14 @@ Coach UI should follow the same staged contract as the server. The correct quest
 
 ## Critical surfaces
 
-| Surface | Admin | Coach (Active) | Coach (Recovering) | Fan |
-|---|---|---|---|---|
-| `Manage Teams` | Allowed | Allowed | Redirect to server recovery route | Blocked |
-| `Event Approvals` | Allowed | Allowed | Redirect to server recovery route | Blocked |
-| `Create Team` | Allowed | Allowed | Blocked until `coach_active` | Blocked unless org-manager exception applies |
-| Coach quick actions in Discover | Allowed | Visible | Hidden | Hidden |
-| Quick Add Game / coach event creation | Allowed | Coach mode | Fan mode until `coach_active` | Fan mode |
-| Org join-request moderation | Allowed | Allowed when org role permits | Blocked | Blocked |
+| Surface                               | Admin   | Coach (Active)                | Coach (Recovering)                | Fan                                          |
+| ------------------------------------- | ------- | ----------------------------- | --------------------------------- | -------------------------------------------- |
+| `Manage Teams`                        | Allowed | Allowed                       | Redirect to server recovery route | Blocked                                      |
+| `Event Approvals`                     | Allowed | Allowed                       | Redirect to server recovery route | Blocked                                      |
+| `Create Team`                         | Allowed | Allowed                       | Blocked until `coach_active`      | Blocked unless org-manager exception applies |
+| Coach quick actions in Discover       | Allowed | Visible                       | Hidden                            | Hidden                                       |
+| Quick Add Game / coach event creation | Allowed | Coach mode                    | Fan mode until `coach_active`     | Fan mode                                     |
+| Org join-request moderation           | Allowed | Allowed when org role permits | Blocked                           | Blocked                                      |
 
 ## Release checks
 

@@ -6,7 +6,9 @@
 ## Root Cause Analysis (FBI-Level Investigation)
 
 ### Problem
+
 Builds were failing with:
+
 ```
 > Task :app:lintVitalRelease FAILED
 /home/expo/workingdir/build/android/app/src/main/res/values-b+en/strings.xml:2: Error: "name" is translated here but not found in default locale [ExtraTranslation]
@@ -34,18 +36,23 @@ Builds were failing with:
 ## Complete Fix Applied
 
 ### 1. Fixed Baseline File Paths ✅
+
 **File**: `android/app/lint-baseline.xml`
+
 - Changed from: `android/app/src/main/res/values-b+en/strings.xml`
 - Changed to: `src/main/res/values-b+en/strings.xml` (relative to android/app directory)
 
 ### 2. Marked Strings as Non-Translatable ✅
+
 **File**: `android/app/src/main/res/values/strings.xml`
+
 ```xml
 <string name="name" translatable="false">VarsityHub Mobile</string>
 <string name="displayName" translatable="false">VarsityHub Mobile</string>
 ```
 
 ### 3. Disabled lintVitalRelease in 7 Places ✅
+
 **File**: `android/app/build.gradle`
 
 1. **Top-level `tasks.all`** (line 110) - Catches task as early as possible
@@ -57,29 +64,37 @@ Builds were failing with:
 7. **`gradle.taskGraph.beforeTask`** (line 405) - Final safeguard
 
 ### 4. Lint Configuration ✅
+
 **File**: `android/app/build.gradle` (lint block)
+
 - `baseline = file("lint-baseline.xml")` ✅
 - `checkReleaseBuilds false` ✅
 - `disable 'ExtraTranslation'` ✅
 - `abortOnError false` ✅
 
 ### 5. Release BuildType Configuration ✅
+
 **File**: `android/app/build.gradle` (buildTypes.release)
+
 - `lintOptions { checkReleaseBuilds false }` ✅
 - `lintOptions { disable 'ExtraTranslation' }` ✅
 
 ### 6. Gradle Properties ✅
+
 **File**: `android/gradle.properties`
+
 - `android.lint.checkReleaseBuilds=false` ✅
 
 ## Verification
 
 Run the test script to verify all fixes:
+
 ```bash
 bash scripts/test-lint-config.sh
 ```
 
 Expected output:
+
 ```
 ✅ Baseline file paths are correct
 ✅ Strings marked as non-translatable
@@ -99,6 +114,7 @@ Expected output:
 ## Current Status
 
 ✅ **ALL ISSUES FIXED**
+
 - Baseline file paths corrected
 - Strings marked as non-translatable
 - lintVitalRelease disabled in 7 places

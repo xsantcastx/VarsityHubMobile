@@ -6,12 +6,13 @@ These files enable **universal links** (iOS) and **App Links** (Android) so that
 
 Place these files on your web server so they are accessible at:
 
-| File | URL |
-|------|-----|
-| iOS | `https://varsityhub.app/.well-known/apple-app-site-association` |
-| Android | `https://varsityhub.app/.well-known/assetlinks.json` |
+| File    | URL                                                             |
+| ------- | --------------------------------------------------------------- |
+| iOS     | `https://varsityhub.app/.well-known/apple-app-site-association` |
+| Android | `https://varsityhub.app/.well-known/assetlinks.json`            |
 
 **Important:**
+
 - The `apple-app-site-association` file must be served **without** a `.json` extension
 - Both files must be served with `Content-Type: application/json`
 - Both must be served over **HTTPS**
@@ -24,6 +25,7 @@ Place these files on your web server so they are accessible at:
 - **App ID format:** `{TeamID}.{BundleID}` → `B5H8F69RW5.com.varsithub.varsityhub-ios`
 
 Paths configured for deep linking:
+
 - `/posts/*` — Post detail
 - `/games/*` — Game detail
 - `/teams/*` — Team profile
@@ -41,6 +43,7 @@ Paths configured for deep linking:
 ### Get your SHA256 fingerprint
 
 **For release builds (Play Store / EAS):**
+
 ```bash
 # If using a local keystore
 keytool -list -v -keystore your-release-key.keystore -alias your-key-alias
@@ -51,6 +54,7 @@ keytool -list -v -keystore your-release-key.keystore -alias your-key-alias
 ```
 
 **For debug builds:**
+
 ```bash
 keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
 ```
@@ -73,9 +77,11 @@ If you have debug and release (or multiple signing keys), add all fingerprints:
 Ensure your app is configured for associated domains:
 
 **iOS** (`app.json` / `app.config.js`):
+
 - Add `associatedDomains: ["applinks:varsityhub.app", "applinks:www.varsityhub.app"]` if not already present via Expo config.
 
 **Android** (`app.json`):
+
 - Expo/React Native typically adds the intent filter for `assetlinks.json` when you configure the domain. Verify your `AndroidManifest.xml` includes the correct `android:autoVerify="true"` for the intent filter.
 
 ## Verification
@@ -83,6 +89,7 @@ Ensure your app is configured for associated domains:
 **iOS:** Use [Apple’s AASA Validator](https://search.developer.apple.com/appsearch-validation-tool/) with `https://varsityhub.app`
 
 **Android:** Use [Google’s Statement List Generator and Tester](https://developers.google.com/digital-asset-links/tools/generator) or:
+
 ```bash
 # Test that the file is reachable
 curl -I https://varsityhub.app/.well-known/assetlinks.json

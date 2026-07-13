@@ -1,4 +1,5 @@
 # Coach Onboarding Payment Verification Fix
+
 **Date:** Applied  
 **Status:** ✅ Fixed
 
@@ -13,9 +14,11 @@
 ## ✅ Fixes Applied
 
 ### Fix 1: Payment Verification in Step 10
+
 **File:** `app/onboarding/step-10-confirmation.tsx`
 
 **What Changed:**
+
 - Added payment status check before allowing onboarding completion
 - For paid plans (Veteran/Legend), verifies:
   1. `payment_pending` is not `true`
@@ -26,16 +29,17 @@
   - Retry if payment is processing
 
 **Code Added:**
+
 ```typescript
 // CRITICAL: For paid plans, verify payment completed before allowing onboarding completion
 if (isCoach && ob.plan !== 'rookie') {
   const me: any = await User.me();
   const prefs = me?.preferences || {};
-  
+
   if (prefs.payment_pending === true) {
     // Block completion, show error with options
   }
-  
+
   if (!prefs.subscription_id && ob.plan !== 'rookie' && prefs.payment_pending !== false) {
     // Payment still processing - give user options
   }
@@ -45,19 +49,23 @@ if (isCoach && ob.plan !== 'rookie') {
 ---
 
 ### Fix 2: Team Count Default
+
 **File:** `app/onboarding/step-3-plan.tsx`
 
 **What Changed:**
+
 - Changed default team count from 3 to 2 (first 2 teams are free)
 - Added validation: minimum 3 teams required for Veteran plan
 - Updated minimum validation in team count selector
 
 **Before:**
+
 ```typescript
 const [teamCount, setTeamCount] = useState<number>(3); // Minimum 3 teams
 ```
 
 **After:**
+
 ```typescript
 const [teamCount, setTeamCount] = useState<number>(2); // First 2 teams free
 // Validation: minimum 3 teams for Veteran (2 free + 1 paid)
@@ -68,6 +76,7 @@ const [teamCount, setTeamCount] = useState<number>(2); // First 2 teams free
 ## 🧪 Testing
 
 ### Test Scenario 1: Pending Payment Blocked
+
 1. Select Coach role
 2. Choose Veteran plan
 3. Open Stripe checkout but don't complete payment
@@ -76,6 +85,7 @@ const [teamCount, setTeamCount] = useState<number>(2); // First 2 teams free
 6. **Expected:** ✅ Alert shown, completion blocked
 
 ### Test Scenario 2: Completed Payment Allowed
+
 1. Select Coach role
 2. Choose Veteran plan
 3. Complete Stripe payment
@@ -84,6 +94,7 @@ const [teamCount, setTeamCount] = useState<number>(2); // First 2 teams free
 6. **Expected:** ✅ Onboarding completes successfully
 
 ### Test Scenario 3: Rookie Plan (No Payment)
+
 1. Select Coach role
 2. Choose Rookie plan (free)
 3. Navigate to Step 10
@@ -106,11 +117,13 @@ const [teamCount, setTeamCount] = useState<number>(2); // First 2 teams free
 ## 📊 Impact
 
 **Before Fix:**
+
 - ❌ Users could complete onboarding without paying
 - ❌ Revenue loss from unpaid subscriptions
 - ❌ Team count default was confusing (3 instead of 2)
 
 **After Fix:**
+
 - ✅ Payment verified before completion
 - ✅ Revenue protected
 - ✅ Clear pricing (2 free teams)

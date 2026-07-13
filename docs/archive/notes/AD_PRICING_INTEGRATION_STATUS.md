@@ -39,6 +39,7 @@
 ## ⚠️ Critical Issue: Stripe Price ID Mismatch
 
 ### The Problem
+
 The checkout flow uses **Stripe price IDs** that may not match the calculated subtotal:
 
 ```typescript
@@ -50,6 +51,7 @@ const adTypeToPriceId: Record<string, string> = {
 ```
 
 **Issue:** These price IDs are hardcoded and were created for the **previous pricing scheme** ($8 weekday / $10 weekend). The current system:
+
 - **Calculates** subtotal dynamically using `calculatePriceCents()` → returns **500–800 cents** per block
 - **Charges** via Stripe using fixed `priceId` → may reference **800–1000 cents** per item
 
@@ -76,12 +78,15 @@ const adTypeToPriceId: Record<string, string> = {
 ## 🧪 Testing Recommendations
 
 ### Unit Tests (Already in Code)
+
 ```bash
 npm test -- --runTestsByPath server/src/__tests__/payments.test.ts
 ```
+
 **Note:** This will fail if Jest isn't configured for server tests. Run with `--passWithNoTests` for now.
 
 ### End-to-End Smoke Test
+
 1. **Create an ad** via admin panel or `/ads` POST endpoint
 2. **Book dates** on the calendar (e.g., select Mon + Fri)
 3. **Verify three totals match:**
@@ -91,14 +96,15 @@ npm test -- --runTestsByPath server/src/__tests__/payments.test.ts
 4. **Proceed with payment** and confirm the charge amount in Stripe matches
 
 ### Test Scenarios
-| Dates Selected | Weekday Blocks | Weekend Blocks | Expected Total |
-|---|---|---|---|
-| Any single Monday–Thursday | 1 | 0 | $5.00 |
-| Any single Friday–Sunday | 0 | 1 | $8.00 |
-| Mon + Fri | 1 | 1 | $13.00 |
-| Mon + Tue | 1 | 0 | $5.00 (one weekly block) |
-| Fri + Sat | 0 | 1 | $8.00 (one weekly block) |
-| Mon + Fri + Sun | 1 | 1 | $13.00 (two weekly blocks) |
+
+| Dates Selected             | Weekday Blocks | Weekend Blocks | Expected Total             |
+| -------------------------- | -------------- | -------------- | -------------------------- |
+| Any single Monday–Thursday | 1              | 0              | $5.00                      |
+| Any single Friday–Sunday   | 0              | 1              | $8.00                      |
+| Mon + Fri                  | 1              | 1              | $13.00                     |
+| Mon + Tue                  | 1              | 0              | $5.00 (one weekly block)   |
+| Fri + Sat                  | 0              | 1              | $8.00 (one weekly block)   |
+| Mon + Fri + Sun            | 1              | 1              | $13.00 (two weekly blocks) |
 
 ---
 
@@ -125,29 +131,33 @@ npm test -- --runTestsByPath server/src/__tests__/payments.test.ts
 ## File Inventory
 
 ### Backend (Server)
-| File | Lines | Change | Status |
-|---|---|---|---|
-| `server/src/utils/adPricing.ts` | 1–65 | **New file:** Shared pricing helper | ✅ |
-| `server/src/routes/ads.ts` | ~325 | Uses `calculateAdPriceDollars()` | ✅ |
-| `server/src/routes/payments.ts` | 16, 107, 307–309 | Imports helper, calculates subtotal, maps price IDs | ✅ |
-| `server/src/__tests__/payments.test.ts` | 1–76 | Tests for $5/$8 pricing | ✅ |
+
+| File                                    | Lines            | Change                                              | Status |
+| --------------------------------------- | ---------------- | --------------------------------------------------- | ------ |
+| `server/src/utils/adPricing.ts`         | 1–65             | **New file:** Shared pricing helper                 | ✅     |
+| `server/src/routes/ads.ts`              | ~325             | Uses `calculateAdPriceDollars()`                    | ✅     |
+| `server/src/routes/payments.ts`         | 16, 107, 307–309 | Imports helper, calculates subtotal, maps price IDs | ✅     |
+| `server/src/__tests__/payments.test.ts` | 1–76             | Tests for $5/$8 pricing                             | ✅     |
 
 ### Frontend
-| File | Lines | Change | Status |
-|---|---|---|---|
-| `app/ad-calendar.tsx` | 15–16, 620–740, 809 | Constants, legend, examples, calculations | ✅ |
+
+| File                  | Lines               | Change                                    | Status |
+| --------------------- | ------------------- | ----------------------------------------- | ------ |
+| `app/ad-calendar.tsx` | 15–16, 620–740, 809 | Constants, legend, examples, calculations | ✅     |
 
 ### Documentation
-| File | Lines | Change | Status |
-|---|---|---|---|
-| `PRICING_UPDATE_COMPLETE.md` | ~89–100 | References $5/$8 | ✅ |
-| `docs/AD_PRICING_UPDATE.md` | 5–100 | Dec 13 note, but old scheme still documented | 🟡 |
+
+| File                         | Lines   | Change                                       | Status |
+| ---------------------------- | ------- | -------------------------------------------- | ------ |
+| `PRICING_UPDATE_COMPLETE.md` | ~89–100 | References $5/$8                             | ✅     |
+| `docs/AD_PRICING_UPDATE.md`  | 5–100   | Dec 13 note, but old scheme still documented | 🟡     |
 
 ---
 
 ## Code Examples
 
 ### Correct Weekly Slot Calculation
+
 ```typescript
 // User selects: Wed, Thu, Fri
 const dates = ['2025-01-15', '2025-01-16', '2025-01-17'];
@@ -159,6 +169,7 @@ const result = calculateAdPriceCents(dates);
 ```
 
 ### Checkout Flow (Simplified)
+
 ```typescript
 const subtotal = calculatePriceCents(isoDates); // 1300 cents
 const tax = calculateSalesTax(subtotal, zipCode);
@@ -191,14 +202,14 @@ const total = subtotal + tax;
 
 ## Summary Table
 
-| Component | Status | Risk | Action Required |
-|---|---|---|---|
-| Helper function | ✅ Implemented | None | None |
-| Backend routes | ✅ Integrated | None | None |
-| Frontend constants | ✅ Updated | None | None |
-| Jest tests | ✅ Written | Low | Run tests when Jest configured |
-| Stripe price IDs | 🟡 Unknown | **High** | **Verify in dashboard ASAP** |
-| Documentation | ✅ Updated | Low | Clean up old scheme notes |
+| Component          | Status         | Risk     | Action Required                |
+| ------------------ | -------------- | -------- | ------------------------------ |
+| Helper function    | ✅ Implemented | None     | None                           |
+| Backend routes     | ✅ Integrated  | None     | None                           |
+| Frontend constants | ✅ Updated     | None     | None                           |
+| Jest tests         | ✅ Written     | Low      | Run tests when Jest configured |
+| Stripe price IDs   | 🟡 Unknown     | **High** | **Verify in dashboard ASAP**   |
+| Documentation      | ✅ Updated     | Low      | Clean up old scheme notes      |
 
 ---
 

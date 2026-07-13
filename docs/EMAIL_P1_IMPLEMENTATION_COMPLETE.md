@@ -13,18 +13,20 @@ Extended email queue system with P1 (high-value team coordination) emails. All j
 ## What's Implemented
 
 ### 1. Roster Threshold Alert
+
 - **Trigger:** `teams.roster_threshold_alert`
 - **When:** Team reaches roster size that triggers billing threshold
 - **Recipient:** Head coach
 - **Purpose:** Alert coach about upcoming billing change
 
 **Data:**
+
 ```typescript
 {
   coach_name: string;
   team_name: string;
   roster_count: number;
-  threshold_cost: number;  // Monthly cost at new tier
+  threshold_cost: number; // Monthly cost at new tier
   manage_billing_url: string;
 }
 ```
@@ -35,18 +37,20 @@ Extended email queue system with P1 (high-value team coordination) emails. All j
 ---
 
 ### 2. Staff Invitation (Invitee)
+
 - **Trigger:** `staff.invited_to_team`
 - **When:** Head coach invites assistant coach or staff member
 - **Recipient:** Invitee (new staff member)
 - **Purpose:** Send invitation with acceptance link and onboarding info
 
 **Data:**
+
 ```typescript
 {
   invitee_name: string;
   inviter_name: string;
   team_name: string;
-  invite_link: string;       // Includes token for auto-accept
+  invite_link: string; // Includes token for auto-accept
   expiry_days: number;
   onboarding_url: string;
 }
@@ -58,12 +62,14 @@ Extended email queue system with P1 (high-value team coordination) emails. All j
 ---
 
 ### 3. Staff Invitation Confirmation (Head Coach)
+
 - **Trigger:** `staff.invitation_sent`
 - **When:** Invitation successfully sent
 - **Recipient:** Head coach (inviter)
 - **Purpose:** Confirm invitation delivery + provide resend option
 
 **Data:**
+
 ```typescript
 {
   coach_name: string;
@@ -80,18 +86,20 @@ Extended email queue system with P1 (high-value team coordination) emails. All j
 ---
 
 ### 4. Report Resolution
+
 - **Trigger:** `reports.resolved`
 - **When:** Trust & Safety team closes abuse/violation report
 - **Recipient:** Reported user
 - **Purpose:** Notify of resolution decision + provide appeal option
 
 **Data:**
+
 ```typescript
 {
   user_name: string;
-  report_type: string;            // 'harassment', 'violation', etc.
+  report_type: string; // 'harassment', 'violation', etc.
   resolution_status: 'resolved' | 'dismissed';
-  resolution_reason: string;      // Human-readable explanation
+  resolution_reason: string; // Human-readable explanation
   appeal_url: string;
 }
 ```
@@ -104,6 +112,7 @@ Extended email queue system with P1 (high-value team coordination) emails. All j
 ## Testing Results
 
 ### Jest Tests ✅
+
 ```
 PASS  Email Queue System
     P1: Roster Threshold Alert
@@ -120,14 +129,17 @@ Time: 1.089 s
 ```
 
 ### Security Scan ✅
+
 ```
 snyk code scan: 0 security issues
 ```
 
 ### Linting ✅
+
 ```
 ✖ 371 problems (0 errors, 371 warnings)
 ```
+
 - 0 new parsing errors
 - No security warnings
 
@@ -138,10 +150,11 @@ snyk code scan: 0 security issues
 ### In Routes
 
 **1. teams.ts - Roster Threshold Alert**
+
 ```typescript
 // After team member added, check roster count
 const memberCount = await prisma.teamMember.count({
-  where: { team_id: teamId }
+  where: { team_id: teamId },
 });
 
 if (memberCount > THRESHOLD) {
@@ -157,10 +170,11 @@ if (memberCount > THRESHOLD) {
 ```
 
 **2. staff.ts - Staff Invitation**
+
 ```typescript
 // When creating invitation
 const invite = await prisma.staffInvite.create({
-  data: { teamId, inviteeEmail, expiresAt }
+  data: { teamId, inviteeEmail, expiresAt },
 });
 
 // Queue invitee email
@@ -186,11 +200,12 @@ await emailQueue.add('staff.invitation_sent', {
 ```
 
 **3. reports.ts - Report Resolution**
+
 ```typescript
 // When updating report status
 await prisma.report.update({
   where: { id: reportId },
-  data: { status: 'resolved' }
+  data: { status: 'resolved' },
 });
 
 // Queue resolution email
@@ -209,6 +224,7 @@ await emailQueue.add('reports.resolved', {
 ## How to Use
 
 ### Queue P1 Email Job
+
 ```typescript
 import { emailQueue } from '../lib/queue.js';
 
@@ -223,12 +239,14 @@ await emailQueue.add('teams.roster_threshold_alert', {
 ```
 
 ### Run Tests
+
 ```bash
 cd server
 npm test -- --testPathPattern=email-queue --watchman=false
 ```
 
 ### Monitor Queue
+
 ```bash
 ./monitor-queue.sh
 ```
@@ -280,14 +298,17 @@ npm test -- --testPathPattern=email-queue --watchman=false
 ## Files Changed
 
 ### New Files
+
 - None (all changes to existing files)
 
 ### Modified Files
+
 1. `server/src/lib/email.ts` - Added 4 P1 email functions
 2. `server/src/workers/emailWorker.ts` - Added 4 P1 job handlers + imports
 3. `server/src/__tests__/email-queue.test.ts` - Added 4 P1 test cases
 
 ### Total Changes
+
 - 4 email functions + 4 job handlers + 4 tests = 12 implementations
 - 10/10 tests passing
 - 0 security issues
@@ -326,12 +347,12 @@ All jobs use exponential backoff retry logic (3 attempts max) and are persisted 
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| P1 email not sending | Check emailQueue logs, verify SendGrid template IDs |
-| Job stuck in waiting | Run `monitor-queue.sh`, check overnight cleanup task logs |
-| High failure rate | Check SendGrid API rate limits, verify recipient email valid |
-| Tests timeout | Increase Jest timeout in `jest.config.js` |
+| Issue                | Solution                                                     |
+| -------------------- | ------------------------------------------------------------ |
+| P1 email not sending | Check emailQueue logs, verify SendGrid template IDs          |
+| Job stuck in waiting | Run `monitor-queue.sh`, check overnight cleanup task logs    |
+| High failure rate    | Check SendGrid API rate limits, verify recipient email valid |
+| Tests timeout        | Increase Jest timeout in `jest.config.js`                    |
 
 ---
 

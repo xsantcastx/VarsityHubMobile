@@ -8,20 +8,20 @@
 
 ## 📊 Quick Priority Matrix
 
-| Tier | Email Type | Impact | Effort | Backend Event | Status |
-|------|-----------|--------|--------|---------------|--------|
-| 🔴 **P0** | Reservation Received | High revenue signal | Low | `ads.reservations.created` | Ready |
-| 🔴 **P0** | Payment Required / Link Expired | Recover abandoned checkouts | Low | `payments.checkout.abandoned` | Ready |
-| 🔴 **P0** | Ad Goes Live | Advertiser confidence | Medium | `ads.status` → `active` | Ready |
-| 🟡 **P1** | Roster Threshold Alert | Reduce support tickets | Low | `teams.created` (count logic) | Ready |
-| 🟡 **P1** | New Staff Added | Onboarding velocity | Low | `staff.invited` | Ready |
-| 🟡 **P1** | Report Resolution | Trust signal | Medium | `reports.status` → `resolved` | Ready |
-| 🟢 **P2** | Season Wrap-Up | Retention hook | Medium | `seasons.locked` | Ready |
-| 🟢 **P2** | Post Highlight | Creator engagement | Medium | `posts.reactions` threshold | Ready |
-| 🟢 **P2** | Fan Follows Athlete | Social graph signal | Low | `follows.created` | Ready |
-| 🟢 **P2** | Account Recovery | Security trust | Low | `auth.password_reset`, `auth.email_change` | Ready |
-| 🟢 **P2** | Profile Incomplete Nudge | Onboarding completion | Low | `users.created` + 3-day wait | Ready |
-| 🟢 **P2** | Dormant User Digest | Reactivation | Medium | `sessions.created` (inverse) | Ready |
+| Tier      | Email Type                      | Impact                      | Effort | Backend Event                              | Status |
+| --------- | ------------------------------- | --------------------------- | ------ | ------------------------------------------ | ------ |
+| 🔴 **P0** | Reservation Received            | High revenue signal         | Low    | `ads.reservations.created`                 | Ready  |
+| 🔴 **P0** | Payment Required / Link Expired | Recover abandoned checkouts | Low    | `payments.checkout.abandoned`              | Ready  |
+| 🔴 **P0** | Ad Goes Live                    | Advertiser confidence       | Medium | `ads.status` → `active`                    | Ready  |
+| 🟡 **P1** | Roster Threshold Alert          | Reduce support tickets      | Low    | `teams.created` (count logic)              | Ready  |
+| 🟡 **P1** | New Staff Added                 | Onboarding velocity         | Low    | `staff.invited`                            | Ready  |
+| 🟡 **P1** | Report Resolution               | Trust signal                | Medium | `reports.status` → `resolved`              | Ready  |
+| 🟢 **P2** | Season Wrap-Up                  | Retention hook              | Medium | `seasons.locked`                           | Ready  |
+| 🟢 **P2** | Post Highlight                  | Creator engagement          | Medium | `posts.reactions` threshold                | Ready  |
+| 🟢 **P2** | Fan Follows Athlete             | Social graph signal         | Low    | `follows.created`                          | Ready  |
+| 🟢 **P2** | Account Recovery                | Security trust              | Low    | `auth.password_reset`, `auth.email_change` | Ready  |
+| 🟢 **P2** | Profile Incomplete Nudge        | Onboarding completion       | Low    | `users.created` + 3-day wait               | Ready  |
+| 🟢 **P2** | Dormant User Digest             | Reactivation                | Medium | `sessions.created` (inverse)               | Ready  |
 
 ---
 
@@ -34,11 +34,13 @@
 **When:** Immediately after advertiser selects dates and submits reservation
 
 **Backend Hook Location:**
+
 ```
 server/src/routes/ads.ts → POST /ads/reservations
 ```
 
 **Data Available:**
+
 ```typescript
 {
   ad_id: uuid,
@@ -52,6 +54,7 @@ server/src/routes/ads.ts → POST /ads/reservations
 ```
 
 **Email Template Variables:**
+
 - `{{advertiser_name}}`
 - `{{reserved_dates}}` (formatted as "Mon, Dec 16 - Fri, Dec 20")
 - `{{cost}}` (e.g., "$13.00")
@@ -60,7 +63,9 @@ server/src/routes/ads.ts → POST /ads/reservations
 - `{{ad_preview_url}}`
 
 **Implementation Steps:**
+
 1. After `createMany(reserved_dates)` succeeds in `ads.ts`, emit event:
+
    ```typescript
    await emailQueue.add('ads.reservation_received', {
      advertiser_id,
@@ -68,7 +73,7 @@ server/src/routes/ads.ts → POST /ads/reservations
      reserved_dates,
      cost,
      target_zip_code,
-     ad_id
+     ad_id,
    });
    ```
 
@@ -85,10 +90,12 @@ server/src/routes/ads.ts → POST /ads/reservations
 **When:** N hours after reservation without completed payment
 
 **Backend Implementation:**
+
 - Add job queue task (Bull/Redis) that fires 6-12 hours after reservation if payment not completed
 - Check `payments.status` is still `pending` or `abandoned`
 
 **Data Available:**
+
 ```typescript
 {
   ad_id: uuid,
@@ -103,6 +110,7 @@ server/src/routes/ads.ts → POST /ads/reservations
 ```
 
 **Email Template Variables:**
+
 - `{{advertiser_name}}`
 - `{{cost}}`
 - `{{hours_remaining}}` (e.g., "6 hours")
@@ -110,7 +118,9 @@ server/src/routes/ads.ts → POST /ads/reservations
 - `{{cancellation_policy_url}}`
 
 **Implementation Steps:**
+
 1. In `payments.ts`, after checkout session created:
+
    ```typescript
    const delayMs = 6 * 60 * 60 * 1000; // 6 hours
    await emailQueue.add(
@@ -133,11 +143,13 @@ server/src/routes/ads.ts → POST /ads/reservations
 **When:** First time ad's date range enters "current date" and banner appears in feeds
 
 **Backend Hook Location:**
+
 ```
 server/src/cron/ad-status-updater.ts (runs daily at midnight)
 ```
 
 **Data Available:**
+
 ```typescript
 {
   ad_id: uuid,
@@ -151,6 +163,7 @@ server/src/cron/ad-status-updater.ts (runs daily at midnight)
 ```
 
 **Email Template Variables:**
+
 - `{{advertiser_name}}`
 - `{{ad_title}}`
 - `{{target_zip}}` (e.g., "Miami, FL 33139")
@@ -160,7 +173,9 @@ server/src/cron/ad-status-updater.ts (runs daily at midnight)
 - `{{support_contact}}`
 
 **Implementation Steps:**
+
 1. In cron job, after updating ad status to `active`:
+
    ```typescript
    await emailQueue.add('ads.goes_live', {
      ad_id,
@@ -168,7 +183,7 @@ server/src/cron/ad-status-updater.ts (runs daily at midnight)
      advertiser_email,
      ad_title,
      target_zip_code,
-     live_until
+     live_until,
    });
    ```
 
@@ -187,11 +202,13 @@ server/src/cron/ad-status-updater.ts (runs daily at midnight)
 **When:** Coach creates 3rd team (triggers paid tier)
 
 **Backend Hook Location:**
+
 ```
 server/src/routes/teams.ts → POST /teams
 ```
 
 **Logic:**
+
 ```typescript
 const teamCount = await Team.count({ where: { coach_id: req.user.id } });
 if (teamCount === 2) {
@@ -201,12 +218,13 @@ if (teamCount === 2) {
     coach_email,
     coach_name,
     upcoming_billing_date,
-    veteran_rate_per_team
+    veteran_rate_per_team,
   });
 }
 ```
 
 **Email Template Variables:**
+
 - `{{coach_name}}`
 - `{{new_team_name}}`
 - `{{veteran_rate}}` (e.g., "$49/month")
@@ -215,6 +233,7 @@ if (teamCount === 2) {
 - `{{pricing_page_url}}`
 
 **Implementation Steps:**
+
 1. Add team count check before `create()` succeeds
 2. Emit event with clear messaging about billing cycle
 3. Include link to manage teams/pause a team if they want to stay on free tier
@@ -228,6 +247,7 @@ if (teamCount === 2) {
 **When:** Head coach invites assistant coach/staff member
 
 **Backend Hook Location:**
+
 ```
 server/src/routes/staff.ts → POST /staff/invite
 ```
@@ -235,6 +255,7 @@ server/src/routes/staff.ts → POST /staff/invite
 **Two Emails:**
 
 **A) Invitation Email (to invitee)**
+
 ```typescript
 await emailQueue.add('staff.invited_to_team', {
   invitee_email,
@@ -243,11 +264,12 @@ await emailQueue.add('staff.invited_to_team', {
   team_name,
   invite_token,
   invite_link_with_token,
-  onboarding_docs_url
+  onboarding_docs_url,
 });
 ```
 
 **B) Confirmation Email (to head coach)**
+
 ```typescript
 await emailQueue.add('staff.invitation_sent', {
   coach_id,
@@ -255,11 +277,12 @@ await emailQueue.add('staff.invitation_sent', {
   coach_name,
   invitee_name,
   invitee_email,
-  team_name
+  team_name,
 });
 ```
 
 **Email Template Variables (Invitation):**
+
 - `{{inviter_name}}`
 - `{{team_name}}`
 - `{{invite_link}}`
@@ -267,13 +290,16 @@ await emailQueue.add('staff.invitation_sent', {
 - `{{expiry_days}}` (e.g., "7 days")
 
 **Email Template Variables (Confirmation):**
+
 - `{{invitee_name}}`
 - `{{invitee_email}}`
 - `{{team_name}}`
 - `{{manage_staff_url}}`
 
 **Implementation Steps:**
+
 1. In `staff.ts`, immediately after creating invitation record:
+
    ```typescript
    const invite = await StaffInvite.create({ ... });
    await emailQueue.add('staff.invited_to_team', { ... });
@@ -293,11 +319,13 @@ await emailQueue.add('staff.invitation_sent', {
 **When:** Trust & Safety team closes an abuse/violation report
 
 **Backend Hook Location:**
+
 ```
 server/src/routes/reports.ts → PATCH /reports/:id
 ```
 
 **Data Available:**
+
 ```typescript
 {
   report_id: uuid,
@@ -311,6 +339,7 @@ server/src/routes/reports.ts → PATCH /reports/:id
 ```
 
 **Email Template Variables (Reporter):**
+
 - `{{reporter_name}}`
 - `{{resolution_status}}` (e.g., "We reviewed your report and took action")
 - `{{resolution_detail}}`
@@ -318,19 +347,22 @@ server/src/routes/reports.ts → PATCH /reports/:id
 - `{{support_contact}}`
 
 **Email Template Variables (Reported User - if action taken):**
+
 - `{{user_name}}`
 - `{{violation_type}}` (e.g., "Harassment")
 - `{{action_taken}}` (e.g., "Account warning", "Temporary suspension")
 - `{{appeal_process_url}}`
 
 **Implementation Steps:**
+
 1. In reports route, after status update:
+
    ```typescript
    await emailQueue.add('reports.resolved', {
      report_id,
      resolution_type,
      reporter_id,
-     reported_user_id
+     reported_user_id,
    });
    ```
 
@@ -351,11 +383,13 @@ server/src/routes/reports.ts → PATCH /reports/:id
 **When:** Admin or automated process marks season as finished
 
 **Backend Hook Location:**
+
 ```
 server/src/cron/season-closer.ts (seasonal, run on defined date)
 ```
 
 **Data Available:**
+
 ```typescript
 {
   season_id: uuid,
@@ -374,6 +408,7 @@ server/src/cron/season-closer.ts (seasonal, run on defined date)
 ```
 
 **Email Template Variables:**
+
 - `{{coach_name}}`
 - `{{team_name}}`
 - `{{season_name}}` (e.g., "Fall 2025")
@@ -383,7 +418,9 @@ server/src/cron/season-closer.ts (seasonal, run on defined date)
 - `{{archive_stats_link}}`
 
 **Implementation Steps:**
+
 1. In season-closer cron:
+
    ```typescript
    const season = await Season.findByPk(id);
    const stats = await calculateSeasonStats(id);
@@ -392,7 +429,7 @@ server/src/cron/season-closer.ts (seasonal, run on defined date)
      coach_id,
      coach_email,
      stats,
-     next_season_signup_link
+     next_season_signup_link,
    });
    ```
 
@@ -409,11 +446,13 @@ server/src/cron/season-closer.ts (seasonal, run on defined date)
 **When:** Post from an athlete/creator hits 100 reactions (first time)
 
 **Backend Hook Location:**
+
 ```
 server/src/routes/posts.ts → reaction handling
 ```
 
 **Logic:**
+
 ```typescript
 // After reaction created/updated
 const reactionCount = await Reaction.count({ where: { post_id } });
@@ -423,13 +462,14 @@ if (reactionCount === 100 && !post.milestone_100_email_sent) {
     creator_id,
     creator_email,
     reaction_count: 100,
-    post_preview_url
+    post_preview_url,
   });
   await post.update({ milestone_100_email_sent: true });
 }
 ```
 
 **Email Template Variables:**
+
 - `{{creator_name}}`
 - `{{milestone_number}}` (e.g., "100")
 - `{{post_preview}}` (image/text excerpt)
@@ -438,6 +478,7 @@ if (reactionCount === 100 && !post.milestone_100_email_sent) {
 - `{{next_milestone}}` (e.g., "250 reactions")
 
 **Implementation Steps:**
+
 1. Track milestones at: 100, 250, 500, 1000 reactions
 
 2. Template emphasizes social proof (e.g., "Your post is trending!")
@@ -455,11 +496,13 @@ if (reactionCount === 100 && !post.milestone_100_email_sent) {
 **When:** A fan/follower follows an athlete
 
 **Backend Hook Location:**
+
 ```
 server/src/routes/follows.ts → POST /follows
 ```
 
 **Data Available:**
+
 ```typescript
 {
   follow_id: uuid,
@@ -475,6 +518,7 @@ server/src/routes/follows.ts → POST /follows
 ```
 
 **Email Template Variables (Athlete):**
+
 - `{{athlete_name}}`
 - `{{follower_name}}`
 - `{{follower_profile_url}}`
@@ -483,7 +527,9 @@ server/src/routes/follows.ts → POST /follows
 - `{{follower_stats}}` (e.g., "joined 3 months ago, follows 45 athletes")
 
 **Implementation Steps:**
+
 1. In follows.ts:
+
    ```typescript
    const follow = await Follow.create({ follower_id, athlete_id });
    await emailQueue.add('follows.athlete_followed', {
@@ -491,7 +537,7 @@ server/src/routes/follows.ts → POST /follows
      follower_name,
      athlete_id,
      athlete_email,
-     athlete_name
+     athlete_name,
    });
    ```
 
@@ -504,16 +550,19 @@ server/src/routes/follows.ts → POST /follows
 ### 10. **Account Recovery Confirmation**
 
 **Trigger Events:**
+
 - `auth.password_reset` (user confirms password reset)
 - `auth.email_change` (user confirms new email)
 
 **Backend Hook Location:**
+
 ```
 server/src/routes/auth.ts → password reset flow
 server/src/routes/account.ts → email change flow
 ```
 
 **Email A: Password Reset Confirmation**
+
 ```typescript
 // After reset link clicked and new password saved
 await emailQueue.add('auth.password_reset_complete', {
@@ -522,11 +571,12 @@ await emailQueue.add('auth.password_reset_complete', {
   user_name,
   reset_time: timestamp,
   ip_address: req.ip,
-  support_url: 'https://varsityhub.com/support/security'
+  support_url: 'https://varsityhub.com/support/security',
 });
 ```
 
 **Email B: Email Change Confirmation**
+
 ```typescript
 // Send to OLD email address
 await emailQueue.add('auth.email_change_old', {
@@ -535,7 +585,7 @@ await emailQueue.add('auth.email_change_old', {
   new_email,
   user_name,
   undo_link_with_token,
-  undo_expiry_hours: 24
+  undo_expiry_hours: 24,
 });
 
 // Send to NEW email address
@@ -543,11 +593,12 @@ await emailQueue.add('auth.email_change_new', {
   user_id,
   new_email,
   user_name,
-  confirm_link
+  confirm_link,
 });
 ```
 
 **Email Template Variables (Password Reset):**
+
 - `{{user_name}}`
 - `{{reset_time}}`
 - `{{ip_address}}`
@@ -555,6 +606,7 @@ await emailQueue.add('auth.email_change_new', {
 - `{{support_link}}`
 
 **Email Template Variables (Email Change - Old):**
+
 - `{{user_name}}`
 - `{{old_email}}`
 - `{{new_email}}`
@@ -562,11 +614,13 @@ await emailQueue.add('auth.email_change_new', {
 - `{{undo_hours}}` (e.g., "24")
 
 **Email Template Variables (Email Change - New):**
+
 - `{{user_name}}`
 - `{{new_email}}`
 - `{{confirm_link}}`
 
 **Implementation Steps:**
+
 1. Always send recovery confirmation to **both** old and new email to catch unauthorized access
 
 2. Password reset email includes IP + device info for security audit trail
@@ -582,11 +636,13 @@ await emailQueue.add('auth.email_change_new', {
 **When:** New user hasn't filled required profile fields after 3 days
 
 **Backend Hook Location:**
+
 ```
 server/src/cron/onboarding-incomplete-nudge.ts (runs daily)
 ```
 
 **Logic:**
+
 ```typescript
 const incompletePlayers = await User.findAll({
   where: {
@@ -596,9 +652,9 @@ const incompletePlayers = await User.findAll({
     [Op.or]: [
       { bio: { [Op.is]: null } },
       { primary_sport: { [Op.is]: null } },
-      { jersey_number: { [Op.is]: null } }
-    ]
-  }
+      { jersey_number: { [Op.is]: null } },
+    ],
+  },
 });
 
 for (const user of incompletePlayers) {
@@ -607,12 +663,13 @@ for (const user of incompletePlayers) {
     user_email: user.email,
     user_name: user.name,
     missing_fields: calculateMissingFields(user),
-    profile_edit_link: `${APP_URL}/profile/edit`
+    profile_edit_link: `${APP_URL}/profile/edit`,
   });
 }
 ```
 
 **Email Template Variables:**
+
 - `{{user_name}}`
 - `{{missing_fields_list}}` (e.g., "Bio, Jersey Number")
 - `{{profile_edit_link}}`
@@ -620,6 +677,7 @@ for (const user of incompletePlayers) {
 - `{{estimated_time}}` (e.g., "2 minutes")
 
 **Implementation Steps:**
+
 1. Only send once to avoid spam (add `nudge_sent` flag to users table)
 
 2. Template focuses on benefits (recruit discovery, follower growth)
@@ -637,43 +695,47 @@ for (const user of incompletePlayers) {
 **When:** Cron job identifies inactive users daily
 
 **Backend Hook Location:**
+
 ```
 server/src/cron/dormant-user-digest.ts (runs daily)
 ```
 
 **Logic:**
+
 ```typescript
 const dormantUsers = await User.findAll({
-  include: [{
-    association: 'sessions',
-    where: { created_at: { [Op.lt]: moment().subtract(14, 'days') } },
-    separate: true,
-    limit: 1
-  }],
+  include: [
+    {
+      association: 'sessions',
+      where: { created_at: { [Op.lt]: moment().subtract(14, 'days') } },
+      separate: true,
+      limit: 1,
+    },
+  ],
   where: {
     account_type: 'athlete',
     // Only athletes - coaches stay engaged
-  }
+  },
 });
 
 for (const user of dormantUsers) {
   const nearbyGames = await Game.findAll({
     where: {
       location: {
-        [Op.within]: calcDistance(user.location, 25) // 25 mile radius
+        [Op.within]: calcDistance(user.location, 25), // 25 mile radius
       },
       game_date: { [Op.gte]: moment() },
-      [Op.limit]: 3
-    }
+      [Op.limit]: 3,
+    },
   });
 
   const topHighlights = await Post.findAll({
     where: {
       visibility: 'public',
-      created_at: { [Op.gte]: moment().subtract(14, 'days') }
+      created_at: { [Op.gte]: moment().subtract(14, 'days') },
     },
     order: [['reactions', 'DESC']],
-    limit: 5
+    limit: 5,
   });
 
   await emailQueue.add('onboarding.dormant_user_digest', {
@@ -682,12 +744,13 @@ for (const user of dormantUsers) {
     user_name: user.name,
     nearby_games: nearbyGames,
     trending_highlights: topHighlights,
-    open_app_link: `varsityhub://home?source=dormant-digest`
+    open_app_link: `varsityhub://home?source=dormant-digest`,
   });
 }
 ```
 
 **Email Template Variables:**
+
 - `{{user_name}}`
 - `{{days_absent}}` (e.g., "14")
 - `{{nearby_games_count}}`
@@ -697,6 +760,7 @@ for (const user of dormantUsers) {
 - `{{explore_link}}`
 
 **Implementation Steps:**
+
 1. Only send once per 14-day dormancy window
 
 2. Surface location-relevant games (what's happening near them)
@@ -712,24 +776,28 @@ for (const user of dormantUsers) {
 ## 🛠️ Implementation Roadmap
 
 ### Phase 1: Foundation (Week 1-2)
+
 - [ ] Set up SendGrid integration (already started in EMAIL_HOOKS_INTEGRATION_SUMMARY.md)
 - [ ] Create shared email template engine
 - [ ] Implement queue worker (Bull/Redis) for async processing
 - [ ] Add logging/monitoring for email delivery
 
 ### Phase 2: P0 Emails (Week 2-3)
+
 - [ ] Wire `Reservation Received`
 - [ ] Wire `Payment Required / Link Expired` (with delay logic)
 - [ ] Wire `Ad Goes Live` (connect to cron)
 - [ ] Create all 3 templates
 
 ### Phase 3: P1 Emails (Week 3-4)
+
 - [ ] Wire `Roster Threshold Alert`
 - [ ] Wire `New Staff Added` (dual emails)
 - [ ] Wire `Report Resolution` (conditional logic)
 - [ ] Create all templates + test flows
 
 ### Phase 4: P2 Emails (Week 4-6)
+
 - [ ] Wire remaining 6 emails
 - [ ] Build all templates
 - [ ] Add admin UI for testing/replay
@@ -776,20 +844,20 @@ server/src/email/templates/
 
 Track these per-email KPIs:
 
-| Email | Key Metric | Success Target |
-|-------|-----------|-----------------|
-| Reservation Received | Checkout completion rate | > 80% within 24h |
-| Payment Required | Retry conversion | > 15% |
-| Ad Goes Live | CTR (click to analytics) | > 25% |
-| Roster Threshold | Read rate | > 60% |
-| New Staff Added | Invite acceptance | > 85% |
-| Report Resolution | Support ticket reduction | -20% related tickets |
-| Season Wrap-Up | Signup for next season | > 40% |
-| Post Highlight | External shares | > 5% |
-| Fan Follows | DM engagement | > 30% |
-| Account Recovery | Fraudulent access reports | 0 (ideal) |
-| Profile Incomplete | Profile completion | > 40% within 48h |
-| Dormant Digest | App reopen | > 25% within 7 days |
+| Email                | Key Metric                | Success Target       |
+| -------------------- | ------------------------- | -------------------- |
+| Reservation Received | Checkout completion rate  | > 80% within 24h     |
+| Payment Required     | Retry conversion          | > 15%                |
+| Ad Goes Live         | CTR (click to analytics)  | > 25%                |
+| Roster Threshold     | Read rate                 | > 60%                |
+| New Staff Added      | Invite acceptance         | > 85%                |
+| Report Resolution    | Support ticket reduction  | -20% related tickets |
+| Season Wrap-Up       | Signup for next season    | > 40%                |
+| Post Highlight       | External shares           | > 5%                 |
+| Fan Follows          | DM engagement             | > 30%                |
+| Account Recovery     | Fraudulent access reports | 0 (ideal)            |
+| Profile Incomplete   | Profile completion        | > 40% within 48h     |
+| Dormant Digest       | App reopen                | > 25% within 7 days  |
 
 ---
 

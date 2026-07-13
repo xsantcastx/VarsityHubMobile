@@ -2,13 +2,14 @@
 
 **Feature:** Community Events & Local League Visibility  
 **Status:** Specification - Ready for Implementation  
-**Priority:** High  
+**Priority:** High
 
 ## 🎯 Overview
 
 The Discover section serves as the community hub for all users — allowing fans, coaches, and organizers to view, create, and manage local sports content in one place.
 
 **Key Features:**
+
 - Fan-submitted events with approval workflow
 - League-wide visibility and aggregation
 - Three-tier Discover setup (Teams / Events / Approvals)
@@ -17,11 +18,11 @@ The Discover section serves as the community hub for all users — allowing fans
 
 ## 🧩 Three-Tier Discover Structure
 
-| Tier | Description | User Access | Example UI |
-|------|-------------|-------------|------------|
-| **1. Team Hub** | Manage or create team pages | Coach / Organizer | "Create New Team" form with name, handle, org, description |
-| **2. Create Event** | Submit games, watch parties, fundraisers, tryouts, etc. | All users (Fans included) | Event form (title, date/time, location, description, type) |
-| **3. Approvals** | Moderate and review submitted events | Admin / Coach / League Rep | Pending events list with Approve/Reject buttons |
+| Tier                | Description                                             | User Access                | Example UI                                                 |
+| ------------------- | ------------------------------------------------------- | -------------------------- | ---------------------------------------------------------- |
+| **1. Team Hub**     | Manage or create team pages                             | Coach / Organizer          | "Create New Team" form with name, handle, org, description |
+| **2. Create Event** | Submit games, watch parties, fundraisers, tryouts, etc. | All users (Fans included)  | Event form (title, date/time, location, description, type) |
+| **3. Approvals**    | Moderate and review submitted events                    | Admin / Coach / League Rep | Pending events list with Approve/Reject buttons            |
 
 ---
 
@@ -30,6 +31,7 @@ The Discover section serves as the community hub for all users — allowing fans
 ### 1. Event Creation Permissions
 
 **Fan Events (Require Approval):**
+
 ```typescript
 if (user.role === 'fan') {
   event.status = 'pending_approval';
@@ -39,6 +41,7 @@ if (user.role === 'fan') {
 ```
 
 **Auto-Approval:**
+
 - Coaches/Organizers can create events instantly without review
 - Approved events automatically publish to:
   - Related League Page
@@ -54,6 +57,7 @@ if (user.role === 'fan') {
 - ➕ **Other** (custom label)
 
 **Event Schema:**
+
 ```json
 {
   "title": "Varsity BBQ Fundraiser",
@@ -71,6 +75,7 @@ if (user.role === 'fan') {
 ### 3. League Page Integration
 
 **League page now aggregates:**
+
 - 🏈 All Teams
 - 📅 All Events (official + fan-submitted)
 - 📣 Highlights / Local News
@@ -93,10 +98,12 @@ Fans can discover everything related to their local sports ecosystem in one plac
 ### Approval Queue
 
 **Moderators see:**
+
 - Dashboard with filters: Pending, Approved, Rejected
 - Bulk action buttons
 
 **Notifications:**
+
 - ✅ "Your event has been approved!"
 - ❌ "Your event was rejected — please revise details."
 
@@ -115,24 +122,27 @@ Fans can discover everything related to their local sports ecosystem in one plac
 ## 💰 Monetization / Upgrade Logic
 
 ### Free Users
+
 - Can create up to **2 teams** and **3 pending events**
 
 ### Veteran / Legend Plans
+
 - ✅ Unlimited team and event creation
 - ⚡ Priority approval for events
 
 **Upgrade Prompt Example:**
+
 > "You've reached your limit of 3 pending events. Upgrade to Veteran to create unlimited community events."
 
 ---
 
 ## 🔒 Permissions Summary
 
-| Role | Create Team | Create Event | Needs Approval | Manage Others | Moderate Events |
-|------|-------------|--------------|----------------|---------------|-----------------|
-| **Fan** | ❌ | ✅ | ✅ | ❌ | ❌ |
-| **Coach/Organizer** | ✅ | ✅ | ❌ | ✅ | ✅ |
-| **Admin/League Rep** | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Role                 | Create Team | Create Event | Needs Approval | Manage Others | Moderate Events |
+| -------------------- | ----------- | ------------ | -------------- | ------------- | --------------- |
+| **Fan**              | ❌          | ✅           | ✅             | ❌            | ❌              |
+| **Coach/Organizer**  | ✅          | ✅           | ❌             | ✅            | ✅              |
+| **Admin/League Rep** | ✅          | ✅           | ❌             | ✅            | ✅              |
 
 ---
 

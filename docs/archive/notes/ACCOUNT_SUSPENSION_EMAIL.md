@@ -14,12 +14,14 @@ ALTER TABLE users
 ```
 
 Middleware suggestion:
+
 - Block suspended users from logging in: if `is_suspended = TRUE` and `suspension_end_date > NOW()`, deny auth and return `until`.
 - Auto-reinstate with a daily cron: when `NOW() >= suspension_end_date`, set `is_suspended = FALSE` and clear reason.
 
 ## Email HTML Helpers
 
 Client-side preview helpers live in `components/ReportResolutionEmail.tsx`:
+
 - `reportResolvedHTML`
 - `reportDismissedHTML`
 - `accountSuspendedHTML` (new)

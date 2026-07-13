@@ -1,7 +1,8 @@
 # VarsityHub Mobile - TestFlight Release Notes
+
 **Version:** 1.0.1  
 **Build Number:** 27 (pending) / 38 (fallback)  
-**Release Date:** December 9, 2025  
+**Release Date:** December 9, 2025
 
 ---
 
@@ -10,11 +11,13 @@
 ### ✨ Features & Improvements
 
 **Ad Space Emblem Fix**
+
 - Fixed missing icons in the ad space reserve section
 - Icons now display correctly with proper styling
 - Improves visual clarity of promotional content
 
 **Provisioning Profile Updates**
+
 - Regenerated with Push Notifications capability
 - Added Apple Sign-In authentication support
 - Ensures secure background notifications
@@ -66,15 +69,18 @@ None blocking this release.
 ### December 8, 2025
 
 **commit aaa3a52** - `fix: use valid Ionicon names - image-outline and arrow-forward`
+
 - Corrected invalid Ionicon names in ad space section
 - Icons now render with proper styling and alignment
 - Verified against complete Ionicons library
 
 **commit ccf87ce** - `docs: add Phase 9b build status report`
+
 - Updated build status documentation
 - Logged provisioning profile regeneration
 
 **commit a906728** - `fix: add icons to ad space reserve section`
+
 - Added initial icon implementation
 - Styled with dark/light mode support
 
@@ -92,7 +98,7 @@ None blocking this release.
 ✅ **iOS App**: All security scans passed  
 ✅ **Push Notifications**: Configured and tested  
 ✅ **Apple Sign-In**: Properly implemented  
-⚠️ **Backend (Pre-Launch)**: Update `elliptic@latest` before production API deployment  
+⚠️ **Backend (Pre-Launch)**: Update `elliptic@latest` before production API deployment
 
 ---
 

@@ -1,14 +1,17 @@
 # Real-World Login Test Guide
+
 **Purpose:** Test if your app can handle real users logging in
 
 ## 🚀 Quick Test (5 minutes)
 
 Run this script first:
+
 ```bash
 ./scripts/QUICK_LOGIN_TEST.sh
 ```
 
 This checks:
+
 - ✅ Backend is online
 - ✅ Login endpoint works
 - ✅ Token validation works
@@ -18,6 +21,7 @@ This checks:
 ## 📱 Manual Test Checklist (15 minutes)
 
 ### ✅ TEST 1: Fresh Install
+
 **Time:** 2 minutes
 
 1. **Clear app data:**
@@ -38,6 +42,7 @@ This checks:
 ---
 
 ### ✅ TEST 2: Email Login - Success
+
 **Time:** 1 minute
 
 1. **Enter valid email/password** (use a test account)
@@ -56,6 +61,7 @@ This checks:
    - ✅ Should auto-login (NOT show sign-in screen)
 
 **❌ If fails:**
+
 - "Invalid login response" → Backend not returning `access_token`
 - Stuck on loading → `checkAuth()` never completes
 - Wrong redirect → AuthProvider routing issue
@@ -63,6 +69,7 @@ This checks:
 ---
 
 ### ✅ TEST 3: Email Login - Wrong Password
+
 **Time:** 30 seconds
 
 1. **Enter correct email, wrong password**
@@ -75,12 +82,14 @@ This checks:
    - ✅ Can immediately retry
 
 **❌ If fails:**
+
 - Generic error → Error handling issue
 - Can't retry → State not reset
 
 ---
 
 ### ✅ TEST 4: Network Failure
+
 **Time:** 2 minutes
 
 1. **Turn off WiFi/cellular**
@@ -101,6 +110,7 @@ This checks:
    - ✅ No state corruption
 
 **❌ If fails:**
+
 - Hangs forever → No timeout
 - Crashes → Unhandled error
 - Can't retry → State corruption
@@ -108,6 +118,7 @@ This checks:
 ---
 
 ### ✅ TEST 5: Google Sign-In
+
 **Time:** 1 minute
 
 1. **Click "Continue with Google"**
@@ -120,6 +131,7 @@ This checks:
    - ✅ User data loads correctly
 
 **❌ If fails:**
+
 - "Google sign in not configured" → Missing OAuth client IDs
 - "Failed to retrieve email" → OAuth response issue
 - Stuck after OAuth → `checkAuth()` issue
@@ -127,6 +139,7 @@ This checks:
 ---
 
 ### ✅ TEST 6: Apple Sign-In (iOS only)
+
 **Time:** 1 minute
 
 1. **Click Apple sign-in button**
@@ -138,6 +151,7 @@ This checks:
    - ✅ User data loads
 
 **❌ If fails:**
+
 - Button doesn't appear → iOS-only check working
 - Missing email error → Apple OAuth issue
 - Stuck after auth → Routing issue
@@ -145,6 +159,7 @@ This checks:
 ---
 
 ### ✅ TEST 7: Token Persistence
+
 **Time:** 1 minute
 
 1. **Login successfully**
@@ -161,6 +176,7 @@ This checks:
    - ✅ User data loads
 
 **❌ If fails:**
+
 - Shows sign-in screen → Token not saved/loaded
 - Hangs on loading → Token loading race condition
 - Wrong screen → Routing issue
@@ -168,6 +184,7 @@ This checks:
 ---
 
 ### ✅ TEST 8: Rapid Login Attempts
+
 **Time:** 1 minute
 
 1. **Try email login (wrong password)**
@@ -180,6 +197,7 @@ This checks:
    - ✅ No state conflicts
 
 **❌ If fails:**
+
 - Crashes → Race condition
 - State conflicts → Multiple auth calls interfering
 
@@ -188,9 +206,11 @@ This checks:
 ## 🔍 Common Login Issues & Fixes
 
 ### Issue: "Invalid login response"
+
 **Cause:** Backend not returning `access_token` in response
 
 **Check:**
+
 ```bash
 # Test login endpoint directly
 curl -X POST https://api-production-8ac3.up.railway.app/auth/login \
@@ -199,6 +219,7 @@ curl -X POST https://api-production-8ac3.up.railway.app/auth/login \
 ```
 
 **Should return:**
+
 ```json
 {
   "access_token": "eyJ...",
@@ -212,14 +233,17 @@ curl -X POST https://api-production-8ac3.up.railway.app/auth/login \
 ---
 
 ### Issue: Stuck on Loading Screen
+
 **Cause:** `checkAuth()` never completes
 
 **Check:**
+
 1. Open React Native debugger
 2. Check console for errors
 3. Look for: "AuthProvider checkAuth error"
 
 **Common causes:**
+
 - `User.me()` failing silently
 - Network timeout
 - Token invalid but not cleared
@@ -229,9 +253,11 @@ curl -X POST https://api-production-8ac3.up.railway.app/auth/login \
 ---
 
 ### Issue: Redirect Loops
+
 **Cause:** AuthProvider routing logic conflicting
 
 **Check:**
+
 1. Watch console for: `[AuthProvider] Routing check`
 2. Look for rapid redirects
 
@@ -240,9 +266,11 @@ curl -X POST https://api-production-8ac3.up.railway.app/auth/login \
 ---
 
 ### Issue: Token Lost on App Restart
+
 **Cause:** SecureStore not saving/loading correctly
 
 **Check:**
+
 ```typescript
 // In app, after login:
 import * as SecureStore from 'expo-secure-store';
@@ -298,7 +326,7 @@ Tester: ___________
 ✅ TEST 8: Rapid Attempts - PASS / FAIL
 
 Issues Found:
-- 
+-
 
 Ready for Release: YES / NO
 ```
@@ -308,6 +336,7 @@ Ready for Release: YES / NO
 ## 🔧 Quick Fixes Applied
 
 I've improved error handling in:
+
 - ✅ `app/sign-in.tsx` - Better handling of `checkAuth()` failures
 - ✅ `context/AuthProvider.tsx` - Better error logging
 
@@ -316,6 +345,7 @@ These changes prevent users from seeing confusing errors when login succeeds but
 ---
 
 **Next Steps:**
+
 1. Run the quick test script
 2. Complete manual test checklist
 3. Fix any issues found

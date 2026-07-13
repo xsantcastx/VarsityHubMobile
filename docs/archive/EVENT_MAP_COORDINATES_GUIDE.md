@@ -36,7 +36,7 @@ model Game {
   latitude   Float?
   longitude  Float?
   // ... more fields
-  
+
   @@index([date])
   @@index([latitude, longitude])
 }
@@ -47,7 +47,7 @@ model Event {
   latitude   Float?
   longitude  Float?
   // ... more fields
-  
+
   @@index([date])
   @@index([game_id])
   @@index([latitude, longitude])
@@ -68,7 +68,7 @@ const game = await prisma.game.create({
     latitude: 40.750504,
     longitude: -73.993439,
     // ... other fields
-  }
+  },
 });
 ```
 
@@ -81,7 +81,7 @@ await prisma.game.update({
   data: {
     latitude: 40.750504,
     longitude: -73.993439,
-  }
+  },
 });
 
 // Bulk update (you'll need to geocode each location first)
@@ -111,10 +111,7 @@ for (const game of gamesNeedingCoords) {
 // Find all games with coordinates
 const gamesWithCoords = await prisma.game.findMany({
   where: {
-    AND: [
-      { latitude: { not: null } },
-      { longitude: { not: null } },
-    ],
+    AND: [{ latitude: { not: null } }, { longitude: { not: null } }],
   },
 });
 
@@ -130,15 +127,13 @@ const nearbyGames = await prisma.game.findMany({
 const missingCoords = await prisma.game.count({
   where: {
     location: { not: null },
-    OR: [
-      { latitude: null },
-      { longitude: null },
-    ],
+    OR: [{ latitude: null }, { longitude: null }],
   },
 });
 ```
 
 ### Advantages ✅
+
 - Simple and direct
 - No external API dependencies
 - Fast queries (indexed)
@@ -146,6 +141,7 @@ const missingCoords = await prisma.game.count({
 - One-time data entry
 
 ### Disadvantages ❌
+
 - Manual coordinate entry required (use Option B to automate)
 - Coordinates may become outdated if venue moves
 - No validation that coordinates match location string
@@ -230,11 +226,11 @@ curl -X POST http://localhost:4000/geocoding/location \
 const response = await fetch(`${API_URL}/geocoding/location`, {
   method: 'POST',
   headers: {
-    'Authorization': `Bearer ${token}`,
+    Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    location: 'Stanford Stadium, Palo Alto, CA'
+    location: 'Stanford Stadium, Palo Alto, CA',
   }),
 });
 
@@ -248,7 +244,7 @@ const coords = await response.json();
 curl -X POST http://localhost:4000/geocoding/game/clxyz123 \
   -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
   -H "Content-Type: application/json"
-  
+
 # Optionally override location:
 curl -X POST http://localhost:4000/geocoding/game/clxyz123 \
   -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
@@ -303,7 +299,7 @@ import { geocodeLocation } from '../lib/geocoding.js';
 
 const result = await geocodeLocation('Stanford Stadium, Palo Alto, CA');
 if (result) {
-  console.log(result.latitude);  // 37.434926
+  console.log(result.latitude); // 37.434926
   console.log(result.longitude); // -122.161491
   console.log(result.formatted_address); // Full address
 }
@@ -338,10 +334,12 @@ console.log(`Geocoded ${count} games`);
 ### Rate Limiting
 
 Google Geocoding API has the following limits:
+
 - **Free tier**: 0.005 USD per request (first 200 USD/month free)
 - **Rate limit**: ~500 requests per minute
 
 The geocoding service automatically:
+
 - Waits 200ms between requests (~300/min)
 - Caches results in memory for 7 days
 - Only processes items that don't already have coordinates
@@ -369,12 +367,14 @@ const result = await geocodeLocation('Invalid Location 123xyz!@#');
 ```
 
 Common error codes:
+
 - `ZERO_RESULTS` - No coordinates found for location
 - `OVER_QUERY_LIMIT` - Rate limit exceeded (wait and retry)
 - `REQUEST_DENIED` - Invalid API key or restrictions
 - `INVALID_REQUEST` - Missing or malformed location
 
 ### Advantages ✅
+
 - Automatic coordinate generation
 - Consistent formatting
 - Validation that location exists
@@ -382,6 +382,7 @@ Common error codes:
 - Easy bulk processing
 
 ### Disadvantages ❌
+
 - Requires Google Maps API key
 - Costs money after free tier ($0.005 per request)
 - Rate limited (500 requests/minute)
@@ -395,15 +396,16 @@ Common error codes:
 ### For New Installations
 
 1. **Start with Option B (Geocoding)**:
+
    ```bash
    # Set up API key
    echo "GOOGLE_MAPS_API_KEY=your_key" >> server/.env
-   
+
    # Batch geocode all existing games
    curl -X POST http://localhost:4000/geocoding/batch/games \
      -H "Authorization: Bearer ADMIN_TOKEN" \
      -d '{"limit": 1000}'
-   
+
    # Batch geocode all existing events
    curl -X POST http://localhost:4000/geocoding/batch/events \
      -H "Authorization: Bearer ADMIN_TOKEN" \
@@ -411,39 +413,37 @@ Common error codes:
    ```
 
 2. **Geocode New Items Automatically**:
+
    ```typescript
    // Add to game creation route (server/src/routes/games.ts)
    import { geocodeGame } from '../lib/geocoding.js';
-   
+
    const game = await prisma.game.create({
-     data: { title, date, location, /* ... */ }
+     data: { title, date, location /* ... */ },
    });
-   
+
    // Geocode in background (don't await)
    if (game.location) {
-     geocodeGame(game.id).catch(err => 
-       console.error('Geocoding failed:', err)
-     );
+     geocodeGame(game.id).catch(err => console.error('Geocoding failed:', err));
    }
    ```
 
 ### For Existing Data
 
 1. **Check how many items need geocoding**:
+
    ```typescript
    const gamesNeedingCoords = await prisma.game.count({
      where: {
        location: { not: null },
-       OR: [
-         { latitude: null },
-         { longitude: null },
-       ],
+       OR: [{ latitude: null }, { longitude: null }],
      },
    });
    console.log(`${gamesNeedingCoords} games need coordinates`);
    ```
 
 2. **Run batch geocoding** (costs ~$0.005 per item):
+
    ```bash
    curl -X POST http://localhost:4000/geocoding/batch/games \
      -H "Authorization: Bearer ADMIN_TOKEN" \
@@ -454,10 +454,7 @@ Common error codes:
    ```typescript
    const gamesWithCoords = await prisma.game.count({
      where: {
-       AND: [
-         { latitude: { not: null } },
-         { longitude: { not: null } },
-       ],
+       AND: [{ latitude: { not: null } }, { longitude: { not: null } }],
      },
    });
    console.log(`${gamesWithCoords} games have coordinates`);
@@ -478,7 +475,7 @@ await prisma.game.update({
   data: {
     latitude: 40.750504,
     longitude: -73.993439,
-  }
+  },
 });
 ```
 
@@ -489,6 +486,7 @@ await prisma.game.update({
 ### Test Map Display
 
 1. Create a test game with coordinates:
+
    ```typescript
    const game = await prisma.game.create({
      data: {
@@ -497,7 +495,7 @@ await prisma.game.update({
        location: 'Madison Square Garden, NYC',
        latitude: 40.750504,
        longitude: -73.993439,
-     }
+     },
    });
    ```
 
@@ -533,14 +531,16 @@ curl -X POST http://localhost:4000/geocoding/batch/games \
 ### Map Shows "No Events with Locations"
 
 **Possible causes**:
+
 1. No games have coordinates in database
 2. Games have coordinates but date filter excludes them
 3. Search query filtered out all results
 
 **Solution**:
+
 ```sql
 -- Check if any games have coordinates
-SELECT COUNT(*) FROM "Game" 
+SELECT COUNT(*) FROM "Game"
 WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 
 -- If 0, run batch geocoding or add coordinates manually
@@ -549,12 +549,14 @@ WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 ### Geocoding Returns Null
 
 **Possible causes**:
+
 1. Invalid API key
 2. Location string too vague
 3. Rate limit exceeded
 4. API not enabled in Google Cloud
 
 **Solution**:
+
 1. Verify API key in `.env`: `echo $GOOGLE_MAPS_API_KEY`
 2. Test API key directly:
    ```bash
@@ -568,28 +570,32 @@ WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 ### Batch Geocoding Fails Partway Through
 
 **Possible causes**:
+
 1. Rate limit hit
 2. Invalid locations in database
 3. API quota exceeded
 
 **Solution**:
+
 1. Check logs for specific errors
 2. Run again with smaller limit
 3. Clear invalid locations:
    ```sql
    -- Find games with invalid locations
-   SELECT id, location FROM "Game" 
+   SELECT id, location FROM "Game"
    WHERE latitude IS NULL AND location IS NOT NULL;
    ```
 
 ### Coordinates Don't Match Location
 
 **Possible causes**:
+
 1. Location string ambiguous (e.g., "Central Park")
 2. Geocoding returned wrong match
 3. Manual entry error
 
 **Solution**:
+
 1. Make location strings more specific:
    - ❌ "Central Park"
    - ✅ "Central Park, New York, NY"
@@ -598,7 +604,7 @@ WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
    ```typescript
    await prisma.game.update({
      where: { id: gameId },
-     data: { latitude: correctLat, longitude: correctLng }
+     data: { latitude: correctLat, longitude: correctLng },
    });
    ```
 
@@ -622,6 +628,7 @@ WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 ### Monitoring
 
 1. **Track geocoding usage**:
+
    ```typescript
    // Add logging to geocoding functions
    console.log(`Geocoded ${count} items this batch`);
@@ -632,18 +639,20 @@ WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
    - Set budget alerts at $25, $50, $100
 
 3. **Cache hit rate**:
+
    ```bash
    curl http://localhost:4000/geocoding/cache/stats \
      -H "Authorization: Bearer $ADMIN_TOKEN"
    ```
 
 4. **Database statistics**:
+
    ```sql
    -- Games with coordinates
    SELECT COUNT(*) FROM "Game" WHERE latitude IS NOT NULL;
-   
+
    -- Games needing coordinates
-   SELECT COUNT(*) FROM "Game" 
+   SELECT COUNT(*) FROM "Game"
    WHERE location IS NOT NULL AND latitude IS NULL;
    ```
 
@@ -691,16 +700,16 @@ WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 
 ## Summary
 
-| Feature | Option A | Option B |
-|---------|----------|----------|
-| **Implementation** | ✅ Complete | ✅ Complete |
-| **Database Fields** | ✅ Added | ✅ Added |
-| **Manual Entry** | ✅ Supported | ✅ Supported |
-| **Automatic Geocoding** | ❌ Not available | ✅ Available |
-| **External Dependency** | ❌ None | ✅ Google Maps API |
-| **Cost** | ⚡ Free | 💰 $0.005/request |
-| **Setup Time** | ⚡ Immediate | ⏱️ 15 minutes |
-| **Recommended For** | Small datasets, precise control | Large datasets, automation |
+| Feature                 | Option A                        | Option B                   |
+| ----------------------- | ------------------------------- | -------------------------- |
+| **Implementation**      | ✅ Complete                     | ✅ Complete                |
+| **Database Fields**     | ✅ Added                        | ✅ Added                   |
+| **Manual Entry**        | ✅ Supported                    | ✅ Supported               |
+| **Automatic Geocoding** | ❌ Not available                | ✅ Available               |
+| **External Dependency** | ❌ None                         | ✅ Google Maps API         |
+| **Cost**                | ⚡ Free                         | 💰 $0.005/request          |
+| **Setup Time**          | ⚡ Immediate                    | ⏱️ 15 minutes              |
+| **Recommended For**     | Small datasets, precise control | Large datasets, automation |
 
 **Best Practice**: Use Option B (geocoding) to populate data initially, then rely on Option A's database fields for fast queries. Geocode new items automatically on creation.
 

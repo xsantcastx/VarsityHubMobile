@@ -9,13 +9,16 @@
 ## What Was Audited
 
 ### Files Reviewed
+
 - `/server/src/routes/payments.ts` (1,088 lines)
 - `/server/src/lib/transactionLogger.ts` (289 lines)
 - Related: `/server/src/routes/organizations.ts` (role gating verification)
 - Related: `/server/src/routes/auth.ts` (role initialization)
 
 ### Scope
+
 Complete Stripe integration for:
+
 - Membership purchases (Veteran recurring, Legend annual)
 - Ad reservations (one-time with tax)
 - Webhook event handling
@@ -27,6 +30,7 @@ Complete Stripe integration for:
 ## Critical Issue Found: Missing Role Binding
 
 ### The Problem
+
 When a user purchases a membership plan (Veteran or Legend) through Stripe checkout:
 
 1. Payment succeeds ✅
@@ -49,12 +53,15 @@ if (userRole !== 'coach') {
 ## The Fix
 
 ### File Modified
+
 `/server/src/routes/payments.ts`
 
 ### Change Location
+
 Lines 956–964 in `finalizeFromSession()` function
 
 ### What Was Added
+
 ```typescript
 // CRITICAL: Set role='coach' for any membership purchase (veteran/legend)
 // This is required for Step 4 (organization creation) and allows coaches to manage orgs
@@ -64,6 +71,7 @@ if (plan === 'veteran' || plan === 'legend') {
 ```
 
 ### Why This Works
+
 1. **Membership = Coach:** Anyone who pays for Veteran/Legend is a coach
 2. **Atomic Update:** Role is set in same transaction as plan
 3. **User Binding:** Metadata.user_id verified before finalization
@@ -74,6 +82,7 @@ if (plan === 'veteran' || plan === 'legend') {
 ## Verification
 
 ### Code Review Checklist
+
 - ✅ Role binding added only for paid membership plans (veteran/legend)
 - ✅ Atomic with plan update (single Prisma transaction)
 - ✅ Metadata.user_id still validates transaction ownership
@@ -82,6 +91,7 @@ if (plan === 'veteran' || plan === 'legend') {
 - ✅ Aligned with organization creation gating
 
 ### Regression Testing Required
+
 **Before deployment, manually test:**
 
 1. **Purchase Veteran Plan**
@@ -105,6 +115,7 @@ if (plan === 'veteran' || plan === 'legend') {
 ## Additional Findings (All Positive)
 
 ### Security Strengths Verified ✅
+
 - Webhook signature verification (Stripe secret)
 - User ID binding via metadata
 - Payment status verification (only 'paid' sessions finalized)
@@ -114,6 +125,7 @@ if (plan === 'veteran' || plan === 'legend') {
 - Comprehensive audit trail (7-year compliance ready)
 
 ### Functional Completeness ✅
+
 - Membership & ad checkout flows working
 - Webhook event routing (payment, billing, subscription lifecycle)
 - Subscription management (cancel, update quantity)
@@ -132,16 +144,19 @@ if (plan === 'veteran' || plan === 'legend') {
 ## Next Steps
 
 ### Immediate (Required Before Deployment)
+
 1. ✅ Restart API server to load updated payments.ts
 2. **Run regression test:** Veteran/Legend purchase → Step 4 org creation (verify role='coach')
 3. **Optional:** Run Snyk scan on payments.ts to verify no new issues
 
 ### Short-term (Post-Deployment)
+
 1. Monitor for any payment finalization errors
 2. Verify transaction logs show role='coach' for new paid plans
 3. Test webhook retry scenario (idempotency validation)
 
 ### Documentation
+
 1. Update API docs: "Stripe finalization sets role='coach' for membership plans"
 2. Add to troubleshooting guide: "If Step 4 org creation blocked after payment, check role value"
 

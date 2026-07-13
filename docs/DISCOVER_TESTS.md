@@ -14,40 +14,48 @@ Comprehensive E2E tests for the Discover page, covering all major functionality 
 ## Test Coverage
 
 ### 1. Games List & Display
+
 - ✅ Discover page loads and displays games
 - ✅ Games API returns correct data structure
 - ✅ Games have required fields (id, title, date, location)
 
 ### 2. Search Functionality
+
 - ✅ Search by keyword (filters games by title/location)
 - ✅ Search by zip code (filters games by zip in location)
 - ✅ Zip code suggestions work correctly
 
 ### 3. Calendar & Date Filtering
+
 - ✅ Filter games by selected date
 - ✅ Calendar marks dates with games
 - ✅ Games on selected date are displayed
 
 ### 4. Posts Display
+
 - ✅ Display posts in discover tab
 - ✅ Display posts in following tab
 - ✅ Posts API returns correct structure
 
 ### 5. Nearby People
+
 - ✅ Display nearby people based on zip code
 - ✅ Display nearby people based on school/league
 
 ### 6. Map/List View
+
 - ✅ Map view toggle works
 - ✅ Games with coordinates are available for map view
 - ✅ Location permission handling
 
 ### 7. User Interactions
+
 - ✅ Pull-to-refresh updates games list
 - ✅ Empty state handling
 - ✅ Create game via quick add modal
 
 ### 8. Role-Based Features
+
 - ✅ Quick actions dashboard shows correct actions for coach
 - ✅ Quick actions dashboard shows correct actions for fan
 
@@ -64,21 +72,25 @@ Comprehensive E2E tests for the Discover page, covering all major functionality 
 ## Running Tests
 
 ### Run All Discover Tests
+
 ```bash
 npm run test:discover
 ```
 
 ### Run Specific Test
+
 ```bash
 npx playwright test tests/e2e/discover.spec.ts -g "search by keyword"
 ```
 
 ### Run with UI Mode
+
 ```bash
 npx playwright test tests/e2e/discover.spec.ts --ui
 ```
 
 ### Run with Debug
+
 ```bash
 npx playwright test tests/e2e/discover.spec.ts --debug
 ```
@@ -88,15 +100,19 @@ npx playwright test tests/e2e/discover.spec.ts --debug
 ## Test Helpers
 
 ### `createTestUser()`
+
 Creates a test user and returns auth token and user data.
 
 ### `createTestGame()`
+
 Creates a test game with optional custom data.
 
 ### `createTestPost()`
+
 Creates a test post with optional custom data.
 
 ### `createAuthRequest()`
+
 Creates an authenticated request context with Bearer token.
 
 ---
@@ -104,18 +120,22 @@ Creates an authenticated request context with Bearer token.
 ## API Endpoints Tested
 
 ### Games API
+
 - `GET /games?sort=-date` - List games
 - `POST /games` - Create game
 
 ### Posts API
+
 - `GET /highlights/trending?limit=20` - Get trending posts
 
 ### Users API
+
 - `GET /users?zip=12345&limit=30` - Get users by zip code
 - `POST /users/:id/follow` - Follow user
 - `PATCH /me/preferences` - Update user preferences
 
 ### Auth API
+
 - `POST /auth/signup` - Create user
 - `GET /auth/me` - Get current user
 
@@ -124,6 +144,7 @@ Creates an authenticated request context with Bearer token.
 ## Test Scenarios
 
 ### 1. Games List Loading
+
 ```typescript
 test('Discover page loads and displays games', async ({ request }) => {
   // Creates user, creates game, fetches games list
@@ -132,6 +153,7 @@ test('Discover page loads and displays games', async ({ request }) => {
 ```
 
 ### 2. Keyword Search
+
 ```typescript
 test('Discover page supports search by keyword', async ({ request }) => {
   // Creates games with specific titles
@@ -141,6 +163,7 @@ test('Discover page supports search by keyword', async ({ request }) => {
 ```
 
 ### 3. Zip Code Search
+
 ```typescript
 test('Discover page supports search by zip code', async ({ request }) => {
   // Creates games with zip codes in location
@@ -150,6 +173,7 @@ test('Discover page supports search by zip code', async ({ request }) => {
 ```
 
 ### 4. Date Filtering
+
 ```typescript
 test('Discover page filters games by selected date', async ({ request }) => {
   // Creates games on different dates
@@ -159,6 +183,7 @@ test('Discover page filters games by selected date', async ({ request }) => {
 ```
 
 ### 5. Posts Display
+
 ```typescript
 test('Discover page displays posts in discover tab', async ({ request }) => {
   // Creates post
@@ -168,6 +193,7 @@ test('Discover page displays posts in discover tab', async ({ request }) => {
 ```
 
 ### 6. Following Tab
+
 ```typescript
 test('Discover page displays posts in following tab', async ({ request }) => {
   // Creates two users
@@ -177,6 +203,7 @@ test('Discover page displays posts in following tab', async ({ request }) => {
 ```
 
 ### 7. Nearby People
+
 ```typescript
 test('Discover page displays nearby people', async ({ request }) => {
   // Creates users with same zip code
@@ -186,6 +213,7 @@ test('Discover page displays nearby people', async ({ request }) => {
 ```
 
 ### 8. Map View
+
 ```typescript
 test('Discover page supports map view toggle', async ({ request }) => {
   // Creates games with coordinates
@@ -195,6 +223,7 @@ test('Discover page supports map view toggle', async ({ request }) => {
 ```
 
 ### 9. Pull-to-Refresh
+
 ```typescript
 test('Discover page supports pull-to-refresh', async ({ request }) => {
   // Fetches initial games
@@ -205,6 +234,7 @@ test('Discover page supports pull-to-refresh', async ({ request }) => {
 ```
 
 ### 10. Empty State
+
 ```typescript
 test('Discover page handles empty state', async ({ request }) => {
   // Fetches games for new user
@@ -213,8 +243,11 @@ test('Discover page handles empty state', async ({ request }) => {
 ```
 
 ### 11. Quick Actions - Coach
+
 ```typescript
-test('Discover page quick actions dashboard shows correct actions for coach', async ({ request }) => {
+test('Discover page quick actions dashboard shows correct actions for coach', async ({
+  request,
+}) => {
   // Creates user
   // Updates user to coach role
   // Verifies role is set correctly
@@ -222,6 +255,7 @@ test('Discover page quick actions dashboard shows correct actions for coach', as
 ```
 
 ### 12. Quick Actions - Fan
+
 ```typescript
 test('Discover page quick actions dashboard shows correct actions for fan', async ({ request }) => {
   // Creates user (default is fan)
@@ -230,6 +264,7 @@ test('Discover page quick actions dashboard shows correct actions for fan', asyn
 ```
 
 ### 13. Quick Add Game
+
 ```typescript
 test('Discover page can create game via quick add modal', async ({ request }) => {
   // Creates game via API (simulating quick add modal)
@@ -238,6 +273,7 @@ test('Discover page can create game via quick add modal', async ({ request }) =>
 ```
 
 ### 14. Calendar Marking
+
 ```typescript
 test('Discover page calendar marks dates with games', async ({ request }) => {
   // Creates games on specific dates
@@ -247,6 +283,7 @@ test('Discover page calendar marks dates with games', async ({ request }) => {
 ```
 
 ### 15. API Data Structure
+
 ```typescript
 test('Discover page API returns correct data structure', async ({ request }) => {
   // Fetches games
@@ -256,6 +293,7 @@ test('Discover page API returns correct data structure', async ({ request }) => 
 ```
 
 ### 16. Location Permission
+
 ```typescript
 test('Discover page handles location permission for map view', async ({ request }) => {
   // Creates games with coordinates
@@ -265,6 +303,7 @@ test('Discover page handles location permission for map view', async ({ request 
 ```
 
 ### 17. Zip Suggestions
+
 ```typescript
 test('Discover page zip suggestions work correctly', async ({ request }) => {
   // Creates games with different zip codes
@@ -278,6 +317,7 @@ test('Discover page zip suggestions work correctly', async ({ request }) => {
 ## Expected Results
 
 All tests should pass, verifying that:
+
 - ✅ Games are loaded and displayed correctly
 - ✅ Search functionality works (keyword and zip)
 - ✅ Calendar date filtering works
@@ -298,6 +338,7 @@ All tests should pass, verifying that:
 ## Integration with Other Tests
 
 These tests complement:
+
 - **Feed tests** (`tests/e2e/feed-messaging.spec.ts`) - Feed page functionality
 - **Highlights tests** (`tests/e2e/highlights.spec.ts`) - Highlights page functionality
 - **Upload tests** (`tests/e2e/upload.spec.ts`) - Upload functionality

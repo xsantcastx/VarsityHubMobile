@@ -52,4 +52,3 @@ If restore drill fails:
 2. Open incident and assign owner.
 3. Fix restore path and re-run drill.
 4. Do not broaden rollout until successful drill evidence exists.
-

@@ -65,7 +65,10 @@ Instead of button images, use inline styling:
 
 ```html
 <!-- ✅ Better Approach -->
-<a href="{{cta_url}}" style="display:inline-block;padding:12px 24px;background-color:#2563EB;color:white;text-decoration:none;border-radius:4px;font-weight:bold;">
+<a
+  href="{{cta_url}}"
+  style="display:inline-block;padding:12px 24px;background-color:#2563EB;color:white;text-decoration:none;border-radius:4px;font-weight:bold;"
+>
   Accept Invitation
 </a>
 ```
@@ -115,18 +118,21 @@ dynamicTemplateData: {
 ## Testing Steps
 
 ### 1. Verify Subject Lines:
+
 ```bash
 # Check an email after sending
 # Subject should NOT be blank or generic
 ```
 
 ### 2. Verify Images Load Without User Action:
+
 ```bash
 # Open email preview in Gmail
 # Images should load automatically (green checkmark visible)
 ```
 
 ### 3. Test Variable Substitution:
+
 ```bash
 # Preview template in SendGrid
 # Verify {{user_name}}, {{event_name}}, etc. show test values

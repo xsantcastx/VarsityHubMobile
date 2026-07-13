@@ -18,6 +18,7 @@ Based on findings from creating comprehensive tests, I've identified and fixed s
 **Problem**: Routes using `requireAuth` or `requireVerified` middleware were redundantly checking `if (!req.user)` even though the middleware guarantees `req.user` exists.
 
 **Fixed in**:
+
 - `server/src/routes/posts.ts`:
   - POST `/posts` - Removed redundant check
   - POST `/posts/:id/comments` - Removed redundant check
@@ -40,6 +41,7 @@ Based on findings from creating comprehensive tests, I've identified and fixed s
 **Problem**: Validation errors were inconsistent - some returned just `{ error: 'Invalid payload' }` while others returned detailed `{ error: 'Invalid payload', issues: [...] }`.
 
 **Fixed in**:
+
 - `server/src/routes/posts.ts`:
   - POST `/posts` - Now includes `issues` array
   - POST `/posts/:id/comments` - Now includes `issues` array
@@ -53,21 +55,24 @@ Based on findings from creating comprehensive tests, I've identified and fixed s
   - POST `/events/:id/rsvp` - Now includes `issues` array
 
 **Before**:
+
 ```typescript
 if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 ```
 
 **After**:
+
 ```typescript
 if (!parsed.success) {
   return res.status(400).json({
     error: 'Invalid payload',
-    issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
   });
 }
 ```
 
-**Impact**: 
+**Impact**:
+
 - Consistent error format across all endpoints
 - Frontend can display specific field errors
 - Better developer experience
@@ -80,6 +85,7 @@ if (!parsed.success) {
 **Added**: Comments explaining that `req.user` is guaranteed by middleware to improve code readability and prevent future redundant checks.
 
 **Example**:
+
 ```typescript
 postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
@@ -95,10 +101,12 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
 **Updated**: Test expectations to match the new standardized error response format.
 
 **Files Updated**:
+
 - `tests/api/posts-api.spec.ts` - Updated validation error expectations
 - `tests/api/teams-api.spec.ts` - Updated validation error expectations
 
 **Changes**:
+
 - Tests now verify `issues` array exists in validation errors
 - Tests check for consistent error format
 
@@ -118,15 +126,18 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
 ## Files Modified
 
 ### Backend Routes
+
 1. `server/src/routes/posts.ts`
 2. `server/src/routes/teams.ts`
 3. `server/src/routes/events.ts`
 
 ### Tests
+
 4. `tests/api/posts-api.spec.ts`
 5. `tests/api/teams-api.spec.ts`
 
 ### Documentation
+
 6. `docs/FIXES_APPLIED.md` (detailed changes)
 7. `docs/FIXES_SUMMARY.md` (this file)
 

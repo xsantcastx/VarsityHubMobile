@@ -29,17 +29,17 @@ The RSVP endpoint checks capacity but **doesn't prevent** RSVPing if capacity is
 ```typescript
 eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
   // ...
-  const event = await prisma.event.findUnique({ 
-    where: { id }, 
-    select: { id: true, capacity: true } 
+  const event = await prisma.event.findUnique({
+    where: { id },
+    select: { id: true, capacity: true },
   });
   // ❌ NO CHECK IF CAPACITY IS REACHED!
-  
+
   if (desired && !current) {
     await prisma.eventRsvp.create({ data: { event_id: id, user_id: me.id } });
     // Capacity could be exceeded here!
   }
-  
+
   const count = await prisma.eventRsvp.count({ where: { event_id: id } });
   return res.json({ going: desired, attending: desired, count, capacity: event.capacity ?? null });
 });
@@ -59,16 +59,16 @@ if (desired && !current) {
   // Check current count BEFORE creating RSVP
   const currentCount = await prisma.eventRsvp.count({ where: { event_id: id } });
   const capacity = event.capacity ?? event.max_attendees;
-  
+
   if (capacity && currentCount >= capacity) {
-    return res.status(403).json({ 
+    return res.status(403).json({
       error: 'Event at capacity',
       message: 'This event is full. Please check back later for cancellations.',
       count: currentCount,
       capacity,
     });
   }
-  
+
   await prisma.eventRsvp.create({ data: { event_id: id, user_id: me.id } });
 }
 ```
@@ -103,24 +103,24 @@ Use **database transaction with row-level locking**:
 ```typescript
 if (desired && !current) {
   // Use transaction to prevent race condition
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async tx => {
     // Lock the event row
-    const event = await tx.event.findUnique({ 
+    const event = await tx.event.findUnique({
       where: { id },
       select: { capacity: true, max_attendees: true },
     });
-    
+
     if (!event) throw new Error('Event not found');
-    
+
     const currentCount = await tx.eventRsvp.count({ where: { event_id: id } });
     const capacity = event.capacity ?? event.max_attendees;
-    
+
     if (capacity && currentCount >= capacity) {
       throw new Error('Event at capacity');
     }
-    
-    await tx.eventRsvp.create({ 
-      data: { event_id: id, user_id: me.id, user_email: me.email } 
+
+    await tx.eventRsvp.create({
+      data: { event_id: id, user_id: me.id, user_email: me.email },
     });
   });
 }
@@ -158,7 +158,7 @@ if (eventDate < now) {
 }
 
 // In RSVP endpoint
-const event = await prisma.event.findUnique({ 
+const event = await prisma.event.findUnique({
   where: { id },
   select: { id: true, capacity: true, date: true },
 });
@@ -180,10 +180,12 @@ if (new Date(event.date) < new Date()) {
 **Location**: `server/prisma/schema.prisma:196, 206`
 
 Event model has **two capacity fields**:
+
 - `capacity: Int?` (line 196)
 - `max_attendees: Int?` (line 206)
 
 **Current usage**:
+
 - RSVP endpoint uses `capacity`
 - Event creation accepts `max_attendees`
 - No clear logic for which to use
@@ -197,6 +199,7 @@ Event model has **two capacity fields**:
 ### Fix Required
 
 **Option 1: Consolidate to one field**
+
 ```prisma
 model Event {
   // Remove max_attendees, use only capacity
@@ -205,6 +208,7 @@ model Event {
 ```
 
 **Option 2: Use both with clear purpose**
+
 ```prisma
 model Event {
   capacity Int?      // Venue capacity (hard limit)
@@ -264,10 +268,12 @@ await createNotification(updated.creator_id, {
 **Location**: `server/prisma/schema.prisma:195, 202`
 
 Event has **two status fields**:
+
 - `status: String` - "draft", "approved", "rejected", "cancelled"
 - `approval_status: String` - "pending", "approved", "rejected"
 
 **Current usage**:
+
 - Both are set during creation
 - Both are updated during approval
 - Unclear which is authoritative
@@ -290,6 +296,7 @@ model Event {
 ```
 
 Or use clear separation:
+
 - `status` - Event lifecycle (draft, active, cancelled)
 - `approval_status` - Moderation status (pending, approved, rejected)
 
@@ -302,6 +309,7 @@ Or use clear separation:
 **Location**: No cleanup logic exists
 
 Old events and RSVPs accumulate in database:
+
 - Events from years ago
 - RSVPs to past events
 - No archival or cleanup
@@ -321,7 +329,7 @@ Add cleanup job:
 async function cleanupOldEvents() {
   const oneYearAgo = new Date();
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  
+
   // Archive events older than 1 year
   await prisma.event.updateMany({
     where: {
@@ -359,7 +367,7 @@ Frontend shows capacity but doesn't indicate if event is full:
 
 ```typescript
 const isFull = event.capacity && attendeesCount >= event.capacity;
-const capacityText = typeof event.capacity === 'number' 
+const capacityText = typeof event.capacity === 'number'
   ? ` / ${event.capacity}${isFull ? ' (FULL)' : ''}`
   : '';
 
@@ -373,16 +381,19 @@ const capacityText = typeof event.capacity === 'number'
 ## Summary of Required Fixes
 
 ### Critical (Must Fix)
+
 1. ✅ **Enforce capacity** - Check before allowing RSVP
 2. ✅ **Fix race condition** - Use database transactions
 3. ✅ **Validate dates** - Prevent past events/RSVPs
 
 ### High Priority (Should Fix)
+
 4. ✅ **Consolidate capacity fields** - Use one field
 5. ✅ **Add notifications** - Notify on approval/rejection
 6. ✅ **Clarify status fields** - Document or consolidate
 
 ### Medium Priority (Nice to Have)
+
 7. ✅ **Add cleanup job** - Archive old events
 8. ✅ **Improve frontend** - Show full status
 

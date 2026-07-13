@@ -180,18 +180,19 @@ app/
 
 ### File-Based Routing Examples
 
-| File Path | URL Route | Description |
-|-----------|-----------|-------------|
-| `app/index.tsx` | `/` | Landing/Login screen |
-| `app/(tabs)/feed.tsx` | `/feed` | Feed tab |
-| `app/game-detail.tsx` | `/game-detail` | Game details (with params) |
-| `app/onboarding/step-1.tsx` | `/onboarding/step-1` | First onboarding step |
-| `app/settings/account.tsx` | `/settings/account` | Account settings |
-| `app/+not-found.tsx` | `/*` | 404 fallback |
+| File Path                   | URL Route            | Description                |
+| --------------------------- | -------------------- | -------------------------- |
+| `app/index.tsx`             | `/`                  | Landing/Login screen       |
+| `app/(tabs)/feed.tsx`       | `/feed`              | Feed tab                   |
+| `app/game-detail.tsx`       | `/game-detail`       | Game details (with params) |
+| `app/onboarding/step-1.tsx` | `/onboarding/step-1` | First onboarding step      |
+| `app/settings/account.tsx`  | `/settings/account`  | Account settings           |
+| `app/+not-found.tsx`        | `/*`                 | 404 fallback               |
 
 ### Navigation Patterns
 
 **Stack Navigation:**
+
 ```typescript
 import { router } from 'expo-router';
 
@@ -206,6 +207,7 @@ router.back();
 ```
 
 **Passing Parameters:**
+
 ```typescript
 // In navigation
 router.push(`/game-detail?id=${gameId}&tab=photos`);
@@ -404,7 +406,7 @@ model User {
   subscription  SubscriptionTier @default(FREE)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  
+
   teams         TeamMember[]
   posts         Post[]
   messages      Message[]
@@ -420,7 +422,7 @@ model Team {
   banner      String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   members     TeamMember[]
   games       Game[]
   posts       Post[]
@@ -486,11 +488,7 @@ Expo configuration:
     "version": "1.0.0",
     "scheme": "varsityhubmobile",
     "platforms": ["ios", "android"],
-    "plugins": [
-      "expo-router",
-      "expo-font",
-      "expo-secure-store"
-    ]
+    "plugins": ["expo-router", "expo-font", "expo-secure-store"]
   }
 }
 ```
@@ -629,10 +627,10 @@ interface ButtonProps {
   disabled?: boolean;
 }
 
-export const Button: React.FC<ButtonProps> = ({ 
-  title, 
-  onPress, 
-  disabled = false 
+export const Button: React.FC<ButtonProps> = ({
+  title,
+  onPress,
+  disabled = false
 }) => {
   return (
     <View style={styles.container}>

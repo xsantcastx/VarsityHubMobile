@@ -20,12 +20,12 @@ keytool -genkeypair \
 
 Keep note of:
 
-| Item | Example | Notes |
-|------|---------|-------|
-| Keystore file | `android/app/varsityhub-release.keystore` | Include in secure storage, **never commit** |
-| Store password | `********` | Password for the keystore file |
-| Key alias | `varsityhub` | Identifier for the key inside the keystore |
-| Key password | `********` | Password for the alias above |
+| Item           | Example                                   | Notes                                       |
+| -------------- | ----------------------------------------- | ------------------------------------------- |
+| Keystore file  | `android/app/varsityhub-release.keystore` | Include in secure storage, **never commit** |
+| Store password | `********`                                | Password for the keystore file              |
+| Key alias      | `varsityhub`                              | Identifier for the key inside the keystore  |
+| Key password   | `********`                                | Password for the alias above                |
 
 ---
 

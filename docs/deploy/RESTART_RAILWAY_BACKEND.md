@@ -1,10 +1,13 @@
 # Restart Railway Backend - Apply Notification Fix
 
 ## 🚨 Issue
+
 The backend is still returning the `message_id` column error because Railway hasn't deployed the new code yet.
 
 ## ✅ Fix is Already Pushed
+
 The notification fixes are already on GitHub:
+
 - ✅ `d1d1e20` - Remove message_id from notifications query
 - ✅ `e68f9c9` - Remove message_id from notification creation
 
@@ -37,6 +40,7 @@ railway restart
 ```
 
 Or force redeploy:
+
 ```bash
 railway up
 ```
@@ -50,6 +54,7 @@ curl https://api-production-8ac3.up.railway.app/notifications?limit=1&unread=1
 ```
 
 Should return:
+
 ```json
 {"items": [...], "nextCursor": null}
 ```

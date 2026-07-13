@@ -1,6 +1,7 @@
 # Quick Test Commands
 
 ## Setup
+
 ```bash
 cd server
 npm install expo-server-sdk
@@ -10,18 +11,21 @@ npm run build  # or npm run dev
 ## Test Endpoints (Development Only)
 
 ### 1. Check Push Token
+
 ```bash
 curl http://localhost:4000/test-notifications/test/check-token \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### 2. Send Test Notification
+
 ```bash
 curl -X POST http://localhost:4000/test-notifications/test/push \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### 3. Test Notification Types
+
 ```bash
 # Message notification
 curl -X POST http://localhost:4000/test-notifications/test/simulate/message \
@@ -41,6 +45,7 @@ curl -X POST http://localhost:4000/test-notifications/test/simulate/follow \
 ```
 
 ### 4. Test Geofencing
+
 ```bash
 # Check if location is within geofence
 curl -X POST http://localhost:4000/test-notifications/test/geofence \
@@ -54,6 +59,7 @@ curl -X POST http://localhost:4000/test-notifications/test/geofence \
 ```
 
 ### 5. Calculate Distance
+
 ```bash
 curl -X POST http://localhost:4000/test-notifications/test/distance \
   -H "Content-Type: application/json" \
@@ -66,12 +72,14 @@ curl -X POST http://localhost:4000/test-notifications/test/distance \
 ```
 
 ### 6. Check Upcoming Games
+
 ```bash
 curl http://localhost:4000/test-notifications/test/upcoming-games \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### 7. Run Game Reminders
+
 ```bash
 npm run cron:game-reminders
 ```
@@ -86,16 +94,19 @@ npm run cron:game-reminders
 ## Common Issues
 
 **No notification received?**
+
 - Check token exists: `/test/check-token`
 - Verify notifications enabled in preferences
 - Use physical device (not simulator)
 
 **Geofence not working?**
+
 - Ensure event has `latitude` and `longitude`
 - Check posting window (24h before game)
 - Verify location permission granted
 
 **Distance wrong?**
+
 - GPS can be ±20-50m indoors
 - Use High accuracy mode
 - Wait for GPS to stabilize

@@ -18,6 +18,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Sent when user signs up to verify their email address.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "verification_link": "https://varsityhub.app/verify?token=abc123",
@@ -27,6 +28,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{verification_link}}` - Link to click to verify email
 - `{{user_name}}` - User's display name
 - `{{verification_code}}` - 6-digit verification code (alternative to link)
@@ -40,6 +42,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Sent when a coach invites someone to join their team.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "recipient_name": "John Doe",
@@ -55,6 +58,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{recipient_name}}` - Member’s name (displayed under “Congratulations”)
 - `{{team_name}}` - Name of the team (e.g., "Dallas Lady Tigers")
 - `{{org_name}}` - Organization name (optional, can be empty)
@@ -68,6 +72,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Subject:** You're invited to join {{team_name}}
 
 **Design Tips:**
+
 - Use `{{hero_image}}` as banner image at top of email
 - Style CTA button background with `{{primary_color}}`
 - Display `{{logo_image}}` next to team name
@@ -79,6 +84,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Sent when an admin invites someone to join their organization.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "org_name": "Texas Elite Sports",
@@ -91,6 +97,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{org_name}}` - Organization name
 - `{{role}}` - Role being invited to
 - `{{inviter_name}}` - Admin who sent invite
@@ -107,6 +114,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Sent when user requests password reset.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "reset_code": "847392",
@@ -115,6 +123,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{reset_code}}` - 6-digit reset code
 - `{{expires_in}}` - How long code is valid
 
@@ -127,6 +136,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Sent to customer service when user reports abuse.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "reporter_name": "Jane Doe",
@@ -139,6 +149,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{reporter_name}}` - Person who filed report
 - `{{reporter_email}}` - Reporter's email
 - `{{subject}}` - Report subject line
@@ -157,6 +168,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Sent to org admin when someone requests to join their organization.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "admin_name": "Director Johnson",
@@ -170,6 +182,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{admin_name}}` - Admin receiving notification
 - `{{requester_name}}` - Person requesting to join
 - `{{org_name}}` - Organization name
@@ -187,6 +200,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Sent to user when their join request is approved.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "user_name": "John Smith",
@@ -198,6 +212,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{user_name}}` - User who requested to join
 - `{{org_name}}` - Organization name
 - `{{admin_name}}` - Admin who approved
@@ -213,6 +228,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Sent to user when their join request is denied.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "user_name": "John Smith",
@@ -223,6 +239,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{user_name}}` - User who requested to join
 - `{{org_name}}` - Organization name
 - `{{reason}}` - Optional denial reason (can be empty)
@@ -237,6 +254,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Sent to super admin when a new league is created and needs approval.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "league_name": "Dallas Lady Tigers",
@@ -251,6 +269,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{league_name}}` - League name
 - `{{owner_name}}` - League owner display name
 - `{{owner_email}}` - League owner email
@@ -269,6 +288,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Internal confirmation to super admin when a league is approved or rejected.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "action": "league_approved",
@@ -280,6 +300,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{action}}` - One of: `league_approved`, `league_rejected`
 - `{{league_name}}` - League name
 - `{{owner_name}}` - League owner name
@@ -295,6 +316,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Sent when admin approves organization-related action.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "org_name": "Texas Elite Sports",
@@ -304,6 +326,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{org_name}}` - Organization name
 - `{{dashboard_url}}` - Link to dashboard
 - `{{logo_image}}` - Organization logo
@@ -317,6 +340,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Sent when admin denies organization-related action.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "org_name": "Texas Elite Sports",
@@ -326,6 +350,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{org_name}}` - Organization name
 - `{{reason}}` - Optional denial reason (can be empty)
 - `{{logo_image}}` - Organization logo
@@ -339,6 +364,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Purpose:** Sent when content is moderated (removed, flagged, or restored).
 
 **Dynamic Template Data:**
+
 ```json
 {
   "action": "removed",
@@ -349,6 +375,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+
 - `{{action}}` - One of: "removed", "flagged", "restored"
 - `{{post_id}}` - Post ID (optional, can be empty)
 - `{{reason}}` - Reason for action (optional)
@@ -366,6 +393,7 @@ Use `{{#if reason}}{{reason}}{{/if}}` to show reason only when provided.
 **Purpose:** Sent for billing events (payment success/failure, subscription changes). Trials are not offered.
 
 **Dynamic Template Data:**
+
 ```json
 {
   "notice_type": "payment_succeeded",
@@ -379,6 +407,7 @@ Use `{{#if reason}}{{reason}}{{/if}}` to show reason only when provided.
 ```
 
 **Template Placeholders:**
+
 - `{{notice_type}}` - One of: `payment_succeeded`, `payment_failed`, `subscription_canceled`, `subscription_renewed`
 - `{{plan_name}}` - Subscription plan name
 - `{{amount}}` - Dollar amount (e.g., "$49.99")
@@ -388,21 +417,28 @@ Use `{{#if reason}}{{reason}}{{/if}}` to show reason only when provided.
 - `{{perks}}` - Array of plan benefits
 
 **Subject (varies by type):**
+
 - `payment_succeeded`: "Payment received — thank you!"
 - `payment_failed`: "Payment failed — action required"
 - `subscription_canceled`: "Your subscription has been canceled"
 - `subscription_renewed`: "Your subscription has been renewed"
 
 **Conditional Logic:**
+
 ```handlebars
 {{#if team_name}}
-<p>Your {{plan_name}} plan for <strong>{{team_name}}</strong> {{#if org_name}}in {{org_name}}{{/if}} has been renewed.</p>
+  <p>Your
+    {{plan_name}}
+    plan for
+    <strong>{{team_name}}</strong>
+    {{#if org_name}}in {{org_name}}{{/if}}
+    has been renewed.</p>
 {{else}}
-<p>Your {{plan_name}} plan has been renewed.</p>
+  <p>Your {{plan_name}} plan has been renewed.</p>
 {{/if}}
 
 {{#each perks}}
-<li>{{this}}</li>
+  <li>{{this}}</li>
 {{/each}}
 ```
 
@@ -411,23 +447,27 @@ Use `{{#if reason}}{{reason}}{{/if}}` to show reason only when provided.
 ## Design Best Practices
 
 ### Color Usage
+
 - **Primary CTA buttons:** Use `{{primary_color}}` when available, fallback to VarsityHub blue (#2563EB)
 - **Success actions:** Green (#10b981) for approvals, confirmations
 - **Warning actions:** Red (#ef4444) for denials, errors
 - **Neutral actions:** Gray (#6b7280) for informational links
 
 ### Image Sizing
+
 - **Hero images:** 600px wide, maintain aspect ratio
 - **Logo images:** 120px max width, centered or left-aligned
 - **Fallback images:** Always provide default images if placeholders are empty
 
 ### Mobile Responsiveness
+
 - Use single-column layout
 - Minimum 44px touch target for buttons
 - 16px minimum font size for body text
 - Test on iOS Mail, Gmail app, Outlook mobile
 
 ### Accessibility
+
 - Use semantic HTML (`<h1>`, `<p>`, `<a>`)
 - Ensure sufficient color contrast (4.5:1 minimum)
 - Include alt text for all images

@@ -3,6 +3,7 @@
 ## Completed ✅
 
 ### Unit Tests Added
+
 1. **geo-utils.test.ts** - 6 tests for `haversineDistance` function
    - Distance calculations
    - Edge cases (same point, equator, negative coordinates)
@@ -33,6 +34,7 @@
 ## Coverage Impact
 
 These new tests should improve coverage for:
+
 - `lib/geoUtils.ts` - Now tested
 - `lib/geofencing.ts` - Partially tested (distance calculations)
 - `lib/errors/*.ts` - All error classes tested

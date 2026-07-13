@@ -7,24 +7,30 @@ Everything you need to understand, activate, and maintain the overnight automati
 ## 🚀 Quick Start (Choose One Path)
 
 ### Path 1: Just Activate It (1 minute)
+
 ```bash
 bash /tmp/setup-nightly-cron.sh
 # Runs every night at 11:30 PM automatically
 ```
+
 → Read: `OVERNIGHT_AUTOMATION_QUICK_REFERENCE.md`
 
 ### Path 2: Run It Now (10 minutes)
+
 ```bash
 bash /tmp/nightly-sweeps.sh
 # Results in overnight-results/ immediately
 ```
+
 → Then read: `MORNING_REVIEW_CHECKLIST.md`
 
 ### Path 3: Learn Everything (30 minutes)
+
 ```bash
 cat NIGHTLY_AUTOMATION_GUIDE.md
 # Comprehensive reference with examples
 ```
+
 → Then choose Path 1 or 2
 
 ---
@@ -33,14 +39,14 @@ cat NIGHTLY_AUTOMATION_GUIDE.md
 
 ### For Different Situations
 
-| Situation | File | Read Time | Key Content |
-|-----------|------|-----------|-------------|
-| **Just want overview** | `OVERNIGHT_AUTOMATION_QUICK_REFERENCE.md` | 5 min | TL;DR, commands, checklist |
-| **Setting up for first time** | `NIGHTLY_AUTOMATION_SUITE_READY.md` | 10 min | Setup summary, test results |
-| **Need complete reference** | `NIGHTLY_AUTOMATION_GUIDE.md` | 20 min | How-to, examples, troubleshooting |
-| **Reviewing results morning** | `MORNING_REVIEW_CHECKLIST.md` | 5 min | 15-min morning checklist |
-| **Understanding architecture** | `OVERNIGHT_AUTOMATION_ARCHITECTURE.md` | 15 min | System design, data flow |
-| **This index** | `AUTOMATION_DOCUMENTATION_INDEX.md` | 5 min | Navigation guide (this file) |
+| Situation                      | File                                      | Read Time | Key Content                       |
+| ------------------------------ | ----------------------------------------- | --------- | --------------------------------- |
+| **Just want overview**         | `OVERNIGHT_AUTOMATION_QUICK_REFERENCE.md` | 5 min     | TL;DR, commands, checklist        |
+| **Setting up for first time**  | `NIGHTLY_AUTOMATION_SUITE_READY.md`       | 10 min    | Setup summary, test results       |
+| **Need complete reference**    | `NIGHTLY_AUTOMATION_GUIDE.md`             | 20 min    | How-to, examples, troubleshooting |
+| **Reviewing results morning**  | `MORNING_REVIEW_CHECKLIST.md`             | 5 min     | 15-min morning checklist          |
+| **Understanding architecture** | `OVERNIGHT_AUTOMATION_ARCHITECTURE.md`    | 15 min    | System design, data flow          |
+| **This index**                 | `AUTOMATION_DOCUMENTATION_INDEX.md`       | 5 min     | Navigation guide (this file)      |
 
 ---
 
@@ -143,12 +149,12 @@ OVERNIGHT AUTOMATION SUITE
 
 ## 🛠️ Scripts Reference
 
-| Script | Location | Purpose | How to Run |
-|--------|----------|---------|-----------|
-| **Catch-block scanner** | `/tmp/find-empty-catches.py` | Find risky catch blocks | `python3 /tmp/find-empty-catches.py` |
-| **API smoke tests** | `/tmp/api-smoke-tests.sh` | Test critical endpoints | `bash /tmp/api-smoke-tests.sh` |
-| **Master sweeps** | `/tmp/nightly-sweeps.sh` | Orchestrate all 5 sweeps | `bash /tmp/nightly-sweeps.sh` |
-| **Cron installer** | `/tmp/setup-nightly-cron.sh` | Schedule automatic runs | `bash /tmp/setup-nightly-cron.sh` |
+| Script                  | Location                     | Purpose                  | How to Run                           |
+| ----------------------- | ---------------------------- | ------------------------ | ------------------------------------ |
+| **Catch-block scanner** | `/tmp/find-empty-catches.py` | Find risky catch blocks  | `python3 /tmp/find-empty-catches.py` |
+| **API smoke tests**     | `/tmp/api-smoke-tests.sh`    | Test critical endpoints  | `bash /tmp/api-smoke-tests.sh`       |
+| **Master sweeps**       | `/tmp/nightly-sweeps.sh`     | Orchestrate all 5 sweeps | `bash /tmp/nightly-sweeps.sh`        |
+| **Cron installer**      | `/tmp/setup-nightly-cron.sh` | Schedule automatic runs  | `bash /tmp/setup-nightly-cron.sh`    |
 
 All scripts are executable and tested.
 
@@ -157,6 +163,7 @@ All scripts are executable and tested.
 ## 📊 Key Commands
 
 ### Activation
+
 ```bash
 # Setup automatic nightly runs (11:30 PM)
 bash /tmp/setup-nightly-cron.sh
@@ -172,6 +179,7 @@ crontab -e  # Delete the nightly-sweeps line
 ```
 
 ### View Results
+
 ```bash
 # List all results
 ls -la overnight-results/
@@ -194,6 +202,7 @@ cat overnight-results/npm-audit-*.log
 ```
 
 ### Morning Review
+
 ```bash
 # Run the full 15-min morning checklist
 bash MORNING_REVIEW_CHECKLIST.md
@@ -209,6 +218,7 @@ echo "Security:" && cat overnight-results/npm-audit-*.log
 ```
 
 ### Read Documentation
+
 ```bash
 # Quick reference
 cat OVERNIGHT_AUTOMATION_QUICK_REFERENCE.md
@@ -255,50 +265,59 @@ Level 3: Complete Reference (30+ min read)
 ## 🎯 Common Workflows
 
 ### Workflow 1: First-Time Setup
+
 1. Read: `OVERNIGHT_AUTOMATION_QUICK_REFERENCE.md` (5 min)
 2. Run: `bash /tmp/setup-nightly-cron.sh` (1 min)
 3. Verify: `crontab -l | grep nightly-sweeps` (1 min)
 4. Save: `cat MORNING_REVIEW_CHECKLIST.md` (bookmark for morning)
-**Total:** 7 minutes
+   **Total:** 7 minutes
 
 ### Workflow 2: Morning Review (Every Day)
+
 1. Read: `MORNING_REVIEW_CHECKLIST.md` (2 min)
 2. Run: Quick checks from checklist (5 min)
 3. Decide: Proceed with QA or fix issues (2 min)
 4. Act: Start QA or quick fixes (5-30 min depending on issues)
-**Total:** 15-45 minutes
+   **Total:** 15-45 minutes
 
 ### Workflow 3: Troubleshooting Issue
+
 1. Check: `OVERNIGHT_AUTOMATION_GUIDE.md` Troubleshooting section (5 min)
 2. Verify: Run affected sweep manually (5-10 min)
 3. Debug: Check log files in `overnight-results/` (5-10 min)
 4. Fix: Based on troubleshooting guide (varies)
-**Total:** 15-30 minutes
+   **Total:** 15-30 minutes
 
 ### Workflow 4: Understanding System Completely
+
 1. Read: `OVERNIGHT_AUTOMATION_QUICK_REFERENCE.md` (5 min)
 2. Read: `NIGHTLY_AUTOMATION_GUIDE.md` (20 min)
 3. Read: `OVERNIGHT_AUTOMATION_ARCHITECTURE.md` (15 min)
 4. Optional: Review scripts in `/tmp/` (10 min)
-**Total:** 50 minutes
+   **Total:** 50 minutes
 
 ---
 
 ## 📍 Navigation by Role
 
 ### For DevOps/Infrastructure
+
 → `OVERNIGHT_AUTOMATION_ARCHITECTURE.md` (data flow, system design)
 
 ### For QA/Testing
+
 → `MORNING_REVIEW_CHECKLIST.md` + `NIGHTLY_AUTOMATION_GUIDE.md` (results interpretation)
 
 ### For Developers
+
 → `NIGHTLY_AUTOMATION_GUIDE.md` (full reference) + scripts in `/tmp/`
 
 ### For Project Managers
+
 → `OVERNIGHT_AUTOMATION_QUICK_REFERENCE.md` (high-level overview)
 
 ### For New Developers Joining
+
 → `NIGHTLY_AUTOMATION_GUIDE.md` (full) → Understand everything before first use
 
 ---
@@ -320,39 +339,44 @@ Before using the automation:
 ### If you want to know about...
 
 **Catch-block scanning:**
+
 - Overview: `OVERNIGHT_AUTOMATION_QUICK_REFERENCE.md` (Sweep 1)
 - Details: `NIGHTLY_AUTOMATION_GUIDE.md` (Component 1)
 - Technical: `OVERNIGHT_AUTOMATION_ARCHITECTURE.md` (Component 1)
 
 **API smoke tests:**
+
 - Overview: `OVERNIGHT_AUTOMATION_QUICK_REFERENCE.md` (Sweep 2)
 - Details: `NIGHTLY_AUTOMATION_GUIDE.md` (Component 2)
 - Technical: `OVERNIGHT_AUTOMATION_ARCHITECTURE.md` (Component 2)
 
 **Morning review:**
+
 - Quick: `MORNING_REVIEW_CHECKLIST.md` (full file)
 - Detailed: `NIGHTLY_AUTOMATION_GUIDE.md` (Morning Review section)
 
 **Troubleshooting:**
+
 - Quick: `OVERNIGHT_AUTOMATION_QUICK_REFERENCE.md` (Troubleshooting)
 - Detailed: `NIGHTLY_AUTOMATION_GUIDE.md` (Troubleshooting section)
 
 **System design:**
+
 - Detailed: `OVERNIGHT_AUTOMATION_ARCHITECTURE.md` (full file)
 
 ---
 
 ## 📞 Support Resources
 
-| Issue | Where to Find Help |
-|-------|-------------------|
-| Quick answers | `OVERNIGHT_AUTOMATION_QUICK_REFERENCE.md` |
-| Setup help | `NIGHTLY_AUTOMATION_SUITE_READY.md` |
-| How to run | `NIGHTLY_AUTOMATION_GUIDE.md` (How to Run section) |
-| Reading results | `NIGHTLY_AUTOMATION_GUIDE.md` (Reading Results section) |
-| Something broken | `NIGHTLY_AUTOMATION_GUIDE.md` (Troubleshooting section) |
-| Architecture details | `OVERNIGHT_AUTOMATION_ARCHITECTURE.md` |
-| Morning review | `MORNING_REVIEW_CHECKLIST.md` |
+| Issue                | Where to Find Help                                      |
+| -------------------- | ------------------------------------------------------- |
+| Quick answers        | `OVERNIGHT_AUTOMATION_QUICK_REFERENCE.md`               |
+| Setup help           | `NIGHTLY_AUTOMATION_SUITE_READY.md`                     |
+| How to run           | `NIGHTLY_AUTOMATION_GUIDE.md` (How to Run section)      |
+| Reading results      | `NIGHTLY_AUTOMATION_GUIDE.md` (Reading Results section) |
+| Something broken     | `NIGHTLY_AUTOMATION_GUIDE.md` (Troubleshooting section) |
+| Architecture details | `OVERNIGHT_AUTOMATION_ARCHITECTURE.md`                  |
+| Morning review       | `MORNING_REVIEW_CHECKLIST.md`                           |
 
 ---
 
@@ -375,6 +399,7 @@ All of these are documented in the files above.
 ### For Your Desk (Print These)
 
 **Card 1: Daily Morning Check**
+
 ```
 ☀️  MORNING REVIEW (15 min)
 
@@ -391,6 +416,7 @@ Reference: MORNING_REVIEW_CHECKLIST.md
 ```
 
 **Card 2: Quick Commands**
+
 ```
 🚀 QUICK COMMANDS
 

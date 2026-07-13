@@ -5,6 +5,7 @@ This document ensures the app runs correctly against production services.
 ## Environment Variables Required
 
 ### iOS App (.env or build configuration)
+
 ```bash
 # API Endpoint - Points to production backend
 EXPO_PUBLIC_API_URL=https://api.varsityhub.app
@@ -30,6 +31,7 @@ EXPO_PUBLIC_NODE_ENV=production
 ```
 
 ### Backend Server (.env)
+
 ```bash
 # Database
 DATABASE_URL=postgresql://user:password@host:5432/varsityhub_prod
@@ -72,17 +74,19 @@ ADMIN_EMAILS=admin@varsityhub.app,support@varsityhub.app
 ## Verification Checklist
 
 ### Before iOS Release Build:
+
 - [ ] `EXPO_PUBLIC_API_URL` is set to production backend (NOT localhost)
 - [ ] Sentry DSN configured (error tracking enabled)
 - [ ] Google OAuth keys are production iOS keys
-- [ ] Stripe publishable key is live key (pk_live_)
+- [ ] Stripe publishable key is live key (pk*live*)
 - [ ] Admin emails configured
 - [ ] App scheme is correct: `varsityhubmobile`
 
 ### Before Backend Deployment:
+
 - [ ] Database URL points to production database
 - [ ] JWT secret is long and random (not in version control!)
-- [ ] Stripe secret key is live key (sk_live_)
+- [ ] Stripe secret key is live key (sk*live*)
 - [ ] Email service is configured (SendGrid API key works)
 - [ ] S3 bucket exists and credentials work
 - [ ] Admin emails match expected admins
@@ -92,6 +96,7 @@ ADMIN_EMAILS=admin@varsityhub.app,support@varsityhub.app
 ## Production Deployment Steps
 
 ### 1. Prepare Backend
+
 ```bash
 # SSH to production server
 ssh prod-server
@@ -114,6 +119,7 @@ curl https://api.varsityhub.app/health
 ```
 
 ### 2. Configure iOS Build
+
 ```bash
 # Create production .env or configure in Xcode
 cat > .env.production << EOF
@@ -127,6 +133,7 @@ eas build --platform ios --profile production
 ```
 
 ### 3. Verify Production Services
+
 ```bash
 # Health checks
 curl https://api.varsityhub.app/health
@@ -145,26 +152,34 @@ curl -X POST https://api.varsityhub.app/auth/login \
 ## Common Production Issues & Fixes
 
 ### Issue: "Cannot connect to API"
+
 **Check**:
+
 - `EXPO_PUBLIC_API_URL` is correct
 - Backend server is running (`pm2 status`)
 - Backend logs: `pm2 logs`
 - Network: `curl https://api.varsityhub.app/health`
 
 ### Issue: "Email verification not working"
+
 **Check**:
+
 - `SENDGRID_API_KEY` is set on backend
 - `SENDGRID_FROM_EMAIL` is whitelisted in SendGrid
 - Test: `curl -X POST https://api.varsityhub.app/auth/register ...`
 
 ### Issue: "Sign in with Apple fails"
+
 **Check**:
+
 - Apple private email relay is enabled (not visible in logs by design)
 - App ID configured in Apple Developer account
 - Bundle identifier matches: `com.xsantcastx.varsityhub`
 
 ### Issue: "Payment processing fails"
+
 **Check**:
+
 - `STRIPE_SECRET_KEY` is live key (starts with `sk_live_`)
 - Stripe webhook configured to receive events
 - Check Stripe logs: `https://dashboard.stripe.com`
@@ -172,6 +187,7 @@ curl -X POST https://api.varsityhub.app/auth/login \
 ## Database Backups
 
 ### Automated Backups
+
 ```bash
 # Set up daily backups (via hosting provider)
 # AWS RDS: Enable automated backups in console
@@ -181,6 +197,7 @@ curl -X POST https://api.varsityhub.app/auth/login \
 ```
 
 ### Manual Backup
+
 ```bash
 # Backup
 pg_dump -U postgres varsityhub_prod > backup-$(date +%Y%m%d).sql
@@ -192,12 +209,14 @@ psql -U postgres < backup-20251206.sql
 ## Monitoring & Alerts
 
 ### Set up monitoring for:
+
 1. **Sentry** - Error tracking at https://sentry.io
 2. **Stripe** - Payment issues at https://dashboard.stripe.com
 3. **API Health** - Check endpoint availability
 4. **Database** - Query performance and connection pool
 
 ### Recommended Alert Rules:
+
 - Alert if API returns 5xx errors (>10 in 5 min)
 - Alert if error rate > 1% in Sentry
 - Alert if payment failures spike
@@ -214,7 +233,7 @@ psql -U postgres < backup-20251206.sql
 ✅ Backup strategy in place  
 ✅ All team members have access documentation  
 ✅ Support email configured and monitored  
-✅ Privacy policy & support pages live  
+✅ Privacy policy & support pages live
 
 ---
 

@@ -8,14 +8,14 @@
 
 ## Quick Summary
 
-| Surface | File | Link Source | Current Fallback | Gaps |
-|---------|------|-------------|------------------|------|
-| Event detail | `app/event-detail.tsx` | `AppLinks.event` (ID → `/events/:id`) | None. Errors are logged only. | No copy-link fallback, no analytics, no error toast for users. |
-| Post detail | `app/post-detail.tsx` | `AppLinks.post` (ID → `/posts/:id`) | None. Fails silently in catch. | Duplicated logic per screen, no clipboard fallback, no share telemetry. |
-| Highlights feed | `app/highlights.tsx` | `AppLinks.post/highlight` | Clipboard fallback only when RN `Share` is unavailable. | Does not surface context (team, author), no tracking. |
-| Game detail (story view + rail) | `app/game-details/GameDetailsScreen.tsx`, `GameVerticalFeedScreen.tsx` | `AppLinks.game` & `AppLinks.post` | None. | Missing fallback + user feedback, share text inconsistent across components. |
-| Team/Coach CTA buttons (Discover tab) | `app/(tabs)/discover/mobile-community.tsx` | Hard-coded string right now | N/A | Needs to reuse canonical helper when share opens. |
-| Organization/Team invites | `AppLinks.organizationInvite`, `AppLinks.teamInvite` (used in onboarding + invites) | Provided via API/email, not RN Share | Copy handled by browser/email | Need validation that deep links match iOS/Android configs. |
+| Surface                               | File                                                                                | Link Source                           | Current Fallback                                        | Gaps                                                                         |
+| ------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Event detail                          | `app/event-detail.tsx`                                                              | `AppLinks.event` (ID → `/events/:id`) | None. Errors are logged only.                           | No copy-link fallback, no analytics, no error toast for users.               |
+| Post detail                           | `app/post-detail.tsx`                                                               | `AppLinks.post` (ID → `/posts/:id`)   | None. Fails silently in catch.                          | Duplicated logic per screen, no clipboard fallback, no share telemetry.      |
+| Highlights feed                       | `app/highlights.tsx`                                                                | `AppLinks.post/highlight`             | Clipboard fallback only when RN `Share` is unavailable. | Does not surface context (team, author), no tracking.                        |
+| Game detail (story view + rail)       | `app/game-details/GameDetailsScreen.tsx`, `GameVerticalFeedScreen.tsx`              | `AppLinks.game` & `AppLinks.post`     | None.                                                   | Missing fallback + user feedback, share text inconsistent across components. |
+| Team/Coach CTA buttons (Discover tab) | `app/(tabs)/discover/mobile-community.tsx`                                          | Hard-coded string right now           | N/A                                                     | Needs to reuse canonical helper when share opens.                            |
+| Organization/Team invites             | `AppLinks.organizationInvite`, `AppLinks.teamInvite` (used in onboarding + invites) | Provided via API/email, not RN Share  | Copy handled by browser/email                           | Need validation that deep links match iOS/Android configs.                   |
 
 ---
 

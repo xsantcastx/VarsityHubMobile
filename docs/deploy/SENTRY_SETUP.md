@@ -19,18 +19,20 @@ This token is used by `sentry-cli` to upload source maps to Sentry during the An
    - Copy the token (you won't see it again!)
 
 2. **Set in EAS Secrets (Project-wide):**
+
    ```bash
    eas secret:create --name SENTRY_AUTH_TOKEN --value <your-token> --scope project --type string
    ```
 
 3. **Set for specific environments (if needed):**
+
    ```bash
    # Production
    eas secret:create --name SENTRY_AUTH_TOKEN --value <your-token> --scope project --environment production --type string
-   
+
    # Preview
    eas secret:create --name SENTRY_AUTH_TOKEN --value <your-token> --scope project --environment preview --type string
-   
+
    # Development
    eas secret:create --name SENTRY_AUTH_TOKEN --value <your-token> --scope project --environment development --type string
    ```
@@ -47,6 +49,7 @@ This token is used by `sentry-cli` to upload source maps to Sentry during the An
 The server only needs the DSN (not the auth token) since it doesn't upload source maps.
 
 Set in Railway:
+
 - Go to Railway dashboard → Your API service → Variables
 - Add `SENTRY_DSN` with your Sentry DSN URL
 - Add `SENTRY_ENVIRONMENT` with value `production`
@@ -56,11 +59,13 @@ Set in Railway:
 **EXPO_PUBLIC_SENTRY_DSN** - Required for error tracking in the app
 
 Set in EAS Secrets:
+
 ```bash
 eas secret:create --name EXPO_PUBLIC_SENTRY_DSN --value <your-dsn-url> --scope project --type string
 ```
 
 Or set in `eas.json` env section (less secure, but works):
+
 ```json
 {
   "build": {
@@ -76,6 +81,7 @@ Or set in `eas.json` env section (less secure, but works):
 ## Current Configuration
 
 ### Mobile App
+
 - **Sentry Package**: `@sentry/react-native@~7.2.0` ✅
 - **Initialization**: `utils/sentry.ts` ✅
 - **Error Boundary**: `components/ErrorBoundary.tsx` ✅
@@ -83,6 +89,7 @@ Or set in `eas.json` env section (less secure, but works):
 - **Sentry Properties**: `android/sentry.properties` & `ios/sentry.properties` ✅
 
 ### Server
+
 - **Sentry Package**: `@sentry/node@^7.91.0` ✅
 - **Initialization**: `server/src/lib/sentry.ts` ✅
 - **Error Handling**: Integrated in Express app ✅
@@ -90,11 +97,13 @@ Or set in `eas.json` env section (less secure, but works):
 ## Build Behavior
 
 ### Android Builds
+
 - **With SENTRY_AUTH_TOKEN**: Source maps uploaded automatically ✅
 - **Without SENTRY_AUTH_TOKEN**: Build fails with clear error message ❌
 - **With SENTRY_DISABLE_AUTO_UPLOAD=true**: Uploads skipped, build succeeds ⚠️
 
 ### iOS Builds
+
 - Same behavior as Android (handled by Sentry Gradle/Xcode plugin)
 
 ## Verification
@@ -111,6 +120,7 @@ Or set in `eas.json` env section (less secure, but works):
    - Check Sentry dashboard
 
 ### Test Build:
+
 ```bash
 # This will fail if SENTRY_AUTH_TOKEN is missing
 eas build --platform android --profile production
@@ -122,14 +132,17 @@ SENTRY_DISABLE_AUTO_UPLOAD=true eas build --platform android --profile productio
 ## Troubleshooting
 
 ### Build fails: "SENTRY_AUTH_TOKEN is required"
+
 - **Solution**: Set the token in EAS secrets (see above)
 
 ### Source maps not uploading
+
 - Check token has correct scopes: `project:read`, `project:releases`, `project:write`
 - Verify token in EAS: `eas secret:list`
 - Check build logs for Sentry upload errors
 
 ### Errors not appearing in Sentry
+
 - Verify `EXPO_PUBLIC_SENTRY_DSN` is set correctly
 - Check `SENTRY_ENVIRONMENT` matches your environment
 - Ensure app is not in `__DEV__` mode (Sentry disabled in dev)

@@ -1,11 +1,13 @@
 # iOS Submission Fix - DO THIS NOW
 
 ## The Problem
+
 App Store Connect app `6758399345` does NOT have bundle ID `com.varsithub.varsityhub` registered. Apple rejects the upload because the bundle IDs don't match.
 
 ## The Fix (Choose ONE)
 
 ### Option A: Create BRAND NEW App (Recommended - Clean Start)
+
 1. Go to [App Store Connect](https://appstoreconnect.apple.com)
 2. **My Apps** → **+** → **New App**
 3. Fill in:
@@ -20,6 +22,7 @@ App Store Connect app `6758399345` does NOT have bundle ID `com.varsithub.varsit
 6. **Paste it here** and I'll update `eas.json`
 
 ### Option B: Fix Existing App `6758399345` (If Possible)
+
 1. Go to app `6758399345` in App Store Connect
 2. **App Information** → **General Information**
 3. Check **Bundle ID** field
@@ -43,10 +46,12 @@ Before creating the app, verify the App ID exists:
 5. **Then** go back to App Store Connect and create the app
 
 ## What I Just Did
+
 - ✅ Removed `ascAppId: "6758399345"` from `eas.json` (so it won't keep failing)
 - ✅ Next submit will prompt you to select the correct app
 
 ## After You Create New App
+
 1. **Paste the new Apple ID here**
 2. I'll add it to `eas.json`
 3. Run: `eas submit --platform ios --latest`

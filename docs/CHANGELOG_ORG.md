@@ -51,6 +51,7 @@
 ### 1. Create `.env.example` Files
 
 **.env.example** (root directory):
+
 ```properties
 # VarsityHub Mobile - Environment Variables
 # Copy this file to .env and fill in your values
@@ -87,6 +88,7 @@ EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME=@varsityhub/varsityhub
 ```
 
 **server/.env.example**:
+
 ```properties
 # VarsityHub Server - Environment Variables
 # Copy this file to server/.env and fill in your values
@@ -155,11 +157,13 @@ EXPO_PUBLIC_API_URL=https://api-production-8ac3.up.railway.app
 Move the following files to appropriate locations:
 
 **Scripts to move to `scripts/`**:
+
 - `*.sh` files in root → `scripts/`
 - Organize overnight scripts → `scripts/overnight/`
 - Organize setup scripts → `scripts/setup/`
 
 **Documentation to move to `docs/`**:
+
 - `PRIVACY_POLICY.md` → `docs/legal/PRIVACY_POLICY.md`
 - `TERMS_OF_SERVICE.md` → `docs/legal/TERMS_OF_SERVICE.md`
 - `BUILD_AND_INSTALL.md` → `docs/setup/BUILD_AND_INSTALL.md`
@@ -167,6 +171,7 @@ Move the following files to appropriate locations:
 - `QUICK_INSTALL_GUIDE.md` → `docs/setup/QUICK_INSTALL_GUIDE.md`
 
 **Clean up temporary directories**:
+
 - Remove `overnight-*/` directories (already in `.gitignore`)
 - Remove `test-results/` directory (already in `.gitignore`)
 - Remove `playwright-report/` directory (already in `.gitignore`)
@@ -178,6 +183,7 @@ Move the following files to appropriate locations:
 ## 📝 Recommended Commits
 
 ### Commit 1: Add repository organization documentation
+
 ```
 feat(docs): add repository reorganization documentation
 
@@ -188,6 +194,7 @@ feat(docs): add repository reorganization documentation
 ```
 
 ### Commit 2: Add CI workflow
+
 ```
 feat(ci): add comprehensive CI checks workflow
 
@@ -197,6 +204,7 @@ feat(ci): add comprehensive CI checks workflow
 ```
 
 ### Commit 3: Create environment example files
+
 ```
 feat(config): add .env.example files for frontend and backend
 
@@ -206,6 +214,7 @@ feat(config): add .env.example files for frontend and backend
 ```
 
 ### Commit 4: Reorganize root directory (when ready)
+
 ```
 refactor(repo): reorganize root directory structure
 
@@ -296,6 +305,7 @@ After completing reorganization:
 ## 📊 Impact Summary
 
 ### Before
+
 - **25+ files in root directory**
 - No `.env.example` files
 - No contribution guidelines
@@ -304,6 +314,7 @@ After completing reorganization:
 - Documentation scattered in root
 
 ### After (Phase 1 Complete)
+
 - ✅ **Repository audit documented**
 - ✅ **Contribution guidelines created**
 - ✅ **Changelog tracking added**
@@ -313,6 +324,7 @@ After completing reorganization:
 - ⚠️ **Root directory cleanup pending** (can be done incrementally)
 
 ### After (Phase 2 - Recommended)
+
 - ✅ **Clean root directory (< 10 files)**
 - ✅ **Organized scripts in `scripts/`**
 - ✅ **Organized documentation in `docs/`**
@@ -334,12 +346,14 @@ After completing reorganization:
 ## ⚠️ Important Notes
 
 ### DO NOT CHANGE:
+
 - ❌ `app/` directory structure (Expo Router file-based routing)
 - ❌ Server structure (monorepo backend)
 - ❌ Path aliases configuration (already working)
 - ❌ Package.json scripts (unless improving)
 
 ### SAFE TO CHANGE:
+
 - ✅ Root directory cleanup (scripts, docs)
 - ✅ Documentation organization
 - ✅ Script organization

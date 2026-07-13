@@ -39,19 +39,19 @@ Output required:
 
 Review the flow against the explicit threat list from the audit standard:
 
-| Threat                      | What To Check                                                                                    |
-| --------------------------- | ------------------------------------------------------------------------------------------------ |
-| Auth bypass                 | Can the action execute without a valid token? Does middleware enforce `requireAuth`?              |
-| Privilege escalation        | Can a non-owner/non-admin trigger owner/admin behavior? Are role checks server-side?             |
-| IDOR / cross-tenant access  | Can user A operate on user B's resources by manipulating IDs in params or body?                   |
-| Payment spoofing            | Can checkout intent alone persist a paid plan? Are webhooks signature-verified?                   |
-| Duplicate finalization      | Can the same webhook/callback apply entitlements twice? Is there an idempotency key or guard?    |
-| Webhook/callback replay     | Are stale or replayed callbacks handled safely? Do they check current state before acting?        |
-| Validation drift            | Does the frontend allow values the backend rejects, or vice versa?                               |
-| Deep-link abuse             | Can malformed or missing deep-link params bypass auth gates or produce undefined behavior?       |
-| Silent fallback degradation | Does any catch block or fallback path skip auth, approval, payment, or role checks?              |
-| Stale cache                 | Does cached data gate security-critical decisions? Is it invalidated on the relevant mutations?   |
-| Client-controlled state     | Can the client set paid plan, approval status, role, or ownership through request payloads?       |
+| Threat                      | What To Check                                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------------------------- |
+| Auth bypass                 | Can the action execute without a valid token? Does middleware enforce `requireAuth`?            |
+| Privilege escalation        | Can a non-owner/non-admin trigger owner/admin behavior? Are role checks server-side?            |
+| IDOR / cross-tenant access  | Can user A operate on user B's resources by manipulating IDs in params or body?                 |
+| Payment spoofing            | Can checkout intent alone persist a paid plan? Are webhooks signature-verified?                 |
+| Duplicate finalization      | Can the same webhook/callback apply entitlements twice? Is there an idempotency key or guard?   |
+| Webhook/callback replay     | Are stale or replayed callbacks handled safely? Do they check current state before acting?      |
+| Validation drift            | Does the frontend allow values the backend rejects, or vice versa?                              |
+| Deep-link abuse             | Can malformed or missing deep-link params bypass auth gates or produce undefined behavior?      |
+| Silent fallback degradation | Does any catch block or fallback path skip auth, approval, payment, or role checks?             |
+| Stale cache                 | Does cached data gate security-critical decisions? Is it invalidated on the relevant mutations? |
+| Client-controlled state     | Can the client set paid plan, approval status, role, or ownership through request payloads?     |
 
 For each applicable threat, record: checked/not applicable, and if a gap is found, fill out a finding.
 
@@ -59,14 +59,14 @@ For each applicable threat, record: checked/not applicable, and if a gap is foun
 
 For each boundary crossing in the flow:
 
-| Boundary                            | Verification Question                                                                  |
-| ----------------------------------- | -------------------------------------------------------------------------------------- |
-| Untrusted client input              | Is it validated server-side before any persistence or privileged action?                |
-| Authenticated client input          | Does the server re-derive ownership/role from the token, not from request body?        |
-| Admin or owner actions              | Is the caller verified as admin/owner server-side, not just UI-gated?                  |
-| Third-party callbacks (Stripe, IAP) | Is the callback signature-verified? Is the handler idempotent? Is failure non-silent?  |
-| Background jobs                     | Can the job replay safely? Does it check current state before mutating?                |
-| External providers (SendGrid, etc.) | Is failure handled without blocking the primary operation? Is it logged?                |
+| Boundary                            | Verification Question                                                                 |
+| ----------------------------------- | ------------------------------------------------------------------------------------- |
+| Untrusted client input              | Is it validated server-side before any persistence or privileged action?              |
+| Authenticated client input          | Does the server re-derive ownership/role from the token, not from request body?       |
+| Admin or owner actions              | Is the caller verified as admin/owner server-side, not just UI-gated?                 |
+| Third-party callbacks (Stripe, IAP) | Is the callback signature-verified? Is the handler idempotent? Is failure non-silent? |
+| Background jobs                     | Can the job replay safely? Does it check current state before mutating?               |
+| External providers (SendGrid, etc.) | Is failure handled without blocking the primary operation? Is it logged?              |
 
 ### 4. Check Controls
 

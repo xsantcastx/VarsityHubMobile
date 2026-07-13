@@ -5,6 +5,7 @@
 ### Option 1: Using Expo Dev Server (Easiest)
 
 1. **Start the Expo dev server:**
+
    ```bash
    npm start
    ```
@@ -18,9 +19,11 @@
 ### Option 2: Build and Install APK (For Development Build)
 
 1. **Make sure your device is connected:**
+
    ```bash
    adb devices
    ```
+
    You should see your device listed.
 
 2. **Enable USB Debugging on your device:**
@@ -30,19 +33,23 @@
    - Enable "USB Debugging"
 
 3. **Build and install:**
+
    ```bash
    npm run android
    ```
-   
+
    Or if you need to select the device:
+
    ```bash
    npx expo run:android
    ```
+
    Then select your physical device from the list.
 
 ### Option 3: Manual APK Installation
 
 1. **Build the APK:**
+
    ```bash
    cd android
    ./gradlew assembleDebug
@@ -59,17 +66,20 @@
 ## Troubleshooting
 
 ### "Device not found"
+
 - Make sure USB debugging is enabled
 - Try different USB cable
 - Try different USB port
 - Run `adb kill-server && adb start-server`
 
 ### "Build failed"
+
 - Make sure you have Android SDK installed
 - Check `android/build.gradle` for version issues
 - Try: `cd android && ./gradlew clean`
 
 ### "Permission denied"
+
 - Make sure you authorized USB debugging on your device
 - Check the popup on your device screen
 
@@ -78,6 +88,7 @@
 There's a Gradle build error with React Native plugin. To fix:
 
 1. **Clean the build:**
+
    ```bash
    cd android
    ./gradlew clean

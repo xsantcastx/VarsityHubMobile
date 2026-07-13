@@ -17,7 +17,8 @@ Fixed **critical real-world issues** in the event system that would have caused 
 
 **Problem**: Users could RSVP even when event was at capacity.
 
-**Fix Applied**: 
+**Fix Applied**:
+
 - Added capacity check **before** creating RSVP
 - Uses database transaction to prevent race conditions
 - Returns clear error message when event is full
@@ -25,19 +26,20 @@ Fixed **critical real-world issues** in the event system that would have caused 
 **Location**: `server/src/routes/events.ts:137-209`
 
 **Code**:
+
 ```typescript
 if (desired && !current) {
   try {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async tx => {
       const currentCount = await tx.eventRsvp.count({ where: { event_id: id } });
       const capacity = event.capacity ?? event.max_attendees;
-      
+
       if (capacity && currentCount >= capacity) {
         throw new Error('EVENT_AT_CAPACITY');
       }
-      
-      await tx.eventRsvp.create({ 
-        data: { event_id: id, user_id: me.id, user_email: me.email } 
+
+      await tx.eventRsvp.create({
+        data: { event_id: id, user_id: me.id, user_email: me.email },
       });
     });
   } catch (error: any) {
@@ -60,7 +62,8 @@ if (desired && !current) {
 
 **Problem**: Multiple users RSVPing simultaneously could exceed capacity.
 
-**Fix Applied**: 
+**Fix Applied**:
+
 - Uses `prisma.$transaction` to lock event during RSVP
 - Capacity check and RSVP creation happen atomically
 - Prevents concurrent RSVPs from exceeding capacity
@@ -74,15 +77,18 @@ if (desired && !current) {
 **Problem**: Users could create events in the past or RSVP to past events.
 
 **Fix Applied**:
+
 - **Event creation**: Validates date is in the future
 - **RSVP**: Checks event hasn't already occurred
 - Returns clear error messages
 
-**Location**: 
+**Location**:
+
 - `server/src/routes/events.ts:197-203` (creation)
 - `server/src/routes/events.ts:145-152` (RSVP)
 
 **Code**:
+
 ```typescript
 // Event creation
 const eventDate = new Date(data.date);
@@ -112,11 +118,13 @@ if (eventDate < now) {
 **Problem**: Event has both `capacity` and `max_attendees` fields causing confusion.
 
 **Fix Applied**:
+
 - RSVP logic now checks both fields: `event.capacity ?? event.max_attendees`
 - Event creation sets `capacity` from `max_attendees` input
 - Maintains backward compatibility
 
-**Location**: 
+**Location**:
+
 - `server/src/routes/events.ts:158` (RSVP check)
 - `server/src/routes/events.ts:241` (event creation)
 - `server/src/routes/events.ts:123-132` (RSVP status)
@@ -128,15 +136,18 @@ if (eventDate < now) {
 **Problem**: Event creators weren't notified when events were approved/rejected.
 
 **Fix Applied**:
+
 - Added push notifications when event is approved
 - Added push notifications when event is rejected (with reason)
 - Uses existing `sendPushNotification` function
 
-**Location**: 
+**Location**:
+
 - `server/src/routes/events.ts:327-340` (approval)
 - `server/src/routes/events.ts:379-392` (rejection)
 
 **Code**:
+
 ```typescript
 // Approval notification
 await sendPushNotification(
@@ -171,6 +182,7 @@ await sendPushNotification(
 **Problem**: Event list showed past events by default.
 
 **Fix Applied**:
+
 - Event list now filters out past events by default
 - Can include past events with `?include_past=1` query param
 - Only applies when not filtering by approval status
@@ -178,6 +190,7 @@ await sendPushNotification(
 **Location**: `server/src/routes/events.ts:82-84`
 
 **Code**:
+
 ```typescript
 // Filter out past events by default (unless explicitly requested)
 if (!req.query.include_past && !approvalStatus) {
@@ -192,6 +205,7 @@ if (!req.query.include_past && !approvalStatus) {
 **Problem**: Frontend didn't show when event was full.
 
 **Fix Applied**:
+
 - Shows "(FULL)" indicator when capacity reached
 - Changes text color to red when full
 - Uses both `capacity` and `max_attendees` fields
@@ -199,12 +213,11 @@ if (!req.query.include_past && !approvalStatus) {
 **Location**: `app/event-detail.tsx:240-250`
 
 **Code**:
+
 ```typescript
 const capacity = (event as any)?.capacity ?? (event as any)?.max_attendees;
 const isFull = typeof capacity === 'number' && attendeesCount >= capacity;
-const capacityText = typeof capacity === 'number' 
-  ? ` / ${capacity}${isFull ? ' (FULL)' : ''}`
-  : '';
+const capacityText = typeof capacity === 'number' ? ` / ${capacity}${isFull ? ' (FULL)' : ''}` : '';
 ```
 
 ---
@@ -241,18 +254,21 @@ After these fixes, test:
 ## Remaining Issues (Lower Priority)
 
 ### 1. Status Field Consolidation
+
 - **Issue**: Both `status` and `approval_status` exist
 - **Impact**: Confusion, potential bugs
 - **Priority**: Medium
 - **Recommendation**: Document clearly or consolidate
 
 ### 2. Cleanup Job
+
 - **Issue**: Old events accumulate in database
 - **Impact**: Database bloat, performance
 - **Priority**: Low
 - **Recommendation**: Add cron job to archive events older than 1 year
 
 ### 3. Waitlist Feature
+
 - **Issue**: No waitlist when event is full
 - **Impact**: Users can't join waitlist
 - **Priority**: Low

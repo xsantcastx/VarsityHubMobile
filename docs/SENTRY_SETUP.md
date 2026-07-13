@@ -9,6 +9,7 @@ Sentry is configured to work with both iOS and Android builds. The configuration
 ### 1. EAS Environment Variables
 
 All build profiles in `eas.json` include:
+
 - `SENTRY_ORG`: "varsity-hub"
 - `SENTRY_PROJECT`: "varsityhub"
 - `SENTRY_ALLOW_FAILURE`: "true" (safety net - allows builds to continue if upload fails)
@@ -22,6 +23,7 @@ eas secret:create --name SENTRY_AUTH_TOKEN --value <your-token> --environment pr
 ```
 
 **To get your Sentry auth token:**
+
 1. Go to https://sentry.io/settings/account/api/auth-tokens/
 2. Click "Create New Token"
 3. Name: "EAS Builds"
@@ -31,11 +33,13 @@ eas secret:create --name SENTRY_AUTH_TOKEN --value <your-token> --environment pr
 ### 3. How It Works
 
 **Android:**
+
 - Sentry uploads are enabled when `SENTRY_AUTH_TOKEN` is present
 - If `SENTRY_ALLOW_FAILURE=true`, upload failures won't break the build
 - Tasks are wrapped to catch errors gracefully
 
 **iOS:**
+
 - Sentry script runs during bundle phase
 - If `SENTRY_ALLOW_FAILURE=true`, upload failures won't break the build
 - Debug symbols upload also respects this setting
@@ -49,6 +53,7 @@ npm run verify:build
 ```
 
 This will check:
+
 - ✅ Sentry org/project configured in `eas.json`
 - ✅ `SENTRY_ALLOW_FAILURE` safety net is set
 - ✅ Sentry scripts are properly configured
@@ -58,11 +63,13 @@ This will check:
 ### "Project not found" Error
 
 This means:
+
 1. `SENTRY_AUTH_TOKEN` is missing or invalid
 2. The token doesn't have access to the `lime-productions` organization or `varsityhub` project
 3. The org/project names in `eas.json` don't match your Sentry account
 
 **Fix:**
+
 1. Verify your token has the correct permissions
 2. Check that org/project names match exactly (case-sensitive)
 3. Ensure the token is set in EAS secrets for the correct environment
@@ -70,6 +77,7 @@ This means:
 ### Build Fails Even With SENTRY_ALLOW_FAILURE
 
 If builds still fail, check:
+
 1. The `SENTRY_ALLOW_FAILURE=true` is set in `eas.json` for your build profile
 2. The build scripts properly handle the environment variable
 3. There are no other Sentry-related errors
@@ -77,6 +85,7 @@ If builds still fail, check:
 ## Testing
 
 To test Sentry uploads work:
+
 1. Set `SENTRY_AUTH_TOKEN` in EAS secrets
 2. Run a build: `eas build --platform android --profile production`
 3. Check build logs for Sentry upload success messages

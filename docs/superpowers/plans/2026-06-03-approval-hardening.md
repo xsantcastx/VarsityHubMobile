@@ -12,19 +12,20 @@
 
 ## File Map
 
-| File | Change |
-|------|--------|
-| `server/src/lib/approvalService.ts` | Add agreement fields to `approveCoach()` and `approveOrganization()` |
-| `server/src/routes/organizations.ts` | Add agreement fields to 2 join-request transactions; add `logAdminActivity` to both approval paths |
-| `server/src/__tests__/coach-approval.test.ts` | Extend existing tests: assert agreement fields set after approval |
-| `server/src/__tests__/coach-join-email-review.test.ts` | Assert agreement fields set and admin activity logged after join-request approval |
-| `app/(tabs)/discover/mobile-community.tsx` | Add setup CTA branch in Quick Actions for `isApprovedCoach && !canAccessCoachTools` |
+| File                                                   | Change                                                                                             |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `server/src/lib/approvalService.ts`                    | Add agreement fields to `approveCoach()` and `approveOrganization()`                               |
+| `server/src/routes/organizations.ts`                   | Add agreement fields to 2 join-request transactions; add `logAdminActivity` to both approval paths |
+| `server/src/__tests__/coach-approval.test.ts`          | Extend existing tests: assert agreement fields set after approval                                  |
+| `server/src/__tests__/coach-join-email-review.test.ts` | Assert agreement fields set and admin activity logged after join-request approval                  |
+| `app/(tabs)/discover/mobile-community.tsx`             | Add setup CTA branch in Quick Actions for `isApprovedCoach && !canAccessCoachTools`                |
 
 ---
 
 ## Task 1: Stamp coach agreement in `approveCoach()` (approvalService.ts)
 
 **Files:**
+
 - Modify: `server/src/lib/approvalService.ts` ~line 537
 - Test: `server/src/__tests__/coach-approval.test.ts`
 
@@ -51,7 +52,11 @@ it('sets coach_agreement_accepted_at and coach_agreement_version when approving 
 
   const updated = await prisma.user.findUnique({
     where: { id: coach.id },
-    select: { coach_agreement_accepted_at: true, coach_agreement_version: true, approval_status: true },
+    select: {
+      coach_agreement_accepted_at: true,
+      coach_agreement_version: true,
+      approval_status: true,
+    },
   });
 
   expect(updated?.approval_status).toBe('APPROVED');
@@ -123,6 +128,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 2: Stamp coach agreement in `approveOrganization()` (approvalService.ts)
 
 **Files:**
+
 - Modify: `server/src/lib/approvalService.ts` ~line 291
 - Test: `server/src/__tests__/coach-approval.test.ts`
 
@@ -159,7 +165,11 @@ it('sets coach_agreement fields on the org owner when approving an organization'
 
   const updated = await prisma.user.findUnique({
     where: { id: owner.id },
-    select: { coach_agreement_accepted_at: true, coach_agreement_version: true, approval_status: true },
+    select: {
+      coach_agreement_accepted_at: true,
+      coach_agreement_version: true,
+      approval_status: true,
+    },
   });
 
   expect(updated?.approval_status).toBe('APPROVED');
@@ -233,6 +243,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 3: Stamp coach agreement in both org join-request approval paths (organizations.ts)
 
 **Files:**
+
 - Modify: `server/src/routes/organizations.ts` — two transaction blocks
 - Test: `server/src/__tests__/coach-join-email-review.test.ts`
 
@@ -286,7 +297,11 @@ it('sets agreement fields on the coach when an org owner approves a join request
 
   const updated = await prisma.user.findUnique({
     where: { id: coach.id },
-    select: { coach_agreement_accepted_at: true, coach_agreement_version: true, approval_status: true },
+    select: {
+      coach_agreement_accepted_at: true,
+      coach_agreement_version: true,
+      approval_status: true,
+    },
   });
 
   expect(updated?.approval_status).toBe('APPROVED');
@@ -387,6 +402,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 4: Add admin activity logging to org-owner join-request approvals
 
 **Files:**
+
 - Modify: `server/src/routes/organizations.ts` — two locations
 - Test: `server/src/__tests__/coach-join-email-review.test.ts`
 
@@ -460,16 +476,16 @@ Expected: FAIL — no log entry found.
 In `organizations.ts`, find `return res.json({ message: 'Join request approved' });` at ~line 2297 (inside the in-app handler, after notifications). Add before the return:
 
 ```typescript
-      // Audit trail: log who approved which coach
-      await logAdminActivityFromReq(
-        req,
-        'APPROVE_JOIN_REQUEST',
-        'user',
-        joinRequest.user_id,
-        `Approved coach join request for org ${organization.name}`
-      );
+// Audit trail: log who approved which coach
+await logAdminActivityFromReq(
+  req,
+  'APPROVE_JOIN_REQUEST',
+  'user',
+  joinRequest.user_id,
+  `Approved coach join request for org ${organization.name}`
+);
 
-      return res.json({ message: 'Join request approved' });
+return res.json({ message: 'Join request approved' });
 ```
 
 - [ ] **Step 4: Add logAdminActivity to `_executeJoinRequestApprovalByToken`**
@@ -477,17 +493,17 @@ In `organizations.ts`, find `return res.json({ message: 'Join request approved' 
 In `organizations.ts`, find the end of `_executeJoinRequestApprovalByToken` — after the notification `try/catch` block and before the function returns `{ ok: true }`. The `reviewerUserId` parameter is already available. Add:
 
 ```typescript
-  // Audit trail: record which org owner approved which coach
-  await logAdminActivity(
-    reviewerUserId,
-    'league-owner-email-action',
-    'APPROVE_JOIN_REQUEST',
-    'user',
-    joinRequest.user_id,
-    `Approved coach join request for org ${organization.name} (via email link)`
-  );
+// Audit trail: record which org owner approved which coach
+await logAdminActivity(
+  reviewerUserId,
+  'league-owner-email-action',
+  'APPROVE_JOIN_REQUEST',
+  'user',
+  joinRequest.user_id,
+  `Approved coach join request for org ${organization.name} (via email link)`
+);
 
-  return { ok: true };
+return { ok: true };
 ```
 
 Note: `reviewerUserId` is the second parameter of `_executeJoinRequestApprovalByToken`. The email here is `'league-owner-email-action'` because we have the owner's user ID (can be looked up) but not their email in this function. If you want the real email, add a `prisma.user.findUnique` for `reviewerUserId` above this call and use `owner.email || 'unknown'`.
@@ -526,6 +542,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ## Task 5: Add setup CTA on Discover for approved coaches without tool access
 
 **Files:**
+
 - Modify: `app/(tabs)/discover/mobile-community.tsx` ~line 1673
 
 Context: `coachAccess` is a `useMemo` result of `getCoachAccessState(me)` at line 214. It exposes `canAccessCoachTools`, `isApprovedCoach`. `getCoachRecoveryRoute` from `@/utils/roleChecks` returns the correct next step (`/onboarding/coach-agreement` or `/onboarding/step-3-league`). `me` already has `account_state` and `next_step` from `/me`. The existing action card styles (`coachActionCard`, `coachActionTitle`, `coachActionDesc`) can be reused directly.
@@ -549,54 +566,50 @@ import { getCoachAccessState, getCoachRecoveryRoute } from '@/utils/roleChecks';
 Find the Quick Actions ternary at ~line 1673:
 
 ```tsx
-          {coachAccess.canAccessCoachTools ? (
-            <>
-              {/* ... coach tool cards ... */}
-            </>
-          ) : (
-            <>
-              {/* ... fan action cards ... */}
-            </>
-          )}
+{
+  coachAccess.canAccessCoachTools ? (
+    <>{/* ... coach tool cards ... */}</>
+  ) : (
+    <>{/* ... fan action cards ... */}</>
+  );
+}
 ```
 
 Change the outer ternary to a three-way branch:
 
 ```tsx
-          {coachAccess.canAccessCoachTools ? (
-            <>
-              {/* ... coach tool cards — unchanged ... */}
-            </>
-          ) : coachAccess.isApprovedCoach ? (
-            <Pressable
-              style={[
-                styles.coachActionCard,
-                {
-                  backgroundColor: Colors[colorScheme].tint + '18',
-                  borderColor: Colors[colorScheme].tint + '50',
-                  borderWidth: 1.5,
-                },
-              ]}
-              onPress={() => {
-                const route = getCoachRecoveryRoute(me as any);
-                if (route) router.push(route as any);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Complete coach setup"
-            >
-              <MaterialIcons name="check-circle" size={24} color={Colors[colorScheme].tint} />
-              <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>
-                Finish Setup
-              </Text>
-              <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>
-                Complete setup to unlock coach tools
-              </Text>
-            </Pressable>
-          ) : (
-            <>
-              {/* ... fan action cards — unchanged ... */}
-            </>
-          )}
+{
+  coachAccess.canAccessCoachTools ? (
+    <>{/* ... coach tool cards — unchanged ... */}</>
+  ) : coachAccess.isApprovedCoach ? (
+    <Pressable
+      style={[
+        styles.coachActionCard,
+        {
+          backgroundColor: Colors[colorScheme].tint + '18',
+          borderColor: Colors[colorScheme].tint + '50',
+          borderWidth: 1.5,
+        },
+      ]}
+      onPress={() => {
+        const route = getCoachRecoveryRoute(me as any);
+        if (route) router.push(route as any);
+      }}
+      accessibilityRole="button"
+      accessibilityLabel="Complete coach setup"
+    >
+      <MaterialIcons name="check-circle" size={24} color={Colors[colorScheme].tint} />
+      <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>
+        Finish Setup
+      </Text>
+      <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>
+        Complete setup to unlock coach tools
+      </Text>
+    </Pressable>
+  ) : (
+    <>{/* ... fan action cards — unchanged ... */}</>
+  );
+}
 ```
 
 - [ ] **Step 3: TypeScript check**

@@ -7,21 +7,25 @@
 ### 1. Information We Collect
 
 #### Account Information
+
 - Name, email address, phone number
 - Profile information (photo, bio, location, position/role)
 - Authentication credentials (managed securely, never stored in plain text)
 
 #### Usage Information
+
 - Posts, messages, photos, and videos you create
 - Teams and organizations you join
 - Events and games you attend
 - Connections with other users (follows, teammates)
 
 #### Location Information
+
 - GPS coordinates for event/game locations (only with permission)
 - General location for nearby events feature
 
 #### Device Information
+
 - Device type, operating system, unique identifiers
 - App version, crash logs (via Sentry)
 - IP address, user agent
@@ -154,6 +158,7 @@ VarsityHub uses third-party services (Google Maps, Stripe, etc.). We are not lia
 ### 10. Termination
 
 We may terminate your account if you:
+
 - Violate these Terms
 - Engage in illegal activity
 - Repeatedly abuse the service
@@ -208,17 +213,22 @@ The above templates are generic US-focused. Before launch, consult a lawyer and:
 ## IMPLEMENTATION
 
 ### Option 1: Static Pages (Recommended for Launch)
+
 Create web pages at:
+
 - `https://varsityhub.app/privacy`
 - `https://varsityhub.app/terms`
 
 Link from app Settings → Legal
 
 ### Option 2: In-App
+
 Embed PDFs in app under Settings → Privacy Policy / Terms
 
 ### Option 3: Hybrid
+
 Serve from REST API:
+
 ```
 GET /api/legal/privacy → JSON or HTML
 GET /api/legal/terms → JSON or HTML

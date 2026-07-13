@@ -49,16 +49,18 @@ SendGrid API
 ### Sending an Email
 
 1. **Direct Call** (Synchronous)
+
    ```typescript
    import { sendVerificationEmail } from '../lib/email.js';
-   
+
    await sendVerificationEmail(email, code, userName);
    ```
 
 2. **Using EmailService** (Recommended for new code)
+
    ```typescript
    import { getEmailService } from '../services/email/service.js';
-   
+
    const service = getEmailService();
    const result = await service.send({
      to: 'user@example.com',
@@ -91,12 +93,14 @@ SendGrid API
 ### Logging
 
 All emails are logged with:
+
 - Correlation ID (for tracking)
 - Provider name
 - Success/failure status
 - Error codes (if failed)
 
 Example log:
+
 ```
 [EmailService] Sending email (attempt 1/2) {
   correlationId: 'email-1234567890-1',
@@ -119,6 +123,7 @@ Example log:
 ### Step 2: Add Template ID to Environment
 
 Add to `.env`:
+
 ```bash
 SENDGRID_NEW_EMAIL_TEMPLATE_ID=d-xxxxxxxxxxxx
 ```
@@ -126,6 +131,7 @@ SENDGRID_NEW_EMAIL_TEMPLATE_ID=d-xxxxxxxxxxxx
 ### Step 3: Add Template ID Constant
 
 In `server/src/lib/email.ts`:
+
 ```typescript
 const TEMPLATE_IDS = {
   // ... existing templates
@@ -136,6 +142,7 @@ const TEMPLATE_IDS = {
 ### Step 4: Create Function
 
 In `server/src/lib/email.ts`:
+
 ```typescript
 export async function sendNewEmail(params: {
   to: string;
@@ -175,6 +182,7 @@ await sendNewEmail({
 The system currently uses SendGrid. To switch providers:
 
 1. **Create New Provider**
+
    ```typescript
    // server/src/services/email/providers/NewProvider.ts
    export class NewProvider implements EmailProvider {
@@ -183,6 +191,7 @@ The system currently uses SendGrid. To switch providers:
    ```
 
 2. **Update Service Configuration**
+
    ```typescript
    // In service.ts
    const provider = process.env.EMAIL_PROVIDER || 'sendgrid';
@@ -232,6 +241,7 @@ curl -X POST http://localhost:4000/api/test-emails/verification \
 ### Check Logs
 
 Look for correlation IDs in logs:
+
 ```
 [EmailService] Email send failed after all retries {
   correlationId: 'email-1234567890-1',
@@ -267,6 +277,7 @@ Look for correlation IDs in logs:
 ### SendGrid Dashboard
 
 Check SendGrid dashboard for:
+
 - API key status
 - Template status
 - Activity feed
@@ -289,6 +300,7 @@ await queueEmail({
 ```
 
 Benefits:
+
 - Async processing
 - Built-in retry logic
 - Rate limiting
@@ -352,6 +364,7 @@ curl http://localhost:4000/api/health
 ```
 
 Response includes:
+
 ```json
 {
   "integrations": {

@@ -29,6 +29,7 @@ This document outlines security best practices for managing VarsityHub productio
 ❌ Never reuse the same credentials across environments
 
 ### Example `.gitignore`:
+
 ```
 # Environment variables
 .env
@@ -129,6 +130,7 @@ For Expo/React Native apps, use `app.json` or `eas.json`:
 ```
 
 **Access in code**:
+
 ```typescript
 import Constants from 'expo-constants';
 
@@ -156,6 +158,7 @@ python3 -c "import secrets; print(secrets.token_hex(64))"
 ```
 
 Output example:
+
 ```
 a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12345678
 ```
@@ -163,6 +166,7 @@ a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef1234567890abcdef123456
 ### Stripe Webhook Secret
 
 Get from Stripe Dashboard:
+
 1. Go to Developers → Webhooks
 2. Add endpoint: `https://api.varsityhub.com/webhooks/stripe`
 3. Select events: `payment_intent.succeeded`, `payment_intent.payment_failed`, etc.
@@ -184,7 +188,8 @@ keytool -genkeypair -v \
   -keypass YOUR_SECURE_KEY_PASSWORD
 ```
 
-**⚠️ CRITICAL**: 
+**⚠️ CRITICAL**:
+
 - Backup this keystore file in 3 separate locations
 - If lost, you can NEVER update your app on Google Play
 - Store password in password manager (1Password, LastPass)
@@ -202,6 +207,7 @@ keytool -genkeypair -v \
 3. Add restrictions:
 
 **Application Restrictions**:
+
 ```
 Android apps:
 - Package name: com.varsityhub.mobile
@@ -216,6 +222,7 @@ HTTP referrers (web):
 ```
 
 **API Restrictions** (only enable what you need):
+
 - Maps SDK for Android
 - Maps SDK for iOS
 - Places API
@@ -233,16 +240,8 @@ HTTP referrers (web):
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:DeleteObject",
-        "s3:ListBucket"
-      ],
-      "Resource": [
-        "arn:aws:s3:::varsityhub-prod-media",
-        "arn:aws:s3:::varsityhub-prod-media/*"
-      ]
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::varsityhub-prod-media", "arn:aws:s3:::varsityhub-prod-media/*"]
     }
   ]
 }
@@ -253,6 +252,7 @@ HTTP referrers (web):
 ### Stripe API Key Security
 
 **Best Practices**:
+
 - Use restricted API keys (not full admin keys)
 - Set up IP restrictions if possible
 - Enable webhook signature verification
@@ -263,10 +263,10 @@ HTTP referrers (web):
 // Server-side: Always verify webhook signatures
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-app.post('/webhooks/stripe', express.raw({type: 'application/json'}), (req, res) => {
+app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), (req, res) => {
   const sig = req.headers['stripe-signature'];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  
+
   let event;
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
@@ -274,9 +274,9 @@ app.post('/webhooks/stripe', express.raw({type: 'application/json'}), (req, res)
     console.log('⚠️ Webhook signature verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
-  
+
   // Process event
-  res.json({received: true});
+  res.json({ received: true });
 });
 ```
 
@@ -333,6 +333,7 @@ git secrets --register-aws
 ```
 
 **Or use GitHub secret scanning** (automatically alerts on pushes):
+
 - Settings → Security → Secret scanning
 
 ---
@@ -340,18 +341,21 @@ git secrets --register-aws
 ## 🔄 Credential Rotation Schedule
 
 ### Quarterly (Every 3 Months)
+
 - [ ] Review IAM permissions (AWS, Google Cloud)
 - [ ] Audit user access (remove old team members)
 - [ ] Check for unused API keys
 - [ ] Review Stripe webhook logs
 
 ### Semi-Annually (Every 6 Months)
+
 - [ ] Rotate JWT secret (requires user re-login)
 - [ ] Rotate database password
 - [ ] Rotate SendGrid API key
 - [ ] Update SSL certificates (if manual)
 
 ### Annually (Every 12 Months)
+
 - [ ] Rotate AWS access keys
 - [ ] Rotate Google Maps API key
 - [ ] Review all third-party integrations
@@ -360,6 +364,7 @@ git secrets --register-aws
 - [ ] Renew domain registration
 
 ### On Team Changes
+
 - [ ] Remove access for departing team members
 - [ ] Change shared passwords
 - [ ] Revoke SSH keys
@@ -411,33 +416,35 @@ git secrets --register-aws
 ### Store Configuration (Not Secrets) in Git
 
 **Safe to commit**:
+
 ```yaml
 # config/production.yml
 app:
   name: VarsityHub
   environment: production
   domain: varsityhub.com
-  
+
 database:
-  host: ${DATABASE_HOST}  # Reference env var
+  host: ${DATABASE_HOST} # Reference env var
   port: 5432
   name: varsityhub_production
   ssl: required
-  
+
 stripe:
   webhook_endpoint: /webhooks/stripe
-  
+
 aws:
   region: us-east-1
   bucket: varsityhub-prod-media
 ```
 
 **Reference secrets from environment**:
+
 ```typescript
 const config = {
   database: {
     host: process.env.DATABASE_HOST,
-    password: process.env.DATABASE_PASSWORD,  // Never hardcode
+    password: process.env.DATABASE_PASSWORD, // Never hardcode
   },
 };
 ```
@@ -449,26 +456,31 @@ const config = {
 ### Set Up Alerts For
 
 **Stripe**:
+
 - Unusual payment volume
 - High number of failed payments
 - Webhook delivery failures
 
 **AWS**:
+
 - Billing alerts (e.g., > $100/month)
 - Unusual S3 access patterns
 - IAM permission changes
 
 **Google Cloud**:
+
 - API usage spikes
 - Billing alerts
 - Rate limit warnings
 
 **SendGrid**:
+
 - High bounce rate (> 5%)
 - Spam complaints
 - Daily send limit approaching
 
 **Server**:
+
 - High CPU/RAM usage
 - Disk space low
 - SSL certificate expiring soon
@@ -477,6 +489,7 @@ const config = {
 ### Monitoring Tools
 
 **Sentry** (Error tracking):
+
 ```bash
 npm install @sentry/node @sentry/react-native
 
@@ -496,6 +509,7 @@ Sentry.init({
 ```
 
 **Uptime Monitoring**:
+
 - UptimeRobot (free)
 - Pingdom
 - Datadog
@@ -505,6 +519,7 @@ Sentry.init({
 ## 📋 Security Checklist
 
 ### Pre-Production
+
 - [ ] All secrets in environment variables
 - [ ] `.env` files in `.gitignore`
 - [ ] API keys restricted (IP, domain, package name)
@@ -520,6 +535,7 @@ Sentry.init({
 - [ ] HTTPS enforced (no HTTP)
 
 ### Post-Production
+
 - [ ] Monitor error logs daily
 - [ ] Review access logs weekly
 - [ ] Check for security updates monthly
@@ -554,6 +570,7 @@ Sentry.init({
 ### COPPA (Children's Privacy)
 
 If users under 13:
+
 - [ ] Parental consent required
 - [ ] Limited data collection
 - [ ] No behavioral advertising
@@ -597,6 +614,7 @@ If users under 13:
 - [ ] GitHub organization
 
 **Use authenticator app** (not SMS):
+
 - Google Authenticator
 - Authy
 - 1Password (built-in)
@@ -641,4 +659,4 @@ Before going live, verify:
 
 ---
 
-*Keep this document confidential and share only with authorized team members.*
+_Keep this document confidential and share only with authorized team members._

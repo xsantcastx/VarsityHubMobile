@@ -11,9 +11,11 @@
 ## 📋 QUICK SETUP GUIDE
 
 ### Step 1: Copy Template IDs from SendGrid
+
 Go to SendGrid > Templates and copy the ID for each template you see in your dashboard.
 
 ### Step 2: Update Railway Environment Variables
+
 Add these variables to your Railway environment with the corresponding template IDs:
 
 ```bash
@@ -64,9 +66,11 @@ SENDGRID_ACCOUNT_PERMANENT_BAN_TEMPLATE_ID=d-4f388da...
 ```
 
 ### Step 3: Test Templates Before Deploy
+
 Use SendGrid's "Test Data" feature on each template with the provided test payloads from SENDGRID_TEMPLATE_VALIDATION.md
 
 ### Step 4: Deploy to Railway
+
 Push your changes to main branch and Railway will automatically deploy.
 
 ---
@@ -317,38 +321,37 @@ All templates must follow this structure:
 
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    /* Your CSS styles here */
-  </style>
-</head>
-<body>
-  <!-- Your email content -->
-  <p>Hello {{recipient_name}},</p>
-  
-  <p>Your message content with {{token_name}} tokens.</p>
-  
-  {{#if optional_field}}
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      /* Your CSS styles here */
+    </style>
+  </head>
+  <body>
+    <!-- Your email content -->
+    <p>Hello {{recipient_name}},</p>
+
+    <p>Your message content with {{token_name}} tokens.</p>
+
+    {{#if optional_field}}
     <p>Optional content only shows if optional_field has a value</p>
-  {{/if}}
-  
-  {{#each array_field}}
+    {{/if}} {{#each array_field}}
     <li>{{this}}</li>
-  {{/each}}
-  
-  <!-- Footer with policy links -->
-  <footer>
-    <p>
-      <a href="{{privacy_policy_url}}">Privacy Policy</a> | 
-      <a href="{{community_guidelines_url}}">Community Guidelines</a>
-    </p>
-  </footer>
-</body>
+    {{/each}}
+
+    <!-- Footer with policy links -->
+    <footer>
+      <p>
+        <a href="{{privacy_policy_url}}">Privacy Policy</a> |
+        <a href="{{community_guidelines_url}}">Community Guidelines</a>
+      </p>
+    </footer>
+  </body>
 </html>
 ```
 
 ### Key Points:
+
 - **Subject tag must be on first line** - SendGrid requires this
 - **Use snake_case for all tokens** - matches backend contract
 - **Handlebars syntax** - Uses `{{}}` not `{{}}`
@@ -400,18 +403,21 @@ await sendPasswordResetEmail(
 ## 📞 TROUBLESHOOTING
 
 ### Email Not Sending
+
 - [ ] Check `SENDGRID_API_KEY` is set in Railway
 - [ ] Verify template IDs are correct (format: `d-xxxxx...`)
 - [ ] Check SendGrid dashboard for bounces/errors
 - [ ] Verify email address is not on suppression list
 
 ### Tokens Not Rendering
+
 - [ ] Verify token names match backend contract (snake_case)
 - [ ] Check template uses `{{token_name}}` syntax
 - [ ] Ensure backend sends token in dynamicTemplateData
 - [ ] Review SendGrid template editor error messages
 
 ### Template Not Activating
+
 - [ ] Confirm `<subject>` tag is present
 - [ ] Check template doesn't have syntax errors
 - [ ] Try saving as new version if stuck
@@ -425,37 +431,37 @@ await sendPasswordResetEmail(
 ⚠️ = Needs setup  
 ❌ = Not implemented
 
-| Function | Status | Notes |
-|----------|--------|-------|
-| sendPasswordResetEmail | ✅ | Patched with privacy URLs |
-| sendPasswordChangedEmail | ✅ | Patched with privacy URLs |
-| sendAccountRecoveryEmail | ✅ | Patched with privacy URLs |
-| sendVerificationEmail | ✅ | Ready |
-| sendOrganizationInvitationEmail | ✅ | Ready |
-| sendTeamInvitationEmail | ✅ | Ready |
-| sendAthleteInvitationEmail | ✅ | Ready |
-| sendRoleAssignmentEmail | ✅ | Ready |
-| sendRosterThresholdEmail | ✅ | Ready |
-| sendInvitationDeclinedEmail | ✅ | Ready |
-| sendTeamRosterUpdateEmail | ✅ | Ready |
-| sendUserConfirmationEmail | ✅ | Ready |
-| sendMemberRemovedEmail | ✅ | Ready |
-| sendPaymentFailedEmail | ✅ | Ready |
-| sendReportResolutionEmail | ✅ | Ready |
-| sendEventSubmissionReceivedEmail | ✅ | Ready |
-| sendEventApprovedEmail | ✅ | Ready |
-| sendEventDeniedEmail | ✅ | Ready |
-| sendEventReminderEmail | ✅ | Ready |
-| sendEventUpdatedEmail | ✅ | Ready |
-| sendEventCanceledEmail | ✅ | Ready |
-| sendAccountWarningEmail | ✅ | Ready |
-| sendContentRemovedEmail | ✅ | Ready |
-| sendAccountSuspensionEmail | ✅ | Ready |
-| sendAccountPermanentBanEmail | ✅ | Ready |
-| sendEventRsvpConfirmedEmail | ✅ | Ready |
-| sendLoginFromNewDeviceEmail | ✅ | Ready |
-| sendStaffMemberJoinedEmail | ✅ | Ready |
-| sendSubscriptionExpiringEmail | ✅ | Ready |
+| Function                         | Status | Notes                     |
+| -------------------------------- | ------ | ------------------------- |
+| sendPasswordResetEmail           | ✅     | Patched with privacy URLs |
+| sendPasswordChangedEmail         | ✅     | Patched with privacy URLs |
+| sendAccountRecoveryEmail         | ✅     | Patched with privacy URLs |
+| sendVerificationEmail            | ✅     | Ready                     |
+| sendOrganizationInvitationEmail  | ✅     | Ready                     |
+| sendTeamInvitationEmail          | ✅     | Ready                     |
+| sendAthleteInvitationEmail       | ✅     | Ready                     |
+| sendRoleAssignmentEmail          | ✅     | Ready                     |
+| sendRosterThresholdEmail         | ✅     | Ready                     |
+| sendInvitationDeclinedEmail      | ✅     | Ready                     |
+| sendTeamRosterUpdateEmail        | ✅     | Ready                     |
+| sendUserConfirmationEmail        | ✅     | Ready                     |
+| sendMemberRemovedEmail           | ✅     | Ready                     |
+| sendPaymentFailedEmail           | ✅     | Ready                     |
+| sendReportResolutionEmail        | ✅     | Ready                     |
+| sendEventSubmissionReceivedEmail | ✅     | Ready                     |
+| sendEventApprovedEmail           | ✅     | Ready                     |
+| sendEventDeniedEmail             | ✅     | Ready                     |
+| sendEventReminderEmail           | ✅     | Ready                     |
+| sendEventUpdatedEmail            | ✅     | Ready                     |
+| sendEventCanceledEmail           | ✅     | Ready                     |
+| sendAccountWarningEmail          | ✅     | Ready                     |
+| sendContentRemovedEmail          | ✅     | Ready                     |
+| sendAccountSuspensionEmail       | ✅     | Ready                     |
+| sendAccountPermanentBanEmail     | ✅     | Ready                     |
+| sendEventRsvpConfirmedEmail      | ✅     | Ready                     |
+| sendLoginFromNewDeviceEmail      | ✅     | Ready                     |
+| sendStaffMemberJoinedEmail       | ✅     | Ready                     |
+| sendSubscriptionExpiringEmail    | ✅     | Ready                     |
 
 ---
 

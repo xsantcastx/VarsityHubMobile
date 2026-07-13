@@ -16,6 +16,7 @@ Added a contact section to the Manage Teams screen that displays the customer se
 A clean, professional contact card displayed between the stats section and the teams list:
 
 **Visual Layout**:
+
 ```
 ┌──────────────────────────────────────┐
 │ 📧 Contact                           │
@@ -30,15 +31,18 @@ A clean, professional contact card displayed between the stats section and the t
 ### Components
 
 #### Header
+
 - **Icon**: Mail outline (blue/tint color)
 - **Title**: "Contact" (bold, 18px)
 
 #### Email Address
+
 - **Text**: `customerservice@varsityhub.app`
 - **Style**: Blue tint color, underlined, bold (16px)
 - **Interactive**: Tappable - opens native email client
 
 #### Purpose List
+
 Two items explaining what the email is for:
 
 1. **Ad Acquisitions**
@@ -56,6 +60,7 @@ Two items explaining what the email is for:
 ### Email Tap Behavior
 
 When user taps the email address:
+
 ```typescript
 1. Detects tap on email
 2. Opens device's default email app
@@ -64,12 +69,13 @@ When user taps the email address:
 ```
 
 **Implementation**:
+
 ```typescript
 onPress={() => {
   const email = 'customerservice@varsityhub.app';
   const mailto = `mailto:${email}`;
   import('expo-linking').then(Linking => {
-    Linking.default.openURL(mailto).catch(err => 
+    Linking.default.openURL(mailto).catch(err =>
       console.error('Error opening email:', err)
     );
   });
@@ -81,6 +87,7 @@ onPress={() => {
 ## Design Specifications
 
 ### Layout
+
 - **Position**: Between stats cards and team list
 - **Margin**: 16px horizontal, 16px vertical
 - **Padding**: 16px all sides
@@ -88,6 +95,7 @@ onPress={() => {
 - **Border**: Hairline width, theme-aware color
 
 ### Typography
+
 ```typescript
 Contact Title: 18px, 700 weight
 Email Address: 16px, 600 weight, underlined
@@ -95,15 +103,17 @@ Purpose Text:  14px, normal weight, 20px line height
 ```
 
 ### Colors (Theme-Aware)
+
 ```typescript
-Background: Colors[colorScheme].surface
-Border:     Colors[colorScheme].border
-Title:      Colors[colorScheme].text
-Email:      Colors[colorScheme].tint (blue)
-Icons:      Colors[colorScheme].tint / mutedText
+Background: Colors[colorScheme].surface;
+Border: Colors[colorScheme].border;
+Title: Colors[colorScheme].text;
+Email: Colors[colorScheme].tint(blue);
+Icons: Colors[colorScheme].tint / mutedText;
 ```
 
 ### Spacing
+
 ```typescript
 Header → Email:     12px margin bottom
 Email → Purposes:   12px margin bottom
@@ -119,22 +129,26 @@ Header icon-title:  8px gap
 ### Code Structure
 
 **Contact Section** (Lines 189-223):
+
 ```tsx
-<View style={[styles.contactSection, { 
-  backgroundColor: Colors[colorScheme].surface,
-  borderColor: Colors[colorScheme].border 
-}]}>
+<View
+  style={[
+    styles.contactSection,
+    {
+      backgroundColor: Colors[colorScheme].surface,
+      borderColor: Colors[colorScheme].border,
+    },
+  ]}
+>
   <View style={styles.contactHeader}>
     <Ionicons name="mail-outline" size={24} color={tint} />
     <Text style={styles.contactTitle}>Contact</Text>
   </View>
-  
+
   <Pressable style={styles.contactEmailContainer} onPress={openEmail}>
-    <Text style={styles.contactEmail}>
-      customerservice@varsityhub.app
-    </Text>
+    <Text style={styles.contactEmail}>customerservice@varsityhub.app</Text>
   </Pressable>
-  
+
   <View style={styles.contactPurposes}>
     <View style={styles.contactPurposeItem}>
       <Ionicons name="megaphone-outline" size={16} />
@@ -220,6 +234,7 @@ This ensures it's visible above the team list and below the key stats.
 ## Use Cases
 
 ### 1. Advertising Inquiry
+
 ```
 User Journey:
 1. Coach wants to promote team/event
@@ -232,6 +247,7 @@ User Journey:
 ```
 
 ### 2. Support Request
+
 ```
 User Journey:
 1. Coach has question about team management
@@ -244,6 +260,7 @@ User Journey:
 ```
 
 ### 3. General Inquiry
+
 ```
 User Journey:
 1. User needs help with any feature
@@ -258,17 +275,19 @@ User Journey:
 ## Accessibility
 
 ### Screen Reader Support
+
 ```typescript
 // Email button
-accessibilityLabel="Email customer service at customerservice@varsityhub.app"
-accessibilityRole="button"
-accessibilityHint="Opens your email app to contact VarsityHub"
+accessibilityLabel = 'Email customer service at customerservice@varsityhub.app';
+accessibilityRole = 'button';
+accessibilityHint = 'Opens your email app to contact VarsityHub';
 
 // Purpose items
-accessibilityLabel="For ad acquisitions and customer service inquiries"
+accessibilityLabel = 'For ad acquisitions and customer service inquiries';
 ```
 
 ### Touch Target
+
 - Email address is fully tappable
 - Minimum 44x44pt touch area (iOS guideline)
 - Clear visual feedback on press
@@ -278,6 +297,7 @@ accessibilityLabel="For ad acquisitions and customer service inquiries"
 ## Testing Checklist
 
 ### Visual Testing
+
 - [ ] Contact card displays below stats
 - [ ] Email is blue and underlined
 - [ ] Icons render correctly (mail, megaphone, help)
@@ -285,18 +305,21 @@ accessibilityLabel="For ad acquisitions and customer service inquiries"
 - [ ] Light/dark theme colors adapt correctly
 
 ### Interaction Testing
+
 - [ ] Tapping email opens email app (iOS)
 - [ ] Tapping email opens email app (Android)
 - [ ] Email address pre-fills in "To:" field
 - [ ] Error handling if no email app available
 
 ### Layout Testing
+
 - [ ] Card doesn't overflow on small screens
 - [ ] Text wraps properly if needed
 - [ ] Spacing is consistent
 - [ ] Card appears in correct position
 
 ### Theme Testing
+
 - [ ] Light mode: White card, dark text
 - [ ] Dark mode: Dark card, light text
 - [ ] Icons match theme tint color
@@ -307,16 +330,21 @@ accessibilityLabel="For ad acquisitions and customer service inquiries"
 ## Edge Cases Handled
 
 ### No Email App
+
 If device has no email app configured:
+
 ```typescript
 .catch(err => console.error('Error opening email:', err))
 ```
+
 Silently fails and logs error (doesn't crash app)
 
 ### Long Email Address
+
 Email uses flexible container - will wrap if needed on very small screens
 
 ### Theme Switching
+
 All colors are theme-aware using `Colors[colorScheme]`
 
 ---
@@ -324,7 +352,9 @@ All colors are theme-aware using `Colors[colorScheme]`
 ## Future Enhancements
 
 ### 1. Copy Email Button
+
 Add a copy-to-clipboard option:
+
 ```typescript
 <Pressable onPress={copyEmail}>
   <Ionicons name="copy-outline" size={18} />
@@ -332,7 +362,9 @@ Add a copy-to-clipboard option:
 ```
 
 ### 2. Direct Call Option
+
 Add phone number for urgent support:
+
 ```typescript
 <Pressable onPress={() => Linking.openURL('tel:+1234567890')}>
   <Text>Call: (123) 456-7890</Text>
@@ -340,7 +372,9 @@ Add phone number for urgent support:
 ```
 
 ### 3. FAQ Link
+
 Link to help center:
+
 ```typescript
 <Pressable onPress={() => router.push('/help')}>
   <Text>View FAQ →</Text>
@@ -348,7 +382,9 @@ Link to help center:
 ```
 
 ### 4. Category Selection
+
 Pre-fill email subject based on purpose:
+
 ```typescript
 const mailto = `mailto:customerservice@varsityhub.app?subject=${
   type === 'ads' ? 'Ad Inquiry' : 'Support Request'
@@ -356,7 +392,9 @@ const mailto = `mailto:customerservice@varsityhub.app?subject=${
 ```
 
 ### 5. Live Chat
+
 Integrate support chat:
+
 ```typescript
 <Pressable onPress={openLiveChat}>
   <Ionicons name="chatbubble-outline" />
@@ -369,9 +407,11 @@ Integrate support chat:
 ## Related Files
 
 **Modified**:
+
 - `app/manage-teams.tsx` - Added contact section and styles
 
 **Related Screens**:
+
 - `app/settings/contact.tsx` - General contact form
 - `app/help.tsx` - Help and FAQ screen
 - `app/submit-ad.tsx` - Ad submission form
@@ -392,4 +432,4 @@ The contact section provides coaches with a clear, accessible way to reach Varsi
 
 ---
 
-*Feature Documentation - VarsityHub Development Team*
+_Feature Documentation - VarsityHub Development Team_

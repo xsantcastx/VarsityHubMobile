@@ -57,11 +57,12 @@ await prisma.game.update({
     location: 'Madison Square Garden, NYC',
     latitude: 40.750504,
     longitude: -73.993439,
-  }
+  },
 });
 ```
 
 To get coordinates:
+
 1. Open [Google Maps](https://maps.google.com)
 2. Search for location
 3. Right-click → "What's here?"
@@ -76,6 +77,7 @@ To get coordinates:
 All endpoints require authentication. Batch operations require admin access.
 
 #### 1. Geocode a Single Location
+
 ```bash
 curl -X POST http://localhost:4000/geocoding/location \
   -H "Authorization: Bearer $TOKEN" \
@@ -91,12 +93,14 @@ curl -X POST http://localhost:4000/geocoding/location \
 ```
 
 #### 2. Geocode a Specific Game (Admin Only)
+
 ```bash
 curl -X POST http://localhost:4000/geocoding/game/clxyz123 \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
 #### 3. Batch Geocode Games (Admin Only)
+
 ```bash
 curl -X POST http://localhost:4000/geocoding/batch/games \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -111,6 +115,7 @@ curl -X POST http://localhost:4000/geocoding/batch/games \
 ```
 
 #### 4. Check Cache Stats (Admin Only)
+
 ```bash
 curl http://localhost:4000/geocoding/cache/stats \
   -H "Authorization: Bearer $ADMIN_TOKEN"
@@ -136,15 +141,15 @@ curl http://localhost:4000/geocoding/cache/stats \
 
 ```sql
 -- Games with coordinates
-SELECT COUNT(*) FROM "Game" 
+SELECT COUNT(*) FROM "Game"
 WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 
 -- Games needing coordinates
-SELECT COUNT(*) FROM "Game" 
+SELECT COUNT(*) FROM "Game"
 WHERE location IS NOT NULL AND latitude IS NULL;
 
 -- Events with coordinates
-SELECT COUNT(*) FROM "Event" 
+SELECT COUNT(*) FROM "Event"
 WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 ```
 
@@ -166,11 +171,13 @@ const nearbyGames = await prisma.game.findMany({
 ## 💰 Cost Estimation (Option B)
 
 Google Geocoding API pricing:
+
 - **$0.005 per request** (first $200/month free = 40,000 free requests)
 - In-memory caching reduces repeat requests
 - Rate limited to ~300 requests/minute
 
 Examples:
+
 - 100 locations: $0.50
 - 1,000 locations: $5.00
 - 10,000 locations: $50.00
@@ -184,13 +191,14 @@ Examples:
 **Cause**: No games have coordinates yet.
 
 **Solution**:
+
 1. Run batch geocoding (see Step 2 above)
 2. OR add coordinates manually (see Option A)
 3. Verify with SQL query:
    ```sql
-   SELECT id, title, location, latitude, longitude 
-   FROM "Game" 
-   WHERE latitude IS NOT NULL 
+   SELECT id, title, location, latitude, longitude
+   FROM "Game"
+   WHERE latitude IS NOT NULL
    LIMIT 5;
    ```
 
@@ -199,6 +207,7 @@ Examples:
 **Cause**: Authentication issue.
 
 **Solution**:
+
 1. Make sure you're logged in
 2. Get fresh JWT token
 3. For batch operations, use admin account (admin@varsityhub.com)
@@ -208,6 +217,7 @@ Examples:
 **Cause**: Invalid API key or location not found.
 
 **Solution**:
+
 1. Verify API key is in `server/.env`
 2. Check API key is valid:
    ```bash
@@ -222,6 +232,7 @@ Examples:
 ## 📚 Full Documentation
 
 For complete details, see:
+
 - **EVENT_MAP_GUIDE.md** - Map component usage and configuration
 - **EVENT_MAP_COORDINATES_GUIDE.md** - Complete Option A & B documentation
 
@@ -254,6 +265,7 @@ Before deploying to production:
 - ✅ Comprehensive documentation
 
 **Next Steps**:
+
 1. Set up Google Maps API key
 2. Run batch geocoding for existing data
 3. Test map on mobile devices

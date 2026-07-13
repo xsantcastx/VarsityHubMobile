@@ -34,6 +34,7 @@ Your Team ID `B5H8F69RW5` is correct, but Apple is saying you don't belong to th
 5. Check your **Role** - should be Admin or App Manager (not just Developer)
 
 **If you don't see the team:**
+
 - Your Apple ID might not be added to this team
 - Contact the team Admin to add you
 - Or use a different Apple ID that has access
@@ -88,6 +89,7 @@ Make sure App Store Connect App ID `6754257357` belongs to Team ID `B5H8F69RW5`:
 5. Check if it shows Team ID `B5H8F69RW5`
 
 **If app is not there or shows different team:**
+
 - App might belong to a different team
 - You might need to create a new app or use different App ID
 
@@ -105,6 +107,7 @@ Make sure App Store Connect App ID `6754257357` belongs to Team ID `B5H8F69RW5`:
    - ❌ **Not listed** - Need to be added to team
 
 **If status is Pending:**
+
 - Check your email for team invitation
 - Accept the invitation
 - Then retry build
@@ -134,6 +137,7 @@ Sometimes EAS can auto-detect the Team ID if you don't specify it:
 **Option 2: Keep Team ID (Explicit)**
 
 Keep it as is (current):
+
 ```json
 {
   "submit": {
@@ -215,7 +219,7 @@ Verify you have access to the team in App Store Connect.
       "ios": {
         "appleId": "sanchezemil82@gmail.com",
         "ascAppId": "6754257357",
-        "appleTeamId": "B5H8F69RW5"  // ← This is correct
+        "appleTeamId": "B5H8F69RW5" // ← This is correct
       }
     }
   }

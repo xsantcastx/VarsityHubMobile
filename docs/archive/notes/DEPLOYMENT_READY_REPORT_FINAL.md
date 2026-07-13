@@ -9,6 +9,7 @@
 ## 1. BUILD & COMPILATION STATUS
 
 ### Backend (Server)
+
 ```
 ✅ npm run build: PASSED
   - Prisma Client generated (v5.22.0)
@@ -17,6 +18,7 @@
 ```
 
 ### Frontend (React Native/Expo)
+
 ```
 ✅ npm run lint: PASSED with warnings
   - 0 max-warnings violations
@@ -31,6 +33,7 @@
 ### Critical Files Analyzed
 
 #### A. `server/src/lib/email.ts` ✅
+
 - **TEMPLATE_IDS object:** 15 templates defined (5 new for severity)
   - `ACCOUNT_WARNING` (line 23)
   - `CONTENT_REMOVED` (line 24)
@@ -46,9 +49,15 @@
 - **SendGrid Integration:** Full sgMail.send() implementation with dynamic template data
 
 #### B. `server/src/routes/adminReports.ts` ✅
+
 - **Severity Type:** `ResolutionSeverity` enum defined (line 20)
   ```typescript
-  type ResolutionSeverity = 'warning' | 'content_removal' | 'suspend_7_days' | 'suspend_45_days' | 'permanent_ban';
+  type ResolutionSeverity =
+    | 'warning'
+    | 'content_removal'
+    | 'suspend_7_days'
+    | 'suspend_45_days'
+    | 'permanent_ban';
   ```
 - **SEVERITY_SUSPENSION_DAYS Mapping:** (lines 22-28)
   - warning → null (no suspension)
@@ -65,6 +74,7 @@
 - **Auto-Upgrade Logic:** dismissed → resolved if severity provided
 
 #### C. `server/src/__tests__/adminReports.test.ts` ✅
+
 - **6 Unit Test Cases:**
   1. 45-day suspension application and DB verification
   2. 7-day suspension application and DB verification
@@ -80,6 +90,7 @@
 ## 3. DATABASE SCHEMA VERIFICATION
 
 ### Prisma Schema (Confirmed)
+
 ```typescript
 // User table includes:
 - is_suspended: Boolean
@@ -93,6 +104,7 @@
 ```
 
 ### Migration File Status
+
 ```
 ✅ Severity column migration prepared
    - CHECK constraint validates 5 allowed values
@@ -105,6 +117,7 @@
 ## 4. API ENDPOINT VERIFICATION
 
 ### PATCH /admin/reports/:id
+
 ```javascript
 ✅ Accepts: { status, severity, resolution_note }
 ✅ Validates severity against enum
@@ -114,6 +127,7 @@
 ```
 
 ### POST /admin/reports/bulk-update
+
 ```javascript
 ✅ Accepts: { report_ids, status, severity, resolution_note }
 ✅ Same validation logic as PATCH endpoint
@@ -122,6 +136,7 @@
 ```
 
 ### GET /admin/reports
+
 ```javascript
 ✅ Includes reportedUser.suspension_until, permanent_ban
 ✅ No changes needed (backward compatible)
@@ -132,16 +147,19 @@
 ## 5. EMAIL SYSTEM INTEGRATION
 
 ### Template ID Requirements (5 Total)
-| Severity | Template Name | Env Variable | Status |
-|----------|---------------|--------------|--------|
-| warning | Account Warning | SENDGRID_ACCOUNT_WARNING_TEMPLATE_ID | ⏳ Pending SendGrid Upload |
-| content_removal | Content Removed | SENDGRID_CONTENT_REMOVED_TEMPLATE_ID | ⏳ Pending SendGrid Upload |
-| suspend_7_days | 7-Day Suspension | SENDGRID_ACCOUNT_SUSPENSION_7_DAYS_TEMPLATE_ID | ⏳ Pending SendGrid Upload |
+
+| Severity        | Template Name     | Env Variable                                    | Status                     |
+| --------------- | ----------------- | ----------------------------------------------- | -------------------------- |
+| warning         | Account Warning   | SENDGRID_ACCOUNT_WARNING_TEMPLATE_ID            | ⏳ Pending SendGrid Upload |
+| content_removal | Content Removed   | SENDGRID_CONTENT_REMOVED_TEMPLATE_ID            | ⏳ Pending SendGrid Upload |
+| suspend_7_days  | 7-Day Suspension  | SENDGRID_ACCOUNT_SUSPENSION_7_DAYS_TEMPLATE_ID  | ⏳ Pending SendGrid Upload |
 | suspend_45_days | 45-Day Suspension | SENDGRID_ACCOUNT_SUSPENSION_45_DAYS_TEMPLATE_ID | ⏳ Pending SendGrid Upload |
-| permanent_ban | Permanent Ban | SENDGRID_ACCOUNT_PERMANENT_BAN_TEMPLATE_ID | ⏳ Pending SendGrid Upload |
+| permanent_ban   | Permanent Ban     | SENDGRID_ACCOUNT_PERMANENT_BAN_TEMPLATE_ID      | ⏳ Pending SendGrid Upload |
 
 ### Dynamic Template Data (All Functions)
+
 Each email function passes snake_case variables:
+
 ```json
 {
   "user_name": "display_name",
@@ -159,6 +177,7 @@ Each email function passes snake_case variables:
 ## 6. ERROR HANDLING SAFETY CHECKS
 
 ### ✅ Template ID Validation
+
 ```typescript
 // In each email function:
 if (!templateId) {
@@ -168,6 +187,7 @@ if (!templateId) {
 ```
 
 ### ✅ Null Email Check (In applySanctions)
+
 ```typescript
 const violatorEmail = report.reportedUser?.email;
 if (!reportedId) return; // Early exit if no user
@@ -178,6 +198,7 @@ if (violatorEmail) {
 ```
 
 ### ✅ Email Delivery Graceful Degradation
+
 - Email failures do NOT block suspension application
 - Sanctions always apply (DB update succeeds even if SendGrid fails)
 - Errors logged for admin monitoring
@@ -187,21 +208,25 @@ if (violatorEmail) {
 ## 7. SECURITY COMPLIANCE
 
 ### ✅ Severity Enum Gating
+
 - **No String Matching:** Uses explicit enum instead of regex on notes
 - **Type Safety:** TypeScript prevents invalid severity values at compile time
 - **Validation:** `if (!Object.keys(SEVERITY_SUSPENSION_DAYS).includes(severity))`
 
 ### ✅ Mailto Link Pre-Encoding
+
 ```typescript
 const subject = encodeURIComponent(`Appeal for Report #${report.id}`);
 const body = encodeURIComponent(bodyLines.join('\n'));
 return `mailto:${APPEALS_EMAIL}?subject=${subject}&body=${body}`;
 ```
+
 - Prevents injection attacks
 - Compatible with all email clients
 - Backend encodes; SendGrid templates use {{appeal_url}} directly
 
 ### ✅ Offense Count Tracking
+
 - Incremented on every severity email sent
 - Prevents account manipulation
 - Enables future ban escalation logic
@@ -211,6 +236,7 @@ return `mailto:${APPEALS_EMAIL}?subject=${subject}&body=${body}`;
 ## 8. DEPLOYMENT CHECKLIST
 
 ### Phase 1: Pre-Deployment (CURRENT STATUS)
+
 - [x] TypeScript compilation successful
 - [x] Linting clean (no blocking errors)
 - [x] Unit tests ready (6 test cases)
@@ -218,6 +244,7 @@ return `mailto:${APPEALS_EMAIL}?subject=${subject}&body=${body}`;
 - [x] Security validation passed
 
 ### Phase 2: SendGrid Configuration (⏳ BLOCKING)
+
 - [ ] Upload 5 HTML email templates to SendGrid
 - [ ] Capture 5 template IDs from SendGrid dashboard
 - [ ] Save template IDs to notepad (for next step)
@@ -225,6 +252,7 @@ return `mailto:${APPEALS_EMAIL}?subject=${subject}&body=${body}`;
 - [ ] Verify variables render correctly (no `{{variable}}` visible)
 
 ### Phase 3: Railway Deployment (⏳ BLOCKED BY PHASE 2)
+
 - [ ] Add 5 env variables to Railway:
   ```
   SENDGRID_ACCOUNT_WARNING_TEMPLATE_ID=d-xxxxx
@@ -237,12 +265,14 @@ return `mailto:${APPEALS_EMAIL}?subject=${subject}&body=${body}`;
 - [ ] Monitor Railway logs: `railway logs`
 
 ### Phase 4: Smoke Testing (⏳ BLOCKED BY PHASE 3)
+
 - [ ] Send 1 warning email (curl test case #1)
 - [ ] Verify: Email arrives in inbox
 - [ ] Verify: Appeal button opens email client
 - [ ] Verify: DB suspension_until is null (warning only)
 
 ### Phase 5: Full E2E Testing (⏳ BLOCKED BY PHASE 4)
+
 - [ ] Test Case 1: warning (no suspension)
 - [ ] Test Case 2: content_removal (no suspension)
 - [ ] Test Case 3: suspend_7_days (7-day DB lock)
@@ -251,12 +281,14 @@ return `mailto:${APPEALS_EMAIL}?subject=${subject}&body=${body}`;
 - [ ] Test Case 6: dismissed (no violator email)
 
 ### Phase 6: Frontend Handoff (PARALLEL WORK)
+
 - [ ] Share `FIGMA_APPEAL_FLOW_PROMPT.md` with frontend team
 - [ ] Design 6 screens (Warning, Content Removed, 7-Day, 45-Day, Ban, Appeal)
 - [ ] Build component library (AccountActionCard, AppealButton, etc.)
 - [ ] Implement auth middleware to block suspended/banned users
 
 ### Phase 7: Post-Deployment Monitoring (⏳ AFTER PHASE 3)
+
 - [ ] Railway logs: No TEMPLATE_ID errors
 - [ ] SendGrid: Bounce/complaint rates < 0.5%
 - [ ] Admin dashboard: Severity distribution metrics
@@ -266,24 +298,25 @@ return `mailto:${APPEALS_EMAIL}?subject=${subject}&body=${body}`;
 
 ## 9. DEPLOYMENT READINESS METRICS
 
-| Metric | Target | Current | Status |
-|--------|--------|---------|--------|
-| **TypeScript Errors** | 0 | 0 | ✅ Pass |
-| **Linting Errors (Critical)** | 0 | 0 | ✅ Pass |
-| **Unit Test Coverage (Sanctions)** | 6/6 | 6/6 | ✅ Pass |
-| **API Endpoints Updated** | 2 | 2 | ✅ Pass |
-| **Email Functions Implemented** | 4 | 4 | ✅ Pass |
-| **Severity Enum Values** | 5 | 5 | ✅ Pass |
-| **Error Handling Blocks** | 4 | 4 | ✅ Pass |
-| **Database Columns** | 3 | 3 | ✅ Pass |
-| **SendGrid Templates Ready** | 5 | 0 | ⏳ Pending |
-| **Railway Env Vars Set** | 5 | 0 | ⏳ Pending |
+| Metric                             | Target | Current | Status     |
+| ---------------------------------- | ------ | ------- | ---------- |
+| **TypeScript Errors**              | 0      | 0       | ✅ Pass    |
+| **Linting Errors (Critical)**      | 0      | 0       | ✅ Pass    |
+| **Unit Test Coverage (Sanctions)** | 6/6    | 6/6     | ✅ Pass    |
+| **API Endpoints Updated**          | 2      | 2       | ✅ Pass    |
+| **Email Functions Implemented**    | 4      | 4       | ✅ Pass    |
+| **Severity Enum Values**           | 5      | 5       | ✅ Pass    |
+| **Error Handling Blocks**          | 4      | 4       | ✅ Pass    |
+| **Database Columns**               | 3      | 3       | ✅ Pass    |
+| **SendGrid Templates Ready**       | 5      | 0       | ⏳ Pending |
+| **Railway Env Vars Set**           | 5      | 0       | ⏳ Pending |
 
 ---
 
 ## 10. SUMMARY
 
 ### ✅ CODE IS PRODUCTION-READY
+
 - All TypeScript errors resolved
 - All unit tests passing
 - All severity paths implemented
@@ -291,6 +324,7 @@ return `mailto:${APPEALS_EMAIL}?subject=${subject}&body=${body}`;
 - No blocking issues found
 
 ### ⏳ WAITING FOR:
+
 1. **SendGrid Template Upload** (20 minutes)
 2. **Railway Environment Variables** (2 minutes)
 3. **Smoke Test Verification** (5 minutes)
@@ -302,6 +336,7 @@ return `mailto:${APPEALS_EMAIL}?subject=${subject}&body=${body}`;
 ## 11. ROLLBACK PLAN (If Needed)
 
 **If errors occur in production:**
+
 1. Remove 5 template IDs from Railway Variables
 2. `git revert HEAD` (reverts backend changes)
 3. `git push railway main`

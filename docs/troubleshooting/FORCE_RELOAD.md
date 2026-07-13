@@ -5,6 +5,7 @@ The duplicate icon has been removed from the code, but you need to reload the ap
 ## Quick Fix
 
 In the Expo dev tools (or simulator), press:
+
 - **`r`** - Reload the app
 - Or shake the device/simulator and tap "Reload"
 
@@ -21,6 +22,7 @@ npx expo start --dev-client --clear
 ## Verify the Fix
 
 After reloading, you should see:
+
 - ✅ Only ONE information icon
 - ✅ Only the text "Create games with locations"
 - ✅ No duplicate "Follow teams near you" hint

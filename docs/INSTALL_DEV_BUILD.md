@@ -1,6 +1,7 @@
 # Installing Development Build for Fast Refresh
 
 ## Problem
+
 Error: "No development build (com.varsithub.varsityhub) for this project is installed"
 
 ## Solution
@@ -15,6 +16,7 @@ npx expo run:ios
 ```
 
 This command will:
+
 1. Build the iOS app with all native dependencies
 2. Install it on the iOS simulator
 3. Start Metro bundler automatically
@@ -49,6 +51,7 @@ npx expo start
 ### Build Fails
 
 1. **Clean build:**
+
    ```bash
    npx expo run:ios --no-build-cache
    ```
@@ -65,11 +68,13 @@ npx expo start
 ### Simulator Not Opening
 
 1. **Open simulator manually:**
+
    ```bash
    open -a Simulator
    ```
 
 2. **List available simulators:**
+
    ```bash
    xcrun simctl list devices
    ```
@@ -82,6 +87,7 @@ npx expo start
 ### Fast Refresh Still Not Working
 
 After installing the dev build, make sure to:
+
 1. Restart Metro with `--clear` flag
 2. Test Fast Refresh by making a small change to a component
 3. Check that the Babel config uses `react-native-worklets/plugin` (already fixed)

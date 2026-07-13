@@ -3,6 +3,7 @@
 ## Current Behavior ✅
 
 ### What Works Now:
+
 1. **Create Ad** → User creates ad with business info & banner
 2. **My Ads** → Shows all user's ads with scheduled dates
 3. **Schedule Dates** → User clicks "Schedule Dates" button
@@ -12,6 +13,7 @@
 7. **Repeat** → User can return and schedule MORE dates later
 
 ### Current Code Flow:
+
 ```
 submit-ad.tsx → Create Ad
    ↓
@@ -29,7 +31,9 @@ Payment Success → Dates Reserved
 ## 🐛 Issue Identified
 
 ### Problem:
+
 When viewing "My Ads", the system shows:
+
 - ✅ All scheduled dates (past, present, future)
 - ❌ But doesn't distinguish between:
   - **Past dates** (ad already ran - COMPLETED)
@@ -37,6 +41,7 @@ When viewing "My Ads", the system shows:
   - **Expired dates** (past but never scheduled - MISSED)
 
 ### User Confusion:
+
 1. User buys ad and schedules dates
 2. Dates pass (ad runs successfully)
 3. User goes back to "My Ads"
@@ -53,11 +58,11 @@ When viewing "My Ads", the system shows:
 
 ```typescript
 enum AdDateStatus {
-  SCHEDULED = 'scheduled',  // Future date, paid for
-  ACTIVE = 'active',        // Date is today
-  COMPLETED = 'completed',  // Past date, ad ran successfully
-  AVAILABLE = 'available',  // Future date, not scheduled
-  UNAVAILABLE = 'unavailable' // Past date, not scheduled
+  SCHEDULED = 'scheduled', // Future date, paid for
+  ACTIVE = 'active', // Date is today
+  COMPLETED = 'completed', // Past date, ad ran successfully
+  AVAILABLE = 'available', // Future date, not scheduled
+  UNAVAILABLE = 'unavailable', // Past date, not scheduled
 }
 ```
 
@@ -72,7 +77,7 @@ enum AdDateStatus {
       <Text>{formatDate(d)}</Text>
     </View>
   ))}
-  
+
   {/* Future Dates - Active */}
   <Text style={styles.sectionLabel}>Upcoming 📅</Text>
   {futureDates.map(d => (
@@ -84,6 +89,7 @@ enum AdDateStatus {
 ```
 
 ### Color Coding:
+
 - **Green badges** 🟢 → Completed dates (past)
 - **Blue badges** 🔵 → Upcoming dates (future)
 - **Gray badges** ⚫ → Unavailable/Expired
@@ -100,10 +106,10 @@ enum AdDateStatus {
 const categorizeAdDates = (dates: string[]) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const past: string[] = [];
   const future: string[] = [];
-  
+
   dates.forEach(dateStr => {
     const date = new Date(dateStr + 'T00:00:00');
     if (date < today) {
@@ -112,7 +118,7 @@ const categorizeAdDates = (dates: string[]) => {
       future.push(dateStr);
     }
   });
-  
+
   return { past, future };
 };
 ```
@@ -127,12 +133,12 @@ const renderItem = ({ item }: { item: DraftAd }) => {
   const { past, future } = categorizeAdDates(dates);
   const hasCompleted = past.length > 0;
   const hasUpcoming = future.length > 0;
-  
+
   return (
     <View style={styles.card}>
       {/* Business Info */}
       <Text style={styles.title}>{item.business_name}</Text>
-      
+
       {/* Completed Dates */}
       {hasCompleted && (
         <>
@@ -148,7 +154,7 @@ const renderItem = ({ item }: { item: DraftAd }) => {
           </View>
         </>
       )}
-      
+
       {/* Upcoming Dates */}
       {hasUpcoming && (
         <>
@@ -164,15 +170,15 @@ const renderItem = ({ item }: { item: DraftAd }) => {
           </View>
         </>
       )}
-      
+
       {/* No Dates */}
       {!hasCompleted && !hasUpcoming && (
         <Text style={styles.muted}>No dates scheduled yet</Text>
       )}
-      
+
       {/* Actions */}
       <View style={styles.row}>
-        <Pressable 
+        <Pressable
           style={styles.btn}
           onPress={() => router.push({
             pathname: '/ad-calendar',
@@ -194,19 +200,19 @@ const renderItem = ({ item }: { item: DraftAd }) => {
 ```typescript
 const styles = StyleSheet.create({
   // ... existing styles ...
-  
+
   badgeCompleted: {
     backgroundColor: '#D1FAE5', // Light green
     borderColor: '#10B981',
     borderWidth: 1,
   },
-  
+
   badgeActive: {
     backgroundColor: '#DBEAFE', // Light blue
     borderColor: '#3B82F6',
     borderWidth: 1,
   },
-  
+
   sectionTitle: {
     fontWeight: '700',
     fontSize: 14,
@@ -231,7 +237,7 @@ const markedDates = useMemo(() => {
   const obj: Record<string, any> = {};
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   // Selected dates (blue)
   for (const d of selected) {
     obj[d] = {
@@ -239,12 +245,12 @@ const markedDates = useMemo(() => {
       selectedColor: '#3B82F6', // Blue
     };
   }
-  
+
   // Reserved dates - check if past or future
   for (const d of reserved) {
     const date = new Date(d + 'T00:00:00');
     const isPast = date < today;
-    
+
     obj[d] = {
       disabled: true,
       disableTouchEvent: true,
@@ -253,7 +259,7 @@ const markedDates = useMemo(() => {
       selected: false,
     };
   }
-  
+
   return obj;
 }, [selected, reserved]);
 ```
@@ -265,6 +271,7 @@ const markedDates = useMemo(() => {
 ### Scenario 1: User with Past Dates
 
 **My Ads Screen:**
+
 ```
 ┌─────────────────────────────────┐
 │ My Business Ad                  │
@@ -282,6 +289,7 @@ const markedDates = useMemo(() => {
 ```
 
 **What user sees:**
+
 - ✅ Clear distinction between completed and upcoming
 - ✅ Can see ad history (what dates already ran)
 - ✅ "Schedule More" button makes it clear they can add new dates
@@ -329,6 +337,7 @@ const markedDates = useMemo(() => {
 ## 📝 Additional Enhancements (Optional)
 
 ### 1. Performance Metrics:
+
 ```typescript
 interface AdMetrics {
   totalImpressions: number;
@@ -339,10 +348,12 @@ interface AdMetrics {
 ```
 
 ### 2. Auto-Archive:
+
 - After 30 days, move completed dates to "History" section
 - Keep upcoming dates prominent
 
 ### 3. Notifications:
+
 - Day before: "Your ad runs tomorrow!"
 - Day of: "Your ad is live today!"
 - Day after: "Your ad completed successfully!"
@@ -367,11 +378,13 @@ interface AdMetrics {
 ## 🎨 Color Palette
 
 **Light Mode:**
+
 - Completed: Background `#D1FAE5` Border `#10B981` (Green)
 - Upcoming: Background `#DBEAFE` Border `#3B82F6` (Blue)
 - Unavailable: Background `#F3F4F6` Border `#9CA3AF` (Gray)
 
 **Dark Mode:**
+
 - Completed: Background `rgba(16, 185, 129, 0.2)` Border `#10B981`
 - Upcoming: Background `rgba(59, 130, 246, 0.2)` Border `#3B82F6`
 - Unavailable: Background `rgba(107, 114, 128, 0.2)` Border `#6B7280`
@@ -384,7 +397,8 @@ interface AdMetrics {
 
 **Proposed State**: Clear visual separation of completed vs upcoming dates
 
-**Impact**: 
+**Impact**:
+
 - Reduces confusion about payment
 - Provides historical tracking
 - Encourages ad reuse

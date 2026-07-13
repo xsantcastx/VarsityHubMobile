@@ -11,16 +11,17 @@
 
 **⚠️ Partial — depends on context**
 
-| Entity | Search location | Status |
-|--------|-----------------|--------|
-| **Users** | Messages compose modal | ✅ `User.listAll(q)` — search by username/email |
-| **Users** | Discover page | ❌ No user search on discover |
-| **Teams** | Team Hub | ✅ Search box "Search for teams, players, or events" — filters locally |
-| **Teams** | Discover page | ❌ No team search on discover |
-| **Organizations** | Onboarding step-4 | ✅ `useOrganizationSearch` — search by zip/name |
-| **Organizations** | Discover page | ❌ No org search on discover |
+| Entity            | Search location        | Status                                                                 |
+| ----------------- | ---------------------- | ---------------------------------------------------------------------- |
+| **Users**         | Messages compose modal | ✅ `User.listAll(q)` — search by username/email                        |
+| **Users**         | Discover page          | ❌ No user search on discover                                          |
+| **Teams**         | Team Hub               | ✅ Search box "Search for teams, players, or events" — filters locally |
+| **Teams**         | Discover page          | ❌ No team search on discover                                          |
+| **Organizations** | Onboarding step-4      | ✅ `useOrganizationSearch` — search by zip/name                        |
+| **Organizations** | Discover page          | ❌ No org search on discover                                           |
 
 **Discover page** (`app/(tabs)/discover/mobile-community.tsx`):
+
 - Search box: "Search by keyword or Zip Code..." — used only for **zip code suggestions** (games by location)
 - No unified search for users, teams, or organizations
 - Shows: Quick Actions, Discover/Following tabs (posts), calendar, games by date
@@ -28,6 +29,7 @@
 ### Do search results show follow status?
 
 **✅ Yes** (where follow exists)
+
 - **Discover posts**: `is_following_author` shown; Follow/Following button in post header (lines 817–848)
 - **Messages user search**: No follow status (compose flow)
 - **Team Hub search**: Local filter only; no explicit follow status in results
@@ -35,6 +37,7 @@
 ### Can they follow directly from search results without navigating to profile?
 
 **✅ Yes** (Discover posts only)
+
 - Discover post cards have inline Follow/Following button; `User.follow(authorId)` / `User.unfollow(authorId)` called on press
 - **Messages**: No follow from search (compose only)
 - **Team/Org**: No discover search for teams/orgs; follow is on team/org profile pages
@@ -66,6 +69,7 @@
 - **Post content**: No `LinkifiedText` or similar component for `#tag` or `@user` in post body
 
 **Recommendation:** Add a `LinkifiedText` (or similar) component that:
+
 - Parses `#(\w+)` → tap navigates to `/posts?hashtag=...` or similar tag feed
 - Parses `@(\w+)` → tap navigates to `/user-profile?username=...` or user lookup by username
 
@@ -76,13 +80,15 @@
 ### When a user taps share on a post, does it generate a deep link?
 
 **✅ Yes** — `useShareLink` + `AppLinks.post(id, caption)`:
+
 - `webUrl`: `https://varsityhub.app/posts/{id}`
 - `deepLink`: `{scheme}://post/{id}` (e.g. `varsityhubmobile://post/123`)
 - `shareMessage`: caption + webUrl
 
 ### What is actually shared?
 
-**Shared content:** `Share.share({ message, url, title })`  
+**Shared content:** `Share.share({ message, url, title })`
+
 - `url` is `link.webUrl` (web URL), not `link.deepLink`
 - Recipients receive the **web URL** (`https://varsityhub.app/posts/123`), not the app scheme URL
 
@@ -137,9 +143,10 @@
 **Server** (`server/src/routes/posts.ts` lines 47–49):
 
 ```typescript
-const orderBy = sort === 'trending'
-  ? [{ upvotes_count: 'desc' as const }, { created_at: 'desc' as const }]
-  : [{ created_at: 'desc' as const }];
+const orderBy =
+  sort === 'trending'
+    ? [{ upvotes_count: 'desc' as const }, { created_at: 'desc' as const }]
+    : [{ created_at: 'desc' as const }];
 ```
 
 ### Exact behavior
@@ -169,13 +176,13 @@ Introduce time decay, e.g.:
 
 ## Summary
 
-| Area | Status | Notes |
-|------|--------|-------|
-| Discover: user/team/org search | ❌ | No unified search on discover |
-| Discover: follow status | ✅ | Shown on post cards |
-| Discover: follow from results | ✅ | Inline follow on post cards |
-| Hashtags clickable | ❌ | Plain text only |
-| Mentions clickable | ❌ | Plain text only |
-| Share generates link | ✅ | Web URL + deep link |
-| Deep link opens app | ⚠️ | Depends on universal links + scheme consistency |
-| Trending algorithm | ❌ | Upvotes only, no time decay |
+| Area                           | Status | Notes                                           |
+| ------------------------------ | ------ | ----------------------------------------------- |
+| Discover: user/team/org search | ❌     | No unified search on discover                   |
+| Discover: follow status        | ✅     | Shown on post cards                             |
+| Discover: follow from results  | ✅     | Inline follow on post cards                     |
+| Hashtags clickable             | ❌     | Plain text only                                 |
+| Mentions clickable             | ❌     | Plain text only                                 |
+| Share generates link           | ✅     | Web URL + deep link                             |
+| Deep link opens app            | ⚠️     | Depends on universal links + scheme consistency |
+| Trending algorithm             | ❌     | Upvotes only, no time decay                     |

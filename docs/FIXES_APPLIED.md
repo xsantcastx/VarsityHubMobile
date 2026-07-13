@@ -12,6 +12,7 @@
 **Problem**: Routes using `requireAuth` or `requireVerified` middleware were also manually checking `if (!req.user)`, which is redundant since the middleware guarantees `req.user` exists.
 
 **Fixed Files**:
+
 - `server/src/routes/posts.ts` - Removed redundant check in POST `/posts`
 - `server/src/routes/teams.ts` - Removed redundant checks in:
   - POST `/teams`
@@ -23,7 +24,8 @@
   - PUT `/events/:id/approve`
   - PUT `/events/:id/reject`
 
-**Impact**: 
+**Impact**:
+
 - Cleaner code
 - Less redundant checks
 - More consistent patterns
@@ -36,6 +38,7 @@
 **Problem**: Some routes returned just `{ error: 'Invalid payload' }` while others returned detailed `{ error: 'Invalid payload', issues: [...] }`. This inconsistency made it harder for frontend to handle validation errors.
 
 **Fixed Files**:
+
 - `server/src/routes/teams.ts` - Standardized validation errors to include `issues` array:
   - POST `/teams` - Now includes validation issues
   - POST `/teams/create` - Now includes validation issues
@@ -44,21 +47,24 @@
   - POST `/events` - Now includes validation issues
 
 **Before**:
+
 ```typescript
 if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 ```
 
 **After**:
+
 ```typescript
 if (!parsed.success) {
   return res.status(400).json({
     error: 'Invalid payload',
-    issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
   });
 }
 ```
 
 **Impact**:
+
 - Consistent error format across all endpoints
 - Frontend can display specific field errors
 - Better developer experience
@@ -71,6 +77,7 @@ if (!parsed.success) {
 **Added**: Comments explaining that `req.user` is guaranteed by middleware to improve code readability and prevent future redundant checks.
 
 **Example**:
+
 ```typescript
 postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
@@ -94,6 +101,7 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
 ## Testing Impact
 
 These fixes ensure:
+
 - Tests can rely on consistent error formats
 - Validation errors are properly detailed
 - No redundant checks that could cause confusion

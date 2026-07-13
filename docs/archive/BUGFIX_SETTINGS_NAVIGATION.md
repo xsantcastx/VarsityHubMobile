@@ -6,14 +6,16 @@
 **Reported**: Settings cogwheel in profile not working - "screen does not exist" error
 
 ### Affected Screens
+
 - `app/profile.tsx` - Profile settings button
-- `app/manage-season.tsx` - Season settings button  
+- `app/manage-season.tsx` - Season settings button
 - `app/message-thread.tsx` - Safety settings option
 - `app/messages.tsx` - Safety settings option
 
 ## Root Cause
 
 Multiple screens were using an incorrect route to navigate to the settings page:
+
 - **Incorrect**: `router.push('/settings/index')` or `router.push('/settings/index' as any)`
 - **Correct**: `router.push('/settings')`
 
@@ -37,21 +39,21 @@ app/
 
 ```typescript
 // Navigate to settings index page
-router.push('/settings')
+router.push('/settings');
 
 // Navigate to settings sub-pages
-router.push('/settings/edit-username')
-router.push('/settings/core-values')
-router.push('/settings/blocked-users')
-router.push('/settings/manage-subscription')
+router.push('/settings/edit-username');
+router.push('/settings/core-values');
+router.push('/settings/blocked-users');
+router.push('/settings/manage-subscription');
 ```
 
 ### ❌ Incorrect Routes
 
 ```typescript
 // Don't include "index" in the path
-router.push('/settings/index')        // ❌ Screen does not exist
-router.push('/settings/index' as any) // ❌ Still broken, just suppresses TypeScript error
+router.push('/settings/index'); // ❌ Screen does not exist
+router.push('/settings/index' as any); // ❌ Still broken, just suppresses TypeScript error
 ```
 
 ## Changes Made
@@ -61,15 +63,23 @@ router.push('/settings/index' as any) // ❌ Still broken, just suppresses TypeS
 **Line 293 - Settings cogwheel button**
 
 Before:
+
 ```tsx
-<Pressable onPress={() => router.push('/settings/index' as any)} style={[styles.settingsButtonTopRight, { top: 20 + insets.top }]}>
+<Pressable
+  onPress={() => router.push('/settings/index' as any)}
+  style={[styles.settingsButtonTopRight, { top: 20 + insets.top }]}
+>
   <Ionicons name="settings-outline" size={20} color="#ffffff" />
 </Pressable>
 ```
 
 After:
+
 ```tsx
-<Pressable onPress={() => router.push('/settings')} style={[styles.settingsButtonTopRight, { top: 20 + insets.top }]}>
+<Pressable
+  onPress={() => router.push('/settings')}
+  style={[styles.settingsButtonTopRight, { top: 20 + insets.top }]}
+>
   <Ionicons name="settings-outline" size={20} color="#ffffff" />
 </Pressable>
 ```
@@ -79,21 +89,17 @@ After:
 **Line 819 - Settings button**
 
 Before:
+
 ```tsx
-<Pressable 
-  style={styles.settingsButton}
-  onPress={() => router.push('/settings/index' as any)}
->
+<Pressable style={styles.settingsButton} onPress={() => router.push('/settings/index' as any)}>
   <Ionicons name="settings-outline" size={20} color="#fff" />
 </Pressable>
 ```
 
 After:
+
 ```tsx
-<Pressable 
-  style={styles.settingsButton}
-  onPress={() => router.push('/settings')}
->
+<Pressable style={styles.settingsButton} onPress={() => router.push('/settings')}>
   <Ionicons name="settings-outline" size={20} color="#fff" />
 </Pressable>
 ```
@@ -103,16 +109,30 @@ After:
 **Line 207 - Privacy & settings option in safety modal**
 
 Before:
+
 ```tsx
-<Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/settings/index' as any); }}>
+<Pressable
+  style={styles.sheetRow}
+  onPress={() => {
+    setSafetyOpen(false);
+    router.push('/settings/index' as any);
+  }}
+>
   <Ionicons name="settings-outline" size={18} color="#111827" />
   <Text style={styles.sheetText}>Privacy & settings</Text>
 </Pressable>
 ```
 
 After:
+
 ```tsx
-<Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/settings'); }}>
+<Pressable
+  style={styles.sheetRow}
+  onPress={() => {
+    setSafetyOpen(false);
+    router.push('/settings');
+  }}
+>
   <Ionicons name="settings-outline" size={18} color="#111827" />
   <Text style={styles.sheetText}>Privacy & settings</Text>
 </Pressable>
@@ -123,16 +143,30 @@ After:
 **Line 155 - Privacy & settings option in safety modal**
 
 Before:
+
 ```tsx
-<Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/settings/index' as any); }}>
+<Pressable
+  style={styles.sheetRow}
+  onPress={() => {
+    setSafetyOpen(false);
+    router.push('/settings/index' as any);
+  }}
+>
   <Ionicons name="settings-outline" size={18} color="#111827" />
   <Text style={styles.sheetText}>Privacy & settings</Text>
 </Pressable>
 ```
 
 After:
+
 ```tsx
-<Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/settings'); }}>
+<Pressable
+  style={styles.sheetRow}
+  onPress={() => {
+    setSafetyOpen(false);
+    router.push('/settings');
+  }}
+>
   <Ionicons name="settings-outline" size={18} color="#111827" />
   <Text style={styles.sheetText}>Privacy & settings</Text>
 </Pressable>
@@ -175,7 +209,6 @@ The `as any` type assertion was masking the TypeScript error. Expo Router has sp
 
 1. **Directory with index.tsx**: Route is the directory name
    - File: `app/settings/index.tsx` → Route: `/settings`
-   
 2. **Named files in directory**: Route includes the file name
    - File: `app/settings/edit-username.tsx` → Route: `/settings/edit-username`
 
@@ -221,8 +254,8 @@ The `as any` type assertion was masking the TypeScript error. Expo Router has sp
 **Status**: ✅ Fixed  
 **Files Modified**: 4  
 **Lines Changed**: 4  
-**TypeScript Errors**: 0  
+**TypeScript Errors**: 0
 
 ---
 
-*Bug Fix Documentation - VarsityHub Development Team*
+_Bug Fix Documentation - VarsityHub Development Team_

@@ -19,26 +19,26 @@ Total time: ~45 minutes + Google review (24-48 hours).
 
 ## 📦 Deliverables Inside This Repo
 
-| Item | Path | Purpose |
-|------|------|---------|
-| Build script | `scripts/build-release-android.sh` | Cleans + builds signed AAB/APK |
-| Pre-flight checklist | `scripts/pre-submission-check-android.sh` | Verifies signing + config |
-| Keystore guide | `ANDROID_KEYSTORE_SETUP.md` | Step-by-step signing setup |
-| Release runbook | `RELEASE_READY_ANDROID.md` (this file) | Submission instructions |
+| Item                 | Path                                      | Purpose                        |
+| -------------------- | ----------------------------------------- | ------------------------------ |
+| Build script         | `scripts/build-release-android.sh`        | Cleans + builds signed AAB/APK |
+| Pre-flight checklist | `scripts/pre-submission-check-android.sh` | Verifies signing + config      |
+| Keystore guide       | `ANDROID_KEYSTORE_SETUP.md`               | Step-by-step signing setup     |
+| Release runbook      | `RELEASE_READY_ANDROID.md` (this file)    | Submission instructions        |
 
 ---
 
 ## ✅ Pre-Submission Checklist
 
-| Task | Command / Location | Status |
-|------|-------------------|--------|
-| Configure keystore secrets | `ANDROID_KEYSTORE_SETUP.md` | ⏳ |
-| Verify Gradle config | `./scripts/pre-submission-check-android.sh` | ⏳ |
-| Run security scan | `snyk_code_scan /Users/varsityhub/Desktop/CODE/VarsityHubMobile` | ⏳ |
-| Remove stray `console.log` | `server/src/**/*.ts` | ⏳ |
-| Generate release artifacts | `./scripts/build-release-android.sh` | ⏳ |
-| Upload AAB to Play Console | UI step | ⏳ |
-| Complete store listing | UI step | ⏳ |
+| Task                       | Command / Location                                               | Status |
+| -------------------------- | ---------------------------------------------------------------- | ------ |
+| Configure keystore secrets | `ANDROID_KEYSTORE_SETUP.md`                                      | ⏳     |
+| Verify Gradle config       | `./scripts/pre-submission-check-android.sh`                      | ⏳     |
+| Run security scan          | `snyk_code_scan /Users/varsityhub/Desktop/CODE/VarsityHubMobile` | ⏳     |
+| Remove stray `console.log` | `server/src/**/*.ts`                                             | ⏳     |
+| Generate release artifacts | `./scripts/build-release-android.sh`                             | ⏳     |
+| Upload AAB to Play Console | UI step                                                          | ⏳     |
+| Complete store listing     | UI step                                                          | ⏳     |
 
 ---
 
@@ -56,6 +56,7 @@ adb install -r android/app/build/outputs/apk/release/app-release.apk
 ```
 
 Outputs:
+
 - AAB: `android/app/build/outputs/bundle/release/app-release.aab`
 - APK: `android/app/build/outputs/apk/release/app-release.apk`
 
@@ -96,29 +97,29 @@ Outputs:
 
 ## 📋 Metadata Reference
 
-| Field | Value |
-|-------|-------|
-| Package name | `com.xsantcastx.varsityhub` |
-| Min SDK | 24 (Android 7.0) |
-| Target SDK | 34 (from `gradle.properties`) |
-| Version | `versionCode` in `android/app/build.gradle` (increment each release) |
-| Contact email | Same as iOS submission |
-| Privacy policy | https://varsityhub.app/privacy |
-| Website | https://varsityhub.app |
-| Support | https://varsityhub.app/support |
+| Field          | Value                                                                |
+| -------------- | -------------------------------------------------------------------- |
+| Package name   | `com.xsantcastx.varsityhub`                                          |
+| Min SDK        | 24 (Android 7.0)                                                     |
+| Target SDK     | 34 (from `gradle.properties`)                                        |
+| Version        | `versionCode` in `android/app/build.gradle` (increment each release) |
+| Contact email  | Same as iOS submission                                               |
+| Privacy policy | https://varsityhub.app/privacy                                       |
+| Website        | https://varsityhub.app                                               |
+| Support        | https://varsityhub.app/support                                       |
 
 ---
 
 ## 🕒 Release Timeline Estimate
 
-| Step | Duration |
-|------|----------|
-| Keystore verification | 5 min |
-| Pre-submission check | 2 min |
-| Build script | 10-15 min |
-| Play Console upload | 5 min |
-| Metadata + review submission | 20 min |
-| Google review | 24-72 hours |
+| Step                         | Duration    |
+| ---------------------------- | ----------- |
+| Keystore verification        | 5 min       |
+| Pre-submission check         | 2 min       |
+| Build script                 | 10-15 min   |
+| Play Console upload          | 5 min       |
+| Metadata + review submission | 20 min      |
+| Google review                | 24-72 hours |
 
 ---
 

@@ -15,6 +15,7 @@ December 2024
 **Location**: `app/(tabs)/discover/mobile-community.tsx`
 
 **What Changed**:
+
 - Added `react-native-calendars` Calendar component at the top of the discover feed
 - Calendar appears immediately below the search bar
 - Users can select dates to view posts/games from specific days
@@ -52,6 +53,7 @@ const [selectedDate, setSelectedDate] = useState<string>('');
 ```
 
 **Why This Matters**:
+
 - **Visual Priority**: Calendar at top makes it immediately visible
 - **Date Navigation**: Easy to browse content by specific dates
 - **Event Discovery**: Helps users find games happening on particular days
@@ -60,6 +62,7 @@ const [selectedDate, setSelectedDate] = useState<string>('');
 ### 2. Search Bar at Top
 
 **What Changed**:
+
 - Moved search bar to the very top of the page (above calendar)
 - Combined keyword search and zip code search functionality
 - Kept map/list toggle button next to search
@@ -95,16 +98,17 @@ const [selectedDate, setSelectedDate] = useState<string>('');
     }}
     style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
   >
-    <Ionicons 
-      name={viewMode === 'list' ? 'map' : 'list'} 
-      size={24} 
-      color={Colors[colorScheme].tint} 
+    <Ionicons
+      name={viewMode === 'list' ? 'map' : 'list'}
+      size={24}
+      color={Colors[colorScheme].tint}
     />
   </Pressable>
 </View>
 ```
 
 **Why This Matters**:
+
 - **Immediate Access**: Search is first thing users see
 - **Dual Purpose**: Handles both keyword and zip code searches
 - **Zip Suggestions**: Shows dropdown with matching zip codes as user types
@@ -113,12 +117,14 @@ const [selectedDate, setSelectedDate] = useState<string>('');
 ### 3. Following Page Layout
 
 **What Changed**:
+
 - Following tab now shows search bar at top
 - Calendar appears below search bar
 - Posts feed displays below calendar
 - Consistent layout between Discover and Following tabs
 
 **Page Structure** (Top to Bottom):
+
 1. **Search Bar** - Find posts by keyword or location
 2. **Zip Suggestions** - Dropdown (appears when typing zip codes)
 3. **Calendar** - Select date to view content
@@ -131,6 +137,7 @@ const [selectedDate, setSelectedDate] = useState<string>('');
 10. **Games List** - Upcoming and recent games
 
 **Why This Matters**:
+
 - **Unified Experience**: Same layout for both tabs
 - **Easy Navigation**: Search and calendar always accessible
 - **Clear Hierarchy**: Content flows logically from search → filter → results
@@ -171,6 +178,7 @@ Currently stores selected date but doesn't filter posts/games. Can be extended t
 ## Future Enhancements
 
 ### Date Filtering
+
 Currently, the selected date is stored but not used to filter posts/games. To implement filtering:
 
 ```typescript
@@ -194,17 +202,18 @@ const filteredGames = useMemo(() => {
 ```
 
 ### Event Markers
+
 Add visual indicators on calendar dates that have games or posts:
 
 ```typescript
 const markedDates = useMemo(() => {
   const marks: any = {};
-  
+
   // Mark selected date
   if (selectedDate) {
     marks[selectedDate] = { selected: true, selectedColor: Colors[colorScheme].tint };
   }
-  
+
   // Mark dates with games
   games.forEach(game => {
     const gameDate = new Date(game.date).toISOString().split('T')[0];
@@ -214,7 +223,7 @@ const markedDates = useMemo(() => {
       dotColor: Colors[colorScheme].tint,
     };
   });
-  
+
   return marks;
 }, [selectedDate, games, colorScheme]);
 
@@ -225,6 +234,7 @@ const markedDates = useMemo(() => {
 ```
 
 ### Collapsible Calendar
+
 Add ability to collapse/expand calendar to save screen space:
 
 ```typescript
@@ -243,6 +253,7 @@ const [calendarExpanded, setCalendarExpanded] = useState(true);
 ```
 
 ### Date Range Selection
+
 Support selecting a date range instead of single date:
 
 ```typescript
@@ -269,6 +280,7 @@ const [endDate, setEndDate] = useState<string>('');
 ## Testing Checklist
 
 ### Visual Tests
+
 - [ ] Calendar renders correctly at top of page
 - [ ] Search bar appears above calendar
 - [ ] Map/list toggle button is visible and aligned
@@ -277,6 +289,7 @@ const [endDate, setEndDate] = useState<string>('');
 - [ ] Layout is responsive on different screen sizes
 
 ### Functional Tests
+
 - [ ] Selecting a date updates `selectedDate` state
 - [ ] Search bar accepts text input
 - [ ] Typing numbers shows zip code suggestions
@@ -287,6 +300,7 @@ const [endDate, setEndDate] = useState<string>('');
 - [ ] Tab switching maintains search query
 
 ### UX Tests
+
 - [ ] Calendar scrolls smoothly with the page
 - [ ] Search bar stays at top when scrolling
 - [ ] Calendar doesn't obstruct content
@@ -295,6 +309,7 @@ const [endDate, setEndDate] = useState<string>('');
 - [ ] Date selection provides visual feedback
 
 ### Integration Tests
+
 - [ ] Games list loads correctly
 - [ ] Posts feed loads correctly
 - [ ] Following posts display properly
@@ -303,6 +318,7 @@ const [endDate, setEndDate] = useState<string>('');
 - [ ] Nearby people section loads
 
 ### Performance Tests
+
 - [ ] Calendar renders without lag
 - [ ] Scrolling is smooth with calendar
 - [ ] Search suggestions appear instantly
@@ -312,7 +328,9 @@ const [endDate, setEndDate] = useState<string>('');
 ## Known Issues
 
 ### TypeScript Warnings
+
 There are TypeScript comparison warnings on lines 526 and 535:
+
 ```
 This comparison appears to be unintentional because the types '"map"' and '"list"' have no overlap.
 ```
@@ -353,18 +371,21 @@ This comparison appears to be unintentional because the types '"map"' and '"list
 ## Accessibility
 
 ### Calendar Accessibility
+
 - Calendar component from `react-native-calendars` has built-in accessibility
 - Date buttons are properly labeled for screen readers
 - Selected state is announced to assistive technology
 - Month navigation arrows have descriptive labels
 
 ### Search Bar Accessibility
+
 - Search icon has `accessibilityLabel="Search"`
 - TextInput has placeholder text for context
 - Zip suggestions have proper touch targets
 - Map/list toggle announces current mode
 
 ### Recommendations
+
 1. Add `accessibilityLabel` to calendar wrapper
 2. Add `accessibilityHint` to explain date selection
 3. Announce when date filter is applied
@@ -373,17 +394,20 @@ This comparison appears to be unintentional because the types '"map"' and '"list
 ## Performance Considerations
 
 ### Calendar Rendering
+
 - Calendar renders once per month
 - Theme changes trigger re-render
 - Selected date changes are instant
 - No performance impact on scroll
 
 ### Search Performance
+
 - Zip suggestions filter 1000+ entries instantly
 - Debounce not needed for current dataset
 - Search input is controlled component (no lag)
 
 ### Memory Management
+
 - Calendar unmounts when page unmounts
 - No memory leaks from date selection
 - Search state persists during tab switches
@@ -391,18 +415,21 @@ This comparison appears to be unintentional because the types '"map"' and '"list
 ## Design Decisions
 
 ### Why Calendar at Top?
+
 - **Visual Priority**: Most important filter should be visible first
 - **Progressive Disclosure**: Users see search → calendar → content
 - **Consistent Pattern**: Matches ad-calendar.tsx structure
 - **Mobile Best Practice**: Important actions at top of scroll
 
 ### Why Combined Search?
+
 - **Simplicity**: One search bar for all needs
 - **Less Clutter**: Removed duplicate search bar
 - **Smart Detection**: Auto-detects zip codes vs keywords
 - **Unified UX**: Same behavior across tabs
 
 ### Why Not Filter by Date Yet?
+
 - **Phase 1**: Add UI components first
 - **Phase 2**: Implement filtering logic after user feedback
 - **Safety**: Ensure calendar works before adding complex filters
@@ -418,6 +445,7 @@ This comparison appears to be unintentional because the types '"map"' and '"list
 ## API Integration
 
 ### No API Changes Required
+
 - Calendar is client-side only
 - Selected date stored in local state
 - No backend filtering yet
@@ -444,18 +472,21 @@ const games = await Game.list({
 ## Deployment Notes
 
 ### No New Dependencies
+
 - `react-native-calendars` already installed
 - No environment variables needed
 - No migration scripts required
 - No database changes
 
 ### Safe to Deploy
+
 - Changes are UI-only
 - No breaking changes
 - Backwards compatible
 - Can be rolled back easily
 
 ### Testing Recommendations
+
 1. Test on iOS and Android
 2. Test in light and dark mode
 3. Test with/without internet
@@ -467,12 +498,14 @@ const games = await Game.list({
 The Discover page now has a clean, hierarchical layout with search and calendar at the top, making it easy for users to find content by keyword, location, or date. The calendar provides a visual way to explore time-based content, and the unified search bar simplifies the UX.
 
 **Next Steps**:
+
 1. Implement date-based filtering for posts and games
 2. Add event markers to calendar for dates with content
 3. Consider collapsible calendar for advanced users
 4. Gather user feedback on calendar placement and functionality
 
 **Success Metrics**:
+
 - Users can select calendar dates without issues
 - Search bar handles both keywords and zip codes
 - Following tab shows same search/calendar layout

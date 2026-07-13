@@ -3,18 +3,22 @@
 ## 🎯 Build Status
 
 ### ✅ Completed
+
 - **React version conflict RESOLVED**: Pinned `react-test-renderer` to `19.1.0` (committed: 202158e)
 - Local npm install: **0 vulnerabilities**, 1279 packages installed successfully
 - Git push successful to main branch
 
 ### ⚠️ Blockers for Production Build
+
 **Provisioning Profile Issue**: EAS build fails at archive step because provisioning profile lacks required entitlements.
 
 **Root Cause**: Profile `AU924M6T3K` doesn't include:
+
 - Push Notifications entitlement (`aps-environment`)
 - Sign in with Apple entitlement (`com.apple.developer.applesignin`)
 
 **App-side entitlements are CORRECT** (`ios/VarsityHub/VarsityHub.entitlements`):
+
 ```xml
 <key>aps-environment</key>
 <string>production</string>
@@ -23,6 +27,7 @@
 ```
 
 ### 🔧 Required Actions (Apple Developer Portal)
+
 1. Go to https://developer.apple.com/account/resources/identifiers/list
 2. Select `com.xsantcastx.varsityhub`
 3. Enable **Push Notifications** capability (confirm checkmark)
@@ -45,6 +50,7 @@
 ## 📊 Repo State
 
 ### Modified Files
+
 - `OVERNIGHT_QA_SUMMARY.md`
 - `android/app/src/main/AndroidManifest.xml`
 - `android/app/src/main/res/values/strings.xml`
@@ -54,9 +60,11 @@
 - `tools/patches/patch-router-sitemap.js`
 
 ### Deleted Artifacts
+
 - Old IPA builds (VarsityHub-build38, build-1765240894966, build-1765242625915)
 
 ### Untracked Documentation
+
 - BUILD_CHANGELOG_DECEMBER.md
 - BUILD_ERROR_ANALYSIS.md
 - BUILD_STATUS_DASHBOARD.md
@@ -67,6 +75,7 @@
 - TESTFLIGHT_RELEASE_NOTES.md
 
 ### Build Logs (Untracked)
+
 - eas-build-42.log through eas-build-final.log
 - eas-build-overnight.log
 - jest-results.log

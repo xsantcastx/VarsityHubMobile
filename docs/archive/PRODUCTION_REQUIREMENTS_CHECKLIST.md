@@ -17,22 +17,22 @@ This document outlines all the credentials, API keys, and configuration settings
 **Purpose**: Send verification codes, password resets, and notification emails to users
 
 **Required Information**:
+
 - [ ] **SendGrid API Key** (or alternative email service)
   - Format: `SG.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
   - Permissions needed: `Mail Send` (Full Access)
   - Location in code: Email verification, password reset, ad notifications
-  
 - [ ] **Verified Sender Email Address**
   - Example: `noreply@varsityhub.com` or `support@varsityhub.com`
   - Must be verified in SendGrid dashboard
   - Used as "From" address for all automated emails
-  
 - [ ] **Domain Authentication** (Recommended)
   - Verify client's domain in SendGrid
   - Add DNS records (CNAME, TXT) to improve deliverability
   - Prevents emails from going to spam
 
 **Testing Requirements**:
+
 - [ ] Test email verification code delivery
 - [ ] Test password reset emails
 - [ ] Test ad approval notifications
@@ -40,12 +40,14 @@ This document outlines all the credentials, API keys, and configuration settings
 - [ ] Check spam folder filtering
 
 **Alternative Providers** (if not using SendGrid):
+
 - AWS SES (Simple Email Service)
 - Mailgun
 - Postmark
 - Resend
 
 **Environment Variable**:
+
 ```bash
 SENDGRID_API_KEY=SG.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 EMAIL_FROM=noreply@varsityhub.com
@@ -58,21 +60,19 @@ EMAIL_FROM=noreply@varsityhub.com
 **Purpose**: Handle ad purchases, subscriptions, and payment processing
 
 **Required Information**:
+
 - [ ] **Stripe Publishable Key** (Production)
   - Format: `pk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
   - Safe to expose in mobile app
   - Used for client-side payment UI
-  
 - [ ] **Stripe Secret Key** (Production)
   - Format: `sk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
   - ⚠️ **KEEP SECRET** - Never expose to client
   - Used for server-side payment processing
-  
 - [ ] **Stripe Webhook Secret** (Production)
   - Format: `whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
   - Used to verify webhook authenticity
   - Set up in Stripe Dashboard → Webhooks
-  
 - [ ] **Stripe Webhook Endpoint**
   - URL: `https://api.varsityhub.com/webhooks/stripe` (example)
   - Events to listen for:
@@ -83,6 +83,7 @@ EMAIL_FROM=noreply@varsityhub.com
     - `customer.subscription.deleted`
 
 **Required Stripe Account Setup**:
+
 - [ ] Activate Stripe account (move from test mode to live mode)
 - [ ] Complete business verification
 - [ ] Add bank account for payouts
@@ -92,6 +93,7 @@ EMAIL_FROM=noreply@varsityhub.com
 - [ ] Enable 3D Secure (SCA compliance)
 
 **Environment Variables**:
+
 ```bash
 STRIPE_PUBLISHABLE_KEY=pk_live_xxxxxxxxxxxxxxxxxxxxx
 STRIPE_SECRET_KEY=sk_live_xxxxxxxxxxxxxxxxxxxxx
@@ -99,6 +101,7 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxx
 ```
 
 **Testing Requirements**:
+
 - [ ] Test ad purchase flow ($1.75 weekday ad)
 - [ ] Test weekend ad purchase ($2.99)
 - [ ] Test promo code application (FIRSTFREE20)
@@ -113,10 +116,10 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxx
 **Purpose**: Display maps, geocode addresses, calculate distances, show game locations
 
 **Required Information**:
+
 - [ ] **Google Cloud Project** (Production)
   - Create new project at https://console.cloud.google.com
   - Name: "VarsityHub Production"
-  
 - [ ] **Google Maps API Key** (Production)
   - Format: `AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
   - Required APIs to enable:
@@ -126,7 +129,6 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxx
     - ✅ Geocoding API
     - ✅ Geolocation API
     - ✅ Distance Matrix API
-  
 - [ ] **API Key Restrictions** (Security)
   - **Android**: Restrict by package name
     - Package: `com.varsityhub.mobile` (or your actual package)
@@ -137,16 +139,19 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxx
     - Add production server IP addresses
 
 **Billing Setup**:
+
 - [ ] Enable billing on Google Cloud project
 - [ ] Set up billing alerts (recommended: $100/month threshold)
 - [ ] Expected monthly cost: $50-$200 (depending on usage)
 
 **Environment Variables**:
+
 ```bash
 GOOGLE_MAPS_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 **Expo App Config** (`app.json`):
+
 ```json
 {
   "expo": {
@@ -167,6 +172,7 @@ GOOGLE_MAPS_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 **Testing Requirements**:
+
 - [ ] Test map display on game detail pages
 - [ ] Test address geocoding (converting addresses to coordinates)
 - [ ] Test distance calculations (20-mile radius for ads)
@@ -180,26 +186,23 @@ GOOGLE_MAPS_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 **Purpose**: Store all application data (users, posts, games, teams, ads, etc.)
 
 **Required Information**:
+
 - [ ] **Database Host**
   - Example: `varsityhub-prod.xxxxxx.us-east-1.rds.amazonaws.com`
-  
 - [ ] **Database Port**
   - Default: `5432`
-  
 - [ ] **Database Name**
   - Example: `varsityhub_production`
-  
 - [ ] **Database Username**
   - Example: `varsityhub_admin`
-  
 - [ ] **Database Password**
   - Strong password (16+ characters, mixed case, numbers, symbols)
   - ⚠️ **KEEP SECRET**
-  
 - [ ] **SSL Certificate** (if required)
   - RDS typically provides SSL by default
 
 **Database Provider Options**:
+
 - AWS RDS (Recommended for production)
 - Railway (Easy setup, good for smaller projects)
 - Supabase (Includes auth and real-time features)
@@ -207,11 +210,13 @@ GOOGLE_MAPS_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 - Heroku Postgres
 
 **Connection String Format**:
+
 ```bash
 DATABASE_URL=postgresql://username:password@host:5432/database_name?sslmode=require
 ```
 
 **Database Setup Requirements**:
+
 - [ ] Create production database
 - [ ] Run Prisma migrations
 - [ ] Set up automated backups (daily minimum)
@@ -220,11 +225,13 @@ DATABASE_URL=postgresql://username:password@host:5432/database_name?sslmode=requ
 - [ ] Configure access security (VPC, IP whitelist)
 
 **Environment Variables**:
+
 ```bash
 DATABASE_URL=postgresql://varsityhub_admin:xxxxx@host:5432/varsityhub_production?sslmode=require
 ```
 
 **Testing Requirements**:
+
 - [ ] Test database connection
 - [ ] Run all Prisma migrations
 - [ ] Seed initial data (if applicable)
@@ -238,22 +245,21 @@ DATABASE_URL=postgresql://varsityhub_admin:xxxxx@host:5432/varsityhub_production
 **Purpose**: Store user-uploaded images/videos (avatars, post media, team banners, ad banners)
 
 **Required Information**:
+
 - [ ] **AWS Access Key ID**
   - Format: `AKIAXXXXXXXXXXXXXXXX`
-  
 - [ ] **AWS Secret Access Key**
   - Format: `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
   - ⚠️ **KEEP SECRET**
-  
 - [ ] **S3 Bucket Name** (Production)
   - Example: `varsityhub-prod-media`
   - Region: `us-east-1` (or client's preferred region)
-  
 - [ ] **CloudFront Distribution** (Optional but recommended)
   - CDN for faster media delivery
   - Example: `d1234567890abc.cloudfront.net`
 
 **S3 Bucket Configuration**:
+
 - [ ] Enable public read access for media files
 - [ ] Set up CORS policy for web/mobile uploads
 - [ ] Configure lifecycle rules (delete old temp files after 7 days)
@@ -261,6 +267,7 @@ DATABASE_URL=postgresql://varsityhub_admin:xxxxx@host:5432/varsityhub_production
 - [ ] Set up CloudFront for CDN delivery
 
 **CORS Configuration** (`s3-cors-policy.json`):
+
 ```json
 [
   {
@@ -274,6 +281,7 @@ DATABASE_URL=postgresql://varsityhub_admin:xxxxx@host:5432/varsityhub_production
 ```
 
 **Environment Variables**:
+
 ```bash
 AWS_ACCESS_KEY_ID=AKIAXXXXXXXXXXXXXXXX
 AWS_SECRET_ACCESS_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -283,12 +291,14 @@ CLOUDFRONT_URL=https://d1234567890abc.cloudfront.net
 ```
 
 **Alternative Providers**:
+
 - Cloudinary (Easier setup, includes image transformations)
 - DigitalOcean Spaces
 - Google Cloud Storage
 - Azure Blob Storage
 
 **Testing Requirements**:
+
 - [ ] Test image upload (avatars, post images)
 - [ ] Test video upload (highlights, game footage)
 - [ ] Test ad banner upload
@@ -302,19 +312,19 @@ CLOUDFRONT_URL=https://d1234567890abc.cloudfront.net
 **Purpose**: Send notifications for messages, follows, comments, game updates
 
 **Required Information**:
+
 - [ ] **Expo Account**
   - Client needs Expo account (or use yours)
   - Organization/team setup for production app
-  
 - [ ] **Expo Project ID**
   - Found in Expo dashboard
   - Used for push notification configuration
-  
 - [ ] **Expo Access Token** (for server-side notifications)
   - Generate in Expo dashboard → Access Tokens
   - ⚠️ **KEEP SECRET**
 
 **Setup Requirements**:
+
 - [ ] Build production app with Expo EAS
 - [ ] Configure push notification credentials
   - **iOS**: Apple Push Notification Service (APNs) certificate
@@ -323,21 +333,23 @@ CLOUDFRONT_URL=https://d1234567890abc.cloudfront.net
 - [ ] Set up notification categories and actions
 
 **Environment Variables**:
+
 ```bash
 EXPO_ACCESS_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 EXPO_PROJECT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
 **For Native Builds** (if not using Expo push):
+
 - [ ] **Firebase Cloud Messaging** (Android)
   - Server Key: `AAAAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
   - google-services.json file
-  
 - [ ] **Apple Push Notification Service** (iOS)
   - .p8 key file
   - Key ID, Team ID, Bundle ID
 
 **Testing Requirements**:
+
 - [ ] Test push notifications on iOS devices
 - [ ] Test push notifications on Android devices
 - [ ] Test notification permissions flow
@@ -351,22 +363,24 @@ EXPO_PROJECT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 **Purpose**: Secure user authentication and session management
 
 **Required Information**:
+
 - [ ] **JWT Secret Key**
   - Generate a random 64-character string
   - Example: `openssl rand -hex 64`
   - ⚠️ **KEEP SECRET** - Never commit to version control
-  
 - [ ] **JWT Expiration Settings**
   - Access Token: `15m` (15 minutes) or `1h` (1 hour)
   - Refresh Token: `7d` (7 days) or `30d` (30 days)
 
 **Generate Secure JWT Secret**:
+
 ```bash
 # Run this command to generate a secure secret
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
 **Environment Variables**:
+
 ```bash
 JWT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 JWT_ACCESS_TOKEN_EXPIRES_IN=1h
@@ -374,6 +388,7 @@ JWT_REFRESH_TOKEN_EXPIRES_IN=7d
 ```
 
 **Security Best Practices**:
+
 - [ ] Use strong, randomly generated secret
 - [ ] Rotate JWT secret periodically (every 6-12 months)
 - [ ] Store in environment variables, never in code
@@ -387,20 +402,18 @@ JWT_REFRESH_TOKEN_EXPIRES_IN=7d
 **Purpose**: Deploy mobile app to iOS App Store and Google Play Store
 
 **iOS App Store Requirements**:
+
 - [ ] **Apple Developer Account**
   - Individual or Organization account ($99/year)
   - Account holder email and credentials
-  
 - [ ] **App Store Connect Access**
   - Create app listing in App Store Connect
   - Bundle ID: `com.varsityhub.mobile` (or client's choice)
   - App Name: "VarsityHub"
-  
 - [ ] **Certificates & Provisioning Profiles**
   - Distribution certificate
   - App Store provisioning profile
   - Push notification certificate
-  
 - [ ] **App Store Listing Information**
   - App description (4000 characters max)
   - Keywords (100 characters, comma-separated)
@@ -410,17 +423,16 @@ JWT_REFRESH_TOKEN_EXPIRES_IN=7d
   - Support URL
 
 **Google Play Store Requirements**:
+
 - [ ] **Google Play Console Account**
   - One-time $25 registration fee
   - Account owner email and credentials
-  
 - [ ] **Keystore File** (for signing APK/AAB)
   - Generate or provide existing keystore
   - Keystore password
   - Key alias
   - Key password
   - ⚠️ **KEEP SECURE** - Losing this prevents app updates
-  
 - [ ] **Google Play Listing Information**
   - Short description (80 characters)
   - Full description (4000 characters)
@@ -431,6 +443,7 @@ JWT_REFRESH_TOKEN_EXPIRES_IN=7d
   - Content rating questionnaire
 
 **Environment Variables** (for build process):
+
 ```bash
 # iOS
 APPLE_TEAM_ID=XXXXXXXXXX
@@ -449,20 +462,20 @@ ANDROID_KEY_PASSWORD=xxxxxxxxxx
 **Purpose**: Custom domain for API and web portal
 
 **Required Information**:
+
 - [ ] **Domain Name**
   - Example: `varsityhub.com`
   - Client must own or purchase domain
-  
 - [ ] **DNS Access**
   - Access to domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)
   - Ability to add A records, CNAME records
-  
 - [ ] **SSL Certificate**
   - Free option: Let's Encrypt (auto-renewal)
   - Paid option: Cloudflare SSL/TLS
   - Wildcard cert for subdomains: `*.varsityhub.com`
 
 **DNS Records Needed**:
+
 ```
 # API Server
 api.varsityhub.com  →  A Record  →  [SERVER_IP_ADDRESS]
@@ -478,6 +491,7 @@ s2._domainkey.varsityhub.com  →  CNAME  →  s2.domainkey.u12345.wl123.sendgri
 ```
 
 **Testing Requirements**:
+
 - [ ] Verify domain resolves to server
 - [ ] Test SSL certificate (https://)
 - [ ] Check certificate expiration monitoring
@@ -491,19 +505,18 @@ s2._domainkey.varsityhub.com  →  CNAME  →  s2.domainkey.u12345.wl123.sendgri
 **Purpose**: Host the Node.js/Express backend API
 
 **Required Information**:
+
 - [ ] **Server Provider Choice**
   - Railway (Easiest deployment)
   - AWS EC2 (Most control)
   - DigitalOcean (Good balance)
   - Heroku (Simple but more expensive)
   - Render (Good alternative to Heroku)
-  
 - [ ] **Server Specifications** (Minimum for production)
   - CPU: 2 vCPUs
   - RAM: 4GB
   - Storage: 50GB SSD
   - Bandwidth: Unlimited or 5TB+
-  
 - [ ] **SSH Access** (for EC2/DigitalOcean)
   - SSH private key
   - Server IP address
@@ -512,6 +525,7 @@ s2._domainkey.varsityhub.com  →  CNAME  →  s2.domainkey.u12345.wl123.sendgri
 **Deployment Options**:
 
 #### Option A: Railway (Recommended for Ease)
+
 ```bash
 # Client needs Railway account
 # Connect GitHub repo
@@ -520,6 +534,7 @@ s2._domainkey.varsityhub.com  →  CNAME  →  s2.domainkey.u12345.wl123.sendgri
 ```
 
 #### Option B: AWS EC2
+
 ```bash
 # Launch EC2 instance (t3.medium or larger)
 # Configure security groups (port 80, 443, 22)
@@ -529,6 +544,7 @@ s2._domainkey.varsityhub.com  →  CNAME  →  s2.domainkey.u12345.wl123.sendgri
 ```
 
 #### Option C: DigitalOcean Droplet
+
 ```bash
 # Create droplet (2GB RAM minimum)
 # Set up SSH keys
@@ -538,6 +554,7 @@ s2._domainkey.varsityhub.com  →  CNAME  →  s2.domainkey.u12345.wl123.sendgri
 ```
 
 **Environment Variables on Server**:
+
 ```bash
 NODE_ENV=production
 PORT=3000
@@ -555,6 +572,7 @@ AWS_SECRET_ACCESS_KEY=...
 ## 📋 Quick Checklist Summary
 
 ### Must Have (Critical)
+
 - [ ] Email service API key (SendGrid/AWS SES)
 - [ ] Stripe production keys (publishable, secret, webhook)
 - [ ] Google Maps API key (with all required APIs enabled)
@@ -565,6 +583,7 @@ AWS_SECRET_ACCESS_KEY=...
 - [ ] Server hosting (Railway/AWS/DigitalOcean)
 
 ### Nice to Have (Recommended)
+
 - [ ] CloudFront CDN for faster media delivery
 - [ ] Cloudflare for DDoS protection and caching
 - [ ] Sentry for error tracking and monitoring
@@ -572,6 +591,7 @@ AWS_SECRET_ACCESS_KEY=...
 - [ ] Backup strategy and disaster recovery plan
 
 ### Optional (Future)
+
 - [ ] Redis for caching and session storage
 - [ ] Elasticsearch for advanced search
 - [ ] Analytics service (Mixpanel, Amplitude)
@@ -648,7 +668,7 @@ Subject: VarsityHub Production Deployment - Required Credentials
 
 Hi [Client Name],
 
-We're ready to deploy VarsityHub to production! To complete the deployment, 
+We're ready to deploy VarsityHub to production! To complete the deployment,
 I need the following credentials and information from you:
 
 🔐 CRITICAL (Required Immediately):
@@ -711,6 +731,7 @@ Best regards,
 Once you receive all credentials:
 
 ### Phase 1: Environment Setup (Day 1)
+
 - [ ] Set up production server (Railway/AWS/DigitalOcean)
 - [ ] Configure domain and SSL certificate
 - [ ] Set up production database
@@ -718,6 +739,7 @@ Once you receive all credentials:
 - [ ] Add all environment variables
 
 ### Phase 2: API Deployment (Day 1-2)
+
 - [ ] Deploy backend API to production server
 - [ ] Run database migrations
 - [ ] Test all API endpoints
@@ -726,6 +748,7 @@ Once you receive all credentials:
 - [ ] Verify Google Maps integration
 
 ### Phase 3: Mobile App Build (Day 2-3)
+
 - [ ] Update app.json with production URLs
 - [ ] Build iOS app with EAS
 - [ ] Build Android app with EAS
@@ -734,6 +757,7 @@ Once you receive all credentials:
 - [ ] Submit to Google Play (1-3 day review)
 
 ### Phase 4: Testing & Launch (Day 3+)
+
 - [ ] End-to-end testing on production
 - [ ] Load testing and performance checks
 - [ ] Security audit
@@ -748,20 +772,20 @@ Once you receive all credentials:
 
 Help your client understand ongoing costs:
 
-| Service | Estimated Cost | Notes |
-|---------|---------------|-------|
-| **Server Hosting** | $25-$100/month | Railway ($20), AWS t3.medium ($50+), DigitalOcean ($50) |
-| **Database** | $15-$50/month | Railway ($5+), AWS RDS ($30+) |
-| **Email (SendGrid)** | $0-$20/month | Free up to 100 emails/day, $20 for 50k/month |
-| **Stripe Fees** | 2.9% + $0.30 per transaction | Only charged when you make money |
-| **Google Maps** | $50-$200/month | Depends on usage, $200/month free credit |
-| **S3 Storage** | $5-$20/month | Depends on storage and bandwidth |
-| **CloudFront CDN** | $10-$50/month | Optional but recommended |
-| **Domain** | $12/year | One-time annual cost |
-| **SSL Certificate** | $0 | Free with Let's Encrypt |
-| **Apple Developer** | $99/year | Required for iOS app |
-| **Google Play** | $25 one-time | One-time registration fee |
-| **TOTAL** | **$100-$400/month** | Depends on user traffic and features |
+| Service              | Estimated Cost               | Notes                                                   |
+| -------------------- | ---------------------------- | ------------------------------------------------------- |
+| **Server Hosting**   | $25-$100/month               | Railway ($20), AWS t3.medium ($50+), DigitalOcean ($50) |
+| **Database**         | $15-$50/month                | Railway ($5+), AWS RDS ($30+)                           |
+| **Email (SendGrid)** | $0-$20/month                 | Free up to 100 emails/day, $20 for 50k/month            |
+| **Stripe Fees**      | 2.9% + $0.30 per transaction | Only charged when you make money                        |
+| **Google Maps**      | $50-$200/month               | Depends on usage, $200/month free credit                |
+| **S3 Storage**       | $5-$20/month                 | Depends on storage and bandwidth                        |
+| **CloudFront CDN**   | $10-$50/month                | Optional but recommended                                |
+| **Domain**           | $12/year                     | One-time annual cost                                    |
+| **SSL Certificate**  | $0                           | Free with Let's Encrypt                                 |
+| **Apple Developer**  | $99/year                     | Required for iOS app                                    |
+| **Google Play**      | $25 one-time                 | One-time registration fee                               |
+| **TOTAL**            | **$100-$400/month**          | Depends on user traffic and features                    |
 
 ---
 
@@ -809,19 +833,22 @@ After deployment, consider offering:
 
 ## ✅ Final Notes
 
-**Security Reminder**: 
+**Security Reminder**:
+
 - Never commit API keys or secrets to Git
 - Use `.env` files and add to `.gitignore`
 - Rotate credentials if accidentally exposed
 - Use different keys for dev/staging/production
 
 **Client Responsibility**:
+
 - Provide all credentials in a timely manner
 - Keep credentials secure and confidential
 - Update payment methods for paid services
 - Monitor costs and usage
 
 **Your Responsibility**:
+
 - Securely store client credentials
 - Test all integrations thoroughly
 - Document any issues or limitations
@@ -829,6 +856,6 @@ After deployment, consider offering:
 
 ---
 
-**Questions?** 
+**Questions?**
 Contact: [Your Email]  
 Last Updated: October 13, 2025

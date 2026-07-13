@@ -14,6 +14,7 @@
 **Status:** ⚙️ **ACTION REQUIRED IN SENDGRID DASHBOARD**
 
 **Fix:**
+
 1. Log in to SendGrid → **Dynamic Templates**
 2. Open EACH template
 3. Click **Settings** tab
@@ -21,6 +22,7 @@
 5. Save
 
 **Subject Line Examples:**
+
 ```
 Auth Emails:
 - Verification: "Verify your VarsityHub account"
@@ -46,20 +48,24 @@ Team Emails:
 
 ### Issue 2: 🖼️ "Why aren't images loading? Icons not showing?"
 
-**Root Cause:** 
+**Root Cause:**
+
 1. Templates use HTTP URLs instead of HTTPS (email clients block HTTP images)
 2. Checkmark/button icons embedded as images instead of CSS
 
 **Status:** ✅ **FIXED IN BACKEND** + ⚙️ **PARTIAL FIX IN SENDGRID**
 
 **What We Fixed:**
+
 - ✅ Backend now sends `logo_url: "https://res.cloudinary.com/dws2t/image/upload/v1/varsityhub-logo"`
 - ✅ All URLs in backend use HTTPS
 
 **What YOU Must Fix in SendGrid:**
+
 1. Open each template
 2. Find ALL `<img>` tags with `src=`
 3. Change HTTP → HTTPS:
+
 ```html
 <!-- ❌ WRONG -->
 <img src="http://res.cloudinary.com/dws2t/image/upload/v1/checkmark.png" />
@@ -70,14 +76,19 @@ Team Emails:
 
 **For Buttons/Checkmarks** (Better Solution):
 Instead of image buttons, use CSS styling:
+
 ```html
 <!-- ✅ BETTER -->
-<a href="{{acceptLink}}" style="display:inline-block;padding:12px 24px;background-color:#2563EB;color:white;text-decoration:none;border-radius:6px;font-weight:bold;">
+<a
+  href="{{acceptLink}}"
+  style="display:inline-block;padding:12px 24px;background-color:#2563EB;color:white;text-decoration:none;border-radius:6px;font-weight:bold;"
+>
   Accept Invitation
 </a>
 ```
 
 **Verified HTTPS Image URLs:**
+
 - Logo: `https://res.cloudinary.com/dws2t/image/upload/v1/varsityhub-logo`
 - Icons: `https://img.icons8.com/` (any icons8.com image)
 - Custom checkmark: `https://res.cloudinary.com/dws2t/image/upload/v1/checkmark-green.png` (create this in Cloudinary)
@@ -91,6 +102,7 @@ Instead of image buttons, use CSS styling:
 **Status:** ✅ **FIXED IN BACKEND**
 
 **What We Fixed:**
+
 ```javascript
 // Now backend sends BOTH naming styles for compatibility:
 dynamicTemplateData: {
@@ -104,6 +116,7 @@ dynamicTemplateData: {
 
 **Status in SendGrid:**
 If templates still error with "Bad Request" (HTTP 400), it means:
+
 - Template HTML uses `{{variableName}}`
 - Backend now sends BOTH `{variableName: "...", variable_name: "..."}`
 - **SendGrid should accept at least one format**
@@ -117,6 +130,7 @@ If still failing → Edit template HTML and ensure variable names match exactly.
 ### In SendGrid Dashboard (Required)
 
 **For ALL Email Templates:**
+
 - [ ] Add descriptive **Subject Line** (no blank/generic subjects)
 - [ ] Change all image URLs from **HTTP → HTTPS**
 - [ ] Use CSS styling for buttons instead of button images
@@ -124,6 +138,7 @@ If still failing → Edit template HTML and ensure variable names match exactly.
 - [ ] Enable "Substitution Tags" in Settings (should be default)
 
 **Specifically for 3 Failing Templates:**
+
 - [ ] `d-14788def39174bb66bf186716cce166fa` (Team Invitation)
   - Update variable names to snake_case (`recipient_name`, `team_name`, `inviter_name`, `accept_link`, `decline_link`)
   - OR use camelCase but match exactly with `recipient Name`, `teamName`, etc.
@@ -144,6 +159,7 @@ If still failing → Edit template HTML and ensure variable names match exactly.
 ## 🚀 Testing After Fixes
 
 ### Step 1: Verify Subject Lines
+
 ```
 After updating SendGrid templates:
 → Send test email
@@ -152,6 +168,7 @@ After updating SendGrid templates:
 ```
 
 ### Step 2: Verify Images Load
+
 ```
 → Send test email
 → Open in Gmail/Outlook
@@ -160,6 +177,7 @@ After updating SendGrid templates:
 ```
 
 ### Step 3: Verify Variables
+
 ```
 → Open test email
 → Verify user names, dates, links are populated
@@ -167,6 +185,7 @@ After updating SendGrid templates:
 ```
 
 ### Step 4: Run Full Email Test
+
 ```bash
 # After SendGrid templates are fixed, run:
 cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile/server
@@ -177,26 +196,26 @@ config({ path: '../.env', override: true });
 config({ path: '.env', override: true });
 
 async function test() {
-  const { sendTeamInvitationEmail, sendAccountSuspensionEmail, sendEventRsvpConfirmedEmail } = 
+  const { sendTeamInvitationEmail, sendAccountSuspensionEmail, sendEventRsvpConfirmedEmail } =
     await import('./src/lib/email.js');
-  
+
   const to = 'your-email@example.com';
   const now = new Date().toLocaleDateString();
-  
+
   console.log('Team Invite:', await sendTeamInvitationEmail({
     to, recipientName: 'Test', teamName: 'Test Team',
     inviterName: 'Coach', role: 'Player',
     acceptLink: 'https://varsityhub.app/accept',
     declineLink: 'https://varsityhub.app/decline',
   }));
-  
+
   console.log('Suspension:', await sendAccountSuspensionEmail({
     to, userName: 'Test', reportId: 'test-123',
     violationType: 'Test', suspensionDays: 45,
     suspensionDate: now, reinstatementDate: now,
     suspensionReason: 'Test', appealUrl: 'https://varsityhub.app/appeal',
   }));
-  
+
   console.log('RSVP:', await sendEventRsvpConfirmedEmail({
     to, userName: 'Test', eventName: 'Test Event',
     eventDate: 'Jan 24', eventTime: '6 PM', eventLocation: 'Test City',
@@ -232,12 +251,14 @@ Read these files for complete details on what to change in SendGrid.
 
 ## 🎯 Critical Path to Production
 
-**Current State:** 
+**Current State:**
+
 - ✅ Backend code fixed (commit `9a1781d`)
 - ✅ Variable mapping completed
 - ⚠️ SendGrid templates need manual updates
 
 **To Get to Production:**
+
 1. [ ] Fix SendGrid template subject lines (30 min)
 2. [ ] Fix SendGrid template image URLs (30 min)
 3. [ ] Fix SendGrid variable names for 3 templates (15 min)
@@ -251,12 +272,14 @@ Read these files for complete details on what to change in SendGrid.
 ## 💡 Why This Matters
 
 SendGrid Dynamic Templates are essentially **Handlebars templates**. They:
+
 - Define subject lines
 - Define HTML/CSS for email layout
 - Reference variables with `{{variableName}}`
 - Validate that all referenced variables are provided
 
 When templates error with HTTP 400, it means:
+
 - Missing required variable
 - Variable name mismatch
 - Invalid Handlebars syntax

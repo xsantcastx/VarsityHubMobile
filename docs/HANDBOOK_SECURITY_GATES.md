@@ -15,6 +15,7 @@ Canonical policy remains:
 
 ```md
 ### Secure Borders (Required)
+
 - [ ] Protected mutations touched here enforce auth + role + plan + ownership server-side where applicable
 - [ ] No client-controlled field can set role, plan, approval, payment, or ownership state
 - [ ] Privileged flows fail closed on missing/malformed params (public navigation can fail gracefully)
@@ -33,6 +34,7 @@ Canonical policy remains:
 
 ```md
 ### Required command gate
+
 - [ ] npm run lint
 - [ ] npm run typecheck
 - [ ] npx tsc --noEmit --project server/tsconfig.json
@@ -41,11 +43,13 @@ Canonical policy remains:
 - [ ] npm run test:regressions (or scoped equivalent with reason)
 
 ### Conditional gate (required when relevant)
+
 - [ ] npm run verify:error-envelope (if error-envelope behavior changed)
 - [ ] npm --prefix server run test:payments:confidence (if payment/subscription logic changed)
 - [ ] npm --prefix server run verify:rate-limits (if auth/abuse/rate-limit behavior changed)
 
 ### Runtime security smoke gate
+
 - [ ] Real-device auth flow validated (sign-in, sign-out, token refresh, protected screen access)
 - [ ] Role/plan/ownership enforcement validated on server (UI hide + server deny both checked)
 - [ ] Payment success path verifies backend state (does not trust query params)
@@ -53,6 +57,7 @@ Canonical policy remains:
 - [ ] Dark/light critical-screen smoke complete
 
 ### Release decision
+
 - [ ] GO only if all required gates are green or exception is documented with owner + mitigation + follow-up
 - [ ] NO-GO when any required gate is red, unknown, or unverified
 ```

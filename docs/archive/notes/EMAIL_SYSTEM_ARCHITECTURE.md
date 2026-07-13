@@ -394,6 +394,7 @@ This is critical because backend sends snake_case and templates expect snake_cas
 ## 📱 RESPONSIVE DESIGN
 
 All templates should be:
+
 - Mobile-responsive (tested on iPhone, Android)
 - Support dark mode (many clients default)
 - Text-only fallback (for email clients that strip CSS)

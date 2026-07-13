@@ -12,12 +12,14 @@
 **Impact:** Verifies Stories #4, #5, #6 (Subscriptions)
 
 ### Prerequisites
+
 - ✅ Stripe test keys configured in `.env`
 - ✅ Backend running on Railway or localhost:4000
 - ✅ App running on device/emulator
 - ✅ Stripe CLI webhook forwarding (for local testing)
 
 ### Local Testing Setup
+
 ```powershell
 # Terminal 1: Start backend server
 cd server
@@ -30,6 +32,7 @@ stripe listen --forward-to http://localhost:4000/payments/webhook
 ### Testing Steps
 
 #### 1. Navigate to Subscription Paywall
+
 ```
 1. Launch app
 2. Sign in (or skip if already signed in)
@@ -38,6 +41,7 @@ stripe listen --forward-to http://localhost:4000/payments/webhook
 ```
 
 #### 2. Select a Paid Tier
+
 ```
 1. Tap "Veteran" or "Legend" tier pill
 2. Should highlight selected tier
@@ -46,6 +50,7 @@ stripe listen --forward-to http://localhost:4000/payments/webhook
 ```
 
 #### 3. Start Checkout
+
 ```
 1. Tap "Subscribe" button
 2. Should show loading indicator
@@ -54,6 +59,7 @@ stripe listen --forward-to http://localhost:4000/payments/webhook
 ```
 
 #### 4. Complete Payment
+
 ```
 Use Stripe test card:
 - Card: 4242 4242 4242 4242
@@ -67,6 +73,7 @@ Use Stripe test card:
 ```
 
 #### 5. Verify Success Redirect
+
 ```
 1. After payment, should automatically close browser
 2. Should redirect to payment-success screen
@@ -77,6 +84,7 @@ Use Stripe test card:
 ```
 
 #### 6. Verify Navigation
+
 ```
 1. Click "Continue to App" button
 2. Should navigate to feed (/(tabs)/feed)
@@ -84,6 +92,7 @@ Use Stripe test card:
 ```
 
 #### 7. Verify Subscription Status
+
 ```
 1. Navigate to Settings → Profile (or wherever user preferences shown)
 2. User preferences should show new plan (veteran or legend)
@@ -91,6 +100,7 @@ Use Stripe test card:
 ```
 
 ### Expected Console Logs
+
 ```
 [payments] Plan upgrade: rookie → veteran for user <user_id>
 [webhook] Processing checkout.session.completed
@@ -102,20 +112,24 @@ Use Stripe test card:
 ### Troubleshooting
 
 #### Issue: "Checkout Coming Soon" Alert
+
 - **Cause:** Old cached version of app
 - **Fix:** Reload app (shake device → Reload)
 
 #### Issue: Checkout URL not opening
+
 - **Cause:** Backend not returning URL
 - **Check:** Backend logs for errors
 - **Verify:** `.env` has STRIPE_SECRET_KEY
 
 #### Issue: Payment doesn't redirect
+
 - **Cause:** Deep link not configured
 - **Check:** `app.json` has `varsityhubmobile://` scheme
 - **Verify:** Deep link handling in App.tsx
 
 #### Issue: Webhook not firing
+
 - **Cause:** Stripe CLI not running or wrong endpoint
 - **Fix:** Restart Stripe CLI with correct endpoint
 - **Command:** `stripe listen --forward-to http://localhost:4000/payments/webhook`
@@ -129,6 +143,7 @@ Use Stripe test card:
 **Impact:** Verifies Story #3 (Google Sign-In)
 
 ### Prerequisites
+
 - ✅ Google Cloud Console access
 - ✅ OAuth consent screen configured
 - ⚠️ Test users added OR app published
@@ -136,6 +151,7 @@ Use Stripe test card:
 ### Setup Steps
 
 #### 1. Check OAuth Consent Screen Status
+
 ```
 1. Go to: https://console.cloud.google.com/apis/credentials/consent
 2. Check "Publishing status"
@@ -147,6 +163,7 @@ Use Stripe test card:
 ```
 
 #### 2. Verify Redirect URIs
+
 ```
 1. Go to: https://console.cloud.google.com/apis/credentials
 2. Find Web OAuth client
@@ -159,6 +176,7 @@ Use Stripe test card:
 ### Testing Steps
 
 #### 1. Test Sign-In Flow
+
 ```
 1. Launch app (not signed in)
 2. On sign-in screen, tap "Continue with Google"
@@ -169,6 +187,7 @@ Use Stripe test card:
 ```
 
 #### 2. Verify Account Creation (New User)
+
 ```
 For NEW users:
 1. After OAuth, should create account in database
@@ -178,6 +197,7 @@ For NEW users:
 ```
 
 #### 3. Verify Account Linking (Existing User)
+
 ```
 For EXISTING users (signed up with email):
 1. If email matches, should link google_id to existing account
@@ -186,6 +206,7 @@ For EXISTING users (signed up with email):
 ```
 
 #### 4. Verify Subsequent Sign-Ins
+
 ```
 1. Sign out
 2. Click "Continue with Google" again
@@ -195,6 +216,7 @@ For EXISTING users (signed up with email):
 ```
 
 ### Expected Console Logs
+
 ```
 [auth] Google OAuth initiated
 [auth] Received ID token from Google
@@ -205,20 +227,24 @@ For EXISTING users (signed up with email):
 ### Troubleshooting
 
 #### Issue: "Access blocked: This app's request is invalid"
+
 - **Cause:** OAuth consent screen not configured properly
 - **Fix:** Verify OAuth consent screen has app name, support email, developer email
 
 #### Issue: "Error 400: redirect_uri_mismatch"
+
 - **Cause:** Redirect URI not in allowed list
 - **Fix:** Add correct redirect URI to OAuth client
 
 #### Issue: "Sign in cancelled" or no response
+
 - **Cause:** User cancelled OAuth flow
 - **Not an error:** Expected behavior
 
 #### Issue: "Unable to verify ID token"
+
 - **Cause:** Wrong client ID or secret
-- **Check:** `.env` has correct EXPO_PUBLIC_GOOGLE_*_CLIENT_ID values
+- **Check:** `.env` has correct EXPO*PUBLIC_GOOGLE*\*\_CLIENT_ID values
 
 ---
 
@@ -231,6 +257,7 @@ For EXISTING users (signed up with email):
 ### Testing Steps
 
 #### 1. Create or Edit Ad
+
 ```
 1. Navigate to "Submit Ad" or "My Ads" → Edit
 2. Fill in business details:
@@ -243,6 +270,7 @@ For EXISTING users (signed up with email):
 ```
 
 #### 2. Select Calendar Dates
+
 ```
 1. On ad-calendar screen, tap dates to reserve
 2. Should see pricing:
@@ -254,6 +282,7 @@ For EXISTING users (signed up with email):
 ```
 
 #### 3. Complete Payment
+
 ```
 1. Tap "Proceed to Checkout" button
 2. Should open Stripe checkout in browser
@@ -262,6 +291,7 @@ For EXISTING users (signed up with email):
 ```
 
 #### 4. Verify Success
+
 ```
 1. Should close browser and redirect to payment-success screen
 2. Should show: "Your ad payment has been processed successfully"
@@ -270,6 +300,7 @@ For EXISTING users (signed up with email):
 ```
 
 #### 5. Verify Ad Status
+
 ```
 1. On My Ads screen, find the ad you just paid for
 2. Should show "ACTIVE" badge (green)
@@ -279,6 +310,7 @@ For EXISTING users (signed up with email):
 ```
 
 ### Expected Console Logs
+
 ```
 [payments] Creating checkout session for ad <ad_id>
 [webhook] Processing checkout.session.completed
@@ -300,6 +332,7 @@ For EXISTING users (signed up with email):
 ### Investigation Steps
 
 #### 1. Navigate to Discover Tab
+
 ```
 1. Launch app
 2. Tap "Discover" tab (bottom navigation)
@@ -310,6 +343,7 @@ For EXISTING users (signed up with email):
 ```
 
 #### 2. Check for Map Features
+
 ```
 If map exists:
 - [ ] Shows user's current location
@@ -325,6 +359,7 @@ If no map found:
 ```
 
 #### 3. Test Event Discovery
+
 ```
 1. Search for events near a specific location
 2. Filter by sport (basketball, football, etc.)
@@ -333,6 +368,7 @@ If no map found:
 ```
 
 ### Expected Functionality
+
 - Map view with markers for each event
 - List view with event cards
 - Toggle between map and list
@@ -349,6 +385,7 @@ Copy this template and fill in results after testing:
 ## Test Results - [Date]
 
 ### Subscription Payment Flow
+
 - [ ] PASS / [ ] FAIL - Navigate to subscription paywall
 - [ ] PASS / [ ] FAIL - Select paid tier
 - [ ] PASS / [ ] FAIL - Stripe checkout opens
@@ -359,14 +396,17 @@ Copy this template and fill in results after testing:
 - [ ] PASS / [ ] FAIL - User preferences updated
 
 **Issues Found:**
+
 - [List any issues or bugs]
 
 **Notes:**
+
 - [Any additional observations]
 
 ---
 
 ### Google OAuth
+
 - [ ] PASS / [ ] FAIL - "Continue with Google" button works
 - [ ] PASS / [ ] FAIL - OAuth consent screen appears
 - [ ] PASS / [ ] FAIL - Account creation (new user)
@@ -374,14 +414,17 @@ Copy this template and fill in results after testing:
 - [ ] PASS / [ ] FAIL - Subsequent sign-ins
 
 **Issues Found:**
+
 - [List any issues or bugs]
 
 **Notes:**
+
 - [Any additional observations]
 
 ---
 
 ### Ad Payment Flow
+
 - [ ] PASS / [ ] FAIL - Create/edit ad
 - [ ] PASS / [ ] FAIL - Select calendar dates
 - [ ] PASS / [ ] FAIL - Stripe checkout opens
@@ -394,14 +437,17 @@ Copy this template and fill in results after testing:
 - [ ] PASS / [ ] FAIL - Only user's ads visible
 
 **Issues Found:**
+
 - [List any issues or bugs]
 
 **Notes:**
+
 - [Any additional observations]
 
 ---
 
 ### Event Discovery Map
+
 - [ ] PASS / [ ] FAIL - Map view exists
 - [ ] PASS / [ ] FAIL - Event markers displayed
 - [ ] PASS / [ ] FAIL - Markers are tappable
@@ -410,9 +456,11 @@ Copy this template and fill in results after testing:
 - [ ] PASS / [ ] FAIL / [ ] N/A - Map not implemented
 
 **Issues Found:**
+
 - [List any issues or bugs]
 
 **Notes:**
+
 - [Any additional observations]
 ```
 
@@ -421,6 +469,7 @@ Copy this template and fill in results after testing:
 ## 🚀 Ready to Test?
 
 **Quick Start:**
+
 1. **Subscription payments** (15 min) - Start here!
 2. **Google OAuth** (30 min) - Do this second
 3. **Ad payments** (15 min) - Re-verify existing flow
@@ -431,6 +480,7 @@ Copy this template and fill in results after testing:
 ---
 
 **Questions or Issues?**
+
 - Check Railway logs for backend errors
 - Check app console logs for frontend errors
 - Review `docs/IMPLEMENTATION_ROADMAP.md` for known issues

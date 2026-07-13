@@ -1,6 +1,7 @@
 # 📲 TestFlight Upload - Quick Guide
 
 ## ✅ Build Ready
+
 - **File:** `VarsityHub-build26-production.ipa` (32 MB)
 - **Build:** #26 (@lime_prod/varsityhub)
 - **Status:** Ready to upload
@@ -10,6 +11,7 @@
 ## 🚀 Upload Methods
 
 ### Option 1: Transporter App (Easiest)
+
 1. Open App Store and search "Transporter"
 2. Install if not already installed
 3. Run: `open -a "Transporter" VarsityHub-build26-production.ipa`
@@ -17,6 +19,7 @@
 5. Click "Deliver" when validation completes
 
 ### Option 2: App Store Connect Web
+
 1. Go to https://appstoreconnect.apple.com
 2. Sign in with `sanchezemil82@gmail.com`
 3. My Apps → VarsityHub → TestFlight tab
@@ -24,6 +27,7 @@
 5. Upload `VarsityHub-build26-production.ipa`
 
 ### Option 3: Drag & Drop
+
 1. Open https://appstoreconnect.apple.com/apps
 2. Click VarsityHub → TestFlight
 3. Drag `VarsityHub-build26-production.ipa` into browser window

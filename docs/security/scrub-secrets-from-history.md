@@ -13,20 +13,20 @@ history before they were added to `.gitignore`. The dangerous one is
 `97a715ee`, which contained `server/.env` with these production
 secrets:
 
-| Key | Risk class |
-|---|---|
-| `JWT_SECRET` | All session tokens forgeable |
-| `STRIPE_SECRET_KEY` | Charges, refunds, payouts |
-| `STRIPE_WEBHOOK_SECRET` | Forge webhook events |
-| `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY` | Full bucket access |
-| `DATABASE_URL` | Full DB read/write if reachable |
-| `GOOGLE_MAPS_API_KEY` | Quota theft, billable |
-| `SMTP_PASS` | Outbound mail impersonation |
+| Key                                         | Risk class                      |
+| ------------------------------------------- | ------------------------------- |
+| `JWT_SECRET`                                | All session tokens forgeable    |
+| `STRIPE_SECRET_KEY`                         | Charges, refunds, payouts       |
+| `STRIPE_WEBHOOK_SECRET`                     | Forge webhook events            |
+| `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY` | Full bucket access              |
+| `DATABASE_URL`                              | Full DB read/write if reachable |
+| `GOOGLE_MAPS_API_KEY`                       | Quota theft, billable           |
+| `SMTP_PASS`                                 | Outbound mail impersonation     |
 
 ## ROTATE FIRST. Scrub second (optional).
 
 The secrets are **already in the wild** the moment they hit a public
-git history. Scrubbing only prevents *future* readers from fetching
+git history. Scrubbing only prevents _future_ readers from fetching
 them — anyone who already cloned, forked, or `git fetch`'d has them
 forever.
 
@@ -138,6 +138,7 @@ Slack / message every contributor:
 > Force-push to main planned at <TIME>. After it lands, your existing
 > clone is dead — `git status` will look fine but you'll be on the old
 > history. To recover:
+>
 > 1. Save any uncommitted work as a patch: `git diff > /tmp/work.patch`
 > 2. Delete your clone: `cd .. && rm -rf VarsityHubMobile`
 > 3. Re-clone fresh: `git clone <url>`

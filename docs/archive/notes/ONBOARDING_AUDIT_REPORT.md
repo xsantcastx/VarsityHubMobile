@@ -3,15 +3,18 @@
 ## 🔍 Issues Found
 
 ### 1. ⚠️ **CRITICAL: Race Condition in Auth Routing**
+
 **Location:** `context/AuthProvider.tsx` lines 370-378
 
 **Problem:**
 The routing logic depends on `user.preferences?.onboarding_completed` being accurate from the server, but there's a race condition:
+
 - On app startup, `checkAuth()` fetches `/me` endpoint
 - If server is slow or returns cached data, the flag might be stale
 - User gets redirected to onboarding even if they completed it
 
 **Current Code:**
+
 ```tsx
 const serverSaysIncomplete = user.preferences?.onboarding_completed === false;
 const needsOnboarding = serverSaysIncomplete;
@@ -27,6 +30,7 @@ if (needsOnboarding && firstSegment !== 'onboarding') {
 ---
 
 ### 2. ⚠️ **Potential Data Loss: Missing Error Handling**
+
 **Location:** `app/onboarding/step-10-confirmation.tsx` lines 207-248
 
 **Problem:**
@@ -42,8 +46,8 @@ try {
 } catch (e: any) {
   // Alert shown but onboarding data may be cleared
   Alert.alert('Setup Failed', ...);
-} finally { 
-  setCompleting(false); 
+} finally {
+  setCompleting(false);
 }
 ```
 
@@ -52,15 +56,18 @@ try {
 ---
 
 ### 3. ⚠️ **Inconsistent State Management**
+
 **Location:** Multiple files
 
 **Problem:**
 Onboarding completion state is tracked in 3 places:
+
 1. **Server:** `user.preferences.onboarding_completed`
 2. **AsyncStorage:** `ONBOARDING_COMPLETE_KEY`
 3. **OnboardingContext:** Local state
 
 These can get out of sync, causing:
+
 - User sees onboarding again after completing
 - User bypasses onboarding when they shouldn't
 - Confusion about source of truth
@@ -68,10 +75,12 @@ These can get out of sync, causing:
 ---
 
 ### 4. 🟡 **Performance: Unnecessary Re-renders**
+
 **Location:** `context/AuthProvider.tsx` lines 334-362
 
 **Problem:**
 Routing logic runs on every navigation change and auth state change:
+
 ```tsx
 useEffect(() => {
   if (initializing) return;
@@ -84,10 +93,12 @@ useEffect(() => {
 ---
 
 ### 5. 🟡 **Fan vs Coach Flow Divergence**
+
 **Location:** `app/onboarding/step-9-features.tsx` lines 130-160
 
 **Problem:**
 Fans complete onboarding at step 9, coaches at step 10:
+
 ```tsx
 if (ob.role === 'fan') {
   await User.completeOnboarding(payload);
@@ -104,10 +115,12 @@ router.push('/onboarding/step-10-confirmation');
 ---
 
 ### 6. 🔴 **CRITICAL: Google/Apple Sign-In Blocks Onboarding**
+
 **Location:** OAuth flow + onboarding
 
 **Problem:**
 The "Unauthorized" error you're seeing happens before onboarding can even start. If OAuth fails:
+
 - User is stuck on sign-in screen
 - No onboarding progress
 - Cannot access app
@@ -153,12 +166,14 @@ OAuth Success?
 ## 🔧 Recommended Fixes
 
 ### Priority 1: Fix OAuth (Blocks Everything)
+
 1. Add redirect URI to Google Cloud Console:
    - `https://auth.expo.io/@lime_prod/varsityhub`
 2. Test Google Sign-In works
 3. Then proceed with onboarding testing
 
 ### Priority 2: Add Server Validation
+
 ```tsx
 // In step-10-confirmation.tsx
 const completeResult = await User.completeOnboarding(completionPayload);
@@ -177,16 +192,18 @@ router.replace('/(tabs)');
 ```
 
 ### Priority 3: Unify Completion Logic
+
 - Move fan completion to step-10 (same as coaches)
 - Single completion endpoint
 - Consistent state management
 
 ### Priority 4: Add Retry Logic
+
 ```tsx
 // If completion fails, allow retry
 catch (e: any) {
   Alert.alert(
-    'Setup Failed', 
+    'Setup Failed',
     e?.message || 'Try again',
     [
       { text: 'Retry', onPress: () => handleComplete() },
@@ -202,6 +219,7 @@ catch (e: any) {
 ## 🧪 Test Plan
 
 ### Test 1: Fresh User Flow
+
 1. Clear app data
 2. Sign in with NEW Google account
 3. Verify redirected to onboarding step 1
@@ -211,6 +229,7 @@ catch (e: any) {
 7. Verify stays on feed (does NOT restart onboarding)
 
 ### Test 2: Interrupted Flow
+
 1. Start onboarding
 2. Complete step 5
 3. Force quit app
@@ -218,6 +237,7 @@ catch (e: any) {
 5. Verify resumes at step 6 (not step 1)
 
 ### Test 3: Server Failure
+
 1. Start onboarding
 2. At step 10, simulate server error
 3. Verify error shown
@@ -226,6 +246,7 @@ catch (e: any) {
 6. Verify completion works
 
 ### Test 4: Admin Bypass
+
 1. Sign in as admin (`emilmancero@gmail.com`)
 2. Verify goes straight to feed
 3. Verify never sees onboarding

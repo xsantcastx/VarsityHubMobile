@@ -1,12 +1,15 @@
 # Coach Onboarding Test Guide
+
 **Purpose:** Verify coach onboarding works end-to-end
 
 ## 🎯 Critical Test Scenarios
 
 ### ✅ TEST 1: Rookie Plan (Free) - Happy Path
+
 **Time:** 5 minutes
 
 **Steps:**
+
 1. Register new account and verify email
 2. Select "Coach / Organizer" role
 3. Complete Step 2: Basic info (username, DOB, zip)
@@ -19,6 +22,7 @@
    - ✅ No payment errors
 
 **Potential Issues:**
+
 - Plan not saved to backend
 - Navigation fails
 - Payment modal appears (shouldn't for Rookie)
@@ -26,14 +30,17 @@
 ---
 
 ### ✅ TEST 2: Veteran Plan (Paid) - Full Flow
+
 **Time:** 10 minutes
 
 **Prerequisites:**
+
 - Email verified
 - Stripe configured in backend
 - Test card: `4242 4242 4242 4242`
 
 **Steps:**
+
 1. Select "Coach / Organizer" role
 2. Complete Step 2: Basic info
 3. **Step 3: Select Plan**
@@ -51,6 +58,7 @@
    - ✅ Can create teams
 
 **Potential Issues:**
+
 - Stripe checkout doesn't open
 - Payment succeeds but plan not saved
 - Navigation happens before payment completes
@@ -59,9 +67,11 @@
 ---
 
 ### ✅ TEST 3: Email Verification Required
+
 **Time:** 3 minutes
 
 **Steps:**
+
 1. Register account but DON'T verify email
 2. Select "Coach / Organizer" role
 3. Complete Step 2
@@ -75,6 +85,7 @@
    - ✅ After verification, payment flow continues
 
 **Potential Issues:**
+
 - No verification modal (payment fails silently)
 - Can't verify email
 - Can't continue after verification
@@ -82,9 +93,11 @@
 ---
 
 ### ✅ TEST 4: Payment Failure Handling
+
 **Time:** 3 minutes
 
 **Steps:**
+
 1. Select "Coach / Organizer" role
 2. Complete Step 2
 3. **Step 3: Select Paid Plan**
@@ -99,6 +112,7 @@
    - ✅ No crashes
 
 **Potential Issues:**
+
 - Stuck on payment screen
 - Can't continue without payment
 - App crashes
@@ -106,9 +120,11 @@
 ---
 
 ### ✅ TEST 5: Team/Organization Creation
+
 **Time:** 5 minutes
 
 **Steps:**
+
 1. Complete Steps 1-3 (select Rookie plan)
 2. **Step 4: Create Team/Organization**
    - Enter team name
@@ -121,6 +137,7 @@
    - ✅ Navigates to Step 6 (Authorized Users)
 
 **Potential Issues:**
+
 - Team not created
 - Team ID not saved
 - Can't continue to next step
@@ -128,9 +145,11 @@
 ---
 
 ### ✅ TEST 6: Onboarding Completion
+
 **Time:** 5 minutes
 
 **Steps:**
+
 1. Complete all steps (1-9)
 2. **Step 10: Confirmation**
    - Review all details
@@ -142,6 +161,7 @@
    - ✅ Can create/manage teams
 
 **Potential Issues:**
+
 - Server doesn't confirm completion
 - Stuck on confirmation screen
 - Redirects to wrong screen
@@ -152,11 +172,13 @@
 ## 🚨 Known Issues to Check
 
 ### Issue 1: Payment Navigation Timing
+
 **Location:** `app/onboarding/step-3-plan.tsx` line 294-296
 
 **Problem:** Code navigates to next step immediately after opening Stripe checkout, before payment completes.
 
 **Current Code:**
+
 ```typescript
 await WebBrowser.openBrowserAsync(String(res.url));
 setProgress(3);
@@ -170,6 +192,7 @@ navigateNext(); // ⚠️ Navigates before payment completes
 ---
 
 ### Issue 2: Payment Pending State
+
 **Location:** `app/onboarding/step-3-plan.tsx` line 272
 
 **Problem:** Sets `payment_pending: true` but doesn't verify payment completed before allowing onboarding completion.
@@ -181,6 +204,7 @@ navigateNext(); // ⚠️ Navigates before payment completes
 ---
 
 ### Issue 3: Team Count for Veteran Plan
+
 **Location:** `app/onboarding/step-3-plan.tsx` line 125
 
 **Problem:** Default team count is 3, but pricing shows "$0.99/month per team beyond first 2"
@@ -230,7 +254,7 @@ Tester: ___________
 ✅ TEST 6: Completion - PASS / FAIL
 
 Issues Found:
-- 
+-
 
 Ready for Release: YES / NO
 ```

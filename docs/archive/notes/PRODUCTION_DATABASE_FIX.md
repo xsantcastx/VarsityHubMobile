@@ -67,13 +67,14 @@ ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "apple_id" TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS "User_apple_id_key" ON "User"("apple_id");
 
 -- Verify
-SELECT column_name, data_type, is_nullable 
-FROM information_schema.columns 
-WHERE table_name = 'User' 
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'User'
 AND column_name = 'apple_id';
 ```
 
 Expected output:
+
 ```
 column_name | data_type | is_nullable
 ------------+-----------+-------------
@@ -85,11 +86,13 @@ apple_id    | text      | YES
 If Railway supports SQL file execution:
 
 1. Use the migration file directly:
+
    ```bash
    cat server/prisma/migrations/20251115194118_add_apple_id/migration.sql
    ```
 
 2. Copy the contents:
+
    ```sql
    ALTER TABLE "User" ADD COLUMN "apple_id" TEXT;
    CREATE UNIQUE INDEX "User_apple_id_key" ON "User"("apple_id");
@@ -115,6 +118,7 @@ curl -X POST https://api-production-8ac3.up.railway.app/auth/apple \
 ```
 
 Or test in the app:
+
 1. Open app in simulator
 2. Tap "Continue with Apple"
 3. Should successfully sign in (no 500 error)
@@ -135,6 +139,7 @@ Railway should run the `postdeploy` script from `package.json`:
 ```
 
 **Check Railway Build Settings:**
+
 - Go to Railway Dashboard → Your Project → Settings → Deploy
 - Verify "Install Command": `npm install`
 - Verify "Build Command": `npm run build`
@@ -178,7 +183,7 @@ await checkDatabase();
 
 Create `server/DEPLOYMENT.md`:
 
-```markdown
+````markdown
 # Deployment Checklist
 
 Before deploying to Railway:
@@ -191,10 +196,13 @@ Before deploying to Railway:
 6. ✅ Test critical endpoints (auth, Apple sign-in)
 
 If migrations don't auto-run:
+
 ```bash
 railway run npx prisma migrate deploy
 ```
-```
+````
+
+````
 
 ## Expected Timeline
 
@@ -234,7 +242,7 @@ railway logs
 # NOT:
 ❌ "column apple_id does not exist"
 ❌ POST /auth/apple → 500
-```
+````
 
 ## Rollback (if needed)
 

@@ -1,4 +1,5 @@
 # Overnight Build & Testing Status
+
 **Date:** December 8, 2025  
 **Session:** Automated Overnight Automation  
 **GitHub Repo:** https://github.com/xsantcastx/VarsityHubMobile (main branch)
@@ -8,6 +9,7 @@
 ## ✅ Completed Actions
 
 ### Code Fixes
+
 - ✅ **Info.plist CFBundleVersion & ShortVersionString** (Commit 290b487)
   - Updated CFBundleVersion from `1` → `25` (aligned with EAS auto-increment)
   - Updated CFBundleShortVersionString from `1.0.0` → `1.0.1`
@@ -24,6 +26,7 @@
   - server/.gitignore in place to prevent recreation
 
 ### Builds Initiated
+
 - ✅ **iOS Production Build #25+**
   - Started: ~Dec 8 23:30 UTC with --clear-cache flag
   - Status: QUEUED on EAS
@@ -31,6 +34,7 @@
   - Build Artifacts: Will be available at https://expo.dev/
 
 ### Overnight Background Tasks
+
 - ✅ Backend Dev Server: Running with logging to `overnight-results/backend-dev.log`
 - ✅ Lint Snapshot: `npm run lint:strict` queued → `overnight-results/lint-strict-snapshot.log`
 - ✅ Web Bundle Clean: `npm run web -- --clear` queued → `overnight-results/web-bundle-clean.log`
@@ -41,14 +45,17 @@
 ## 🔄 In-Progress / Pending
 
 ### iOS Build Flow (Next Steps)
+
 1. **Build #25+ Finishes** (ETA: ~15-20 minutes from queue time)
    - Check: `eas build:list --platform ios --limit 1`
    - Status should show: `finished` with Application Archive URL
 
 2. **Submit to TestFlight** (When build finishes)
+
    ```bash
    eas submit --platform ios --latest --profile production
    ```
+
    - Expected: Build auto-incremented, higher version than rejected build #24
    - Apple should accept the submission
    - Processing time: 2-4 hours in TestFlight
@@ -59,15 +66,17 @@
    - Run comprehensive feature testing
 
 ### Backend Status
+
 - **npm run dev**: Running successfully
 - **Database**: PostgreSQL operational at localhost:5432/varsityhub
 - **Missing Secrets** (for testing):
   - SendGrid credentials (email verification) - placeholder only
-  - Twilio credentials (SMS) - placeholder only  
+  - Twilio credentials (SMS) - placeholder only
   - Sentry DSN - not configured
 - **Tests**: 55/57 passing locally (ready to validate in TestFlight)
 
 ### Web App Status
+
 - **Running**: npm run web on http://localhost:8081
 - **Status**: Live and functional
 - **Latest Fixes**: Dark mode calendar theme ✅, profile persistence ✅
@@ -78,6 +87,7 @@
 ## 📊 Overnight Logs & Artifacts
 
 All logs stored in `/overnight-results/`:
+
 - `build-25-init.log` - iOS build initialization
 - `backend-dev.log` - Backend server logs
 - `lint-strict-snapshot.log` - TypeScript lint warnings
@@ -87,12 +97,14 @@ All logs stored in `/overnight-results/`:
 
 ## 🔎 Latest Diagnostics & Resolutions (Dec 8, 2025)
 
-**Environment Variables Check** → `overnight-results/env-check-20251208-011537.log`  
-- ⚠️ **8 Placeholders Flagged**: SendGrid API + templates, Twilio account/verify SIDs, DATABASE_URL, FROM_EMAIL  
+**Environment Variables Check** → `overnight-results/env-check-20251208-011537.log`
+
+- ⚠️ **8 Placeholders Flagged**: SendGrid API + templates, Twilio account/verify SIDs, DATABASE_URL, FROM_EMAIL
 - **Impact**: Email/SMS verification flows remain blocked until real credentials are added
 - **Action Required**: Update Railway environment variables with production secrets (SendGrid API key, Twilio credentials, real database URL)
 
-**TypeScript Lint Issues** → `overnight-results/lint-strict-20251208-011552.log`  
+**TypeScript Lint Issues** → `overnight-results/lint-strict-20251208-011552.log`
+
 - ✅ **TypeScript Compilation: NOW PASSES** (Previously failed at line 656)
   - Fixed: `app/ad-calendar.tsx:656` theme prop issue by adding `as any` type assertion
   - Calendar component now compiles without errors
@@ -102,12 +114,14 @@ All logs stored in `/overnight-results/`:
   - These are warnings, not errors—won't block CI/builds
   - Cleanup recommended but not urgent for release
 
-**Backend Health Sweep** → `overnight-results/health-check-20251208-125713.log`  
-- ❌ Could not connect to `http://localhost:4000/health` (server not running)  
+**Backend Health Sweep** → `overnight-results/health-check-20251208-125713.log`
+
+- ❌ Could not connect to `http://localhost:4000/health` (server not running)
 - ✅ Action: Start the backend (`cd server && npm run dev`) before the next automation run so the health checks and API smoke tests succeed.
 
-**Web Error Monitor** → `overnight-results/web-errors-20251208-125739.log`  
-- ❌ Metro/web server not reachable at `http://localhost:8081`  
+**Web Error Monitor** → `overnight-results/web-errors-20251208-125739.log`
+
+- ❌ Metro/web server not reachable at `http://localhost:8081`
 - ✅ Action: Launch the bundler (`npm run web -- --clear`) to resume browser monitoring and capture console/network errors.
 
 ---
@@ -117,14 +131,17 @@ All logs stored in `/overnight-results/`:
 When you wake up:
 
 1. **Check iOS Build Status**
+
    ```bash
    eas build:list --platform ios --limit 1
    ```
+
    - If `finished`: Proceed to step 2
    - If `in-progress`: Wait 5-10 more minutes
    - If `errored`: Run new build with --clear-cache
 
 2. **Submit to TestFlight** (if build finished)
+
    ```bash
    eas submit --platform ios --latest --profile production
    ```
@@ -157,10 +174,10 @@ When you wake up:
 
 ## 📝 Git Commits (Tonight)
 
-| Commit | Message |
-|--------|---------|
+| Commit  | Message                                                                   |
+| ------- | ------------------------------------------------------------------------- |
 | 290b487 | fix: update CFBundleVersion to 25 and CFBundleShortVersionString to 1.0.1 |
-| 34c6202 | fix: remove invalid projectPath from ios sections in eas.json |
+| 34c6202 | fix: remove invalid projectPath from ios sections in eas.json             |
 
 **Current HEAD:** 34c6202 (main)
 
@@ -168,13 +185,13 @@ When you wake up:
 
 ## 🚀 Timeline Summary
 
-| Milestone | Status | ETA |
-|-----------|--------|-----|
-| iOS Build #25+ | 🔄 In Progress | ~20 min |
-| TestFlight Submit | ⏳ Pending | After build finishes |
-| TestFlight Processing | ⏳ Pending | 2-4 hours after submit |
-| Device Testing | ⏳ Pending | When TestFlight ready |
-| Production Launch | 📋 Ready | Post-testing approval |
+| Milestone             | Status         | ETA                    |
+| --------------------- | -------------- | ---------------------- |
+| iOS Build #25+        | 🔄 In Progress | ~20 min                |
+| TestFlight Submit     | ⏳ Pending     | After build finishes   |
+| TestFlight Processing | ⏳ Pending     | 2-4 hours after submit |
+| Device Testing        | ⏳ Pending     | When TestFlight ready  |
+| Production Launch     | 📋 Ready       | Post-testing approval  |
 
 ---
 

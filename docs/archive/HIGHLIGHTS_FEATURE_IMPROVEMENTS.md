@@ -1,11 +1,12 @@
 # Highlights Feature Improvements
 
 ## Overview
+
 Complete overhaul of the Highlights feature with improved algorithms, better UX, and enhanced navigation capabilities.
 
 **Implementation Date:** January 2025  
 **Files Modified:** 1 (`app/highlights.tsx`)  
-**Lines Changed:** ~150 lines  
+**Lines Changed:** ~150 lines
 
 ---
 
@@ -16,6 +17,7 @@ Complete overhaul of the Highlights feature with improved algorithms, better UX,
 **Requirement:** Show top 3 posts with special treatment, then rest sorted by algorithm
 
 **Implementation:**
+
 ```typescript
 case 'trending':
   // Calculate engagement score (upvotes + comments * 2)
@@ -26,11 +28,11 @@ case 'trending':
     const bScore = b._score || bEngagement;
     return bScore - aScore;
   });
-  
+
   // Top 3 are pinned
   const top3 = filtered.slice(0, 3);
   const rest = filtered.slice(3);
-  
+
   // Sort rest by recency boost + engagement
   rest.sort((a, b) => {
     const aRecency = new Date(a.created_at || 0).getTime() > Date.now() - 86400000 ? 5 : 0;
@@ -39,17 +41,19 @@ case 'trending':
     const bTotal = (b._score || 0) + bRecency;
     return bTotal - aTotal;
   });
-  
+
   return [...top3, ...rest];
 ```
 
 **Algorithm Details:**
+
 - **Top 3 Posts:** Determined by highest engagement (upvotes + comments × 2)
 - **Recency Boost:** Posts from last 24 hours get +5 score
 - **Engagement Score:** Uses backend `_score` if available, otherwise calculates client-side
 - **Ranking Badge:** Top 3 posts show special badge (gold/silver/bronze)
 
 **User Experience:**
+
 - Users always see the 3 most engaging posts first
 - Remaining posts sorted by algorithm balancing recency and engagement
 - Clear visual hierarchy with ranking badges
@@ -61,6 +65,7 @@ case 'trending':
 **Requirement:** Show most recent posts nationwide, sorted by creation time
 
 **Implementation:**
+
 ```typescript
 case 'recent':
   // Pure chronological order (newest first)
@@ -73,11 +78,13 @@ case 'recent':
 ```
 
 **Algorithm Details:**
+
 - **No engagement weighting** - pure time-based sorting
 - **Nationwide scope** - not limited to local region
 - **Live badge** - Posts within last hour show "LIVE" badge
 
 **User Experience:**
+
 - See what's happening RIGHT NOW across the platform
 - Perfect for breaking news, live game updates
 - Fresh content prioritized over popular content
@@ -89,6 +96,7 @@ case 'recent':
 **Requirement:** Show top 10 posts with most interaction (upvotes + comments)
 
 **Implementation:**
+
 ```typescript
 case 'top':
   // Sort by total interaction
@@ -101,11 +109,13 @@ case 'top':
 ```
 
 **Algorithm Details:**
+
 - **Comments weighted 1.5x** - Higher engagement signal than upvotes
 - **Exactly 10 posts** - No more, no less
 - **All-time leaders** - Not time-constrained (within 60-90 day window from backend)
 
 **User Experience:**
+
 - Hall of fame posts - the absolute best content
 - Limited to 10 creates scarcity and prestige
 - Users know these are the most engaged posts
@@ -117,6 +127,7 @@ case 'top':
 **Requirement:** Remove the trophy icon and highlight count from top right
 
 **Before:**
+
 ```tsx
 <View style={styles.headerStats}>
   <Ionicons name="trophy" size={16} color="#FFB800" />
@@ -125,6 +136,7 @@ case 'top':
 ```
 
 **After:**
+
 ```tsx
 <View style={styles.headerContent}>
   <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Highlights</Text>
@@ -132,6 +144,7 @@ case 'top':
 ```
 
 **Impact:**
+
 - ✅ Cleaner header design
 - ✅ More focus on content, less on metrics
 - ✅ Matches modern social media patterns (Instagram, TikTok)
@@ -145,10 +158,11 @@ case 'top':
 **Implementation:**
 
 **New Action Button Component:**
+
 ```tsx
-<Pressable 
+<Pressable
   style={styles.actionButton}
-  onPress={(e) => {
+  onPress={e => {
     e.stopPropagation(); // Prevent card click
     // Handle action
   }}
@@ -161,6 +175,7 @@ case 'top':
 ```
 
 **New Style:**
+
 ```tsx
 actionButton: {
   flexDirection: 'row',
@@ -184,12 +199,14 @@ actionButton: {
 ```
 
 **Actions Available:**
+
 1. **Upvote Button** - Blue, prominent, shows count
 2. **Comment Button** - Navigate to post detail to view/add comments
 3. **Share Button** - Share the highlight (placeholder for now)
 4. **Trending Score** - If available, shows algorithmic score
 
 **Visual Improvements:**
+
 - ✅ Rounded pill-shaped buttons
 - ✅ Subtle background tint (blue with 10% opacity)
 - ✅ Shadow/elevation for depth
@@ -206,25 +223,36 @@ actionButton: {
 **Implementation:**
 
 **Navigation Handlers:**
+
 ```typescript
-const handleAuthorPress = useCallback((authorId: string) => {
-  router.push(`/user-profile?id=${authorId}`);
-}, [router]);
+const handleAuthorPress = useCallback(
+  (authorId: string) => {
+    router.push(`/user-profile?id=${authorId}`);
+  },
+  [router]
+);
 
-const handleTeamPress = useCallback((teamId: string) => {
-  router.push(`/team-profile?id=${teamId}`);
-}, [router]);
+const handleTeamPress = useCallback(
+  (teamId: string) => {
+    router.push(`/team-profile?id=${teamId}`);
+  },
+  [router]
+);
 
-const handleEventPress = useCallback((eventId: string) => {
-  router.push(`/event-detail?id=${eventId}`);
-}, [router]);
+const handleEventPress = useCallback(
+  (eventId: string) => {
+    router.push(`/event-detail?id=${eventId}`);
+  },
+  [router]
+);
 ```
 
 **Clickable Author Row:**
+
 ```tsx
-<Pressable 
+<Pressable
   style={styles.authorRow}
-  onPress={(e) => {
+  onPress={e => {
     e.stopPropagation();
     if (item.author_id && onAuthorPress) {
       onAuthorPress(item.author_id);
@@ -244,12 +272,14 @@ const handleEventPress = useCallback((eventId: string) => {
 ```
 
 **Navigation Points:**
+
 1. **Author Row** - Tap to view user profile
 2. **Card** - Tap anywhere else to view post detail
 3. **Comment Button** - Navigate to post detail
 4. **Team/Event** - (Future) Add team/event links if available in post metadata
 
 **Visual Indicators:**
+
 - ✅ Chevron icon on author row (indicates clickability)
 - ✅ Pressable component with native feedback
 - ✅ Stop propagation prevents conflicts
@@ -259,6 +289,7 @@ const handleEventPress = useCallback((eventId: string) => {
 ## Technical Details
 
 ### File Structure
+
 ```
 app/
 └── highlights.tsx [MODIFIED]
@@ -273,15 +304,16 @@ app/
 
 ### Algorithm Comparison
 
-| Tab | Sorting Logic | Limit | Time Window |
-|-----|--------------|-------|-------------|
-| **Trending** | Top 3 by engagement, rest by score + recency | Unlimited | 60-90 days |
-| **Recent** | Pure chronological (newest first) | Unlimited | 60-90 days |
-| **Top** | Total interaction (upvotes + comments × 1.5) | 10 posts | 60-90 days |
+| Tab          | Sorting Logic                                | Limit     | Time Window |
+| ------------ | -------------------------------------------- | --------- | ----------- |
+| **Trending** | Top 3 by engagement, rest by score + recency | Unlimited | 60-90 days  |
+| **Recent**   | Pure chronological (newest first)            | Unlimited | 60-90 days  |
+| **Top**      | Total interaction (upvotes + comments × 1.5) | 10 posts  | 60-90 days  |
 
 ### Engagement Calculation
 
 **Trending Tab:**
+
 ```javascript
 engagement = upvotes + (comments × 2)
 score = _score || engagement
@@ -290,6 +322,7 @@ finalScore = score + recencyBoost
 ```
 
 **Top Tab:**
+
 ```javascript
 interaction = upvotes + (comments × 1.5)
 // Sort descending, take top 10
@@ -298,6 +331,7 @@ interaction = upvotes + (comments × 1.5)
 ### Backend Data Required
 
 **Current API Response:**
+
 ```json
 {
   "nationalTop": [
@@ -318,7 +352,9 @@ interaction = upvotes + (comments × 1.5)
       "_score": 75.5
     }
   ],
-  "ranked": [ /* ... */ ]
+  "ranked": [
+    /* ... */
+  ]
 }
 ```
 
@@ -386,23 +422,27 @@ interaction = upvotes + (comments × 1.5)
 ### Action Buttons - Before vs After
 
 **Before:**
+
 ```tsx
 <View style={styles.stat}>
   <Ionicons name="arrow-up" size={16} color="#2563EB" />
   <Text style={styles.statText}>45</Text>
 </View>
 ```
+
 - Static, not interactive
 - Small touch target
 - No visual feedback
 
 **After:**
+
 ```tsx
 <Pressable style={styles.actionButton} onPress={handleUpvote}>
   <Ionicons name="arrow-up" size={18} color="#2563EB" />
   <Text style={[styles.statText, { fontWeight: '700' }]}>45</Text>
 </Pressable>
 ```
+
 - Interactive with touch feedback
 - Larger touch target (48x48 minimum)
 - Background tint + shadow
@@ -411,6 +451,7 @@ interaction = upvotes + (comments × 1.5)
 ### Header - Before vs After
 
 **Before:**
+
 ```
 ┌─────────────────────────────────────┐
 │ Highlights          🏆 50 highlights │
@@ -418,11 +459,13 @@ interaction = upvotes + (comments × 1.5)
 ```
 
 **After:**
+
 ```
 ┌─────────────────────────────────────┐
 │ Highlights                           │
 └─────────────────────────────────────┘
 ```
+
 - Cleaner, more spacious
 - Focus on content
 - Modern minimalist design
@@ -434,17 +477,20 @@ interaction = upvotes + (comments × 1.5)
 ### Sorting Performance
 
 **Trending Tab:**
+
 - Time Complexity: O(n log n) for initial sort + O(m log m) for rest (where m = n - 3)
 - Space Complexity: O(n) for filtered array
 - Typical dataset: 50-100 posts
 - Performance: <10ms on modern devices
 
 **Recent Tab:**
+
 - Time Complexity: O(n log n) for sort
 - Space Complexity: O(n)
 - Performance: <5ms (simple timestamp comparison)
 
 **Top Tab:**
+
 - Time Complexity: O(n log n) for sort + O(1) for slice
 - Space Complexity: O(10) (only 10 posts returned)
 - Performance: <5ms
@@ -452,12 +498,14 @@ interaction = upvotes + (comments × 1.5)
 ### Rendering Performance
 
 **FlatList Optimization:**
+
 - `keyExtractor` uses post ID (stable keys)
 - `showsVerticalScrollIndicator={false}` (less rendering)
 - Cards are memoized via HighlightCard component
 - No inline style objects (prevents re-renders)
 
 **Image Loading:**
+
 - Uses `expo-image` (native image caching)
 - `contentFit="cover"` (no distortion)
 - Lazy loading via FlatList virtualization
@@ -654,7 +702,7 @@ All 6 requested features successfully implemented:
 ✅ **Top Algorithm** - Top 10 most engaged posts  
 ✅ **Header Cleanup** - Removed "10 highlights" stat  
 ✅ **Visible Buttons** - Enhanced action buttons with proper styling  
-✅ **Navigation** - Clickable authors, posts, teams (future), events (future)  
+✅ **Navigation** - Clickable authors, posts, teams (future), events (future)
 
 **Ready for QA testing and production deployment!** 🚀
 

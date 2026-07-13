@@ -48,7 +48,8 @@ The profile and settings system has **several critical issues** that need fixing
 
 ### Issue #1: No Username Validation on Profile Update
 
-**Problem**: 
+**Problem**:
+
 - `PUT /me` and `PATCH /me` don't validate or update username
 - Username can only be set during onboarding
 - No way to change username after account creation
@@ -56,6 +57,7 @@ The profile and settings system has **several critical issues** that need fixing
 **Location**: `server/src/routes/auth.ts:492-513`
 
 **Current Code**:
+
 ```typescript
 const updateMeSchema = z.object({
   display_name: z.string().min(1).max(120).optional(),
@@ -67,15 +69,22 @@ const updateMeSchema = z.object({
 ```
 
 **Real-World Impact**:
+
 - **User frustration** - Can't change username after creation
 - **No way to fix typos** - Must create new account
 - **Poor UX** - Username is important for identity
 
 **Fix Required**:
+
 ```typescript
 const updateMeSchema = z.object({
   display_name: z.string().min(1).max(120).optional(),
-  username: z.string().min(3).max(20).regex(/^[a-z0-9_.]+$/).optional(),
+  username: z
+    .string()
+    .min(3)
+    .max(20)
+    .regex(/^[a-z0-9_.]+$/)
+    .optional(),
   avatar_url: z.string().url().optional(),
   bio: z.string().max(1000).optional(),
   preferences: z.any().optional(),
@@ -88,13 +97,13 @@ if (data.username) {
     where: {
       OR: [
         { username: { equals: data.username, mode: 'insensitive' } },
-        { display_name: { equals: data.username, mode: 'insensitive' } }
+        { display_name: { equals: data.username, mode: 'insensitive' } },
       ],
-      NOT: { id: req.user.id }
-    }
+      NOT: { id: req.user.id },
+    },
   });
   if (exists) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Username taken',
       message: 'This username is already in use.',
     });
@@ -108,6 +117,7 @@ if (data.username) {
 ### Issue #2: Username Uniqueness Not Enforced at Database Level
 
 **Problem**:
+
 - Schema comment says "Will add unique constraint later"
 - No unique constraint on username field
 - Race conditions possible when setting username
@@ -115,16 +125,19 @@ if (data.username) {
 **Location**: `server/prisma/schema.prisma:21`
 
 **Current**:
+
 ```prisma
 username String? // Will add unique constraint later after data migration
 ```
 
 **Real-World Impact**:
+
 - **Data integrity** - Duplicate usernames possible
 - **Race conditions** - Two users can set same username simultaneously
 - **Confusion** - Can't reliably identify users by username
 
 **Fix Required**:
+
 ```prisma
 username String? @unique // Add unique constraint
 ```
@@ -136,6 +149,7 @@ username String? @unique // Add unique constraint
 ### Issue #3: No Validation Error Details
 
 **Problem**:
+
 - Validation errors return generic "Invalid payload"
 - No details about which field failed or why
 - Hard to debug for users and developers
@@ -143,6 +157,7 @@ username String? @unique // Add unique constraint
 **Location**: `server/src/routes/auth.ts:501-502, 518-519`
 
 **Current Code**:
+
 ```typescript
 const parsed = updateMeSchema.safeParse(req.body);
 if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -150,18 +165,20 @@ if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 ```
 
 **Real-World Impact**:
+
 - **Poor UX** - Users don't know what to fix
 - **Developer frustration** - Hard to debug issues
 - **Inconsistent** - Other endpoints return detailed errors
 
 **Fix Required**:
+
 ```typescript
 if (!parsed.success) {
   return res.status(400).json({
     error: 'Invalid payload',
-    issues: parsed.error.issues.map((i) => ({ 
-      path: i.path, 
-      message: i.message 
+    issues: parsed.error.issues.map(i => ({
+      path: i.path,
+      message: i.message,
     })),
   });
 }
@@ -172,6 +189,7 @@ if (!parsed.success) {
 ### Issue #4: Preferences Merge Can Overwrite Critical Fields
 
 **Problem**:
+
 - `mergePreferences` does shallow merge for most fields
 - Can accidentally overwrite critical preferences
 - No validation of preference values
@@ -179,6 +197,7 @@ if (!parsed.success) {
 **Location**: `server/src/routes/auth.ts:533-539`
 
 **Current Code**:
+
 ```typescript
 function mergePreferences(base: any, incoming: any) {
   const out = { ...(base || {}), ...(incoming || {}) };
@@ -191,25 +210,31 @@ function mergePreferences(base: any, incoming: any) {
 ```
 
 **Real-World Impact**:
+
 - **Data loss** - Can accidentally clear preferences
 - **Security** - Could overwrite sensitive settings
 - **Bugs** - Unexpected behavior from partial updates
 
 **Fix Required**:
+
 ```typescript
 function mergePreferences(base: any, incoming: any) {
   if (!base && !incoming) return {};
   if (!base) return incoming;
   if (!incoming) return base;
-  
+
   const out = { ...base };
-  
+
   // Deep merge for nested objects
   for (const key in incoming) {
     if (incoming[key] === null || incoming[key] === undefined) {
       // Explicit null/undefined means remove
       delete out[key];
-    } else if (typeof incoming[key] === 'object' && !Array.isArray(incoming[key]) && incoming[key] !== null) {
+    } else if (
+      typeof incoming[key] === 'object' &&
+      !Array.isArray(incoming[key]) &&
+      incoming[key] !== null
+    ) {
       // Deep merge objects
       out[key] = mergePreferences(base[key], incoming[key]);
     } else {
@@ -217,7 +242,7 @@ function mergePreferences(base: any, incoming: any) {
       out[key] = incoming[key];
     }
   }
-  
+
   return out;
 }
 ```
@@ -227,6 +252,7 @@ function mergePreferences(base: any, incoming: any) {
 ### Issue #5: Account Deletion Doesn't Clean Up Relationships
 
 **Problem**:
+
 - Soft delete only sets `banned: true` and clears some fields
 - Doesn't clean up posts, comments, follows, etc.
 - Orphaned data remains in database
@@ -234,6 +260,7 @@ function mergePreferences(base: any, incoming: any) {
 **Location**: `server/src/routes/users.ts:239-259`
 
 **Current Code**:
+
 ```typescript
 await prisma.user.update({
   where: { id },
@@ -250,14 +277,16 @@ await prisma.user.update({
 ```
 
 **Real-World Impact**:
+
 - **Data bloat** - Orphaned records accumulate
 - **Privacy concerns** - User data remains accessible
 - **GDPR compliance** - May violate data deletion requirements
 
 **Fix Required**:
+
 ```typescript
 // Option 1: Hard delete (if no legal requirements to keep data)
-await prisma.$transaction(async (tx) => {
+await prisma.$transaction(async tx => {
   // Delete in order (respect foreign key constraints)
   await tx.postUpvote.deleteMany({ where: { user_id: id } });
   await tx.postBookmark.deleteMany({ where: { user_id: id } });
@@ -281,9 +310,9 @@ await prisma.user.update({
   },
 });
 // Then anonymize related records
-await prisma.post.updateMany({ 
+await prisma.post.updateMany({
   where: { author_id: id },
-  data: { author_id: null } // Or set to system user
+  data: { author_id: null }, // Or set to system user
 });
 ```
 
@@ -294,6 +323,7 @@ await prisma.post.updateMany({
 ### Issue #6: No Rate Limiting on Profile Updates
 
 **Problem**:
+
 - No rate limiting on `PUT /me` or `PATCH /me`
 - Can spam profile updates
 - Potential for abuse or accidental loops
@@ -301,11 +331,13 @@ await prisma.post.updateMany({
 **Location**: `server/src/routes/auth.ts:499-530`
 
 **Real-World Impact**:
+
 - **Performance** - Can overload database
 - **Abuse** - Malicious users can spam updates
 - **Costs** - Unnecessary database writes
 
 **Fix Required**:
+
 ```typescript
 import { rateLimiters } from '../middleware/rateLimiters.js';
 
@@ -320,6 +352,7 @@ authRouter.put('/me', rateLimiters.profileUpdate, async (req: AuthedRequest, res
 ### Issue #7: Avatar URL Validation Too Lenient
 
 **Problem**:
+
 - Only checks if URL is valid format
 - Doesn't validate domain, protocol, or content type
 - Can set malicious or invalid URLs
@@ -327,17 +360,20 @@ authRouter.put('/me', rateLimiters.profileUpdate, async (req: AuthedRequest, res
 **Location**: `server/src/routes/auth.ts:494`
 
 **Current Code**:
+
 ```typescript
 avatar_url: z.string().url().optional(),
 // ❌ No domain validation, no content type check
 ```
 
 **Real-World Impact**:
+
 - **Security** - Can set malicious URLs
 - **UX** - Invalid URLs break images
 - **Performance** - Can set URLs to slow/unavailable servers
 
 **Fix Required**:
+
 ```typescript
 avatar_url: z.string()
   .url()
@@ -361,6 +397,7 @@ avatar_url: z.string()
 ### Issue #8: Bio Validation Allows Empty Strings
 
 **Problem**:
+
 - Bio can be set to empty string `""`
 - Should allow `null` or require minimum length
 - Empty strings are different from null
@@ -368,16 +405,19 @@ avatar_url: z.string()
 **Location**: `server/src/routes/auth.ts:495`
 
 **Current Code**:
+
 ```typescript
 bio: z.string().max(1000).optional(),
 // ❌ Allows empty string
 ```
 
 **Real-World Impact**:
+
 - **Data inconsistency** - Empty string vs null confusion
 - **Display issues** - Empty string might show differently than null
 
 **Fix Required**:
+
 ```typescript
 bio: z.string().min(1).max(1000).optional().nullable(),
 // Or transform empty strings to null
@@ -389,6 +429,7 @@ bio: z.string().max(1000).transform(val => val === '' ? null : val).optional().n
 ### Issue #9: No Validation of Preference Values
 
 **Problem**:
+
 - Preferences schema allows `z.any().optional()`
 - No validation of preference structure
 - Can set invalid preference values
@@ -396,16 +437,19 @@ bio: z.string().max(1000).transform(val => val === '' ? null : val).optional().n
 **Location**: `server/src/routes/auth.ts:496, 542-568`
 
 **Current Code**:
+
 ```typescript
 preferences: z.any().optional(), // ❌ No validation
 ```
 
 **Real-World Impact**:
+
 - **Data corruption** - Invalid preference values
 - **Bugs** - Unexpected behavior from invalid data
 - **Security** - Could inject malicious data
 
 **Fix Required**:
+
 ```typescript
 // Create strict preference schema
 const preferencesSchema = z.object({
@@ -427,12 +471,14 @@ preferences: preferencesSchema.optional(),
 ### Issue #10: Display Name Can Be Set to Empty String
 
 **Problem**:
+
 - Display name validation allows empty string after trim
 - Should require minimum length or allow null
 
 **Location**: `server/src/routes/auth.ts:493`
 
 **Current Code**:
+
 ```typescript
 display_name: z.string().min(1).max(120).optional(),
 // ✅ This is actually correct - min(1) prevents empty
@@ -440,6 +486,7 @@ display_name: z.string().min(1).max(120).optional(),
 ```
 
 **Fix Required**:
+
 ```typescript
 display_name: z.string()
   .min(1)
@@ -453,6 +500,7 @@ display_name: z.string()
 ### Issue #11: No Username Format Validation on Update
 
 **Problem**:
+
 - Username availability check validates format
 - But update endpoint doesn't validate format
 - Can bypass validation
@@ -466,6 +514,7 @@ display_name: z.string()
 ### Issue #12: Preferences Defaults Applied on Every Update
 
 **Problem**:
+
 - `PATCH /me/preferences` applies defaults on every update
 - Can overwrite user's actual preferences with defaults
 - Should only apply defaults on first set
@@ -473,13 +522,17 @@ display_name: z.string()
 **Location**: `server/src/routes/auth.ts:574-588`
 
 **Current Code**:
+
 ```typescript
-const defaults = { /* ... */ };
+const defaults = {
+  /* ... */
+};
 const merged = mergePreferences(defaults, mergePreferences(current?.preferences || {}, incoming));
 // ❌ Always applies defaults, even if user has set preferences
 ```
 
 **Fix Required**:
+
 ```typescript
 // Only apply defaults if preferences are empty
 const currentPrefs = current?.preferences || {};
@@ -493,6 +546,7 @@ const merged = mergePreferences(base, incoming);
 ## 📊 Testing Scenarios
 
 ### Test 1: Update Username (Currently Fails)
+
 ```bash
 PATCH /me { username: "newusername" }
 # Currently: Username not in schema, ignored
@@ -500,6 +554,7 @@ PATCH /me { username: "newusername" }
 ```
 
 ### Test 2: Set Duplicate Username
+
 ```bash
 # User A sets username to "test"
 PATCH /me { username: "test" }
@@ -510,6 +565,7 @@ PATCH /me { username: "test" }
 ```
 
 ### Test 3: Invalid Bio
+
 ```bash
 PATCH /me { bio: "x".repeat(1001) }
 # Currently: Returns generic "Invalid payload"
@@ -517,6 +573,7 @@ PATCH /me { bio: "x".repeat(1001) }
 ```
 
 ### Test 4: Account Deletion
+
 ```bash
 DELETE /users/me
 # Currently: Soft delete, relationships remain
@@ -524,6 +581,7 @@ DELETE /users/me
 ```
 
 ### Test 5: Preferences Merge
+
 ```bash
 # User has: { notifications: { game_event_reminders: true } }
 PATCH /me/preferences { notifications: { team_updates: true } }
@@ -536,6 +594,7 @@ PATCH /me/preferences { notifications: { team_updates: true } }
 ## Summary of Required Fixes
 
 ### Critical (Must Fix)
+
 1. ✅ **Add username to profile update schema** - Allow username changes
 2. ✅ **Add username uniqueness validation** - Check availability before update
 3. ✅ **Add detailed validation errors** - Return field-level errors
@@ -543,12 +602,14 @@ PATCH /me/preferences { notifications: { team_updates: true } }
 5. ✅ **Improve account deletion** - Clean up or anonymize relationships
 
 ### High Priority (Should Fix)
+
 6. ✅ **Add rate limiting** - Prevent spam updates
 7. ✅ **Strengthen avatar URL validation** - Domain and protocol checks
 8. ✅ **Fix bio validation** - Handle empty strings properly
 9. ✅ **Validate preference values** - Use strict schema
 
 ### Medium Priority (Nice to Have)
+
 10. ✅ **Handle whitespace-only display names** - Trim and validate
 11. ✅ **Fix preferences defaults** - Only apply on first set
 12. ✅ **Add username format validation** - Consistent validation

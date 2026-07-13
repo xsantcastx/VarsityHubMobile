@@ -3,12 +3,14 @@
 Copy-paste these into Railway as you create each SendGrid template. Replace `d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` with your actual template ID from SendGrid.
 
 ## Error Tracking
+
 ```
 SENTRY_DSN=https://public-key@o123456.ingest.sentry.io/9876543210
 SENTRY_ENVIRONMENT=production
 ```
 
 ## Auth & Security (6 templates)
+
 ```
 SENDGRID_VERIFICATION_TEMPLATE_ID=d-584a4a9fe16449078e2cbc6d9d7be0d0
 SENDGRID_PASSWORD_RESET_TEMPLATE_ID=d-97a704ec6a35434195364e0ed9dfaf21
@@ -19,6 +21,7 @@ SENDGRID_SECURITY_ALERT_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 ## Moderation & Trust (6 templates)
+
 ```
 SENDGRID_ABUSE_REPORT_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 SENDGRID_REPORT_RESOLVED_TEMPLATE_ID=d-7bee5cf412b14f18988596796d86083b
@@ -29,6 +32,7 @@ SENDGRID_CONTENT_MODERATION_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 ## Account Suspensions (3 templates)
+
 ```
 SENDGRID_ACCOUNT_SUSPENSION_7_DAYS_TEMPLATE_ID=d-d357a6414fa1437da02ccd7c6724711c
 SENDGRID_ACCOUNT_SUSPENSION_45_DAYS_TEMPLATE_ID=d-0941019230d9459b81ff602d937f7aa04
@@ -36,6 +40,7 @@ SENDGRID_ACCOUNT_PERMANENT_BAN_TEMPLATE_ID=d-40f388da110d440ba32bf34c282fd2c0
 ```
 
 ## Event Management (7 templates)
+
 ```
 SENDGRID_EVENT_SUBMISSION_RECEIVED_TEMPLATE_ID=d-5a9d8126df45488faccee9a194d60c30
 SENDGRID_EVENT_APPROVED_TEMPLATE_ID=d-e76de706704646938e05a28e4c1a20d3
@@ -47,6 +52,7 @@ SENDGRID_EVENT_RSVP_CONFIRMED_TEMPLATE_ID=d-511e46f4646f974f18a8f33c12564de14b
 ```
 
 ## Team & Organization (12 templates)
+
 ```
 SENDGRID_ORG_INVITE_TEMPLATE_ID=d-bc3bd0a683c843bf932721dafce626a3
 SENDGRID_TEAM_INVITE_TEMPLATE_ID=d-14788def39174bb66bf186716cce166fa
@@ -63,12 +69,14 @@ SENDGRID_USER_CONFIRMATION_TEMPLATE_ID=d-584a4a9fe16449078e2cbc6d9d7be0d0
 ```
 
 ## Organization Management (2 templates)
+
 ```
 SENDGRID_ORG_APPROVAL_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 SENDGRID_ORG_DENIAL_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 ## Billing & Subscriptions (6 templates)
+
 ```
 SENDGRID_PAYMENT_FAILED_TEMPLATE_ID=d-4f9bb915b560468ea5c5899b09005b56
 SENDGRID_PAYMENT_RECEIPT_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -79,6 +87,7 @@ SENDGRID_PLAN_LIMIT_WARNING_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 ## Ads & Monetization (3 templates)
+
 ```
 SENDGRID_AD_RESERVATION_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 SENDGRID_PAYMENT_REQUIRED_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -86,6 +95,7 @@ SENDGRID_AD_GOES_LIVE_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 ## User Engagement (3 templates)
+
 ```
 SENDGRID_COACH_ONBOARDING_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 SENDGRID_FAN_WELCOME_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -152,7 +162,7 @@ SENDGRID_SEASON_WRAP_UP_TEMPLATE_ID=d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ## How to Use
 
 1. **In SendGrid**: Create each template, get the template ID (format: `d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`)
-2. **In Railway**: 
+2. **In Railway**:
    - Go to your project → Variables
    - Paste the entire section or individual lines
    - Replace `d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` with your actual template ID

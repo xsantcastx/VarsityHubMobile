@@ -1,6 +1,7 @@
 # Android Upload Key Reset Guide
 
 ## Current Issue
+
 The Android keystore SHA-1 fingerprint in EAS doesn't match the expected fingerprint in Google Play Console:
 
 **Expected (in Play Console):**  
@@ -36,12 +37,15 @@ Different fingerprint (causing upload errors)
    - Then: `eas submit --platform android --latest`
 
 ## Alternative: Restore Original Keystore
+
 If you have access to the original keystore file with the correct fingerprint, you can:
+
 1. Place it in `credentials/android/keystore.jks`
 2. Update `credentials.json` with the correct passwords
 3. Build immediately without waiting for Google approval
 
 ## Next Steps After Fix
+
 ```bash
 # Build Android production app
 eas build --platform android --profile production
@@ -51,6 +55,7 @@ eas submit --platform android --latest
 ```
 
 ## Related Files
+
 - `credentials/android/keystore.jks` - Current EAS-generated keystore
 - `credentials.json` - Keystore configuration
 - `android/app/build.gradle` - Android build configuration

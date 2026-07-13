@@ -3,9 +3,10 @@
 ## Fixed 130+ Hardcoded Text Colors
 
 ### ✅ Critical User-Facing Screens Fixed (10+ files):
+
 1. **app/profile.tsx** - All text colors use theme, improved contrast
 2. **app/sign-in.tsx** - All hardcoded colors replaced
-3. **app/sign-up.tsx** - All hardcoded colors replaced  
+3. **app/sign-up.tsx** - All hardcoded colors replaced
 4. **app/feed.tsx** - Critical text colors fixed
 5. **app/(tabs)/notifications/index.tsx** - Text colors fixed
 6. **app/(tabs)/event-detail.tsx** - Button text colors fixed
@@ -18,6 +19,7 @@
 13. **app/(tabs)/post-detail.tsx** - Error icon colors fixed
 
 ### ✅ Settings Pages Fixed (10+ files):
+
 1. **app/settings/index.tsx** - All text colors fixed
 2. **app/settings/contact.tsx** - Title color fixed
 3. **app/settings/request-host-event.tsx** - All text colors fixed
@@ -30,19 +32,23 @@
 10. **app/blocked-users.tsx** - All text colors fixed
 
 ### ✅ Auth Screens Fixed:
+
 1. **app/forgot-password.tsx** - Error and info text colors fixed
 
 ### ✅ Admin Screens Fixed:
+
 1. **app/admin-reports.tsx** - Reporter name and subject colors fixed
 2. **app/admin-users.tsx** - Toggle text color fixed
 3. **app/admin-teams.tsx** - Error and icon colors fixed
 
 ### ✅ Onboarding Fixed:
+
 1. **app/onboarding/step-7-profile.tsx** - Chip text colors fixed
 
 ## Remaining Files (~755 instances)
 
 Most remaining hardcoded colors are in:
+
 - Component files (may be intentional for gradients/special UI)
 - Team-related screens (create-team, edit-team, team-contacts)
 - Game-related screens
@@ -52,6 +58,7 @@ Most remaining hardcoded colors are in:
 ## Pattern Applied
 
 All fixes use this pattern:
+
 ```tsx
 import { Colors } from '@/constants/Colors';
 const colorScheme = useColorScheme() ?? 'light';

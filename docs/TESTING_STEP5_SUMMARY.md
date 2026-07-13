@@ -3,6 +3,7 @@
 ## Completed
 
 ### ✅ Error Handling Tests
+
 - Created comprehensive test suite for all error classes
 - Tests AppError, ValidationError, AuthenticationError, AuthorizationError, NotFoundError, ConflictError, RateLimitError
 - Verifies JSON serialization, log details, metadata handling
@@ -38,6 +39,7 @@ To reach A+ testing, we need to:
 ## Next Actions
 
 Continue adding tests incrementally, focusing on:
+
 1. Posts routes (high usage)
 2. Users routes (high usage)
 3. Utilities (lib/geo.ts, lib/geocoding.ts)

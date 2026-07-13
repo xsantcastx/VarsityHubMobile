@@ -6,13 +6,13 @@
 
 ## SEVERITY LEVELS (5 Total)
 
-| # | Severity | Action | DB Field | Email | User Impact |
-|---|----------|--------|----------|-------|-------------|
-| 1 | `warning` | Send warning email | No suspension | ✅ Yes | Account OK |
-| 2 | `content_removal` | Remove content | No suspension | ✅ Yes | Account OK |
-| 3 | `suspend_7_days` | Lock account | suspension_until = +7d | ✅ Yes | Can't login |
-| 4 | `suspend_45_days` | Extended lock | suspension_until = +45d | ✅ Yes | Can't login |
-| 5 | `permanent_ban` | Delete account | permanent_ban = true | ✅ Yes | Banned forever |
+| #   | Severity          | Action             | DB Field                | Email  | User Impact    |
+| --- | ----------------- | ------------------ | ----------------------- | ------ | -------------- |
+| 1   | `warning`         | Send warning email | No suspension           | ✅ Yes | Account OK     |
+| 2   | `content_removal` | Remove content     | No suspension           | ✅ Yes | Account OK     |
+| 3   | `suspend_7_days`  | Lock account       | suspension_until = +7d  | ✅ Yes | Can't login    |
+| 4   | `suspend_45_days` | Extended lock      | suspension_until = +45d | ✅ Yes | Can't login    |
+| 5   | `permanent_ban`   | Delete account     | permanent_ban = true    | ✅ Yes | Banned forever |
 
 ---
 

@@ -8,24 +8,28 @@
 ## Code Quality Verification
 
 ### ✅ TypeScript Compilation
+
 ```bash
 $ npx tsc --noEmit
 ✅ PASS - Zero compilation errors
 ```
 
 ### ✅ ESLint
+
 ```bash
 $ npm run lint
 ✅ PASS - Zero errors (365 pre-existing style warnings unrelated to new code)
 ```
 
 ### ✅ New Code Verification
+
 - `context/AuthProvider.tsx` - Push notification registration function ✅
 - `app/_layout.tsx` - Notification tap handler with deep linking ✅
 - All TypeScript types correct ✅
 - All imports resolved ✅
 
 ### ⚠️ Expo Doctor
+
 - Cannot run in sandbox (npm registry unreachable)
 - **Action**: Run locally with `npm run doctor` before final release
 - Should pass (all dependencies at SDK 54)
@@ -35,6 +39,7 @@ $ npm run lint
 ## Push Notifications Implementation Status
 
 ### ✅ Complete & Tested
+
 1. **Token Registration** - Implemented in AuthProvider
 2. **Permission Request** - OS popup on login
 3. **Backend Save** - Token saved to user.preferences
@@ -42,6 +47,7 @@ $ npm run lint
 5. **Code Quality** - TypeScript + ESLint pass
 
 ### Ready to Test
+
 - User logs in → Permission popup
 - Token saved → Verify via API
 - Send test notification → Should appear
@@ -53,6 +59,7 @@ $ npm run lint
 ## Phase 1 QA Checklist (From TESTING_CHECKLIST.md)
 
 ### Authentication Flows
+
 - [ ] **Email/Password Sign-Up**
   - [ ] Create account with valid email
   - [ ] Verify email sent and accessible
@@ -90,6 +97,7 @@ $ npm run lint
   - [ ] Sign out → next open shows sign-in screen
 
 ### Push Notifications (NEW)
+
 - [ ] **Permission Request**
   - [ ] First login shows "Allow notifications?" popup
   - [ ] Dismiss/Deny → app continues (no crash)
@@ -111,6 +119,7 @@ $ npm run lint
   - [ ] App stays in foreground (correct)
 
 ### Critical Path for Go/No-Go
+
 ✅ If all 3 Auth flows work (email, Google, Apple)  
 ✅ If Session persistence works  
 ✅ If Permission popup appears and token saves  
@@ -121,6 +130,7 @@ $ npm run lint
 ## How to Run Phase 1 Testing
 
 ### 1. Start App on Simulator
+
 ```bash
 pkill -9 expo node metro 2>/dev/null
 cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile
@@ -129,6 +139,7 @@ npx expo start --dev-client
 ```
 
 ### 2. Open in Simulator
+
 ```bash
 # App should load → you see sign-in screen
 # Open simulator with: Cmd+1 (if Expo CLI running)
@@ -136,6 +147,7 @@ npx expo start --dev-client
 ```
 
 ### 3. Test Sign-Up/Sign-In
+
 - [ ] Sign up with test email
 - [ ] Verify email (check inbox or test endpoint)
 - [ ] Sign in
@@ -144,6 +156,7 @@ npx expo start --dev-client
 - [ ] Verify logged in (see feed)
 
 ### 4. Verify Token Registered
+
 ```bash
 # Get your auth token from localStorage or app storage
 # Run this:
@@ -160,6 +173,7 @@ curl https://api-production-8ac3.up.railway.app/test-notifications/test/check-to
 ```
 
 ### 5. Send Test Notification
+
 ```bash
 curl -X POST https://api-production-8ac3.up.railway.app/test-notifications/test/push \
   -H "Authorization: Bearer YOUR_TOKEN"
@@ -168,6 +182,7 @@ curl -X POST https://api-production-8ac3.up.railway.app/test-notifications/test/
 ```
 
 ### 6. Real Interaction Test
+
 - [ ] Create 2 test accounts
 - [ ] User A logs in on simulator
 - [ ] User B uses web/another device
@@ -195,6 +210,7 @@ If you see error about projectId or permissions → check logs and report
 ## Expected Outcomes
 
 ### ✅ What Should Happen
+
 ```
 1. App loads → Loading screen briefly
 2. See sign-in screen
@@ -207,6 +223,7 @@ If you see error about projectId or permissions → check logs and report
 ```
 
 ### ⚠️ If Something Fails
+
 - **Permission popup doesn't appear**: Check console for errors, may be already granted
 - **Token not saving**: Check network tab (should POST to /users/me/preferences)
 - **Notification doesn't arrive**: Check token registered (has_token should be true)
@@ -217,7 +234,9 @@ If you see error about projectId or permissions → check logs and report
 ## When Phase 1 Passes
 
 You're ready to:
+
 1. Build for TestFlight:
+
    ```bash
    eas build --platform ios --profile preview --wait
    ```

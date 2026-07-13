@@ -33,6 +33,7 @@ npm install -g expo-cli eas-cli
 #### Step 2: Build Development Client
 
 **For iOS (requires Apple Developer account):**
+
 ```bash
 # Build development client
 eas build --profile development --platform ios
@@ -42,6 +43,7 @@ eas build --profile development --platform ios
 ```
 
 **For Android:**
+
 ```bash
 # Build development client
 eas build --profile development --platform android
@@ -53,10 +55,12 @@ eas build --profile development --platform android
 #### Step 3: Install on Your Phone
 
 **iOS:**
+
 - Check your email for TestFlight invite, or
 - Download from EAS Build dashboard: https://expo.dev/accounts/varsity-hub/projects/varsityhub/builds
 
 **Android:**
+
 - Download APK from build dashboard and install
 
 #### Step 4: Start Development Server
@@ -72,6 +76,7 @@ npx expo start --dev-client --lan
 #### Step 5: Connect Your Phone
 
 **In the development build app on your phone:**
+
 1. Tap "Enter URL manually" or scan QR code
 2. Enter the tunnel URL shown in terminal (e.g., `exp://abc-123.tunnel.exp.direct:80`)
 3. App will load and connect
@@ -87,12 +92,14 @@ Once connected, you can now:
 3. **See changes instantly** on your phone! 🔥
 
 **Hot reload works for:**
+
 - ✅ JavaScript/TypeScript code
 - ✅ React components
 - ✅ Styles and layouts
 - ✅ API calls and logic
 
 **Requires app restart for:**
+
 - ⚠️ Native module changes
 - ⚠️ App configuration (app.json)
 - ⚠️ New dependencies
@@ -104,11 +111,13 @@ Once connected, you can now:
 ### "Cannot connect to development server"
 
 **Solution 1: Use Tunnel Mode**
+
 ```bash
 npx expo start --dev-client --tunnel
 ```
 
 **Solution 2: Check Network**
+
 ```bash
 # Make sure phone and computer are on same network (for LAN mode)
 # OR use tunnel mode (works on any network)

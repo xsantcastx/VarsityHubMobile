@@ -75,6 +75,7 @@
 ### What Was Done
 
 #### Environment Setup ✅
+
 ```
 EXPO_PUBLIC_SENTRY_DSN: Configured
 EXPO_PUBLIC_API_URL: Production (Railway)
@@ -83,6 +84,7 @@ Google OAuth: All 4 platforms ready
 ```
 
 #### Quality Gates ✅
+
 ```
 TypeScript:    0 errors ✅
 Lint Baseline: 455 warnings (0 errors)
@@ -91,6 +93,7 @@ Tests:         Configured to skip gracefully
 ```
 
 #### Monitoring ✅
+
 ```
 Sentry:   DSN configured ✅
 SendGrid: Templates ready ✅
@@ -99,6 +102,7 @@ Health:   Schema ready ✅
 ```
 
 #### Artifacts Created ✅
+
 ```
 ✅ DAY_0_1_EXECUTION_GUIDE.md
 ✅ PUBLISHING_PROGRESS_TRACKER.md
@@ -129,11 +133,13 @@ All Day 0-1 prerequisites complete. System is green for quality sweep.
 ## 📅 Day 2 Preparation (Tomorrow)
 
 ### What You'll Do
+
 - Reduce lint from 455 → <100 (78% reduction)
 - Target critical screens: onboarding, profile, settings, team
 - Full quality check: typecheck + lint + doctor + tests
 
 ### Files to Focus On
+
 ```
 app/onboarding/*.tsx          → 6 files (90 mins)
 app/profile.tsx + settings/   → 4 files (60 mins)
@@ -143,6 +149,7 @@ components/*.tsx             → Top offenders (parallel)
 ```
 
 ### Success Metrics
+
 ```
 Target:       <100 lint warnings
 Current:      455 warnings
@@ -151,6 +158,7 @@ Timeline:     4-5 hours
 ```
 
 ### Commit Message Template
+
 ```
 Day 2: Quality sweep complete, lint reduced 455→<100
 
@@ -170,6 +178,7 @@ Next: Day 3 real-data validation
 ## 📅 Day 3 Preparation (Day After)
 
 ### What You'll Do
+
 - Walk auth/game/event/payment flows on real data
 - Test with production database
 - Log all failures
@@ -177,6 +186,7 @@ Next: Day 3 real-data validation
 - Review Sentry + Railway logs
 
 ### Critical Test Flows
+
 ```
 ✅ Authentication: Sign in/out/up
 ✅ Game Voting: Vote → count updates
@@ -186,6 +196,7 @@ Next: Day 3 real-data validation
 ```
 
 ### Success Metrics
+
 ```
 Status: Zero critical production blockers
 Sentry: <10 errors/hour
@@ -193,6 +204,7 @@ Railway: No 500 errors
 ```
 
 ### Commit Message Template
+
 ```
 Day 3: Production validation complete, all blockers fixed
 
@@ -212,6 +224,7 @@ Day 3: Production validation complete, all blockers fixed
 ## 📅 Day 4 Preparation (Final Day)
 
 ### What You'll Do
+
 - Version bump: app.json + package.json → 1.0.0
 - Write release notes
 - Kick off EAS production builds (iOS + Android)
@@ -220,6 +233,7 @@ Day 3: Production validation complete, all blockers fixed
 - Submit for App Review
 
 ### Build Process
+
 ```
 ⏰ 09:00 - Version bump (15 mins)
 ⏰ 09:15 - Release notes (45 mins)
@@ -235,6 +249,7 @@ Day 3: Production validation complete, all blockers fixed
 ```
 
 ### Success Metrics
+
 ```
 Status: Both apps submitted to stores
 iOS: In App Review (1-3 days to approval)
@@ -242,6 +257,7 @@ Android: In Play Store Review (2-4 hours typically)
 ```
 
 ### Commit Message Template
+
 ```
 Release: v1.0.0 submitted to App Store & Play Store
 
@@ -261,6 +277,7 @@ Release: v1.0.0 submitted to App Store & Play Store
 ## 🎯 Success Metrics Tracking
 
 ### Lint Reduction Progress
+
 ```
 Day 0-1: Baseline = 455 warnings (0 errors) ✅
 Day 2:   Target   = <100 warnings
@@ -269,12 +286,14 @@ Day 4:   Target   = <30 warnings
 ```
 
 ### TypeScript Compilation
+
 ```
 All Days: Target = 0 errors
 Current:  0 errors ✅
 ```
 
 ### Sentry Error Rate
+
 ```
 Day 0-1: Setup complete ✅
 Day 2:   Target = <50 errors/hour
@@ -283,6 +302,7 @@ Day 4:   Target = <5 errors/hour (after launch)
 ```
 
 ### CI Pipeline Status
+
 ```
 Current: Last run green ✅
 Target:  Green or yellow with known skips
@@ -365,6 +385,7 @@ EAS Builds:           https://expo.dev/accounts/@xsantcastx/projects/VarsityHubM
    - LOW: Polish item
 
 2. **Quick Fix (if <30 mins):**
+
    ```bash
    # 1. Make minimal code change
    # 2. Test locally
@@ -405,32 +426,35 @@ eas build --platform ios --profile production --verbose
 
 ## 📊 Progress Dashboard
 
-| Day | Phase | Status | Deadline | Success Metric |
-|-----|-------|--------|----------|--------|
-| 0-1 | Monitoring Lock-In | ✅ COMPLETE | Dec 3 | Sentry+SendGrid verified, lint baseline 455 |
-| 2 | Quality Sweep | ⏳ TODO | Dec 4 | Lint <100, TypeScript clean |
-| 3 | Real-Data Validation | ⏳ TODO | Dec 5 | No critical blockers, Sentry <10/hr |
-| 4 | Release Mechanics | ⏳ TODO | Dec 6 | Both stores submitted |
-| 5+ | Post-Launch | ⏳ TODO | Dec 7+ | Monitor, hotfix, plan v1.0.1 |
+| Day | Phase                | Status      | Deadline | Success Metric                              |
+| --- | -------------------- | ----------- | -------- | ------------------------------------------- |
+| 0-1 | Monitoring Lock-In   | ✅ COMPLETE | Dec 3    | Sentry+SendGrid verified, lint baseline 455 |
+| 2   | Quality Sweep        | ⏳ TODO     | Dec 4    | Lint <100, TypeScript clean                 |
+| 3   | Real-Data Validation | ⏳ TODO     | Dec 5    | No critical blockers, Sentry <10/hr         |
+| 4   | Release Mechanics    | ⏳ TODO     | Dec 6    | Both stores submitted                       |
+| 5+  | Post-Launch          | ⏳ TODO     | Dec 7+   | Monitor, hotfix, plan v1.0.1                |
 
 ---
 
 ## 🎓 How to Use This Path
 
 ### For Daily Standup
+
 1. Open **PUBLISHING_PROGRESS_TRACKER.md**
 2. Fill in today's completed items
 3. Update metrics (lint count, Sentry errors, etc.)
 4. Plan tomorrow's checkpoints
 
 ### For Execution
-1. Read the day's guide (DAY_X_*_GUIDE.md)
+
+1. Read the day's guide (DAY*X*\*\_GUIDE.md)
 2. Follow checkpoints in order
 3. Log issues as you find them
 4. Commit after each major checkpoint
 5. Update progress tracker
 
 ### For Emergency
+
 1. Check PUBLISHING_TIMELINE.md → "Contingency Plans"
 2. Run `npm run typecheck` + `npm run lint:strict`
 3. Check Sentry for root cause
@@ -442,18 +466,21 @@ eas build --platform ios --profile production --verbose
 ## 🎉 Post-Launch (Day 5+)
 
 ### First 24 Hours
+
 - Monitor Sentry error rate
 - Check App Review status
 - Watch user feedback
 - Prepare for potential rejections
 
 ### First Week
+
 - Gather crash reports
 - Fix any critical issues (v1.0.1 hotfix)
 - Monitor download metrics
 - Plan v1.0.1 patch release
 
 ### First Month
+
 - Address Medium/Low issues
 - Performance optimizations
 - User feedback integration
@@ -464,6 +491,7 @@ eas build --platform ios --profile production --verbose
 ## 📝 Final Checklist
 
 **Before starting Day 2:**
+
 - [ ] Read DAY_2_LINT_CLEANUP_GUIDE.md completely
 - [ ] Verify lint baseline captured (455 issues)
 - [ ] Understand lint patterns (unused vars, floating promises, console.log)
@@ -472,6 +500,7 @@ eas build --platform ios --profile production --verbose
 - [ ] Disable notifications/distractions
 
 **Before starting Day 3:**
+
 - [ ] Read DAY_3_VALIDATION_GUIDE.md completely
 - [ ] Have test data available (real game/event/user)
 - [ ] Have Sentry dashboard open
@@ -480,6 +509,7 @@ eas build --platform ios --profile production --verbose
 - [ ] Block 6-8 hours
 
 **Before starting Day 4:**
+
 - [ ] Read DAY_4_RELEASE_GUIDE.md completely
 - [ ] Have App Store Connect account ready
 - [ ] Have Play Store Console account ready
@@ -493,6 +523,7 @@ eas build --platform ios --profile production --verbose
 ## ✨ You're Ready to Launch!
 
 Everything is in place:
+
 - ✅ Monitoring configured (Sentry + SendGrid)
 - ✅ Quality baselines captured (TypeScript clean, lint baseline)
 - ✅ Execution guides created (Day 2-4)

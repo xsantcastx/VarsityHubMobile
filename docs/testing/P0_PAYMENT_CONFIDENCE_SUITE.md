@@ -6,15 +6,15 @@ Goal: validate payment correctness under real-world failure modes before broad l
 
 ## Coverage matrix (required)
 
-| Scenario | Automated | Manual | Pass criteria |
-| --- | --- | --- | --- |
-| Happy path checkout | ✅ | ✅ | payment succeeds, DB status completed, confirmation sent |
-| Retry path | ✅ | ✅ | duplicate submits do not double-charge/double-finalize |
-| Duplicate webhook replay | ✅ | ✅ | replay is deduplicated, no duplicate side effects |
-| Timeout / delayed webhook | ✅ | ✅ | finalize remains consistent after delayed processing |
-| Refund path (slot full / failure) | ✅ | ✅ | refund status and user notice are correct |
-| Apple Pay on device | ❌ | ✅ | one successful purchase on physical iOS device |
-| Google Play on device | ❌ | ✅ | one successful purchase on physical Android device |
+| Scenario                          | Automated | Manual | Pass criteria                                            |
+| --------------------------------- | --------- | ------ | -------------------------------------------------------- |
+| Happy path checkout               | ✅        | ✅     | payment succeeds, DB status completed, confirmation sent |
+| Retry path                        | ✅        | ✅     | duplicate submits do not double-charge/double-finalize   |
+| Duplicate webhook replay          | ✅        | ✅     | replay is deduplicated, no duplicate side effects        |
+| Timeout / delayed webhook         | ✅        | ✅     | finalize remains consistent after delayed processing     |
+| Refund path (slot full / failure) | ✅        | ✅     | refund status and user notice are correct                |
+| Apple Pay on device               | ❌        | ✅     | one successful purchase on physical iOS device           |
+| Google Play on device             | ❌        | ✅     | one successful purchase on physical Android device       |
 
 ---
 
@@ -33,6 +33,7 @@ npm --prefix server test -- --runTestsByPath \
 ## Manual smoke checks (every candidate build)
 
 ## iOS Apple Pay (physical device)
+
 1. Install candidate build.
 2. Complete one Apple Pay purchase.
 3. Confirm:
@@ -41,6 +42,7 @@ npm --prefix server test -- --runTestsByPath \
    - no duplicate finalization.
 
 ## Android Google Play (physical device)
+
 1. Install candidate build.
 2. Complete one Google Play purchase.
 3. Confirm same checks as iOS.
@@ -55,4 +57,3 @@ npm --prefix server test -- --runTestsByPath \
 - Order/session/transaction IDs:
 - Result: PASS/FAIL
 - Notes:
-

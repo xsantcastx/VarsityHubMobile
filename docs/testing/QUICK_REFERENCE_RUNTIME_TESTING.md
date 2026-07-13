@@ -5,6 +5,7 @@
 **Status**: Code is good ✅ | Need to test it ⏳
 
 **What to do**:
+
 ```bash
 # Terminal 1
 npm run server:dev
@@ -26,12 +27,15 @@ npm run dev:expo
 ## 3 Tests in One Paragraph Each
 
 ### Test 1: Email Verification
+
 Sign up → Get verification email → Click link → Get routed to right page. Check it works for coach, athlete, and fan roles.
 
-### Test 2: Dev Security  
+### Test 2: Dev Security
+
 Dev build shows debug info. Production build doesn't. Skip button only available in dev.
 
 ### Test 3: Google Auth
+
 Try signing in with Google on iOS, Android, and Web. All should work using correct platform client ID.
 
 ---
@@ -60,6 +64,7 @@ npm run test                  # Run automated tests
 ## Test Checklist
 
 ### Before You Start
+
 - [ ] Node.js v18+ installed
 - [ ] npm dependencies installed
 - [ ] .env file has 3 Google client IDs
@@ -67,23 +72,27 @@ npm run test                  # Run automated tests
 - [ ] Metro port 8081 available
 
 ### Test 1: Email (10 min)
+
 - [ ] Sign up with test account
 - [ ] Check email inbox
 - [ ] Click verification link
 - [ ] Verify routed to correct page
 
 ### Test 2: Security (10 min)
+
 - [ ] Dev code visible in dev build
 - [ ] Dev code hidden in production build
 - [ ] Skip button works in dev
 - [ ] Skip button missing in production
 
 ### Test 3: Google Auth (15 min)
+
 - [ ] Works on iOS
 - [ ] Works on Android
 - [ ] Works on Web
 
 ### After Tests
+
 - [ ] Document results
 - [ ] Report pass/fail
 - [ ] Proceed to staging or fix issues
@@ -115,13 +124,13 @@ npm run test                  # Run automated tests
 
 ## Documents You Have
 
-| Document | Purpose | Read Time |
-|----------|---------|-----------|
-| **RUNTIME_TEST_GUIDE.md** | Step-by-step testing | 15 min |
-| **READY_FOR_RUNTIME_TESTING.md** | Overview & decision tree | 10 min |
-| **PHASE_TRANSITION_SUMMARY.md** | What's done vs what's next | 10 min |
-| **ALL_FIXES_VERIFIED.md** | Code analysis results | 15 min |
-| **VERIFICATION_CHECKLIST.md** | Detailed technical checklist | 20 min |
+| Document                         | Purpose                      | Read Time |
+| -------------------------------- | ---------------------------- | --------- |
+| **RUNTIME_TEST_GUIDE.md**        | Step-by-step testing         | 15 min    |
+| **READY_FOR_RUNTIME_TESTING.md** | Overview & decision tree     | 10 min    |
+| **PHASE_TRANSITION_SUMMARY.md**  | What's done vs what's next   | 10 min    |
+| **ALL_FIXES_VERIFIED.md**        | Code analysis results        | 15 min    |
+| **VERIFICATION_CHECKLIST.md**    | Detailed technical checklist | 20 min    |
 
 ---
 

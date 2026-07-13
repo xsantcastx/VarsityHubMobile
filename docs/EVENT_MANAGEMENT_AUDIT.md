@@ -9,14 +9,14 @@
 
 ### Can coaches edit time, location, and opponent after creation?
 
-| Field | Editable? | Notes |
-|-------|-----------|-------|
-| **Title** | ⚠️ Only if pending | `updateEventSchema` includes title |
-| **Date** | ⚠️ Only if pending | Must be in future |
-| **Location** | ⚠️ Only if pending | latitude, longitude supported |
-| **Description** | ⚠️ Only if pending | |
-| **Event type** | ⚠️ Only if pending | game, watch_party, fundraiser, etc. |
-| **Opponent** | ❌ No | Opponent lives on **Game**, not Event. Event has `game_id`; PATCH does not accept `game_id`. |
+| Field           | Editable?          | Notes                                                                                        |
+| --------------- | ------------------ | -------------------------------------------------------------------------------------------- |
+| **Title**       | ⚠️ Only if pending | `updateEventSchema` includes title                                                           |
+| **Date**        | ⚠️ Only if pending | Must be in future                                                                            |
+| **Location**    | ⚠️ Only if pending | latitude, longitude supported                                                                |
+| **Description** | ⚠️ Only if pending |                                                                                              |
+| **Event type**  | ⚠️ Only if pending | game, watch_party, fundraiser, etc.                                                          |
+| **Opponent**    | ❌ No              | Opponent lives on **Game**, not Event. Event has `game_id`; PATCH does not accept `game_id`. |
 
 ### Critical gap: Coaches cannot edit approved events
 
@@ -25,9 +25,10 @@
 ```typescript
 // Only pending events can be edited
 if (event.approval_status !== 'pending') {
-  return res.status(400).json({ 
+  return res.status(400).json({
     error: 'Cannot edit event',
-    message: 'Only pending events can be edited. Once approved or rejected, events cannot be modified.',
+    message:
+      'Only pending events can be edited. Once approved or rejected, events cannot be modified.',
   });
 }
 ```
@@ -39,6 +40,7 @@ if (event.approval_status !== 'pending') {
 ### Do followers get notified when an event is edited?
 
 **No.** PATCH `/:id` updates the event and returns success. It does **not**:
+
 - Queue `events.updated` email jobs
 - Send push notifications to RSVPed users
 - Notify team followers
@@ -92,6 +94,7 @@ approved_at: autoApprove ? new Date() : null,
 
 **For coaches:** Instant (auto-approved).  
 **For fans:** Manual. An admin or coach must call:
+
 - GET `/events/pending` to list pending events
 - POST `/events/:id/approve` or POST `/events/:id/reject`
 
@@ -99,13 +102,13 @@ No SLA or automation; it depends on when an admin reviews.
 
 ### What happens to the event while it's pending?
 
-| Visibility | Behavior |
-|------------|----------|
-| **Default GET /events** | Hidden. Default filter is `approval_status: 'approved'`. Pending events are excluded. |
-| **GET /events?approval_status=pending** | Visible only with explicit filter. |
-| **GET /events/:id** | Visible. Single-event fetch does not filter by approval_status. |
-| **Map** | Hidden. Map uses GET /events (default), so pending events do not appear. |
-| **Creator's "My Events"** | Visible. GET `/events/my-events` returns all events for the creator, including pending. |
+| Visibility                              | Behavior                                                                                |
+| --------------------------------------- | --------------------------------------------------------------------------------------- |
+| **Default GET /events**                 | Hidden. Default filter is `approval_status: 'approved'`. Pending events are excluded.   |
+| **GET /events?approval_status=pending** | Visible only with explicit filter.                                                      |
+| **GET /events/:id**                     | Visible. Single-event fetch does not filter by approval_status.                         |
+| **Map**                                 | Hidden. Map uses GET /events (default), so pending events do not appear.                |
+| **Creator's "My Events"**               | Visible. GET `/events/my-events` returns all events for the creator, including pending. |
 
 **Verdict:** Pending events are hidden from public lists and the map but can be accessed by direct ID. Creators see them in "My Events."
 
@@ -113,30 +116,30 @@ No SLA or automation; it depends on when an admin reviews.
 
 ## 4. Summary of Gaps
 
-| Gap | Severity | Description |
-|-----|----------|-------------|
-| Coach cannot edit approved events | 🔴 Critical | Coaches are auto-approved, so they can never edit. Need to allow editing of approved events by creator. |
-| No follower/RSVP notifications on edit | 🟡 Medium | Add `events.updated` job + push to RSVPed users when event is updated. |
-| No event cancellation | 🔴 Critical | Add PATCH to set `status: 'cancelled'`, notify RSVPed users, exclude from map. |
-| Cancelled events would still show on map | 🟡 Medium | GET /events should exclude `status: 'cancelled'` when not explicitly requested. |
-| Opponent not editable via event | 🟢 Low | Opponent is on Game; would need game update or separate flow. |
+| Gap                                      | Severity    | Description                                                                                             |
+| ---------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
+| Coach cannot edit approved events        | 🔴 Critical | Coaches are auto-approved, so they can never edit. Need to allow editing of approved events by creator. |
+| No follower/RSVP notifications on edit   | 🟡 Medium   | Add `events.updated` job + push to RSVPed users when event is updated.                                  |
+| No event cancellation                    | 🔴 Critical | Add PATCH to set `status: 'cancelled'`, notify RSVPed users, exclude from map.                          |
+| Cancelled events would still show on map | 🟡 Medium   | GET /events should exclude `status: 'cancelled'` when not explicitly requested.                         |
+| Opponent not editable via event          | 🟢 Low      | Opponent is on Game; would need game update or separate flow.                                           |
 
 ---
 
 ## 5. Recommendations
 
-1. **Allow coaches to edit approved events**  
-   - Relax PATCH `/:id` to allow creator to edit when `approval_status === 'approved'`.  
+1. **Allow coaches to edit approved events**
+   - Relax PATCH `/:id` to allow creator to edit when `approval_status === 'approved'`.
    - Keep the "pending only" rule for fan-created events if desired.
 
-2. **Notify on event update**  
-   - After PATCH, queue `events.updated` jobs for RSVPed users.  
+2. **Notify on event update**
+   - After PATCH, queue `events.updated` jobs for RSVPed users.
    - Optionally send push notifications.
 
-3. **Implement event cancellation**  
-   - Add PATCH `/:id` support for `status: 'cancelled'` (creator only).  
-   - Queue `events.canceled` for RSVPed users.  
+3. **Implement event cancellation**
+   - Add PATCH `/:id` support for `status: 'cancelled'` (creator only).
+   - Queue `events.canceled` for RSVPed users.
    - Cancel scheduled game reminders for the event.
 
-4. **Exclude cancelled events from map/list**  
+4. **Exclude cancelled events from map/list**
    - In GET `/events`, add `status: { not: 'cancelled' }` (or equivalent) unless `status=cancelled` is explicitly requested.

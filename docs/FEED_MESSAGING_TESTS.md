@@ -90,6 +90,7 @@ Comprehensive E2E tests for the feed page and messaging functionality to ensure 
 ### Test Data
 
 Each test generates unique data:
+
 - Unique email addresses (timestamp + random)
 - Unique display names
 - Test passwords
@@ -99,11 +100,13 @@ Each test generates unique data:
 ## Running the Tests
 
 ### Run All Feed & Messaging Tests
+
 ```bash
 npx playwright test tests/e2e/feed-messaging.spec.ts
 ```
 
 ### Run Specific Test Suite
+
 ```bash
 # Feed tests only
 npx playwright test tests/e2e/feed-messaging.spec.ts -g "Feed Page"
@@ -113,11 +116,13 @@ npx playwright test tests/e2e/feed-messaging.spec.ts -g "Messaging"
 ```
 
 ### Run with UI Mode
+
 ```bash
 npx playwright test tests/e2e/feed-messaging.spec.ts --ui
 ```
 
 ### Run in Debug Mode
+
 ```bash
 npx playwright test tests/e2e/feed-messaging.spec.ts --debug
 ```

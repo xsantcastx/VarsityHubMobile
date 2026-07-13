@@ -26,11 +26,13 @@ model Event {
 ```
 
 ### Migration Notes
+
 - Generate slug for existing rows using a deterministic strategy (e.g., `kebab-case(title)` + short id suffix) to avoid collisions.
 - Backfill may be deferred; `slug` is optional and mobile will fall back to `id` when absent.
 - Index the `slug` column with `@unique` to guarantee uniqueness.
 
 Example backfill SQL (conceptual):
+
 ```sql
 UPDATE "Event"
 SET slug = LOWER(REGEXP_REPLACE(title, '[^a-zA-Z0-9]+', '-', 'g')) || '-' || SUBSTR(id, 1, 6)
@@ -42,6 +44,7 @@ WHERE slug IS NULL;
 Include `slug` in event payloads wherever `id` is present. Mobile will prefer `slug` for URLs when available.
 
 Example `GET /events/:id` response:
+
 ```json
 {
   "id": "evt_123",
@@ -51,7 +54,7 @@ Example `GET /events/:id` response:
   "date": "2025-12-20T19:00:00.000Z",
   "location": "Center Court",
   "latitude": 40.7128,
-  "longitude": -74.0060,
+  "longitude": -74.006,
   "capacity": 250,
   "banner_url": "https://.../banner.jpg",
   "attendees_count": 42
@@ -59,6 +62,7 @@ Example `GET /events/:id` response:
 ```
 
 List endpoints should also include `slug`:
+
 ```json
 [
   {

@@ -37,6 +37,7 @@ This guide walks through creating 9 SendGrid email templates for the email hooks
 **Subject:** `Your Payment Receipt for {{plan_name}}`
 
 **Dynamic Variables Required:**
+
 ```
 {{plan_name}}      - e.g., "Veteran Membership"
 {{amount}}         - e.g., "$9.99"
@@ -45,6 +46,7 @@ This guide walks through creating 9 SendGrid email templates for the email hooks
 ```
 
 **Suggested Email Structure:**
+
 ```
 Subject: Your Payment Receipt for {{plan_name}}
 
@@ -74,6 +76,7 @@ VarsityHub Team
 **Subject:** `Payment Failed for {{plan_name}} - Action Required`
 
 **Dynamic Variables Required:**
+
 ```
 {{plan_name}}    - e.g., "Veteran Membership"
 {{reason}}       - e.g., "Your card was declined"
@@ -81,6 +84,7 @@ VarsityHub Team
 ```
 
 **Suggested Email Structure:**
+
 ```
 Subject: Payment Failed for {{plan_name}} - Action Required
 
@@ -107,6 +111,7 @@ VarsityHub Team
 **Subject:** `Your {{plan_name}} Subscription Has Been Canceled`
 
 **Dynamic Variables Required:**
+
 ```
 {{plan_name}}       - e.g., "Veteran Membership"
 {{renewal_date}}    - e.g., "2025-01-12" (ISO format)
@@ -114,6 +119,7 @@ VarsityHub Team
 ```
 
 **Suggested Email Structure:**
+
 ```
 Subject: Your {{plan_name}} Subscription Has Been Canceled
 
@@ -140,6 +146,7 @@ VarsityHub Team
 **Subject:** `🎉 You've Been Approved for {{team_name}}`
 
 **Dynamic Variables Required:**
+
 ```
 {{team_name}}         - e.g., "Basketball Club"
 {{org_name}}          - e.g., "State University" (optional)
@@ -147,6 +154,7 @@ VarsityHub Team
 ```
 
 **Suggested Email Structure:**
+
 ```
 Subject: 🎉 You've Been Approved for {{team_name}}
 
@@ -173,6 +181,7 @@ VarsityHub Team
 **Subject:** `Your Request to Join {{team_name}}`
 
 **Dynamic Variables Required:**
+
 ```
 {{team_name}}  - e.g., "Basketball Club"
 {{org_name}}   - e.g., "State University" (optional)
@@ -180,6 +189,7 @@ VarsityHub Team
 ```
 
 **Suggested Email Structure:**
+
 ```
 Subject: Your Request to Join {{team_name}}
 
@@ -204,6 +214,7 @@ VarsityHub Team
 **Subject:** `✅ Your Event {{event_name}} Has Been Approved`
 
 **Dynamic Variables Required:**
+
 ```
 {{event_name}}  - e.g., "Pickup Basketball Game"
 {{event_date}}  - e.g., "2025-12-20" (ISO format)
@@ -211,6 +222,7 @@ VarsityHub Team
 ```
 
 **Suggested Email Structure:**
+
 ```
 Subject: ✅ Your Event {{event_name}} Has Been Approved
 
@@ -237,6 +249,7 @@ VarsityHub Team
 **Subject:** `Your Event {{event_name}} Needs Review`
 
 **Dynamic Variables Required:**
+
 ```
 {{event_name}}  - e.g., "Pickup Basketball Game"
 {{event_date}}  - e.g., "2025-12-20" (ISO format)
@@ -245,6 +258,7 @@ VarsityHub Team
 ```
 
 **Suggested Email Structure:**
+
 ```
 Subject: Your Event {{event_name}} Needs Review
 
@@ -272,6 +286,7 @@ VarsityHub Team
 **Subject:** `⚠️ Security Alert: {{alert_type}}`
 
 **Dynamic Variables Required:**
+
 ```
 {{alert_type}}  - e.g., "password_change" (or new_device, email_change)
 {{ip_address}}  - e.g., "192.168.1.1"
@@ -280,6 +295,7 @@ VarsityHub Team
 ```
 
 **Suggested Email Structure:**
+
 ```
 Subject: ⚠️ Security Alert: {{alert_type}}
 
@@ -306,6 +322,7 @@ VarsityHub Team
 **Subject:** `You've Reached Your {{plan_name}} {{resource_type}} Limit`
 
 **Dynamic Variables Required:**
+
 ```
 {{plan_name}}        - e.g., "Rookie" (or Veteran, Legend)
 {{resource_type}}    - "team" or "organization"
@@ -315,6 +332,7 @@ VarsityHub Team
 ```
 
 **Suggested Email Structure:**
+
 ```
 Subject: You've Reached Your {{plan_name}} {{resource_type}} Limit
 
@@ -411,6 +429,7 @@ curl -X GET "https://api.sendgrid.com/v3/templates" \
 ## Checklist
 
 ### Creation Phase
+
 - [ ] PAYMENT_RECEIPT template created → Template ID: `d-________________`
 - [ ] PAYMENT_FAILED template created → Template ID: `d-________________`
 - [ ] SUBSCRIPTION_CANCELED template created → Template ID: `d-________________`
@@ -422,6 +441,7 @@ curl -X GET "https://api.sendgrid.com/v3/templates" \
 - [ ] PLAN_LIMIT_WARNING template created → Template ID: `d-________________`
 
 ### Configuration Phase
+
 - [ ] All template IDs added to staging .env
 - [ ] All template IDs added to production secrets
 - [ ] Staging redeployed
@@ -429,6 +449,7 @@ curl -X GET "https://api.sendgrid.com/v3/templates" \
 - [ ] SendGrid connectivity confirmed
 
 ### Documentation Phase
+
 - [ ] Template IDs documented in secure location
 - [ ] Team notified that Phase 1 is complete
 - [ ] Next steps (Phase 2 - QA Testing) communicated
@@ -440,6 +461,7 @@ curl -X GET "https://api.sendgrid.com/v3/templates" \
 ### Issue: "Template not found in SendGrid"
 
 **Solution:**
+
 1. Verify template was actually created (check SendGrid console)
 2. Make sure you copied the full Template ID (including `d-`)
 3. Check that the API key is correct
@@ -447,6 +469,7 @@ curl -X GET "https://api.sendgrid.com/v3/templates" \
 ### Issue: "Environment variable not being read"
 
 **Solution:**
+
 1. Verify you used the correct variable name (exact case matters)
 2. Restart the application after adding .env changes
 3. Confirm the secrets manager is properly configured
@@ -454,6 +477,7 @@ curl -X GET "https://api.sendgrid.com/v3/templates" \
 ### Issue: "Emails not sending with template"
 
 **Solution:**
+
 - This is expected until Phase 2 configuration is complete
 - Check server logs for warnings about missing templates
 - Verify template ID in environment matches SendGrid
@@ -462,13 +486,13 @@ curl -X GET "https://api.sendgrid.com/v3/templates" \
 
 ## Timeline
 
-| Step | Task | Est. Time |
-|------|------|-----------|
-| 1 | Create 9 SendGrid templates | 45 min |
-| 2 | Collect template IDs | 5 min |
-| 3 | Add to environment | 10 min |
-| 4 | Verify setup | 5 min |
-| **Total** | **Phase 1 Complete** | **65 minutes** |
+| Step      | Task                        | Est. Time      |
+| --------- | --------------------------- | -------------- |
+| 1         | Create 9 SendGrid templates | 45 min         |
+| 2         | Collect template IDs        | 5 min          |
+| 3         | Add to environment          | 10 min         |
+| 4         | Verify setup                | 5 min          |
+| **Total** | **Phase 1 Complete**        | **65 minutes** |
 
 ---
 
@@ -480,6 +504,7 @@ Once Phase 1 is complete, notify the QA team:
 > Ready to begin Phase 2 - QA Testing."
 
 **Phase 2 will:**
+
 - Run unit/import tests
 - Execute Stripe webhook sandbox tests
 - Verify all email flows work correctly
@@ -490,6 +515,7 @@ Once Phase 1 is complete, notify the QA team:
 ## Support
 
 **Questions?** Refer to:
+
 - `EMAIL_HOOKS_INTEGRATION_SUMMARY.md` - Technical details
 - `EMAIL_HOOKS_NEXT_STEPS.md` - Full deployment guide
 - `EMAIL_HOOKS_QUICK_REFERENCE.md` - Troubleshooting

@@ -9,6 +9,7 @@ These are tasks I can complete while you're updating SendGrid templates. We'll d
 ### 🔥 HIGH PRIORITY - Critical for Testing
 
 **TASK 1: Create Email Test Script**
+
 - Build a comprehensive test script that sends all 40 email types with realistic data
 - Tests each template function
 - Logs success/failure for each
@@ -16,6 +17,7 @@ These are tasks I can complete while you're updating SendGrid templates. We'll d
 - **Output:** Test results file we can review together
 
 **TASK 2: Create Testing Checklist**
+
 - Verify email subjects appear correctly
 - Verify images load without "Show Images" click
 - Verify all variables are populated (names, dates, links)
@@ -24,6 +26,7 @@ These are tasks I can complete while you're updating SendGrid templates. We'll d
 - **Output:** Step-by-step testing guide
 
 **TASK 3: Build Email Verification Script**
+
 - Script that checks if all 40 templates have:
   - Subject lines defined
   - Required variables present
@@ -36,6 +39,7 @@ These are tasks I can complete while you're updating SendGrid templates. We'll d
 ### 📋 MEDIUM PRIORITY - Documentation & Setup
 
 **TASK 4: Create Production Deployment Runbook**
+
 - Document exact steps to deploy to iOS App Store
 - Document exact steps to deploy to Google Play Store
 - Includes pre-deployment checks
@@ -43,6 +47,7 @@ These are tasks I can complete while you're updating SendGrid templates. We'll d
 - **Output:** Deployment guide ready to go
 
 **TASK 5: Update README with Email System Info**
+
 - Add section about email system
 - List all 40 templates and their purposes
 - Document template variables for developers
@@ -50,6 +55,7 @@ These are tasks I can complete while you're updating SendGrid templates. We'll d
 - **Output:** Updated README.md
 
 **TASK 6: Create Email Template Reference**
+
 - Catalog all 40 templates with:
   - Template ID
   - Purpose/When it's sent
@@ -62,6 +68,7 @@ These are tasks I can complete while you're updating SendGrid templates. We'll d
 ### 🛠️ LOWER PRIORITY - Optimization
 
 **TASK 7: Audit Backend Email Code**
+
 - Review all email functions for consistency
 - Check error handling
 - Verify variable naming conventions
@@ -69,6 +76,7 @@ These are tasks I can complete while you're updating SendGrid templates. We'll d
 - **Output:** Code review report with recommendations
 
 **TASK 8: Create Email Monitoring Dashboard**
+
 - Add logging to track email sends
 - Log failures with error details
 - Create analytics dashboard view
@@ -105,6 +113,7 @@ These are tasks I can complete while you're updating SendGrid templates. We'll d
 **While you're updating SendGrid (1-2 hours):**
 
 I'll complete:
+
 - ✅ TASK 1: Email Test Script (Create test file that can run after you finish)
 - ✅ TASK 2: Testing Checklist (Create step-by-step guide)
 - ✅ TASK 3: Email Verification Script (Create validation tool)
@@ -112,7 +121,8 @@ I'll complete:
 
 **Estimated Time:** 2-3 hours parallel work
 
-**Then:** 
+**Then:**
+
 - You finish SendGrid updates
 - Run my test script
 - Follow my testing checklist

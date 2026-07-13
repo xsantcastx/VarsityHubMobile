@@ -1,6 +1,7 @@
 # Figma Design Prompt: Account Actions & Appeal Flow UI
 
 ## Overview
+
 Design the frontend screens for handling account suspensions, warnings, content removal, and permanent bans. Users will see these screens when they receive account actions and need to appeal.
 
 ---
@@ -10,6 +11,7 @@ Design the frontend screens for handling account suspensions, warnings, content 
 **Purpose**: Display to user when they receive a warning for a policy violation
 
 **Layout**:
+
 - **Header**
   - VarsityHub logo (top-left)
   - "Account Warning" title (24px, bold, amber color #f59e0b)
@@ -37,6 +39,7 @@ Design the frontend screens for handling account suspensions, warnings, content 
 **Purpose**: Notify user that specific content was removed
 
 **Layout**:
+
 - **Header**
   - "Content Removed" title (24px, bold, red color #ef4444)
   - Close button
@@ -62,6 +65,7 @@ Design the frontend screens for handling account suspensions, warnings, content 
 **Purpose**: Inform user their account is suspended (7 or 45 days)
 
 **Layout**:
+
 - **Header**
   - Alert icon (⚠️)
   - "Account Suspended" title (24px, bold, red #dc2626)
@@ -94,6 +98,7 @@ Design the frontend screens for handling account suspensions, warnings, content 
 **Purpose**: Inform user their account has been permanently banned
 
 **Layout**:
+
 - **Header**
   - Ban icon (🚫)
   - "Account Permanently Banned" title (24px, bold, dark red #7f1d1d)
@@ -125,6 +130,7 @@ Design the frontend screens for handling account suspensions, warnings, content 
 **Purpose**: Allow user to appeal an account action
 
 **Layout** (Modal overlay):
+
 - **Header**
   - "Submit an Appeal" (20px, bold)
   - Close button
@@ -153,6 +159,7 @@ Design the frontend screens for handling account suspensions, warnings, content 
 **Purpose**: Confirm appeal was successfully submitted
 
 **Layout**:
+
 - **Header**
   - Success icon (✓ green circle)
   - "Appeal Submitted" title (green)
@@ -172,6 +179,7 @@ Design the frontend screens for handling account suspensions, warnings, content 
 ## Design System Requirements
 
 **Colors**:
+
 - Warning: #f59e0b (amber)
 - Content Removal: #ef4444 (light red)
 - Suspension (7/45 days): #dc2626 (medium red)
@@ -181,22 +189,26 @@ Design the frontend screens for handling account suspensions, warnings, content 
 - Text: #111827 (dark gray)
 
 **Typography**:
+
 - Titles: 24px, bold, system fonts
 - Subtitles: 16px, regular
 - Body: 14px, regular
 - Labels: 13px, medium
 
 **Spacing**:
+
 - Padding: 16px, 20px, 24px, 32px
 - Gaps: 8px, 12px, 16px, 20px
 
 **Components**:
+
 - Buttons: 48px height, 14px font, rounded 8px
 - Cards: rounded 8px, 1px border (gray #e5e7eb)
 - Modals: centered, max-width 500px, backdrop blur
 - Badges: rounded 4px, 12px padding, 12px font
 
 **Responsive**:
+
 - Mobile-first design
 - Breakpoint: 640px (tablet/desktop)
 - Max width: 600px on desktop
@@ -207,12 +219,14 @@ Design the frontend screens for handling account suspensions, warnings, content 
 ## Interactive Elements
 
 **Animations**:
+
 - Entrance: fade-in (200ms)
 - Timer countdown: smooth number transitions
 - Button hover: 5% background darken
 - Modal open: scale-in from center (150ms)
 
 **States**:
+
 - Button hover: opacity change
 - Button pressed: brief scale feedback
 - Form validation: red border on error
@@ -264,6 +278,7 @@ Design the frontend screens for handling account suspensions, warnings, content 
 ---
 
 **Deliverables**:
+
 1. Figma file with all 6 screens
 2. Component library (reusable patterns)
 3. Interactive prototype with basic navigation

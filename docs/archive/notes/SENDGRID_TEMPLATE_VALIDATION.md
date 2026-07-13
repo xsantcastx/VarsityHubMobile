@@ -12,6 +12,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ## ✅ SECURITY EMAILS
 
 ### 1. Password Reset - VH
+
 - **Backend Function:** `sendPasswordResetEmail(email, code, userName?, resetLink?, expiresInLabel)`
 - **Template ID Env Var:** `SENDGRID_PASSWORD_RESET_TEMPLATE_ID`
 - **Subject Tag Required:** Yes - `<subject>Your VarsityHub Password Reset Link</subject>`
@@ -24,6 +25,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url` (NOT in current backend - needs addition)
 
 **Test Payload:**
+
 ```json
 {
   "USERNAME": "John Coach",
@@ -36,12 +38,14 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ```
 
 **Fixes Needed:**
+
 - [ ] Add privacy_policy_url and community_guidelines_url to dynamicTemplateData in sendPasswordResetEmail
 - [ ] Verify <subject> tag present in SendGrid template
 
 ---
 
 ### 2. Password Changed - VH
+
 - **Backend Function:** `sendPasswordChangedEmail(email, userName?, changeDate?)`
 - **Template ID Env Var:** `SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID`
 - **Subject Tag Required:** Yes
@@ -53,6 +57,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url` (NOT in backend - needs addition)
 
 **Test Payload:**
+
 ```json
 {
   "USERNAME": "John Coach",
@@ -64,12 +69,14 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ```
 
 **Fixes Needed:**
+
 - [ ] Add privacy_policy_url and community_guidelines_url to sendPasswordChangedEmail
 - [ ] Verify <subject> tag
 
 ---
 
 ### 3. Account Recovery - VH
+
 - **Backend Function:** `sendAccountRecoveryEmail(email, userName?, recoveryDate?)`
 - **Template ID Env Var:** `SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID`
 - **Subject Tag Required:** Yes
@@ -81,6 +88,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url` (NOT in backend - needs addition)
 
 **Test Payload:**
+
 ```json
 {
   "USERNAME": "John Coach",
@@ -92,12 +100,14 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ```
 
 **Fixes Needed:**
+
 - [ ] Add privacy_policy_url and community_guidelines_url
 - [ ] Verify <subject> tag
 
 ---
 
 ### 4. Log in from new device - VH
+
 - **Backend Function:** `sendLoginFromNewDeviceEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_LOGIN_NEW_DEVICE_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete with all required tokens
@@ -115,6 +125,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "John Coach",
@@ -136,6 +147,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ## 🏢 ORGANIZATION & TEAM MANAGEMENT
 
 ### 5. Organization Invitation - VH
+
 - **Backend Function:** `sendOrganizationInvitationEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_ORGANIZATION_INVITATION_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -150,6 +162,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "recipient_name": "Jane Smith",
@@ -166,6 +179,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 6. Role Assignment - VH
+
 - **Backend Function:** `sendRoleAssignmentEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_ROLE_ASSIGNMENT_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -180,6 +194,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "John Coach",
@@ -196,6 +211,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 7. Athlete invitation - VH
+
 - **Backend Function:** `sendAthleteInvitationEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_ATHLETE_INVITATION_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -210,6 +226,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "athlete_name": "Sarah Johnson",
@@ -226,6 +243,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 8. Roster Threshold - VH
+
 - **Backend Function:** `sendRosterThresholdEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_ROSTER_THRESHOLD_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -239,6 +257,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "coach_name": "Coach Mike Johnson",
@@ -254,6 +273,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 9. Invitation Declined - VH
+
 - **Backend Function:** `sendInvitationDeclinedEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_INVITATION_DECLINED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -270,6 +290,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "sender_name": "Coach Mike",
@@ -288,6 +309,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 10. Team Roster Update - VH
+
 - **Backend Function:** `sendTeamRosterUpdateEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_TEAM_ROSTER_UPDATE_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -302,6 +324,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "coach_name": "Coach Mike Johnson",
@@ -318,6 +341,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 11. Staff member joined - VH
+
 - **Backend Function:** `sendStaffMemberJoinedEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_STAFF_MEMBER_JOINED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -334,6 +358,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "recipient_name": "Coach Mike",
@@ -354,6 +379,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ## 📋 MEMBERSHIP & ONBOARDING
 
 ### 12. User Confirmation - VH
+
 - **Backend Function:** `sendUserConfirmationEmail(params: {to, userName, confirmationLink, expiresIn})`
 - **Template ID Env Var:** `SENDGRID_USER_CONFIRMATION_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -365,6 +391,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "John Coach",
@@ -380,6 +407,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ## 💳 BILLING & PAYMENTS
 
 ### 13. Payment Failed - VH
+
 - **Backend Function:** `sendPaymentFailedEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_PAYMENT_FAILED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -396,6 +424,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "John Coach",
@@ -414,6 +443,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 14. Subscription Expiring - VH
+
 - **Backend Function:** `sendSubscriptionExpiringEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -430,6 +460,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "John Coach",
@@ -450,6 +481,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ## 📣 EVENT MANAGEMENT
 
 ### 15. Event Submission Recieved - VH
+
 - **Backend Function:** `sendEventSubmissionReceivedEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_EVENT_SUBMISSION_RECEIVED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -466,6 +498,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "coach_name": "Coach Mike Johnson",
@@ -484,6 +517,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 16. Event Approved - VH
+
 - **Backend Function:** `sendEventApprovedEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_EVENT_APPROVED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -502,6 +536,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "coach_name": "Coach Mike Johnson",
@@ -522,6 +557,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 17. Event Denied - VH
+
 - **Backend Function:** `sendEventDeniedEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_EVENT_DENIED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -537,6 +573,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "coach_name": "Coach Mike Johnson",
@@ -554,6 +591,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 18. event reminder 24H - VH
+
 - **Backend Function:** `sendEventReminderEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_EVENT_REMINDER_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -573,6 +611,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "recipient_name": "John Coach",
@@ -594,6 +633,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 19. Event updated - VH
+
 - **Backend Function:** `sendEventUpdatedEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_EVENT_UPDATED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -612,6 +652,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "recipient_name": "John Coach",
@@ -632,6 +673,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 20. Event Cancelled - VH
+
 - **Backend Function:** `sendEventCanceledEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_EVENT_CANCELED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -651,6 +693,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "recipient_name": "John Coach",
@@ -672,6 +715,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 21. Event RSVP confirmation - VH
+
 - **Backend Function:** `sendEventRsvpConfirmedEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_EVENT_RSVP_CONFIRMED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -690,6 +734,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "John Coach",
@@ -712,6 +757,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ## 🚨 MODERATION & ACCOUNT ACTIONS
 
 ### 22. Report Dismissed - VH
+
 - **Backend Function:** `sendReportResolutionEmail(params: {..., resolutionStatus: 'dismissed'})`
 - **Template ID Env Var:** `SENDGRID_REPORT_DISMISSED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -729,6 +775,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "Sarah Johnson",
@@ -748,6 +795,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 23. Report Resolution - VH
+
 - **Backend Function:** `sendReportResolutionEmail(params: {..., resolutionStatus: 'resolved'})`
 - **Template ID Env Var:** `SENDGRID_REPORT_RESOLVED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -765,6 +813,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "John Coach",
@@ -784,6 +833,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 24. Account Warning - VH
+
 - **Backend Function:** `sendAccountWarningEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_ACCOUNT_WARNING_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -797,6 +847,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `privacy_policy_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "John Coach",
@@ -812,6 +863,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 25. Content Removed - VH
+
 - **Backend Function:** `sendContentRemovedEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_CONTENT_REMOVED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -828,6 +880,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `privacy_policy_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "Sarah Johnson",
@@ -846,6 +899,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 26. 7 day suspension - VH
+
 - **Backend Function:** `sendAccountSuspensionEmail(params: {..., suspensionDays: 7})`
 - **Template ID Env Var:** `SENDGRID_ACCOUNT_SUSPENSION_7_DAYS_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -864,6 +918,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `privacy_policy_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "John Coach",
@@ -884,6 +939,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 27. 45 day suspension - VH
+
 - **Backend Function:** `sendAccountSuspensionEmail(params: {..., suspensionDays: 45})`
 - **Template ID Env Var:** `SENDGRID_ACCOUNT_SUSPENSION_45_DAYS_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -902,6 +958,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `privacy_policy_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "Jane Smith",
@@ -922,6 +979,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ---
 
 ### 28. Permanent Ban - VH
+
 - **Backend Function:** `sendAccountPermanentBanEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_ACCOUNT_PERMANENT_BAN_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -938,6 +996,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `privacy_policy_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "Marcus Williams",
@@ -958,6 +1017,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 ## 📋 ADDITIONAL MEMBERSHIP
 
 ### 29. Member Removed Notification
+
 - **Backend Function:** `sendMemberRemovedEmail(params: {...})`
 - **Template ID Env Var:** `SENDGRID_MEMBER_REMOVED_TEMPLATE_ID`
 - **Status:** ✅ Backend contract complete
@@ -973,6 +1033,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
   - `community_guidelines_url`
 
 **Test Payload:**
+
 ```json
 {
   "user_name": "Sarah Johnson",
@@ -994,7 +1055,7 @@ All template IDs must be configured in Railway environment as `SENDGRID_[TEMPLAT
 The following functions need to be updated to include `privacy_policy_url` and `community_guidelines_url` in their dynamicTemplateData objects:
 
 - [ ] `sendPasswordResetEmail` - Add privacy/community URLs
-- [ ] `sendPasswordChangedEmail` - Add privacy/community URLs  
+- [ ] `sendPasswordChangedEmail` - Add privacy/community URLs
 - [ ] `sendAccountRecoveryEmail` - Add privacy/community URLs
 
 All other functions already include these tokens.

@@ -7,6 +7,7 @@
 **Error**: Unable to resolve `"../src/assets/images/icon.png"`
 
 ### Error Message
+
 ```
 Android Bundling failed 10994ms node_modules\expo-router\entry.js (2463 modules)
 Unable to resolve "../src/assets/images/icon.png" from "app\manage-teams.tsx"
@@ -24,12 +25,9 @@ Unable to resolve "../src/assets/images/icon.png" from "app\manage-teams.tsx"
 The TypeScript path alias `@/` was being used with `require()` for image imports. While this works for TypeScript imports, React Native's Metro bundler requires explicit relative paths when using `require()` for static assets like images.
 
 **Problematic Code**:
+
 ```tsx
-<Image 
-  source={require('@/assets/images/icon.png')} 
-  style={styles.exampleLogo}
-  contentFit="cover"
-/>
+<Image source={require('@/assets/images/icon.png')} style={styles.exampleLogo} contentFit="cover" />
 ```
 
 ## Solution
@@ -37,9 +35,10 @@ The TypeScript path alias `@/` was being used with `require()` for image imports
 Changed the import to use a relative path instead of the TypeScript alias:
 
 **Fixed Code**:
+
 ```tsx
-<Image 
-  source={require('../assets/images/icon.png')} 
+<Image
+  source={require('../assets/images/icon.png')}
   style={styles.exampleLogo}
   contentFit="cover"
 />
@@ -94,6 +93,7 @@ const imageName = 'logo';
 ## Related Issues
 
 This is a common issue when migrating from:
+
 - JavaScript to TypeScript with path aliases
 - Web React to React Native
 - Other bundlers to Metro
@@ -115,8 +115,8 @@ This is a common issue when migrating from:
 
 **Status**: ✅ Fixed  
 **Impact**: Android and iOS builds now succeed  
-**Breaking Changes**: None  
+**Breaking Changes**: None
 
 ---
 
-*Bug Fix Documentation - VarsityHub Development Team*
+_Bug Fix Documentation - VarsityHub Development Team_

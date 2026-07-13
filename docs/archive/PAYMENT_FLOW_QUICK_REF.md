@@ -1,6 +1,7 @@
 # Payment Flow - Quick Reference
 
 ## 🔥 Issue: User Stuck After Payment
+
 **Problem:** After completing payment in Stripe browser, user returned to ad-calendar screen and was stuck there with confusing alerts.
 
 ---
@@ -8,10 +9,12 @@
 ## ✅ Solution: Automatic Redirect
 
 ### What Changed
+
 **Before:** Complex conditional logic with multiple alerts asking "Did you complete payment?"  
 **After:** Simple automatic redirect to My Ads when browser closes
 
 ### Code
+
 ```typescript
 // After browser closes, automatically redirect
 const result = await WebBrowser.openBrowserAsync(String(data.url));

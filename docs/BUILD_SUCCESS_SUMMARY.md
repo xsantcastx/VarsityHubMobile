@@ -16,9 +16,11 @@
 **Distribution:** App Store (TestFlight ready)
 
 **Build Artifact:**
+
 - https://expo.dev/artifacts/eas/kT8hcFtgMCHEsJiY1LZM5M.ipa
 
 **Build Logs:**
+
 - https://expo.dev/accounts/varsity-hub/projects/varsityhub/builds/a1010d88-29a9-4a75-aa7a-e6bc84b5a091
 
 ---
@@ -76,11 +78,13 @@ eas submit --platform ios --profile production
 ```
 
 **What it does:**
+
 - Automatically uploads IPA to App Store Connect
 - Submits to TestFlight
 - Uses credentials from `eas.json`
 
 **Requirements:**
+
 - ✅ `eas.json` submit configuration is correct
 - ✅ Apple ID authenticated with EAS
 
@@ -91,6 +95,7 @@ eas submit --platform ios --profile production
    - Download the `.ipa` file
 
 2. **Open Xcode:**
+
    ```bash
    open -a Xcode
    ```
@@ -124,6 +129,7 @@ eas submit --platform ios --profile production
 ### Environment Variables Used
 
 **Production Build Environment:**
+
 - ✅ `EXPO_PUBLIC_API_URL`: https://api-production-8ac3.up.railway.app
 - ✅ `EXPO_PUBLIC_FORCE_REMOTE_API`: 1
 - ✅ `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`: Configured
@@ -179,6 +185,7 @@ eas submit --platform ios --profile production
 ## 📝 Commits Made
 
 ### Commit 1: Fix Apple Team ID
+
 ```
 fix: remove appleTeamId from eas.json to let EAS auto-detect
 - Removed explicit Team ID to fix Apple 403 error
@@ -186,6 +193,7 @@ fix: remove appleTeamId from eas.json to let EAS auto-detect
 ```
 
 ### Commit 2: Fix Sentry Auto-Upload
+
 ```
 fix: disable Sentry auto-upload to prevent build failures
 - Add SENTRY_DISABLE_AUTO_UPLOAD=true to production build env

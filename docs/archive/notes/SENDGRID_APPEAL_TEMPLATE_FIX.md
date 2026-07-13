@@ -3,6 +3,7 @@
 ## Current Status
 
 Your backend generates:
+
 ```
 appeal_url = "mailto:customerservice@varsityhub.app?subject=Appeal+for+Report+%23VR-482917&body=..."
 ```
@@ -44,16 +45,19 @@ In SendGrid Design Editor:
 If using HTML editor, verify the anchor tag looks like:
 
 ```html
-<a href="{{appeal_url}}" class="button" style="background: #3B82F6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">
+<a
+  href="{{appeal_url}}"
+  class="button"
+  style="background: #3B82F6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;"
+>
   Appeal This Decision
 </a>
 ```
 
 **NOT**:
+
 ```html
-<a href="https://varsityhub.app/reports/appeal">
-  Appeal This Decision
-</a>
+<a href="https://varsityhub.app/reports/appeal"> Appeal This Decision </a>
 ```
 
 ## Test End-to-End

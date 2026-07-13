@@ -5,6 +5,7 @@
 **CRITICAL BUG**: Users could access onboarding WITHOUT signing in first.
 
 The onboarding flow had zero authentication checks, meaning:
+
 - A user could navigate directly to `/onboarding/step-1-role`
 - The app would allow them to proceed through all onboarding steps
 - They could "complete" onboarding without ever signing in with Google, Apple, or email
@@ -26,7 +27,9 @@ The `AuthProvider` routing logic SHOULD have protected onboarding, but the redir
 ## 🔧 Fix Applied
 
 ### 1. **Onboarding Layout** (`app/onboarding/_layout.tsx`)
+
 Added authentication guard at the layout level:
+
 ```tsx
 const { user, loading } = useAuth();
 
@@ -49,7 +52,9 @@ if (loading || !user) {
 ---
 
 ### 2. **Onboarding Index** (`app/onboarding/index.tsx`)
+
 Added user verification before navigating to individual steps:
+
 ```tsx
 const { user } = useAuth();
 
@@ -66,7 +71,9 @@ useEffect(() => {
 ---
 
 ### 3. **Individual Steps** (step-1-role, step-9-features, step-10-confirmation)
+
 Added auth checks to each critical step:
+
 ```tsx
 const { user } = useAuth();
 
@@ -83,18 +90,21 @@ useEffect(() => {
 ## 🧪 Expected Behavior After Fix
 
 ### Test 1: Direct Navigation to Onboarding (No Auth)
+
 1. Open app
 2. Type in browser console (or use deep link): Navigate to `/onboarding/step-1-role`
 3. **Expected**: App immediately redirects to `/sign-in`
 4. **Result**: ✅ PASS (user is blocked)
 
 ### Test 2: Normal Flow (After Sign-In)
+
 1. Sign in with Google/Apple/Email
 2. If onboarding incomplete on server, app auto-navigates to `/onboarding/step-1-role`
 3. **Expected**: User can now proceed normally
 4. **Result**: ✅ PASS (authenticated user allowed)
 
 ### Test 3: Signed-In User Completes Onboarding
+
 1. Sign in
 2. Complete all onboarding steps
 3. Server marks `onboarding_completed = true`
@@ -104,6 +114,7 @@ useEffect(() => {
 7. **Result**: ✅ PASS
 
 ### Test 4: Try to Go Back to Onboarding While Signed In
+
 1. Sign in
 2. Complete onboarding and reach feed
 3. Try to navigate back to `/onboarding/step-1-role`
@@ -115,12 +126,14 @@ useEffect(() => {
 ## 🛡️ Security Implications
 
 ### Before Fix
+
 - ❌ Onboarding completely public - no auth required
 - ❌ Users could skip sign-in entirely
 - ❌ Profile data could be set without authentication
 - ❌ Role preference could be saved to unauthenticated session
 
 ### After Fix
+
 - ✅ Onboarding REQUIRES authentication
 - ✅ User must sign in before starting onboarding
 - ✅ Each step validates user exists
@@ -156,4 +169,3 @@ The multiple layers provide defense-in-depth and catch edge cases where one chec
 1. **Test thoroughly** - Verify the flow works both with and without authentication
 2. **Monitor logs** - Watch for any redirect warnings in Sentry/logs
 3. **User feedback** - Ensure onboarded users don't see unexpected redirects
-

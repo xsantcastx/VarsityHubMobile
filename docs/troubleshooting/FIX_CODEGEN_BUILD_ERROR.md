@@ -1,11 +1,14 @@
 # 🔧 Fix Codegen Build Errors
 
 ## The Problem
+
 Xcode is trying to compile codegen files before they're generated, causing:
+
 - `ComponentDescriptors.cpp` not found
 - `RCTAppDependencyProvider.mm` not found
 
 ## ✅ Files Actually Exist
+
 The files ARE being generated during `pod install`, but Xcode can't find them during build.
 
 ## 🔧 Solution: Clean Build

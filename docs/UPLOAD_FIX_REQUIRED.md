@@ -45,18 +45,21 @@ This is a **SERVER configuration issue**, not a mobile build issue.
 4. Click **+ New Variable** for each:
 
    **Variable 1:**
+
    ```
    Name:  CLOUDINARY_CLOUD_NAME
    Value: [your cloud name from Step 1]
    ```
 
    **Variable 2:**
+
    ```
    Name:  CLOUDINARY_API_KEY
    Value: [your API key from Step 1]
    ```
 
    **Variable 3:**
+
    ```
    Name:  CLOUDINARY_API_SECRET
    Value: [your API secret from Step 1]
@@ -71,6 +74,7 @@ Railway will automatically redeploy when you add variables. Wait 2-3 minutes.
 ### Step 4: Verify It Works
 
 1. Check Railway logs - you should see:
+
    ```
    ✅ Cloudinary configured - using cloud storage
    ```
@@ -83,12 +87,14 @@ Railway will automatically redeploy when you add variables. Wait 2-3 minutes.
 ## Why This Is Different From Before
 
 ### Previous Builds:
+
 - ❌ Cloudinary not configured in Railway
 - ❌ Server either crashed or used ephemeral storage
 - ❌ Uploads appeared to work but files disappeared
 - ❌ No verification script to catch this
 
 ### Now:
+
 - ✅ Verification script catches the issue BEFORE build
 - ✅ Clear instructions on how to fix
 - ✅ Server code enforces Cloudinary requirement
@@ -105,6 +111,7 @@ bash scripts/verify-uploads-will-work.sh
 ```
 
 Should show:
+
 ```
 ✅ Cloudinary configured in Railway
 ✅✅✅ UPLOADS SHOULD WORK ✅✅✅

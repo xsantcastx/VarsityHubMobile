@@ -6,6 +6,7 @@
 ## ⚠️ New: Strict Environment Validation
 
 The server now **exits immediately** if required env vars are missing or invalid:
+
 - `DATABASE_URL` - Required
 - `JWT_SECRET` - Required, **must be ≥32 characters**
 - `ALLOWED_ORIGINS` - Recommended (set to avoid wildcard CORS warning)
@@ -16,28 +17,29 @@ See `server/src/lib/env.ts` for the full Zod schema.
 
 ## 🚨 Current Production Status
 
-| Variable | Status | Impact |
-| -------- | ------ | ------ |
-| DATABASE_URL | ✅ Set | Prisma connected, 44 migrations applied |
-| JWT_SECRET | ✅ Set | Auth tokens work |
-| SMTP_HOST/USER/PASS | ✅ Set | Email verification & password reset work |
-| SENTRY_DSN | ✅ Set | Server error tracking active |
-| **STRIPE_SECRET_KEY** | ✅ Set | `sk_test_...` configured |
-| **STRIPE_WEBHOOK_SECRET** | ✅ Set | `whsec_...` configured |
-| **STRIPE_PRICE_VETERAN** | ✅ Set | `price_1SCd6HRuB2a0vFjp1QlboTEv` |
-| **STRIPE_PRICE_LEGEND** | ✅ Set | `price_1SCd6IRuB2a0vFjpQOSdctN4` |
-| **CLOUDINARY_CLOUD_NAME** | ✅ Set | `varsityhub` |
-| **CLOUDINARY_API_KEY** | ✅ Set | `324968783148443` |
-| **CLOUDINARY_API_SECRET** | ✅ Set | Configured |
-| **GOOGLE_OAUTH_CLIENT_IDS** | ✅ Set | All 3 client IDs configured |
-| **GOOGLE_MAPS_API_KEY** | ✅ Set | iOS + Android keys in app.json |
-| TWILIO_* | ⚠️ Optional | SMS disabled; email verification is fallback |
-| REDIS_URL | ⚠️ Optional | Job queues (BullMQ) disabled until added |
-| ALLOWED_ORIGINS | ⚠️ Recommended | Set to lock down CORS (e.g., `https://varsityhub.com`) |
+| Variable                    | Status         | Impact                                                 |
+| --------------------------- | -------------- | ------------------------------------------------------ |
+| DATABASE_URL                | ✅ Set         | Prisma connected, 44 migrations applied                |
+| JWT_SECRET                  | ✅ Set         | Auth tokens work                                       |
+| SMTP_HOST/USER/PASS         | ✅ Set         | Email verification & password reset work               |
+| SENTRY_DSN                  | ✅ Set         | Server error tracking active                           |
+| **STRIPE_SECRET_KEY**       | ✅ Set         | `sk_test_...` configured                               |
+| **STRIPE_WEBHOOK_SECRET**   | ✅ Set         | `whsec_...` configured                                 |
+| **STRIPE_PRICE_VETERAN**    | ✅ Set         | `price_1SCd6HRuB2a0vFjp1QlboTEv`                       |
+| **STRIPE_PRICE_LEGEND**     | ✅ Set         | `price_1SCd6IRuB2a0vFjpQOSdctN4`                       |
+| **CLOUDINARY_CLOUD_NAME**   | ✅ Set         | `varsityhub`                                           |
+| **CLOUDINARY_API_KEY**      | ✅ Set         | `324968783148443`                                      |
+| **CLOUDINARY_API_SECRET**   | ✅ Set         | Configured                                             |
+| **GOOGLE_OAUTH_CLIENT_IDS** | ✅ Set         | All 3 client IDs configured                            |
+| **GOOGLE_MAPS_API_KEY**     | ✅ Set         | iOS + Android keys in app.json                         |
+| TWILIO\_\*                  | ⚠️ Optional    | SMS disabled; email verification is fallback           |
+| REDIS_URL                   | ⚠️ Optional    | Job queues (BullMQ) disabled until added               |
+| ALLOWED_ORIGINS             | ⚠️ Recommended | Set to lock down CORS (e.g., `https://varsityhub.com`) |
 
 ### Why Stripe Payments Fail
 
 The `/payments/checkout` route instantiates Stripe with `process.env.STRIPE_SECRET_KEY`. Without it:
+
 1. SDK is created with empty string
 2. Any checkout call throws **"No API key provided"**
 3. Webhook handler can't verify signatures without `STRIPE_WEBHOOK_SECRET`
@@ -49,6 +51,7 @@ This is NOT a 2FA or Stripe account issue—just missing env vars.
 ## Required Variables to Add in Railway Dashboard
 
 ### 1. Stripe (Payments & Subscriptions) — CRITICAL
+
 Get from: https://dashboard.stripe.com/apikeys
 
 ```bash
@@ -59,11 +62,13 @@ STRIPE_PRICE_LEGEND=price_...      # Legend tier: $19.99/year unlimited
 ```
 
 **Ad Pricing (Hardcoded in server/src/routes/payments.ts):**
+
 - Weekday slots (Mon-Thu): $8.00 per week
 - Weekend slots (Fri-Sun): $10.00 per week
 - No env vars needed for ad pricing—it's calculated in `calculatePriceCents()`
 
 **Create Stripe Products:**
+
 1. Go to Stripe Dashboard → Products
 2. Create "Veteran" product:
    - Price: $2.50/month recurring (per-unit billing)
@@ -73,6 +78,7 @@ STRIPE_PRICE_LEGEND=price_...      # Legend tier: $19.99/year unlimited
    - Copy `price_...` ID → `STRIPE_PRICE_LEGEND`
 
 ### 2. Cloudinary (Image/Video Uploads)
+
 Sign up at: https://cloudinary.com/users/register/free
 
 ```bash
@@ -82,6 +88,7 @@ CLOUDINARY_API_SECRET=your-api-secret
 ```
 
 ### 3. Google OAuth (Google Sign-In)
+
 Get from: https://console.cloud.google.com/apis/credentials
 
 ```bash
@@ -89,6 +96,7 @@ GOOGLE_OAUTH_CLIENT_IDS=ios-client.apps.googleusercontent.com,web-client.apps.go
 ```
 
 ### 4. Google Maps (Maps Features)
+
 Get from: https://console.cloud.google.com/google/maps-apis/overview
 
 ```bash
@@ -96,6 +104,7 @@ GOOGLE_MAPS_API_KEY=AIza...
 ```
 
 ### 5. Redis (Job Queues — Optional but Recommended)
+
 For background job processing (notifications, emails, cleanup tasks).
 Sign up at: https://upstash.com (free tier available)
 
@@ -104,6 +113,7 @@ REDIS_URL=redis://default:xxx@xxx.upstash.io:6379
 ```
 
 **What it enables:**
+
 - Background push notification delivery
 - Email queue processing
 - Scheduled cleanup jobs
@@ -128,6 +138,7 @@ After adding `STRIPE_SECRET_KEY`, configure the webhook:
 5. Redeploy Railway
 
 ### Test Webhook Locally
+
 ```bash
 stripe listen --forward-to http://localhost:4000/payments/webhook
 stripe trigger checkout.session.completed
@@ -164,7 +175,9 @@ curl https://api-production-8ac3.up.railway.app/payments/config-status
 ## Optional Variables
 
 ### Twilio (SMS Verification)
+
 If you want SMS verification instead of email:
+
 ```bash
 TWILIO_ACCOUNT_SID=AC...
 TWILIO_AUTH_TOKEN=...
@@ -172,11 +185,13 @@ TWILIO_PHONE_NUMBER=+1...
 ```
 
 ### Admin Configuration
+
 ```bash
 ADMIN_EMAILS=admin@varsityhub.com,owner@varsityhub.com
 ```
 
 ### App URLs
+
 ```bash
 APP_BASE_URL=https://api-production-8ac3.up.railway.app
 APP_SCHEME=varsityhubmobile
@@ -190,18 +205,21 @@ ALLOWED_ORIGINS=https://varsityhub.app,https://www.varsityhub.app
 These go in your `.env` file or `eas.json` for builds:
 
 ### Sentry (Mobile Error Tracking)
+
 ```bash
 EXPO_PUBLIC_SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx
 EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=0.1   # optional, default 0.1
 ```
 
 **How it works:**
+
 - `utils/sentry.ts` calls `initSentry()` on app load
 - Without DSN → logs warning, Sentry disabled
 - With DSN → captures JS errors, unhandled promises, performance traces
 - `ErrorBoundary` component sends caught React errors to Sentry
 
 ### Google Sign-In (Mobile)
+
 ```bash
 EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=xxx.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=xxx.apps.googleusercontent.com
@@ -209,6 +227,7 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=xxx.apps.googleusercontent.com
 ```
 
 ### API Configuration
+
 ```bash
 EXPO_PUBLIC_API_URL=https://api-production-8ac3.up.railway.app
 EXPO_PUBLIC_APP_SCHEME=varsityhubmobile
@@ -218,12 +237,16 @@ EXPO_PUBLIC_APP_SCHEME=varsityhubmobile
 
 ## Quick Troubleshooting
 
-| Symptom | Cause | Fix |
-| ------- | ----- | --- |
-| "No API key provided" on checkout | `STRIPE_SECRET_KEY` missing | Add key in Railway |
-| Image uploads fail silently | `CLOUDINARY_*` vars missing | Add Cloudinary credentials |
-| Google sign-in 401 | `GOOGLE_OAUTH_CLIENT_IDS` missing | Add OAuth client IDs |
-| No errors in Sentry | `SENTRY_DSN` / `EXPO_PUBLIC_SENTRY_DSN` missing | Add DSN for server/client |
-| Webhook not processing | `STRIPE_WEBHOOK_SECRET` missing or wrong endpoint | Verify webhook URL: `/payments/webhook` |
+| Symptom                           | Cause                                             | Fix                                     |
+| --------------------------------- | ------------------------------------------------- | --------------------------------------- |
+| "No API key provided" on checkout | `STRIPE_SECRET_KEY` missing                       | Add key in Railway                      |
+| Image uploads fail silently       | `CLOUDINARY_*` vars missing                       | Add Cloudinary credentials              |
+| Google sign-in 401                | `GOOGLE_OAUTH_CLIENT_IDS` missing                 | Add OAuth client IDs                    |
+| No errors in Sentry               | `SENTRY_DSN` / `EXPO_PUBLIC_SENTRY_DSN` missing   | Add DSN for server/client               |
+| Webhook not processing            | `STRIPE_WEBHOOK_SECRET` missing or wrong endpoint | Verify webhook URL: `/payments/webhook` |
+
 ALLOWED_ORIGINS=https://varsityhub.app,https://www.varsityhub.app
+
+```
+
 ```

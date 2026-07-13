@@ -25,14 +25,14 @@ Default password: `CoachUAT2026!`
 
 The script prints the final emails if you override `COACH_UAT_EMAIL_DOMAIN` or `COACH_UAT_PASSWORD`.
 
-| State                              | Default email                                       | Expected first meaningful check                           |
-| ---------------------------------- | --------------------------------------------------- | --------------------------------------------------------- |
-| Approved rookie coach + agreement  | `coach-uat-rookie@varsityhub.test`                  | Coach screens open; premium-only upsells remain gated     |
-| Approved veteran coach + paid      | `coach-uat-veteran@varsityhub.test`                 | Veteran entitlements persist after restart                |
-| Approved legend coach + paid       | `coach-uat-legend@varsityhub.test`                  | Legend entitlements persist after restart                 |
-| Paid-by-owner coach                | `coach-uat-owner-covered@varsityhub.test`           | Premium access works without self-checkout                |
+| State                              | Default email                                       | Expected first meaningful check                            |
+| ---------------------------------- | --------------------------------------------------- | ---------------------------------------------------------- |
+| Approved rookie coach + agreement  | `coach-uat-rookie@varsityhub.test`                  | Coach screens open; premium-only upsells remain gated      |
+| Approved veteran coach + paid      | `coach-uat-veteran@varsityhub.test`                 | Veteran entitlements persist after restart                 |
+| Approved legend coach + paid       | `coach-uat-legend@varsityhub.test`                  | Legend entitlements persist after restart                  |
+| Paid-by-owner coach                | `coach-uat-owner-covered@varsityhub.test`           | Premium access works without self-checkout                 |
 | Approved coach missing agreement   | `coach-uat-missing-agreement@varsityhub.test`       | Coach tools blocked; recovery routes redirect to agreement |
-| Pending/rejected coach in fan mode | `coach-uat-rejected-fan@varsityhub.test` by default | Coach tools blocked, fan-safe actions still usable        |
+| Pending/rejected coach in fan mode | `coach-uat-rejected-fan@varsityhub.test` by default | Coach tools blocked, fan-safe actions still usable         |
 
 Note: set `COACH_UAT_FAN_MODE_STATUS=PENDING` before `npm run coach:uat:prepare` if you want the sixth account seeded as pending instead of rejected.
 

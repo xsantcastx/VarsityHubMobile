@@ -23,23 +23,27 @@
 ## Pre-Deployment Checklist
 
 ### Code Review
+
 - [ ] At least 1 engineer reviewed changes
 - [ ] All comments addressed
 - [ ] Approved to merge and deploy
 
 ### Quality Assurance
+
 - [ ] Phase 2 testing complete
 - [ ] All test scenarios passed
 - [ ] No blocking issues identified
 - [ ] QA lead signed off
 
 ### Configuration
+
 - [ ] Production .env has all 9 template IDs set
 - [ ] SendGrid API key valid
 - [ ] Email domain authenticated in SendGrid
 - [ ] Monitoring alerts configured for email failures
 
 ### Communication
+
 - [ ] Team notified of deployment time
 - [ ] Stakeholders aware of potential impact
 - [ ] Rollback team on standby
@@ -48,15 +52,15 @@
 
 ## Deployment Timeline
 
-| Step | Owner | Duration | Status |
-|------|-------|----------|--------|
-| 1. Pre-flight checks | DevOps | 5 min | ⏳ Pending |
-| 2. Code merge | Engineering | 5 min | ⏳ Pending |
-| 3. Staging validation | DevOps | 5 min | ⏳ Pending |
-| 4. Production deployment | DevOps | 10 min | ⏳ Pending |
-| 5. Post-deployment validation | QA/DevOps | 20 min | ⏳ Pending |
-| 6. Monitoring (30 min) | DevOps | 30 min | ⏳ Pending |
-| **Total** | | **75 minutes** | |
+| Step                          | Owner       | Duration       | Status     |
+| ----------------------------- | ----------- | -------------- | ---------- |
+| 1. Pre-flight checks          | DevOps      | 5 min          | ⏳ Pending |
+| 2. Code merge                 | Engineering | 5 min          | ⏳ Pending |
+| 3. Staging validation         | DevOps      | 5 min          | ⏳ Pending |
+| 4. Production deployment      | DevOps      | 10 min         | ⏳ Pending |
+| 5. Post-deployment validation | QA/DevOps   | 20 min         | ⏳ Pending |
+| 6. Monitoring (30 min)        | DevOps      | 30 min         | ⏳ Pending |
+| **Total**                     |             | **75 minutes** |            |
 
 ---
 
@@ -144,6 +148,7 @@ curl -X POST http://staging.varsityhub.app/test/send-email \
 ### Step 4: Production Deployment (10 minutes)
 
 #### Option A: Vercel Deployment
+
 ```bash
 # If using Vercel
 vercel --prod
@@ -157,6 +162,7 @@ vercel --prod
 ```
 
 #### Option B: Docker/Kubernetes
+
 ```bash
 # If using Docker/K8s
 docker build -t varsity-hub:v[version] .
@@ -175,6 +181,7 @@ kubectl rollout status deployment/varsity-hub-server
 ```
 
 #### Option C: GitHub Actions / CI/CD Pipeline
+
 ```bash
 # If using GitHub Actions
 git push origin main:production
@@ -191,6 +198,7 @@ git log --oneline -3
 ```
 
 #### Option D: ECS / AWS
+
 ```bash
 # If using AWS ECS
 aws ecs update-service \
@@ -287,9 +295,10 @@ curl -X PUT https://api.varsityhub.app/events/[id]/approve \
 # Subject should include: "Approved"
 ```
 
-**Status:** 
+**Status:**
+
 - [ ] Payment email received
-- [ ] Membership email received  
+- [ ] Membership email received
 - [ ] Event email received
 - [ ] All emails look correct
 
@@ -347,6 +356,7 @@ tail -f /var/log/varsity-hub/app.log | grep -i "email\|sendgrid"
 #### Error Budget
 
 During 30-minute monitoring window, acceptable error rates:
+
 - Email failures: < 1% (1 out of 100 emails)
 - API errors: < 0.1%
 - Bounce rate: < 0.5%
@@ -400,6 +410,7 @@ vercel --prod
 ## Success Criteria
 
 ✅ **Production deployment is SUCCESSFUL when:**
+
 - [ ] Deployment completes without errors
 - [ ] Server health check passes
 - [ ] Template IDs are configured
@@ -421,9 +432,9 @@ vercel --prod
 cat > DEPLOYMENT_LOG.md << EOF
 # Email Hooks Production Deployment
 
-**Date:** December 12, 2025  
-**Time:** [Start] - [End] UTC  
-**Owner:** [DevOps Engineer]  
+**Date:** December 12, 2025
+**Time:** [Start] - [End] UTC
+**Owner:** [DevOps Engineer]
 **Status:** ✅ SUCCESS
 
 ## Metrics
@@ -492,6 +503,7 @@ Send message to team:
 **Cause:** Environment configuration issue
 
 **Resolution:**
+
 1. Check production logs: `tail -f /var/log/varsity-hub/app.log`
 2. Verify all environment variables set correctly
 3. Verify SendGrid API key is valid
@@ -504,6 +516,7 @@ Send message to team:
 **Cause:** Template IDs missing or incorrect
 
 **Resolution:**
+
 1. Check that all 9 template IDs are in environment
 2. Verify template IDs match SendGrid console (no typos)
 3. Check SendGrid API key is still valid
@@ -516,6 +529,7 @@ Send message to team:
 **Cause:** Invalid email addresses in production
 
 **Resolution:**
+
 1. Check user email validation in signup flow
 2. Review bouncing email addresses in SendGrid
 3. Consider implementing email verification earlier in flow
@@ -527,6 +541,7 @@ Send message to team:
 **Cause:** Dynamic template variable mismatch
 
 **Resolution:**
+
 1. Check SendGrid template variable names match code
 2. Verify template uses `{{variable}}` syntax
 3. Resend test email to verify
@@ -536,16 +551,19 @@ Send message to team:
 ## Monitoring Schedule (Post-Deployment)
 
 **Week 1:** Daily checks
+
 - Email delivery rate
 - Error rates
 - Support tickets
 
 **Week 2-4:** Weekly checks
+
 - Overall email metrics
 - User feedback
 - Performance impact
 
 **After 1 month:** Move to standard monitoring
+
 - Include in weekly DevOps report
 - Monitor for trends
 
@@ -555,28 +573,28 @@ Send message to team:
 
 Track these metrics post-deployment:
 
-| Metric | Target | How to Monitor |
-|--------|--------|----------------|
-| Email Delivery Rate | > 95% | SendGrid Dashboard |
-| Bounce Rate | < 1% | SendGrid Activity Log |
-| Spam Complaints | < 0.1% | SendGrid Event Webhook |
-| Error Rate | < 0.5% | Application Logs |
-| Support Impact | 0 new tickets | Support Channel |
-| User Feedback | Positive | User reports, surveys |
+| Metric              | Target        | How to Monitor         |
+| ------------------- | ------------- | ---------------------- |
+| Email Delivery Rate | > 95%         | SendGrid Dashboard     |
+| Bounce Rate         | < 1%          | SendGrid Activity Log  |
+| Spam Complaints     | < 0.1%        | SendGrid Event Webhook |
+| Error Rate          | < 0.5%        | Application Logs       |
+| Support Impact      | 0 new tickets | Support Channel        |
+| User Feedback       | Positive      | User reports, surveys  |
 
 ---
 
 ## Timeline Summary
 
-| Phase | Step | Duration | Owner |
-|-------|------|----------|-------|
-| Phase 3 | Pre-flight checks | 5 min | DevOps |
-| | Code merge | 5 min | Engineering |
-| | Staging validation | 5 min | DevOps |
-| | Production deployment | 10 min | DevOps |
-| | Post-deployment validation | 20 min | QA/DevOps |
-| | Monitoring | 30 min | DevOps |
-| **Total** | **Phase 3 Complete** | **75 minutes** | **Team** |
+| Phase     | Step                       | Duration       | Owner       |
+| --------- | -------------------------- | -------------- | ----------- |
+| Phase 3   | Pre-flight checks          | 5 min          | DevOps      |
+|           | Code merge                 | 5 min          | Engineering |
+|           | Staging validation         | 5 min          | DevOps      |
+|           | Production deployment      | 10 min         | DevOps      |
+|           | Post-deployment validation | 20 min         | QA/DevOps   |
+|           | Monitoring                 | 30 min         | DevOps      |
+| **Total** | **Phase 3 Complete**       | **75 minutes** | **Team**    |
 
 ---
 
@@ -588,8 +606,9 @@ After Phase 3 is complete:
 > Ready to proceed with Phase 4 - Frontend Bug Fixes (separate PR)"
 
 **Phase 4 will:**
+
 - Fix app/organizations/[id].tsx (apiBaseUrl issue)
-- Fix app/team-invites.tsx (error vs _error)
+- Fix app/team-invites.tsx (error vs \_error)
 - Create separate PR (don't block email hooks)
 - Merge after email hooks are stable (24+ hours)
 

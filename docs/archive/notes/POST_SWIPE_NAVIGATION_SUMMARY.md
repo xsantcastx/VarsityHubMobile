@@ -7,9 +7,11 @@
 **Good news:** Your app **already has excellent vertical swipe navigation** for posts, similar to Instagram Reels and TikTok.
 
 #### Component: `GameVerticalFeedScreen`
+
 **Location:** `app/game-details/GameVerticalFeedScreen.tsx`
 
 **Features:**
+
 - ✅ **Vertical swipe navigation** (up/down to browse posts)
 - ✅ **Paging enabled** - smooth transitions between posts
 - ✅ **Auto-play videos** when post comes into view
@@ -24,11 +26,9 @@
 1. **Feed Screen** (`app/feed.tsx`)
    - Opens in modal when user taps a highlight
    - Swipe vertically through all highlights from that game
-   
 2. **Profile Screen** (`app/profile.tsx`)
    - Opens when user taps any post thumbnail
    - Swipe through "Your Posts" or "Your Interactions"
-   
 3. **User Profile** (`app/user-profile.tsx`)
    - Opens when viewing another user's posts
    - Swipe through that user's content
@@ -36,13 +36,17 @@
 ## 🔄 Two Navigation Patterns
 
 ### Pattern 1: Vertical Feed Viewer (GameVerticalFeedScreen)
+
 **Use Case:** Browsing multiple posts in sequence
+
 - **Swipe:** Up/down
 - **UX:** Like TikTok/Instagram Reels
 - **Best For:** Continuous browsing, discovery
 
 ### Pattern 2: Post Detail Screen (post-detail.tsx)
+
 **Use Case:** Deep-linking to a specific post with comment focus
+
 - **Navigation:** Back button to return
 - **UX:** Traditional detail page
 - **Best For:** Direct links, notifications, specific post focus
@@ -52,6 +56,7 @@
 To give users the swipe navigation they want from **all entry points**, we should migrate the remaining deep-link entry points to use `GameVerticalFeedScreen`:
 
 ### Current Deep-Link Entry Points (post-detail.tsx):
+
 1. **Notifications** (`app/(tabs)/notifications/index.tsx`)
 2. **Team Page** (`app/team-page.tsx`)
 3. **Highlights Screen** (`app/highlights.tsx`)
@@ -61,11 +66,13 @@ To give users the swipe navigation they want from **all entry points**, we shoul
 ### Proposed Migration:
 
 Instead of:
+
 ```typescript
-router.push(`/post-detail?id=${post.id}`)
+router.push(`/post-detail?id=${post.id}`);
 ```
 
 Use:
+
 ```typescript
 // Store posts array in state
 const [viewerOpen, setViewerOpen] = useState(false);
@@ -96,12 +103,13 @@ const openPost = (tappedPost: Post, allPosts: Post[], index: number) => {
 If you want to keep the post-detail screen but add swipe navigation:
 
 ### Option A: Navigation Arrows (Easiest)
+
 Add left/right arrow buttons to navigate between posts:
 
 ```typescript
 // In post-detail.tsx, add params for post array
-const { id, postIds, index } = useLocalSearchParams<{ 
-  id?: string; 
+const { id, postIds, index } = useLocalSearchParams<{
+  id?: string;
   postIds?: string; // comma-separated IDs
   index?: string;
 }>();
@@ -138,6 +146,7 @@ const goToNext = () => {
 ```
 
 ### Option B: Gesture-Based Swipe (More Complex)
+
 Use FlatList with horizontal paging:
 
 ```typescript
@@ -171,6 +180,7 @@ const [currentPostIndex, setCurrentPostIndex] = useState(startIndex);
 ```
 
 **Challenges with Option B:**
+
 - ❌ Complex state management (comments, upvotes per post)
 - ❌ Conflicts with vertical scrolling in comment section
 - ❌ Performance overhead loading multiple posts
@@ -181,6 +191,7 @@ const [currentPostIndex, setCurrentPostIndex] = useState(startIndex);
 **Use GameVerticalFeedScreen everywhere** - it's already built, tested, and provides the exact UX users expect (like Instagram/TikTok).
 
 ### Benefits:
+
 - ✅ Consistent UX across the app
 - ✅ Vertical swipe (more natural on mobile than horizontal)
 - ✅ Already handles all edge cases
@@ -190,12 +201,14 @@ const [currentPostIndex, setCurrentPostIndex] = useState(startIndex);
 ### Migration Example for Notifications:
 
 **Before:**
+
 ```typescript
 // app/(tabs)/notifications/index.tsx
 router.push(`/post-detail?id=${encodeURIComponent(item.post.id)}`);
 ```
 
 **After:**
+
 ```typescript
 // Add state at component level
 const [viewerOpen, setViewerOpen] = useState(false);
@@ -205,7 +218,7 @@ const [viewerPost, setViewerPost] = useState<FeedPost | null>(null);
 const openNotificationPost = async (notification: any) => {
   // Mark notification as read
   await NotificationApi.markAsRead(notification.id);
-  
+
   // Open in swipeable viewer
   setViewerPost(mapPostToFeedPost(notification.post));
   setViewerOpen(true);
@@ -226,20 +239,24 @@ const openNotificationPost = async (notification: any) => {
 ## 📊 Implementation Priority
 
 ### Phase 1: Quick Win ✅ COMPLETE
+
 - Profile, User Profile, Feed already use GameVerticalFeedScreen
 - Users can already swipe through posts from these screens
 
 ### Phase 2: Migrate Notifications (High Impact)
+
 - Update `app/(tabs)/notifications/index.tsx`
 - Use GameVerticalFeedScreen instead of post-detail
 - **Estimated time:** 30 minutes
 
 ### Phase 3: Migrate Team Page
+
 - Update `app/team-page.tsx`
 - Open team posts in swipeable viewer
 - **Estimated time:** 20 minutes
 
 ### Phase 4: Migrate Remaining Screens
+
 - Game Details, Highlights, Mobile Community
 - **Estimated time:** 1 hour total
 
@@ -289,15 +306,18 @@ swipeHintText: {
 ## 🎯 Summary
 
 **Current State:**
+
 - ✅ Vertical swipe navigation exists and works great (GameVerticalFeedScreen)
 - ⚠️ Some entry points use standalone post-detail screen without swipe
 
 **Recommended Action:**
+
 1. Migrate notification, team page, and other entry points to use GameVerticalFeedScreen
 2. Keep post-detail.tsx for deep-linking/SEO purposes only
 3. Optionally add swipe hint animation for first-time users
 
 **User Benefit:**
+
 - 🎯 Consistent, smooth swipe navigation everywhere
 - 📱 Natural vertical swipe (thumb-friendly)
 - ⚡ Better performance and UX

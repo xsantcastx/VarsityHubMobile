@@ -14,6 +14,7 @@ Added an educational modal that shows users the hierarchy and purpose of League 
 ### What It Does
 
 When a user opens the "Manage Teams" page for the first time, they see a modal explaining:
+
 - The League Page concept (the hub for all teams)
 - Team Pages (individual pages for each sport/team)
 - The hierarchical relationship between them
@@ -64,7 +65,7 @@ const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 ### AsyncStorage Key
 
 ```typescript
-'hasSeenManageTeamsWelcome' // Stored as 'true' after first view
+'hasSeenManageTeamsWelcome'; // Stored as 'true' after first view
 ```
 
 ### First-Visit Detection
@@ -89,15 +90,15 @@ useEffect(() => {
 ### Info Button (Header)
 
 ```typescript
-<Pressable 
-  style={{ 
-    width: 32, 
-    height: 32, 
-    borderRadius: 16, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    backgroundColor: Colors[colorScheme].tint + '15' 
-  }} 
+<Pressable
+  style={{
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors[colorScheme].tint + '15'
+  }}
   onPress={() => setShowWelcomeModal(true)}
 >
   <Ionicons name="help-circle-outline" size={24} color={Colors[colorScheme].tint} />
@@ -109,13 +110,16 @@ useEffect(() => {
 ## Modal Content Structure
 
 ### 1. Header Section
+
 ```
 Step 4/9                                     [X]
 ```
+
 - Shows step number (matches onboarding sequence)
 - Close button on right
 
 ### 2. Title & Subtitle
+
 ```
 Create Your League Page
 This is the hub where all your teams will live
@@ -124,14 +128,16 @@ This is the hub where all your teams will live
 ### 3. "How It Works" Box
 
 **Visual Hierarchy:**
+
 ```
 🏆 Your League (League Page)
     🏈 Varsity Football (Team Page)
-    🏀 JV Basketball (Team Page)  
+    🏀 JV Basketball (Team Page)
     ⚽ Girls Soccer (Team Page)
 ```
 
 **Explanation:**
+
 ```
 League Page: Managed by you, displays all programs
 Team Pages: Managed by Authorized Users you assign
@@ -140,14 +146,17 @@ Team Pages: Managed by Authorized Users you assign
 ### 4. Example Preview
 
 Shows a mini preview of what a team page looks like:
+
 - Team logo
 - Team name ("the Raiders")
 - Tab navigation (Feed, Highlights, Discover, Profile)
 
 ### 5. Action Button
+
 ```
 [Got it!]
 ```
+
 - Dismisses the modal
 - Saves "has seen" flag to AsyncStorage
 
@@ -184,6 +193,7 @@ Shows a mini preview of what a team page looks like:
 ## User Experience Flow
 
 ### First Visit
+
 1. User navigates to "Manage Teams"
 2. Modal automatically appears
 3. User reads the information
@@ -192,6 +202,7 @@ Shows a mini preview of what a team page looks like:
 6. Flag saved to AsyncStorage
 
 ### Subsequent Visits
+
 1. User navigates to "Manage Teams"
 2. Modal does NOT appear automatically
 3. User can open modal by tapping (?) info button in header
@@ -202,6 +213,7 @@ Shows a mini preview of what a team page looks like:
 ## Testing Checklist
 
 ### Functional Tests
+
 - [ ] Modal shows on first visit to Manage Teams
 - [ ] Modal does NOT show on second visit
 - [ ] Info button (?) opens modal anytime
@@ -211,6 +223,7 @@ Shows a mini preview of what a team page looks like:
 - [ ] AsyncStorage flag persists across app restarts
 
 ### Visual Tests
+
 - [ ] Modal is centered on screen
 - [ ] Text is readable in light mode
 - [ ] Text is readable in dark mode
@@ -221,6 +234,7 @@ Shows a mini preview of what a team page looks like:
 - [ ] Modal fits on small screens (iPhone SE)
 
 ### Edge Cases
+
 - [ ] Works if AsyncStorage is unavailable
 - [ ] Works offline
 - [ ] Multiple rapid taps don't cause issues
@@ -246,6 +260,7 @@ await AsyncStorage.removeItem('hasSeenManageTeamsWelcome');
 ```
 
 Or clear all AsyncStorage:
+
 ```typescript
 await AsyncStorage.clear();
 ```
@@ -257,6 +272,7 @@ await AsyncStorage.clear();
 ### Change Step Number
 
 Update the "Step 4/9" text:
+
 ```typescript
 <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
   Step 5/10  {/* Change here */}
@@ -266,6 +282,7 @@ Update the "Step 4/9" text:
 ### Change Team Examples
 
 Modify the hierarchySubList section:
+
 ```typescript
 <View style={styles.hierarchyItem}>
   <Ionicons name="baseball" size={16} color="#3B82F6" />
@@ -279,6 +296,7 @@ Modify the hierarchySubList section:
 ### Change Example Team Name
 
 Update "the Raiders" in the example preview:
+
 ```typescript
 <Text style={[styles.exampleTeamName, { color: Colors[colorScheme].text }]}>
   Blue Devils  {/* Change here */}
@@ -288,6 +306,7 @@ Update "the Raiders" in the example preview:
 ### Add More Content
 
 Add sections before the "Got it!" button:
+
 ```typescript
 <View style={styles.additionalInfo}>
   <Text style={{ fontSize: 14, lineHeight: 20 }}>
@@ -308,6 +327,7 @@ This modal is designed to match the onboarding flow style:
 - Example previews
 
 If you have a multi-step onboarding sequence, this could be:
+
 - Part of the initial onboarding
 - A contextual help system
 - A tutorial series
@@ -319,11 +339,13 @@ If you have a multi-step onboarding sequence, this could be:
 ### Screen Reader Support
 
 The modal includes:
+
 - Semantic structure (title, description, buttons)
 - Proper text hierarchy
 - Clear action buttons
 
 **Recommended additions**:
+
 ```typescript
 <Modal
   accessible={true}
@@ -404,11 +426,13 @@ The modal includes:
 ### Modal Doesn't Show on First Visit
 
 **Check**:
+
 1. AsyncStorage is working: `await AsyncStorage.getItem('hasSeenManageTeamsWelcome')`
 2. useEffect is running: Add console.log
 3. State is updating: Check `showWelcomeModal` in React DevTools
 
 **Solution**:
+
 ```typescript
 // Add logging
 useEffect(() => {
@@ -432,10 +456,12 @@ useEffect(() => {
 ### Modal Shows Every Time
 
 **Check**:
+
 1. AsyncStorage is saving: `await AsyncStorage.setItem('hasSeenManageTeamsWelcome', 'true')`
 2. No errors in try-catch block
 
 **Solution**:
+
 ```typescript
 // Test AsyncStorage directly
 const test = async () => {
@@ -448,6 +474,7 @@ const test = async () => {
 ### Modal Styling Issues
 
 **Check**:
+
 1. StyleSheet includes all new styles
 2. Colors[colorScheme] is defined
 3. No conflicting styles
@@ -480,16 +507,19 @@ See `app/manage-teams.tsx` lines 750-868 for all modal styles.
 ## Success Metrics
 
 ### User Engagement
+
 - % of users who see the modal
 - % of users who read through (time spent)
 - % of users who dismiss immediately vs read
 
 ### User Understanding
+
 - Support tickets about League vs Team Pages (should decrease)
 - User feedback on clarity
 - Correct usage of features
 
 ### Retention
+
 - Users who create teams after seeing modal
 - Return rate to Manage Teams screen
 - Feature adoption rate
@@ -499,6 +529,7 @@ See `app/manage-teams.tsx` lines 750-868 for all modal styles.
 ## Conclusion
 
 This modal provides a clear, visual explanation of the League Page concept when users first encounter team management. It follows onboarding best practices with:
+
 - Just-in-time education (shown when relevant)
 - Visual hierarchy and examples
 - Easy dismissal but re-accessible anytime

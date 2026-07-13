@@ -21,6 +21,7 @@
 ```
 
 ### Key Files Present ✅
+
 - `app/verify.tsx` - Email verification with routing logic
 - `hooks/useGoogleAuth.ts` - Google OAuth with platform detection
 - `app/sign-in.tsx` - Sign-in integration
@@ -55,6 +56,7 @@
 ### What Runtime Testing Means
 
 **Code Analysis** (What We Did):
+
 - Read the source code
 - Verified logic is correct
 - Checked for security issues
@@ -62,6 +64,7 @@
 - 95% accurate (we can read code)
 
 **Runtime Testing** (What YOU Need To Do):
+
 - Actually build the app
 - Run it in Expo
 - Test real user interactions
@@ -119,12 +122,14 @@ npm run dev:expo
 ### Test 1: Email Verification Routing ✉️
 
 **What You'll Test**:
+
 ```
-Sign Up as Coach → Create Account → Verify Email → 
+Sign Up as Coach → Create Account → Verify Email →
 Gets Routed to Coach Onboarding Page
 ```
 
 **Success Criteria**:
+
 - ✅ Email arrives in inbox
 - ✅ Verification link works
 - ✅ Routes to correct page (not generic page)
@@ -137,12 +142,14 @@ Gets Routed to Coach Onboarding Page
 ### Test 2: Dev Code Security 🔒
 
 **What You'll Test**:
+
 ```
 Development Build → Dev Code Visible AND Works
 Production Build → Dev Code Hidden AND Not Accessible
 ```
 
 **Success Criteria**:
+
 - ✅ Dev code visible in dev mode
 - ✅ Skip button available in dev mode
 - ✅ Dev code hidden in production build
@@ -155,6 +162,7 @@ Production Build → Dev Code Hidden AND Not Accessible
 ### Test 3: Google Sign-In Platform Detection 🔐
 
 **What You'll Test**:
+
 ```
 iOS → Uses iOS Client ID → OAuth Works
 Android → Uses Android Client ID → OAuth Works
@@ -162,6 +170,7 @@ Web → Uses Web Client ID → OAuth Works
 ```
 
 **Success Criteria**:
+
 - ✅ OAuth works on iOS
 - ✅ OAuth works on Android
 - ✅ OAuth works on Web
@@ -199,16 +208,19 @@ npm run dev:expo
 ### Step 4: Run Tests
 
 **For iOS Simulator**:
+
 - From Expo CLI: Press `i`
 - Wait for app to build
 - Follow test guide
 
 **For Android Emulator**:
+
 - From Expo CLI: Press `a`
 - Wait for app to build
 - Follow test guide
 
 **For Web Browser**:
+
 - From Expo CLI: Press `w`
 - App opens automatically
 - Follow test guide
@@ -252,13 +264,13 @@ npm run dev:expo
 ```
 ✅ Test 1: Email Verification - PASSED
    └─ Proof: Email arrived, link worked, correct page shown
-   
+
 ✅ Test 2: Dev Code Security - PASSED
    └─ Proof: Visible in dev, hidden in production
-   
+
 ✅ Test 3: Google Sign-In - PASSED
    └─ Proof: OAuth worked on iOS, Android, and Web
-   
+
 ═══════════════════════════════════════════════════════════════════
 
 FINAL STATUS: Production Ready ✅
@@ -283,19 +295,20 @@ Recommendation: READY FOR STAGING DEPLOYMENT 🚀
 
 ## ⏰ Time Investment
 
-| Task | Duration | What You'll Learn |
-|------|----------|------------------|
-| Quick Start | 5 min | Is the environment ready? |
-| Test 1 (Email) | 10-15 min | Does email verification work? |
-| Test 2 (Dev Security) | 10-15 min | Is dev code hidden in production? |
-| Test 3 (Google Auth) | 15-20 min | Does OAuth work on all platforms? |
-| **Total** | **40-65 min** | **Is the app production-ready?** |
+| Task                  | Duration      | What You'll Learn                 |
+| --------------------- | ------------- | --------------------------------- |
+| Quick Start           | 5 min         | Is the environment ready?         |
+| Test 1 (Email)        | 10-15 min     | Does email verification work?     |
+| Test 2 (Dev Security) | 10-15 min     | Is dev code hidden in production? |
+| Test 3 (Google Auth)  | 15-20 min     | Does OAuth work on all platforms? |
+| **Total**             | **40-65 min** | **Is the app production-ready?**  |
 
 ---
 
 ## 🎓 What This Proves
 
 ### Code Analysis (95% Confidence) ✅
+
 - Source code is correct
 - Logic is implemented properly
 - Security gates are in place
@@ -303,6 +316,7 @@ Recommendation: READY FOR STAGING DEPLOYMENT 🚀
 - Error handling is comprehensive
 
 ### Runtime Testing (0% Until You Test) ⏳
+
 - Code actually executes correctly
 - Email delivery works
 - OAuth flows complete
@@ -311,6 +325,7 @@ Recommendation: READY FOR STAGING DEPLOYMENT 🚀
 - Backend integration works
 
 ### Combined (100% When You Test) ✅
+
 - App is production-ready
 - All critical flows work
 - Users can complete signup/login
@@ -329,10 +344,11 @@ Recommendation: READY FOR STAGING DEPLOYMENT 🚀
    - What actually happened?
 
 2. **Check the logs**
+
    ```bash
    # Expo logs appear in Terminal 2
    # Look for error messages
-   
+
    # Backend logs appear in Terminal 1
    # Check for API errors
    ```
@@ -371,12 +387,14 @@ Question: Are you confident the app works?
 ## 💡 Key Insight
 
 **What We Know**:
+
 - ✅ Code is correct (95%)
 - ✅ All fixes are implemented
 - ✅ Security is proper
 - ✅ Platforms are supported
 
 **What We Don't Know**:
+
 - ❓ Does email actually arrive? (Only you can test)
 - ❓ Does OAuth actually work? (Only you can test)
 - ❓ Are there hidden bugs? (Only runtime can reveal)
@@ -389,11 +407,13 @@ Question: Are you confident the app works?
 ## ✨ Next Steps
 
 ### Immediate (Right Now)
+
 1. Read this document (you're doing it!)
 2. Open `RUNTIME_TEST_GUIDE.md`
 3. Decide which testing path (quick, standard, or deep)
 
 ### Short Term (This Hour)
+
 1. Start backend: `npm run server:dev`
 2. Start Expo: `npm run dev:expo`
 3. Run Test 1: Email verification
@@ -401,12 +421,14 @@ Question: Are you confident the app works?
 5. Run Test 3: Google sign-in
 
 ### Medium Term (Today)
+
 1. Document all results
 2. Verify all tests passed
 3. Get approval to proceed
 4. Schedule staging deployment
 
 ### Long Term (This Week)
+
 1. Deploy to staging
 2. Run full QA test suite
 3. Get sign-off for production
@@ -433,16 +455,19 @@ Once you've completed the runtime tests:
 ## 📞 Questions?
 
 Before running tests:
+
 - Read `RUNTIME_TEST_GUIDE.md` (answers most questions)
 - Check environment setup
 - Verify all configuration
 
 During tests:
+
 - Check backend logs (`Terminal 1`)
 - Check Expo logs (`Terminal 2`)
 - Review troubleshooting section
 
 After tests:
+
 - Document results
 - Prepare deployment plan
 - Schedule next phase

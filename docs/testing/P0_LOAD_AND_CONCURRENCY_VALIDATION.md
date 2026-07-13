@@ -53,4 +53,3 @@ LOAD_TEST_TOKEN=your_jwt_token npm --prefix server run load:smoke
 
 `load:validate-lock` uses multiple Node processes and shared Redis lock state.
 For full production confidence, run the same validation against your deployed multi-instance environment.
-

@@ -9,6 +9,7 @@
 ## 📊 Current Status
 
 ### ✅ Code Implementation
+
 - [x] Google sign-in logic implemented (frontend + backend)
 - [x] Apple sign-in logic implemented (frontend + backend)
 - [x] Proper error handling & logging
@@ -16,12 +17,14 @@
 - [x] User creation & linking logic
 
 ### ⚠️ Configuration Required
+
 - [ ] Apple Sign-In private key uploaded to production
 - [ ] Google OAuth client IDs configured
 - [ ] Environment variables set in all environments
 - [ ] Database migrations applied (apple_id column)
 
 ### 🔴 Known Issues to Fix
+
 1. **Apple Sign-In Production**: Requires private key file + proper token verification
 2. **Google Sign-In**: Missing or incomplete OAuth client ID configuration
 3. **Database**: apple_id column may not exist in production
@@ -33,14 +36,16 @@
 ### Fix 1: Add Missing `apple_id` Column (If Using Production)
 
 **Status Check First:**
+
 ```bash
 # SSH to your production database or use Railway dashboard
 # Check if apple_id column exists:
-SELECT column_name FROM information_schema.columns 
+SELECT column_name FROM information_schema.columns
 WHERE table_name='User' AND column_name='apple_id';
 ```
 
 **If Missing - Run Migration:**
+
 ```bash
 # Option A: Run locally
 npx prisma migrate deploy
@@ -60,6 +65,7 @@ ALTER TABLE "User" ADD COLUMN "apple_id" TEXT UNIQUE;
 #### Step 1: Get Your Google OAuth Client IDs
 
 **For Development (Expo):**
+
 ```
 1. Go to Google Cloud Console: https://console.cloud.google.com
 2. Select your VarsityHub project
@@ -70,6 +76,7 @@ ALTER TABLE "User" ADD COLUMN "apple_id" TEXT UNIQUE;
 ```
 
 **For iOS (Standalone):**
+
 ```
 1. In Google Cloud Console, create new OAuth 2.0 credential:
    - Type: Web application
@@ -81,6 +88,7 @@ ALTER TABLE "User" ADD COLUMN "apple_id" TEXT UNIQUE;
 ```
 
 **For Android:**
+
 ```
 1. Create new OAuth 2.0 credential:
    - Type: Android
@@ -92,6 +100,7 @@ ALTER TABLE "User" ADD COLUMN "apple_id" TEXT UNIQUE;
 #### Step 2: Add Environment Variables
 
 **Frontend (.env files):**
+
 ```bash
 # app/.env (or expo-env.d.ts)
 EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID=xxx-yyy.apps.googleusercontent.com    # For Expo dev
@@ -101,6 +110,7 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=xxx-yyy.apps.googleusercontent.com     # For we
 ```
 
 **Backend (server/.env):**
+
 ```bash
 # These are used by the backend to verify tokens
 GOOGLE_ALLOWED_AUDIENCES=xxx-yyy.apps.googleusercontent.com,zzz-www.apps.googleusercontent.com
@@ -119,6 +129,7 @@ npm start
 ```
 
 **Expected Behavior:**
+
 1. User taps "Continue with Google"
 2. Google OAuth dialog appears
 3. User selects account & grants permissions
@@ -132,6 +143,7 @@ npm start
 #### Step 1: Get Your Private Key
 
 **On your Mac:**
+
 ```bash
 # If you already downloaded it from Apple Developer
 # It should be named: AuthKey_XXXXXXXXXX.p8
@@ -144,6 +156,7 @@ ls -la server/.keys/
 ```
 
 **If you need to create one:**
+
 ```
 1. Go to: https://developer.apple.com/account/resources/identifiers/list
 2. Select your App ID (com.xsantcastx.varsityhub)
@@ -156,12 +169,14 @@ ls -la server/.keys/
 #### Step 2: Add Environment Variables
 
 **Frontend (config/env.ts):**
+
 ```typescript
 // Already supported - no changes needed
 // Apple sign-in works with app setup only
 ```
 
 **Backend (server/.env):**
+
 ```bash
 APPLE_TEAM_ID=<your-apple-team-id>              # From Apple Developer
 APPLE_KEY_ID=<key-id>                           # From AuthKey filename
@@ -183,6 +198,7 @@ APPLE_KEY_FILE=/path/to/AuthKey_XXXXXXXXXX.p8  # Path to private key
 ```
 
 **Expected Behavior:**
+
 1. User taps "Continue with Apple"
 2. Face/Touch ID or password prompt
 3. Returns to app
@@ -196,12 +212,14 @@ APPLE_KEY_FILE=/path/to/AuthKey_XXXXXXXXXX.p8  # Path to private key
 ### Google Sign-In Issues
 
 **Problem:** "Google sign up is not configured yet"
+
 ```
 Solution: Check EXPO_PUBLIC_GOOGLE_* environment variables are set
           Restart app to pick up new env vars
 ```
 
 **Problem:** OAuth dialog doesn't appear
+
 ```
 Solution: 1. Check client ID format (should end with .apps.googleusercontent.com)
           2. Verify redirect URI is whitelisted in Google Cloud Console
@@ -209,6 +227,7 @@ Solution: 1. Check client ID format (should end with .apps.googleusercontent.com
 ```
 
 **Problem:** "Google sign-in failed: error"
+
 ```
 Solution: 1. Check internet connection
           2. Verify token is being sent to backend
@@ -216,6 +235,7 @@ Solution: 1. Check internet connection
 ```
 
 **Problem:** Backend returns "audience mismatch"
+
 ```
 Solution: Add your Google client ID to GOOGLE_ALLOWED_AUDIENCES
           Can be comma-separated for multiple IDs
@@ -224,22 +244,26 @@ Solution: Add your Google client ID to GOOGLE_ALLOWED_AUDIENCES
 ### Apple Sign-In Issues
 
 **Problem:** "Apple sign in is still initializing"
+
 ```
 Solution: This is normal on first load. Wait a moment and try again.
           For production, check Platform.OS === 'ios'
 ```
 
 **Problem:** "Apple sign in is only available on iOS"
+
 ```
 Solution: Expected on Android/web. Provide alternative login method.
 ```
 
 **Problem:** "User canceled Apple sign-in"
+
 ```
 Solution: Not an error - user chose not to sign in. Show signup form.
 ```
 
 **Problem:** Backend returns 500 error
+
 ```
 Solution: 1. Check apple_id column exists in database
           2. Check server logs for error details
@@ -247,6 +271,7 @@ Solution: 1. Check apple_id column exists in database
 ```
 
 **Problem:** Production Apple sign-in always fails
+
 ```
 Solution: 1. Verify private key is accessible on server
           2. Check APPLE_KEY_ID and APPLE_TEAM_ID are set
@@ -261,24 +286,28 @@ Solution: 1. Verify private key is accessible on server
 ### Phase 1: Google Sign-In Configuration (30 minutes)
 
 **Frontend:**
+
 - [ ] Get Google OAuth client IDs from Google Cloud Console
-- [ ] Add EXPO_PUBLIC_GOOGLE_* variables to app config
+- [ ] Add EXPO*PUBLIC_GOOGLE*\* variables to app config
 - [ ] Test "Continue with Google" button on sign-up
 - [ ] Verify redirect works correctly
 
 **Backend:**
+
 - [ ] Set GOOGLE_ALLOWED_AUDIENCES env var
 - [ ] Test /auth/google endpoint
 - [ ] Verify token validation logic
 - [ ] Check error handling
 
 **Testing:**
+
 - [ ] [ ] Manual test: Sign up with Google (dev environment)
 - [ ] [ ] Verify user is created with google_id
 - [ ] [ ] Verify onboarding flow works
 - [ ] [ ] Test with multiple accounts
 
 **Deployment:**
+
 - [ ] Add env vars to production
 - [ ] Redeploy app and backend
 - [ ] Test production sign-in flow
@@ -288,28 +317,33 @@ Solution: 1. Verify private key is accessible on server
 ### Phase 2: Apple Sign-In Configuration (45 minutes)
 
 **Setup Private Key:**
+
 - [ ] Download private key from Apple Developer
 - [ ] Save to server/.keys/AuthKey_XXXXXXXXXX.p8
 - [ ] Commit .gitignore to prevent accidental upload
 - [ ] Verify key permissions
 
 **Backend:**
+
 - [ ] Set APPLE_KEY_ID env var
 - [ ] Set APPLE_TEAM_ID env var
 - [ ] Set APPLE_BUNDLE_ID env var
 - [ ] Set APPLE_KEY_FILE path
 
 **Database:**
+
 - [ ] Run prisma migration to add apple_id column
 - [ ] Verify column exists in all environments
 
 **Testing:**
+
 - [ ] [ ] Manual test: Sign up with Apple (simulator)
 - [ ] [ ] Verify user is created with apple_id
 - [ ] [ ] Verify linking existing accounts works
 - [ ] [ ] Test error handling
 
 **Deployment:**
+
 - [ ] Securely upload private key to production
 - [ ] Add env vars to production
 - [ ] Redeploy
@@ -320,6 +354,7 @@ Solution: 1. Verify private key is accessible on server
 ### Phase 3: Testing & QA (60 minutes)
 
 **Sign-Up Flow:**
+
 - [ ] Test email signup
 - [ ] Test Google signup
 - [ ] Test Apple signup (if on iOS)
@@ -327,23 +362,27 @@ Solution: 1. Verify private key is accessible on server
 - [ ] Verify user data is saved correctly
 
 **Account Linking:**
+
 - [ ] Create account with email
 - [ ] Link Google ID to same email
 - [ ] Link Apple ID to same email
 - [ ] Verify can sign in with any method
 
 **Error Cases:**
+
 - [ ] Cancel Google sign-in (should show form)
 - [ ] Cancel Apple sign-in (should show form)
 - [ ] Network error during sign-in (should retry)
 - [ ] Invalid token (should show error)
 
 **Cross-Platform:**
+
 - [ ] iOS: All 3 methods work
 - [ ] Android: Email + Google work, Apple shows message
 - [ ] Web: Email + Google work, Apple shows message
 
 **Production Verification:**
+
 - [ ] Real device iOS test
 - [ ] Real device Android test
 - [ ] Verify tokens are validated correctly
@@ -390,18 +429,21 @@ Solution: 1. Verify private key is accessible on server
 ## 🛡️ Security Notes
 
 ### Google Sign-In
+
 - ✅ Tokens verified with Google's tokeninfo API
 - ✅ Email verification required
 - ✅ Audience validation (checks client ID matches)
 - ✅ Token cannot be replayed (one-time use)
 
 ### Apple Sign-In
+
 - ⚠️ **Production**: Needs proper token verification (not yet implemented)
 - ✅ Development: Simulator tokens work with "sim-" prefix
 - ✅ Email linking prevents account hijacking
 - ✅ Private key never exposed to client
 
 ### Best Practices
+
 - Never log full tokens
 - Always verify sender's identity
 - Use HTTPS only
@@ -444,6 +486,7 @@ Solution: 1. Verify private key is accessible on server
 ---
 
 **Questions?** Check the troubleshooting section or review the implementation code in:
+
 - `app/sign-up.tsx` - UI logic
 - `hooks/useGoogleAuth.ts` - Google authentication
 - `hooks/useAppleAuth.ts` - Apple authentication

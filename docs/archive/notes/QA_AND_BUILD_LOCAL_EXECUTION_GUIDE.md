@@ -11,6 +11,7 @@
 Run these three steps on your development machine in order:
 
 ### Step 1: QA Walkthrough (15-30 mins)
+
 ```bash
 # In VS Code or Xcode simulator
 npm run lint            # Verify no errors
@@ -26,6 +27,7 @@ npx tsc --noEmit        # Verify TypeScript
 **Expected Output**: ✅ All tests pass or 📋 Issues documented
 
 ### Step 2: EAS Preview Build (10-30 mins)
+
 ```bash
 # Build for iOS
 eas build --platform ios --profile preview --wait
@@ -39,6 +41,7 @@ eas build --platform android --profile preview --wait
 **Expected Output**: Build ID + downloadable preview link
 
 ### Step 3: Snyk Security Scan (5-10 mins)
+
 ```bash
 # Authenticate with Snyk (first time only)
 snyk auth
@@ -63,6 +66,7 @@ snyk code test --json > snyk-code-results.json
 ### Phase 1: Core Flows (45 mins total)
 
 #### 1. Authentication Flow (10 mins)
+
 **File**: `QA_PHASE_1_READY.md` (section: Auth Flow Testing)
 
 ```
@@ -75,11 +79,13 @@ snyk code test --json > snyk-code-results.json
 ```
 
 **What to capture**:
+
 - ✅ Console logs (should show: [Auth] Successful sign-in)
 - ✅ No TypeScript errors in console
 - ✅ Route transitions smooth (no flickering)
 
 #### 2. Onboarding Flow (15 mins)
+
 **File**: `ONBOARDING_BACKEND_CHECKLIST.md`
 
 ```
@@ -106,11 +112,13 @@ Step 10: Completion
 ```
 
 **What to capture**:
+
 - 📸 Screenshot of Step 9 with permission prompt
 - 📝 Note if permission prompt appears
 - 🔍 API response showing `push_token` saved
 
 #### 3. Push Notifications (10 mins)
+
 **File**: `MESSAGING_AND_NOTIFICATIONS_VERIFICATION.md` (Testing section)
 
 ```
@@ -140,12 +148,14 @@ Test 3: Follow Notification (if follows enabled)
 ```
 
 **What to capture**:
+
 - 📱 Screenshots of notifications
 - 📝 Timestamps of arrival
 - ⏱️ Time from send to arrival
 - 🐛 Any notifications that don't arrive
 
 #### 4. Messaging System (10 mins)
+
 ```
 Setup: Two accounts in message thread
 
@@ -178,11 +188,13 @@ Test Age Restrictions
 ```
 
 **What to capture**:
+
 - 📝 Console logs showing message send/receive
 - ⏱️ Time from send to arrival (should be <3 seconds)
 - 📸 Screenshot of age restriction warning
 
 #### 5. Game Discovery Map (5 mins)
+
 ```
 Navigate to: Feed tab → "View Nearby Games on Map"
 
@@ -198,6 +210,7 @@ Navigate to: Feed tab → "View Nearby Games on Map"
 ## EAS Preview Build Setup
 
 ### Prerequisites
+
 ```bash
 # Verify Expo CLI is installed
 expo --version          # Should be 52.0.0+
@@ -212,6 +225,7 @@ cat eas.json            # Should show preview profile
 ### Build Commands
 
 #### iOS Preview Build
+
 ```bash
 # Clean build (recommended first time)
 eas build --platform ios --profile preview --wait
@@ -223,6 +237,7 @@ eas build --platform ios --profile preview --wait
 ```
 
 #### Android Preview Build (Optional)
+
 ```bash
 # Similar to iOS
 eas build --platform android --profile preview --wait
@@ -233,6 +248,7 @@ eas build --platform android --profile preview --wait
 ### Troubleshooting Build Issues
 
 **Issue**: "Unauthorized" or "credentials not found"
+
 ```bash
 # Solution: Re-authenticate
 eas logout
@@ -241,6 +257,7 @@ eas build --platform ios --profile preview --wait
 ```
 
 **Issue**: "Invalid certificate" or "provisioning profile"
+
 ```bash
 # Solution: Update credentials
 eas credentials
@@ -248,6 +265,7 @@ eas credentials
 ```
 
 **Issue**: Build hangs or times out
+
 ```bash
 # Solution: Run without --wait (build in background)
 eas build --platform ios --profile preview --no-wait
@@ -259,12 +277,14 @@ eas build --platform ios --status
 ### After Build Completes
 
 **For iOS**:
+
 - TestFlight link will be provided
 - Share link with testers
 - Testers can install via TestFlight app
 - Build available for 90 days
 
 **For Android**:
+
 - APK file will be downloadable
 - Can install via: `adb install app.apk`
 - Or share APK file directly to testers
@@ -274,6 +294,7 @@ eas build --platform ios --status
 ## Snyk Security Scan Setup
 
 ### Prerequisites
+
 ```bash
 # Verify Snyk is installed
 snyk --version          # Should be 1.1290.0+
@@ -287,6 +308,7 @@ snyk auth
 ### Run Security Scans
 
 #### Full Dependency Scan
+
 ```bash
 # Scan all projects (frontend + backend)
 snyk test --all-projects
@@ -298,6 +320,7 @@ snyk test --all-projects
 ```
 
 #### Code Analysis (SAST)
+
 ```bash
 # Scan source code for security flaws
 snyk code test
@@ -308,6 +331,7 @@ snyk code test
 ```
 
 #### Export Results as JSON
+
 ```bash
 # Full report
 snyk test --all-projects --json > snyk-results.json
@@ -320,6 +344,7 @@ snyk test --all-projects --json-file-output=snyk-summary.json
 ```
 
 #### Export to HTML (Better for sharing)
+
 ```bash
 # If installed: snyk-to-html
 npm install -g snyk-to-html
@@ -333,21 +358,25 @@ snyk test --all-projects --json | snyk-to-html -o snyk-report.html
 ### Interpreting Results
 
 **CRITICAL Issues** ❌
+
 - CVSS score 9.0+
 - Exploitable vulnerability
 - **ACTION**: Block production deployment until fixed
 
 **HIGH Issues** ⚠️
+
 - CVSS score 7.0-8.9
 - Serious vulnerability
 - **ACTION**: Fix before release, or accept risk formally
 
 **MEDIUM Issues** 🟡
+
 - CVSS score 4.0-6.9
 - Moderate risk
 - **ACTION**: Plan fix for next sprint
 
 **LOW Issues** ℹ️
+
 - CVSS score 0.1-3.9
 - Minor issue or low severity
 - **ACTION**: Track for improvement
@@ -359,6 +388,7 @@ snyk test --all-projects --json | snyk-to-html -o snyk-report.html
 When you run these locally, please collect and share:
 
 ### QA Results
+
 ```
 QA Status: ✅ PASS / 🔴 FAIL / 🟡 PARTIAL
 
@@ -401,6 +431,7 @@ Screenshots:
 ```
 
 ### EAS Build Results
+
 ```
 iOS Build:
   - Build ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
@@ -422,6 +453,7 @@ Logs:
 ```
 
 ### Snyk Results
+
 ```
 Dependency Vulnerabilities:
   - Total found: X
@@ -476,13 +508,13 @@ JSON Reports:
 
 ## Timeline Estimate
 
-| Step | Duration | When |
-|------|----------|------|
-| QA Walkthrough | 45 mins | Now |
-| EAS Build (iOS) | 10-30 mins | Parallel with QA |
-| EAS Build (Android) | 10-30 mins | After iOS |
-| Snyk Scan | 5-10 mins | After builds |
-| **Total** | **~90 mins** | **Start to finish** |
+| Step                | Duration     | When                |
+| ------------------- | ------------ | ------------------- |
+| QA Walkthrough      | 45 mins      | Now                 |
+| EAS Build (iOS)     | 10-30 mins   | Parallel with QA    |
+| EAS Build (Android) | 10-30 mins   | After iOS           |
+| Snyk Scan           | 5-10 mins    | After builds        |
+| **Total**           | **~90 mins** | **Start to finish** |
 
 ---
 
@@ -547,6 +579,7 @@ snyk test --all-projects --json | snyk-to-html -o snyk-report.html
 ## Success Criteria
 
 ### ✅ QA Phase Complete When:
+
 - All auth flows tested and working
 - Onboarding completed with push token saved
 - Push notifications received and deep-linked correctly
@@ -556,6 +589,7 @@ snyk test --all-projects --json | snyk-to-html -o snyk-report.html
 - **Console shows 0 TypeScript errors**
 
 ### ✅ Build Phase Complete When:
+
 - iOS preview build succeeds
 - Build available in TestFlight
 - Android build succeeds (if attempted)
@@ -564,6 +598,7 @@ snyk test --all-projects --json | snyk-to-html -o snyk-report.html
 - Bundle size reasonable (<200MB for iOS)
 
 ### ✅ Security Phase Complete When:
+
 - Snyk dependency scan completes
 - Snyk code scan completes
 - All CRITICAL issues identified (should be 0)
@@ -577,7 +612,7 @@ snyk test --all-projects --json | snyk-to-html -o snyk-report.html
 
 **QA Issues**: See `TESTING_CHECKLIST.md` → Troubleshooting section  
 **Build Issues**: See `EAS_BUILD_GUIDE.md` → Common Problems  
-**Security Issues**: See `SECURITY.md` → Vulnerability Response  
+**Security Issues**: See `SECURITY.md` → Vulnerability Response
 
 ---
 

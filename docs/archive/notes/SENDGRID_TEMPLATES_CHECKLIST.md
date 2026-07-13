@@ -4,11 +4,11 @@
 
 Only these templates are supported and configured:
 
-| Template | ID (stored in secret manager) | Use Case |
-|----------|------------------------------|---------|
-| Password Reset | d-97a704ec6a35434195364e0ed9dfaf21 | Password recovery flow |
+| Template         | ID (stored in secret manager)      | Use Case                              |
+| ---------------- | ---------------------------------- | ------------------------------------- |
+| Password Reset   | d-97a704ec6a35434195364e0ed9dfaf21 | Password recovery flow                |
 | Password Changed | d-6f11ea835053413296e159c91204b658 | Security notice after password change |
-| Account Recovery | d-36ff36687ae8433ba49ae88e533904d6 | Confirm account recovery completion |
+| Account Recovery | d-36ff36687ae8433ba49ae88e533904d6 | Confirm account recovery completion   |
 
 All other SendGrid templates are removed/disabled. If you add a new email flow in the future, create a new template and store its ID in secrets before enabling it in code.
 

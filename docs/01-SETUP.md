@@ -3,6 +3,7 @@
 ## Prerequisites
 
 ### Required Software
+
 - **Node.js**: v18 or higher
 - **npm** or **yarn**
 - **Git**
@@ -11,6 +12,7 @@
 - **Android**: Android Studio or Expo Go app
 
 ### Required Accounts
+
 - **Expo Account** (free): https://expo.dev
 - **Google Cloud Account** (for Maps & OAuth)
 - **Stripe Account** (for payments)
@@ -21,6 +23,7 @@
 ## 📦 Installation
 
 ### 1. Clone Repository
+
 ```bash
 git clone https://github.com/xsantcastx/VarsityHubMobile.git
 cd VarsityHubMobile
@@ -29,11 +32,13 @@ cd VarsityHubMobile
 ### 2. Install Dependencies
 
 #### Frontend (Mobile App)
+
 ```bash
 npm install
 ```
 
 #### Backend (Server)
+
 ```bash
 cd server
 npm install
@@ -43,6 +48,7 @@ cd ..
 ### 3. Environment Setup
 
 #### Frontend - Create `.env` file in root:
+
 ```properties
 # API URL
 EXPO_PUBLIC_API_URL=http://192.168.0.11:4000  # Local development
@@ -60,6 +66,7 @@ EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID=your-expo-client-id
 ```
 
 #### Backend - Create `server/.env` file:
+
 ```properties
 # Database
 DATABASE_URL=postgresql://user:password@host:port/database
@@ -103,6 +110,7 @@ ALLOWED_ORIGINS=http://localhost:9500,http://localhost:5173
 ```
 
 ### 4. Database Setup
+
 ```bash
 cd server
 npx prisma migrate dev --name init
@@ -117,17 +125,21 @@ cd ..
 ### Development Mode
 
 #### Start Backend Server
+
 ```bash
 npm run server:dev
 ```
+
 Server will run on: http://localhost:4000
 
 #### Start Mobile App
+
 ```bash
 npm start
 ```
 
 Then:
+
 - Press `i` for iOS simulator
 - Press `a` for Android emulator
 - Scan QR code with Expo Go app on physical device
@@ -202,18 +214,23 @@ See: [Environment Setup](./03-ENVIRONMENT.md#stripe)
 ### Finding Your Local IP (for testing on physical devices)
 
 **Windows:**
+
 ```bash
 ipconfig
 ```
+
 Look for "IPv4 Address" (e.g., 192.168.0.11)
 
 **Mac/Linux:**
+
 ```bash
 ifconfig
 ```
+
 Look for "inet" under your active connection
 
 **Update `.env`:**
+
 ```properties
 EXPO_PUBLIC_API_URL=http://YOUR_IP:4000
 ```
@@ -223,19 +240,24 @@ EXPO_PUBLIC_API_URL=http://YOUR_IP:4000
 ## ✅ Verify Setup
 
 ### 1. Backend Health Check
+
 ```bash
 curl http://localhost:4000/health
 ```
+
 Should return: `{"status":"ok"}`
 
 ### 2. Run Mobile App
+
 Start app and verify:
+
 - ✅ App loads without errors
 - ✅ Sign-up screen appears
 - ✅ Can create account
 - ✅ API requests work
 
 ### 3. Check Console
+
 - No red errors in terminal
 - No critical warnings in Expo Dev Tools
 
@@ -244,22 +266,26 @@ Start app and verify:
 ## 🐛 Troubleshooting
 
 ### "Cannot connect to server"
+
 - Verify backend is running (`npm run server:dev`)
 - Check `EXPO_PUBLIC_API_URL` in `.env`
 - Ensure firewall allows port 4000
 - Use correct IP address (not `localhost` for physical devices)
 
 ### "Database connection failed"
+
 - Verify `DATABASE_URL` in `server/.env`
 - Run migrations: `npm run server:db:migrate`
 - Check PostgreSQL is running
 
 ### "Google OAuth not working"
+
 - Verify client IDs in `.env`
 - Check OAuth consent screen is configured
 - Ensure redirect URIs are correct
 
 ### "Module not found"
+
 - Delete `node_modules` and reinstall:
   ```bash
   rm -rf node_modules
@@ -267,6 +293,7 @@ Start app and verify:
   ```
 
 ### "Metro bundler issues"
+
 - Clear cache:
   ```bash
   npm start -- --clear

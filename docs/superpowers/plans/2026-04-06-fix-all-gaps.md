@@ -12,31 +12,35 @@
 
 ## File Map
 
-| File | Change |
-|------|--------|
-| `CLAUDE.md` | Fix Veteran pricing ($1→$1.50), Legend pricing ($20→$19.99) |
-| `api/types.ts` | Fix CreateAdPayload (4 required fields), CreateEventPayload (location required, remove capacity), add event_id to CreatePostPayload |
-| `app/(tabs)/following.tsx` | Fix `id: string` → `id?: string` |
-| `app/(tabs)/followers.tsx` | Fix `id: string` → `id?: string` |
-| `server/src/jobs/scheduler.ts` | Add coach-approval-reminder (7d) + auto-expire (30d) jobs, add stale-event-auto-reject (14d) job |
-| `server/src/lib/approvalService.ts` | Add reminder and auto-expire functions |
-| `server/src/lib/email.ts` | Add sendCoachApprovalReminderEmail function |
+| File                                | Change                                                                                                                              |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `CLAUDE.md`                         | Fix Veteran pricing ($1→$1.50), Legend pricing ($20→$19.99)                                                                         |
+| `api/types.ts`                      | Fix CreateAdPayload (4 required fields), CreateEventPayload (location required, remove capacity), add event_id to CreatePostPayload |
+| `app/(tabs)/following.tsx`          | Fix `id: string` → `id?: string`                                                                                                    |
+| `app/(tabs)/followers.tsx`          | Fix `id: string` → `id?: string`                                                                                                    |
+| `server/src/jobs/scheduler.ts`      | Add coach-approval-reminder (7d) + auto-expire (30d) jobs, add stale-event-auto-reject (14d) job                                    |
+| `server/src/lib/approvalService.ts` | Add reminder and auto-expire functions                                                                                              |
+| `server/src/lib/email.ts`           | Add sendCoachApprovalReminderEmail function                                                                                         |
 
 ---
 
 ### Task 1: Fix CLAUDE.md pricing errors
 
 **Files:**
+
 - Modify: `CLAUDE.md`
 
 - [ ] **Step 1: Fix pricing**
 
 Change:
+
 ```
 - Veteran: $1/mo/team, 100 roster
 - Legend: $20/yr, unlimited teams + clubs
 ```
+
 To:
+
 ```
 - Veteran: $1.50/mo/team, 100 roster, 5 authorized users/team
 - Legend: $19.99/yr, unlimited teams + clubs + authorized users
@@ -54,11 +58,13 @@ git commit -m "fix: correct Veteran ($1.50) and Legend ($19.99) pricing in CLAUD
 ### Task 2: Fix client/server type mismatches in api/types.ts
 
 **Files:**
+
 - Modify: `api/types.ts:109-168`
 
 - [ ] **Step 1: Fix CreateAdPayload — make 4 fields required to match server Zod schema**
 
 Change lines 158-168 from:
+
 ```typescript
 export interface CreateAdPayload {
   contact_name?: string;
@@ -72,7 +78,9 @@ export interface CreateAdPayload {
   description?: string;
 }
 ```
+
 To:
+
 ```typescript
 export interface CreateAdPayload {
   contact_name: string;
@@ -90,6 +98,7 @@ export interface CreateAdPayload {
 - [ ] **Step 2: Fix CreateEventPayload — make location required, remove capacity (server ignores it), constrain event_type**
 
 Change lines 137-152 from:
+
 ```typescript
 export interface CreateEventPayload {
   title: string;
@@ -108,7 +117,9 @@ export interface CreateEventPayload {
   team_id?: string;
 }
 ```
+
 To:
+
 ```typescript
 export interface CreateEventPayload {
   title: string;
@@ -118,7 +129,18 @@ export interface CreateEventPayload {
   longitude?: number;
   banner_url?: string;
   game_id?: string;
-  event_type?: 'game' | 'fundraiser' | 'watch_party' | 'team_trip' | 'meeting' | 'team_meal' | 'tryout' | 'bbq' | 'team_meeting' | 'host_request' | 'other';
+  event_type?:
+    | 'game'
+    | 'fundraiser'
+    | 'watch_party'
+    | 'team_trip'
+    | 'meeting'
+    | 'team_meal'
+    | 'tryout'
+    | 'bbq'
+    | 'team_meeting'
+    | 'host_request'
+    | 'other';
   description?: string;
   linked_league?: string;
   max_attendees?: number;
@@ -130,6 +152,7 @@ export interface CreateEventPayload {
 - [ ] **Step 3: Fix CreatePostPayload — add event_id to match server schema**
 
 Change lines 109-128 from:
+
 ```typescript
 export interface CreatePostPayload {
   title?: string;
@@ -140,7 +163,9 @@ export interface CreatePostPayload {
   team_id?: string;
   location?: {
 ```
+
 To:
+
 ```typescript
 export interface CreatePostPayload {
   title?: string;
@@ -170,16 +195,20 @@ git commit -m "fix: align client types with server Zod schemas — ads, events, 
 ### Task 3: Fix useLocalSearchParams type lies
 
 **Files:**
+
 - Modify: `app/(tabs)/following.tsx:20`
 - Modify: `app/(tabs)/followers.tsx:20`
 
 - [ ] **Step 1: Fix following.tsx**
 
 Change line 20 from:
+
 ```typescript
 const { id, username } = useLocalSearchParams<{ id: string; username?: string }>();
 ```
+
 To:
+
 ```typescript
 const { id, username } = useLocalSearchParams<{ id?: string; username?: string }>();
 ```
@@ -187,10 +216,13 @@ const { id, username } = useLocalSearchParams<{ id?: string; username?: string }
 - [ ] **Step 2: Fix followers.tsx**
 
 Change line 20 from:
+
 ```typescript
 const { id, username } = useLocalSearchParams<{ id: string; username?: string }>();
 ```
+
 To:
+
 ```typescript
 const { id, username } = useLocalSearchParams<{ id?: string; username?: string }>();
 ```
@@ -207,6 +239,7 @@ git commit -m "fix: useLocalSearchParams id should be optional (already runtime-
 ### Task 4: Add coach approval auto-reminder and auto-expiration
 
 **Files:**
+
 - Modify: `server/src/lib/approvalService.ts`
 - Modify: `server/src/jobs/scheduler.ts`
 
@@ -260,7 +293,7 @@ export async function autoExpirePendingCoaches(prisma: PrismaClient): Promise<nu
   for (const coach of expiredCoaches) {
     await rejectCoach(coach.id, 'system', prisma, {
       reason: 'Application expired after 30 days without admin review. Please re-apply.',
-    }).catch((err) => {
+    }).catch(err => {
       console.error(`[auto-expire] Failed to expire coach ${coach.id}:`, err);
     });
   }

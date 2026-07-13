@@ -9,22 +9,26 @@ This document outlines the production hardening roadmap for VarsityHub, covering
 ## 🔒 Security Upgrades (COMPLETED)
 
 ### Environment Validation ✅
+
 - **`server/src/lib/env.ts`** - Zod schema enforces:
   - `DATABASE_URL` required
   - `JWT_SECRET` ≥32 characters (no fallback keys!)
   - All env vars validated at boot (server exits if invalid)
 
-### Config Validator ✅  
+### Config Validator ✅
+
 - **`server/src/lib/config-validator.ts`** - Checks 10 services:
   - Required: database, jwt, stripe, smtp
   - Optional: cloudinary, googleOAuth, googleMaps, twilio, redis, sentry
 
 ### Health Endpoints ✅
+
 - **`/health`** - Integration status + warnings
 - **`/health/ready`** - Kubernetes-style readiness probe
 - **`/health/services`** - Detailed service status for debugging
 
 ### CORS & Rate Limiting ✅
+
 - **`server/src/index.ts`** - CORS honors `ALLOWED_ORIGINS` (warns if wildcard in prod)
 - Ads/payments routes behind global rate limiter + `no-store` headers
 - JWT signing uses validated secret only (no dev fallback)
@@ -50,26 +54,26 @@ This document outlines the production hardening roadmap for VarsityHub, covering
 
 ### Current State ✅
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| `express-rate-limit` | ✅ Installed | v7.4.0 in package.json |
-| Global API limiter | ✅ Configured | 500 req/15min (prod), unlimited (dev) |
-| Auth limiter | ✅ Configured | 50 req/15min for `/auth/*` routes |
-| In-memory auth rate limit | ✅ Custom | 5 attempts/15min per email in `auth.ts` |
-| Email verification rate limit | ✅ Custom | 1/30s, 5/hour per user |
-| Phone verification rate limit | ✅ Custom | Same as email verification |
-| Trust proxy | ✅ Enabled | Required for Railway/Heroku |
+| Component                     | Status        | Notes                                   |
+| ----------------------------- | ------------- | --------------------------------------- |
+| `express-rate-limit`          | ✅ Installed  | v7.4.0 in package.json                  |
+| Global API limiter            | ✅ Configured | 500 req/15min (prod), unlimited (dev)   |
+| Auth limiter                  | ✅ Configured | 50 req/15min for `/auth/*` routes       |
+| In-memory auth rate limit     | ✅ Custom     | 5 attempts/15min per email in `auth.ts` |
+| Email verification rate limit | ✅ Custom     | 1/30s, 5/hour per user                  |
+| Phone verification rate limit | ✅ Custom     | Same as email verification              |
+| Trust proxy                   | ✅ Enabled    | Required for Railway/Heroku             |
 
 ### Gaps Identified 🔴
 
-| Endpoint | Issue | Priority |
-|----------|-------|----------|
-| `POST /posts` | No per-user post creation limit | HIGH |
-| `POST /posts/:id/comments` | No spam protection | HIGH |
-| `POST /messages` | No message rate limit | HIGH |
-| `POST /follows/:userId/follow` | Follow spam possible | MEDIUM |
-| `POST /posts/:id/upvote` | No vote rate limit | LOW |
-| `POST /support/contact` | No abuse report flood protection | MEDIUM |
+| Endpoint                       | Issue                            | Priority |
+| ------------------------------ | -------------------------------- | -------- |
+| `POST /posts`                  | No per-user post creation limit  | HIGH     |
+| `POST /posts/:id/comments`     | No spam protection               | HIGH     |
+| `POST /messages`               | No message rate limit            | HIGH     |
+| `POST /follows/:userId/follow` | Follow spam possible             | MEDIUM   |
+| `POST /posts/:id/upvote`       | No vote rate limit               | LOW      |
+| `POST /support/contact`        | No abuse report flood protection | MEDIUM   |
 
 ### Recommended Implementation
 
@@ -108,25 +112,25 @@ export const createRateLimiter = (options: {
 export const postCreationLimiter = createRateLimiter({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 20, // 20 posts/hour
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: req => req.user?.id || req.ip,
 });
 
 export const commentLimiter = createRateLimiter({
   windowMs: 60 * 1000, // 1 minute
   max: 10, // 10 comments/minute
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: req => req.user?.id || req.ip,
 });
 
 export const messageLimiter = createRateLimiter({
   windowMs: 60 * 1000, // 1 minute
   max: 30, // 30 messages/minute
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: req => req.user?.id || req.ip,
 });
 
 export const followLimiter = createRateLimiter({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 100, // 100 follows/hour
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: req => req.user?.id || req.ip,
 });
 ```
 
@@ -138,8 +142,8 @@ npm install @upstash/ratelimit @upstash/redis
 
 ```typescript
 // server/src/middleware/upstashRateLimit.ts
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -148,8 +152,8 @@ const redis = new Redis({
 
 export const postRatelimit = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(20, "1 h"),
-  prefix: "ratelimit:post",
+  limiter: Ratelimit.slidingWindow(20, '1 h'),
+  prefix: 'ratelimit:post',
 });
 
 // Express middleware wrapper
@@ -157,9 +161,9 @@ export const upstashMiddleware = (ratelimit: Ratelimit) => {
   return async (req: AuthedRequest, res: Response, next: NextFunction) => {
     const identifier = req.user?.id || req.ip || 'anonymous';
     const { success, remaining } = await ratelimit.limit(identifier);
-    
+
     res.setHeader('X-RateLimit-Remaining', remaining);
-    
+
     if (!success) {
       return res.status(429).json({ error: 'Too many requests' });
     }
@@ -178,7 +182,7 @@ export function getDeviceFingerprint(req: Request): string {
   const ip = req.ip || req.connection.remoteAddress || 'unknown';
   const userAgent = req.get('User-Agent') || 'unknown';
   const acceptLanguage = req.get('Accept-Language') || '';
-  
+
   // Create a simple hash for fingerprinting
   const crypto = require('crypto');
   return crypto
@@ -202,7 +206,7 @@ export async function logSuspiciousActivity(
     metadata,
     timestamp: new Date().toISOString(),
   });
-  
+
   // TODO: Store in database for pattern analysis
   // await prisma.securityLog.create({ data: { ... } });
 }
@@ -214,13 +218,13 @@ export async function logSuspiciousActivity(
 
 ### Current State ⚠️
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Cron for game reminders | ✅ Exists | `server/src/cron/game-reminders.ts` |
-| Push notification sending | ⚠️ Inline | Blocks API response |
-| Email sending | ⚠️ Inline | Has timeout, but still blocks |
-| Media processing | 🔴 None | Cloudinary handles it, but no retry |
-| Analytics fan-out | 🔴 None | No event queuing |
+| Component                 | Status    | Notes                               |
+| ------------------------- | --------- | ----------------------------------- |
+| Cron for game reminders   | ✅ Exists | `server/src/cron/game-reminders.ts` |
+| Push notification sending | ⚠️ Inline | Blocks API response                 |
+| Email sending             | ⚠️ Inline | Has timeout, but still blocks       |
+| Media processing          | 🔴 None   | Cloudinary handles it, but no retry |
+| Analytics fan-out         | 🔴 None   | No event queuing                    |
 
 ### Recommended: BullMQ + Redis
 
@@ -285,11 +289,11 @@ const worker = new Worker<NotificationJob>(
   'notifications',
   async (job: Job<NotificationJob>) => {
     const { userId, title, body, data } = job.data;
-    
+
     console.log(`[NotificationWorker] Processing job ${job.id} for user ${userId}`);
-    
+
     await sendPushNotification(userId, title, body, data);
-    
+
     return { success: true, processedAt: new Date().toISOString() };
   },
   {
@@ -302,7 +306,7 @@ const worker = new Worker<NotificationJob>(
   }
 );
 
-worker.on('completed', (job) => {
+worker.on('completed', job => {
   console.log(`[NotificationWorker] Job ${job.id} completed`);
 });
 
@@ -332,11 +336,11 @@ const worker = new Worker<EmailJob>(
   'emails',
   async (job: Job<EmailJob>) => {
     const { to, subject, text, html } = job.data;
-    
+
     console.log(`[EmailWorker] Processing job ${job.id} to ${to}`);
-    
+
     await sendEmail({ to, subject, text, html });
-    
+
     return { success: true, processedAt: new Date().toISOString() };
   },
   {
@@ -408,25 +412,25 @@ npm install @trigger.dev/sdk @trigger.dev/react
 
 ```typescript
 // server/src/jobs/trigger.ts
-import { TriggerClient, eventTrigger } from "@trigger.dev/sdk";
+import { TriggerClient, eventTrigger } from '@trigger.dev/sdk';
 
 export const client = new TriggerClient({
-  id: "varsityhub",
+  id: 'varsityhub',
   apiKey: process.env.TRIGGER_API_KEY!,
 });
 
 // Define job
 client.defineJob({
-  id: "send-push-notification",
-  name: "Send Push Notification",
-  version: "1.0.0",
+  id: 'send-push-notification',
+  name: 'Send Push Notification',
+  version: '1.0.0',
   trigger: eventTrigger({
-    name: "notification.send",
+    name: 'notification.send',
   }),
   run: async (payload, io, ctx) => {
     const { userId, title, body, data } = payload;
-    
-    await io.runTask("send-notification", async () => {
+
+    await io.runTask('send-notification', async () => {
       await sendPushNotification(userId, title, body, data);
     });
   },
@@ -439,16 +443,16 @@ client.defineJob({
 
 ### Current State ✅
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| AbuseReport model | ✅ Exists | Full schema in Prisma |
-| Support contact endpoint | ✅ Works | `POST /support/contact` |
-| Admin reports dashboard | ✅ Works | `/admin/reports` with CRUD |
-| Bulk operations | ✅ Works | Bulk update/delete reports |
-| Admin activity logging | ✅ Works | All admin actions logged |
-| AI content filtering | 🔴 None | No automated moderation |
-| Post reporting | 🔴 None | Can't report specific posts |
-| User reporting | 🔴 None | Can't report specific users |
+| Component                | Status    | Notes                       |
+| ------------------------ | --------- | --------------------------- |
+| AbuseReport model        | ✅ Exists | Full schema in Prisma       |
+| Support contact endpoint | ✅ Works  | `POST /support/contact`     |
+| Admin reports dashboard  | ✅ Works  | `/admin/reports` with CRUD  |
+| Bulk operations          | ✅ Works  | Bulk update/delete reports  |
+| Admin activity logging   | ✅ Works  | All admin actions logged    |
+| AI content filtering     | 🔴 None   | No automated moderation     |
+| Post reporting           | 🔴 None   | Can't report specific posts |
+| User reporting           | 🔴 None   | Can't report specific users |
 
 ### Gaps to Fill
 
@@ -476,48 +480,54 @@ interface ReportPayload {
 // POST /reports - Create a new report
 reportsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   const { target_type, target_id, reason, details } = req.body as ReportPayload;
-  
+
   if (!target_type || !target_id || !reason) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-  
+
   // Validate target exists
   let targetExists = false;
   let targetContext: any = {};
-  
+
   switch (target_type) {
     case 'post':
-      const post = await prisma.post.findUnique({ 
+      const post = await prisma.post.findUnique({
         where: { id: target_id },
-        select: { id: true, author_id: true, content: true }
+        select: { id: true, author_id: true, content: true },
       });
       targetExists = !!post;
-      targetContext = { post_author: post?.author_id, content_preview: post?.content?.substring(0, 100) };
+      targetContext = {
+        post_author: post?.author_id,
+        content_preview: post?.content?.substring(0, 100),
+      };
       break;
     case 'user':
-      const user = await prisma.user.findUnique({ 
+      const user = await prisma.user.findUnique({
         where: { id: target_id },
-        select: { id: true, display_name: true, email: true }
+        select: { id: true, display_name: true, email: true },
       });
       targetExists = !!user;
       targetContext = { display_name: user?.display_name };
       break;
     case 'comment':
-      const comment = await prisma.comment.findUnique({ 
+      const comment = await prisma.comment.findUnique({
         where: { id: target_id },
-        select: { id: true, author_id: true, content: true }
+        select: { id: true, author_id: true, content: true },
       });
       targetExists = !!comment;
-      targetContext = { comment_author: comment?.author_id, content_preview: comment?.content?.substring(0, 100) };
+      targetContext = {
+        comment_author: comment?.author_id,
+        content_preview: comment?.content?.substring(0, 100),
+      };
       break;
   }
-  
+
   if (!targetExists) {
     return res.status(404).json({ error: `${target_type} not found` });
   }
-  
+
   // Check for duplicate recent report
   const recentReport = await prisma.contentReport.findFirst({
     where: {
@@ -527,11 +537,11 @@ reportsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       created_at: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Last 24 hours
     },
   });
-  
+
   if (recentReport) {
     return res.status(409).json({ error: 'You have already reported this content' });
   }
-  
+
   const report = await prisma.contentReport.create({
     data: {
       reporter_id: req.user.id,
@@ -543,20 +553,20 @@ reportsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       status: 'pending',
     },
   });
-  
+
   return res.status(201).json({ ok: true, reportId: report.id });
 });
 
 // GET /reports/my - Get user's submitted reports
 reportsRouter.get('/my', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   const reports = await prisma.contentReport.findMany({
     where: { reporter_id: req.user.id },
     orderBy: { created_at: 'desc' },
     take: 50,
   });
-  
+
   return res.json({ reports });
 });
 ```
@@ -579,9 +589,9 @@ model ContentReport {
   reviewed_at DateTime?
   action_taken String? // warned | content_removed | user_banned | none
   created_at  DateTime @default(now())
-  
+
   reporter    User     @relation(fields: [reporter_id], references: [id], onDelete: Cascade)
-  
+
   @@index([reporter_id])
   @@index([target_type, target_id])
   @@index([status])
@@ -607,7 +617,7 @@ export async function moderateWithPerspective(text: string): Promise<ModerationR
   if (!process.env.PERSPECTIVE_API_KEY) {
     return { flagged: false, categories: [], confidence: 0, suggestedAction: 'allow' };
   }
-  
+
   try {
     const response = await fetch(
       `https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=${process.env.PERSPECTIVE_API_KEY}`,
@@ -628,19 +638,19 @@ export async function moderateWithPerspective(text: string): Promise<ModerationR
         }),
       }
     );
-    
-    const data = await response.json() as any;
+
+    const data = (await response.json()) as any;
     const scores = data.attributeScores;
-    
+
     const flaggedCategories: string[] = [];
     let maxScore = 0;
-    
+
     for (const [category, score] of Object.entries(scores)) {
       const value = (score as any).summaryScore.value;
       if (value > 0.7) flaggedCategories.push(category);
       maxScore = Math.max(maxScore, value);
     }
-    
+
     return {
       flagged: flaggedCategories.length > 0,
       categories: flaggedCategories,
@@ -658,26 +668,26 @@ export async function moderateWithOpenAI(text: string): Promise<ModerationResult
   if (!process.env.OPENAI_API_KEY) {
     return { flagged: false, categories: [], confidence: 0, suggestedAction: 'allow' };
   }
-  
+
   try {
     const response = await fetch('https://api.openai.com/v1/moderations', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({ input: text }),
     });
-    
-    const data = await response.json() as any;
+
+    const data = (await response.json()) as any;
     const result = data.results[0];
-    
+
     const flaggedCategories = Object.entries(result.categories)
       .filter(([_, flagged]) => flagged)
       .map(([category]) => category);
-    
-    const maxScore = Math.max(...Object.values(result.category_scores) as number[]);
-    
+
+    const maxScore = Math.max(...(Object.values(result.category_scores) as number[]));
+
     return {
       flagged: result.flagged,
       categories: flaggedCategories,
@@ -744,7 +754,7 @@ export async function setupSearchIndexes() {
     filterableAttributes: ['id'],
     sortableAttributes: ['created_at'],
   });
-  
+
   // Teams index
   const teamsIndex = client.index(INDEXES.TEAMS);
   await teamsIndex.updateSettings({
@@ -752,7 +762,7 @@ export async function setupSearchIndexes() {
     filterableAttributes: ['sport', 'city', 'state', 'status'],
     sortableAttributes: ['created_at', 'name'],
   });
-  
+
   // Events index
   const eventsIndex = client.index(INDEXES.EVENTS);
   await eventsIndex.updateSettings({
@@ -760,42 +770,50 @@ export async function setupSearchIndexes() {
     filterableAttributes: ['event_type', 'approval_status', 'date'],
     sortableAttributes: ['date', 'created_at'],
   });
-  
+
   console.log('🔍 Search indexes configured');
 }
 
 // Sync functions
 export async function indexUser(user: any) {
-  await client.index(INDEXES.USERS).addDocuments([{
-    id: user.id,
-    display_name: user.display_name,
-    username: user.username,
-    bio: user.bio,
-    avatar_url: user.avatar_url,
-    created_at: user.created_at?.getTime(),
-  }]);
+  await client.index(INDEXES.USERS).addDocuments([
+    {
+      id: user.id,
+      display_name: user.display_name,
+      username: user.username,
+      bio: user.bio,
+      avatar_url: user.avatar_url,
+      created_at: user.created_at?.getTime(),
+    },
+  ]);
 }
 
 export async function indexTeam(team: any) {
-  await client.index(INDEXES.TEAMS).addDocuments([{
-    id: team.id,
-    name: team.name,
-    description: team.description,
-    sport: team.sport,
-    city: team.city,
-    state: team.state,
-    logo_url: team.logo_url,
-    status: team.status,
-    created_at: team.created_at?.getTime(),
-  }]);
+  await client.index(INDEXES.TEAMS).addDocuments([
+    {
+      id: team.id,
+      name: team.name,
+      description: team.description,
+      sport: team.sport,
+      city: team.city,
+      state: team.state,
+      logo_url: team.logo_url,
+      status: team.status,
+      created_at: team.created_at?.getTime(),
+    },
+  ]);
 }
 
 // Search function
-export async function search(index: string, query: string, options?: {
-  filter?: string;
-  limit?: number;
-  offset?: number;
-}) {
+export async function search(
+  index: string,
+  query: string,
+  options?: {
+    filter?: string;
+    limit?: number;
+    offset?: number;
+  }
+) {
   return client.index(index).search(query, {
     filter: options?.filter,
     limit: options?.limit || 20,
@@ -814,10 +832,7 @@ npm install algoliasearch
 // server/src/lib/algolia.ts
 import algoliasearch from 'algoliasearch';
 
-const client = algoliasearch(
-  process.env.ALGOLIA_APP_ID!,
-  process.env.ALGOLIA_ADMIN_KEY!
-);
+const client = algoliasearch(process.env.ALGOLIA_APP_ID!, process.env.ALGOLIA_ADMIN_KEY!);
 
 export const usersIndex = client.initIndex('users');
 export const teamsIndex = client.initIndex('teams');
@@ -830,14 +845,14 @@ export const eventsIndex = client.initIndex('events');
 
 ### Current State ⚠️
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Expo push helper | ✅ Works | `server/src/lib/notifications.ts` |
-| Token validation | ✅ Works | `Expo.isExpoPushToken()` check |
-| Preference check | ✅ Works | Respects `notifications_enabled` |
-| Delivery receipts | 🔴 None | Tickets returned but not tracked |
-| Retry on failure | 🔴 None | Single attempt only |
-| Analytics | 🔴 None | No delivery metrics |
+| Component         | Status   | Notes                             |
+| ----------------- | -------- | --------------------------------- |
+| Expo push helper  | ✅ Works | `server/src/lib/notifications.ts` |
+| Token validation  | ✅ Works | `Expo.isExpoPushToken()` check    |
+| Preference check  | ✅ Works | Respects `notifications_enabled`  |
+| Delivery receipts | 🔴 None  | Tickets returned but not tracked  |
+| Retry on failure  | 🔴 None  | Single attempt only               |
+| Analytics         | 🔴 None  | No delivery metrics               |
 
 ### Enhanced Implementation
 
@@ -850,7 +865,8 @@ import * as Sentry from '@sentry/node';
 const expo = new Expo();
 
 // Store for tracking tickets
-const pendingTickets: Map<string, { userId: string; ticket: ExpoPushTicket; sentAt: Date }> = new Map();
+const pendingTickets: Map<string, { userId: string; ticket: ExpoPushTicket; sentAt: Date }> =
+  new Map();
 
 /**
  * Send a push notification with delivery tracking
@@ -912,7 +928,7 @@ export async function sendPushNotificationEnhanced(
       return { success: true, ticketId: ticket.id };
     } else if (ticket.status === 'error') {
       const error = ticket.message || 'Unknown error';
-      
+
       // Handle specific errors
       if (ticket.details?.error === 'DeviceNotRegistered') {
         // Clear invalid token
@@ -944,7 +960,7 @@ export async function sendPushNotificationEnhanced(
  */
 export async function checkDeliveryReceipts(): Promise<void> {
   const ticketIds = Array.from(pendingTickets.keys());
-  
+
   if (ticketIds.length === 0) {
     return;
   }
@@ -976,13 +992,13 @@ export async function checkDeliveryReceipts(): Promise<void> {
               where: { id: pending.userId },
               select: { preferences: true },
             });
-            
+
             if (user) {
               await prisma.user.update({
                 where: { id: pending.userId },
                 data: {
                   preferences: {
-                    ...(user.preferences as any || {}),
+                    ...((user.preferences as any) || {}),
                     push_token: null,
                   },
                 },
@@ -1027,12 +1043,12 @@ async function logNotificationEvent(
 
 ### Current State 🔴
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Sentry (errors) | ✅ Works | Client + server configured |
-| User analytics | 🔴 None | No event tracking |
-| Server metrics | 🔴 None | No Prometheus/Grafana |
-| Business metrics | 🔴 None | No dashboards |
+| Component        | Status   | Notes                      |
+| ---------------- | -------- | -------------------------- |
+| Sentry (errors)  | ✅ Works | Client + server configured |
+| User analytics   | 🔴 None  | No event tracking          |
+| Server metrics   | 🔴 None  | No Prometheus/Grafana      |
+| Business metrics | 🔴 None  | No dashboards              |
 
 ### Client-Side: Mixpanel or Amplitude
 
@@ -1041,7 +1057,7 @@ async function logNotificationEvent(
 import * as Sentry from '@sentry/react-native';
 
 // Analytics events
-type AnalyticsEvent = 
+type AnalyticsEvent =
   | { name: 'post_created'; properties: { hasMedia: boolean; hasGame: boolean } }
   | { name: 'post_viewed'; properties: { postId: string; source: string } }
   | { name: 'game_viewed'; properties: { gameId: string } }
@@ -1054,13 +1070,13 @@ type AnalyticsEvent =
 class Analytics {
   private mixpanel: any = null;
   private userId: string | null = null;
-  
+
   async init() {
     if (!process.env.EXPO_PUBLIC_MIXPANEL_TOKEN) {
       console.log('[Analytics] No Mixpanel token, analytics disabled');
       return;
     }
-    
+
     try {
       const { Mixpanel } = await import('mixpanel-react-native');
       this.mixpanel = new Mixpanel(process.env.EXPO_PUBLIC_MIXPANEL_TOKEN, true);
@@ -1070,20 +1086,20 @@ class Analytics {
       console.warn('[Analytics] Failed to initialize:', error);
     }
   }
-  
+
   identify(userId: string, properties?: Record<string, any>) {
     this.userId = userId;
-    
+
     if (this.mixpanel) {
       this.mixpanel.identify(userId);
       if (properties) {
         this.mixpanel.getPeople().set(properties);
       }
     }
-    
+
     Sentry.setUser({ id: userId });
   }
-  
+
   track<E extends AnalyticsEvent>(event: E['name'], properties: E['properties']) {
     if (this.mixpanel) {
       this.mixpanel.track(event, {
@@ -1092,7 +1108,7 @@ class Analytics {
         timestamp: new Date().toISOString(),
       });
     }
-    
+
     // Also add as Sentry breadcrumb
     Sentry.addBreadcrumb({
       category: 'analytics',
@@ -1101,7 +1117,7 @@ class Analytics {
       level: 'info',
     });
   }
-  
+
   reset() {
     this.userId = null;
     if (this.mixpanel) {
@@ -1171,19 +1187,16 @@ export const metricsHandler = async (req: any, res: any) => {
 // Middleware to track request duration
 export const metricsMiddleware = (req: any, res: any, next: any) => {
   const start = Date.now();
-  
+
   res.on('finish', () => {
     const duration = (Date.now() - start) / 1000;
     const route = req.route?.path || req.path || 'unknown';
-    
-    httpRequestDuration.observe(
-      { method: req.method, route, status: res.statusCode },
-      duration
-    );
-    
+
+    httpRequestDuration.observe({ method: req.method, route, status: res.statusCode }, duration);
+
     httpRequestTotal.inc({ method: req.method, route, status: res.statusCode });
   });
-  
+
   next();
 };
 ```
@@ -1194,14 +1207,14 @@ export const metricsMiddleware = (req: any, res: any, next: any) => {
 
 ### Current State ⚠️
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Helmet.js | ✅ Enabled | CSP disabled for dev |
-| CORS | ✅ Configured | Origin whitelist in env |
-| Input validation | ✅ Zod | Most routes validated |
-| SQL injection | ✅ Protected | Prisma ORM |
-| Dependency audit | ⚠️ Manual | No automation |
-| Secret scanning | 🔴 None | No automated checks |
+| Component        | Status        | Notes                   |
+| ---------------- | ------------- | ----------------------- |
+| Helmet.js        | ✅ Enabled    | CSP disabled for dev    |
+| CORS             | ✅ Configured | Origin whitelist in env |
+| Input validation | ✅ Zod        | Most routes validated   |
+| SQL injection    | ✅ Protected  | Prisma ORM              |
+| Dependency audit | ⚠️ Manual     | No automation           |
+| Secret scanning  | 🔴 None       | No automated checks     |
 
 ### Recommendations
 
@@ -1211,16 +1224,16 @@ export const metricsMiddleware = (req: any, res: any, next: any) => {
 # .github/dependabot.yml
 version: 2
 updates:
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "weekly"
+      interval: 'weekly'
     open-pull-requests-limit: 10
-    
-  - package-ecosystem: "npm"
-    directory: "/server"
+
+  - package-ecosystem: 'npm'
+    directory: '/server'
     schedule:
-      interval: "weekly"
+      interval: 'weekly'
     open-pull-requests-limit: 10
 ```
 
@@ -1239,10 +1252,7 @@ npx husky install
 // package.json
 {
   "lint-staged": {
-    "*.{ts,tsx,js,jsx}": [
-      "eslint --fix",
-      "git secrets --scan"
-    ]
+    "*.{ts,tsx,js,jsx}": ["eslint --fix", "git secrets --scan"]
   }
 }
 ```
@@ -1256,22 +1266,27 @@ npm install -D helmet-csp-header
 
 ```typescript
 // Harden helmet config for production
-app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'", process.env.API_URL, 'https://api.stripe.com'],
+app.use(
+  helmet({
+    contentSecurityPolicy:
+      process.env.NODE_ENV === 'production'
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              imgSrc: ["'self'", 'data:', 'https:'],
+              connectSrc: ["'self'", process.env.API_URL, 'https://api.stripe.com'],
+            },
+          }
+        : false,
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
     },
-  } : false,
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true,
-  },
-}));
+  })
+);
 ```
 
 ---
@@ -1280,12 +1295,12 @@ app.use(helmet({
 
 ### Current State ⚠️
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Database backups | ⚠️ Railway | Automatic daily backups |
-| Media redundancy | 🔴 None | Single Cloudinary storage |
-| Log retention | 🔴 None | Logs not persisted |
-| Data export | 🔴 None | No GDPR export |
+| Component        | Status     | Notes                     |
+| ---------------- | ---------- | ------------------------- |
+| Database backups | ⚠️ Railway | Automatic daily backups   |
+| Media redundancy | 🔴 None    | Single Cloudinary storage |
+| Log retention    | 🔴 None    | Logs not persisted        |
+| Data export      | 🔴 None    | No GDPR export            |
 
 ### Recommendations
 
@@ -1315,17 +1330,19 @@ const s3 = new S3Client({
 export async function backupMediaToS3(resourceId: string) {
   // Get from Cloudinary
   const result = await cloudinary.api.resource(resourceId);
-  
+
   // Download and upload to S3
   const response = await fetch(result.secure_url);
   const buffer = Buffer.from(await response.arrayBuffer());
-  
-  await s3.send(new PutObjectCommand({
-    Bucket: process.env.BACKUP_BUCKET!,
-    Key: `media/${resourceId}`,
-    Body: buffer,
-    ContentType: result.format,
-  }));
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: process.env.BACKUP_BUCKET!,
+      Key: `media/${resourceId}`,
+      Body: buffer,
+      ContentType: result.format,
+    })
+  );
 }
 ```
 
@@ -1336,15 +1353,16 @@ export async function backupMediaToS3(resourceId: string) {
 import pino from 'pino';
 
 // Production: Send to log aggregation service
-const transport = process.env.NODE_ENV === 'production'
-  ? pino.transport({
-      target: 'pino-loki', // Or pino-datadog, pino-cloudwatch, etc.
-      options: {
-        host: process.env.LOKI_HOST,
-        labels: { app: 'varsityhub-api' },
-      },
-    })
-  : pino.transport({ target: 'pino-pretty' });
+const transport =
+  process.env.NODE_ENV === 'production'
+    ? pino.transport({
+        target: 'pino-loki', // Or pino-datadog, pino-cloudwatch, etc.
+        options: {
+          host: process.env.LOKI_HOST,
+          labels: { app: 'varsityhub-api' },
+        },
+      })
+    : pino.transport({ target: 'pino-pretty' });
 
 export const logger = pino(transport);
 ```
@@ -1355,19 +1373,20 @@ export const logger = pino(transport);
 
 ### Current State ⚠️
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Sentry integration | ✅ Works | Errors captured |
-| ErrorBoundary | ✅ Fixed | Now sends to Sentry with componentStack |
-| Slack alerts | 🔴 None | No real-time alerts |
-| Severity SLAs | 🔴 None | No defined response times |
-| User context | ⚠️ Partial | Basic user ID attached |
+| Component          | Status     | Notes                                   |
+| ------------------ | ---------- | --------------------------------------- |
+| Sentry integration | ✅ Works   | Errors captured                         |
+| ErrorBoundary      | ✅ Fixed   | Now sends to Sentry with componentStack |
+| Slack alerts       | 🔴 None    | No real-time alerts                     |
+| Severity SLAs      | 🔴 None    | No defined response times               |
+| User context       | ⚠️ Partial | Basic user ID attached                  |
 
 ### Recommendations
 
 #### 1. Sentry Alert Rules
 
 Configure in Sentry Dashboard:
+
 - **Critical**: Any error with > 100 occurrences in 1 hour → Slack + PagerDuty
 - **High**: Payment-related errors → Immediate Slack
 - **Medium**: Auth errors with > 50 occurrences → Daily digest
@@ -1389,7 +1408,7 @@ export function setUserContext(user: {
     email: user.email,
     subscription: user.subscription_tier,
   });
-  
+
   Sentry.setContext('user_profile', {
     role: user.role,
     subscription_tier: user.subscription_tier,
@@ -1421,23 +1440,25 @@ export function trackApiCall(endpoint: string, method: string, status: number, d
 // server/src/lib/alerts.ts
 export async function sendSlackAlert(message: string, severity: 'critical' | 'high' | 'medium') {
   if (!process.env.SLACK_WEBHOOK_URL) return;
-  
+
   const colors = {
     critical: '#FF0000',
     high: '#FF6600',
     medium: '#FFCC00',
   };
-  
+
   await fetch(process.env.SLACK_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      attachments: [{
-        color: colors[severity],
-        title: `[${severity.toUpperCase()}] VarsityHub Alert`,
-        text: message,
-        ts: Math.floor(Date.now() / 1000),
-      }],
+      attachments: [
+        {
+          color: colors[severity],
+          title: `[${severity.toUpperCase()}] VarsityHub Alert`,
+          text: message,
+          ts: Math.floor(Date.now() / 1000),
+        },
+      ],
     }),
   });
 }
@@ -1449,13 +1470,13 @@ export async function sendSlackAlert(message: string, severity: 'critical' | 'hi
 
 ### Current State ⚠️
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Native share | ✅ Works | `utils/share.ts` |
-| Clipboard fallback | ✅ Works | Web + native |
-| Universal links | 🔴 None | No deep linking |
-| Attribution | 🔴 None | No tracking |
-| App install banners | 🔴 None | Web users not prompted |
+| Component           | Status   | Notes                  |
+| ------------------- | -------- | ---------------------- |
+| Native share        | ✅ Works | `utils/share.ts`       |
+| Clipboard fallback  | ✅ Works | Web + native           |
+| Universal links     | 🔴 None  | No deep linking        |
+| Attribution         | 🔴 None  | No tracking            |
+| App install banners | 🔴 None  | Web users not prompted |
 
 ### Recommendations
 
@@ -1496,31 +1517,33 @@ export async function sendSlackAlert(message: string, severity: 'critical' | 'hi
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 
-export function parseDeepLink(url: string): { screen: string; params: Record<string, string> } | null {
+export function parseDeepLink(
+  url: string
+): { screen: string; params: Record<string, string> } | null {
   try {
     const { hostname, path, queryParams } = Linking.parse(url);
-    
+
     // Handle different link types
     if (path?.startsWith('/post/')) {
       const postId = path.split('/')[2];
       return { screen: '/post-detail', params: { id: postId } };
     }
-    
+
     if (path?.startsWith('/game/')) {
       const gameId = path.split('/')[2];
       return { screen: '/game-detail', params: { id: gameId } };
     }
-    
+
     if (path?.startsWith('/team/')) {
       const teamId = path.split('/')[2];
       return { screen: '/team-detail', params: { id: teamId } };
     }
-    
+
     if (path?.startsWith('/profile/')) {
       const userId = path.split('/')[2];
       return { screen: '/public-profile', params: { id: userId } };
     }
-    
+
     return null;
   } catch {
     return null;
@@ -1540,7 +1563,7 @@ export function setupDeepLinkListener() {
   Linking.getInitialURL().then(url => {
     if (url) handleDeepLink(url);
   });
-  
+
   // Handle URL while app is open
   Linking.addEventListener('url', ({ url }) => {
     handleDeepLink(url);
@@ -1571,20 +1594,20 @@ export function generateShareUrl(content: ShareContent): string {
     utm_source: 'app_share',
     utm_medium: 'social',
   });
-  
+
   return `${BASE_URL}?${params.toString()}`;
 }
 
 export async function shareContent(content: ShareContent): Promise<boolean> {
   const url = generateShareUrl(content);
   const message = content.message || `Check this out on VarsityHub: ${url}`;
-  
+
   try {
     const result = await Share.share({
       message,
       url: Platform.OS === 'ios' ? url : undefined,
     });
-    
+
     if (result.action === Share.sharedAction) {
       analytics.track('content_shared', {
         contentType: content.type,
@@ -1593,11 +1616,11 @@ export async function shareContent(content: ShareContent): Promise<boolean> {
       });
       return true;
     }
-    
+
     return false;
   } catch (error) {
     console.error('[Share] Failed:', error);
-    
+
     // Fallback to clipboard
     try {
       const Clipboard = await import('expo-clipboard');
@@ -1616,23 +1639,27 @@ export async function shareContent(content: ShareContent): Promise<boolean> {
 ## Implementation Priority
 
 ### Phase 1: Critical (Week 1)
+
 1. ✅ Rate limiting middleware for posts, comments, messages
 2. ✅ Content reporting endpoints
 3. ✅ Enhanced push notification with delivery tracking
 
 ### Phase 2: High (Week 2-3)
+
 1. BullMQ background job queue
 2. Prometheus metrics endpoint
 3. Slack error alerts
 4. Deep-link handler
 
 ### Phase 3: Medium (Week 4-6)
+
 1. Meilisearch or Algolia integration
 2. Mixpanel/Amplitude client analytics
 3. S3 media backup
 4. AI content moderation (Perspective API)
 
 ### Phase 4: Low (Month 2+)
+
 1. Branch.io/Firebase Dynamic Links
 2. Grafana dashboards
 3. GDPR data export
@@ -1679,5 +1706,5 @@ BACKUP_BUCKET=varsityhub-backups
 
 ---
 
-*Document maintained by: VarsityHub Engineering*
-*Last audit: November 30, 2025*
+_Document maintained by: VarsityHub Engineering_
+_Last audit: November 30, 2025_

@@ -34,6 +34,7 @@ The ad rotation system has been implemented according to the slide specification
 ### File: `app/feed.tsx`
 
 #### State Management
+
 ```typescript
 const [currentAdIndex, setCurrentAdIndex] = useState(0);
 const [isShowingPromoCard, setIsShowingPromoCard] = useState(false);
@@ -41,22 +42,25 @@ const adCycleStartTimeRef = useRef(Date.now());
 ```
 
 #### Timing Constants
-- **1 Ad**: 
+
+- **1 Ad**:
   - Ad Duration: 2 minutes (120,000 ms)
   - Promo Duration: 15 seconds (15,000 ms)
-  
 - **2+ Ads**:
   - Ad Duration: 1:30 (90,000 ms) per ad
   - Promo Duration: 10 seconds (10,000 ms)
 
 #### Rotation Logic
+
 The `useEffect` hook manages the rotation:
+
 1. Calculates cycle duration based on number of ads
 2. Updates every second to check current position in cycle
 3. Switches between ads and promo card based on elapsed time
 4. Cycles through ads sequentially (for 2+ ads)
 
 #### Feed Integration
+
 - Ads/promo card are inserted AFTER the first event
 - Only ONE ad/promo card is shown at a time (based on timer)
 - Card design matches slide specification exactly
@@ -66,15 +70,17 @@ The `useEffect` hook manages the rotation:
 ## 🎨 Reserve Ad Space Card Design
 
 ### Layout (matches slide exactly)
+
 - **Label**: "AD SPACE AVAILABLE" (top)
 - **Card Content**:
   - Left: Icon (megaphone/image)
-  - Center: 
+  - Center:
     - Title: "Reserve Your Ad Space Now"
     - Subtitle: "Promote your program, fundraiser, or business to local fans."
   - Right: Blue button with arrow icon and "Click Here" text
 
 ### Styles
+
 - Card: Dark background with blue border
 - Icon: Blue circular border
 - Text: White/light text on dark background
@@ -87,11 +93,12 @@ The `useEffect` hook manages the rotation:
 ### File: `app/settings/index.tsx`
 
 Added to "My Content" section:
+
 ```typescript
-<NavRow 
-  title="Reserve Ad Space" 
-  subtitle="Promote your program, fundraiser, or business" 
-  onPress={() => void router.push('/submit-ad')} 
+<NavRow
+  title="Reserve Ad Space"
+  subtitle="Promote your program, fundraiser, or business"
+  onPress={() => void router.push('/submit-ad')}
 />
 ```
 

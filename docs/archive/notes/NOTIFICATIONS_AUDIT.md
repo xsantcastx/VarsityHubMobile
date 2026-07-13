@@ -12,6 +12,7 @@ Push notifications are **architecturally complete** on the backend but **missing
 ### Faith Level: 3/10 ⚠️
 
 The infrastructure exists but users won't get notified because:
+
 1. ❌ App doesn't request notification permissions
 2. ❌ App doesn't register for Expo push tokens
 3. ❌ App doesn't save tokens to backend
@@ -29,6 +30,7 @@ The infrastructure exists but users won't get notified because:
 All three notification types are implemented:
 
 1. **`notifyNewMessage()`** - Direct messages
+
    ```typescript
    - Triggered when user receives DM
    - Sends title: "New message from {senderName}"
@@ -36,6 +38,7 @@ All three notification types are implemented:
    ```
 
 2. **`notifyPostInteraction()`** - Likes & comments
+
    ```typescript
    - Triggered on upvote: "John liked your post"
    - Triggered on comment: "Jane commented on your post"
@@ -53,22 +56,24 @@ All three notification types are implemented:
 ### ✅ Integration Points (All Connected)
 
 **Likes/Upvotes** - `server/src/routes/posts.ts` (line ~405)
+
 ```typescript
 // When user upvotes a post:
 await notifyPostInteraction(
-  recipient,           // post author
+  recipient, // post author
   'like',
-  userId,             // who upvoted
+  userId, // who upvoted
   actor.display_name,
   postId
 );
 ```
 
 **Comments** - `server/src/routes/posts.ts` (line ~354)
+
 ```typescript
 // When user comments on post:
 await notifyPostInteraction(
-  recipient,          // post author
+  recipient, // post author
   'comment',
   req.user.id,
   comment.author?.display_name,
@@ -77,22 +82,24 @@ await notifyPostInteraction(
 ```
 
 **Direct Messages** - `server/src/routes/messages.ts` (line ~184)
+
 ```typescript
 // When user sends message:
 await notifyNewMessage(
-  toId,              // recipient
-  meId,              // sender
+  toId, // recipient
+  meId, // sender
   created.sender?.display_name,
   content
 );
 ```
 
 **New Followers** - `server/src/routes/users.ts` (line ~325)
+
 ```typescript
 // When user follows another:
 await notifyNewFollower(
-  following_id,      // person being followed
-  follower_id,       // person following
+  following_id, // person being followed
+  follower_id, // person following
   follower.display_name
 );
 ```
@@ -100,6 +107,7 @@ await notifyNewFollower(
 ### ✅ In-App Notifications (DB Records)
 
 Parallel to push notifications, the app also stores notifications in DB:
+
 - `notification.create()` called in same try/catch blocks
 - Types: `FOLLOW`, `UPVOTE`, `COMMENT`
 - Visible in app's Notifications tab (working ✅)
@@ -107,13 +115,15 @@ Parallel to push notifications, the app also stores notifications in DB:
 ### ⚠️ Push Token Requirements
 
 Backend **requires**:
+
 ```typescript
 // From user.preferences
-push_token: "ExponentPushToken[xxxxx...]"
-notifications_enabled: true  // User consent
+push_token: 'ExponentPushToken[xxxxx...]';
+notifications_enabled: true; // User consent
 ```
 
 If either missing → notification skipped silently
+
 ```typescript
 if (prefs && prefs.notifications_enabled === false) {
   console.log(`Notifications disabled for user ${userId}`);
@@ -132,6 +142,7 @@ if (!pushToken || !Expo.isExpoPushToken(pushToken)) {
 ### ❌ CRITICAL: Push Token Registration NOT Implemented
 
 **Where it should be:**
+
 1. ~~`app/onboarding/step-9-features.tsx`~~ - Asks for permission but doesn't register
 2. ~~`app/_layout.tsx`~~ - App initialization
 3. ~~`app/settings/index.tsx`~~ - User preferences
@@ -150,13 +161,13 @@ const registerPushNotifications = async () => {
 
   // 2. Get Expo push token
   const tokenData = await Notifications.getExpoPushTokenAsync({
-    projectId: 'YOUR_EXPO_PROJECT_ID',  // From app.json
+    projectId: 'YOUR_EXPO_PROJECT_ID', // From app.json
   });
-  
+
   // 3. Save to backend
-  await User.updatePreferences({ 
+  await User.updatePreferences({
     push_token: tokenData.data,
-    notifications_enabled: true
+    notifications_enabled: true,
   });
 };
 ```
@@ -164,6 +175,7 @@ const registerPushNotifications = async () => {
 ### ✅ Notification Handler (Exists)
 
 **File**: `app/_layout.tsx` (lines 54-62)
+
 ```typescript
 // Android notification channel setup ✅
 Notifications.setNotificationChannelAsync('default', {
@@ -174,19 +186,20 @@ Notifications.setNotificationChannelAsync('default', {
   enableVibrate: true,
   lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   lightColor: '#2563EB',
-})
+});
 ```
 
 ### ❌ Notification Response Handler (NOT IMPLEMENTED)
 
 **Missing**: Code to handle when user taps notification
+
 ```typescript
 // Should be in _layout.tsx:
 Notifications.addNotificationResponseReceivedListener(response => {
   const data = response.notification.request.content.data;
-  
+
   // Navigate based on notification type
-  switch(data.type) {
+  switch (data.type) {
     case 'new_message':
       router.push('/messages');
       break;
@@ -203,6 +216,7 @@ Notifications.addNotificationResponseReceivedListener(response => {
 ### ✅ In-App Notifications (Working)
 
 **File**: `app/(tabs)/notifications/index.tsx`
+
 - Fetches notifications from DB
 - Shows in-app notifications list
 - Types: `FOLLOW`, `UPVOTE`, `COMMENT`
@@ -213,6 +227,7 @@ Notifications.addNotificationResponseReceivedListener(response => {
 ## Testing Status
 
 ### ✅ Test Endpoints Available
+
 ```bash
 # Test all 3 notification types
 POST /test-notifications/test  # All types
@@ -221,7 +236,8 @@ GET /test-notifications/test/check-token  # Verify token exists
 ```
 
 **Important**: Endpoints only work if:
-1. User has already called `getExpoPushTokenAsync()` 
+
+1. User has already called `getExpoPushTokenAsync()`
 2. Token saved to user.preferences.push_token
 3. Currently → endpoints return `has_token: false` ⚠️
 
@@ -230,6 +246,7 @@ GET /test-notifications/test/check-token  # Verify token exists
 ## Documentation Status
 
 ✅ **Good documentation exists:**
+
 - `docs/GEOFENCING_AND_NOTIFICATIONS.md` - Full flow documented
 - `docs/TESTING_NOTIFICATIONS_AND_GEOFENCING.md` - Testing guide
 - `.docs/ANDROID_POLISH_SUMMARY.md` - Android implementation notes
@@ -241,6 +258,7 @@ GET /test-notifications/test/check-token  # Verify token exists
 ## What Actually Happens Right Now
 
 ### 1. User Onboards
+
 ```
 Step 9: "Enable Push Notifications?" → Toggle switch → Continue
 └─ Saves: notifications_enabled: true
@@ -248,6 +266,7 @@ Step 9: "Enable Push Notifications?" → Toggle switch → Continue
 ```
 
 ### 2. User Gets Notified
+
 ```
 Backend: "User upvoted my post!"
 ├─ Check: push_token exists? ❌ NO
@@ -257,6 +276,7 @@ Backend: "User upvoted my post!"
 ```
 
 ### 3. In-App Notification
+
 ```
 Backend: Creates notification record in DB ✅
 Frontend: Shows in Notifications tab ✅
@@ -264,6 +284,7 @@ User: Can see it in app (but didn't get push alert) ⚠️
 ```
 
 ### 4. Test Endpoints
+
 ```
 GET /test-notifications/test/check-token
 {
@@ -278,6 +299,7 @@ GET /test-notifications/test/check-token
 ## Detailed Implementation Gaps
 
 ### Gap 1: No Permission Request
+
 ```
 ❌ Missing:
 - Notifications.requestPermissionsAsync()
@@ -285,6 +307,7 @@ GET /test-notifications/test/check-token
 ```
 
 ### Gap 2: No Token Generation
+
 ```
 ❌ Missing:
 - Notifications.getExpoPushTokenAsync()
@@ -292,6 +315,7 @@ GET /test-notifications/test/check-token
 ```
 
 ### Gap 3: No Token Persistence
+
 ```
 ❌ Missing:
 - User.updatePreferences({ push_token: ... })
@@ -299,6 +323,7 @@ GET /test-notifications/test/check-token
 ```
 
 ### Gap 4: No Notification Tap Handler
+
 ```
 ❌ Missing:
 - Notifications.addNotificationResponseReceivedListener()
@@ -306,6 +331,7 @@ GET /test-notifications/test/check-token
 ```
 
 ### Gap 5: No In-Foreground Behavior
+
 ```
 ❌ Missing:
 - Notifications.setNotificationHandler()
@@ -318,6 +344,7 @@ GET /test-notifications/test/check-token
 ## What Needs to Be Done
 
 ### Priority 1: CRITICAL
+
 ```typescript
 // Add to app/_layout.tsx or AuthProvider.tsx
 // Run after user is authenticated
@@ -343,16 +370,16 @@ const setupPushNotifications = async (userId: string) => {
     const tokenData = await Notifications.getExpoPushTokenAsync({
       projectId: projectId,
     });
-    
+
     const token = tokenData.data;
     console.log('📱 Got push token:', token.substring(0, 30) + '...');
 
     // 4. Save to backend
-    await User.updatePreferences({ 
+    await User.updatePreferences({
       push_token: token,
-      notifications_enabled: true
+      notifications_enabled: true,
     });
-    
+
     console.log('✅ Push token saved to backend');
   } catch (error) {
     console.error('Failed to setup push notifications:', error);
@@ -366,48 +393,50 @@ setupPushNotifications(user.id);
 ```
 
 ### Priority 2: IMPORTANT
+
 ```typescript
 // Add notification tap handler to app/_layout.tsx
 
 useEffect(() => {
   const subscription = Notifications.addNotificationResponseReceivedListener(response => {
     const data = response.notification.request.content.data;
-    
+
     if (!data || !data.type) return;
-    
+
     console.log('🔔 User tapped notification:', data.type);
-    
+
     // Navigate based on notification type
-    switch(data.type) {
+    switch (data.type) {
       case 'new_message':
         router.push('/messages');
         break;
-        
+
       case 'post_interaction':
         if (data.post_id) {
           router.push({
             pathname: '/post/[id]',
-            params: { id: data.post_id }
+            params: { id: data.post_id },
           });
         }
         break;
-        
+
       case 'new_follower':
         if (data.follower_id) {
           router.push({
             pathname: '/profile/[id]',
-            params: { id: data.follower_id }
+            params: { id: data.follower_id },
           });
         }
         break;
     }
   });
-  
+
   return () => subscription.remove();
 }, [router]);
 ```
 
 ### Priority 3: NICE-TO-HAVE
+
 - Add notification badge count
 - Add notification sound customization
 - Add per-notification-type preferences UI
@@ -439,12 +468,14 @@ To verify notifications work end-to-end:
 ## Code Changes Required
 
 **Files to modify:**
+
 1. `app/_layout.tsx` - Add token registration + notification handler
 2. `context/AuthProvider.tsx` - Trigger registration after auth
 3. `app.json` - Ensure `extra.eas.projectId` is set (needed for token)
 4. Optional: `app/settings/index.tsx` - Add "Manage Notifications" page
 
 **Files already correct:**
+
 - ✅ `server/src/lib/notifications.ts`
 - ✅ `server/src/routes/posts.ts`
 - ✅ `server/src/routes/messages.ts`
@@ -456,6 +487,7 @@ To verify notifications work end-to-end:
 ## Conclusion
 
 **The system is 70% complete:**
+
 - ✅ Backend infrastructure: solid
 - ✅ Database: ready
 - ✅ In-app notifications: working

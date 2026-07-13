@@ -15,6 +15,7 @@
 **Context:** The deep audit revealed that push token registration is ALREADY IMPLEMENTED. `AuthProvider.tsx` has `setupPushNotifications()` which calls `User.updatePreferences({ push_token: token })`, and the server `PATCH /me/preferences` endpoint accepts `push_token`. The function `registerPushToken()` is exposed via auth context and called from sign-in flows. This task verifies it works and ensures it runs on every app launch, not just initial sign-in.
 
 **Files:**
+
 - Inspect: `context/AuthProvider.tsx:136-347`
 - Inspect: `api/user.ts:13`
 - Inspect: `server/src/routes/auth.ts:1104-1210`
@@ -23,6 +24,7 @@
 - [ ] **Step 1: Read the current registerPushToken flow in AuthProvider.tsx**
 
 Verify these pieces exist and are connected:
+
 1. `setupPushNotifications()` function (line ~136) that gets the Expo push token and calls `User.updatePreferences()`
 2. `registerPushToken` callback (line ~344) exposed in context
 3. That `registerPushToken()` is called after login in sign-in flows
@@ -45,6 +47,7 @@ useEffect(() => {
 - [ ] **Step 3: Verify the server endpoint accepts and persists push_token**
 
 Read `server/src/routes/auth.ts` line 1104-1210 and confirm:
+
 1. The Zod schema includes `push_token: z.string().optional()`
 2. The handler merges it into the user's `preferences` JSON field
 3. `push_token` is NOT in the "protected keys" strip list
@@ -52,6 +55,7 @@ Read `server/src/routes/auth.ts` line 1104-1210 and confirm:
 - [ ] **Step 4: Verify sendPushNotification reads from the right field**
 
 Read `server/src/lib/notifications.ts` lines 34-102 and confirm:
+
 1. It reads `prefs?.push_token`
 2. It validates with `Expo.isExpoPushToken(pushToken)`
 3. It silently returns `[]` if token is missing (no crash)
@@ -77,20 +81,24 @@ git commit -m "fix: ensure push token registers on every app launch, not just si
 **Context:** The server checkout handler at `server/src/routes/payments.ts` reads `STRIPE_PRICE_VETERAN` and `STRIPE_PRICE_LEGEND` env vars. If not set, it logs "Stripe price ID not configured" and checkout fails. This is a config-only fix — no code changes.
 
 **Files:**
+
 - Inspect: `server/src/routes/payments.ts:270-300` (to confirm env var names)
 
 - [ ] **Step 1: Confirm the env var names used in server code**
 
 Read `server/src/routes/payments.ts` around lines 270-300. Look for:
+
 ```typescript
-process.env.STRIPE_PRICE_VETERAN
-process.env.STRIPE_PRICE_LEGEND
+process.env.STRIPE_PRICE_VETERAN;
+process.env.STRIPE_PRICE_LEGEND;
 ```
+
 Note the exact variable names and how they're used (as Stripe `price` parameter in checkout session creation).
 
 - [ ] **Step 2: Create Stripe price objects (if they don't exist)**
 
 In the Stripe Dashboard (https://dashboard.stripe.com):
+
 1. Create a recurring price for Veteran: $1.00/month
 2. Create a recurring price for Legend: $20.00/year
 3. Copy both price IDs (format: `price_xxxxx`)
@@ -98,6 +106,7 @@ In the Stripe Dashboard (https://dashboard.stripe.com):
 - [ ] **Step 3: Set env vars in Railway**
 
 In Railway dashboard → project `capable-trust` → service `api` → Variables:
+
 ```
 STRIPE_PRICE_VETERAN=price_xxxxx
 STRIPE_PRICE_LEGEND=price_xxxxx
@@ -108,6 +117,7 @@ STRIPE_PRICE_LEGEND=price_xxxxx
 - [ ] **Step 4: Verify checkout works**
 
 On an Android device/emulator:
+
 1. Navigate to billing/subscription screen
 2. Attempt to subscribe to Veteran plan
 3. Confirm Stripe PaymentSheet appears with correct $1.00/month price
@@ -120,6 +130,7 @@ On an Android device/emulator:
 **Context:** `app/admin-dashboard.tsx` line 2 exports `ComingSoon` instead of the real component. The full dashboard UI exists below (pending leagues, pending coaches, stats) but is unreachable. Server endpoints for admin operations already enforce admin role checks.
 
 **Files:**
+
 - Modify: `app/admin-dashboard.tsx:2`
 
 - [ ] **Step 1: Read the current gate**
@@ -129,6 +140,7 @@ head -5 app/admin-dashboard.tsx
 ```
 
 Expected line 2:
+
 ```typescript
 export { default } from '@/components/ComingSoon';
 ```
@@ -158,12 +170,14 @@ git commit -m "fix: ungate admin dashboard to enable league and coach approvals"
 **Context:** `POST /admin/coaches/:id/approve` in `server/src/routes/admin.ts` (lines 173-233) sets `approval_status = APPROVED` but does NOT create an `OrganizationMembership` record. The coach is "approved" but has no org affiliation. The org-owner approval handler at `server/src/routes/organizations.ts:1689-1819` does this correctly — we replicate its logic.
 
 **Files:**
+
 - Modify: `server/src/routes/admin.ts:173-233`
 - Reference: `server/src/routes/organizations.ts:1689-1819` (correct pattern)
 
 - [ ] **Step 1: Read the current admin handler**
 
 Read `server/src/routes/admin.ts` lines 173-233. Note what it currently does:
+
 1. Finds user by ID
 2. Checks `approval_status === 'PENDING'`
 3. Updates `approval_status` to `'APPROVED'`
@@ -176,6 +190,7 @@ What's MISSING: no join request lookup, no org membership creation, no transacti
 - [ ] **Step 2: Read the org-owner handler for reference**
 
 Read `server/src/routes/organizations.ts` lines 1689-1819. Note what it does that the admin handler doesn't:
+
 1. Looks up pending `OrganizationJoinRequest`
 2. Creates `OrganizationMembership` with role `'coach'`
 3. Updates join request to `'approved'`
@@ -250,8 +265,9 @@ After the transaction, if a join request was found, persist org info to the coac
 
 ```typescript
 if (joinRequest) {
-  prisma.user.findUnique({ where: { id }, select: { preferences: true } })
-    .then((coachRecord) => {
+  prisma.user
+    .findUnique({ where: { id }, select: { preferences: true } })
+    .then(coachRecord => {
       const current = (coachRecord?.preferences as any) || {};
       const merged = {
         ...current,
@@ -260,8 +276,11 @@ if (joinRequest) {
       };
       return prisma.user.update({ where: { id }, data: { preferences: merged } });
     })
-    .catch((err) => {
-      console.warn('[admin] failed to persist org_id into coach preferences:', (err as any)?.message || err);
+    .catch(err => {
+      console.warn(
+        '[admin] failed to persist org_id into coach preferences:',
+        (err as any)?.message || err
+      );
     });
 }
 ```
@@ -288,10 +307,12 @@ git commit -m "fix: admin coach approval now creates org membership and approves
 ## Task 5: Fix Messaging — Ungate Screens + Fix Conversation ID Mismatch
 
 **Context:** Two problems:
+
 1. Both `app/messages.tsx` (line 2) and `app/message-thread.tsx` (line 2) are gated behind `ComingSoon`
 2. When `conversation_id` is null on a message, the client creates a fallback key `user-{id}` but the server creates real conversation IDs as `dm:{id1}__{id2}`. These formats never match, so reopening a conversation from the list shows an empty thread.
 
 **Files:**
+
 - Modify: `app/messages.tsx:2` (remove ComingSoon gate)
 - Modify: `app/messages.tsx:187` (fix fallback conversation key format)
 - Modify: `app/message-thread.tsx:2` (remove ComingSoon gate)
@@ -324,10 +345,12 @@ const convKey = msg.conversation_id || `user-${other.id}`;
 Replace the fallback to match the server's `dm:id1__id2` format:
 
 ```typescript
-const convKey = msg.conversation_id || (() => {
-  const pair = [currentUserId, other.id].sort();
-  return `dm:${pair[0]}__${pair[1]}`;
-})();
+const convKey =
+  msg.conversation_id ||
+  (() => {
+    const pair = [currentUserId, other.id].sort();
+    return `dm:${pair[0]}__${pair[1]}`;
+  })();
 ```
 
 This ensures the fallback key matches what the server would create, so when the user taps into a conversation, the `threadByConversation` call uses the correct ID format.
@@ -337,6 +360,7 @@ Verify that `currentUserId` (or equivalent — the logged-in user's ID) is avail
 - [ ] **Step 5: Verify the thread screen handles both routing modes**
 
 Read `app/message-thread.tsx` around lines 31 and 62-63. Confirm:
+
 1. It accepts both `conversation_id` and `with` query params
 2. `threadByConversation(conversation_id)` is called when conversation_id is present
 3. `threadWith(withParam)` is called when `with` is present
@@ -345,6 +369,7 @@ Read `app/message-thread.tsx` around lines 31 and 62-63. Confirm:
 - [ ] **Step 6: Verify the navigation from conversation list passes correct params**
 
 Read `app/messages.tsx` around lines 274-295. Confirm:
+
 1. When tapping an existing conversation, it passes `conversation_id` (now in correct `dm:` format)
 2. When starting a new conversation, it passes `with={user.id}`
 

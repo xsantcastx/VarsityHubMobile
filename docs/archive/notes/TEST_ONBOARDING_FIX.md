@@ -1,9 +1,11 @@
 # Onboarding Loop Fix - Test Plan
 
 ## Overview
+
 Test that the AsyncStorage persistence fix prevents users from being forced back into onboarding after app restart.
 
 ## Test Environment
+
 - **Device:** iOS Simulator (iPhone 17 Pro)
 - **Build:** Expo dev build from commit `4c002df`
 - **Metro Server:** Port 8082 (or current active port)
@@ -11,11 +13,13 @@ Test that the AsyncStorage persistence fix prevents users from being forced back
 ## Test Steps
 
 ### Step 1: Start Fresh (Logout)
+
 1. Open VarsityHub app on running simulator
 2. Go to Settings tab → Account → Logout
 3. Verify you're on the sign-in screen
 
 ### Step 2: Complete Onboarding Flow
+
 1. Sign in with test account (email: `emilmancero@gmail.com` or create new)
 2. Complete all 9 onboarding steps:
    - Step 1: Select role (Fan or Coach)
@@ -29,20 +33,25 @@ Test that the AsyncStorage persistence fix prevents users from being forced back
 4. **Verify in Console:** Look for log message like `[Auth] onboarding completed, flag stored`
 
 ### Step 3: App Restart (Cold Kill)
+
 1. In Xcode Simulator: Cmd+Q or Cmd+W to force-close the app
 2. Re-tap VarsityHub icon to reopen
 
 ### Step 4: Verify Fix
+
 **❌ BROKEN (Before Fix):**
+
 - User forced back to onboarding Step 1
 - Has to click through all 9 steps again
 
 **✅ FIXED (After This Commit):**
+
 - App loads main feed directly
 - User NOT redirected to onboarding
 - Console should show: `[Auth] AsyncStorage flag onboardingCompletedOnce is true, skipping onboarding`
 
 ### Step 5: Network Latency Test (Optional)
+
 1. In Safari DevTools or Charles Proxy, throttle network to "Slow 3G"
 2. Kill app and reopen while network is slow
 3. Even with slow backend `/me` call, app should proceed to feed (not onboarding)
@@ -63,7 +72,9 @@ Test that the AsyncStorage persistence fix prevents users from being forced back
 ## Debugging
 
 ### Check AsyncStorage Flag
+
 Open Xcode console and search for:
+
 ```
 [Auth] AsyncStorage flag
 [Auth] onboarding completed
@@ -71,13 +82,16 @@ ONBOARDING_COMPLETE_KEY
 ```
 
 ### Check Backend Response
+
 Search for:
+
 ```
 [http] GET /me
 onboarding_completed: true
 ```
 
 ### Clear AsyncStorage (if needed)
+
 In simulator, go to: **Simulator → Erase All Content and Settings**
 
 Or manually in app settings: **Settings → Storage → Clear App Data** (if available)
@@ -87,6 +101,7 @@ Or manually in app settings: **Settings → Storage → Clear App Data** (if ava
 ## Rollback Plan
 
 If test fails:
+
 1. Check backend is returning `onboarding_completed: true` after completion
 2. Check AsyncStorage.setItem is being called (verify import exists)
 3. Check routing condition includes BOTH `user.preferences?.onboarding_completed === false && !onboardingCompletedOnce`

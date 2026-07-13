@@ -7,6 +7,7 @@
 ## Guard Locations Confirmed
 
 ### 1. Layout Level (`app/onboarding/_layout.tsx`)
+
 ```tsx
 const { user, loading } = useAuth();
 
@@ -28,6 +29,7 @@ if (!user) return <ActivityIndicator />;
 ---
 
 ### 2. Index Level (`app/onboarding/index.tsx`)
+
 ```tsx
 const { user } = useAuth();
 
@@ -51,6 +53,7 @@ if (!isLoaded || hasNavigated || !user) {
 ---
 
 ### 3. Step 1 - Role Selection (`app/onboarding/step-1-role.tsx`)
+
 ```tsx
 const { user } = useAuth();
 
@@ -67,6 +70,7 @@ useEffect(() => {
 ---
 
 ### 4. Step 9 - Features (`app/onboarding/step-9-features.tsx`)
+
 ```tsx
 const { registerPushToken, checkAuth, user } = useAuth();
 
@@ -83,6 +87,7 @@ useEffect(() => {
 ---
 
 ### 5. Step 10 - Confirmation (`app/onboarding/step-10-confirmation.tsx`)
+
 ```tsx
 const { checkAuth, markOnboardingCompleteLocally, user } = useAuth();
 
@@ -101,6 +106,7 @@ useEffect(() => {
 ## How It Works End-to-End
 
 ### Unauthenticated User Flow
+
 ```
 1. App starts
    ↓
@@ -124,6 +130,7 @@ useEffect(() => {
 ```
 
 ### Authenticated User Flow
+
 ```
 1. App starts
    ↓
@@ -153,11 +160,11 @@ useEffect(() => {
 
 ### Guard Ordering (Defense in Depth)
 
-| Layer | Blocks | Checks |
-|-------|--------|--------|
-| Layout | All children | `loading`, `user` |
-| Index | Navigation to steps | `user` |
-| Steps | Individual step | `user` |
+| Layer  | Blocks              | Checks            |
+| ------ | ------------------- | ----------------- |
+| Layout | All children        | `loading`, `user` |
+| Index  | Navigation to steps | `user`            |
+| Steps  | Individual step     | `user`            |
 
 ### Edge Cases Handled
 
@@ -172,7 +179,7 @@ useEffect(() => {
 ## What's Protected
 
 - ❌ Cannot access `/onboarding/*` without authentication
-- ❌ Cannot navigate between onboarding steps without authentication  
+- ❌ Cannot navigate between onboarding steps without authentication
 - ❌ Individual steps validate user exists before rendering
 - ✅ Authenticated users can proceed normally
 - ✅ Multiple layers catch any gaps
@@ -205,4 +212,3 @@ To verify these guards work:
 ✅ Ready for production testing
 
 The onboarding flow now requires authentication at multiple levels. An unauthenticated user cannot access, navigate, or complete any onboarding step.
-

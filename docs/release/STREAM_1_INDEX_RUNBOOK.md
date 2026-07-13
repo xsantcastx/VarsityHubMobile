@@ -7,10 +7,10 @@ creates them in Postgres. Prisma client types already reflect them, so the
 drift is invisible to `tsc` — but the underlying queries are still scanning the
 full table in production.
 
-| Model   | Index                               | Hot query it accelerates                                                                 |
-|---------|-------------------------------------|------------------------------------------------------------------------------------------|
-| Message | `(sender_id, recipient_id)`         | Conversation-pair lookup in `messages.ts:114-119` (DM thread load)                       |
-| Story   | `(game_id, expires_at)`             | Per-game lazy-expiry sweep in `gameStories.ts` (`deleteMany WHERE game_id = X AND expires_at < now()`) |
+| Model   | Index                       | Hot query it accelerates                                                                               |
+| ------- | --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Message | `(sender_id, recipient_id)` | Conversation-pair lookup in `messages.ts:114-119` (DM thread load)                                     |
+| Story   | `(game_id, expires_at)`     | Per-game lazy-expiry sweep in `gameStories.ts` (`deleteMany WHERE game_id = X AND expires_at < now()`) |
 
 `Message` in production is the table most at risk of a long table lock during
 a naïve index build. `Story` is smaller but still user-facing during the sweep.
@@ -129,6 +129,7 @@ LIMIT 50;
 ### 6. Commit the no-op migration
 
 After production is verified, commit this migration so:
+
 - Fresh local environments get the indexes automatically (they'll run the
   `CREATE INDEX IF NOT EXISTS` happily — no `CONCURRENTLY` needed on an empty DB).
 - `prisma migrate status` stays clean on all environments.

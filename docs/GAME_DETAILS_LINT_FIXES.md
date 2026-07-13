@@ -1,13 +1,16 @@
 # GameDetailsScreen.tsx - Priority Lint Fixes
 
 ## File Stats
+
 - **Lines:** 2,868
 - **Est. Floating Promises:** ~50-60
 - **Est. Unused Vars:** ~20-30
 - **Console warnings:** ~15
 
 ## Strategy
+
 Due to file size, fix in **3 passes**:
+
 1. **Pass 1**: Router navigation (all `router.push`/`router.replace`)
 2. **Pass 2**: Async handlers (votes, RSVP, story uploads)
 3. **Pass 3**: Unused variables and console cleanup
@@ -69,6 +72,7 @@ void router.push(`/post-detail?id=${post.id}`);
 ```
 
 **Quick Fix Command:**
+
 ```bash
 # Find all router.push without void (review before applying!)
 grep -n "router.push\|router.replace" app/game-details/GameDetailsScreen.tsx | grep -v "void router"
@@ -81,10 +85,11 @@ grep -n "router.push\|router.replace" app/game-details/GameDetailsScreen.tsx | g
 ### Add Story (Camera/Gallery)
 
 **Current (lines ~900-950):**
+
 ```typescript
 const addStory = async (result: ImagePicker.ImagePickerResult) => {
   console.warn('[story] Processing media selection');
-  
+
   if (!result.assets?.[0]?.uri) {
     Alert.alert('Error', 'No media selected');
     return;
@@ -102,17 +107,22 @@ const addStory = async (result: ImagePicker.ImagePickerResult) => {
 ### Vote Handler
 
 **Current (lines ~1260-1290):**
+
 ```typescript
-const handleVote = useCallback(async (teamId: string) => {
-  // ... already uses await
-  await Game.vote(vm.gameId, teamId);
-  // ...
-}, [vm.gameId, refreshVotes]);
+const handleVote = useCallback(
+  async (teamId: string) => {
+    // ... already uses await
+    await Game.vote(vm.gameId, teamId);
+    // ...
+  },
+  [vm.gameId, refreshVotes]
+);
 ```
 
 **Already awaited:** ✅ No changes needed
 
 **Fix Alert handler inside:**
+
 ```typescript
 } catch (error: any) {
   if (error?.response?.status === 401) {
@@ -127,6 +137,7 @@ const handleVote = useCallback(async (teamId: string) => {
 ### RSVP Toggle
 
 **Current (lines ~1295-1320):**
+
 ```typescript
 const toggleRsvp = useCallback(async () => {
   // ... already uses await
@@ -138,6 +149,7 @@ const toggleRsvp = useCallback(async () => {
 **Already awaited:** ✅ No changes needed
 
 **Fix Alert handler inside:**
+
 ```typescript
 } catch (error: any) {
   if (error?.response?.status === 401) {
@@ -152,6 +164,7 @@ const toggleRsvp = useCallback(async () => {
 ### User.me() Calls
 
 **Pattern found in multiple places:**
+
 ```typescript
 // Line ~70 (StoriesViewer)
 useEffect(() => {
@@ -164,6 +177,7 @@ useEffect(() => {
 ```
 
 **Search for all instances:**
+
 ```bash
 grep -n "User.me()" app/game-details/GameDetailsScreen.tsx
 ```
@@ -189,6 +203,7 @@ grep -n "User.me()" app/game-details/GameDetailsScreen.tsx
 ```
 
 **Search command:**
+
 ```bash
 # Find unused error variables
 grep -n "catch (error)" app/game-details/GameDetailsScreen.tsx
@@ -217,6 +232,7 @@ console.warn('[story] Delete aborted:', { hasItem: !!item, hasGameId: !!gameId, 
 ```
 
 **Search command:**
+
 ```bash
 grep -n "console.log" app/game-details/GameDetailsScreen.tsx | wc -l
 # Returns count of console.log statements
@@ -227,16 +243,19 @@ grep -n "console.log" app/game-details/GameDetailsScreen.tsx | wc -l
 ## Priority Order
 
 ### High Priority (Ship-blocking):
+
 1. ✅ **Line 709:** `router.replace` - canonical game route
 2. ✅ **Lines 1276, 1307:** Alert sign-in handlers
 3. ✅ **Lines 1525, 1531:** Team profile navigation
 
 ### Medium Priority (User-facing):
+
 4. ✅ **Lines 949, 954:** Create post/highlight
 5. ✅ **Lines 1669, 1714, 1874:** Team/post navigation
 6. **Line 70:** User.me() in StoriesViewer
 
 ### Low Priority (Code quality):
+
 7. Unused error variables (rename to `_error`)
 8. Console.log → console.warn or gate with `__DEV__`
 
@@ -262,6 +281,7 @@ npm start
 ## Estimated Impact
 
 **Before:**
+
 ```
 app/game-details/GameDetailsScreen.tsx
   ❌ 50+ floating promise warnings
@@ -270,18 +290,21 @@ app/game-details/GameDetailsScreen.tsx
 ```
 
 **After Pass 1 (Router fixes):**
+
 ```
   ✅ ~15 floating promise warnings fixed
   ❌ 35+ remaining
 ```
 
 **After Pass 2 (Async handlers):**
+
 ```
   ✅ ~40 floating promise warnings fixed
   ❌ 10+ remaining (minor)
 ```
 
 **After Pass 3 (Cleanup):**
+
 ```
   ✅ All warnings fixed or intentionally ignored
 ```
@@ -291,6 +314,7 @@ app/game-details/GameDetailsScreen.tsx
 ## Manual Fix Template
 
 For each router.push/replace:
+
 1. Find line number
 2. Add `void` before the call
 3. Test navigation still works
@@ -325,6 +349,7 @@ git diff app/game-details/GameDetailsScreen.tsx
 ## Need Help?
 
 If you want me to:
+
 1. Fix specific sections (provide line range)
 2. Review your changes before committing
 3. Help debug broken navigation after fixes
@@ -336,6 +361,7 @@ Just share the section and I'll provide exact replacements!
 ## Summary
 
 **GameDetailsScreen is the largest file** (2,868 lines). Breaking it into 3 passes makes it manageable:
+
 1. **Router fixes** (15 mins) - highest priority
 2. **Async handlers** (10 mins) - already mostly correct
 3. **Cleanup** (10 mins) - cosmetic

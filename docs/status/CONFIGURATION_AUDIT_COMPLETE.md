@@ -7,10 +7,10 @@
 
 ## 1. TypeScript Configuration ✅
 
-| Item | Status | Details |
-|------|--------|---------|
-| `skipLibCheck: true` | ✅ | Already set in root `tsconfig.json` (line 7) |
-| Impact | ✅ | Suppresses TS errors from node_modules (expo-auth-session references) |
+| Item                 | Status | Details                                                               |
+| -------------------- | ------ | --------------------------------------------------------------------- |
+| `skipLibCheck: true` | ✅     | Already set in root `tsconfig.json` (line 7)                          |
+| Impact               | ✅     | Suppresses TS errors from node_modules (expo-auth-session references) |
 
 **Action Taken:** None needed; already configured correctly.
 
@@ -18,12 +18,12 @@
 
 ## 2. Snyk Policy File ✅
 
-| Item | Status | Details |
-|------|--------|---------|
-| File Exists | ✅ | `.snyk` present in project root |
-| Format | ✅ | Modern format: `version: v1.25.0` |
-| Ignore Rules | ✅ | Includes rule for Sentry transitive dependency (SNYK-JS-SENTRYCORE-14105053) |
-| VS Code Extension | ✅ | Will no longer report "old, unsupported format" errors |
+| Item              | Status | Details                                                                      |
+| ----------------- | ------ | ---------------------------------------------------------------------------- |
+| File Exists       | ✅     | `.snyk` present in project root                                              |
+| Format            | ✅     | Modern format: `version: v1.25.0`                                            |
+| Ignore Rules      | ✅     | Includes rule for Sentry transitive dependency (SNYK-JS-SENTRYCORE-14105053) |
+| VS Code Extension | ✅     | Will no longer report "old, unsupported format" errors                       |
 
 **Action Taken:** None needed; file already in correct format.
 
@@ -32,6 +32,7 @@
 ## 3. Snyk Code Security Findings ✅
 
 ### Finding 1: `server/mock-server.js` - Hardcoded Credentials
+
 - **Status:** ✅ Fixed
 - **Action:** Added production guard
   ```javascript
@@ -43,11 +44,13 @@
 - **Assessment:** Safe to use in development
 
 ### Finding 2: `server/src/__tests__/auth.test.ts` - Hardcoded Test Passwords
+
 - **Status:** ✅ Documented
 - **Action:** Added test-only comment and snyk:ignore directive
 - **Assessment:** Test fixtures, not production secrets; no security risk
 
 ### Finding 3: `server/src/lib/cloudinary.ts` - SHA-1 Usage
+
 - **Status:** ✅ Documented
 - **Action:** Added comment explaining:
   ```typescript
@@ -57,6 +60,7 @@
 - **Assessment:** Unavoidable requirement; not a vulnerability
 
 ### Finding 4: `server/src/lib/email.ts` - Default Email/URL Values
+
 - **Status:** ✅ Documented
 - **Action:** Added comment clarifying values are safe, non-secret defaults
 - **Assessment:** Safe; production environments override via ENV variables
@@ -69,30 +73,30 @@
 
 ### Core Services Configured
 
-| Service | Status | Variables Set |
-|---------|--------|-----------------|
-| **SendGrid** | ✅ | API Key, 3 template IDs (verification, password_reset, team_invite) |
-| **Cloudinary** | ✅ | Cloud name, API key, API secret |
-| **Twilio** | ✅ | Account SID, auth token, phone number, verify service SID |
-| **Stripe** | ✅ | Secret key (live), webhook secret, price IDs |
-| **PostgreSQL** | ✅ | Connection string configured |
-| **CORS** | ✅ | Explicit origins (localhost:8081, varsityhub.app domains) |
-| **JWT** | ✅ | Secret key configured |
+| Service        | Status | Variables Set                                                       |
+| -------------- | ------ | ------------------------------------------------------------------- |
+| **SendGrid**   | ✅     | API Key, 3 template IDs (verification, password_reset, team_invite) |
+| **Cloudinary** | ✅     | Cloud name, API key, API secret                                     |
+| **Twilio**     | ✅     | Account SID, auth token, phone number, verify service SID           |
+| **Stripe**     | ✅     | Secret key (live), webhook secret, price IDs                        |
+| **PostgreSQL** | ✅     | Connection string configured                                        |
+| **CORS**       | ✅     | Explicit origins (localhost:8081, varsityhub.app domains)           |
+| **JWT**        | ✅     | Secret key configured                                               |
 
 ### Optional Services
 
-| Service | Status | Notes |
-|---------|--------|-------|
+| Service    | Status      | Notes                                       |
+| ---------- | ----------- | ------------------------------------------- |
 | **Sentry** | ⚠️ Optional | DSN commented out; can be added when needed |
 
 ### SendGrid Extended Templates
 
-| Template | Status | Action |
-|----------|--------|--------|
-| org_invite | ⏳ | Create in SendGrid when org features needed |
-| join_request_admin | ⏳ | Create in SendGrid when join requests needed |
-| join_request_approved | ⏳ | Create in SendGrid when join requests needed |
-| join_request_denied | ⏳ | Create in SendGrid when join requests needed |
+| Template              | Status | Action                                       |
+| --------------------- | ------ | -------------------------------------------- |
+| org_invite            | ⏳     | Create in SendGrid when org features needed  |
+| join_request_admin    | ⏳     | Create in SendGrid when join requests needed |
+| join_request_approved | ⏳     | Create in SendGrid when join requests needed |
+| join_request_denied   | ⏳     | Create in SendGrid when join requests needed |
 
 **Note:** The 4 missing templates are expected. Server warns about them at boot (informational only, not errors). Create them on-demand when features are implemented.
 
@@ -103,18 +107,23 @@
 ## 5. Server Boot Status
 
 ### Expected Warnings (Normal)
+
 ```
 ⚠️  SendGrid template IDs missing: org_invite, join_request_admin, join_request_approved, join_request_denied
 ```
+
 **This is expected.** These templates don't exist yet and will be created when org features are implemented.
 
 ### Expected Warnings (Optional)
+
 ```
 ⚠️  Sentry DSN not configured - error tracking disabled (optional in development)
 ```
+
 **This is fine.** Sentry is optional; add when production error tracking is needed.
 
 ### Critical Services (All Running ✅)
+
 ```
 ✅ API listening on http://0.0.0.0:4000
 ✅ SendGrid configured (verification, password reset, team invite ready)
@@ -158,6 +167,7 @@
 ## 7. What's Working Now
 
 ### Email Service
+
 - ✅ Email verification (signup flow)
 - ✅ Password reset
 - ✅ Team invitations
@@ -165,18 +175,22 @@
 - ⏳ Join request notifications (templates needed)
 
 ### File Uploads
+
 - ✅ Image uploads to Cloudinary
 - ✅ File storage and URL generation
 
 ### SMS
+
 - ✅ SMS verification codes
 - ✅ SMS alerts
 
 ### Payments
+
 - ✅ Stripe integration (live mode)
 - ✅ Subscription management
 
 ### Frontend
+
 - ✅ CORS properly configured
 - ✅ Frontend can call backend endpoints
 
@@ -185,6 +199,7 @@
 ## 8. What Needs to Be Done (Optional)
 
 ### Option A: Implement Now (If org features needed immediately)
+
 1. Create 4 missing SendGrid templates:
    - org_invite
    - join_request_admin
@@ -196,6 +211,7 @@
 **Time Required:** ~20-30 minutes
 
 ### Option B: Implement Later (Recommended)
+
 - Leave templates commented out
 - Create them when org feature UI is ready
 - Server will warn at boot until created (harmless)
@@ -203,6 +219,7 @@
 **Time Required:** 0 minutes now, ~20-30 minutes when features ship
 
 ### Option C: Production Error Tracking (Optional)
+
 1. Create Sentry DSN at https://sentry.io/
 2. Uncomment `SENTRY_DSN` in `server/.env`
 3. Restart server
@@ -216,6 +233,7 @@
 ### Health Checks ✅
 
 All critical systems verified:
+
 - Database: Connected
 - Email: SendGrid API key valid, templates configured
 - Images: Cloudinary credentials valid

@@ -38,34 +38,38 @@ Thank you for your interest in contributing to VarsityHub! This document provide
 ### Development Setup
 
 1. **Fork and clone the repository**
+
    ```bash
    git clone https://github.com/your-username/VarsityHubMobile.git
    cd VarsityHubMobile
    ```
 
 2. **Install dependencies**
+
    ```bash
    # Frontend dependencies
    npm install
-   
+
    # Backend dependencies
    cd server && npm install && cd ..
    ```
 
 3. **Set up environment variables**
+
    ```bash
    # Copy example files
    cp .env.example .env
    cp server/.env.example server/.env
-   
+
    # Fill in your values (see docs/03-ENVIRONMENT.md)
    ```
 
 4. **Start development**
+
    ```bash
    # Terminal 1: Frontend
    npm run start
-   
+
    # Terminal 2: Backend (optional if using remote API)
    npm run server:dev
    ```
@@ -220,6 +224,7 @@ refactor(api): extract API client into separate module
 ## 🔄 Pull Request Process
 
 1. **Create a feature branch**
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -230,24 +235,27 @@ refactor(api): extract API client into separate module
    - Update documentation if needed
 
 3. **Test your changes**
+
    ```bash
    # Run type checking
    npm run typecheck
-   
+
    # Run linting
    npm run lint
-   
+
    # Run tests
    npm test
    ```
 
 4. **Commit your changes**
+
    ```bash
    git add .
    git commit -m "feat(scope): your commit message"
    ```
 
 5. **Push to your fork**
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -284,10 +292,10 @@ describe('functionName', () => {
   it('should do something', () => {
     // Arrange
     const input = 'test';
-    
+
     // Act
     const result = functionName(input);
-    
+
     // Assert
     expect(result).toBe('expected');
   });

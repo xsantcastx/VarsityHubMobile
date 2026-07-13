@@ -3,6 +3,7 @@
 ## The Problem
 
 You're seeing:
+
 ```
 CommandError: No development build (com.varsithub.varsityhub) for this project is installed.
 ```
@@ -16,22 +17,26 @@ CommandError: No development build (com.varsithub.varsityhub) for this project i
 ### For iOS (iPhone/iPad):
 
 **Step 1: Build development client**
+
 ```bash
 eas build --profile development --platform ios
 ```
 
 **Step 2: Install on device**
+
 - Wait for build to complete (~15-20 minutes)
 - Check email for TestFlight invite, OR
 - Download from: https://expo.dev/accounts/varsity-hub/projects/varsityhub/builds
 - Install via TestFlight or direct download
 
 **Step 3: Start dev server**
+
 ```bash
 npx expo start --dev-client --tunnel
 ```
 
 **Step 4: Connect**
+
 - Open the development build app on your phone
 - Scan QR code or enter URL manually
 - Now you can edit code in real-time! 🔥
@@ -41,22 +46,26 @@ npx expo start --dev-client --tunnel
 ### For Android:
 
 **Step 1: Build development client**
+
 ```bash
 eas build --profile development --platform android
 ```
 
 **Step 2: Install APK**
+
 - Wait for build (~15-20 minutes)
 - Download APK from EAS dashboard
 - Enable "Install from unknown sources" on Android
 - Install the APK file
 
 **Step 3: Start dev server**
+
 ```bash
 npx expo start --dev-client --tunnel
 ```
 
 **Step 4: Connect**
+
 - Open the development build app
 - Scan QR code or enter URL
 - Start editing!
@@ -68,15 +77,19 @@ npx expo start --dev-client --tunnel
 If you don't want to build for a physical device right now:
 
 ### iOS Simulator (macOS only):
+
 ```bash
 npx expo run:ios
 ```
+
 This builds and installs directly to the simulator.
 
 ### Android Emulator:
+
 ```bash
 npx expo run:android
 ```
+
 This builds and installs directly to the emulator.
 
 ---
@@ -84,6 +97,7 @@ This builds and installs directly to the emulator.
 ## Why You Need This
 
 Your app has these custom native modules:
+
 - `expo-notifications` - Push notifications
 - `expo-apple-authentication` - Apple Sign-In
 - `expo-location` - Location services

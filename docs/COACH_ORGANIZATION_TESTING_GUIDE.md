@@ -13,47 +13,56 @@ npx tsx scripts/test-coach-organization.ts
 ## What Gets Tested
 
 ### 1. **Server Health** ✅
+
 - Verifies server is running and accessible
 - Checks API base URL configuration
 
 ### 2. **Organization Endpoints** 📋
+
 - `GET /organizations` - List organizations
 - `POST /organizations` - Create organization (requires auth)
 - Organization management functionality
 
 ### 3. **Team Endpoints** 👥
+
 - `GET /teams` - List teams
 - `POST /teams` - Create team (requires auth)
 - `GET /teams/limits` - Check team creation limits
 - Subscription-based team limits
 
 ### 4. **Event Endpoints** 🎪
+
 - `GET /events/pending` - Approval queue
 - `POST /games` - Create event
 - `PUT /events/:id/approve` - Approve event (coach/admin only)
 - Event approval workflow
 
 ### 5. **Team Invitations** 📧
+
 - `GET /team-invites` - List invitations
 - `POST /team-invites` - Create invitation
 - Email notification testing
 
 ### 6. **Organization Join Requests** 🤝
+
 - `GET /organizations/join-requests` - List requests
 - `POST /organizations/join-requests` - Create request
 - Request approval workflow
 
 ### 7. **Subscription Limits** 💳
+
 - `GET /subscriptions/me` - Get subscription info
 - `GET /teams/limits` - Team creation limits
 - Rookie (2 teams), Veteran (unlimited), Legend (unlimited)
 
 ### 8. **Permissions & Roles** 🔐
+
 - `GET /users/me` - User role verification
 - Coach vs Fan vs Admin permissions
 - Role-based access control
 
 ### 9. **Roster Management** 📊
+
 - `GET /team-memberships` - List team members
 - Member management functionality
 

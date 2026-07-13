@@ -20,11 +20,11 @@ Your Google OAuth credentials were deleted from Google Cloud Console. You need t
 
 ### Create These OAuth Clients
 
-| Type | Use | Notes |
-|------|-----|-------|
-| **iOS** | Native iOS app | Bundle ID: `com.varsithub.varsityhub-ios` |
-| **Android** | Native Android app | Package: `com.varsityhub.varsityhub`, add SHA-1 from keystore |
-| **Web application** | Web + Expo proxy | Add redirect URIs (see below) |
+| Type                | Use                | Notes                                                         |
+| ------------------- | ------------------ | ------------------------------------------------------------- |
+| **iOS**             | Native iOS app     | Bundle ID: `com.varsithub.varsityhub-ios`                     |
+| **Android**         | Native Android app | Package: `com.varsityhub.varsityhub`, add SHA-1 from keystore |
+| **Web application** | Web + Expo proxy   | Add redirect URIs (see below)                                 |
 
 ### Web Client Redirect URIs
 
@@ -97,33 +97,35 @@ npx expo run:ios
 
 ## Quick Reference: Where Client IDs Are Used
 
-| Location | Purpose |
-|---------|---------|
-| `app.json` extra | Mobile app OAuth flow (expo-auth-session) |
+| Location                          | Purpose                                       |
+| --------------------------------- | --------------------------------------------- |
+| `app.json` extra                  | Mobile app OAuth flow (expo-auth-session)     |
 | `ios/Info.plist` CFBundleURLTypes | iOS redirect scheme (auto-injected by plugin) |
-| Server `GOOGLE_OAUTH_CLIENT_IDS` | Validates token audience on backend |
+| Server `GOOGLE_OAUTH_CLIENT_IDS`  | Validates token audience on backend           |
 
 ---
 
 ## Troubleshooting
 
-| Issue | Fix |
-|-------|-----|
-| Still "deleted_client" | Double-check client IDs in app.json; ensure no typos |
-| **"400: invalid_request"** | See [Fix 400 invalid_request](#fix-400-invalid_request) below |
-| "Redirect URI mismatch" | Add the exact redirect URI from the error to your Web client |
-| Backend rejects token | Add the client ID that issued the token to `GOOGLE_OAUTH_CLIENT_IDS` |
+| Issue                      | Fix                                                                  |
+| -------------------------- | -------------------------------------------------------------------- |
+| Still "deleted_client"     | Double-check client IDs in app.json; ensure no typos                 |
+| **"400: invalid_request"** | See [Fix 400 invalid_request](#fix-400-invalid_request) below        |
+| "Redirect URI mismatch"    | Add the exact redirect URI from the error to your Web client         |
+| Backend rejects token      | Add the client ID that issued the token to `GOOGLE_OAUTH_CLIENT_IDS` |
 
 ### Fix 400 invalid_request
 
 Google blocks custom scheme redirects with Web client type. For **simulator/dev builds**, use the Expo proxy so the redirect is HTTPS:
 
 1. In `app.json` → `expo.extra`, set:
+
    ```json
    "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "1"
    ```
 
 2. In Google Cloud Console → your **Web** OAuth client → **Authorized redirect URIs**, add:
+
    ```
    https://auth.expo.io/@varsity-hub/varsityhub
    ```
@@ -134,8 +136,8 @@ Google blocks custom scheme redirects with Web client type. For **simulator/dev 
 
 ## Other Production Gaps to Address
 
-| Gap | Location | Action |
-|-----|----------|--------|
-| **Sentry DSN empty** | `app.json` extra | Add `EXPO_PUBLIC_SENTRY_DSN` for error monitoring |
-| **Stripe key empty** | `app.json` extra | Add `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` if using payments |
-| **Backend GOOGLE_OAUTH_CLIENT_IDS** | Railway env | Must match new client IDs after OAuth fix |
+| Gap                                 | Location         | Action                                                     |
+| ----------------------------------- | ---------------- | ---------------------------------------------------------- |
+| **Sentry DSN empty**                | `app.json` extra | Add `EXPO_PUBLIC_SENTRY_DSN` for error monitoring          |
+| **Stripe key empty**                | `app.json` extra | Add `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` if using payments |
+| **Backend GOOGLE_OAUTH_CLIENT_IDS** | Railway env      | Must match new client IDs after OAuth fix                  |

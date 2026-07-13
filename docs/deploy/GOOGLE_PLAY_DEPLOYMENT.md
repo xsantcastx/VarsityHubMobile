@@ -1,6 +1,7 @@
 # Google Play Production Deployment Guide
 
 ## Current Build Status
+
 - **Build ID**: 6d051ad7-43e7-49ea-87e7-4d14f100349f
 - **Version**: 1.0.1 (versionCode: 8)
 - **Platform**: Android (.aab)
@@ -22,6 +23,7 @@ Once the build completes (10-20 minutes):
 ## Step 2: Google Play Console Setup
 
 ### A. Access Your Google Play Console
+
 1. Go to: https://play.google.com/console
 2. Sign in with your Google account
 3. Select or create your VarsityHub app
@@ -29,6 +31,7 @@ Once the build completes (10-20 minutes):
 ### B. Complete App Information (First Time Only)
 
 #### Required Information:
+
 - [ ] **App Name**: VarsityHub
 - [ ] **Package Name**: com.varsithub.varsityhub (already set)
 - [ ] **Short Description**: (max 80 characters)
@@ -36,6 +39,7 @@ Once the build completes (10-20 minutes):
   Sports team management and social platform for athletes, coaches, and fans
   ```
 - [ ] **Full Description**: (max 4000 characters)
+
   ```
   VarsityHub is the ultimate sports team management and social platform connecting athletes, coaches, and fans.
 
@@ -58,6 +62,7 @@ Once the build completes (10-20 minutes):
   ```
 
 #### App Category:
+
 - [ ] **Category**: Sports
 - [ ] **Tags**: Sports, Social, Team Management, Athletics
 
@@ -68,18 +73,22 @@ Once the build completes (10-20 minutes):
 ### Required Graphics (create these):
 
 #### App Icon
+
 - Size: 512x512 px
 - Format: PNG (32-bit)
 - Location: Your current icon is at `assets/images/icon.png`
 
 #### Feature Graphic
+
 - Size: 1024x500 px
 - Format: PNG or JPG
 - Required for store listing
 - Should showcase your app's key features
 
 #### Screenshots (REQUIRED - minimum 2)
+
 You need screenshots for:
+
 - **Phone**:
   - Minimum 2 screenshots
   - Recommended: 4-8 screenshots
@@ -92,6 +101,7 @@ You need screenshots for:
   - 10-inch: 1920x1200 px
 
 #### Promo Video (optional)
+
 - YouTube URL
 - Shows app in action
 
@@ -100,6 +110,7 @@ You need screenshots for:
 ## Step 4: Content Rating
 
 Complete the content rating questionnaire:
+
 1. Go to: Google Play Console → Content rating
 2. Answer questions about:
    - Violence
@@ -109,6 +120,7 @@ Complete the content rating questionnaire:
    - User interaction features (you have social features!)
 
 For VarsityHub, likely ratings:
+
 - ESRB: Everyone
 - PEGI: 3
 - USK: 0
@@ -122,6 +134,7 @@ For VarsityHub, likely ratings:
 **CRITICAL**: You must provide a privacy policy URL
 
 Create a privacy policy that covers:
+
 - What data you collect (location, photos, user profiles)
 - How you use it (team management, social features)
 - Third-party services (Google Maps, payments)
@@ -147,6 +160,7 @@ Host it at: `https://varsityhub.app/privacy` (or similar)
 3. **Release Details**:
    - Release name: `1.0.1`
    - Release notes (in English):
+
      ```
      Welcome to VarsityHub v1.0.1!
 
@@ -182,9 +196,11 @@ For future releases, automate with EAS Submit:
    - Enable: Google Play Developer API
 
 2. **Create Service Account**:
+
    ```
    IAM & Admin → Service Accounts → Create Service Account
    ```
+
    - Name: `eas-submit-varsityhub`
    - Role: `Service Account User`
    - Click "Create Key" → JSON
@@ -223,6 +239,7 @@ eas submit --platform android --profile production --latest
 ## Step 8: Review and Launch
 
 ### Before Launch Checklist:
+
 - [ ] .aab file uploaded
 - [ ] Store listing complete (title, description, icon)
 - [ ] Screenshots uploaded (minimum 2)
@@ -232,6 +249,7 @@ eas submit --platform android --profile production --latest
 - [ ] Review all details
 
 ### Launch:
+
 1. Click "Review release"
 2. Google will review your app (typically 1-3 days)
 3. You'll receive an email when approved
@@ -242,17 +260,21 @@ eas submit --platform android --profile production --latest
 ## Step 9: Post-Launch
 
 ### Monitor Your Release:
+
 - Check crash reports: Google Play Console → Android vitals
 - Review user feedback: Ratings and reviews
 - Monitor install metrics: Statistics
 
 ### Future Updates:
+
 1. Increment version in `app.json`:
+
    ```json
    "version": "1.0.2"
    ```
 
 2. Build new .aab:
+
    ```bash
    eas build --platform android --profile production
    ```
@@ -264,16 +286,19 @@ eas submit --platform android --profile production --latest
 ## Common Issues
 
 ### Build Fails
+
 - Check build logs on EAS
 - Ensure all dependencies are compatible
 - Verify Android credentials are valid
 
 ### Upload Rejected
+
 - Ensure versionCode is higher than previous
 - Check package name matches
 - Verify signing key is consistent
 
 ### App Rejected by Google
+
 - Common reasons:
   - Missing privacy policy
   - Incomplete content rating

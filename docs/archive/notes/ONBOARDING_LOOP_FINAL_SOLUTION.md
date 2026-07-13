@@ -5,6 +5,7 @@
 ## Problem Statement
 
 Users were stuck in an infinite onboarding loop:
+
 - After completing the 9-step onboarding, users were forced through it **again on every app restart**
 - Admin accounts (e.g., `emilmancero@gmail.com`) were incorrectly showing "Step 1/9" instead of the feed
 - The flag (`onboarding_completed: true`) was not persisting or was being overridden incorrectly
@@ -12,9 +13,11 @@ Users were stuck in an infinite onboarding loop:
 ## Root Causes Identified & Fixed
 
 ### 1. **CRITICAL BUG: Backend Merge Order** ⚠️
+
 **File**: `server/src/routes/auth.ts` (Line 477)
 
 **The Bug**:
+
 ```typescript
 // WRONG - DB values override admin defaults
 const prefs = mergePreferences(defaults, user.preferences || {});
@@ -23,6 +26,7 @@ const prefs = mergePreferences(defaults, user.preferences || {});
 The `mergePreferences()` function uses the second argument as the override. By passing `defaults` first and `user.preferences` second, database values **overrode admin defaults**, causing admins to still see onboarding.
 
 **The Fix**:
+
 ```typescript
 // CORRECT - Admin defaults override DB values
 const prefs = mergePreferences(user.preferences || {}, defaults);
@@ -32,21 +36,24 @@ Now when `defaults.onboarding_completed = true` (for admins), it **always wins**
 
 **Impact**: Admins now correctly skip onboarding and land on the feed.
 
-### 2. **Frontend: Missing Persistence** 
+### 2. **Frontend: Missing Persistence**
+
 **File**: `context/AuthProvider.tsx`
 
 **The Fix**: Added AsyncStorage caching at `@onboarding_completed_once`
+
 - Provides instant routing decision on cold start (before `/me` API call completes)
 - Prevents race conditions where app tries to show auth screen before server state is known
 - Cleared on logout so users switching accounts see onboarding if needed
 
 **Code**:
+
 ```typescript
 // Cold-start optimization: use cached flag instantly
 const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
 
 useEffect(() => {
-  AsyncStorage.getItem('@onboarding_completed_once').then((cached) => {
+  AsyncStorage.getItem('@onboarding_completed_once').then(cached => {
     if (cached === 'true') {
       setHasCompletedOnboarding(true);
     }
@@ -68,11 +75,13 @@ const needsOnboarding = user?.preferences?.onboarding_completed === false;
 ```
 
 ### 3. **Backend Health Check Blocker**
+
 **File**: `server/src/routes/health.ts` (Line 29)
 
 **The Issue**: Missing SendGrid email templates were preventing `ready: true` status, even though the API was fully functional.
 
 **The Fix**: Marked `sendgrid` as an optional integration
+
 ```typescript
 const allConfigured = Object.entries(integrations)
   .filter(([key]) => !['twilio', 'sentry', 'sendgrid'].includes(key)) // Optional
@@ -85,12 +94,13 @@ Now `/health` correctly reports `ready: true` as soon as core services (DB, JWT,
 
 ✅ **Both critical fixes deployed to Railway production**:
 
-| Commit | Change | Status |
-|--------|--------|--------|
+| Commit    | Change                                  | Status             |
+| --------- | --------------------------------------- | ------------------ |
 | `99dc67b` | Admin merge order fix in `/me` endpoint | ✅ Live on Railway |
-| `48ca7f4` | SendGrid optional in health check | ✅ Live on Railway |
+| `48ca7f4` | SendGrid optional in health check       | ✅ Live on Railway |
 
 **Verification**:
+
 ```bash
 $ git log --oneline -5
 48ca7f4 fix: mark SendGrid as optional service in health check
@@ -100,6 +110,7 @@ $ git log --oneline -5
 ## Security Audit
 
 ✅ **Snyk Code Scan Result**: Zero security issues in modified routes
+
 ```
 server/src/routes/auth.ts   → No vulnerabilities
 server/src/routes/health.ts → No vulnerabilities
@@ -108,12 +119,14 @@ server/src/routes/health.ts → No vulnerabilities
 ## Expected Behavior (Post-Fix)
 
 ### Admin Account Flow
+
 1. Sign in with `emilmancero@gmail.com`
 2. Backend `/me` endpoint returns: `onboarding_completed: true`
 3. Frontend routing: `needsOnboarding = false`
 4. **Result**: Land directly on feed (Home tab)
 
 ### Regular User Flow (First Time)
+
 1. Sign in with new email
 2. Backend `/me` returns: `onboarding_completed: false`
 3. Frontend shows 9-step onboarding flow
@@ -121,6 +134,7 @@ server/src/routes/health.ts → No vulnerabilities
 5. **Next restart**: AsyncStorage has flag, app goes straight to feed
 
 ### Regular User Flow (After Completion)
+
 1. Force quit and reopen app
 2. AsyncStorage provides instant routing (no blank screen)
 3. **Result**: App loads feed immediately while `/me` call happens in background
@@ -129,6 +143,7 @@ server/src/routes/health.ts → No vulnerabilities
 ## Code Architecture
 
 ### Frontend Decision Tree
+
 ```
 App Opens
   ↓
@@ -143,6 +158,7 @@ App Opens
 ```
 
 ### Backend Decision Tree (/me endpoint)
+
 ```
 User Login Request
   ↓
@@ -150,12 +166,12 @@ Fetch user from DB
   ↓
 Create defaults:
   onboarding_completed: is_admin ? true : false
-  
+
 Merge with DB preferences:
   mergePreferences(userPrefs, defaults)
   ↑
   └─ defaults (second arg) WINS
-  
+
 Return to frontend: { preferences: { onboarding_completed: true/false }, ... }
 ```
 
@@ -172,10 +188,12 @@ Return to frontend: { preferences: { onboarding_completed: true/false }, ... }
 ## Files Modified
 
 ### Backend
+
 - `server/src/routes/auth.ts` (Line 477) - Fixed merge order
 - `server/src/routes/health.ts` (Line 29) - Made SendGrid optional
 
 ### Frontend
+
 - `context/AuthProvider.tsx` - AsyncStorage persistence + routing logic
 
 ## Why This Works

@@ -14,7 +14,7 @@ Use this checklist whenever stories/highlights fail to upload from the mobile ap
    ```
 2. When Metro starts, verify the log contains  
    `"[http] API base: https://api-production-8ac3.up.railway.app"`.
-3. Launch the iOS Simulator from that same terminal (`i`) or switch to tunnel mode (`s` → *tunnel*) if the simulator cannot reach your LAN IP.
+3. Launch the iOS Simulator from that same terminal (`i`) or switch to tunnel mode (`s` → _tunnel_) if the simulator cannot reach your LAN IP.
 
 > If the base URL is a LAN address (e.g., `http://192.168.x.x`) the simulator may not reach it, which will cause every upload to time out.
 
@@ -44,11 +44,13 @@ Attach these logs to any bug ticket so we can see exactly which step hung.
 Run these from the server repo root (requires a valid bearer token; grab one from a successful mobile login).
 
 ### 3.1 `/health`
+
 ```bash
 curl -sSf https://api-production-8ac3.up.railway.app/health
 ```
 
 ### 3.2 `/uploads`
+
 ```bash
 TOKEN="Bearer <jwt>"
 curl -sS \
@@ -56,9 +58,11 @@ curl -sS \
   -F "file=@/path/to/photo.jpg" \
   https://api-production-8ac3.up.railway.app/uploads
 ```
+
 Expect `{"url":"https://.../uploads/<file>","type":"image","mime":"image/jpeg","size":12345}` within ~1 s.
 
 ### 3.3 `/games/:id/stories`
+
 ```bash
 curl -sS \
   -H "Authorization: $TOKEN" \
@@ -66,8 +70,10 @@ curl -sS \
   -d '{"media_url":"/uploads/<file>","caption":"Test"}' \
   https://api-production-8ac3.up.railway.app/games/<game_id>/stories
 ```
+
 Expected: HTTP 201 with the created story JSON.  
 Common failures:
+
 - `401 Unauthorized`: token expired/missing.
 - `404 Not found`: game ID incorrect.
 - Timeout: check Railway logs; Prisma may be waiting on a locked row.
@@ -77,6 +83,7 @@ Common failures:
 ## 4. Railway-side diagnostics
 
 If the curl tests hang:
+
 1. Open Railway logs for the API service.
 2. Filter for `/uploads` or `/games/*/stories`.
 3. Confirm whether the request reaches the server. If not, Railway networking is down; redeploy.

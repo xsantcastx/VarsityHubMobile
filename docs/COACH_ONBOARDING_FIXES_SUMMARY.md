@@ -1,4 +1,5 @@
 # Coach Onboarding Steps - Complete Fix Summary
+
 **Date:** Fixed  
 **Status:** ✅ All Issues Resolved
 
@@ -16,9 +17,11 @@ Coaches were skipping Steps 2-6 during onboarding, jumping directly to Step 7 (P
 ## ✅ Fixes Applied
 
 ### Fix 1: Removed Auto-Skip in Step 4
+
 **File:** `app/onboarding/step-4-organization.tsx`
 
 **Before:**
+
 ```typescript
 // Auto-skip this step if team already exists
 if (!e2e) {
@@ -29,6 +32,7 @@ if (!e2e) {
 ```
 
 **After:**
+
 ```typescript
 // DON'T auto-skip - let user see step 4 even if team exists
 // Only skip in E2E tests
@@ -44,9 +48,11 @@ if (e2e) {
 ---
 
 ### Fix 2: Fixed Progress Indices
+
 **Files:** Multiple step files
 
 **Changes:**
+
 - Step 4 → Step 6: `setProgress(4)` (was 5) ✅
 - Step 7 → Step 8: `setProgress(6)` (was 5) ✅
 - Step 8 → Step 9: `setProgress(7)` (was 6) ✅
@@ -57,13 +63,18 @@ if (e2e) {
 ---
 
 ### Fix 3: Added Progress Validation
+
 **File:** `app/onboarding/index.tsx`
 
 **Added:**
+
 ```typescript
 // For coaches, ensure progress doesn't skip steps 2-6
 if (state?.role === 'coach') {
-  if (progress >= 5 && (!state.username || !state.plan || !state.team_id && !state.organization_id)) {
+  if (
+    progress >= 5 &&
+    (!state.username || !state.plan || (!state.team_id && !state.organization_id))
+  ) {
     targetProgress = 1; // Force back to step 2
   }
 }
@@ -74,9 +85,11 @@ if (state?.role === 'coach') {
 ---
 
 ### Fix 4: Reset Progress for Fresh Coach Onboarding
+
 **File:** `app/onboarding/step-1-role.tsx`
 
 **Added:**
+
 ```typescript
 // CRITICAL: For coaches, reset progress to ensure they go through ALL steps
 if (role === 'coach') {
@@ -140,12 +153,14 @@ Step 10/10: Confirmation ✅
 ## ✅ Result
 
 **Before:**
+
 - ❌ Steps 2-6 skipped
 - ❌ Auto-skip logic bypassed Step 4
 - ❌ Saved progress jumped to Step 7
 - ❌ Wrong progress indices
 
 **After:**
+
 - ✅ All steps 2-6 are shown
 - ✅ No auto-skip (except E2E tests)
 - ✅ Progress validated before resume

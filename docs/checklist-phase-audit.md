@@ -1,11 +1,13 @@
 # Checklist Phase Audit
 
 Status legend:
+
 - `Verified complete`: strong code/test evidence in the current repo
 - `Partial`: implemented or guarded in code, but not proven end to end or still contradicted by checklist/user notes
 - `Not complete`: missing, still broken, or current code conflicts with the checklist requirement
 
 Audit basis:
+
 - `Checklist.pdf`
 - current app/server code
 - existing Jest and integration tests in `__tests__/` and `server/src/__tests__/`
@@ -13,6 +15,7 @@ Audit basis:
 ## Phase 1 — Auth, Account, Onboarding
 
 ### Verified complete
+
 - Email verification flow has server coverage:
   - `server/src/__tests__/email-verification.test.ts`
   - `server/src/__tests__/api-auth.test.ts`
@@ -37,6 +40,7 @@ Audit basis:
   - `server/src/routes/auth.ts`
 
 ### Partial
+
 - Session persistence and sign-out clearing have strong structural coverage, but not a real device re-launch proof:
   - `__tests__/session-flow-invariants.test.ts`
 - Private profile gating and blocked-user visibility have backend logic, but not enough UI-level evidence to mark fully done:
@@ -48,6 +52,7 @@ Audit basis:
   - `server/src/__tests__/parental-consent-verify-allowlist.test.ts`
 
 ### Not complete
+
 - Coach downgrade to fan, with forced team/ownership transfer first, is not implemented as a first-class flow.
 - The checklist’s “deny all users under 13, no parental consent” requirement is not yet reflected as the authoritative contract.
 - Some settings/profile cleanup notes are still open:
@@ -57,6 +62,7 @@ Audit basis:
 ## Phase 2 — Coach, Organization, Team Workflows
 
 ### Verified complete
+
 - Org ownership and org/team management logic now use shared permission helpers instead of duplicated local checks:
   - `utils/roleChecks.ts`
   - `server/src/lib/organizationAuthorization.ts`
@@ -78,6 +84,7 @@ Audit basis:
   - `server/src/__tests__/coach-ui-approval-guards.test.ts`
 
 ### Partial
+
 - Team page settings now route to team edit, and org owners can reach edit-team without the extra coach-only client gate:
   - `app/team-page.tsx`
   - `app/(tabs)/edit-team.tsx`
@@ -86,6 +93,7 @@ Audit basis:
 - Back navigation is broadly migrated to `safeGoBack`, but the checklist’s “every click returns to feed” complaint needs runtime verification across the actual screen graph.
 
 ### Not complete
+
 - “Revert organization page back to the previous simple one” is not done.
 - The public team/org page quality issues called out in the PDF are not fully resolved from this audit alone.
 - The checklist expectation “organization leader controls the organization, coaches only their own teams” is now much closer in code, but the whole UX path is still not fully device-verified.
@@ -99,6 +107,7 @@ Audit basis:
 ## Phase 3 — Feed, Search, Posts, Games, Events
 
 ### Verified complete
+
 - Feed/post duplicate protections and post-detail behavior have test coverage:
   - `server/src/__tests__/api-feed-bundle.test.ts`
   - `server/src/__tests__/api-posts.test.ts`
@@ -114,6 +123,7 @@ Audit basis:
   - `server/src/__tests__/event-review-notifications.test.ts`
 
 ### Partial
+
 - Search has code paths, but the checklist notes say user/team/org/event search does not work, and there is no strong direct search E2E evidence in the current suite.
 - Geofencing has regression coverage:
   - `server/src/__tests__/geofencing-post-grace-window.test.ts`
@@ -121,6 +131,7 @@ Audit basis:
 - Game/event approval and cancellation logic exist, but a full UI flow is not yet proven by this audit.
 
 ### Not complete
+
 - The checklist says polls should only be available inside event/game contexts, but the server still exposes post poll endpoints:
   - `server/src/routes/posts.ts` has `POST /:id/poll` and `POST /:id/poll/vote`
 - Search users/teams/orgs/events should be treated as not complete until the spinner issue and result routing are verified on device.
@@ -134,6 +145,7 @@ Audit basis:
 ## Phase 4 — Ads, Payments, Admin
 
 ### Verified complete
+
 - Ads have substantial state and security coverage:
   - `server/src/__tests__/ad-lifecycle-matrix.test.ts`
   - `server/src/__tests__/ad-state-invariants.test.ts`
@@ -150,11 +162,13 @@ Audit basis:
   - `server/src/__tests__/admin-surface-contracts.test.ts`
 
 ### Partial
+
 - Ad booking / approval / payment still has major recent churn. The repo has strong invariants, but your checklist notes and recent bug reports show the real workflow is not yet trustworthy end to end.
 - Admin ads/reports/messages/metrics screens exist, but this audit does not prove the full operator workflow on device.
 - iOS IAP / Android Stripe split has code/tests around billing, but this pass did not fully verify all platform-specific runtime paths.
 
 ### Not complete
+
 - Treat the full ad-hosting workflow as not complete until all of this is device-verified together:
   - submit media for approval before booking dates
   - admin review queue and review email
@@ -167,6 +181,7 @@ Audit basis:
 ## Phase 5 — Messaging, Notifications, Uploads, Moderation, Recovery, Accessibility
 
 ### Verified complete
+
 - Upload infrastructure and guardrails have coverage:
   - `server/src/__tests__/api-uploads.test.ts`
   - `__tests__/notification-upload-guardrails.test.ts`
@@ -178,11 +193,13 @@ Audit basis:
   - `server/src/__tests__/notifications-messages.test.ts`
 
 ### Partial
+
 - Messaging screens/routes exist, but this audit does not prove full conversation send/receive/read-state behavior end to end.
 - Push notifications have server-side tests and message helpers, but actual push delivery/opening is still a device/runtime concern.
 - Moderation and block flows exist in code, but not all checklist bullets are proven by current tests.
 
 ### Not complete
+
 - Offline & recovery section is largely unverified.
 - Dark mode & accessibility section is largely unverified.
 - Large-text / VoiceOver / TalkBack coverage is not present as a strong verified layer.
@@ -190,11 +207,13 @@ Audit basis:
 ## Additional Checklist Notes — Current Audit Verdict
 
 ### Verified complete
+
 - OAuth-only account deletion is handled correctly.
 - Google/Apple linked-provider rows are conditional, not universal.
 - Owner-only org controls are now centralized instead of duplicated.
 
 ### Not complete
+
 - Coach downgrade to fan is still missing.
 - Search spinner / endless loading issue is still unresolved from this audit.
 - “Manage teams” vs “Manage organization” UX simplification is not complete.

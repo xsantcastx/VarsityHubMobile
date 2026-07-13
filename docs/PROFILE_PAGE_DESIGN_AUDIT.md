@@ -5,6 +5,7 @@
 All profile pages (coach, user, fans, organization, and team) should have:
 
 ### ✅ Header Section
+
 - [ ] Header banner (landscape image)
 - [ ] Settings icon (gear) in top-right corner
 - [ ] Profile picture overlay (circular, overlaps banner)
@@ -12,21 +13,25 @@ All profile pages (coach, user, fans, organization, and team) should have:
 - [ ] "Edit profile" button (rounded, white text on colored background)
 
 ### ✅ User Details
+
 - [ ] @handle (username)
 - [ ] Bio/description text
 - [ ] Calendar icon + "Joined [Month Year]"
 - [ ] Following/Followers count (e.g., "0 Following 0 Followers")
 
 ### ✅ Content Tabs
+
 - [ ] "Posts" tab (active state highlighted)
 - [ ] "Replies" tab
 - [ ] "Upvotes" tab
 
 ### ✅ Content Area
+
 - [ ] Empty state message (e.g., "No posts yet")
 - [ ] Post feed below tabs
 
 ### ✅ Bottom Navigation
+
 - [ ] Feed icon
 - [ ] Highlights icon
 - [ ] Create (+) icon (center, larger)
@@ -40,6 +45,7 @@ All profile pages (coach, user, fans, organization, and team) should have:
 ### 1. User Profile (`app/profile.tsx`)
 
 **✅ Matches Design:**
+
 - Header banner with background image ✅
 - Settings icon in top-right ✅
 - Profile picture overlay ✅
@@ -49,6 +55,7 @@ All profile pages (coach, user, fans, organization, and team) should have:
 - Empty state message ✅
 
 **❌ Doesn't Match Design:**
+
 - **Tabs:** Has "Posts" and "Interactions" instead of "Posts", "Replies", "Upvotes" ❌
 - **Join Date:** Missing "Joined [Month Year]" with calendar icon ❌
 - **Following/Followers:** Shows in stats format, not inline text ❌
@@ -61,6 +68,7 @@ All profile pages (coach, user, fans, organization, and team) should have:
 ### 2. Team Profile (`app/team-page.tsx`)
 
 **✅ Has Some Elements:**
+
 - Hero header with gradient ✅
 - Team logo ✅
 - Team name ✅
@@ -68,6 +76,7 @@ All profile pages (coach, user, fans, organization, and team) should have:
 - Tabs: "Feed", "Schedule", "Roster" ✅
 
 **❌ Doesn't Match Design:**
+
 - **Header Banner:** Uses gradient, not landscape image ❌
 - **Settings Icon:** Missing ❌
 - **Edit Button:** Missing ❌
@@ -82,12 +91,14 @@ All profile pages (coach, user, fans, organization, and team) should have:
 ### 3. Organization Profile (`app/organization.tsx`)
 
 **✅ Has Some Elements:**
+
 - Hero header with gradient ✅
 - Organization icon ✅
 - Follow button ✅
 - Tabs: "Teams", "Schedule", "Feed" ✅
 
 **❌ Doesn't Match Design:**
+
 - **Header Banner:** Uses gradient, not landscape image ❌
 - **Settings Icon:** Missing ❌
 - **Edit Button:** Missing ❌
@@ -179,35 +190,41 @@ All profile pages need:
 ## Design Specifications
 
 ### Header Banner
+
 - Height: ~200px (or as shown in image)
 - Full width
 - Landscape image (with gradient overlay)
 - Editable by profile owner
 
 ### Profile Picture
+
 - Size: ~80px diameter
 - Circular border (white, ~3px)
 - Overlaps banner bottom (about 1/3 overlap)
 - Positioned left side
 
 ### Settings Icon
+
 - Position: Top-right corner
 - Size: 18px
 - White color
 - Circular background with transparency
 
 ### Edit Profile Button
+
 - Rounded button
 - White text
 - Positioned in header area (as shown in image)
 - Visible only for own profile
 
 ### Content Tabs
+
 - Three tabs: "Posts", "Replies", "Upvotes"
 - Active tab highlighted (blue underline)
 - Icons optional (as shown in image)
 
 ### User Details
+
 - @handle below username
 - Bio text
 - Calendar icon + "Joined [Month Year]"

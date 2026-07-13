@@ -11,12 +11,14 @@ This guide documents the accessibility utilities and components created to ensur
 Defines accessibility constants and color pairs that meet WCAG 2.1 AA contrast requirements.
 
 **Key Constants:**
+
 - `MIN_TAP_TARGET_SIZE`: 44 points (Apple/Android minimum)
 - `CONTRAST_RATIOS`: Minimum contrast ratios for different text sizes
 - `TapTarget`: Helper objects for ensuring minimum tap targets
 - `AccessibleColors`: Pre-validated color pairs with contrast ratios
 
 **Example Usage:**
+
 ```typescript
 import { MIN_TAP_TARGET_SIZE, AccessibleColors } from '@/constants/Accessibility';
 
@@ -35,6 +37,7 @@ Provides utility functions for auditing and validating accessibility compliance.
 **Key Functions:**
 
 #### `auditTapTarget(dimensions)`
+
 Validates if a button/tap target meets the 44x44pt minimum size requirement.
 
 ```typescript
@@ -51,6 +54,7 @@ const audit = auditTapTarget({ width: 32, height: 32 });
 ```
 
 #### `calculateContrastRatio(color1, color2)`
+
 Calculates the WCAG contrast ratio between two hex colors.
 
 ```typescript
@@ -61,6 +65,7 @@ const ratio = calculateContrastRatio('#FFFFFF', '#1E40AF');
 ```
 
 #### `meetsContrastRequirement(foreground, background, isLargeText)`
+
 Checks if a color combination meets WCAG AA standards.
 
 ```typescript
@@ -76,6 +81,7 @@ const result = meetsContrastRequirement('#FFFFFF', '#2563EB', false);
 ```
 
 #### `auditButton(params)`
+
 Comprehensive audit of a button's accessibility.
 
 ```typescript
@@ -96,6 +102,7 @@ const audit = auditButton({
 A fully WCAG 2.1 AA compliant button component demonstrating best practices.
 
 **Features:**
+
 - ✅ Minimum 44x44pt tap target (all sizes)
 - ✅ Color contrast ≥ 4.5:1 for text
 - ✅ Expanded hit slop for easier tapping
@@ -106,6 +113,7 @@ A fully WCAG 2.1 AA compliant button component demonstrating best practices.
 - ✅ Multiple sizes (small, medium, large) - all meet minimum
 
 **Example Usage:**
+
 ```typescript
 import { AccessibleButton } from '@/components/ui/AccessibleButton';
 
@@ -138,10 +146,12 @@ import { AccessibleButton } from '@/components/ui/AccessibleButton';
 ## Acceptance Criteria Verification
 
 **Epic 11: Buttons Visibility**
+
 > As a user, I want clearly visible scroll buttons/actions, so that navigation is obvious.
 > AC: Buttons meet contrast AA; hit area ≥ 44x44pt; persists on dark/light modes.
 
 ### ✅ Buttons meet contrast AA
+
 - `AccessibleColors` provides pre-validated color pairs
 - All color combinations have contrast ratios ≥ 4.5:1 for normal text
 - `calculateContrastRatio()` function available for custom color validation
@@ -150,12 +160,14 @@ import { AccessibleButton } from '@/components/ui/AccessibleButton';
 - Success button: 7.8:1 (exceeds requirement)
 
 ### ✅ Hit area ≥ 44x44pt
+
 - `MIN_TAP_TARGET_SIZE` constant enforces 44pt minimum
 - `AccessibleButton` component enforces `minHeight` and `minWidth` of 44pt
 - `hitSlop` property adds additional touch area beyond visual bounds
 - `auditTapTarget()` function validates dimensions and suggests padding if needed
 
 ### ✅ Persists on dark/light modes
+
 - `AccessibleColors` includes both dark-on-light and light-on-dark pairs
 - All color combinations maintain contrast in both modes
 - Component variants support theme switching
@@ -166,6 +178,7 @@ import { AccessibleButton } from '@/components/ui/AccessibleButton';
 ### For New Buttons
 
 1. **Use AccessibleButton component:**
+
 ```typescript
 import { AccessibleButton } from '@/components/ui/AccessibleButton';
 
@@ -177,6 +190,7 @@ import { AccessibleButton } from '@/components/ui/AccessibleButton';
 ```
 
 2. **For custom buttons, ensure minimum tap targets:**
+
 ```typescript
 import { MIN_TAP_TARGET_SIZE, TapTarget } from '@/constants/Accessibility';
 
@@ -194,6 +208,7 @@ import { MIN_TAP_TARGET_SIZE, TapTarget } from '@/constants/Accessibility';
 ```
 
 3. **Use validated color pairs:**
+
 ```typescript
 import { AccessibleColors } from '@/constants/Accessibility';
 

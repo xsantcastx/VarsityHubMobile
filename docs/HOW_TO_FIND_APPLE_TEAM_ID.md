@@ -22,6 +22,7 @@
    - Example format: `XXXXXXXXXX` or `ABC123DEF4`
 
 **Location in Portal:**
+
 ```
 Developer Portal
 └── Membership
@@ -48,6 +49,7 @@ Developer Portal
    - Format: 10 characters (letters and numbers)
 
 **Location in App Store Connect:**
+
 ```
 App Store Connect
 └── Users and Access
@@ -62,6 +64,7 @@ App Store Connect
 ### Steps:
 
 1. **Open Xcode**
+
    ```bash
    open -a Xcode
    ```
@@ -83,6 +86,7 @@ App Store Connect
    - Format: `XXXXXXXXXX` (10 characters)
 
 **Location in Xcode:**
+
 ```
 Xcode → Settings → Accounts
 └── Apple ID: your@email.com
@@ -172,12 +176,14 @@ git log --all --full-history -- "eas.json" | grep -i "team"
 ## 📋 What Your Team ID Looks Like
 
 **Format:**
+
 - 10 characters (letters and numbers)
 - Example: `ABC123DEF4`
 - Example: `XYZ987ABC6`
 - Example: `1234567890`
 
 **NOT:**
+
 - ❌ 8 characters (that's Bundle ID prefix)
 - ❌ UUID format (that's App Store Connect App ID)
 - ❌ Email address (that's your Apple ID)
@@ -208,6 +214,7 @@ Once you find your Team ID, verify it:
 After finding your Team ID:
 
 1. **Update `eas.json`**:
+
    ```json
    {
      "submit": {
@@ -215,7 +222,7 @@ After finding your Team ID:
          "ios": {
            "appleId": "sanchezemil82@gmail.com",
            "ascAppId": "6754257357",
-           "appleTeamId": "YOUR_FOUND_TEAM_ID"  // ← Replace this
+           "appleTeamId": "YOUR_FOUND_TEAM_ID" // ← Replace this
          }
        }
      }
@@ -223,6 +230,7 @@ After finding your Team ID:
    ```
 
 2. **Save and commit**:
+
    ```bash
    git add eas.json
    git commit -m "fix: update Apple Team ID"

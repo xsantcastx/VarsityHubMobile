@@ -4,24 +4,24 @@ Current source of truth: `/auth/me` returns `account_state` plus `next_step`, an
 
 ## Canonical states
 
-| Scenario | Core server state | `next_step` | Expected user destination | Coach tools |
-|---|---|---|---|---|
-| Fan account | `fan_active` or `fan_onboarding` | `/(tabs)` or onboarding step | Fan app or onboarding | No |
-| Coach missing basic info | `coach_basic_info_required` | `/onboarding/step-2-basic` | Step 2 | No |
-| Coach still needs application/setup | `coach_application_required` | `/onboarding/coach-application` or `/onboarding/step-3-league` | Application/setup flow | No |
-| New-organization application submitted | `coach_application_submitted` | `/onboarding/league-pending-approval` or `/(tabs)` when proceeding as fan | League pending approval | No |
-| Join-request pending/rejected recovery | `coach_pending_approval` | `/onboarding/pending-approval`, `/onboarding/league-pending-approval`, or `/(tabs)` when proceeding as fan | Pending approval recovery | No |
-| New-organization application rejected | `coach_application_rejected` | `/onboarding/league-pending-approval` or `/(tabs)` when proceeding as fan | League pending/reapply flow | No |
-| Approved, agreement still required | `coach_agreement_required` | `/onboarding/coach-agreement` | Agreement screen | No |
-| Approved, agreement accepted, org/setup still missing | `coach_final_setup_required` | `/onboarding/step-3-league` | Final setup on step 3 | No |
-| Fully active coach | `coach_active` | `/(tabs)` | Main app with coach tools | Yes |
+| Scenario                                              | Core server state                | `next_step`                                                                                                | Expected user destination   | Coach tools |
+| ----------------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------- | ----------- |
+| Fan account                                           | `fan_active` or `fan_onboarding` | `/(tabs)` or onboarding step                                                                               | Fan app or onboarding       | No          |
+| Coach missing basic info                              | `coach_basic_info_required`      | `/onboarding/step-2-basic`                                                                                 | Step 2                      | No          |
+| Coach still needs application/setup                   | `coach_application_required`     | `/onboarding/coach-application` or `/onboarding/step-3-league`                                             | Application/setup flow      | No          |
+| New-organization application submitted                | `coach_application_submitted`    | `/onboarding/league-pending-approval` or `/(tabs)` when proceeding as fan                                  | League pending approval     | No          |
+| Join-request pending/rejected recovery                | `coach_pending_approval`         | `/onboarding/pending-approval`, `/onboarding/league-pending-approval`, or `/(tabs)` when proceeding as fan | Pending approval recovery   | No          |
+| New-organization application rejected                 | `coach_application_rejected`     | `/onboarding/league-pending-approval` or `/(tabs)` when proceeding as fan                                  | League pending/reapply flow | No          |
+| Approved, agreement still required                    | `coach_agreement_required`       | `/onboarding/coach-agreement`                                                                              | Agreement screen            | No          |
+| Approved, agreement accepted, org/setup still missing | `coach_final_setup_required`     | `/onboarding/step-3-league`                                                                                | Final setup on step 3       | No          |
+| Fully active coach                                    | `coach_active`                   | `/(tabs)`                                                                                                  | Main app with coach tools   | Yes         |
 
 ## Approval transitions
 
-| Flow | Before approval | Approval action | After approval |
-|---|---|---|---|
-| Join existing organization | `coach_pending_approval` | Org owner/manager approves join request | `coach_agreement_required` until agreement is accepted, then `coach_active` |
-| Create new organization | `coach_application_submitted` | Platform admin approves organization/application | `coach_agreement_required` until agreement is accepted; if setup is still incomplete, `coach_final_setup_required`; otherwise `coach_active` |
+| Flow                       | Before approval               | Approval action                                  | After approval                                                                                                                               |
+| -------------------------- | ----------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Join existing organization | `coach_pending_approval`      | Org owner/manager approves join request          | `coach_agreement_required` until agreement is accepted, then `coach_active`                                                                  |
+| Create new organization    | `coach_application_submitted` | Platform admin approves organization/application | `coach_agreement_required` until agreement is accepted; if setup is still incomplete, `coach_final_setup_required`; otherwise `coach_active` |
 
 ## Contract rules
 

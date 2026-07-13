@@ -3,15 +3,18 @@
 ## 🚨 Critical Issues
 
 ### Issue 1: Payment Not Verified Before Onboarding Completion
+
 **Severity:** HIGH  
 **Location:** `app/onboarding/step-10-confirmation.tsx`
 
 **Problem:**
+
 - User can complete onboarding even if payment is still pending
 - Code doesn't check `payment_pending` status before allowing completion
 - User could finish onboarding with unpaid subscription
 
 **Current Behavior:**
+
 ```typescript
 // Step 10 completion doesn't check payment status
 await User.completeOnboarding(completionPayload);
@@ -20,17 +23,19 @@ await User.completeOnboarding(completionPayload);
 ```
 
 **Expected Behavior:**
+
 - For paid plans (Veteran/Legend), verify payment completed before allowing onboarding completion
 - Show error if payment still pending
 
 **Fix Needed:**
+
 ```typescript
 // In step-10-confirmation.tsx, before onComplete():
 if (isCoach && ob.plan !== 'rookie' && ob.payment_pending) {
   // Check payment status
   const me: any = await User.me();
   const prefs = me?.preferences || {};
-  
+
   if (prefs.payment_pending === true || !prefs.subscription_id) {
     Alert.alert(
       'Payment Required',
@@ -44,14 +49,17 @@ if (isCoach && ob.plan !== 'rookie' && ob.payment_pending) {
 ---
 
 ### Issue 2: Navigation Happens Before Payment Completes
+
 **Severity:** MEDIUM  
 **Location:** `app/onboarding/step-3-plan.tsx` line 294-296
 
 **Problem:**
+
 - Code navigates to next step immediately after opening Stripe checkout
 - User could skip payment and continue onboarding
 
 **Current Code:**
+
 ```typescript
 await WebBrowser.openBrowserAsync(String(res.url));
 setProgress(3);
@@ -59,10 +67,12 @@ navigateNext(); // ⚠️ Navigates before payment completes
 ```
 
 **Expected Behavior:**
+
 - Wait for payment confirmation OR
 - Handle payment completion in webhook/success callback
 
 **Fix Options:**
+
 1. **Option A:** Don't navigate, wait for payment success callback
 2. **Option B:** Navigate but check payment status in Step 10
 3. **Option C:** Use deep link to return to app after payment (like ad payments do)
@@ -72,26 +82,31 @@ navigateNext(); // ⚠️ Navigates before payment completes
 ---
 
 ### Issue 3: Team Count Default is Wrong
+
 **Severity:** LOW  
 **Location:** `app/onboarding/step-3-plan.tsx` line 125
 
 **Problem:**
+
 - Default team count is 3
 - Pricing says "First 2 teams free, then $0.99/month per team"
 - Should default to 2 (first 2 free), minimum 3 for Veteran
 
 **Current:**
+
 ```typescript
 const [teamCount, setTeamCount] = useState<number>(3); // Minimum 3 teams for Veteran
 ```
 
 **Expected:**
+
 ```typescript
 const [teamCount, setTeamCount] = useState<number>(2); // First 2 free
 // Then validate minimum 3 for Veteran plan
 ```
 
 **Fix:**
+
 ```typescript
 const [teamCount, setTeamCount] = useState<number>(2); // First 2 free
 
@@ -117,19 +132,20 @@ if (plan === 'veteran' && teamCount < 3) {
 ## 🔧 Recommended Fixes (Priority Order)
 
 ### Priority 1: Payment Verification (CRITICAL)
+
 Add payment status check in Step 10 before allowing completion:
 
 ```typescript
 // In app/onboarding/step-10-confirmation.tsx
 const onComplete = async () => {
   // ... existing validation ...
-  
+
   // NEW: Check payment status for paid plans
   if (isCoach && ob.plan !== 'rookie') {
     try {
       const me: any = await User.me();
       const prefs = me?.preferences || {};
-      
+
       // Check if payment is still pending
       if (prefs.payment_pending === true) {
         Alert.alert(
@@ -149,7 +165,7 @@ const onComplete = async () => {
         );
         return;
       }
-      
+
       // Check if subscription ID exists (payment completed)
       if (!prefs.subscription_id && ob.plan !== 'rookie') {
         Alert.alert(
@@ -171,12 +187,13 @@ const onComplete = async () => {
       // Continue anyway - might be network issue
     }
   }
-  
+
   // ... rest of completion logic ...
 };
 ```
 
 ### Priority 2: Team Count Default (LOW)
+
 Fix default to 2 teams:
 
 ```typescript
@@ -185,7 +202,10 @@ const [teamCount, setTeamCount] = useState<number>(2); // First 2 free
 
 // In team count modal validation:
 if (plan === 'veteran' && teamCount < 3) {
-  Alert.alert('Minimum Teams', 'Veteran plan requires at least 3 teams (first 2 free, then $0.99/month per additional team).');
+  Alert.alert(
+    'Minimum Teams',
+    'Veteran plan requires at least 3 teams (first 2 free, then $0.99/month per additional team).'
+  );
   setTeamCount(3);
   return;
 }

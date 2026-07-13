@@ -16,12 +16,14 @@ Fixed critical inconsistency in notifications and messages system. Messages were
 ### 1. ❌ Missing In-App Notification Records for Messages
 
 **Problem:**
+
 - Messages only sent push notifications
 - No database notification records were created
 - Users couldn't see message notifications in the notifications tab
 - Inconsistent with posts (likes/comments) and follows behavior
 
 **Fix:**
+
 - Added `MESSAGE` type to `NotificationType` enum
 - Added `message_id` field to `Notification` model
 - Added relation between `Message` and `Notification` models
@@ -30,11 +32,13 @@ Fixed critical inconsistency in notifications and messages system. Messages were
 ### 2. ❌ Frontend Not Handling MESSAGE Notifications
 
 **Problem:**
+
 - Frontend notifications screen only handled FOLLOW, UPVOTE, COMMENT
 - MESSAGE notifications would show as generic "Notification"
 - No navigation to message thread when tapping MESSAGE notification
 
 **Fix:**
+
 - Updated `app/(tabs)/notifications/index.tsx` to handle MESSAGE type
 - Added navigation to message thread when MESSAGE notification is tapped
 - Display message content preview in notification list
@@ -42,6 +46,7 @@ Fixed critical inconsistency in notifications and messages system. Messages were
 ### 3. ✅ Self-Notification Prevention
 
 **Added:**
+
 - Check to prevent self-notifications for messages (sender !== recipient)
 - Consistent with existing logic for posts (user can't like own post and get notified)
 
@@ -52,6 +57,7 @@ Fixed critical inconsistency in notifications and messages system. Messages were
 ### Database Schema (`server/prisma/schema.prisma`)
 
 1. **Added MESSAGE to NotificationType enum:**
+
 ```prisma
 enum NotificationType {
   FOLLOW
@@ -63,6 +69,7 @@ enum NotificationType {
 ```
 
 2. **Added message_id field to Notification model:**
+
 ```prisma
 model Notification {
   // ... existing fields
@@ -72,6 +79,7 @@ model Notification {
 ```
 
 3. **Added notifications relation to Message model:**
+
 ```prisma
 model Message {
   // ... existing fields
@@ -82,12 +90,14 @@ model Message {
 ### Backend Routes
 
 **`server/src/routes/messages.ts`:**
+
 - Creates in-app notification record when message is sent
 - Only creates notification if sender !== recipient (prevents self-notifications)
 - Stores conversation_id and message preview in meta field
 - Sends push notification (existing behavior)
 
 **`server/src/routes/notifications.ts`:**
+
 - Updated `summarize()` function to handle MESSAGE type
 - Added message to include query
 - Added message data to response payload
@@ -95,6 +105,7 @@ model Message {
 ### Frontend
 
 **`app/(tabs)/notifications/index.tsx`:**
+
 - Added MESSAGE case to title rendering
 - Added navigation to message thread when MESSAGE notification tapped
 - Display message content preview in notification list item
@@ -105,13 +116,13 @@ model Message {
 
 All notification types now follow the same pattern:
 
-| Type | In-App Record | Push Notification | Self-Notify Prevention |
-|------|---------------|-------------------|------------------------|
-| FOLLOW | ✅ | ✅ | ✅ (can't follow self) |
-| UPVOTE | ✅ | ✅ | ✅ (skips if post author === actor) |
-| COMMENT | ✅ | ✅ | ✅ (skips if post author === actor) |
-| MESSAGE | ✅ **FIXED** | ✅ | ✅ **ADDED** (skips if sender === recipient) |
-| TEAM_INVITE | ✅ | ⚠️ (not implemented) | ✅ (implicit) |
+| Type        | In-App Record | Push Notification    | Self-Notify Prevention                       |
+| ----------- | ------------- | -------------------- | -------------------------------------------- |
+| FOLLOW      | ✅            | ✅                   | ✅ (can't follow self)                       |
+| UPVOTE      | ✅            | ✅                   | ✅ (skips if post author === actor)          |
+| COMMENT     | ✅            | ✅                   | ✅ (skips if post author === actor)          |
+| MESSAGE     | ✅ **FIXED**  | ✅                   | ✅ **ADDED** (skips if sender === recipient) |
+| TEAM_INVITE | ✅            | ⚠️ (not implemented) | ✅ (implicit)                                |
 
 ---
 
@@ -125,6 +136,7 @@ npx prisma migrate dev --name add_message_notifications
 ```
 
 This will:
+
 1. Add `MESSAGE` to `NotificationType` enum
 2. Add `message_id` column to `Notification` table
 3. Add foreign key constraint to `Message` table

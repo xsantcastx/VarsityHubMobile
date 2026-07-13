@@ -11,6 +11,7 @@ Implements zip code-based ad targeting with 20-mile radius coverage and alternat
 > As an advertiser, I want coverage within 20 miles of a zip, so that my ad hits the right audience; if full, suggest nearby zips.
 
 **Acceptance Criteria:**
+
 > Purchase checks capacity by zip; if booked, suggest next best zips; selection updates cart.
 
 ## Files Created
@@ -22,6 +23,7 @@ Core utilities for zip code validation, distance calculation, and capacity check
 **Key Functions:**
 
 #### `isValidZipCode(zip: string): boolean`
+
 Validates US zip code format (5-digit or 5+4).
 
 ```typescript
@@ -31,14 +33,16 @@ isValidZipCode('9410'); // false
 ```
 
 #### `calculateDistanceMiles(lat1, lon1, lat2, lon2): number`
+
 Calculates distance between two coordinates using Haversine formula. Returns distance in miles.
 
 ```typescript
-const miles = calculateDistanceMiles(37.7749, -122.4194, 37.4419, -122.1430);
+const miles = calculateDistanceMiles(37.7749, -122.4194, 37.4419, -122.143);
 // Returns: ~28.5 miles
 ```
 
 #### `findNearbyZipCodes(centerZip, allZips, radiusMiles): Array`
+
 Finds all zip codes within specified radius, sorted by distance.
 
 ```typescript
@@ -51,6 +55,7 @@ const nearby = findNearbyZipCodes(
 ```
 
 #### `checkZipCapacity(zip, dateRange): Promise<ZipCodeAvailability>`
+
 Checks ad slot availability for a zip code on specific dates.
 
 ```typescript
@@ -59,15 +64,11 @@ const capacity = await checkZipCapacity('94102', ['2025-10-15', '2025-10-16']);
 ```
 
 #### `suggestAlternativeZips(requestedZip, zipLocation, nearbyZips, dateRange): Promise<ZipCodeSuggestion>`
+
 Main function that checks requested zip and suggests alternatives if at capacity.
 
 ```typescript
-const suggestions = await suggestAlternativeZips(
-  '94102',
-  zipLocation,
-  nearbyZips,
-  ['2025-10-15']
-);
+const suggestions = await suggestAlternativeZips('94102', zipLocation, nearbyZips, ['2025-10-15']);
 // Returns:
 // {
 //   original: '94102',
@@ -80,6 +81,7 @@ const suggestions = await suggestAlternativeZips(
 ```
 
 #### `formatDistance(miles: number): string`
+
 Formats distance for user-friendly display.
 
 ```typescript
@@ -92,6 +94,7 @@ formatDistance(5.3); // "5.3 mi"
 Modal component for displaying alternative zip code suggestions.
 
 **Features:**
+
 - Error message explaining original zip is full
 - List of nearby alternatives sorted by distance
 - Distance badges showing miles from original
@@ -101,6 +104,7 @@ Modal component for displaying alternative zip code suggestions.
 - 20-mile radius coverage explanation
 
 **Props:**
+
 ```typescript
 interface ZipAlternativesModalProps {
   visible: boolean;
@@ -113,6 +117,7 @@ interface ZipAlternativesModalProps {
 ```
 
 **Example Usage:**
+
 ```typescript
 import { ZipAlternativesModal } from '@/components/ZipAlternativesModal';
 import { suggestAlternativeZips, lookupZipCode } from '@/utils/zipCodeUtils';
@@ -166,10 +171,10 @@ Add zip code selection and capacity checking:
 
 ```typescript
 import { ZipAlternativesModal } from '@/components/ZipAlternativesModal';
-import { 
-  suggestAlternativeZips, 
-  lookupZipCode, 
-  MOCK_ZIP_DATABASE 
+import {
+  suggestAlternativeZips,
+  lookupZipCode,
+  MOCK_ZIP_DATABASE
 } from '@/utils/zipCodeUtils';
 
 export default function AdCalendarScreen() {
@@ -212,7 +217,7 @@ export default function AdCalendarScreen() {
   return (
     <>
       {/* Existing UI */}
-      
+
       <ZipAlternativesModal
         visible={showZipAlternatives}
         requestedZip={selectedZip}
@@ -234,6 +239,7 @@ export default function AdCalendarScreen() {
 The frontend requires these backend endpoints:
 
 ### 1. Check Zip Capacity
+
 ```
 GET /api/advertisements/capacity?zip={zip}&dates={date1,date2}
 
@@ -248,6 +254,7 @@ Response:
 ```
 
 ### 2. Get Nearby Zips (Optional - can use client-side geocoding)
+
 ```
 GET /api/geo/nearby-zips?zip={zip}&radius={miles}
 
@@ -264,16 +271,19 @@ Response:
 ## Algorithm Details
 
 ### Coverage Radius
+
 - **Default:** 20 miles from selected zip code
 - **Calculation:** Haversine formula for great-circle distance
 - **Earth radius:** 3,959 miles (mean radius)
 
 ### Capacity Model
+
 - **Per-zip inventory:** 10 slots per day (configurable)
 - **Booking window:** 8 weeks ahead (already implemented)
 - **Pricing tiers:** Weekday/weekend bundles
 
 ### Alternative Selection
+
 1. Check original zip capacity
 2. If at capacity, find all zips within 20-mile radius
 3. Check capacity for each nearby zip
@@ -284,12 +294,14 @@ Response:
 ## Testing Scenarios
 
 ### Scenario 1: Original Zip Has Capacity
+
 ```typescript
 const suggestions = await suggestAlternativeZips('94102', zipLoc, nearby, dates);
 // Result: alternatives = [], user proceeds with original zip
 ```
 
 ### Scenario 2: Original Zip Full, Alternatives Available
+
 ```typescript
 const suggestions = await suggestAlternativeZips('94102', zipLoc, nearby, dates);
 // Result:
@@ -301,6 +313,7 @@ const suggestions = await suggestAlternativeZips('94102', zipLoc, nearby, dates)
 ```
 
 ### Scenario 3: No Alternatives Available
+
 ```typescript
 const suggestions = await suggestAlternativeZips('94102', zipLoc, nearby, dates);
 // Result: alternatives = []
@@ -310,17 +323,20 @@ const suggestions = await suggestAlternativeZips('94102', zipLoc, nearby, dates)
 ## Acceptance Criteria Verification
 
 ✅ **Purchase checks capacity by zip**
+
 - `checkZipCapacity()` queries backend for slot availability
 - Checks before proceeding to payment
 - Returns capacity, reserved count, available status
 
 ✅ **If booked, suggest next best zips**
+
 - `suggestAlternativeZips()` finds nearby options within 20 miles
 - Sorts by distance (closest first)
 - Shows up to 5 alternatives
 - Displays distance, availability, city/state
 
 ✅ **Selection updates cart**
+
 - `onSelectZip` callback updates selected zip
 - Cart recalculates with new zip
 - Coverage description updates to reflect new radius

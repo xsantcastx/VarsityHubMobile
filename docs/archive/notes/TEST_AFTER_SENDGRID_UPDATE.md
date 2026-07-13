@@ -3,6 +3,7 @@
 ## ✅ Backend is READY - Here's what's configured:
 
 ### Password Reset Email Function
+
 - Template ID: `d-97a704ec6a35434195364e0ed9dfaf21`
 - Variables sent from backend:
   - `name` ✅
@@ -11,6 +12,7 @@
   - `code` ✅
 
 ### Password Changed Email Function
+
 - Template ID: `d-6f11ea835053413296e159c91204b658`
 - Variables sent from backend:
   - `name` ✅
@@ -22,7 +24,9 @@
 ## 🔧 WHAT YOU NEED TO DO IN SENDGRID:
 
 ### 1. Update Password Reset Template
+
 Go to: https://mc.sendgrid.com/dynamic-templates
+
 - Find template ID: `d-97a704ec6a35434195364e0ed9dfaf21`
 - Click "Edit" → "Code Editor"
 - **COPY THE ENTIRE HTML from the message above** (the first HTML block)
@@ -31,6 +35,7 @@ Go to: https://mc.sendgrid.com/dynamic-templates
 - Click "Save"
 
 ### 2. Update Password Changed Template
+
 - Find template ID: `d-6f11ea835053413296e159c91204b658`
 - Click "Edit" → "Code Editor"
 - **COPY THE ENTIRE HTML from the message above** (the second HTML block)
@@ -54,6 +59,7 @@ Go to: https://mc.sendgrid.com/dynamic-templates
 ## 🧪 TEST IT:
 
 Run this command to send a test email:
+
 ```bash
 curl -X POST http://localhost:4000/auth/password/forgot \
   -H "Content-Type: application/json" \
@@ -61,11 +67,13 @@ curl -X POST http://localhost:4000/auth/password/forgot \
 ```
 
 Or start the server and test the full flow:
+
 ```bash
 cd server && npm run dev
 ```
 
 Then in another terminal:
+
 ```bash
 curl -X POST http://localhost:4000/auth/password/forgot \
   -H "Content-Type: application/json" \
@@ -73,6 +81,7 @@ curl -X POST http://localhost:4000/auth/password/forgot \
 ```
 
 Check your email:
+
 - ✅ All 5 social icons should appear
 - ✅ Click "Reset Password" button
 - ✅ App should open to /reset screen
@@ -94,6 +103,7 @@ Check your email:
 ## 🎯 YES, IT WILL WORK!
 
 Backend is configured correctly. Once you paste those HTML templates into SendGrid:
+
 - Button will use deep link: `varsityhubmobile://reset/CODE`
 - All icons will load from Flaticon CDN
 - Footer will show all social links

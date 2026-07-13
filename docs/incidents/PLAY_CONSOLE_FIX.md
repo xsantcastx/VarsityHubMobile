@@ -1,7 +1,9 @@
 e# Google Play Console: Fix Organization Account Requirement
 
 ## Problem
+
 Your app submission is failing with:
+
 ```
 Violation of Play Console Requirements
 Your app is not compliant with the Play Console Requirements policy.
@@ -9,7 +11,9 @@ Some types of apps can only be distributed by organizations.
 ```
 
 ## Root Cause
+
 You've either:
+
 1. Selected an app category that requires organization verification (e.g., Education, Business, Enterprise)
 2. Declared app features that require organization account ownership
 3. Filled out questionnaire responses that triggered org-only requirements
@@ -17,18 +21,21 @@ You've either:
 ## Solution Steps
 
 ### Step 1: Access Google Play Console
+
 1. Go to https://play.google.com/console
 2. Select your app (VarsityHub)
 3. Go to **App content** in the left menu
 
 ### Step 2: Verify App Category
+
 1. Find "App category" section
 2. Current setting: Check what's selected
 3. **Change to**: "Sports" or "Social" (consumer-friendly)
 4. **Avoid**: Education, Business, Enterprise, Professional, Government
 
 ### Step 3: Check Content Declaration
-1. Go to **Content declarations** 
+
+1. Go to **Content declarations**
 2. Review these sections:
    - **App access and permissions**: Make sure you're not claiming admin/enterprise features
    - **Ads, monetization, and in-app purchases**: Ensure correct declarations
@@ -36,6 +43,7 @@ You've either:
    - **User-generated content**: Should be marked if applicable
 
 ### Step 4: Review Questionnaire Answers
+
 1. Go to **Questionnaire** (if visible)
 2. Review your answers about:
    - App purpose and functionality
@@ -48,12 +56,15 @@ You've either:
    - Requiring professional credentials
 
 ### Step 5: Update Content Rating Questionnaire
-1. Go to **Content rating** 
+
+1. Go to **Content rating**
 2. Complete the IARC questionnaire if not done
 3. Make sure questions are answered to reflect a consumer sports app
 
 ### Step 6: Verify Sensitive Permissions
+
 In **App permissions**:
+
 - ✓ CAMERA - for photo/video capture (OK for sports app)
 - ✓ LOCATION - for nearby events (OK for sports app)
 - ✓ MICROPHONE - for video recording (OK for sports app)
@@ -63,9 +74,11 @@ In **App permissions**:
 ## Key Settings for VarsityHub
 
 ### Recommended App Category
+
 **Sports** (Consumer app category)
 
 ### App Content Declaration Checklist
+
 - [ ] App is for general consumer use
 - [ ] Not restricted to organizations/schools
 - [ ] No special professional requirements
@@ -73,12 +86,15 @@ In **App permissions**:
 - [ ] Not requiring verification of professional credentials
 
 ### Release Notes Best Practices
+
 Avoid mentioning:
+
 - "For schools and organizations"
 - "Enterprise solution"
 - "Professional management"
 
 Use instead:
+
 - "Sports social platform for athletes and fans"
 - "Team management and sports news"
 - "Connect with your sports community"
@@ -107,6 +123,7 @@ If the error persists after these changes:
 ## VarsityHub Specific Notes
 
 VarsityHub is a **consumer social sports platform**, not an enterprise tool, so:
+
 - ✓ Should NOT require organization account
 - ✓ Category should be "Sports" or "Social"
 - ✓ Available for anyone with a personal account

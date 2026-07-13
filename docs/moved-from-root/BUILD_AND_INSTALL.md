@@ -3,6 +3,7 @@
 ## Current Issue
 
 There's a Gradle build error that prevents local building. The error is:
+
 ```
 Error resolving plugin [id: 'com.facebook.react.settings'] > 25.0.1
 ```
@@ -18,6 +19,7 @@ npx eas build --platform android --profile preview
 ```
 
 This will:
+
 - Build the APK in the cloud
 - Download it when complete
 - Handle all Gradle configuration automatically
@@ -40,11 +42,13 @@ Since you can't see the terminal, here's what to do:
 
 1. **Open a regular terminal** (not in Cursor)
 2. **Navigate to project:**
+
    ```bash
    cd /Users/varsityhub/VarsityHubMobile
    ```
 
 3. **Build with EAS:**
+
    ```bash
    npx eas build --platform android --profile preview
    ```
@@ -74,11 +78,13 @@ This is the fastest way to test, but requires Expo Go app.
 ## Fix Gradle Issue (For Future)
 
 The Gradle error needs investigation. It might be:
+
 - Gradle version incompatibility
 - React Native Gradle plugin version issue
 - Version catalog resolution problem
 
 To fix later, you may need to:
+
 - Update Gradle version
 - Update React Native
 - Check `android/gradle/libs.versions.toml` if it exists

@@ -3,11 +3,13 @@
 ## What Was Changed
 
 ### 3 Files Involved:
+
 1. **team-page.tsx** - MODIFIED (now truly team-specific, was league-wide)
 2. **organization.tsx** - CREATED (new organization-level view)
 3. **TEAM_ORG_REFACTOR_SUMMARY.md** - CREATED (documentation)
 
 ### Key Fixes:
+
 ✅ **Roster filtering** - Only shows that team's members (was showing all org members mixed together)
 ✅ **Schedule sorting** - Games sorted oldest-first (past up, future down)
 ✅ **Feed filtering** - Only shows that team's posts (team hashtags + game posts)
@@ -19,6 +21,7 @@
 ## How to Test
 
 ### 1. Quick Setup
+
 ```bash
 # Reset Metro cache
 npm start -- --reset-cache
@@ -28,6 +31,7 @@ npx eas build --platform ios --local
 ```
 
 ### 2. Test the Main Flow
+
 1. Launch simulator
 2. Go to **Warriors vs Cavaliers** game
 3. Tap the **Warriors** team card (bottom of screen)
@@ -38,6 +42,7 @@ npx eas build --platform ios --local
    - **"View Organization" button** at top
 
 ### 3. Test Organization Page
+
 1. From Warriors team page, tap **"View Organization"** button
 2. You should see:
    - All teams in the organization
@@ -47,7 +52,9 @@ npx eas build --platform ios --local
 3. Tap a different team → should navigate to that team's page
 
 ### 4. Verify Data Isolation
+
 This is the most important test:
+
 - **Warriors team page**: Should show ONLY Warriors roster
 - **Cavaliers team page**: Should show ONLY Cavaliers roster
 - **Organization page**: Should show ALL teams + all data
@@ -57,18 +64,22 @@ This is the most important test:
 ## What Could Go Wrong
 
 ### Issue: Roster still shows mixed teams
+
 - **Cause**: Database not filtered by team_id
 - **Fix**: Check Team.members() API is returning correct data
 
 ### Issue: Organization button doesn't appear
+
 - **Cause**: team.organization_id is null/undefined
 - **Fix**: Verify Warriors team has organization_id set in database
 
 ### Issue: Navigation doesn't work
+
 - **Cause**: Router navigation parameter mismatch
 - **Fix**: Check that team IDs match in database
 
 ### Issue: App crashes on team-page
+
 - **Cause**: TypeError trying to access team properties
 - **Fix**: Ensure team data is loaded before rendering
 
@@ -77,12 +88,14 @@ This is the most important test:
 ## Files to Verify
 
 ### `/app/team-page.tsx`
+
 - Line 53: `export default function TeamScreen()`
 - Line 70: `const loadTeam = useCallback(async () => {`
 - Line 62: `const [team, setTeam] = useState<LeagueTeam | null>(null);`
 - Line 490-510: Organization linking button should be visible
 
 ### `/app/organization.tsx`
+
 - Full new file (421 lines)
 - Has Teams, Schedule, Feed tabs
 - Shows all teams in organization
@@ -92,7 +105,9 @@ This is the most important test:
 ## Key Code Locations
 
 ### Team Member Filtering (THE CRITICAL FIX)
+
 **File**: `/app/team-page.tsx` **Line ~190**
+
 ```typescript
 // This is what filters roster to ONLY this team's members
 const teamMembers = await Team.members(teamData.id);
@@ -106,7 +121,9 @@ return memberList
 ```
 
 ### Organization Navigation (NEW)
+
 **File**: `/app/team-page.tsx` **Line ~490**
+
 ```typescript
 {team?.organization_id && (
   <Pressable
@@ -118,7 +135,9 @@ return memberList
 ```
 
 ### Game Sorting (OLDEST FIRST)
+
 **File**: `/app/team-page.tsx` **Line ~130**
+
 ```typescript
 .sort((a, b) => {
   const dateA = new Date(a.date).getTime();
@@ -132,6 +151,7 @@ return memberList
 ## Navigation Architecture
 
 ### Complete Flow:
+
 ```
 GameDetailsScreen (Warriors vs Cavaliers)
          ↓ (tap Warriors team card)
@@ -143,6 +163,7 @@ GameDetailsScreen (Warriors vs Cavaliers)
 ```
 
 ### Parameters:
+
 - **team-page**: Accepts `?id=teamId` or `?name=teamName`
 - **organization**: Accepts `?id=organizationId`
 
@@ -181,6 +202,7 @@ npm start -- --reset-cache
 ## Questions or Issues?
 
 Check these documents:
+
 1. **TEAM_ORG_REFACTOR_SUMMARY.md** - Full technical details
 2. **TEAM_ORG_TESTING_CHECKLIST.md** - Comprehensive test plan
 3. **TEAM_ORGANIZATION_ARCHITECTURE.md** - Architecture explanation

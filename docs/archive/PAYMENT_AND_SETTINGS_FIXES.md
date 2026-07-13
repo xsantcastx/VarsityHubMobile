@@ -9,6 +9,7 @@
 **Fix:** Change line 51 from `router.replace('/(tabs)/my-ads')` to `router.push('/(tabs)/my-ads')`
 
 ### Before (Line 48-52):
+
 ```typescript
   const handleContinue = () => {
     // Navigate to the appropriate next step based on payment type
@@ -20,6 +21,7 @@
 ```
 
 ### After (Lines 48-52):
+
 ```typescript
   const handleContinue = () => {
     // Navigate to the appropriate next step based on payment type
@@ -41,6 +43,7 @@
 **Fix:** Add a new NavRow for "My Ads" in the "My Content" section.
 
 ### Before (Lines 305-308):
+
 ```typescript
                     {/* My Content */}
                     <SectionCard title="My Content">
@@ -49,6 +52,7 @@
 ```
 
 ### After (Lines 305-309):
+
 ```typescript
                     {/* My Content */}
                     <SectionCard title="My Content">
@@ -64,17 +68,20 @@
 **File:** `app/my-ads2.tsx`
 
 **Problems:**
+
 - Server responses without `user_id` safeguards were still being merged with local drafts, so every ad was displayed.
 - Ads created before business_name existed rendered without a title.
 - Reservation dates were raw ISO strings (hard to read).
 
 **Fixes Applied:**
+
 - Load the authenticated user (`User.me()`) and ignore any server ad that doesn't match the current `user_id` or `contact_email`.
 - Provide a friendly fallback title (`"Untitled Ad"`) when the server returns an empty business name.
 - Format scheduled dates with `toLocaleDateString` for clarity.
 - Store draft ads in a user-scoped SecureStore key (`LOCAL_ADS_<userId>`) so switching accounts on the same device no longer shows another user’s drafts.
 
 ### Key Snippet
+
 ```typescript
 const [userId, setUserId] = useState<string | null>(null);
 const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -118,6 +125,7 @@ const add = (source: any, isLocal: boolean) => {
 ```
 
 Dates are now formatted just before rendering:
+
 ```typescript
 const label = new Date(d + 'T00:00:00').toLocaleDateString(undefined, {
   month: 'short',
@@ -137,6 +145,7 @@ const label = new Date(d + 'T00:00:00').toLocaleDateString(undefined, {
 **Fix:** Swap to `WebBrowser.openAuthSessionAsync` with a generated redirect URL from `expo-linking`. When Stripe redirects to `varsityhubmobile://payment-success`, the hook parses the returned URL and manually routes to `/payment-success`.
 
 ### Before (Lines 220-225):
+
 ```typescript
 } else if (data?.url) {
   await WebBrowser.openBrowserAsync(String(data.url));
@@ -145,11 +154,13 @@ const label = new Date(d + 'T00:00:00').toLocaleDateString(undefined, {
 ```
 
 ### After:
+
 ```typescript
 } else if (data?.url) {
   await launchCheckout(String(data.url));
 }
 ```
+
 Where `launchCheckout` wraps `openAuthSessionAsync`, parses the redirect, and pushes the Expo Router screen.
 
 ---

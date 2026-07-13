@@ -9,6 +9,7 @@ All code changes complete. Backend implementation validated.
 ## Pre-Deployment (Do Once)
 
 ### 1. Store Private Key Locally
+
 ```bash
 # Copy your Apple Sign In private key to:
 cp ~/Downloads/AuthKey_LS9X6BV22K.p8 server/.keys/
@@ -21,6 +22,7 @@ git status server/.keys/
 ```
 
 ### 2. Set Local Environment Variables
+
 ```bash
 # Add to server/.env
 APPLE_BUNDLE_ID=com.xsantcastx.varsityhub
@@ -29,6 +31,7 @@ APPLE_KEY_ID=LS9X6BV22K
 ```
 
 ### 3. Test Locally (Simulator)
+
 ```bash
 # Start development server
 cd server && npm run dev
@@ -46,6 +49,7 @@ curl -X POST http://localhost:4000/api/auth/apple \
 ## Production Deployment
 
 ### 1. Configure Railway Environment Variables
+
 ```
 Dashboard → Variables → Add:
   APPLE_BUNDLE_ID    = com.xsantcastx.varsityhub
@@ -54,6 +58,7 @@ Dashboard → Variables → Add:
 ```
 
 ### 2. Upload Private Key to Railway (Option A: Railway CLI)
+
 ```bash
 # Install Railway CLI
 npm install -g @railway/cli
@@ -72,12 +77,14 @@ railway secret APPLE_KEY_FILE="$(cat server/.keys/AuthKey_LS9X6BV22K.p8)"
 ```
 
 ### 2. Upload Private Key to Railway (Option B: Manual Upload)
+
 ```bash
 # Use Railway dashboard file uploader to place:
 # AuthKey_LS9X6BV22K.p8 → /app/server/.keys/
 ```
 
 ### 3. Deploy
+
 ```bash
 # Commit changes
 git add -A
@@ -95,6 +102,7 @@ git push origin main
 ```
 
 ### 4. Verify Production
+
 ```bash
 # Test production endpoint
 curl -X POST https://your-railway-domain.com/api/auth/apple \
@@ -112,12 +120,14 @@ curl -X POST https://your-railway-domain.com/api/auth/apple \
 ## Implementation Details
 
 ### Code Changes
+
 - ✅ `server/src/lib/appleAuth.ts` - Token verification library (NEW)
 - ✅ `server/src/routes/auth.ts` - Apple endpoint updated (MODIFIED)
 - ✅ `server/.keys/.gitignore` - Key protection (NEW)
 - ✅ `server/docs/APPLE_SIGNIN_SETUP.md` - Full documentation (NEW)
 
 ### Build Status
+
 ```
 ✅ TypeScript: 0 errors
 ✅ Prisma: v5.22.0 generated
@@ -126,6 +136,7 @@ curl -X POST https://your-railway-domain.com/api/auth/apple \
 ```
 
 ### Features
+
 - **Simulator tokens**: `sim-<userID>` for development
 - **Production tokens**: JWT validation against Apple JWKS
 - **Email linking**: Connects Apple ID to existing email accounts
@@ -137,6 +148,7 @@ curl -X POST https://your-railway-domain.com/api/auth/apple \
 ## Testing Endpoints
 
 ### Simulator (Development)
+
 ```bash
 curl -X POST http://localhost:4000/api/auth/apple \
   -H "Content-Type: application/json" \
@@ -144,6 +156,7 @@ curl -X POST http://localhost:4000/api/auth/apple \
 ```
 
 **Response:**
+
 ```json
 {
   "access_token": "eyJhbGc...",
@@ -151,7 +164,7 @@ curl -X POST http://localhost:4000/api/auth/apple \
     "id": "user-uuid",
     "email": "user-123@privaterelay.appleid.com",
     "apple_id": "user-123",
-    "preferences": {"role": "fan"}
+    "preferences": { "role": "fan" }
   },
   "needs_onboarding": true,
   "created": true
@@ -159,6 +172,7 @@ curl -X POST http://localhost:4000/api/auth/apple \
 ```
 
 ### Real Device (Production)
+
 1. Run app on real iOS device or Simulator
 2. Tap "Sign in with Apple"
 3. Authenticate with Test User or real Apple ID
@@ -168,13 +182,13 @@ curl -X POST http://localhost:4000/api/auth/apple \
 
 ## Troubleshooting
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| "Invalid or expired Apple credential" | Wrong TEAM_ID or expired token | Check env vars, test with simulator token |
-| "Public key not found" | Apple revoked key | Regenerate key in Apple Developer account |
-| Key file not found | Missing `.p8` file | Copy AuthKey_LS9X6BV22K.p8 to server/.keys/ |
-| Build fails | Missing import | Run `npm run build` to check TypeScript errors |
-| 401 Unauthorized | Token verification failed | Check logs, test with `sim-` token first |
+| Issue                                 | Cause                          | Solution                                       |
+| ------------------------------------- | ------------------------------ | ---------------------------------------------- |
+| "Invalid or expired Apple credential" | Wrong TEAM_ID or expired token | Check env vars, test with simulator token      |
+| "Public key not found"                | Apple revoked key              | Regenerate key in Apple Developer account      |
+| Key file not found                    | Missing `.p8` file             | Copy AuthKey_LS9X6BV22K.p8 to server/.keys/    |
+| Build fails                           | Missing import                 | Run `npm run build` to check TypeScript errors |
+| 401 Unauthorized                      | Token verification failed      | Check logs, test with `sim-` token first       |
 
 ---
 
@@ -204,6 +218,7 @@ curl -X POST http://localhost:4000/api/auth/apple \
 ## Support
 
 **Build/Deploy Issues:**
+
 ```bash
 # Check build
 cd server && npm run build
@@ -216,12 +231,14 @@ tail -f server.log | grep apple
 ```
 
 **Token Issues:**
+
 1. Test with simulator token first: `sim-test-123`
 2. Verify APPLE_BUNDLE_ID matches app.json
 3. Check Apple Developer account has key active
 4. Review logs for JWT validation errors
 
 **Key Issues:**
+
 ```bash
 # Verify key file
 file server/.keys/AuthKey_LS9X6BV22K.p8

@@ -21,17 +21,20 @@ The error is: `Error resolving plugin [id: 'com.facebook.react.settings'] > 25.0
 **Try this:**
 
 1. **Update React Native Gradle Plugin:**
+
    ```bash
    cd android
    ./gradlew --version
    ```
 
 2. **Check React Native version:**
+
    ```bash
    npm list react-native
    ```
 
 3. **If needed, update dependencies:**
+
    ```bash
    npm install
    cd android

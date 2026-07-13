@@ -27,6 +27,7 @@ bash scripts/quick-email-test.sh
 ## Prerequisites
 
 1. **Server must be running:**
+
    ```bash
    cd server && npm run dev
    ```
@@ -87,6 +88,7 @@ Test Email: emilmancero@gmail.com
 ## Troubleshooting
 
 ### Server Not Running
+
 ```bash
 # Start the server first
 cd server
@@ -94,12 +96,14 @@ npm run dev
 ```
 
 ### SendGrid Not Configured
+
 ```bash
 # Add to server/.env
 SENDGRID_API_KEY=SG.your_api_key_here
 ```
 
 ### Missing Template IDs
+
 ```bash
 # Add template IDs to server/.env
 SENDGRID_VERIFICATION_TEMPLATE_ID=d-xxxxxxxxxxxxx
@@ -107,6 +111,7 @@ SENDGRID_PASSWORD_RESET_TEMPLATE_ID=d-xxxxxxxxxxxxx
 ```
 
 ### Emails Not Received
+
 1. Check spam folder
 2. Verify SendGrid dashboard for delivery status
 3. Check SendGrid activity log: https://app.sendgrid.com/activity
@@ -115,6 +120,7 @@ SENDGRID_PASSWORD_RESET_TEMPLATE_ID=d-xxxxxxxxxxxxx
 ## Next Steps
 
 After successful test:
+
 1. ✅ Verify emails in inbox (check spam)
 2. ✅ Check SendGrid dashboard for delivery stats
 3. ✅ Test real user flows (signup, password reset)

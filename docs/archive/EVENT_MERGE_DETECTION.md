@@ -9,6 +9,7 @@ This implementation adds automatic detection and merging of duplicate game event
 > As a Coach, I want simultaneous games (same time/place) by both teams to merge, so that fans see a single shared event.
 
 **Acceptance Criteria:**
+
 > When two events share near-identical datetime & location, Then app suggests merge; upon confirmation, a combined event is shown.
 
 ## Files Created
@@ -16,6 +17,7 @@ This implementation adds automatic detection and merging of duplicate game event
 ### 1. `utils/eventMerge.ts`
 
 Core utilities for detecting duplicate events based on:
+
 - **Time proximity:** ±15 minutes threshold
 - **Location proximity:** <150 meters (geofence)
 - **Team matching:** Same home/away teams (in either order)
@@ -23,6 +25,7 @@ Core utilities for detecting duplicate events based on:
 **Key Functions:**
 
 #### `calculateDistance(lat1, lon1, lat2, lon2)`
+
 Calculates distance between two coordinates using the Haversine formula. Returns distance in meters.
 
 ```typescript
@@ -31,6 +34,7 @@ const distance = calculateDistance(37.7749, -122.4194, 37.7849, -122.4094);
 ```
 
 #### `areTimesNearlyIdentical(date1, date2, thresholdMinutes?)`
+
 Checks if two event times are within the threshold (default 15 minutes).
 
 ```typescript
@@ -39,20 +43,23 @@ const match = areTimesNearlyIdentical('2025-10-15T18:00:00Z', '2025-10-15T18:10:
 ```
 
 #### `areLocationsNearby(loc1, loc2, thresholdMeters?)`
+
 Checks if two locations are within the geofence (default 150 meters). Falls back to address string comparison if coordinates unavailable.
 
 ```typescript
 const nearby = areLocationsNearby(
   { latitude: 37.7749, longitude: -122.4194, address: '123 Main St' },
-  { latitude: 37.7750, longitude: -122.4195, address: '123 Main St' }
+  { latitude: 37.775, longitude: -122.4195, address: '123 Main St' }
 );
 // Returns: true (within 150m)
 ```
 
 #### `shouldMergeEvents(event1, event2)`
+
 Main detection function. Returns a `MergeSuggestion` object if events are likely duplicates, or `null` if not.
 
 **Scoring:**
+
 - Time match (±15 min): +40 points
 - Location match (<150m): +40 points
 - Same teams playing: +20 points
@@ -67,6 +74,7 @@ if (suggestion) {
 ```
 
 #### `findMergeSuggestions(events)`
+
 Scans an array of events and returns all potential merge suggestions, sorted by match score.
 
 ```typescript
@@ -83,6 +91,7 @@ suggestions.forEach(suggestion => {
 UI component for displaying merge suggestions to coaches.
 
 **Features:**
+
 - Match score display with visual indicator
 - Side-by-side event comparison
 - Reasons list with checkmarks
@@ -92,6 +101,7 @@ UI component for displaying merge suggestions to coaches.
 - Error handling with user feedback
 
 **Props:**
+
 ```typescript
 interface EventMergeSuggestionModalProps {
   visible: boolean;
@@ -103,6 +113,7 @@ interface EventMergeSuggestionModalProps {
 ```
 
 **Example Usage:**
+
 ```typescript
 import { EventMergeSuggestionModal } from '@/components/EventMergeSuggestionModal';
 import { findMergeSuggestions } from '@/utils/eventMerge';
@@ -115,20 +126,20 @@ useEffect(() => {
   const checkForDuplicates = async () => {
     const events = await Event.list();
     const suggestions = findMergeSuggestions(events);
-    
+
     if (suggestions.length > 0) {
       setSuggestion(suggestions[0]); // Show first suggestion
       setShowMergeModal(true);
     }
   };
-  
+
   checkForDuplicates();
 }, []);
 
 const handleMerge = async (primaryId: string, duplicateId: string) => {
   // Call backend API to merge events
   await Event.merge(primaryId, duplicateId);
-  
+
   // Refresh events list
   await loadEvents();
 };
@@ -178,6 +189,7 @@ interface MergeResponse {
 ```
 
 **Expected Backend Behavior:**
+
 1. Validate both events exist and user has permission to merge
 2. Combine event data (keep primary event's core details)
 3. Migrate all RSVPs from duplicate to primary
@@ -195,7 +207,7 @@ import { findMergeSuggestions, MergeSuggestion } from '@/utils/eventMerge';
 
 export default function TeamHubScreen() {
   // ... existing state ...
-  
+
   const [mergeSuggestion, setMergeSuggestion] = useState<MergeSuggestion | null>(null);
   const [showMergeModal, setShowMergeModal] = useState(false);
 
@@ -203,21 +215,21 @@ export default function TeamHubScreen() {
   useEffect(() => {
     const checkDuplicates = () => {
       if (events.length < 2) return;
-      
+
       const suggestions = findMergeSuggestions(events);
       if (suggestions.length > 0) {
         setMergeSuggestion(suggestions[0]);
         setShowMergeModal(true);
       }
     };
-    
+
     checkDuplicates();
   }, [events]);
 
   const handleMerge = async (primaryId: string, duplicateId: string) => {
     // Assuming Event.merge() API exists
     await Event.merge(primaryId, duplicateId);
-    
+
     // Refresh events
     await loadEvents();
   };
@@ -225,7 +237,7 @@ export default function TeamHubScreen() {
   return (
     <>
       {/* ... existing UI ... */}
-      
+
       <EventMergeSuggestionModal
         visible={showMergeModal}
         suggestion={mergeSuggestion}
@@ -277,6 +289,7 @@ Current implementation only suggests merges with score ≥ 80.
 ## Testing Scenarios
 
 ### Scenario 1: Perfect Duplicate
+
 ```typescript
 const event1 = {
   id: '1',
@@ -291,7 +304,7 @@ const event2 = {
   id: '2',
   title: 'Eagles vs Hawks', // Reversed title
   date: '2025-10-15T18:05:00Z', // 5 min later
-  location: { latitude: 37.7750, longitude: -122.4195 }, // 11m away
+  location: { latitude: 37.775, longitude: -122.4195 }, // 11m away
   team_id: 'team-eagles', // Reversed teams
   opponent_team_id: 'team-hawks',
 };
@@ -301,6 +314,7 @@ const suggestion = shouldMergeEvents(event1, event2);
 ```
 
 ### Scenario 2: Near Miss (Different Location)
+
 ```typescript
 const event1 = {
   date: '2025-10-15T18:00:00Z',
@@ -309,7 +323,7 @@ const event1 = {
 
 const event2 = {
   date: '2025-10-15T18:00:00Z',
-  location: { latitude: 37.7900, longitude: -122.4300 }, // 1.5km away
+  location: { latitude: 37.79, longitude: -122.43 }, // 1.5km away
 };
 
 const suggestion = shouldMergeEvents(event1, event2);
@@ -317,6 +331,7 @@ const suggestion = shouldMergeEvents(event1, event2);
 ```
 
 ### Scenario 3: Near Miss (Different Time)
+
 ```typescript
 const event1 = {
   date: '2025-10-15T18:00:00Z',
@@ -357,17 +372,20 @@ const suggestion = shouldMergeEvents(event1, event2);
 ## Acceptance Criteria Verification
 
 ✅ **When two events share near-identical datetime & location**
+
 - Detects events within ±15 minutes and <150 meters
 - Calculates match score based on time, location, and team similarity
 - Uses Haversine formula for accurate distance calculation
 
 ✅ **Then app suggests merge**
+
 - `findMergeSuggestions()` identifies all potential duplicates
 - Modal component displays comparison with visual indicators
 - Shows match score and reasons for suggestion
 - Provides clear merge/dismiss actions
 
 ✅ **Upon confirmation, a combined event is shown**
+
 - `onMerge` callback triggers backend API
 - All RSVPs, posts, and content preserved
 - Success/error feedback to user

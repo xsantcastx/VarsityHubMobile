@@ -9,6 +9,7 @@
 ## Problem
 
 ### Error Message
+
 ```
 [my-ads2] Error deleting ad: Error: <!DOCTYPE html>
 <html lang="en">
@@ -17,9 +18,11 @@
 ```
 
 ### Root Cause
+
 The DELETE endpoint was missing the **authentication middleware** (`requireVerified`).
 
 Without the middleware:
+
 - ❌ Request went through without authentication
 - ❌ Express couldn't match the route properly
 - ❌ Returned HTML error page instead of JSON
@@ -34,6 +37,7 @@ Without the middleware:
 **File:** `server/src/routes/ads.ts`
 
 **Before (BROKEN):**
+
 ```typescript
 adsRouter.delete('/:id', async (req: AuthedRequest, res) => {
   // Missing requireVerified middleware!
@@ -43,6 +47,7 @@ adsRouter.delete('/:id', async (req: AuthedRequest, res) => {
 ```
 
 **After (FIXED):**
+
 ```typescript
 adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
   // ✅ Now has requireVerified middleware
@@ -57,6 +62,7 @@ adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res)
 ## Why This Matters
 
 ### Authentication Middleware Chain
+
 ```typescript
 requireVerified middleware does:
 1. Checks if user is authenticated (Bearer token)
@@ -67,11 +73,13 @@ requireVerified middleware does:
 ```
 
 ### Without Middleware
+
 ```
 Request → Express → No matching route → 404 HTML error
 ```
 
 ### With Middleware
+
 ```
 Request → requireVerified → Populate req.user → Route Handler → JSON response
 ```
@@ -94,6 +102,7 @@ adsRouter.delete('/:id', async (req: AuthedRequest, res) => {
 ```
 
 Now all are consistent:
+
 ```typescript
 // ✅ POST - has middleware
 adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
@@ -110,6 +119,7 @@ adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res)
 ## Testing
 
 ### Before Fix
+
 ```
 DELETE /ads/cmg5hizt800192xgnwm9478lq
 → Cannot DELETE /ads/cmg5hizt800192xgnwm9478lq (HTML error)
@@ -118,6 +128,7 @@ DELETE /ads/cmg5hizt800192xgnwm9478lq
 ```
 
 ### After Fix
+
 ```
 DELETE /ads/cmg5hizt800192xgnwm9478lq
 Authorization: Bearer <token>
@@ -131,6 +142,7 @@ Authorization: Bearer <token>
 ## What to Test Now
 
 1. **Restart the backend server** (important!)
+
    ```bash
    cd server
    npm run dev
@@ -154,12 +166,14 @@ Authorization: Bearer <token>
 ## Why The Error Was HTML
 
 Express default behavior:
+
 - If route doesn't match → sends HTML 404 page
 - Missing middleware can cause route not to match
 - Backend returned HTML error page
 - Frontend tried to parse as JSON → Error!
 
 Now with middleware:
+
 - Route matches correctly
 - Returns proper JSON response
 - Frontend can parse and handle properly
@@ -173,32 +187,32 @@ Now with middleware:
 adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   console.log('[ads] DELETE /:id request', { id, userId: req.user?.id });
-  
+
   const existing = await prisma.ad.findUnique({ where: { id } });
   if (!existing) {
     console.warn('[ads] DELETE /:id - Ad not found', { id });
     return res.status(404).json({ error: 'Not found' });
   }
-  
+
   // Check ownership
   if (existing.user_id && req.user?.id && existing.user_id !== req.user.id) {
-    console.warn('[ads] DELETE /:id - Forbidden (user does not own ad)', { 
-      id, 
-      adUserId: existing.user_id, 
-      requestUserId: req.user.id 
+    console.warn('[ads] DELETE /:id - Forbidden (user does not own ad)', {
+      id,
+      adUserId: existing.user_id,
+      requestUserId: req.user.id,
     });
     return res.status(403).json({ error: 'Forbidden' });
   }
-  
+
   try {
     // First delete all reservations for this ad
     await prisma.adReservation.deleteMany({ where: { ad_id: id } });
     console.log('[ads] DELETE /:id - Deleted reservations', { id });
-    
+
     // Then delete the ad itself
     await prisma.ad.delete({ where: { id } });
     console.log('[ads] DELETE /:id - Ad deleted successfully', { id });
-    
+
     return res.json({ ok: true, message: 'Ad deleted successfully' });
   } catch (error) {
     console.error('[ads] DELETE /:id - Error deleting ad', { id, error });

@@ -18,6 +18,7 @@ All `.md` files (except `README.md` and `CHANGELOG.md`) from the root directory 
 ## Finding Files
 
 To find a specific document, search in:
+
 - `docs/` - Main documentation
 - `docs/moved-from-root/` - Files moved from root
 - Root directory - Only essential files remain

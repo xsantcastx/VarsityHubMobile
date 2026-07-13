@@ -3,6 +3,7 @@
 ## ✅ Current Configuration (All Set!)
 
 Your project is configured with:
+
 - **Bundle ID**: `com.varsithub.varsityhub` ✅
 - **Team ID**: `B5H8F69RW5` ✅
 - **Apple ID Email**: `sanchezemil82@gmail.com` ✅
@@ -10,6 +11,7 @@ Your project is configured with:
 ## Steps to Create New App Store Connect App
 
 ### 1. Verify App ID Exists in Apple Developer
+
 - Go to [developer.apple.com](https://developer.apple.com) → **Certificates, Identifiers & Profiles**
 - **Identifiers** → Check if `com.varsithub.varsityhub` exists
 - If **NOT**, create it:
@@ -20,6 +22,7 @@ Your project is configured with:
   - Register
 
 ### 2. Create New App in App Store Connect
+
 - Go to [appstoreconnect.apple.com](https://appstoreconnect.apple.com)
 - **My Apps** → **+** → **New App**
 - Fill in:
@@ -31,6 +34,7 @@ Your project is configured with:
 - Click **Create**
 
 ### 3. Get the New Apple ID
+
 - After creating, you'll be on the app's page
 - The **Apple ID** is the **numeric ID** shown:
   - In the URL: `.../apps/APPLE_ID_HERE/appstore/...`
@@ -38,6 +42,7 @@ Your project is configured with:
 - **Copy this number** (e.g., `1234567890`)
 
 ### 4. Update eas.json (After You Get Apple ID)
+
 Once you have the new Apple ID, paste it here and I'll add it to `eas.json`:
 
 ```json
@@ -52,6 +57,7 @@ Once you have the new Apple ID, paste it here and I'll add it to `eas.json`:
 ```
 
 ### 5. Build & Submit
+
 ```bash
 # Build
 eas build --platform ios --profile production
@@ -61,6 +67,7 @@ eas submit --platform ios --latest
 ```
 
 ## Current Status
+
 - ✅ Xcode project opened
 - ✅ Development team set: `B5H8F69RW5`
 - ✅ Bundle ID consistent: `com.varsithub.varsityhub`
@@ -68,4 +75,5 @@ eas submit --platform ios --latest
 - ⏳ **Waiting for**: New App Store Connect app creation + Apple ID
 
 ## Next Step
+
 **Create the new app in App Store Connect** (steps 1-3 above), then **paste the new Apple ID here** and I'll configure `eas.json` immediately.

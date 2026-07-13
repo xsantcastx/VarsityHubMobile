@@ -15,6 +15,7 @@ npm run verify:email
 ```
 
 This will check:
+
 - ✅ SendGrid API key is set
 - ✅ Email sender (`noreply@varsityhub.app`) is configured
 - ✅ Required template IDs are set
@@ -51,6 +52,7 @@ npm run dev
 ```
 
 You should see:
+
 ```
 ✅ Email service initialized successfully
 ```
@@ -76,16 +78,19 @@ curl -X POST http://localhost:4000/api/test-emails/verification \
 ## Troubleshooting
 
 ### "Email service not configured"
+
 - Check `SENDGRID_API_KEY` is set
 - Verify API key is valid in Twilio SendGrid
 - Run `npm run verify:email` to see specific issues
 
 ### "Template ID not configured"
+
 - Check template ID environment variables are set
 - Verify templates exist in Twilio SendGrid
 - Template IDs should start with `d-`
 
 ### Emails not sending
+
 - Check Twilio SendGrid account status
 - Verify sender email (`noreply@varsityhub.app`) is verified
 - Check server logs for error messages

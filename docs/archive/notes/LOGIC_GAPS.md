@@ -9,9 +9,11 @@
 ## 1. Create Post - Memory Overhead from Redundant File Fetching
 
 ### Issue
+
 **File:** `app/create-post.tsx` (lines 44-52)
 
 **Problem:**
+
 - Downloads entire file via `fetch(uri)` and converts to `blob` just to read file size
 - For large videos (100 MB highlight), file is loaded into memory **twice**:
   1. First fetch: Just to get `.size`
@@ -20,6 +22,7 @@
 - Unnecessary network/memory overhead
 
 **Current Code:**
+
 ```typescript
 const getFileSizeFromUri = async (uri: string): Promise<number> => {
   try {
@@ -52,7 +55,8 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
 
 **Alternative:** Use `asset.fileSize` from `ImagePicker` result if available.
 
-**Impact:** 
+**Impact:**
+
 - ✅ Eliminates redundant network fetch
 - ✅ Reduces memory usage by 50% for large files
 - ✅ Faster post creation UX
@@ -62,9 +66,11 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
 ## 2. Auto-Suggestion - Client-Side Filtering with No Limits
 
 ### Issue
+
 **File:** `app/create-post.tsx` (lines 125-176)
 
 **Problem:**
+
 - Calls `Game.list('-date')` with **no limit** parameter
 - Downloads **entire games catalog** to device
 - Filters by date range on client side
@@ -74,9 +80,10 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
 - Performance degrades as game catalog grows
 
 **Current Code:**
+
 ```typescript
 const games = await Game.list('-date');
-const gamesArray = Array.isArray(games) ? games : (games?.items || []);
+const gamesArray = Array.isArray(games) ? games : games?.items || [];
 
 // ... 50+ lines of client-side filtering and sorting
 ```
@@ -87,13 +94,16 @@ Push filters to backend:
 ```typescript
 // api/entities.ts - Update Game.list signature
 export const Game = {
-  list: (sort?: string, options?: { 
-    limit?: number; 
-    lat?: number; 
-    lng?: number; 
-    dateFrom?: string; 
-    dateTo?: string;
-  }) => {
+  list: (
+    sort?: string,
+    options?: {
+      limit?: number;
+      lat?: number;
+      lng?: number;
+      dateFrom?: string;
+      dateTo?: string;
+    }
+  ) => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (options?.limit) q.push('limit=' + String(options.limit));
@@ -108,39 +118,42 @@ export const Game = {
 ```
 
 **Backend Changes Required:**
+
 - `server/src/routes/games.ts` - Add query param parsing for `lat`, `lng`, `from`, `to`, `limit`
 - Implement distance calculation in SQL using PostGIS or haversine formula
 - Return pre-sorted results by distance
 
 **App Changes:**
+
 ```typescript
 useEffect(() => {
   if (hasAutoSuggested) return;
-  
+
   const fetchNearbyGames = async () => {
     const now = new Date();
     const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    
+
     const games = await Game.list('-date', {
       limit: 10,
       lat: lat || undefined,
       lng: lng || undefined,
       dateFrom: now.toISOString(),
-      dateTo: sevenDaysLater.toISOString()
+      dateTo: sevenDaysLater.toISOString(),
     });
-    
+
     setNearbyGames(games);
     // Only mark as suggested after successful response with location
     if (lat && lng) {
       setHasAutoSuggested(true);
     }
   };
-  
+
   fetchNearbyGames();
 }, [lat, lng, hasAutoSuggested]); // Re-run when location granted
 ```
 
 **Impact:**
+
 - ✅ Reduces network payload (download 10 games vs entire catalog)
 - ✅ Eliminates client-side filtering/sorting overhead
 - ✅ Re-queries when location granted
@@ -151,9 +164,11 @@ useEffect(() => {
 ## 3. Highlights - Geographic Personalization Broken
 
 ### Issue
+
 **File:** `app/highlights.tsx` (lines 324-333)
 
 **Problem:**
+
 - Assumes `User.me()` returns `lat`/`lng` at root level
 - **Actual location:** `me.preferences.lat` and `me.preferences.lng`
 - Result: `lat` and `lng` always `undefined`
@@ -161,22 +176,25 @@ useEffect(() => {
 - Users never see geographically personalized highlights
 
 **Current Code:**
+
 ```typescript
 const me: any = await User.me().catch(() => null);
 const country = (me?.preferences?.country_code || 'US').toUpperCase();
-const lat = me?.lat;  // ❌ WRONG PATH
-const lng = me?.lng;  // ❌ WRONG PATH
+const lat = me?.lat; // ❌ WRONG PATH
+const lng = me?.lng; // ❌ WRONG PATH
 ```
 
 **Fix:**
+
 ```typescript
 const me: any = await User.me().catch(() => null);
 const country = (me?.preferences?.country_code || 'US').toUpperCase();
-const lat = me?.preferences?.lat;  // ✅ CORRECT PATH
-const lng = me?.preferences?.lng;  // ✅ CORRECT PATH
+const lat = me?.preferences?.lat; // ✅ CORRECT PATH
+const lng = me?.preferences?.lng; // ✅ CORRECT PATH
 ```
 
 **Impact:**
+
 - ✅ Enables location-based highlight ranking
 - ✅ Users see local teams/games prioritized
 - ✅ Better content discovery
@@ -186,9 +204,11 @@ const lng = me?.preferences?.lng;  // ✅ CORRECT PATH
 ## 4. Global Search - Client-Side Filtering Crushes Performance
 
 ### Issue
+
 **File:** `app/highlights.tsx` (lines 395-444)
 
 **Problem:**
+
 - `performGlobalSearch()` fetches **all** teams, events, organizations
 - Filters client-side with `.filter()` and `.includes()`
 - Re-downloads entire dataset on **every keystroke**
@@ -196,9 +216,10 @@ const lng = me?.preferences?.lng;  // ✅ CORRECT PATH
 - Ignores server-side ranking algorithms
 
 **Current Code:**
+
 ```typescript
 const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
-  Team.list().catch(() => ({ items: [] })),  // ❌ ALL teams
+  Team.list().catch(() => ({ items: [] })), // ❌ ALL teams
   Event.filter({}).catch(() => ({ items: [] })), // ❌ ALL events
   User.listAll(query, 20).catch(() => ({ items: [] })), // ✅ Uses query
   Organization.list().catch(() => ({ items: [] })), // ❌ ALL orgs
@@ -206,8 +227,8 @@ const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
 
 // Then filters client-side:
 const teams = (Array.isArray(teamsRes) ? teamsRes : teamsRes?.items || [])
-  .filter((t: any) => 
-    (t.name || '').toLowerCase().includes(queryLower) // ❌ Client-side
+  .filter(
+    (t: any) => (t.name || '').toLowerCase().includes(queryLower) // ❌ Client-side
   )
   .slice(0, 5);
 ```
@@ -216,31 +237,35 @@ const teams = (Array.isArray(teamsRes) ? teamsRes : teamsRes?.items || [])
 Add search endpoint or use query params:
 
 **API Changes (Backend):**
+
 ```typescript
 // server/src/routes/teams.ts
 teamsRouter.get('/', async (req, res) => {
   const query = req.query.q as string;
   const limit = parseInt(req.query.limit as string) || 20;
-  
-  const where = query ? {
-    OR: [
-      { name: { contains: query, mode: 'insensitive' } },
-      { city: { contains: query, mode: 'insensitive' } },
-      { school_name: { contains: query, mode: 'insensitive' } }
-    ]
-  } : {};
-  
+
+  const where = query
+    ? {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { city: { contains: query, mode: 'insensitive' } },
+          { school_name: { contains: query, mode: 'insensitive' } },
+        ],
+      }
+    : {};
+
   const teams = await prisma.team.findMany({
     where,
     take: limit,
-    orderBy: { created_at: 'desc' }
+    orderBy: { created_at: 'desc' },
   });
-  
+
   res.json(teams);
 });
 ```
 
 **Frontend Changes:**
+
 ```typescript
 // api/entities.ts
 export const Team = {
@@ -261,7 +286,7 @@ const performGlobalSearch = async (query: string) => {
     User.listAll(query, 5),
     Organization.list(query, 5),  // ✅ Server-side search
   ]);
-  
+
   // No client-side filtering needed
   setSearchResults({
     teams: teamsRes?.items || teamsRes || [],
@@ -274,6 +299,7 @@ const performGlobalSearch = async (query: string) => {
 ```
 
 **Impact:**
+
 - ✅ Reduces network payload by 90%+
 - ✅ Eliminates keystroke lag
 - ✅ Uses backend ranking/scoring
@@ -284,9 +310,11 @@ const performGlobalSearch = async (query: string) => {
 ## 5. Highlights Sharing - Stub Implementation
 
 ### Issue
+
 **File:** `app/highlights.tsx` (lines 268-278)
 
 **Problem:**
+
 - Share button just shows `Alert.alert('Share', 'Share this highlight!')`
 - No actual share functionality
 - Doesn't open OS share sheet
@@ -294,8 +322,9 @@ const performGlobalSearch = async (query: string) => {
 - Feature appears broken to users
 
 **Current Code:**
+
 ```typescript
-<Pressable 
+<Pressable
   style={styles.actionButton}
   onPress={(e) => {
     e.stopPropagation();
@@ -308,6 +337,7 @@ const performGlobalSearch = async (query: string) => {
 ```
 
 **Solution:**
+
 ```typescript
 import * as Clipboard from 'expo-clipboard';
 import { Share } from 'react-native';
@@ -315,10 +345,10 @@ import { Share } from 'react-native';
 const handleShare = async (item: HighlightItem) => {
   try {
     const shareUrl = `https://varsityhub.com/highlights/${item.id}`;
-    const message = item.caption 
-      ? `${item.caption}\n\n${shareUrl}` 
+    const message = item.caption
+      ? `${item.caption}\n\n${shareUrl}`
       : shareUrl;
-    
+
     await Share.share({
       message,
       url: shareUrl,
@@ -333,7 +363,7 @@ const handleShare = async (item: HighlightItem) => {
 };
 
 // Usage:
-<Pressable 
+<Pressable
   style={styles.actionButton}
   onPress={(e) => {
     e.stopPropagation();
@@ -343,6 +373,7 @@ const handleShare = async (item: HighlightItem) => {
 ```
 
 **Impact:**
+
 - ✅ Working share functionality
 - ✅ OS-native share sheet
 - ✅ Clipboard fallback
@@ -353,17 +384,21 @@ const handleShare = async (item: HighlightItem) => {
 ## 6. External Links - Inconsistent URL Scheme (404 Risk)
 
 ### Issue
-**Files:** 
+
+**Files:**
+
 - `app/post-detail.tsx` (lines 286-293): Uses `https://varsityhub.com/post/{id}`
 - `app/game-details/GameVerticalFeedScreen.tsx` (lines 840-844): Uses `https://varsityhub.app/posts/{id}`
 
 **Problem:**
+
 - Two different URL patterns for same resource
 - Recipients land on 404s depending on which screen generated link
 - No canonical route
 - Inconsistent branding (`varsityhub.com` vs `varsityhub.app`)
 
 **Current Code:**
+
 ```typescript
 // post-detail.tsx
 const shareUrl = `https://varsityhub.com/post/${currentPostId}`;
@@ -392,6 +427,7 @@ export const AppLinks = {
 ```
 
 **Usage:**
+
 ```typescript
 // app/post-detail.tsx
 import { AppLinks } from '@/utils/links';
@@ -405,6 +441,7 @@ const deepLink = AppLinks.post(post.id);
 ```
 
 **Impact:**
+
 - ✅ Single source of truth for URLs
 - ✅ No more 404s from inconsistent links
 - ✅ Easy to update base URL in one place
@@ -415,11 +452,14 @@ const deepLink = AppLinks.post(post.id);
 ## 7. Internal Sharing - "Send to Friend" Not Wired
 
 ### Issue
+
 **Files:**
+
 - `app/post-detail.tsx` (lines 299-318): Pushes `/messages?sharePost={id}`
 - `app/messages.tsx`: Never reads `sharePost` query param
 
 **Problem:**
+
 - Tapping "Send to Friend" → "Via VarsityHub DM" navigates to messages
 - Compose view opens **empty** (no pre-filled link)
 - User has to manually type/paste post link
@@ -427,6 +467,7 @@ const deepLink = AppLinks.post(post.id);
 - Documented as TODO in `docs/archive/POST_DETAIL_NAVIGATION_SHARING.md` (lines 445-475)
 
 **Current Code:**
+
 ```typescript
 // post-detail.tsx
 {
@@ -445,6 +486,7 @@ export default function MessagesScreen() {
 **Solution:**
 
 **Step 1:** Read query param in `app/messages.tsx`:
+
 ```typescript
 import { useLocalSearchParams } from 'expo-router';
 
@@ -452,10 +494,10 @@ export default function MessagesScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ sharePost?: string }>();
   const sharePostId = params?.sharePost;
-  
+
   const [composeOpen, setComposeOpen] = useState(false);
   const [sharedContent, setSharedContent] = useState<string | null>(null);
-  
+
   useEffect(() => {
     if (sharePostId) {
       const shareUrl = AppLinks.post(sharePostId);
@@ -466,6 +508,7 @@ export default function MessagesScreen() {
 ```
 
 **Step 2:** Pre-fill compose modal:
+
 ```typescript
 // Inside compose modal
 <TextInput
@@ -480,10 +523,11 @@ export default function MessagesScreen() {
 ```
 
 **Step 3:** Clear param after send:
+
 ```typescript
 const handleSendNewMessage = async () => {
   // ... send logic
-  
+
   // Clear shared content and query param
   setSharedContent(null);
   router.setParams({ sharePost: undefined });
@@ -491,6 +535,7 @@ const handleSendNewMessage = async () => {
 ```
 
 **Impact:**
+
 - ✅ Working in-app share functionality
 - ✅ Pre-filled message with post link
 - ✅ Better UX for sharing with friends
@@ -501,15 +546,18 @@ const handleSendNewMessage = async () => {
 ## Priority & Implementation Order
 
 ### P0 - Critical (Performance Impact)
+
 1. ✅ **Create Post File Size** - Easy fix, big impact
 2. ✅ **Highlights Geographic Fix** - One-line change
 3. ✅ **External Links Consistency** - Create utility file
 
 ### P1 - High (UX Broken)
+
 4. ✅ **Highlights Share Button** - Implement OS share sheet
 5. ✅ **Internal "Send to Friend"** - Wire up sharePost param
 
 ### P2 - Medium (Performance Optimization)
+
 6. ⚠️ **Auto-Suggestion Backend Filters** - Requires backend changes
 7. ⚠️ **Global Search Server-Side** - Requires backend changes
 
@@ -518,6 +566,7 @@ const handleSendNewMessage = async () => {
 ## Backend Changes Required
 
 ### Games Endpoint Enhancement
+
 **File:** `server/src/routes/games.ts`
 
 Add query params: `lat`, `lng`, `from`, `to`, `limit`
@@ -530,23 +579,23 @@ gamesRouter.get('/', async (req, res) => {
   const lng = parseFloat(req.query.lng as string);
   const dateFrom = req.query.from as string;
   const dateTo = req.query.to as string;
-  
+
   let whereClause: any = {};
-  
+
   // Date range filtering
   if (dateFrom || dateTo) {
     whereClause.date = {};
     if (dateFrom) whereClause.date.gte = new Date(dateFrom);
     if (dateTo) whereClause.date.lte = new Date(dateTo);
   }
-  
+
   const games = await prisma.game.findMany({
     where: whereClause,
     orderBy: { date: 'desc' },
     take: limit,
     // ... rest of query
   });
-  
+
   // If lat/lng provided, calculate distances and sort
   if (!isNaN(lat) && !isNaN(lng)) {
     games.forEach((game: any) => {
@@ -556,23 +605,27 @@ gamesRouter.get('/', async (req, res) => {
     });
     games.sort((a: any, b: any) => (a.distance || Infinity) - (b.distance || Infinity));
   }
-  
+
   res.json(games);
 });
 
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 ```
 
 ### Teams/Events/Organizations Search
+
 Add `q` (query) parameter to existing list endpoints for server-side filtering.
 
 ---
@@ -590,6 +643,7 @@ Add `q` (query) parameter to existing list endpoints for server-side filtering.
 ---
 
 **Estimated Implementation Time:**
+
 - P0 fixes: **2-3 hours**
 - P1 fixes: **3-4 hours**
 - P2 fixes (with backend): **6-8 hours**

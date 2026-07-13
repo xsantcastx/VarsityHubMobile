@@ -3,11 +3,13 @@
 ## Current Status
 
 ### ✅ Verified Working
+
 - **DEBUG Build**: Successfully builds and runs on iOS simulator
 - **Code Changes**: All onboarding loop fixes are in place and don't cause compilation errors
 - **Snyk Security**: No new security issues introduced
 
 ### ❌ Release Build Archive - Status Unknown
+
 - **Previous Error**: "ARCHIVE FAILED" from fastlane (Dec 8, EAS build)
 - **Root Cause**: Error message was truncated in output - actual compiler/linker error not shown
 - **Current**: Build artifacts from that attempt are no longer available
@@ -15,6 +17,7 @@
 ## Why We Can't See the Error
 
 The fastlane/EAS build output ended with:
+
 ```
 ▸ ** ARCHIVE FAILED **
 ▸ The following build commands failed:
@@ -30,12 +33,14 @@ Exit status: 65
 Choose ONE of these methods:
 
 ### Method 1: EAS Build with Verbose Logging (RECOMMENDED)
+
 ```bash
 cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile
 eas build --local --platform ios --profile production --verbose 2>&1 | tee build-verbose.log
 ```
 
 When it fails, extract the error:
+
 ```bash
 # Find the first error line
 grep -n "error:" build-verbose.log | head -1
@@ -45,6 +50,7 @@ sed -n 'LINE,$(LINE+50)p' build-verbose.log
 ```
 
 ### Method 2: Direct xcodebuild (Most Direct)
+
 ```bash
 cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile/ios
 
@@ -67,6 +73,7 @@ xcodebuild -workspace VarsityHub.xcworkspace \
 ```
 
 When it fails, find the error:
+
 ```bash
 # All errors in order
 grep "error:" xcodebuild-release.log
@@ -77,6 +84,7 @@ grep -n "error:" xcodebuild-release.log | head -1
 ```
 
 ### Method 3: Use Xcode GUI (Interactive Debugging)
+
 1. Open Xcode:
    ```bash
    open /Users/varsityhub/Desktop/CODE/VarsityHubMobile/ios/VarsityHub.xcworkspace
@@ -97,12 +105,14 @@ Once you see the error, please provide:
 3. **30 lines AFTER the error** (for complete message)
 
 Example of what's helpful:
+
 ```
 ld: library not found for -lframework GoogleMaps
 clang: error: linker command failed with exit code 1 (use -v to see invocation)
 ```
 
 vs. what's not helpful:
+
 ```
 ** ARCHIVE FAILED **
 ```
@@ -113,16 +123,12 @@ Release builds fail differently than Debug because of optimizations. Check:
 
 1. **Code Signing** - Different certificate requirements for Release
    - Verify: `security find-identity -v -p codesigning`
-   
 2. **Optimization-Related** - Code that compiles in Debug (-O0) fails in Release (-O3)
    - Check for: uninitialized variables, missing nil checks, unsafe force unwraps
-   
 3. **Stripped Symbols** - Release strips debug symbols, can expose undefined symbols
    - Check: All frameworks linked in Build Phases
-   
 4. **Asset Bundling** - Info.plist or asset catalog issues
    - Check: `ios/VarsityHub/Info.plist` is valid
-   
 5. **Pod Dependencies** - Missing or conflicting pod versions
    - Run: `pod install --repo-update`
 
@@ -139,6 +145,7 @@ Then I can give you the exact fix.
 ## Temporary Workaround (if urgent)
 
 If you need a working build right now:
+
 ```bash
 # Build with development profile instead
 eas build --local --platform ios --profile development

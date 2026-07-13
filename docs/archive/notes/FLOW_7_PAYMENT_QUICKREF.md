@@ -2,18 +2,18 @@
 
 **Duration:** 15 minutes  
 **Location in Plan:** Section 1 - Core User Flows  
-**Prerequisites:** App loaded on simulator, test user logged in  
+**Prerequisites:** App loaded on simulator, test user logged in
 
 ---
 
 ## Stripe Test Card Details
 
-| Field | Value |
-|-------|-------|
-| Card Number | `4242 4242 4242 4242` |
-| Expiration | `12/25` (or any future date) |
-| CVC | `123` (or any 3-4 digits) |
-| Postal Code | `12345` (or any code) |
+| Field       | Value                        |
+| ----------- | ---------------------------- |
+| Card Number | `4242 4242 4242 4242`        |
+| Expiration  | `12/25` (or any future date) |
+| CVC         | `123` (or any 3-4 digits)    |
+| Postal Code | `12345` (or any code)        |
 
 **Note:** This card always succeeds in test mode. No real charges occur.
 
@@ -24,6 +24,7 @@
 ### Step 1: Navigate to Game or Create One (2 min)
 
 Option A - Find Existing Paid Game:
+
 ```
 Home → Discover Tab
 Scroll through games list
@@ -33,6 +34,7 @@ Go to Step 2
 ```
 
 Option B - Create New Paid Game:
+
 ```
 Home → Discover Tab
 Tap "Create Game" or "+" button
@@ -52,6 +54,7 @@ Go to Step 2
 ### Step 2: Verify Game Details (2 min)
 
 Check that the paid game shows:
+
 - [ ] Sport/Name clearly visible
 - [ ] Price displayed: "$10.00" (or your test amount)
 - [ ] Date/Time showing tomorrow
@@ -67,6 +70,7 @@ Expected: Stripe payment sheet appears within 2-3 seconds
 ```
 
 **Expected Sheet Elements:**
+
 - Card input field labeled "Card details"
 - Amount: "$10.00" (should match game price)
 - Description: Game name or "Game Registration"
@@ -84,6 +88,7 @@ CVC:             123
 ```
 
 **What to verify while filling:**
+
 - [ ] Fields accept input (not disabled)
 - [ ] Card number has spacing (xxxx xxxx xxxx xxxx)
 - [ ] No validation errors appear yet
@@ -93,7 +98,7 @@ CVC:             123
 
 ```
 Tap "Pay" button
-Expected: 
+Expected:
   - Loading indicator appears
   - Wait 3-5 seconds
   - Success screen OR
@@ -101,6 +106,7 @@ Expected:
 ```
 
 **Expected Success Response:**
+
 ```
 ✅ Payment successful
 "Your ad dates will appear shortly. You can return to the app now."
@@ -145,6 +151,7 @@ Email should contain:
 ```
 
 **If email doesn't arrive:**
+
 - [ ] Check spam/junk folder
 - [ ] Wait 2-3 minutes (SendGrid may be delayed)
 - [ ] Check Sentry logs: https://sentry.io → VarsityHub project
@@ -173,7 +180,7 @@ Any errors?
 
 ```sql
 -- Check transaction was recorded
-SELECT * FROM transactions 
+SELECT * FROM transactions
 WHERE session_id = '[your_session_id]'
 AND status = 'COMPLETED';
 
@@ -190,6 +197,7 @@ AND user_id = '[your_user_id]';
 ## Validation Checklist
 
 ✅ **Core Payment Flow**
+
 - [ ] Stripe payment sheet appears
 - [ ] Test card accepted (no validation errors)
 - [ ] Payment submitted
@@ -197,17 +205,20 @@ AND user_id = '[your_user_id]';
 - [ ] No crashes or unexpected errors
 
 ✅ **Post-Payment State**
+
 - [ ] User shown as "Joined" in game
 - [ ] User appears in game attendees list
 - [ ] User's own profile shows "Registered" for game
 
 ✅ **Notifications**
+
 - [ ] Email receipt received (within 5 minutes)
 - [ ] Email contains amount and game details
 - [ ] Sentry shows payment event logged
 - [ ] No critical errors in Sentry
 
 ✅ **Error Handling**
+
 - [ ] No "Network error" messages during payment
 - [ ] No "Invalid card" errors with test card
 - [ ] No "Session expired" messages
@@ -217,20 +228,21 @@ AND user_id = '[your_user_id]';
 
 ## Common Issues & Fixes
 
-| Issue | Cause | Fix |
-|-------|-------|-----|
-| Payment sheet doesn't appear | RSVP didn't trigger checkout | Tap RSVP again, check browser console |
-| Card rejected | Test card not recognized | Use `4242 4242 4242 4242` exactly |
-| "Session expired" | Too much delay between RSVP and payment | Redo RSVP, pay within 30 minutes |
-| Email not received | SendGrid misconfigured or delayed | Check Sentry, wait 5 min, check spam |
-| Success page stuck loading | Server finishing background tasks | Wait 5-10 seconds, refresh if needed |
-| User not added to game | Database transaction failed | Check Sentry, check database, try again |
+| Issue                        | Cause                                   | Fix                                     |
+| ---------------------------- | --------------------------------------- | --------------------------------------- |
+| Payment sheet doesn't appear | RSVP didn't trigger checkout            | Tap RSVP again, check browser console   |
+| Card rejected                | Test card not recognized                | Use `4242 4242 4242 4242` exactly       |
+| "Session expired"            | Too much delay between RSVP and payment | Redo RSVP, pay within 30 minutes        |
+| Email not received           | SendGrid misconfigured or delayed       | Check Sentry, wait 5 min, check spam    |
+| Success page stuck loading   | Server finishing background tasks       | Wait 5-10 seconds, refresh if needed    |
+| User not added to game       | Database transaction failed             | Check Sentry, check database, try again |
 
 ---
 
 ## Documentation & Reporting
 
 ### If Test PASSES (Expected):
+
 ```
 ✅ Flow 7: Payment Integration - PASS
    - Stripe payment sheet appeared
@@ -242,22 +254,23 @@ AND user_id = '[your_user_id]';
 ```
 
 ### If Test FAILS:
+
 ```
 ❌ Flow 7: Payment Integration - FAIL
    Issue: [Describe what went wrong]
-   
+
    Screenshots:
    - [Stripe payment sheet error]
    - [Success page status]
-   
+
    Sentry URL:
    - https://sentry.io/...
-   
+
    Steps to reproduce:
    1. ...
    2. ...
    3. ...
-   
+
    Expected vs Actual:
    Expected: [what should happen]
    Actual:   [what happened instead]
@@ -270,6 +283,7 @@ AND user_id = '[your_user_id]';
 This quick reference covers the basic Flow 7 (15 min) test.
 
 For comprehensive payment testing, see:
+
 - **PAYMENT_SECURITY_VERIFICATION.md** → Tests A-G
 - **Test C:** Ad payment email (15 min)
 - **Test E:** Membership email (15 min)
@@ -280,17 +294,17 @@ These should be run during Phase 2D if time permits.
 
 ## Timeline Summary
 
-| Step | Time | Status |
-|------|------|--------|
-| 1. Navigate/Create Game | 2 min | 🎮 |
-| 2. Verify Details | 2 min | 👀 |
-| 3. Tap RSVP | 1 min | 🔘 |
-| 4. Enter Test Card | 3 min | 💳 |
-| 5. Submit Payment | 2 min | ⏳ |
-| 6. Verify Game Joined | 3 min | ✅ |
-| 7. Check Email (Optional) | 2 min | 📧 |
-| 8. Check Sentry | 1 min | 🔍 |
-| **TOTAL** | **~15 min** | ✅ |
+| Step                      | Time        | Status |
+| ------------------------- | ----------- | ------ |
+| 1. Navigate/Create Game   | 2 min       | 🎮     |
+| 2. Verify Details         | 2 min       | 👀     |
+| 3. Tap RSVP               | 1 min       | 🔘     |
+| 4. Enter Test Card        | 3 min       | 💳     |
+| 5. Submit Payment         | 2 min       | ⏳     |
+| 6. Verify Game Joined     | 3 min       | ✅     |
+| 7. Check Email (Optional) | 2 min       | 📧     |
+| 8. Check Sentry           | 1 min       | 🔍     |
+| **TOTAL**                 | **~15 min** | ✅     |
 
 ---
 
@@ -300,7 +314,7 @@ These should be run during Phase 2D if time permits.
 ✅ **User in game** - "Joined" status shows in Discover  
 ✅ **Email received** - Billing notice in inbox (or Sentry shows sent)  
 ✅ **Sentry clean** - No payment errors in dashboard  
-✅ **No crashes** - App stayed stable throughout  
+✅ **No crashes** - App stayed stable throughout
 
 If all 5 are true: **Flow 7 PASSES** ✅
 

@@ -4,11 +4,11 @@ This document records how prior third-party audit claims map to **current `main`
 
 ## Git reference
 
-| Item | Value |
-|------|--------|
-| Remote | `https://github.com/xsantcastx/VarsityHubMobile` |
-| **Local `main` at verification** | `3f46fbaf` — *Ship v1.0.1 hardening and email policy* |
-| Prior local tip (before pull) | `ba9c165d` — *fix: revert LazyRedisStore — was crashing all rate-limited endpoints* |
+| Item                             | Value                                                                               |
+| -------------------------------- | ----------------------------------------------------------------------------------- |
+| Remote                           | `https://github.com/xsantcastx/VarsityHubMobile`                                    |
+| **Local `main` at verification** | `3f46fbaf` — _Ship v1.0.1 hardening and email policy_                               |
+| Prior local tip (before pull)    | `ba9c165d` — _fix: revert LazyRedisStore — was crashing all rate-limited endpoints_ |
 
 If your clone is still at `ba9c165d`, run `git pull origin main` to match GitHub; behavior below reflects post–v1.0.1 email policy.
 
@@ -47,10 +47,10 @@ So setting **only** `SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID` can satisfy c
 
 **Present on current `main`.**
 
-| Layer | Location |
-|-------|-----------|
-| Client | [`api/entities.ts`](../api/entities.ts) — `User.reapplyCoach: () => httpPost('/auth/coach/reapply', {})` |
-| UI | [`app/onboarding/pending-approval.tsx`](../app/onboarding/pending-approval.tsx) — calls `User.reapplyCoach()` |
+| Layer  | Location                                                                                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Client | [`api/entities.ts`](../api/entities.ts) — `User.reapplyCoach: () => httpPost('/auth/coach/reapply', {})`                                       |
+| UI     | [`app/onboarding/pending-approval.tsx`](../app/onboarding/pending-approval.tsx) — calls `User.reapplyCoach()`                                  |
 | Server | [`server/src/routes/auth.ts`](../server/src/routes/auth.ts) — `POST /auth/coach/reapply` with `requireAuth`, `requireVerified`, `asyncHandler` |
 
 Introduced in the v1.0.1 hardening merge (`3f46fbaf`); `reapplyCoach` in `api/entities.ts` also appears in commit `4589dae5` (audit hardening pass).

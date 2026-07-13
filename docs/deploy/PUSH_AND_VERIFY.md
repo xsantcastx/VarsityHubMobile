@@ -5,6 +5,7 @@
 **Commit:** `2f7dd83` - "fix: fix all GitHub Actions pipelines"
 
 **Changes:**
+
 - Fixed format:check script handling in ci.yml and ci-checks.yml
 - Fixed nightly-db-migrate.yml seed script path and TypeScript execution
 - Fixed verify-production-ready.yml script path resolution
@@ -25,6 +26,7 @@ git push origin main
 ```
 
 **Alternative (if rebase fails):**
+
 ```bash
 git pull origin main
 # Resolve any conflicts
@@ -36,6 +38,7 @@ git push origin main
 After pushing, verify pipelines are working:
 
 ### 1. Check GitHub Actions
+
 1. Go to: https://github.com/xsantcastx/VarsityHubMobile/actions
 2. Look for the latest workflow run triggered by your push
 3. Verify these workflows run successfully:
@@ -46,27 +49,32 @@ After pushing, verify pipelines are working:
 ### 2. Verify Specific Fixes
 
 **Check CI Pipeline:**
+
 - Open the "CI" workflow run
 - Check "Format Check" job - should show "⚠️ format:check script not found, skipping" (not an error)
 - All other jobs should pass
 
 **Check Nightly DB Migrate (if scheduled):**
+
 - Open "Nightly DB Migration & Seed" workflow
 - Verify "Run Seed Script" job uses `cd server && npm run seed`
 - Should complete successfully
 
 **Check Verify Production Ready (if manually triggered):**
+
 - Manually trigger: Actions → Verify Production Ready → Run workflow
 - Should find script at `scripts/moved-from-root/verify-production-ready.sh`
 
 ### 3. Expected Results
 
 ✅ **All pipelines should:**
+
 - Start successfully (no YAML syntax errors)
 - Complete without critical failures
 - Show green checkmarks for all jobs
 
 ❌ **If you see failures:**
+
 - Check the job logs for specific error messages
 - Verify all required secrets are configured (SNYK_TOKEN, etc.)
 - Check that all referenced scripts exist
@@ -74,6 +82,7 @@ After pushing, verify pipelines are working:
 ## 📊 Pipeline Status Dashboard
 
 After pushing, you can monitor all pipelines at:
+
 - **Main Actions Page:** https://github.com/xsantcastx/VarsityHubMobile/actions
 - **Workflow Status:** Each workflow should show as "✅" (success) or "⏸️" (skipped if conditions not met)
 
@@ -95,12 +104,14 @@ ls -la scripts/moved-from-root/verify-production-ready.sh
 ## 📝 Documentation
 
 Full pipeline status documentation:
+
 - `/docs/PIPELINE_STATUS.md` - Complete status overview
 - `/docs/PIPELINE_FIXES_COMPLETE.md` - Detailed fix documentation
 
 ---
 
 **Next Steps:**
+
 1. Run `git pull origin main --rebase` then `git push origin main`
 2. Check GitHub Actions tab
 3. Verify all workflows show ✅ (success)

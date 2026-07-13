@@ -1,6 +1,7 @@
 # Ad System: 6 Final Features Implementation Summary
 
 ## Overview
+
 This document summarizes the implementation of 6 additional ad system requirements completed in this session, building upon the 4 features implemented previously (per-day pricing, sales tax, banner improvements, and clickable ads).
 
 **Implementation Date:** January 2025  
@@ -18,25 +19,29 @@ This document summarizes the implementation of 6 additional ad system requiremen
 **Requirement:** Remove Alert.alert() interruptions during authentication, navigate directly to /verify-email
 
 **Changes Made:**
+
 - **File:** `app/sign-in.tsx`
 - **Lines Modified:** 41-56
 - **Implementation:**
+
   ```typescript
   // BEFORE:
   Alert.alert('Verify Email', 'Please verify your email to continue.');
   router.replace('/verify-email');
-  
+
   // AFTER:
   router.replace('/verify-email'); // Direct navigation, no alert
   ```
 
 **Impact:**
+
 - ✅ Cleaner user experience (no interrupting OK buttons)
 - ✅ Faster authentication flow
 - ✅ Matches modern mobile app patterns
 - ✅ Reduced clicks: 2 alerts removed = 2 fewer taps per auth flow
 
 **Testing:**
+
 ```bash
 # Test Case 1: Sign up with new account
 Expected: Direct redirect to /verify-email (no alert)
@@ -55,16 +60,18 @@ Expected: Direct redirect to appropriate landing page (no "Welcome back!" alert)
 **Requirement:** Make banner image upload mandatory for ad submission
 
 **Changes Made:**
+
 - **File:** `app/submit-ad.tsx`
 - **Lines Modified:** 32-37, 118-123
 - **Implementation:**
+
   ```typescript
   // Validation logic
   const canSubmit = useMemo(() => {
     if (!bannerUrl) return false; // Banner is mandatory
     // ... other checks
   }, [name, email, business, zip, bannerUrl, desc]);
-  
+
   // UI changes
   <Text style={styles.label}>Ad Banner *</Text>
   <BannerUpload ... required={true} />
@@ -72,11 +79,13 @@ Expected: Direct redirect to appropriate landing page (no "Welcome back!" alert)
   ```
 
 **Visual Changes:**
-- Label changed: "Ad Banner (Optional)" → "Ad Banner *"
+
+- Label changed: "Ad Banner (Optional)" → "Ad Banner \*"
 - Helper text added in red: "Banner image is required for your ad"
 - Submit button disabled until banner uploaded
 
 **Impact:**
+
 - ✅ Ensures all ads have visual content
 - ✅ Improves ad quality and user engagement
 - ✅ Clear visual indication with asterisk and helper text
@@ -89,16 +98,18 @@ Expected: Direct redirect to appropriate landing page (no "Welcome back!" alert)
 **Requirement:** Make description field mandatory for ad submission
 
 **Changes Made:**
+
 - **File:** `app/submit-ad.tsx`
 - **Lines Modified:** 32-37, 138-145
 - **Implementation:**
+
   ```typescript
   // Validation logic
   const canSubmit = useMemo(() => {
     if (!desc.trim()) return false; // Description is mandatory
     // ... other checks
   }, [name, email, business, zip, bannerUrl, desc]);
-  
+
   // UI changes
   <Text style={styles.label}>Description *</Text>
   <TextInput ... placeholder="Tell us about your business..." />
@@ -106,11 +117,13 @@ Expected: Direct redirect to appropriate landing page (no "Welcome back!" alert)
   ```
 
 **Visual Changes:**
-- Label changed: "Short Description (optional)" → "Description *"
+
+- Label changed: "Short Description (optional)" → "Description \*"
 - Helper text added in red: "Description is required"
 - Submit button disabled until description entered
 
 **Impact:**
+
 - ✅ Ensures advertisers provide context about their business
 - ✅ Helps users understand what they're clicking on
 - ✅ Improves ad relevance and click-through rates
@@ -123,28 +136,41 @@ Expected: Direct redirect to appropriate landing page (no "Welcome back!" alert)
 **Requirement:** Display ad coverage area (20 miles) in user interface
 
 **Changes Made:**
+
 - **File:** `app/submit-ad.tsx` (Line 107)
+
   ```tsx
-  {zip.trim() && <Text style={styles.helperText}>📍 Your ad will reach 20 miles around zip code {zip}</Text>}
+  {
+    zip.trim() && (
+      <Text style={styles.helperText}>📍 Your ad will reach 20 miles around zip code {zip}</Text>
+    );
+  }
   ```
 
 - **File:** `app/ad-calendar.tsx` (Lines 280-290)
   ```tsx
-  {zipCode && (
-    <View style={[styles.card, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
-      <Text style={styles.cardTitle}>📍 Coverage Area</Text>
-      <Text>Your ad will reach <Text style={{ fontWeight: '700' }}>20 miles</Text> around zip code <Text style={{ fontWeight: '700' }}>{zipCode}</Text></Text>
-    </View>
-  )}
+  {
+    zipCode && (
+      <View style={[styles.card, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+        <Text style={styles.cardTitle}>📍 Coverage Area</Text>
+        <Text>
+          Your ad will reach <Text style={{ fontWeight: '700' }}>20 miles</Text> around zip code{' '}
+          <Text style={{ fontWeight: '700' }}>{zipCode}</Text>
+        </Text>
+      </View>
+    );
+  }
   ```
 
 **Visual Design:**
+
 - Blue info card with 📍 emoji
 - Bold "20 miles" text for emphasis
 - Shows zip code dynamically
 - Appears on both submit-ad and ad-calendar screens
 
 **Impact:**
+
 - ✅ Sets clear expectations for ad reach
 - ✅ Helps users understand geographic targeting
 - ✅ Reduces support inquiries about coverage
@@ -157,30 +183,34 @@ Expected: Direct redirect to appropriate landing page (no "Welcome back!" alert)
 **Requirement:** Limit promo codes to first 8 users (or any configurable max)
 
 **Backend (Already Existed):**
+
 - Schema: `PromoCode.max_redemptions`, `PromoCode.uses`
 - Logic: `previewPromo()` and `redeemPromo()` already enforce limits
 - Atomic increment with race condition protection
 
 **Frontend Changes:**
+
 - **File:** `app/ad-calendar.tsx` (Lines 314-321)
   ```tsx
-  {preview?.valid ? (
-    <View>
-      <Text>✅ Promo Applied: {preview.code}</Text>
-      <Text>Discount: ${(preview.discount_cents / 100).toFixed(2)}</Text>
-      <Text style={{ fontSize: 12, color: '#6b7280' }}>
-        ⚠️ Limited offer: First 8 users only
-      </Text>
-    </View>
-  ) : null}
+  {
+    preview?.valid ? (
+      <View>
+        <Text>✅ Promo Applied: {preview.code}</Text>
+        <Text>Discount: ${(preview.discount_cents / 100).toFixed(2)}</Text>
+        <Text style={{ fontSize: 12, color: '#6b7280' }}>⚠️ Limited offer: First 8 users only</Text>
+      </View>
+    ) : null;
+  }
   ```
 
 **Documentation Created:**
+
 - **File:** `docs/PROMO_CODE_USAGE_LIMITS.md` (306 lines)
 - Covers: Schema, creation methods, validation logic, error messages
 - Includes: SQL examples, testing checklist, monitoring queries
 
 **Admin Usage:**
+
 ```sql
 INSERT INTO "PromoCode" (
   code, type, percent_off, max_redemptions, per_user_limit, note
@@ -196,6 +226,7 @@ INSERT INTO "PromoCode" (
 | `user_limit_reached` | "Not valid: user_limit_reached" | User already redeemed |
 
 **Impact:**
+
 - ✅ Creates urgency and scarcity for promotions
 - ✅ Prevents unlimited promo code abuse
 - ✅ Clear messaging: "Limited offer: First 8 users only"
@@ -232,15 +263,16 @@ INSERT INTO "PromoCode" (
    - UI: Yellow warning card with list of alternatives
 
 2. **Visual Design:**
+
    ```
    ⚠️ Date Unavailable - Try Nearby Zips
-   
+
    The selected date is booked for zip code 10001.
    Here are nearby alternatives:
-   
+
    [10002]          [View →]
    1.2 miles away
-   
+
    [10003]          [View →]
    2.5 miles away
    ```
@@ -251,16 +283,19 @@ INSERT INTO "PromoCode" (
    - Tap "Switch" → Navigate to `/submit-ad?zip=10002`
 
 **Documentation Created:**
+
 - **File:** `docs/ZIP_CODE_FALLBACK_SYSTEM.md` (400+ lines)
 - Sections: Architecture, API, algorithm, testing, performance, future enhancements
 - Includes: Distance calculation examples, SQL optimization strategies
 
 **Performance:**
+
 - Current: ~500ms response time (acceptable for MVP)
 - Future: PostGIS + spatial index → <100ms
 - Caching: Redis with 5min TTL → <10ms
 
 **Impact:**
+
 - ✅ Reduces lost bookings when preferred zip unavailable
 - ✅ Increases revenue by capturing would-be abandons
 - ✅ Improves user experience with proactive suggestions
@@ -271,6 +306,7 @@ INSERT INTO "PromoCode" (
 ## Technical Architecture
 
 ### File Structure
+
 ```
 VarsityHubMobile/
 ├── app/
@@ -291,6 +327,7 @@ VarsityHubMobile/
 ### API Endpoints
 
 #### New Endpoint
+
 ```http
 GET /ads/alternative-zips?zip=10001&dates=2025-01-15,2025-01-16
 Authorization: Bearer <token>
@@ -306,6 +343,7 @@ Response 200:
 ```
 
 #### Existing Endpoints (Used)
+
 ```http
 POST /promos/preview
 Body: { code: "LAUNCH8", subtotal_cents: 1750, service: "booking" }
@@ -316,6 +354,7 @@ Response: { valid: true, discount_cents: 875, ... }
 ### Database Schema (No Changes Needed)
 
 All features use existing schema:
+
 - `Ad.banner_url` - Already nullable, now required client-side
 - `Ad.description` - Already nullable, now required client-side
 - `Ad.target_zip_code` - Used for geo calculations
@@ -328,11 +367,13 @@ All features use existing schema:
 ## Code Quality & Patterns
 
 ### TypeScript Safety
+
 - All new functions properly typed
 - Fixed compile errors: Added `target_url` to DraftAd type
 - Added null checks: `if (!ad.target_zip_code) continue;`
 
 ### Error Handling
+
 ```typescript
 try {
   const response = await fetch(...);
@@ -348,6 +389,7 @@ try {
 ```
 
 ### User Experience Patterns
+
 1. **Progressive Disclosure:** Show alternatives only when needed
 2. **Clear Affordances:** "View →" buttons, asterisks for required fields
 3. **Non-Blocking Errors:** Alternative fetch fails gracefully
@@ -355,6 +397,7 @@ try {
 5. **Visual Hierarchy:** Color-coded cards (blue = info, yellow = warning, red = error)
 
 ### Performance Optimizations
+
 - `useMemo` for validation logic (prevents re-renders)
 - Conditional rendering: `{zipCode && <CoverageCard />}`
 - API calls only when needed (not on every render)
@@ -367,11 +410,13 @@ try {
 ### Manual Testing Checklist
 
 **Email Confirmation:**
+
 - [ ] Sign up → Direct to /verify-email (no alert)
 - [ ] Sign in unverified → Direct to /verify-email (no alert)
 - [ ] Sign in verified → Direct to landing (no "Welcome!" alert)
 
 **Mandatory Fields:**
+
 - [ ] Try submit without banner → Button disabled
 - [ ] Upload banner → Button enabled
 - [ ] Try submit without description → Button disabled
@@ -379,15 +424,18 @@ try {
 - [ ] Helper texts show in red below fields
 
 **20-Mile Messaging:**
+
 - [ ] Enter zip in submit-ad → See "📍 Your ad will reach 20 miles around zip code 12345"
 - [ ] Open ad-calendar → See blue coverage area card with 20-mile message
 
 **Promo Limits:**
+
 - [ ] Apply valid promo → See "✅ Promo Applied" + "⚠️ Limited offer: First 8 users only"
 - [ ] Apply promo used 8 times → See "Not valid: usage_exhausted"
 - [ ] User applies same promo twice → See "Not valid: user_limit_reached"
 
 **Zip Fallback:**
+
 - [ ] Click reserved date → Alert + yellow alternatives card appears
 - [ ] See 5 alternatives sorted by distance
 - [ ] Tap alternative → Modal "Switch to Zip Code?"
@@ -402,7 +450,7 @@ describe('Ad Validation', () => {
     const { getByText } = render(<SubmitAd />);
     expect(getByText('Submit Ad')).toBeDisabled();
   });
-  
+
   it('should enable submit when all fields filled', () => {
     // Fill all fields including banner and description
     expect(getByText('Submit Ad')).not.toBeDisabled();
@@ -411,10 +459,10 @@ describe('Ad Validation', () => {
 
 describe('Alternative Zips', () => {
   it('should fetch alternatives when date unavailable', async () => {
-    mockFetch.mockResolvedValue({ 
+    mockFetch.mockResolvedValue({
       json: () => ({ alternatives: [{ zip: '10002', distance: 1.2 }] })
     });
-    
+
     fireEvent.press(getByText('Reserved Date'));
     await waitFor(() => {
       expect(getByText('10002')).toBeInTheDocument();
@@ -428,14 +476,16 @@ describe('Alternative Zips', () => {
 ## Performance Metrics
 
 ### Current Implementation
-| Metric | Value | Target |
-|--------|-------|--------|
-| Alternative fetch time | 500ms | <300ms |
-| Form validation | <10ms | <10ms ✅ |
-| Calendar render | 200ms | <200ms ✅ |
-| Promo preview | 300ms | <500ms ✅ |
+
+| Metric                 | Value | Target    |
+| ---------------------- | ----- | --------- |
+| Alternative fetch time | 500ms | <300ms    |
+| Form validation        | <10ms | <10ms ✅  |
+| Calendar render        | 200ms | <200ms ✅ |
+| Promo preview          | 300ms | <500ms ✅ |
 
 ### Future Optimizations
+
 1. **PostGIS Spatial Index:** 500ms → 100ms (80% reduction)
 2. **Redis Caching:** 100ms → 10ms (90% reduction)
 3. **CDN for Docs:** Load time improvement
@@ -446,18 +496,21 @@ describe('Alternative Zips', () => {
 ## Business Impact
 
 ### Revenue Opportunities
+
 1. **Reduced Abandonment:** Users find alternatives instead of leaving
 2. **Higher Fill Rate:** More zip codes booked = more revenue
 3. **Promo Scarcity:** "First 8 users" creates urgency
 4. **Better Ad Quality:** Mandatory banner/description = higher engagement
 
 ### User Experience Improvements
+
 1. **Faster Auth:** 2 fewer alerts = 2 fewer clicks
 2. **Clear Expectations:** 20-mile radius shown upfront
 3. **Helpful Suggestions:** Alternatives shown automatically
 4. **Visual Clarity:** Asterisks and helper text guide users
 
 ### Operational Benefits
+
 1. **Less Support:** Clear messaging reduces confusion
 2. **Better Data:** All ads have banner + description
 3. **Promo Control:** Limit redemptions to prevent abuse
@@ -468,9 +521,11 @@ describe('Alternative Zips', () => {
 ## Migration & Deployment
 
 ### No Database Migrations Required! ✅
+
 All features use existing schema. No `npx prisma migrate` needed.
 
 ### Deployment Steps
+
 ```bash
 # 1. Install dependencies (if any new packages)
 npm install
@@ -491,16 +546,18 @@ tail -f server/logs/combined.log
 ```
 
 ### Environment Variables (No Changes)
+
 All endpoints use existing `EXPO_PUBLIC_API_URL`.
 
 ### Feature Flags (Optional)
+
 ```typescript
 // future.config.ts
 export const FEATURES = {
-  zipFallback: true,      // Enable alternative zips
-  promoLimits: true,      // Enforce max_redemptions
-  radiusMessaging: true,  // Show 20-mile coverage
-  mandatoryFields: true,  // Require banner + description
+  zipFallback: true, // Enable alternative zips
+  promoLimits: true, // Enforce max_redemptions
+  radiusMessaging: true, // Show 20-mile coverage
+  mandatoryFields: true, // Require banner + description
 };
 ```
 
@@ -509,6 +566,7 @@ export const FEATURES = {
 ## Known Issues & Limitations
 
 ### Current Limitations
+
 1. **Zip Coordinate Accuracy:** ±10-20 miles (prefix-based)
    - Solution: Upgrade to full 5-digit zip database (40k entries)
 
@@ -522,6 +580,7 @@ export const FEATURES = {
    - Solution: Fetch and display mini-calendar per alternative
 
 ### Edge Cases Handled
+
 - Invalid zip codes → 400 error
 - No alternatives found → Empty array (UI hides card)
 - Network failure → Graceful degradation, no crash
@@ -532,6 +591,7 @@ export const FEATURES = {
 ## Documentation
 
 ### Created Documentation
+
 1. **PROMO_CODE_USAGE_LIMITS.md** (306 lines)
    - Schema explanation
    - SQL creation examples
@@ -553,6 +613,7 @@ export const FEATURES = {
    - Update completion status (10/10)
 
 ### Code Comments
+
 - Inline comments for complex logic (haversine, availability checks)
 - JSDoc comments for public functions
 - TODO comments for future enhancements
@@ -562,18 +623,21 @@ export const FEATURES = {
 ## Future Enhancements
 
 ### Short-Term (1-2 Sprints)
+
 1. **Availability Calendar:** Show open dates in alternative zips
 2. **Bulk Switch:** Select multiple alternatives at once
 3. **Smart Sorting:** ML to predict which alternative user will choose
 4. **Analytics Dashboard:** Track alternative usage rates
 
 ### Mid-Term (3-6 Sprints)
+
 1. **PostGIS Integration:** Spatial queries with proper indexing
 2. **Full Zip Database:** 5-digit accuracy (40k coordinates)
 3. **Distance Customization:** Let user set 20/30/50 mile radius
 4. **Wait List:** Notify when preferred zip becomes available
 
 ### Long-Term (6+ Sprints)
+
 1. **Visual Map:** Interactive map showing alternatives
 2. **Regional Campaigns:** Book multiple zips in one transaction
 3. **Dynamic Pricing:** Adjust price based on demand/distance
@@ -584,6 +648,7 @@ export const FEATURES = {
 ## Conclusion
 
 All 6 features successfully implemented with:
+
 - ✅ Zero database migrations required
 - ✅ Comprehensive documentation (700+ lines)
 - ✅ Production-ready code with error handling

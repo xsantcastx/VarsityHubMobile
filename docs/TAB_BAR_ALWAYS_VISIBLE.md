@@ -3,9 +3,11 @@
 ## ✅ Changes Made
 
 ### 1. Moved Screens to `(tabs)` Folder
+
 Moved commonly navigated screens from `app/` to `app/(tabs)/` so they have access to the bottom tab bar:
 
 **Moved Files:**
+
 - `app/create-post.tsx` → `app/(tabs)/create-post.tsx`
 - `app/post-detail.tsx` → `app/(tabs)/post-detail.tsx`
 - `app/user-profile.tsx` → `app/(tabs)/user-profile.tsx` (if exists)
@@ -27,6 +29,7 @@ Moved commonly navigated screens from `app/` to `app/(tabs)/` so they have acces
 - `app/verify-email.tsx` → `app/(tabs)/verify-email.tsx`
 
 ### 2. Updated Tab Layout Configuration
+
 Added all moved screens as hidden tabs in `app/(tabs)/_layout.tsx`:
 
 ```typescript
@@ -38,7 +41,9 @@ Added all moved screens as hidden tabs in `app/(tabs)/_layout.tsx`:
 ```
 
 ### 3. Cleaned Up Root Layout
+
 Removed moved screens from `app/_layout.tsx` Stack configuration, keeping only:
+
 - Auth screens (sign-in, sign-up, verify, etc.)
 - Payment screens
 - Onboarding
@@ -47,6 +52,7 @@ Removed moved screens from `app/_layout.tsx` Stack configuration, keeping only:
 ## 🎯 Result
 
 Now when users navigate to any of these screens:
+
 - ✅ Bottom tab bar is **always visible**
 - ✅ Users can tap any tab to navigate back to that tab's main page
 - ✅ No more "stuck" screens without back navigation
@@ -55,11 +61,13 @@ Now when users navigate to any of these screens:
 ## 📱 Navigation Flow
 
 **Before:**
+
 ```
 User on Feed → Tap post → post-detail (no tab bar) → Can't go back easily
 ```
 
 **After:**
+
 ```
 User on Feed → Tap post → post-detail (tab bar visible) → Tap "Feed" tab → Back to Feed ✅
 ```

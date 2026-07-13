@@ -18,6 +18,7 @@ Applied comprehensive fixes to the Discover page to address critical real-world 
 **Issue**: Date parsing was vulnerable to invalid inputs, could create invalid dates.
 
 **Fix Applied**:
+
 - Added date format validation (`YYYY-MM-DD` regex)
 - Validated date values (month 1-12, day 1-31)
 - Validated time values (hours 1-12, minutes 0-59)
@@ -28,6 +29,7 @@ Applied comprehensive fixes to the Discover page to address critical real-world 
 **Location**: `handleQuickGameSave` (line 239-335)
 
 **Code Changes**:
+
 ```typescript
 // Validate date format
 if (!data.date || !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
@@ -57,6 +59,7 @@ if (gameDateTime < new Date()) {
 **Issue**: Past events were shown in the games list, confusing users.
 
 **Fix Applied**:
+
 - Filter out past events by default in `loadGames`
 - Only show events with dates in the future
 - Keep games without dates (they might be TBD)
@@ -64,6 +67,7 @@ if (gameDateTime < new Date()) {
 **Location**: `loadGames` (line 141-163)
 
 **Code Changes**:
+
 ```typescript
 // Filter out past events by default
 const now = new Date();
@@ -81,6 +85,7 @@ normalizedGames = normalizedGames.filter((g: any) => {
 **Issue**: Zip code filtering was case-sensitive and didn't handle variations.
 
 **Fix Applied**:
+
 - Normalize zip codes (remove dashes, spaces)
 - Handle zip codes with dashes (e.g., "12345-6789")
 - Extract zip codes from location strings using regex
@@ -89,13 +94,16 @@ normalizedGames = normalizedGames.filter((g: any) => {
 **Location**: `loadGames` and `filtered` useMemo
 
 **Code Changes**:
+
 ```typescript
 // Normalize zip code (remove dashes, spaces)
 const normalizedZip = zip.replace(/[-\s]/g, '').toLowerCase();
 
 // Extract zip codes from location and check if any match
 const zipMatches = hay.match(/\b\d{5}(?:-\d{4})?\b/g);
-const hasMatchingZip = zipMatches?.some(z => z.replace(/[-\s]/g, '').startsWith(normalizedZip.slice(0, 5)));
+const hasMatchingZip = zipMatches?.some(z =>
+  z.replace(/[-\s]/g, '').startsWith(normalizedZip.slice(0, 5))
+);
 ```
 
 ---
@@ -105,6 +113,7 @@ const hasMatchingZip = zipMatches?.some(z => z.replace(/[-\s]/g, '').startsWith(
 **Issue**: Generic error messages didn't help users understand what went wrong.
 
 **Fix Applied**:
+
 - Categorize errors (network, validation, server)
 - Provide specific error messages per error type
 - Show network-specific errors for connection issues
@@ -113,6 +122,7 @@ const hasMatchingZip = zipMatches?.some(z => z.replace(/[-\s]/g, '').startsWith(
 **Location**: `loadGames` and `handleQuickGameSave`
 
 **Code Changes**:
+
 ```typescript
 // In loadGames
 const errorMsg = gameError instanceof Error ? gameError.message : 'Unknown error';
@@ -140,6 +150,7 @@ if (error instanceof Error) {
 **Issue**: No validation before sending to API, leading to wasted API calls.
 
 **Fix Applied**:
+
 - Validate required fields (title, date) before API call
 - Check title is not empty after trimming
 - Validate date exists
@@ -148,6 +159,7 @@ if (error instanceof Error) {
 **Location**: `handleQuickGameSave`
 
 **Code Changes**:
+
 ```typescript
 // Validate required fields before API call
 if (!gamePayload.title || gamePayload.title.trim().length === 0) {
@@ -165,6 +177,7 @@ if (!gamePayload.date) {
 **Issue**: Search didn't handle edge cases (empty strings, special characters, long queries).
 
 **Fix Applied**:
+
 - Sanitize query (trim, limit to 100 characters)
 - Handle empty queries
 - Improved zip code matching in search
@@ -173,6 +186,7 @@ if (!gamePayload.date) {
 **Location**: `filtered` useMemo
 
 **Code Changes**:
+
 ```typescript
 // Sanitize and limit query length
 const q = query.trim().slice(0, 100).toLowerCase();
@@ -184,7 +198,9 @@ if (zipMatch) {
   const zip = zipMatch[0].replace(/[-\s]/g, '').slice(0, 5);
   // Extract zip codes from location and check if any match
   const locationZips = location.match(/\b\d{5}(?:-\d{4})?\b/g);
-  return locationZips?.some(lz => lz.replace(/[-\s]/g, '').startsWith(zip)) || location.includes(zip);
+  return (
+    locationZips?.some(lz => lz.replace(/[-\s]/g, '').startsWith(zip)) || location.includes(zip)
+  );
 }
 ```
 
@@ -195,6 +211,7 @@ if (zipMatch) {
 **Issue**: Calendar marked all dates with games, including past events.
 
 **Fix Applied**:
+
 - Filter out past events when marking calendar dates
 - Only mark dates with future events
 - Filter selected date games to only show future events
@@ -202,6 +219,7 @@ if (zipMatch) {
 **Location**: Calendar `markedDates` and selected date games
 
 **Code Changes**:
+
 ```typescript
 // Mark only future dates with events
 games.forEach(game => {
@@ -234,6 +252,7 @@ const gamesOnDate = games.filter(g => {
 **Issue**: No loading indicator during game creation, users could click multiple times.
 
 **Fix Applied**:
+
 - Added `isCreatingGame` state
 - Prevent duplicate submissions
 - Reset loading state in `finally` block
@@ -241,18 +260,22 @@ const gamesOnDate = games.filter(g => {
 **Location**: `handleQuickGameSave`
 
 **Code Changes**:
+
 ```typescript
 const [isCreatingGame, setIsCreatingGame] = useState(false);
 
-const handleQuickGameSave = useCallback(async (data: QuickGameData) => {
-  if (isCreatingGame) return; // Prevent duplicate submissions
-  setIsCreatingGame(true);
-  try {
-    // ... game creation logic ...
-  } finally {
-    setIsCreatingGame(false);
-  }
-}, [load, isCreatingGame]);
+const handleQuickGameSave = useCallback(
+  async (data: QuickGameData) => {
+    if (isCreatingGame) return; // Prevent duplicate submissions
+    setIsCreatingGame(true);
+    try {
+      // ... game creation logic ...
+    } finally {
+      setIsCreatingGame(false);
+    }
+  },
+  [load, isCreatingGame]
+);
 ```
 
 ---
@@ -262,6 +285,7 @@ const handleQuickGameSave = useCallback(async (data: QuickGameData) => {
 **Issue**: Team.allMembers might fail, no fallback mechanism.
 
 **Fix Applied**:
+
 - Added try-catch for Team.allMembers
 - Fallback to zip code search if team members fails
 - Added comment explaining User.listAll is admin-only
@@ -270,6 +294,7 @@ const handleQuickGameSave = useCallback(async (data: QuickGameData) => {
 **Location**: `loadPersonalization`
 
 **Code Changes**:
+
 ```typescript
 if (school || league) {
   const q = String(school || league);
@@ -321,6 +346,7 @@ These issues are documented but not critical for immediate fix:
 ## Impact
 
 ### User Experience Improvements
+
 - ✅ Users can't create events in the past
 - ✅ Clear error messages help users fix issues
 - ✅ Only future events shown (less confusion)
@@ -328,12 +354,14 @@ These issues are documented but not critical for immediate fix:
 - ✅ Loading states prevent duplicate submissions
 
 ### Code Quality Improvements
+
 - ✅ Better validation prevents invalid data
 - ✅ Improved error handling for debugging
 - ✅ More robust date/time parsing
 - ✅ Better search query handling
 
 ### Performance Improvements
+
 - ✅ Filtered past events reduce data processing
 - ✅ Query length limits prevent performance issues
 - ✅ Loading states prevent duplicate API calls

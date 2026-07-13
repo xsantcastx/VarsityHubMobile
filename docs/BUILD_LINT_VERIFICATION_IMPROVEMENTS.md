@@ -6,6 +6,7 @@
 ## Problem
 
 Builds were failing with ExtraTranslation lint errors, wasting build credits:
+
 ```
 > Task :app:lintVitalRelease FAILED
 /home/expo/workingdir/build/android/app/src/main/res/values-b+en/strings.xml:2: Error: "name" is translated here but not found in default locale [ExtraTranslation]
@@ -22,20 +23,24 @@ Enhanced `scripts/verify-build-ready.sh` with comprehensive lint configuration c
 ## Verification Checks Added
 
 ### 1. Lint Baseline Configuration ✅
+
 - Checks that `baseline = file("lint-baseline.xml")` is configured
 - Verifies baseline file exists
 - Validates baseline has correct file paths (`src/main/res/values-b+en/strings.xml`)
 - Confirms baseline includes both `name` and `displayName` ExtraTranslation entries
 
 ### 2. ExtraTranslation Disabled ✅
+
 - Verifies `disable 'ExtraTranslation'` is set in lint configuration
 - **CRITICAL**: This prevents the build failure error
 
 ### 3. Lint Error Handling ✅
+
 - Checks `abortOnError false` is set (prevents build from failing on lint errors)
 - Verifies `checkReleaseBuilds false` is set (prevents lint from running on release builds)
 
 ### 4. lintVitalRelease Task Disabled ✅
+
 - Checks that `lintVitalRelease` is explicitly disabled via:
   - `enabled = false` in task configuration
   - `taskGraph` hooks that disable the task
@@ -43,15 +48,18 @@ Enhanced `scripts/verify-build-ready.sh` with comprehensive lint configuration c
   - `lintOptions.checkReleaseBuilds false` (should prevent task from running)
 
 ### 5. Release BuildType Configuration ✅
+
 - Verifies `lintOptions` is configured in `buildTypes.release`
 - Checks `checkReleaseBuilds false` in release buildType
 - Confirms `ExtraTranslation` is disabled in release buildType
 
 ### 6. String Resources Configuration ✅
+
 - Verifies `name` and `displayName` strings are marked as `translatable="false"` in `values/strings.xml`
 - **Prevents root cause**: This prevents the ExtraTranslation error from occurring
 
 ### 7. Gradle Properties ✅
+
 - Checks `android.lint.checkReleaseBuilds=false` in `gradle.properties`
 - Additional safeguard at the property level
 
@@ -108,6 +116,7 @@ bash scripts/verify-build-ready.sh
 ```
 
 If verification passes, you can safely submit builds:
+
 ```bash
 eas build --platform android --profile production
 ```

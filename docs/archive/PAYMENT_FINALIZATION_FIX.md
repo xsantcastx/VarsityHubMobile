@@ -9,6 +9,7 @@
 ## Problem
 
 When making a payment in the app:
+
 1. App creates Stripe checkout session
 2. Opens Stripe hosted checkout page
 3. User completes payment
@@ -19,6 +20,7 @@ When making a payment in the app:
 ### Why Stripe CLI Wasn't Working
 
 The Stripe CLI `stripe listen` command only intercepts webhooks for:
+
 - ✅ Test triggers: `stripe trigger checkout.session.completed`
 - ❌ Real checkout sessions created by your app
 
@@ -35,6 +37,7 @@ Added a call to `/payments/finalize-session` endpoint in the payment-success pag
 **File:** `app/payment-success.tsx`
 
 **Added:**
+
 ```typescript
 import { httpPost } from '@/api/http';
 
@@ -48,7 +51,7 @@ if (isAdPayment) {
     console.warn('[payment-success] Failed to finalize session:', finalizeErr);
     // Continue anyway - webhook might have already processed it
   }
-  
+
   setSessionVerified(true);
   // Auto-redirect after 2 seconds
   setTimeout(() => {
@@ -83,18 +86,18 @@ if (isAdPayment) {
 ```typescript
 paymentsRouter.post('/finalize-session', requireVerified, async (req, res) => {
   const { session_id } = req.body;
-  
+
   // Fetch session from Stripe
   const session = await stripe.checkout.sessions.retrieve(session_id);
-  
+
   // Check if paid
   if (session.payment_status !== 'paid') {
     return res.status(202).json({ pending: true });
   }
-  
+
   // Finalize the payment (update database)
   await finalizeFromSession(session);
-  
+
   return res.json({ ok: true });
 });
 ```
@@ -106,11 +109,13 @@ paymentsRouter.post('/finalize-session', requireVerified, async (req, res) => {
 ### Test the Complete Flow
 
 1. **Keep Stripe CLI running** (optional - for logging)
+
    ```bash
    stripe listen --forward-to http://localhost:4000/payments/webhook
    ```
 
 2. **Keep backend running**
+
    ```bash
    cd server
    npm run dev
@@ -123,16 +128,18 @@ paymentsRouter.post('/finalize-session', requireVerified, async (req, res) => {
    - Complete Stripe checkout (use test card: 4242 4242 4242 4242)
 
 4. **Watch the logs:**
-   
+
    **Backend Terminal:**
+
    ```
    [payment-success] Finalizing ad payment session: cs_test_xxx
    [payments] finalizeFromSession called
    [payments] Processing ad reservation payment
    [payments] Ad reservation payment completed successfully
    ```
-   
+
    **Stripe CLI (if running):**
+
    ```
    --> checkout.session.completed [evt_xxx]
    <-- [200] POST http://localhost:4000/payments/webhook
@@ -148,6 +155,7 @@ paymentsRouter.post('/finalize-session', requireVerified, async (req, res) => {
 ## Why This Is Better
 
 ### Before (Webhook Only)
+
 ```
 ✅ Works in production (webhooks reach server)
 ❌ Doesn't work in local development (webhooks go to production URL)
@@ -156,6 +164,7 @@ paymentsRouter.post('/finalize-session', requireVerified, async (req, res) => {
 ```
 
 ### After (Manual Finalization + Webhook)
+
 ```
 ✅ Works in local development (calls API directly)
 ✅ Works in production (still has webhook as backup)
@@ -180,12 +189,14 @@ If one fails, the other will process it. If both run, the database operations ar
 ## What About Stripe CLI?
 
 ### Still Useful For:
+
 - ✅ Testing webhook handling
 - ✅ Debugging webhook payloads
 - ✅ Seeing webhook events in real-time
 - ✅ Testing error scenarios
 
 ### Not Required For:
+
 - ❌ Normal local development
 - ❌ Payment processing to work
 - ❌ Ad status updates
@@ -199,7 +210,7 @@ The Stripe CLI is now **optional** for development. Payments will work without i
 ✅ **Fixed:** Payment-success page now manually finalizes sessions  
 ✅ **Works:** Local development payment flow complete  
 ✅ **Tested:** Ready for end-to-end testing  
-⏳ **Next:** Test a real payment in the app  
+⏳ **Next:** Test a real payment in the app
 
 ---
 

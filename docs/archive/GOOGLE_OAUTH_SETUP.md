@@ -9,6 +9,7 @@ This guide explains how to configure Google Sign-In for VarsityHub Mobile.
 ❌ **OAuth credentials not yet configured**
 
 When Google OAuth is not configured, users will see:
+
 > "Google sign in unavailable - Configure Google OAuth client IDs to enable one-tap login"
 
 Users can still sign in using **email/password authentication**.
@@ -69,16 +70,19 @@ Users can still sign in using **email/password authentication**.
    - Example: `com.varsityhub.mobile`
 6. **SHA-1 certificate fingerprint:**
    - For development: Run `npx expo prebuild` then:
+
      ```bash
      # macOS/Linux
      keytool -keystore android/app/debug.keystore -list -v
-     
+
      # Windows
      keytool -keystore android\app\debug.keystore -list -v
-     
+
      # Default password: android
      ```
+
    - Copy the SHA-1 fingerprint
+
 7. Click "Create"
 8. **Copy the Client ID** (format: `xxxxx.apps.googleusercontent.com`)
 
@@ -134,14 +138,12 @@ Your backend needs to verify Google ID tokens. Add this to your auth route:
 // server/src/routes/auth.ts
 import { OAuth2Client } from 'google-auth-library';
 
-const googleClient = new OAuth2Client(
-  process.env.GOOGLE_WEB_CLIENT_ID
-);
+const googleClient = new OAuth2Client(process.env.GOOGLE_WEB_CLIENT_ID);
 
 router.post('/google', async (req, res) => {
   try {
     const { idToken } = req.body;
-    
+
     // Verify Google ID token
     const ticket = await googleClient.verifyIdToken({
       idToken,
@@ -151,15 +153,15 @@ router.post('/google', async (req, res) => {
         process.env.GOOGLE_WEB_CLIENT_ID,
       ],
     });
-    
+
     const payload = ticket.getPayload();
     const { email, name, picture, sub: googleId } = payload;
-    
+
     // Find or create user
     let user = await prisma.user.findUnique({
       where: { email },
     });
-    
+
     if (!user) {
       user = await prisma.user.create({
         data: {
@@ -171,10 +173,10 @@ router.post('/google', async (req, res) => {
         },
       });
     }
-    
+
     // Generate JWT
     const token = generateJWT(user.id);
-    
+
     res.json({
       access_token: token,
       user,
@@ -226,20 +228,24 @@ npm install google-auth-library
 ## Troubleshooting
 
 ### "Google sign in unavailable" message
+
 - Check that `.env` file exists and has client IDs
 - Restart development server with `--clear` flag
 - Verify environment variables are loaded: `console.log(process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID)`
 
 ### "Invalid client" error
+
 - Verify package name/bundle ID matches Google Console
 - Check SHA-1 fingerprint is correct (Android only)
 - Ensure redirect URIs are configured (Web only)
 
 ### "Sign in cancelled" message
+
 - User dismissed the Google sign-in popup (expected behavior)
 - No action needed
 
 ### Backend token verification fails
+
 - Ensure backend has `google-auth-library` installed
 - Verify backend `GOOGLE_WEB_CLIENT_ID` matches frontend
 - Check token expiration (tokens are short-lived)
@@ -251,11 +257,13 @@ npm install google-auth-library
 Before launching to production:
 
 1. **Generate production keystore** (Android):
+
    ```bash
    keytool -genkey -v -keystore release.keystore -alias release -keyalg RSA -keysize 2048 -validity 10000
    ```
 
 2. **Get production SHA-1:**
+
    ```bash
    keytool -keystore release.keystore -list -v
    ```
@@ -274,7 +282,7 @@ Before launching to production:
 
 ✅ **Google OAuth is FREE** for unlimited users  
 ✅ No monthly fees  
-✅ No per-authentication charges  
+✅ No per-authentication charges
 
 ---
 

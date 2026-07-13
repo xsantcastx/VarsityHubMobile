@@ -15,17 +15,20 @@ Fixed **critical real-world issues** in the pitch events (fan event creation) sy
 
 ### 1. ✅ Approval/Rejection Idempotency (CRITICAL)
 
-**Problem**: 
+**Problem**:
+
 - Could approve already-approved events
 - Could reject already-rejected events
 - No validation of current state
 
 **Real-World Impact**:
+
 - **State confusion** - Events could be approved multiple times
 - **No idempotency** - Same action could be repeated
 - **Poor UX** - Confusing error messages
 
 **Fix Applied**:
+
 - Added validation to check current `approval_status` before updating
 - Returns clear error messages for invalid states
 - Prevents duplicate approvals/rejections
@@ -33,24 +36,25 @@ Fixed **critical real-world issues** in the pitch events (fan event creation) sy
 **Location**: `server/src/routes/events.ts:367-420`
 
 **Code**:
+
 ```typescript
 // Validate event is in pending state
 if (event.approval_status === 'approved') {
-  return res.status(400).json({ 
+  return res.status(400).json({
     error: 'Event already approved',
     message: 'This event has already been approved.',
   });
 }
 
 if (event.approval_status === 'rejected') {
-  return res.status(400).json({ 
+  return res.status(400).json({
     error: 'Event already rejected',
     message: 'Cannot approve/reject an already processed event.',
   });
 }
 
 if (event.approval_status !== 'pending') {
-  return res.status(400).json({ 
+  return res.status(400).json({
     error: 'Invalid state',
     message: 'Can only approve/reject pending events.',
   });
@@ -61,17 +65,20 @@ if (event.approval_status !== 'pending') {
 
 ### 2. ✅ Fans Can View Their Own Events (HIGH PRIORITY)
 
-**Problem**: 
+**Problem**:
+
 - No endpoint for fans to see their submitted events
 - No way to track event status
 - Fans don't know if events are pending, approved, or rejected
 
 **Real-World Impact**:
+
 - **User frustration** - Fans submit events and never hear back
 - **No transparency** - Can't see status of submissions
 - **Duplicate submissions** - Fans recreate events thinking they failed
 
 **Fix Applied**:
+
 - Added `GET /events/my-events` endpoint
 - Returns all events created by the user
 - Includes approval status, rejection reason, and dates
@@ -79,6 +86,7 @@ if (event.approval_status !== 'pending') {
 **Location**: `server/src/routes/events.ts:108-130`
 
 **Code**:
+
 ```typescript
 // List current user's created events (for fans to track their submissions)
 eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, res) => {
@@ -108,16 +116,19 @@ eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, re
 ### 3. ✅ Fans Can Edit Pending Events (HIGH PRIORITY)
 
 **Problem**:
+
 - Fans couldn't edit events after submission
 - Must delete and recreate if they made a mistake
 - Loses place in approval queue
 
 **Real-World Impact**:
+
 - **User frustration** - Typo in event means starting over
 - **Wasted time** - Re-submission delays approval
 - **Poor UX** - No way to fix mistakes
 
 **Fix Applied**:
+
 - Added `PATCH /events/:id` endpoint
 - Only creator can edit
 - Only pending events can be edited
@@ -126,26 +137,27 @@ eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, re
 **Location**: `server/src/routes/events.ts:487-570`
 
 **Code**:
+
 ```typescript
 eventsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
-  
+
   // Only creator can edit
   if (event.creator_id !== req.user!.id) {
-    return res.status(403).json({ 
+    return res.status(403).json({
       error: 'Permission denied',
       message: 'Only the event creator can edit this event.',
     });
   }
-  
+
   // Only pending events can be edited
   if (event.approval_status !== 'pending') {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Cannot edit event',
       message: 'Only pending events can be edited.',
     });
   }
-  
+
   // Update event...
 });
 ```
@@ -155,38 +167,44 @@ eventsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =
 ### 4. ✅ Enhanced Event Creation Response (MEDIUM)
 
 **Problem**:
+
 - Response didn't include pending count
 - Fans didn't know how many events they had pending
 - Unclear limit status
 
 **Real-World Impact**:
+
 - **Confusion** - Fans don't know their limit status
 - **Poor UX** - No feedback on remaining capacity
 
 **Fix Applied**:
+
 - Added `pending_count` and `limit` to creation response
 - Helps fans understand their limit status
 
 **Location**: `server/src/routes/events.ts:327-340`
 
 **Code**:
+
 ```typescript
-const pendingCount = userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free')
-  ? await prisma.event.count({
-      where: {
-        creator_id: user.id,
-        approval_status: 'pending',
-      },
-    })
-  : null;
+const pendingCount =
+  userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free')
+    ? await prisma.event.count({
+        where: {
+          creator_id: user.id,
+          approval_status: 'pending',
+        },
+      })
+    : null;
 
 return res.status(201).json({
   ...serializeEvent(event),
-  message: autoApprove 
-    ? 'Event created and published successfully!' 
+  message: autoApprove
+    ? 'Event created and published successfully!'
     : 'Your event has been submitted for approval.',
   pending_count: pendingCount,
-  limit: userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free') ? 3 : null,
+  limit:
+    userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free') ? 3 : null,
 });
 ```
 
@@ -228,6 +246,7 @@ return res.status(201).json({
 ## Testing Scenarios
 
 ### Test 1: Fan Views Own Events
+
 ```bash
 # Fan creates event
 POST /events { ... }
@@ -237,6 +256,7 @@ GET /events/my-events
 ```
 
 ### Test 2: Fan Edits Pending Event
+
 ```bash
 # Fan creates event (pending)
 POST /events { title: "Original Title", ... }
@@ -246,6 +266,7 @@ PATCH /events/{id} { title: "Updated Title" }
 ```
 
 ### Test 3: Fan Tries to Edit Approved Event
+
 ```bash
 # Fan creates event → Gets approved
 # Fan tries to edit
@@ -254,6 +275,7 @@ PATCH /events/{id} { title: "New Title" }
 ```
 
 ### Test 4: Coach Approves Already-Approved Event
+
 ```bash
 # Coach approves event
 PUT /events/{id}/approve {}
@@ -263,6 +285,7 @@ PUT /events/{id}/approve {}
 ```
 
 ### Test 5: Event Creation Response
+
 ```bash
 # Fan creates event
 POST /events { ... }

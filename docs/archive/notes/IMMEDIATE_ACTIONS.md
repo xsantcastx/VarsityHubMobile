@@ -7,6 +7,7 @@
 **Fix**: https://iforgot.apple.com
 
 ### Steps:
+
 1. Go to https://iforgot.apple.com
 2. Enter your Apple ID email
 3. Follow password reset / account unlock process
@@ -21,19 +22,23 @@
 ## ✅ COMPLETED (Priority 1)
 
 ### 1. Version Alignment
+
 - [x] app.json v1.0.1 ← aligned with package.json
 
 ### 2. TypeScript Errors Fixed
+
 - [x] OfflineBanner test mocks (AuthContextType)
 - [x] Sentry config (removed invalid enableInExpoDevelopment)
 - [x] `npm run typecheck` passes with 0 errors
 
 ### 3. Security Vulnerabilities Resolved
+
 - [x] Cloudinary <2.7.0 → Fixed via `npm audit fix --force`
 - [x] Root deps: 0 vulnerabilities
 - [x] Server deps: 0 vulnerabilities
 
 ### 4. Environment Variables
+
 - [x] Mobile .env validated (all 7 vars set)
 - [x] Verification script created: `scripts/verify-env-vars.sh`
 - [ ] Server Railway vars (verify manually in dashboard)
@@ -43,20 +48,22 @@
 ## ⏳ PENDING (Priority 2 - After Apple Account Fixed)
 
 ### Device Testing (QA_EXECUTION_LOG.md)
+
 Run these flows on physical devices:
 
-| Flow | Status | Notes |
-|------|--------|-------|
-| Auth: login, sign-up, email verification | ⏳ | Fresh email + resend code |
-| Onboarding 10-step wizard | ⏳ | Capture timestamps |
-| Feed & RSVP | ⏳ | Need seeded games |
-| Messaging + push notifications | ⏳ | Requires `/test-notifications` |
-| Payments (Stripe test cards) | ⏳ | Success + cancel flows |
-| Notifications digest + followers | ⏳ | Validate all routes |
+| Flow                                     | Status | Notes                          |
+| ---------------------------------------- | ------ | ------------------------------ |
+| Auth: login, sign-up, email verification | ⏳     | Fresh email + resend code      |
+| Onboarding 10-step wizard                | ⏳     | Capture timestamps             |
+| Feed & RSVP                              | ⏳     | Need seeded games              |
+| Messaging + push notifications           | ⏳     | Requires `/test-notifications` |
+| Payments (Stripe test cards)             | ⏳     | Success + cancel flows         |
+| Notifications digest + followers         | ⏳     | Validate all routes            |
 
 **Devices needed**: iPhone 14/17 Pro, Pixel 8, low-end Android (API 29)
 
 ### Localization & Accessibility
+
 See: `CONTENT_AND_ACCESSIBILITY_CHECKLIST.md`
 
 - [ ] Extract UI strings to `locales/en.json`
@@ -66,6 +73,7 @@ See: `CONTENT_AND_ACCESSIBILITY_CHECKLIST.md`
 - [ ] Profile performance (feed scroll <16ms frame time)
 
 ### Android Build
+
 - [ ] Run: `eas build --platform android --profile production`
 - [ ] Submit to Google Play Console (internal testing track)
 
@@ -76,10 +84,11 @@ See: `CONTENT_AND_ACCESSIBILITY_CHECKLIST.md`
 Verify these in Railway dashboard before production deploy:
 
 **Required**:
+
 - [ ] DATABASE_URL (auto-provided)
 - [ ] JWT_SECRET
 - [ ] SENDGRID_API_KEY
-- [ ] STRIPE_SECRET_KEY (sk_live_...)
+- [ ] STRIPE*SECRET_KEY (sk_live*...)
 - [ ] STRIPE_WEBHOOK_SECRET
 - [ ] CLOUDINARY_CLOUD_NAME
 - [ ] CLOUDINARY_API_KEY
@@ -89,6 +98,7 @@ Verify these in Railway dashboard before production deploy:
 - [ ] ADMIN_EMAILS
 
 **Optional** (enhance functionality):
+
 - [ ] GOOGLE_MAPS_API_KEY
 - [ ] STRIPE_PRICE_VETERAN
 - [ ] STRIPE_PRICE_LEGEND
@@ -100,6 +110,7 @@ Verify these in Railway dashboard before production deploy:
 ## 🎯 QUICK WINS (Optional - Improve Quality)
 
 Run auto-fix for 230 unused variable warnings:
+
 ```bash
 ./scripts/autofix-unused-vars.sh
 ```
@@ -115,7 +126,7 @@ This will prefix unused vars with `_` where safe, reducing lint warnings by ~60%
 **Security**: ✅ 0 vulnerabilities  
 **Lint**: ⚠️ 375 warnings (non-blocking)  
 **Build**: ✅ iOS production build 15 ready  
-**TestFlight**: 🔴 BLOCKED by Apple account lock  
+**TestFlight**: 🔴 BLOCKED by Apple account lock
 
 ---
 

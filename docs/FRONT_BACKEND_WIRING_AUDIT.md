@@ -7,22 +7,22 @@
 
 ## 1. Summary
 
-| Area | Status | Notes |
-|------|--------|------|
-| Auth (login, register, OAuth, /me, refresh, password) | ✅ Wired | Client uses `/me`; server mounts `/me` and `/auth`; `auth_provider` in /me used by reset-password |
-| User (PATCH /me, preferences, onboarding, deleteAccount) | ✅ Wired | updateMe → PUT /auth/me; patchMe → PATCH /me; deleteAccount sends body `{ password }` |
-| Events (list, pending, approve, reject, RSVP, my-rsvps) | ✅ Wired | event-approvals uses GET /events/pending, PUT approve/reject; Event API matches server |
-| Teams (list, create, invites, accept/decline, members) | ✅ Wired | Team.* and TeamMemberships.* map to server routes |
-| Organizations (join-requests/me, approve, deny) | ✅ Wired | Organization.* and event-approvals load; approve/deny in organization-join-requests |
-| Posts, Games, Notifications, Messages | ✅ Wired | api/posts, games, notifications, messages match server route surface |
-| Ads (create, reserve, submit-for-approval, for-feed) | ✅ Wired | App-level POST /ads/:id/submit-for-approval before ads router; Advertisement.* in misc.ts |
-| Payments (config, checkout, finalize-session, webhook, IAP verify) | ✅ Wired | Stripe webhook raw body; useIAP/useAdIAP call verify-receipt, verify-ad-receipt, verify-purchase |
-| Promos (preview, redeem) | ✅ Wired | ad-calendar and billing use httpPost /promos/preview and /promos/redeem |
-| Uploads (Cloudinary signature, avatar, files) | ✅ Wired | api/upload.ts and server uploads router |
-| Admin (dashboard, reports, bulk-update, bulk-delete) | ✅ Wired | admin-dashboard, admin-reports use httpGet/httpPost /admin/* |
-| Geocoding, Search, Reports, Support, Highlights | ✅ Wired | api/geocoding, misc (Search, Report, Support, Highlights) |
-| Group-chats | ✅ Wired | Client `api/groupChats.ts` (GroupChat.list, getMessages, sendMessage, markRead, create); UI can use when feature is built |
-| Standalone GET /rsvps | ℹ️ Optional | Frontend uses GET /events/my-rsvps for “my RSVPs”; GET /rsvps exists for other use (e.g. admin) |
+| Area                                                               | Status      | Notes                                                                                                                     |
+| ------------------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Auth (login, register, OAuth, /me, refresh, password)              | ✅ Wired    | Client uses `/me`; server mounts `/me` and `/auth`; `auth_provider` in /me used by reset-password                         |
+| User (PATCH /me, preferences, onboarding, deleteAccount)           | ✅ Wired    | updateMe → PUT /auth/me; patchMe → PATCH /me; deleteAccount sends body `{ password }`                                     |
+| Events (list, pending, approve, reject, RSVP, my-rsvps)            | ✅ Wired    | event-approvals uses GET /events/pending, PUT approve/reject; Event API matches server                                    |
+| Teams (list, create, invites, accept/decline, members)             | ✅ Wired    | Team._ and TeamMemberships._ map to server routes                                                                         |
+| Organizations (join-requests/me, approve, deny)                    | ✅ Wired    | Organization.\* and event-approvals load; approve/deny in organization-join-requests                                      |
+| Posts, Games, Notifications, Messages                              | ✅ Wired    | api/posts, games, notifications, messages match server route surface                                                      |
+| Ads (create, reserve, submit-for-approval, for-feed)               | ✅ Wired    | App-level POST /ads/:id/submit-for-approval before ads router; Advertisement.\* in misc.ts                                |
+| Payments (config, checkout, finalize-session, webhook, IAP verify) | ✅ Wired    | Stripe webhook raw body; useIAP/useAdIAP call verify-receipt, verify-ad-receipt, verify-purchase                          |
+| Promos (preview, redeem)                                           | ✅ Wired    | ad-calendar and billing use httpPost /promos/preview and /promos/redeem                                                   |
+| Uploads (Cloudinary signature, avatar, files)                      | ✅ Wired    | api/upload.ts and server uploads router                                                                                   |
+| Admin (dashboard, reports, bulk-update, bulk-delete)               | ✅ Wired    | admin-dashboard, admin-reports use httpGet/httpPost /admin/\*                                                             |
+| Geocoding, Search, Reports, Support, Highlights                    | ✅ Wired    | api/geocoding, misc (Search, Report, Support, Highlights)                                                                 |
+| Group-chats                                                        | ✅ Wired    | Client `api/groupChats.ts` (GroupChat.list, getMessages, sendMessage, markRead, create); UI can use when feature is built |
+| Standalone GET /rsvps                                              | ℹ️ Optional | Frontend uses GET /events/my-rsvps for “my RSVPs”; GET /rsvps exists for other use (e.g. admin)                           |
 
 ---
 
@@ -60,21 +60,21 @@
 
 ## 6. Quick Reference: Client → Server Paths
 
-| Client (api/* or screen) | Method + Path | Server route |
-|-------------------------|---------------|--------------|
-| auth.me() | GET /me | app.get('/me') → authRouter |
-| User.updateMe | PUT /auth/me | authRouter.put('/me') |
-| User.patchMe | PATCH /me | app.patch('/me') → authRouter |
-| User.deleteAccount | DELETE /users/me (body: { password }) | usersRouter.delete('/me') |
-| Event.filter, .get, .rsvp, .myRsvps | GET/POST /events/* | eventsRouter |
-| event-approvals | GET /events/pending, PUT .../approve, .../reject | eventsRouter |
-| Team.acceptInvite, declineInvite | POST /teams/invites/:id/accept, decline | teamsRouter |
-| Organization.approveJoinRequest, rejectJoinRequest | POST /organizations/join-requests/:id/approve, deny | organizationsRouter |
-| Subscriptions.finalizeSession | POST /payments/finalize-session | paymentsRouter |
-| useIAP (iOS) | POST /payments/apple/verify-receipt | paymentsRouter |
-| useIAP (Android) | POST /payments/google/verify-purchase | paymentsRouter |
-| useAdIAP | POST /payments/apple/verify-ad-receipt | paymentsRouter |
-| Advertisement.submitForApproval | POST /ads/:id/submit-for-approval | app.post (before ads router) |
-| GroupChat.list, getMessages, sendMessage, markRead, create | GET/POST /group-chats/* | groupChatsRouter |
+| Client (api/\* or screen)                                  | Method + Path                                       | Server route                  |
+| ---------------------------------------------------------- | --------------------------------------------------- | ----------------------------- |
+| auth.me()                                                  | GET /me                                             | app.get('/me') → authRouter   |
+| User.updateMe                                              | PUT /auth/me                                        | authRouter.put('/me')         |
+| User.patchMe                                               | PATCH /me                                           | app.patch('/me') → authRouter |
+| User.deleteAccount                                         | DELETE /users/me (body: { password })               | usersRouter.delete('/me')     |
+| Event.filter, .get, .rsvp, .myRsvps                        | GET/POST /events/\*                                 | eventsRouter                  |
+| event-approvals                                            | GET /events/pending, PUT .../approve, .../reject    | eventsRouter                  |
+| Team.acceptInvite, declineInvite                           | POST /teams/invites/:id/accept, decline             | teamsRouter                   |
+| Organization.approveJoinRequest, rejectJoinRequest         | POST /organizations/join-requests/:id/approve, deny | organizationsRouter           |
+| Subscriptions.finalizeSession                              | POST /payments/finalize-session                     | paymentsRouter                |
+| useIAP (iOS)                                               | POST /payments/apple/verify-receipt                 | paymentsRouter                |
+| useIAP (Android)                                           | POST /payments/google/verify-purchase               | paymentsRouter                |
+| useAdIAP                                                   | POST /payments/apple/verify-ad-receipt              | paymentsRouter                |
+| Advertisement.submitForApproval                            | POST /ads/:id/submit-for-approval                   | app.post (before ads router)  |
+| GroupChat.list, getMessages, sendMessage, markRead, create | GET/POST /group-chats/\*                            | groupChatsRouter              |
 
 All verified paths match; no critical wiring issues found.

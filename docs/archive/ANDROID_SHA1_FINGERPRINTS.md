@@ -1,6 +1,7 @@
 # Android SHA-1 Fingerprints for VarsityHub Mobile
 
 ## Package Information
+
 - **Package Name:** `com.xsantcastx.varsityhub`
 - **Bundle ID (iOS):** `com.xsantcastx.varsityhub`
 
@@ -9,22 +10,26 @@
 ## Debug Keystore (For Development)
 
 ### SHA-1 Fingerprint
+
 ```
 5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25
 ```
 
 ### SHA-256 Fingerprint
+
 ```
 FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C
 ```
 
 ### Keystore Details
+
 - **Location:** `android/app/debug.keystore`
 - **Alias:** `androiddebugkey`
 - **Password:** `android` (default)
 - **Valid Until:** May 1, 2052
 
 ### Command to Get SHA-1 (Debug)
+
 ```bash
 keytool -keystore android/app/debug.keystore -list -v -storepass android -keypass android
 ```
@@ -43,10 +48,10 @@ keytool -keystore android/app/debug.keystore -list -v -storepass android -keypas
 
 ### Step 2: Fill in the Form
 
-| Field | Value |
-|-------|-------|
-| **Name** | VarsityHub Mobile Android (Debug) |
-| **Package name** | `com.xsantcastx.varsityhub` |
+| Field                             | Value                                                         |
+| --------------------------------- | ------------------------------------------------------------- |
+| **Name**                          | VarsityHub Mobile Android (Debug)                             |
+| **Package name**                  | `com.xsantcastx.varsityhub`                                   |
 | **SHA-1 certificate fingerprint** | `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25` |
 
 6. Click **"Create"**
@@ -74,6 +79,7 @@ keytool -genkeypair -v -keystore release.keystore -alias varsityhub-release -key
 ```
 
 You'll be prompted to enter:
+
 - **Keystore password:** (choose a strong password)
 - **First and last name:** Your name or company name
 - **Organizational unit:** (e.g., "Development")
@@ -91,6 +97,7 @@ keytool -keystore release.keystore -list -v
 ```
 
 Then create a **second** Android OAuth Client ID in Google Console with:
+
 - **Name:** VarsityHub Mobile Android (Production)
 - **Package name:** `com.xsantcastx.varsityhub`
 - **SHA-1:** (from production keystore)
@@ -106,6 +113,7 @@ For iOS, create an **iOS OAuth Client ID**:
 3. **Bundle ID:** `com.xsantcastx.varsityhub`
 
 Add to `.env`:
+
 ```bash
 EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=YOUR_IOS_CLIENT_ID_HERE.apps.googleusercontent.com
 ```
@@ -123,6 +131,7 @@ For web/Expo Go, create a **Web OAuth Client ID**:
    - `https://auth.expo.io/@xsantcastx/VarsityHubMobile`
 
 Add to `.env`:
+
 ```bash
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=YOUR_WEB_CLIENT_ID_HERE.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID=YOUR_WEB_CLIENT_ID_HERE.apps.googleusercontent.com
@@ -165,12 +174,14 @@ EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID=zzzzz-zzzzz.apps.googleusercontent.com
 ## Troubleshooting
 
 ### "Sign in failed" or "Invalid client"
+
 - Double-check package name matches exactly: `com.xsantcastx.varsityhub`
 - Verify SHA-1 fingerprint is correct (no extra spaces or characters)
 - Make sure you're using the **Debug** keystore for development
 - Restart Metro bundler after adding client IDs
 
 ### "Google sign in unavailable"
+
 - Check `.env` file exists in project root
 - Verify environment variables are loaded
 - Restart Expo: `npx expo start --clear`
@@ -180,6 +191,7 @@ EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID=zzzzz-zzzzz.apps.googleusercontent.com
 ## Security Notes
 
 ⚠️ **IMPORTANT:**
+
 - **Never commit `.env` to git** (add to `.gitignore`)
 - **Never share your production keystore** publicly
 - **Store production keystore password securely** (use password manager)

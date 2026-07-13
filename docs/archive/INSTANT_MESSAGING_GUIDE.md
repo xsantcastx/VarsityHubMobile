@@ -3,6 +3,7 @@
 ## Current Status ✅
 
 **IMPLEMENTED:** Optimized Polling (3-second interval)
+
 - Messages now refresh every 3 seconds while in a conversation
 - Auto-scrolls to show new messages
 - Works immediately with existing backend
@@ -11,19 +12,24 @@
 ## Solution Comparison
 
 ### ✅ Current: Optimized Polling
+
 **Pros:**
+
 - ✅ Works NOW with existing backend
 - ✅ No server changes needed
 - ✅ Simple to implement
 - ✅ Reliable
 
 **Cons:**
+
 - ⚠️ 3-second delay maximum
 - ⚠️ More battery usage
 - ⚠️ More data usage (frequent requests)
 
 ### 🌟 Recommended: WebSocket (Socket.io)
+
 **Pros:**
+
 - ✅ **Instant** updates (milliseconds)
 - ✅ Much less battery usage
 - ✅ Less data usage
@@ -32,6 +38,7 @@
 - ✅ Read receipts in real-time
 
 **Cons:**
+
 - ⏳ Requires backend changes
 - ⏳ More complex to implement
 - ⏳ Need to handle reconnections
@@ -41,6 +48,7 @@
 ## 🔧 Option 1: Keep Current Polling (DONE)
 
 **What was changed:**
+
 ```tsx
 // In app/message-thread.tsx
 useEffect(() => {
@@ -50,7 +58,8 @@ useEffect(() => {
     try {
       const user = await User.me();
       let list: Msg[] = [];
-      if (conversation_id) list = await MessageApi.threadByConversation(String(conversation_id), 100);
+      if (conversation_id)
+        list = await MessageApi.threadByConversation(String(conversation_id), 100);
       else if (withParam) list = await MessageApi.threadWith(String(withParam), 100);
       list = Array.isArray(list) ? list.slice().reverse() : [];
       if (mounted) {
@@ -70,12 +79,14 @@ useEffect(() => {
 ```
 
 **User Experience:**
+
 - 📱 Messages appear within 3 seconds
 - 📱 Conversation feels fluid
 - 📱 No manual refresh needed
 - 📱 Works like WhatsApp (with slight delay)
 
 **Performance:**
+
 - Battery: Moderate impact (acceptable for messaging app)
 - Data: ~20 requests per minute while chatting
 - Server: Standard HTTP load
@@ -87,6 +98,7 @@ useEffect(() => {
 ### Backend Changes Required
 
 #### 1. Install Socket.io
+
 ```bash
 cd server
 npm install socket.io
@@ -94,6 +106,7 @@ npm install --save-dev @types/socket.io
 ```
 
 #### 2. Update `server/src/index.ts`
+
 ```typescript
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
@@ -103,15 +116,15 @@ const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: {
     origin: allowed,
-    credentials: true
-  }
+    credentials: true,
+  },
 });
 
 // Socket.io authentication middleware
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error('Authentication error'));
-  
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!);
     socket.data.userId = decoded.userId;
@@ -122,31 +135,31 @@ io.use(async (socket, next) => {
 });
 
 // Socket.io connection handling
-io.on('connection', (socket) => {
+io.on('connection', socket => {
   const userId = socket.data.userId;
   console.log(`User ${userId} connected`);
-  
+
   // Join user's personal room
   socket.join(`user:${userId}`);
-  
+
   // Join conversation rooms
   socket.on('join-conversation', (conversationId: string) => {
     socket.join(`conversation:${conversationId}`);
   });
-  
+
   // Leave conversation room
   socket.on('leave-conversation', (conversationId: string) => {
     socket.leave(`conversation:${conversationId}`);
   });
-  
+
   // Typing indicator
   socket.on('typing', ({ conversationId, isTyping }) => {
     socket.to(`conversation:${conversationId}`).emit('user-typing', {
       userId,
-      isTyping
+      isTyping,
     });
   });
-  
+
   socket.on('disconnect', () => {
     console.log(`User ${userId} disconnected`);
   });
@@ -162,6 +175,7 @@ httpServer.listen(PORT, HOST, () => {
 ```
 
 #### 3. Update `server/src/routes/messages.ts`
+
 ```typescript
 import { io } from '../index.js';
 
@@ -171,7 +185,7 @@ const created = await prisma.message.create({
     conversation_id: convId!,
     sender_id: meId,
     recipient_id: toId!,
-    content
+    content,
   },
   include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
 });
@@ -181,7 +195,7 @@ io.to(`conversation:${convId}`).emit('new-message', created);
 io.to(`user:${toId}`).emit('notification:new-message', {
   conversationId: convId,
   senderId: meId,
-  preview: content.substring(0, 50)
+  preview: content.substring(0, 50),
 });
 
 return res.status(201).json(created);
@@ -190,11 +204,13 @@ return res.status(201).json(created);
 ### Frontend Changes Required
 
 #### 1. Install Socket.io Client
+
 ```bash
 npm install socket.io-client
 ```
 
 #### 2. Create Socket Context (`context/SocketContext.tsx`)
+
 ```tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
@@ -207,7 +223,7 @@ type SocketContextType = {
 
 const SocketContext = createContext<SocketContextType>({
   socket: null,
-  connected: false
+  connected: false,
 });
 
 export const useSocket = () => useContext(SocketContext);
@@ -229,7 +245,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         transports: ['websocket'],
         reconnection: true,
         reconnectionDelay: 1000,
-        reconnectionAttempts: 5
+        reconnectionAttempts: 5,
       });
 
       newSocket.on('connect', () => {
@@ -242,7 +258,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         setConnected(false);
       });
 
-      newSocket.on('connect_error', (err) => {
+      newSocket.on('connect_error', err => {
         console.error('Socket connection error:', err.message);
       });
 
@@ -259,28 +275,22 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  return (
-    <SocketContext.Provider value={{ socket, connected }}>
-      {children}
-    </SocketContext.Provider>
-  );
+  return <SocketContext.Provider value={{ socket, connected }}>{children}</SocketContext.Provider>;
 }
 ```
 
 #### 3. Update `app/_layout.tsx`
+
 ```tsx
 import { SocketProvider } from '@/context/SocketContext';
 
 export default function RootLayout() {
-  return (
-    <SocketProvider>
-      {/* Your existing layout */}
-    </SocketProvider>
-  );
+  return <SocketProvider>{/* Your existing layout */}</SocketProvider>;
 }
 ```
 
 #### 4. Update `app/message-thread.tsx`
+
 ```tsx
 import { useSocket } from '@/context/SocketContext';
 
@@ -291,8 +301,9 @@ export default function MessageThreadScreen() {
   // Join conversation room
   useEffect(() => {
     if (!socket || !connected) return;
-    
-    const convId = conversation_id || (withParam ? `dm:${[me?.id, withParam].sort().join('__')}` : null);
+
+    const convId =
+      conversation_id || (withParam ? `dm:${[me?.id, withParam].sort().join('__')}` : null);
     if (!convId) return;
 
     socket.emit('join-conversation', convId);
@@ -325,7 +336,7 @@ export default function MessageThreadScreen() {
     if (socket && connected && conversation_id) {
       socket.emit('typing', {
         conversationId: conversation_id,
-        isTyping: newText.length > 0
+        isTyping: newText.length > 0,
       });
     }
   };
@@ -356,37 +367,42 @@ export default function MessageThreadScreen() {
 
 ## 📊 Comparison Chart
 
-| Feature | Current Polling | WebSocket |
-|---------|----------------|-----------|
-| **Delay** | ~3 seconds | Instant (<100ms) |
-| **Battery** | Moderate | Low |
-| **Data Usage** | Higher | Lower |
-| **Setup Complexity** | ✅ Simple | 🔧 Complex |
-| **Server Changes** | ✅ None | ❌ Required |
-| **Typing Indicators** | ❌ No | ✅ Yes |
-| **Online Status** | ❌ No | ✅ Yes |
-| **Read Receipts** | ❌ Delayed | ✅ Instant |
-| **Reliability** | ✅✅✅ High | ✅✅ Good |
+| Feature               | Current Polling | WebSocket        |
+| --------------------- | --------------- | ---------------- |
+| **Delay**             | ~3 seconds      | Instant (<100ms) |
+| **Battery**           | Moderate        | Low              |
+| **Data Usage**        | Higher          | Lower            |
+| **Setup Complexity**  | ✅ Simple       | 🔧 Complex       |
+| **Server Changes**    | ✅ None         | ❌ Required      |
+| **Typing Indicators** | ❌ No           | ✅ Yes           |
+| **Online Status**     | ❌ No           | ✅ Yes           |
+| **Read Receipts**     | ❌ Delayed      | ✅ Instant       |
+| **Reliability**       | ✅✅✅ High     | ✅✅ Good        |
 
 ---
 
 ## 🎯 Recommendations
 
 ### For Now: ✅ Use Current Polling
+
 **Perfect for:**
+
 - Quick launch
 - Testing messaging features
 - Small to medium user base
 - Rapid prototyping
 
 **User experience is already good:**
+
 - 3-second delay is acceptable for most users
 - WhatsApp/iMessage feel similar delays
 - No backend changes needed
 - Works reliably
 
 ### For Future: 🌟 Upgrade to WebSockets
+
 **When to upgrade:**
+
 - User base grows significantly (>1000 active users)
 - Need typing indicators
 - Need online/offline status
@@ -394,6 +410,7 @@ export default function MessageThreadScreen() {
 - Want sub-second message delivery
 
 **Migration path:**
+
 1. Keep current polling working
 2. Add WebSocket support to backend
 3. Add optional WebSocket to frontend
@@ -418,23 +435,28 @@ export default function MessageThreadScreen() {
 ## 🐛 Troubleshooting
 
 ### Messages not updating?
+
 - Check console for API errors
 - Verify token is valid
 - Check network connection
 - Ensure conversation_id or withParam is correct
 
 ### High battery usage?
+
 - Consider increasing interval from 3s to 5s
 - Only poll when app is in foreground
 - Add visibility detection
 
 ### Want to adjust polling speed?
+
 Change the interval in `message-thread.tsx`:
+
 ```tsx
 }, 3000); // 3 seconds - adjust as needed
 ```
 
 **Options:**
+
 - `2000` = 2 seconds (faster, more battery)
 - `5000` = 5 seconds (slower, less battery)
 - `10000` = 10 seconds (slow, minimal battery)
@@ -456,4 +478,3 @@ Change the interval in `message-thread.tsx`:
 **Next Steps:** Use current implementation and consider WebSocket upgrade when scale requires it
 **User Experience:** Smooth, chat-like experience without manual refreshes
 **Performance:** Good for MVP and early user base
-

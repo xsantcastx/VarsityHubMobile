@@ -22,6 +22,7 @@
 ## Test Results Details
 
 ### Test 1: Admin Default Override ✅
+
 ```
 Input:
   - defaults: { onboarding_completed: true }
@@ -34,6 +35,7 @@ Verified: Admin default (true) correctly overrides DB value (false)
 ```
 
 ### Test 2: Merge Order Verification ✅
+
 ```
 Base: { a: 1, b: 2 }
 Incoming: { b: 99, c: 3 }
@@ -43,22 +45,24 @@ Confirmed: Second argument (incoming) overrides first (base)
 ```
 
 ### Test 3: Current Fix Correct ✅
+
 ```
 Current Fix: mergePreferences(userPrefs, defaults)
   - User prefs first: { onboarding_completed: false, other: 'value' }
   - Defaults second: { onboarding_completed: true }
-  
+
 Result: { onboarding_completed: true, other: 'value' } ✅
 
 Verified: Defaults override user preferences (correct for admins)
 ```
 
 ### Test 4: Old Bug Demonstration ✅
+
 ```
 Old Bug: mergePreferences(defaults, userPrefs)
   - Defaults first: { onboarding_completed: true }
   - User prefs second: { onboarding_completed: false }
-  
+
 Result: { onboarding_completed: false } ❌ (should be true)
 
 Demonstrated: Old order allows userPrefs to override admin defaults (the bug)
@@ -69,6 +73,7 @@ Demonstrated: Old order allows userPrefs to override admin defaults (the bug)
 ## Code Verification
 
 ### Current Implementation (FIXED)
+
 **File**: `server/src/routes/auth.ts` (line 489)
 
 ```typescript
@@ -86,6 +91,7 @@ const prefs = mergePreferences((user as any).preferences || {}, defaults);
 ✅ **Result**: Admin `onboarding_completed: true` overrides DB value
 
 ### Merge Function Behavior
+
 **File**: `server/src/routes/auth.ts` (lines 535-541)
 
 ```typescript

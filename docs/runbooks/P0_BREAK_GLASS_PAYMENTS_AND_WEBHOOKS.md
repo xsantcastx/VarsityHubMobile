@@ -64,4 +64,3 @@ Enter break-glass mode immediately when any is true:
 - affected transaction IDs/session IDs
 - root cause
 - preventive actions with owners and due dates
-

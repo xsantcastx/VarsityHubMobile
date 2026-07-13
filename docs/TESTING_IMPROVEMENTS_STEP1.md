@@ -47,11 +47,13 @@
 ## 📊 Impact
 
 ### Before Step 1:
+
 - Test files: ~11 files
 - Estimated coverage: <10%
 - Critical paths: Mostly untested
 
 ### After Step 1:
+
 - Test files: ~15 files (+4 new)
 - Estimated coverage: ~15-20% (improved)
 - Critical paths: Auth, payments, teams, events now tested
@@ -61,21 +63,25 @@
 ## 🎯 Next Steps (Step 2-5)
 
 ### Step 2: API Integration Tests
+
 - Test actual API endpoints (not just database logic)
 - Use supertest or similar for HTTP testing
 - Test request/response flows
 
 ### Step 3: Component Tests
+
 - Test React Native components
 - Test user interactions
 - Test error states
 
 ### Step 4: E2E Tests Expansion
+
 - Expand Playwright tests
 - Add more user journey tests
 - Test critical flows end-to-end
 
 ### Step 5: Test Coverage Reporting
+
 - Set up coverage reporting
 - Aim for 60%+ coverage
 - Track coverage over time

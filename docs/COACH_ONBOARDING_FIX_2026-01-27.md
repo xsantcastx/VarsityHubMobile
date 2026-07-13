@@ -40,6 +40,7 @@ The coach onboarding flow was skipping steps 2-6 due to multiple issues:
 ### 3. Fixed Step Navigation
 
 **Files Updated**:
+
 - `app/onboarding/index.tsx` - Uses `nextIncompleteStep()` for deterministic routing
 - `app/onboarding/step-1-role.tsx` - Uses reducer instead of manual step mapping
 - `app/onboarding/step-2-basic.tsx` - Uses reducer and prevents race conditions
@@ -54,6 +55,7 @@ The coach onboarding flow was skipping steps 2-6 due to multiple issues:
 ### 5. Added Logging
 
 All step transitions are logged in development mode with:
+
 - `fromStep`, `toStep`, `reason`
 - Current state (role, hasStep2, hasStep3, hasStep4)
 - `isSaving` status
@@ -83,28 +85,30 @@ All step transitions are logged in development mode with:
 ## Key Changes
 
 ### Before (Broken)
+
 ```typescript
 // step-1-role.tsx - Wrong step mapping
 const stepRoutes: Record<number, string> = {
   1: '/onboarding/step-2-basic',
-  2: '/onboarding/step-3-team',  // ❌ Doesn't exist!
+  2: '/onboarding/step-3-team', // ❌ Doesn't exist!
   3: '/onboarding/step-4-organization',
-  4: '/onboarding/step-5-roster',  // ❌ Doesn't exist!
-  5: '/onboarding/step-6-schedule',  // ❌ Doesn't exist!
+  4: '/onboarding/step-5-roster', // ❌ Doesn't exist!
+  5: '/onboarding/step-6-schedule', // ❌ Doesn't exist!
   // ...
 };
 ```
 
 ### After (Fixed)
+
 ```typescript
 // onboardingReducer.ts - Single source of truth
 export const STEP_ROUTES = [
-  '/onboarding/step-1-role',           // 0
-  '/onboarding/step-2-basic',          // 1
-  '/onboarding/step-3-plan',           // 2
-  '/onboarding/step-4-organization',   // 3
+  '/onboarding/step-1-role', // 0
+  '/onboarding/step-2-basic', // 1
+  '/onboarding/step-3-plan', // 2
+  '/onboarding/step-4-organization', // 3
   '/onboarding/step-6-authorized-users', // 4
-  '/onboarding/step-7-profile',        // 5
+  '/onboarding/step-7-profile', // 5
   // ...
 ];
 
@@ -118,11 +122,13 @@ export function nextIncompleteStep(state, role) {
 ## Testing
 
 Run the unit tests:
+
 ```bash
 npm test -- __tests__/onboardingReducer.test.ts
 ```
 
 Manual testing checklist:
+
 - [ ] Coach selects role → goes to step 2 (not step 7)
 - [ ] Coach completes step 2 → goes to step 3 (not step 7)
 - [ ] Coach completes step 3 → goes to step 4 (not step 7)
@@ -139,4 +145,4 @@ Manual testing checklist:
 ✅ Double-tap protection works  
 ✅ Resume logic calculates correct step  
 ✅ Unit tests pass  
-✅ Logging shows all transitions  
+✅ Logging shows all transitions

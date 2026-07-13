@@ -1,19 +1,23 @@
 # System Status Summary - December 5, 2025
 
 ## 🔴 Blocking: Secrets Rotation Required
+
 Real credentials were committed earlier. Rotate every provider secret (SendGrid, Twilio, Stripe, Cloudinary, DB, FROM_EMAIL) using `docs/SECRETS_ROTATION_CHECKLIST.md` before any release or QA sign-off.
 
 ## ✅ ALL CRITICAL SYSTEMS VERIFIED
 
 ### Messaging 💬
+
 **Status**: ✅ WORKING  
 **Type**: 1-on-1 direct messages with 3-second polling  
 **Push Notifications**: Integrated, tested  
 **Quality Gates**: TypeScript ✅ | ESLint ✅ | Security ✅
 
 ### Push Notifications 🔔
+
 **Status**: ✅ WORKING IN ONBOARDING  
 **Integration Points**:
+
 - Auto-registration after login
 - Step 9 onboarding integration (new)
 - Permission prompt on first request
@@ -21,14 +25,17 @@ Real credentials were committed earlier. Rotate every provider secret (SendGrid,
 - Deep linking on notification tap
 
 **Verification**:
+
 ```bash
 # After onboarding:
 GET /users/me → includes push_token in response
 ```
 
 ### Age Guardrails 🛡️
+
 **Status**: ✅ ENFORCED (Frontend + Backend)  
 **Rules**:
+
 - ✅ Minor ↔ Minor: ALLOWED
 - ✅ Adult ↔ Adult: ALLOWED
 - ✅ Minor ↔ Verified Coach: ALLOWED
@@ -37,6 +44,7 @@ GET /users/me → includes push_token in response
 - ✅ Admin ↔ Anyone: ALLOWED (moderation)
 
 ### Team Group Chats 👥
+
 **Status**: 🟡 UI COMPLETE, Backend Phase 2  
 **What's Done**: Full UI, local state, message animations  
 **What's Pending**: API integration to backend
@@ -75,7 +83,7 @@ Security:    0 new issues ✅
 ## Files Modified (This Session)
 
 1. `app/game-map.tsx` - Fixed map view display
-2. `components/EventMap.tsx` - Improved empty state UI  
+2. `components/EventMap.tsx` - Improved empty state UI
 3. `MESSAGING_AND_NOTIFICATIONS_VERIFICATION.md` - Complete audit doc
 
 ---
@@ -92,6 +100,7 @@ f9d345b - fix: Show aerial map view even when no games have coordinates
 ## Ready for Production? 🟢 YES
 
 **All blocking issues resolved:**
+
 - Notifications working in onboarding ✅
 - Age guardrails enforced ✅
 - Messaging system operational ✅

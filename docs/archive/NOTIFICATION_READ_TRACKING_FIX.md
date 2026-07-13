@@ -3,12 +3,15 @@
 ## What Was Fixed
 
 ### Problem
+
 When you clicked on a notification, the red dot indicator stayed visible even after reading it.
 
 ### Root Cause
+
 The frontend was navigating to the notification content (post/profile) but **never calling the API** to mark the notification as read.
 
 ### Solution Applied
+
 Updated `app/feed.tsx` to mark notifications as read when clicked:
 
 ```tsx
@@ -18,7 +21,7 @@ onPress={async () => {
     try {
       await NotificationApi.markRead(item.id);
       // Update local state immediately (optimistic update)
-      setNotificationsList(prev => 
+      setNotificationsList(prev =>
         prev.map(n => n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n)
       );
       // Refresh unread count for badge
@@ -28,7 +31,7 @@ onPress={async () => {
       console.error('Failed to mark notification as read', e);
     }
   }
-  
+
   // Navigate to notification content
   setNotificationsMenuOpen(false);
   if (item.type === 'FOLLOW' && item.actor?.id) {
@@ -57,28 +60,31 @@ onPress={async () => {
 
 ## Expected Behavior ✅
 
-| Action | Old Behavior ❌ | New Behavior ✅ |
-|--------|----------------|-----------------|
-| Click notification | Red dot stays | Red dot disappears instantly |
-| Refresh app | Red dot reappears | Red dot stays gone |
-| Open modal | Shows all notifications | Shows all (read & unread) |
-| Unread notifications | Always shows dot | Only shows if truly unread |
-| New notification arrives | Dot appears | Dot appears |
-| Click new notification | Dot stays | Dot disappears |
+| Action                   | Old Behavior ❌         | New Behavior ✅              |
+| ------------------------ | ----------------------- | ---------------------------- |
+| Click notification       | Red dot stays           | Red dot disappears instantly |
+| Refresh app              | Red dot reappears       | Red dot stays gone           |
+| Open modal               | Shows all notifications | Shows all (read & unread)    |
+| Unread notifications     | Always shows dot        | Only shows if truly unread   |
+| New notification arrives | Dot appears             | Dot appears                  |
+| Click new notification   | Dot stays               | Dot disappears               |
 
 ## Features
 
 ### ✨ Optimistic UI Update
+
 - The unread dot disappears **instantly** when you click
 - No waiting for API response
 - If API fails, it just logs an error (doesn't break navigation)
 
 ### 🔄 Badge Refresh
+
 - After marking as read, rechecks unread count
 - Updates the red badge on home icon
 - Happens automatically in background
 
 ### 🎨 Visual Feedback
+
 - Unread notifications have different background color
 - Unread dot indicator on the right
 - Both disappear when marked as read
@@ -101,18 +107,19 @@ onPress={async () => {
 
 ## Comparison: Messages vs Notifications
 
-| Feature | Messages ✅ | Notifications ✅ |
-|---------|------------|-----------------|
-| Read tracking | `read` boolean | `read_at` timestamp |
-| Mark as read | On conversation open | On notification click |
-| Auto-marks all | Entire conversation | Individual notification |
-| Backend endpoint | `/messages/mark-read` | `/notifications/:id/read` |
-| Polling interval | 3s in thread, 30s feed | 30s in feed |
-| Optimistic update | No (polling based) | Yes (instant UI update) |
+| Feature           | Messages ✅            | Notifications ✅          |
+| ----------------- | ---------------------- | ------------------------- |
+| Read tracking     | `read` boolean         | `read_at` timestamp       |
+| Mark as read      | On conversation open   | On notification click     |
+| Auto-marks all    | Entire conversation    | Individual notification   |
+| Backend endpoint  | `/messages/mark-read`  | `/notifications/:id/read` |
+| Polling interval  | 3s in thread, 30s feed | 30s in feed               |
+| Optimistic update | No (polling based)     | Yes (instant UI update)   |
 
 ## Backend Support (Already Existed)
 
 ### Notification Schema
+
 ```prisma
 model Notification {
   id         String           @id @default(cuid())
@@ -130,6 +137,7 @@ model Notification {
 ```
 
 ### API Endpoints
+
 ```typescript
 // Mark single notification as read
 POST /notifications/:id/read
@@ -149,24 +157,30 @@ Response: { items: [...], nextCursor: "..." }
 ## Troubleshooting 🔧
 
 ### Red dot still showing after clicking?
+
 1. **Check console** for any API errors
 2. **Verify network tab** shows `POST /notifications/:id/read` call
 3. **Check response** should be `{ ok: true, id: "..." }`
 4. **Try manual mark-all** - could add a button to mark all as read
 
 ### Dot reappears after refresh?
+
 1. **Check database** - verify `read_at` is actually set
 2. **Check API response** - ensure backend is marking it correctly
 3. **Check query** - verify `?unread=1` filter works
 
 ### Want to mark all as read at once?
+
 The backend already supports it! Could add a "Mark All Read" button:
+
 ```tsx
-<Pressable onPress={async () => {
-  await NotificationApi.markAllRead();
-  setHasUnreadAlerts(false);
-  setNotificationsList(prev => prev.map(n => ({ ...n, read_at: new Date().toISOString() })));
-}}>
+<Pressable
+  onPress={async () => {
+    await NotificationApi.markAllRead();
+    setHasUnreadAlerts(false);
+    setNotificationsList(prev => prev.map(n => ({ ...n, read_at: new Date().toISOString() })));
+  }}
+>
   <Text>Mark All Read</Text>
 </Pressable>
 ```
@@ -177,6 +191,6 @@ The backend already supports it! Could add a "Mark All Read" button:
 ✅ **Notifications**: Mark as read when clicking notification (working now)  
 ✅ **Red badge**: Disappears when all messages & notifications are read  
 ✅ **Optimistic UI**: Instant feedback, no waiting for API  
-✅ **Reliable**: Polls in background to stay in sync  
+✅ **Reliable**: Polls in background to stay in sync
 
 Everything should now work smoothly! 🎉

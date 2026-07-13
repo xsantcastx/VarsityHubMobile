@@ -13,6 +13,7 @@
 **Solution:** Added 4-line fix to set `role='coach'` for membership purchases
 
 **Code Change:**
+
 ```typescript
 // File: server/src/routes/payments.ts, lines 963-965
 if (plan === 'veteran' || plan === 'legend') {
@@ -25,6 +26,7 @@ if (plan === 'veteran' || plan === 'legend') {
 ## Immediate Next Steps (This Session)
 
 ### ✅ Completed
+
 - [x] Identified critical role binding gap in Stripe finalization
 - [x] Implemented fix in `finalizeFromSession()`
 - [x] Created comprehensive audit report (`STRIPE_AUDIT_REPORT.md`)
@@ -33,6 +35,7 @@ if (plan === 'veteran' || plan === 'legend') {
 - [x] Committed changes to main branch
 
 ### 🔄 Pending (Required Before Deploy)
+
 1. **Manual Regression Testing** (Critical Path)
    - [ ] Test Veteran plan purchase → Step 4 org creation succeeds
    - [ ] Test Legend plan purchase → Step 4 org creation succeeds
@@ -54,6 +57,7 @@ if (plan === 'veteran' || plan === 'legend') {
 ## Testing Instructions
 
 ### Quick Start (5-10 minutes)
+
 ```bash
 # 1. Start backend
 cd server && npm run dev
@@ -71,6 +75,7 @@ npm run web  # or expo run:ios / expo run:android
 ```
 
 ### Full Test Suite (See STRIPE_FIX_REGRESSION_GUIDE.md)
+
 - Test 1: Veteran plan → Step 4 success
 - Test 2: Legend plan → Step 4 success
 - Test 3: Rookie plan → Step 4 blocked
@@ -90,6 +95,7 @@ npm run web  # or expo run:ios / expo run:android
 - [ ] Team notified of deployment time
 
 **Deployment Steps:**
+
 1. Merge main branch to production deployment branch
 2. Run migrations (if any) — this fix requires none
 3. Deploy backend code
@@ -97,6 +103,7 @@ npm run web  # or expo run:ios / expo run:android
 5. Verify role='coach' being set in transaction logs
 
 **Post-Deployment Validation:**
+
 - [ ] New users can complete onboarding flow
 - [ ] Payment processing continues normally
 - [ ] Step 4 org creation works for paid plans
@@ -152,13 +159,15 @@ After deployment, watch these:
 ## Support & Troubleshooting
 
 **Issue:** After purchase, user still can't create organization  
-**Action:** 
+**Action:**
+
 1. Check DB: `SELECT preferences->>'role', preferences->>'plan' FROM "User"`
 2. If role='fan': Payment finalization didn't run properly
 3. Try manually calling `/finalize-session` endpoint (requires auth)
 
 **Issue:** Payment processing failing after deploy  
 **Action:**
+
 1. Check logs for errors in finalizeFromSession
 2. Verify Stripe webhook secret is correct
 3. Check transaction log for failed entries
@@ -166,6 +175,7 @@ After deployment, watch these:
 
 **Issue:** Duplicate users being marked as 'coach'  
 **Action:**
+
 1. Role='coach' is safe to have multiple times (not a constraint)
 2. Verify payment wasn't double-charged (check transaction log)
 3. If double finalization, check webhook idempotency
@@ -175,16 +185,19 @@ After deployment, watch these:
 ## Timeline
 
 **Phase 1 (Current - Dec 12):**
+
 - ✅ Code fix implemented
 - ✅ Documentation created
 - ✅ Changes committed
 
 **Phase 2 (QA Testing - Dec 12-13):**
+
 - Manual regression testing
 - QA sign-off
 - ETA: 1-2 hours
 
 **Phase 3 (Deployment - Dec 13+):**
+
 - Merge to production branch
 - Deploy to staging (verify)
 - Deploy to production
@@ -196,6 +209,7 @@ After deployment, watch these:
 ## Success Criteria
 
 ✅ **Fix is successful if:**
+
 1. Users with Veteran/Legend plans have `role='coach'`
 2. Step 4 organization creation works for paid users
 3. Rookie plan users remain with `role='fan'`
@@ -204,6 +218,7 @@ After deployment, watch these:
 6. User experience improves (can now complete onboarding)
 
 ❌ **Roll back if:**
+
 1. Step 4 fails for paid users post-fix
 2. Payment processing breaks
 3. Unexpected role='coach' values appear in data
@@ -214,6 +229,7 @@ After deployment, watch these:
 ## Questions?
 
 Refer to:
+
 - **STRIPE_AUDIT_REPORT.md** - Full technical details
 - **STRIPE_FIX_REGRESSION_GUIDE.md** - Testing procedures
 - Git commit `33e9bbd` - Exact code change

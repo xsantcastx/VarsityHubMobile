@@ -12,12 +12,12 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 ### Severity Classification
 
-| Severity | Count | Definition |
-|----------|-------|-------------|
-| **CRITICAL** | 2 | User can bypass intended restrictions; data integrity at risk |
-| **HIGH** | 4 | Data integrity; authorization gaps; architectural flaws |
-| **MEDIUM** | 6 | Inconsistency; design flaw; UX/security edge |
-| **LOW** | 5+ | Edge cases; UX polish; documentation |
+| Severity     | Count | Definition                                                    |
+| ------------ | ----- | ------------------------------------------------------------- |
+| **CRITICAL** | 2     | User can bypass intended restrictions; data integrity at risk |
+| **HIGH**     | 4     | Data integrity; authorization gaps; architectural flaws       |
+| **MEDIUM**   | 6     | Inconsistency; design flaw; UX/security edge                  |
+| **LOW**      | 5+    | Edge cases; UX polish; documentation                          |
 
 ---
 
@@ -25,50 +25,50 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 ### 1.1 Auth System
 
-| Component | Location | Notes |
-|-----------|----------|-------|
-| Routes | `server/src/routes/auth.ts` | 17 routes; register, login, OAuth, verify, reset |
-| Middleware | requireAuth, requireVerified, requireOnboarded | Hierarchy: auth → verified → onboarded |
-| Schemas | Zod in auth.ts | updateMeSchema: username `min(3).max(20).regex(/^[a-z0-9_.]+$/)` |
-| Frontend | AuthProvider, sign-in, sign-up, verify | `api/auth.ts`; User.me(), User.updatePreferences() |
+| Component  | Location                                       | Notes                                                            |
+| ---------- | ---------------------------------------------- | ---------------------------------------------------------------- |
+| Routes     | `server/src/routes/auth.ts`                    | 17 routes; register, login, OAuth, verify, reset                 |
+| Middleware | requireAuth, requireVerified, requireOnboarded | Hierarchy: auth → verified → onboarded                           |
+| Schemas    | Zod in auth.ts                                 | updateMeSchema: username `min(3).max(20).regex(/^[a-z0-9_.]+$/)` |
+| Frontend   | AuthProvider, sign-in, sign-up, verify         | `api/auth.ts`; User.me(), User.updatePreferences()               |
 
 **Permission Hierarchy:** Unauthenticated → Authenticated → Verified → Onboarded → Plan-based → Admin
 
 ### 1.2 Payments/Plans
 
-| Component | Location | Notes |
-|-----------|----------|-------|
-| Routes | `server/src/routes/payments.ts` | Stripe checkout, webhook, IAP verify |
-| IAP | `hooks/useIAP.ts` | MIDTIER, TOPTIER; Apple/Google receipt validation |
-| Plan Limits | `server/src/lib/planLimits.ts` | Rookie 2 teams; Veteran unlimited; Legend extracurricular |
-| Stripe Webhook | checkout.session.completed | finalizeFromSession; idempotency via processedStripeEvent |
+| Component      | Location                        | Notes                                                     |
+| -------------- | ------------------------------- | --------------------------------------------------------- |
+| Routes         | `server/src/routes/payments.ts` | Stripe checkout, webhook, IAP verify                      |
+| IAP            | `hooks/useIAP.ts`               | MIDTIER, TOPTIER; Apple/Google receipt validation         |
+| Plan Limits    | `server/src/lib/planLimits.ts`  | Rookie 2 teams; Veteran unlimited; Legend extracurricular |
+| Stripe Webhook | checkout.session.completed      | finalizeFromSession; idempotency via processedStripeEvent |
 
 **Plan Persistence:** Stripe webhook → `finalizeFromSession`; IAP → `/payments/apple/verify-receipt`, `/payments/google/verify-purchase`. Plan persisted only after payment callback.
 
 ### 1.3 Teams/Organizations
 
-| Component | Location | Notes |
-|-----------|----------|-------|
-| Team Create | POST /teams, POST /teams/create | requireVerified, requireOnboarded, requirePlan('rookie') |
-| Org Create | POST /organizations, POST /organizations/create | requireAuth only — **no requireOnboarded** |
-| Org Update | PATCH /organizations/:id | requireAuth, requireOnboarded |
-| Extracurricular | club_type === 'extracurricular' | requires Legend plan; backend enforces 403 |
+| Component       | Location                                        | Notes                                                    |
+| --------------- | ----------------------------------------------- | -------------------------------------------------------- |
+| Team Create     | POST /teams, POST /teams/create                 | requireVerified, requireOnboarded, requirePlan('rookie') |
+| Org Create      | POST /organizations, POST /organizations/create | requireAuth only — **no requireOnboarded**               |
+| Org Update      | PATCH /organizations/:id                        | requireAuth, requireOnboarded                            |
+| Extracurricular | club_type === 'extracurricular'                 | requires Legend plan; backend enforces 403               |
 
 ### 1.4 Ads
 
-| Component | Location | Notes |
-|-----------|----------|-------|
-| Create | POST /ads | requireVerified |
-| Update/Delete | PUT /ads/:id, DELETE /ads/:id | Owner check: `ad.user_id === req.user.id` |
-| Reservations | POST /ads/reservations | **Requires ad.payment_status === 'paid'** — see CRITICAL finding |
-| Payment Flow | create-payment-sheet → webhook → finalizeFromSession | Reservations created in webhook |
+| Component     | Location                                             | Notes                                                            |
+| ------------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
+| Create        | POST /ads                                            | requireVerified                                                  |
+| Update/Delete | PUT /ads/:id, DELETE /ads/:id                        | Owner check: `ad.user_id === req.user.id`                        |
+| Reservations  | POST /ads/reservations                               | **Requires ad.payment_status === 'paid'** — see CRITICAL finding |
+| Payment Flow  | create-payment-sheet → webhook → finalizeFromSession | Reservations created in webhook                                  |
 
 ### 1.5 Uploads
 
-| Component | Location | Notes |
-|-----------|----------|-------|
+| Component  | Location                  | Notes                                            |
+| ---------- | ------------------------- | ------------------------------------------------ |
 | Cloudinary | uploads.ts, cloudinary.ts | POST /uploads; GET /uploads/cloudinary-signature |
-| Avatar | upload.ts | Local disk; may fail on ephemeral Railway |
+| Avatar     | upload.ts                 | Local disk; may fail on ephemeral Railway        |
 
 ---
 
@@ -96,7 +96,8 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 **Issue:** `POST /organizations` and `POST /organizations/create` use `requireAuth` only.
 
-**Resolution:** Intentional. Org creation is part of the onboarding flow (step-3-league). The user creates an org *during* onboarding, before `onboarding_completed` is set. Adding `requireOnboarded` would block the flow. Escalation is mitigated:
+**Resolution:** Intentional. Org creation is part of the onboarding flow (step-3-league). The user creates an org _during_ onboarding, before `onboarding_completed` is set. Adding `requireOnboarded` would block the flow. Escalation is mitigated:
+
 - Org sits in `admin_approved: false` until super admin approves
 - `POST /organizations/:id/invite` requires `requireOnboarded` — user cannot invite until onboarded
 - Team create requires `requireOnboarded` — user cannot create teams until onboarded
@@ -174,6 +175,7 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 **Issue:** `disabled={!canSubmit}` — no `saving` or `submitting` guard. User could double-submit.
 
 **Backend idempotency:** `POST /organizations/join-requests` has server-side deduplication:
+
 - Checks `existingRequest` with `organization_id_user_id`; returns 400 "You already have a pending request" if pending
 - Uses `upsert` on `organization_id_user_id` — duplicate requests update message, don't create new rows
 
@@ -261,21 +263,21 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 ## 3. Commandments Compliance
 
-| Commandment | Status | Notes |
-|-------------|--------|------|
-| app/ thin routing | ⚠️ Partial | Screens in app/; some logic in components |
-| Shared assets @/shared | ⚠️ Partial | Some duplication; path aliases used |
-| API calls via api/* | ✅ Pass | No direct fetch in screens |
-| Loading/error/empty states | ✅ Pass | Most screens have explicit states |
-| Deep links handle missing params | ⚠️ Review | Verify reset-password, oauth callbacks |
-| Block double submits | ✅ Pass | saving/isLoading guards in most forms |
-| Plan persisted only after payment | ✅ Pass | Webhook/IAP verify update plan |
-| Team creation → org association | ✅ Pass | createSchema requires organization_id |
-| Extracurricular → Legend | ✅ Pass | Backend enforced |
-| Payment-success → verify status | ✅ Pass | Retries and Try Again |
-| Ad confirmation → banner, dates, amount | ✅ Pass | payment-success displays |
-| Role/plan gates | ✅ Pass | requirePlan, requireVerified, requireOnboarded |
-| Never swallow errors | ✅ Pass | Logging and user-facing messages |
+| Commandment                             | Status     | Notes                                          |
+| --------------------------------------- | ---------- | ---------------------------------------------- |
+| app/ thin routing                       | ⚠️ Partial | Screens in app/; some logic in components      |
+| Shared assets @/shared                  | ⚠️ Partial | Some duplication; path aliases used            |
+| API calls via api/\*                    | ✅ Pass    | No direct fetch in screens                     |
+| Loading/error/empty states              | ✅ Pass    | Most screens have explicit states              |
+| Deep links handle missing params        | ⚠️ Review  | Verify reset-password, oauth callbacks         |
+| Block double submits                    | ✅ Pass    | saving/isLoading guards in most forms          |
+| Plan persisted only after payment       | ✅ Pass    | Webhook/IAP verify update plan                 |
+| Team creation → org association         | ✅ Pass    | createSchema requires organization_id          |
+| Extracurricular → Legend                | ✅ Pass    | Backend enforced                               |
+| Payment-success → verify status         | ✅ Pass    | Retries and Try Again                          |
+| Ad confirmation → banner, dates, amount | ✅ Pass    | payment-success displays                       |
+| Role/plan gates                         | ✅ Pass    | requirePlan, requireVerified, requireOnboarded |
+| Never swallow errors                    | ✅ Pass    | Logging and user-facing messages               |
 
 ---
 
@@ -314,33 +316,33 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 Before launch, assign tickets and verify reachability:
 
-| Finding | Severity | Location | Action |
-|---------|----------|----------|--------|
-| FormatString (CWE-134) | Medium | organizations.ts ~524, ~623 | Confirm no unauthenticated/low-privilege path reaches affected code |
-| XSS (CWE-79) | High | organizations.ts ~1352, ~1421 | Verify file serving path; sanitize or restrict user input |
-| Improper Type Validation | Low | organizations.ts ~779 | Add explicit type checks |
-| Insecure Hash (CWE-916) | Low | uploads.ts ~123 | Review MD5/SHA1 usage; consider stronger hash if for security |
+| Finding                  | Severity | Location                      | Action                                                              |
+| ------------------------ | -------- | ----------------------------- | ------------------------------------------------------------------- |
+| FormatString (CWE-134)   | Medium   | organizations.ts ~524, ~623   | Confirm no unauthenticated/low-privilege path reaches affected code |
+| XSS (CWE-79)             | High     | organizations.ts ~1352, ~1421 | Verify file serving path; sanitize or restrict user input           |
+| Improper Type Validation | Low      | organizations.ts ~779         | Add explicit type checks                                            |
+| Insecure Hash (CWE-916)  | Low      | uploads.ts ~123               | Review MD5/SHA1 usage; consider stronger hash if for security       |
 
 **XSS in uploads** — If the finding is in a path that serves user-uploaded content to browsers, prioritize. Ensure Content-Disposition, CSP, or sanitization prevents script execution.
 
 ### Critical List Status (March 2026 Audit)
 
-| ID | Item | Status |
-|----|------|--------|
-| **C1** | Ad reservations bypass (POST /ads/reservations) | **FIXED** — Returns **403** (not 410); code matches doc |
-| **C2** | Org create without requireOnboarded | **By design** — Onboarding flow; mitigated by admin_approved gate |
-| **C3** | Race conditions (team/event/invite limits) | See below |
-| **C4** | CUID tokens (invite/ID predictability) | **Open** — See below |
-| **C5** | Double-booking (ad slots) | **Mitigated** — Serializable transaction + slot check; H2 lock |
+| ID     | Item                                            | Status                                                            |
+| ------ | ----------------------------------------------- | ----------------------------------------------------------------- |
+| **C1** | Ad reservations bypass (POST /ads/reservations) | **FIXED** — Returns **403** (not 410); code matches doc           |
+| **C2** | Org create without requireOnboarded             | **By design** — Onboarding flow; mitigated by admin_approved gate |
+| **C3** | Race conditions (team/event/invite limits)      | See below                                                         |
+| **C4** | CUID tokens (invite/ID predictability)          | **Open** — See below                                              |
+| **C5** | Double-booking (ad slots)                       | **Mitigated** — Serializable transaction + slot check; H2 lock    |
 
 ### Race Conditions — Actual Status
 
-| Location | Issue | Status |
-|----------|-------|--------|
-| `teams.ts:471-492` | Team creation limit | **FIXED** — Atomic `$transaction` (count + create) |
-| `organizations.ts:582-594` | Org invite limit | **FIXED** — Atomic `$transaction` (count + create) |
-| `events.ts:458-476` | Event creation limit (3 pending for fans) | **FIXED** — Wrapped in `$transaction` (launch-night) |
-| `events.ts:336` | Event RSVP capacity | **FIXED** — Atomic `$transaction` |
+| Location                   | Issue                                     | Status                                               |
+| -------------------------- | ----------------------------------------- | ---------------------------------------------------- |
+| `teams.ts:471-492`         | Team creation limit                       | **FIXED** — Atomic `$transaction` (count + create)   |
+| `organizations.ts:582-594` | Org invite limit                          | **FIXED** — Atomic `$transaction` (count + create)   |
+| `events.ts:458-476`        | Event creation limit (3 pending for fans) | **FIXED** — Wrapped in `$transaction` (launch-night) |
+| `events.ts:336`            | Event RSVP capacity                       | **FIXED** — Atomic `$transaction`                    |
 
 **Launch decision:** FIXED (launch-night). Event limit now uses atomic `$transaction`.
 
@@ -350,10 +352,10 @@ The L1 "25 chars acceptable" addressed ad ID regex length only. **Separate conce
 
 ### Snyk XSS — Launch Reachability Check
 
-| Finding | Location | Reachability | Action |
-|---------|----------|--------------|--------|
-| **organizations.ts** | `res.send()` with `org.name` in approve/reject HTML | **FIXED** — `org.name` escaped before HTML insert |
-| **Upload SVG** | `uploads.ts` fileFilter allowed `image/*` (incl. SVG) | **FIXED** — Whitelist: jpg/png/gif/webp + mp4/mov only; extension cross-check (M7) |
+| Finding              | Location                                              | Reachability                                                                       | Action |
+| -------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------- | ------ |
+| **organizations.ts** | `res.send()` with `org.name` in approve/reject HTML   | **FIXED** — `org.name` escaped before HTML insert                                  |
+| **Upload SVG**       | `uploads.ts` fileFilter allowed `image/*` (incl. SVG) | **FIXED** — Whitelist: jpg/png/gif/webp + mp4/mov only; extension cross-check (M7) |
 
 **Launch-night:** Both XSS vectors fixed.
 
@@ -361,12 +363,12 @@ The L1 "25 chars acceptable" addressed ad ID regex length only. **Separate conce
 
 ### Launch Date Pressure — Fix vs Risk Acceptance
 
-| Item | Status |
-|------|--------|
-| Event limit race | **FIXED** (launch-night) |
-| C4 CUID invites | **Accepted risk** — documented; post-launch fix |
-| Org approve/reject XSS | **FIXED** (launch-night) |
-| Upload SVG block | **FIXED** (launch-night) |
+| Item                   | Status                                          |
+| ---------------------- | ----------------------------------------------- |
+| Event limit race       | **FIXED** (launch-night)                        |
+| C4 CUID invites        | **Accepted risk** — documented; post-launch fix |
+| Org approve/reject XSS | **FIXED** (launch-night)                        |
+| Upload SVG block       | **FIXED** (launch-night)                        |
 
 ---
 

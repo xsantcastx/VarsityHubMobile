@@ -8,13 +8,13 @@ This is the canonical release/run-readiness path for VarsityHub.
 
 ## Phase Map
 
-| Phase | Goal | Primary command | Supporting docs |
-|---|---|---|---|
-| 1. Local gate | Code health, security, approval flow, regressions | `npm run release:verify:local` | `../PR_CHECKLIST.md` |
-| 2. Build gate | Block bad EAS builds | `npm run release:verify:build` | `CHECKLIST.md` |
-| 3. Runtime gate | Verify Railway, SendGrid, health, and live env | `npm run release:verify:runtime` | `PENDING_OPERATOR_ACTIONS.md`, `EMAIL_GO_LIVE_CHECKLIST.md` |
-| 4. Device UAT | Confirm real-user paths on devices | manual | `../COACH_DEVICE_UAT.md`, `../COACH_DEVICE_UAT_RESULTS_TEMPLATE.md` |
-| 5. Go/No-Go | Explicit launch sign-off | manual | `LAUNCH_READINESS_GATE.md` |
+| Phase           | Goal                                              | Primary command                  | Supporting docs                                                     |
+| --------------- | ------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------- |
+| 1. Local gate   | Code health, security, approval flow, regressions | `npm run release:verify:local`   | `../PR_CHECKLIST.md`                                                |
+| 2. Build gate   | Block bad EAS builds                              | `npm run release:verify:build`   | `CHECKLIST.md`                                                      |
+| 3. Runtime gate | Verify Railway, SendGrid, health, and live env    | `npm run release:verify:runtime` | `PENDING_OPERATOR_ACTIONS.md`, `EMAIL_GO_LIVE_CHECKLIST.md`         |
+| 4. Device UAT   | Confirm real-user paths on devices                | manual                           | `../COACH_DEVICE_UAT.md`, `../COACH_DEVICE_UAT_RESULTS_TEMPLATE.md` |
+| 5. Go/No-Go     | Explicit launch sign-off                          | manual                           | `LAUNCH_READINESS_GATE.md`                                          |
 
 ## Commands
 

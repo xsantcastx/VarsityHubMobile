@@ -1,6 +1,7 @@
 # Onboarding Loop Fix - Code Changes Reference
 
 ## Summary
+
 Fixed the critical bug where users had to redo onboarding every time they logged in. The issue involved 4 interconnected problems in authentication flow, onboarding completion, and routing logic.
 
 ## Files Changed
@@ -8,6 +9,7 @@ Fixed the critical bug where users had to redo onboarding every time they logged
 ### 1. `hooks/useAppleAuth.ts` - Improved Apple Authentication Resilience
 
 **Changes**:
+
 - Added exponential backoff retry logic (1s, 2s, 4s delays)
 - Improved retry condition detection (added 500x, 503x error codes)
 - Added development fallback token for simulator testing
@@ -16,32 +18,34 @@ Fixed the critical bug where users had to redo onboarding every time they logged
 **Why**: Network failures in Apple auth were causing immediate user errors instead of retrying.
 
 **Before**:
+
 ```typescript
 // Retries only with fixed delay, and gives up too early
 while (attempts < maxAttempts) {
   try {
     res = await User.loginViaApple(identityToken);
-    break;  // exits loop on any success
+    break; // exits loop on any success
   } catch (networkErr: any) {
     attempts++;
     // ...
     if (isRetryable && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 2000 * attempts));
     } else {
-      throw networkErr;  // gives up too easily
+      throw networkErr; // gives up too easily
     }
   }
 }
 ```
 
 **After**:
+
 ```typescript
 // Exponential backoff, better error detection, fallback for dev
 while (attempts < maxAttempts) {
   try {
     res = await User.loginViaApple(identityToken);
     if (res?.access_token) {
-      return res;  // explicit success check
+      return res; // explicit success check
     }
     // Treat missing token as server error and retry
     lastError = new Error('No access token in response');
@@ -49,12 +53,12 @@ while (attempts < maxAttempts) {
   } catch (networkErr: any) {
     lastError = networkErr;
     attempts++;
-    const isRetryable = 
+    const isRetryable =
       networkErr?.message?.includes('Network request failed') ||
-      networkErr?.status === 500 ||  // NEW: detect server errors
+      networkErr?.status === 500 || // NEW: detect server errors
       networkErr?.status === 502 ||
       networkErr?.status === 503;
-    
+
     if (isRetryable && attempts < maxAttempts) {
       const delayMs = 1000 * Math.pow(2, attempts - 1); // exponential: 1s, 2s, 4s
       await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -79,6 +83,7 @@ if (__DEV__ && Platform.OS === 'ios') {
 ### 2. `app/onboarding/step-10-confirmation.tsx` - Validate Completion Success
 
 **Changes**:
+
 - Added validation that server returned `onboarding_completed=true`
 - Added error handling for auth refresh failures
 - Improved console logging for debugging
@@ -86,6 +91,7 @@ if (__DEV__ && Platform.OS === 'ios') {
 **Why**: Without validation, users could proceed to home even if server didn't mark onboarding complete, causing re-entry on next login.
 
 **Before**:
+
 ```typescript
 // Final submission to backend - mark onboarding as complete
 const completeResult = await User.completeOnboarding(completionPayload);
@@ -104,6 +110,7 @@ router.replace('/(tabs)');
 ```
 
 **After**:
+
 ```typescript
 // Final submission to backend
 const completeResult = await User.completeOnboarding(completionPayload);
@@ -130,6 +137,7 @@ router.replace('/(tabs)');
 ### 3. `context/AuthProvider.tsx` - Exit Onboarding When Complete
 
 **Changes**:
+
 - Added explicit routing logic to detect when user completes onboarding
 - When user is on `/onboarding/*` but `onboarding_completed=true`, route to `/(tabs)`
 - Prevents user from getting stuck on onboarding screens after completion
@@ -137,6 +145,7 @@ router.replace('/(tabs)');
 **Why**: AuthProvider only had logic to ENTER onboarding (when `onboarding_completed=false`), but not EXIT (when `onboarding_completed=true`).
 
 **Before**:
+
 ```typescript
 // Authenticated routing
 if (user) {
@@ -159,6 +168,7 @@ if (user) {
 ```
 
 **After**:
+
 ```typescript
 // Authenticated routing
 if (user) {
@@ -189,6 +199,7 @@ if (user) {
 ### 4. `app/sign-in.tsx` - Better Response Validation
 
 **Changes**:
+
 - Relaxed validation from `response?.user?.email` to `response?.user`
 - Simplified error message
 - Better alignment with actual server response format
@@ -196,6 +207,7 @@ if (user) {
 **Why**: Server returns `{ access_token, user: {...}, needs_onboarding, created }`, not necessarily with email in the response object.
 
 **Before**:
+
 ```typescript
 if (!response?.user?.email && !response?.email) {
   const errMsg = `Apple sign-in failed: missing email in response...`;
@@ -205,6 +217,7 @@ if (!response?.user?.email && !response?.email) {
 ```
 
 **After**:
+
 ```typescript
 if (!response?.user && !response?.email) {
   const errMsg = `Apple sign-in: missing user in response...`;
@@ -218,6 +231,7 @@ if (!response?.user && !response?.email) {
 ## Testing the Fix
 
 ### Manual Test
+
 ```bash
 # Start app in simulator
 npm start -- --ios
@@ -235,6 +249,7 @@ npm start -- --ios
 ```
 
 ### Expected Behavior After Fix
+
 - ✅ No network errors retry gracefully
 - ✅ User completes onboarding ONCE
 - ✅ Subsequent logins skip onboarding
@@ -246,6 +261,7 @@ npm start -- --ios
 ## Backward Compatibility
 
 All changes are 100% backward compatible:
+
 - No API changes to public functions
 - No breaking changes to data structures
 - Fixes only apply when relevant conditions are met
@@ -256,6 +272,7 @@ All changes are 100% backward compatible:
 ## Security Impact
 
 ✅ **No security vulnerabilities introduced**
+
 - Snyk code scan: 17 Low severity issues (all in test files, pre-existing)
 - No new security issues detected
 - Retry logic includes timeout and max-attempt limits
@@ -266,6 +283,7 @@ All changes are 100% backward compatible:
 ## Performance Impact
 
 ✅ **Negligible**
+
 - Retry logic only activates on network failure (not normal path)
 - Exponential backoff prevents request flooding
 - Total delay for 3 retries: ~7 seconds worst case
@@ -276,6 +294,7 @@ All changes are 100% backward compatible:
 ## Files NOT Modified
 
 These files were checked but required no changes:
+
 - `api/auth.ts` - Token save/load works correctly
 - `api/http.ts` - HTTP layer correctly sets auth headers
 - `context/OnboardingContext.tsx` - State management is correct

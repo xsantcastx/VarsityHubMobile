@@ -1,6 +1,7 @@
 # Quick Reference: Local Execution Checklist
 
 ## Before You Start
+
 - [ ] Have VarsityHub workspace open in VS Code
 - [ ] macOS with Xcode installed (iOS) or Android Studio (Android)
 - [ ] Simulator/emulator running or physical device connected
@@ -12,6 +13,7 @@
 ## Phase 1: QA Walkthrough (45 mins)
 
 ### Setup (5 mins)
+
 ```bash
 cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile
 npm run lint           # 0 errors expected
@@ -19,6 +21,7 @@ npx tsc --noEmit       # 0 errors expected
 ```
 
 ### Start Dev Client (5 mins)
+
 ```bash
 npx expo start --dev-client
 # Opens Metro at http://localhost:8081
@@ -26,13 +29,16 @@ npx expo start --dev-client
 ```
 
 ### Run Tests (45 mins)
+
 Follow sections in order:
+
 1. **Authentication Flow** (10 mins) - Sign up, sign in, OAuth, session
 2. **Onboarding Flow** (15 mins) - All steps, especially Step 9 (notifications)
 3. **Push Notifications** (10 mins) - Send/receive, deep linking, different types
 4. **Messaging System** (10 mins) - Send/receive, age restrictions
 
 **Capture**:
+
 - ✅/❌ for each test
 - 📸 Screenshots of issues
 - 📝 Console logs of errors
@@ -43,18 +49,21 @@ Follow sections in order:
 ## Phase 2: EAS Preview Build (20-30 mins)
 
 ### iOS Build
+
 ```bash
 eas build --platform ios --profile preview --wait
 # Outputs: Build ID + TestFlight link
 ```
 
 ### Android Build (Optional)
+
 ```bash
 eas build --platform android --profile preview --wait
 # Outputs: Build ID + APK link
 ```
 
 **Capture**:
+
 - Build IDs
 - Success/failure status
 - Build duration
@@ -65,12 +74,14 @@ eas build --platform android --profile preview --wait
 ## Phase 3: Snyk Security Scan (10 mins)
 
 ### Authenticate (First time only)
+
 ```bash
 snyk auth
 # Opens browser, copy token back
 ```
 
 ### Run Scans
+
 ```bash
 snyk test --all-projects
 snyk code test
@@ -80,6 +91,7 @@ snyk code test --json > snyk-code-results.json
 ```
 
 **Capture**:
+
 - Vulnerability counts
 - Critical/High/Medium/Low breakdown
 - JSON files
@@ -199,6 +211,7 @@ Security Sign-Off: ✅ APPROVED / ❌ REQUIRES FIXES
 ## What Happens After You Share
 
 I will immediately:
+
 1. ✅ Parse all findings
 2. ✅ Create GitHub issues for bugs (with priority)
 3. ✅ Provide code fixes or guidance
@@ -210,19 +223,20 @@ I will immediately:
 
 ## Estimated Timeline
 
-| Phase | Duration | Status |
-|-------|----------|--------|
-| Setup & QA | 45 mins | 🟢 Ready |
-| EAS Build | 20-30 mins | 🟢 Ready |
-| Snyk Scan | 10 mins | 🟢 Ready |
-| Analysis (me) | 15 mins | ⏳ Waiting |
-| **TOTAL** | **~90-100 mins** | |
+| Phase         | Duration         | Status     |
+| ------------- | ---------------- | ---------- |
+| Setup & QA    | 45 mins          | 🟢 Ready   |
+| EAS Build     | 20-30 mins       | 🟢 Ready   |
+| Snyk Scan     | 10 mins          | 🟢 Ready   |
+| Analysis (me) | 15 mins          | ⏳ Waiting |
+| **TOTAL**     | **~90-100 mins** |            |
 
 ---
 
 ## Support
 
 **Stuck on any step?** Refer to:
+
 - `TESTING_CHECKLIST.md` - Full QA guide
 - `QA_PHASE_1_READY.md` - Detailed test cases
 - `MESSAGING_AND_NOTIFICATIONS_VERIFICATION.md` - Deep dive on specific features
@@ -230,6 +244,7 @@ I will immediately:
 - `SECURITY.md` - Security best practices
 
 **Need help during execution?**
+
 1. Check the relevant guide above
 2. Review Metro console logs
 3. Share error message + console output

@@ -9,18 +9,22 @@ A comprehensive **Core Values & Safety Settings** screen that educates users abo
 ## Key Features
 
 ### 1. **Four Core Values Cards**
+
 - 🚩 **Our Mission**: VarsityHub's purpose and commitment
 - 🛡️ **Safety First**: 24/7 moderation, zero-tolerance policies, verified accounts
 - 👥 **Age-Based Messaging**: 17 & under vs 18+ messaging rules
 - ✅ **Coach Exception**: Group chat permissions for coaches
 
 ### 2. **Safe Zone Policy Modal**
+
 Appears on first visit with three policies:
+
 - 🔒 **DM Policy for Minors**: 18+ users can only DM coaches/staff
 - 👥 **Coach Exception**: Coaches auto-placed in team group chats
 - 🤚 **Anti-Bullying Reminder**: Zero-tolerance for hate speech/harassment
 
 ### 3. **Smart Modal Behavior**
+
 - Shows automatically on **first visit only**
 - Uses **AsyncStorage** to track if user has seen it
 - **Header button** (shield icon) lets users re-open anytime
@@ -51,15 +55,18 @@ Modal never shows again (unless AsyncStorage cleared)
 ## File Changes
 
 ### Modified Files
+
 - ✅ `app/core-values.tsx` - **Complete rewrite** (450+ lines)
   - Before: Placeholder with "coming soon"
   - After: Full Core Values screen with modal
 
 ### Existing Files (No Changes Needed)
+
 - ✅ `app/settings/index.tsx` - Already had "View Core Values" link
 - ✅ `app/settings/core-values.tsx` - Already exports from `../core-values.tsx`
 
 ### New Documentation
+
 - 📄 `docs/CORE_VALUES_SAFETY_SETTINGS.md` - Comprehensive guide (500+ lines)
 - 📄 `docs/CORE_VALUES_QUICK_REFERENCE.md` - This file
 
@@ -68,12 +75,14 @@ Modal never shows again (unless AsyncStorage cleared)
 ## Testing Checklist
 
 ### Visual Testing ✅
+
 - [ ] All 4 cards render with correct icons
 - [ ] Light mode: White background, dark text
 - [ ] Dark mode: Dark blue background, light text
 - [ ] Text is readable and properly formatted
 
 ### Modal Testing ✅
+
 - [ ] Modal appears on first visit
 - [ ] Modal shows all 3 policies with icons
 - [ ] "Got it!" button dismisses modal
@@ -82,6 +91,7 @@ Modal never shows again (unless AsyncStorage cleared)
 - [ ] Header shield icon re-opens modal
 
 ### AsyncStorage Testing ✅
+
 - [ ] First visit triggers modal
 - [ ] Second visit does NOT trigger modal
 - [ ] Clearing AsyncStorage resets behavior
@@ -91,6 +101,7 @@ Modal never shows again (unless AsyncStorage cleared)
 ## Quick Code Snippets
 
 ### Reset Modal for Testing
+
 ```typescript
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -99,6 +110,7 @@ AsyncStorage.removeItem('hasSeenSafeZonePolicy');
 ```
 
 ### Check Modal Status
+
 ```typescript
 AsyncStorage.getItem('hasSeenSafeZonePolicy').then(val => {
   console.log('Has seen modal:', val); // 'true' or null
@@ -110,23 +122,25 @@ AsyncStorage.getItem('hasSeenSafeZonePolicy').then(val => {
 ## Design Specs
 
 ### Theme Colors
+
 ```typescript
 // Light Mode
-background: '#FFFFFF'
-cards: '#F9FAFB'
-cardBorder: '#E5E7EB'
-text: '#11181C'
-mutedText: '#6B7280'
+background: '#FFFFFF';
+cards: '#F9FAFB';
+cardBorder: '#E5E7EB';
+text: '#11181C';
+mutedText: '#6B7280';
 
 // Dark Mode
-background: '#0B1120'
-cards: '#1F2937'
-cardBorder: '#374151'
-text: '#ECEDEE'
-mutedText: '#D1D5DB'
+background: '#0B1120';
+cards: '#1F2937';
+cardBorder: '#374151';
+text: '#ECEDEE';
+mutedText: '#D1D5DB';
 ```
 
 ### Icon Colors
+
 ```typescript
 Mission (Flag): Blue (#3B82F6 / #60A5FA)
 Safety (Shield): Green (#10B981 / #34D399)
@@ -135,6 +149,7 @@ Coach Exception (Checkmark): Purple (#7C3AED / #8B5CF6)
 ```
 
 ### Spacing
+
 ```typescript
 Card padding: 16px
 Card margin: 16px bottom
@@ -148,18 +163,21 @@ Icon circles: 48x48px
 ## Age-Based Messaging Logic
 
 ### Minors (17 & under)
+
 ```
 ✅ Can message: Other minors, verified coaches/staff
 ❌ Cannot message: Adults (18+)
 ```
 
 ### Adults (18+)
+
 ```
 ✅ Can message: Other adults, verified coaches/staff
 ❌ Cannot message: Minors (17 & under)
 ```
 
 ### Coaches (Any age)
+
 ```
 ✅ Can message: All team members in GROUP CHATS
 ❌ Cannot send: 1-on-1 DMs to minors
@@ -180,7 +198,9 @@ Stores: `'true'` (string) when modal has been seen, `null` when not seen
 ## Troubleshooting
 
 ### Modal shows every time
+
 **Fix**: Check if AsyncStorage is saving properly
+
 ```typescript
 const handleCloseSafeZone = async () => {
   try {
@@ -194,7 +214,9 @@ const handleCloseSafeZone = async () => {
 ```
 
 ### Modal never appears
+
 **Fix**: Check if AsyncStorage is reading properly
+
 ```typescript
 useEffect(() => {
   AsyncStorage.getItem(SAFE_ZONE_KEY)
@@ -207,7 +229,9 @@ useEffect(() => {
 ```
 
 ### Icons wrong color
+
 **Fix**: Check `useColorScheme()` hook
+
 ```typescript
 const colorScheme = useColorScheme();
 const isDark = colorScheme === 'dark';
@@ -219,6 +243,7 @@ console.log('Theme:', colorScheme);
 ## Production Ready
 
 ### ✅ Complete Features
+
 - Core Values cards with mission and safety info
 - Safe Zone Policy modal with 3 policies
 - AsyncStorage first-visit detection
@@ -227,9 +252,11 @@ console.log('Theme:', colorScheme);
 - Responsive design
 
 ### ✅ No TypeScript Errors
+
 All types are correct, no compilation errors
 
 ### ✅ Performance Optimized
+
 - AsyncStorage operations are async (non-blocking)
 - Modal uses fade animation (smooth)
 - ScrollViews handle overflow gracefully
@@ -239,6 +266,7 @@ All types are correct, no compilation errors
 ## What's Next?
 
 ### Optional Enhancements
+
 1. **Analytics**: Track how many users read Core Values
 2. **Quiz**: Test user understanding of policies
 3. **Video**: Embed safety policy explainer video
@@ -275,4 +303,4 @@ docs/
 
 ---
 
-*Quick Reference Guide - VarsityHub Development Team*
+_Quick Reference Guide - VarsityHub Development Team_

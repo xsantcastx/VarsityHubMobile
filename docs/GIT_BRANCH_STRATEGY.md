@@ -195,6 +195,7 @@ git for-each-ref --format='%(refname:short) %(committerdate:relative)' refs/remo
 ### Recommended Branch Protection (GitHub)
 
 For `main` branch:
+
 - ✅ Require pull request reviews
 - ✅ Require status checks to pass
 - ✅ Require branches to be up to date
@@ -202,21 +203,24 @@ For `main` branch:
 - ✅ Do not allow deletions
 
 For `develop` branch:
+
 - ✅ Require pull request reviews
 - ✅ Require status checks to pass
-- ⚠️  Allow force pushes (for emergency fixes only)
+- ⚠️ Allow force pushes (for emergency fixes only)
 
 ---
 
 ## 📊 Current Branch Summary
 
 **Total Remote Branches:** ~23
+
 - Main branches: 2-3 (main, develop, develope)
 - Chore branches: 2
 - Dependabot branches: 11 (automated)
 - Snyk branches: 7 (automated)
 
 **Recommendations:**
+
 1. Delete `develope` typo branch
 2. Clean up merged dependabot/snyk branches
 3. Start using `feature/*` and `fix/*` naming

@@ -6,12 +6,12 @@ This document defines the minimum production observability baseline required bef
 
 ## 1) SLO targets (P0)
 
-| Service | SLO | Measurement window |
-| --- | --- | --- |
-| API availability | 5xx error rate **< 1%** | rolling 1 hour + 24 hours |
-| API latency | p95 request latency **< 500ms** | rolling 15 minutes + 1 hour |
-| Mobile app stability | crash-free sessions **> 99.5%** | rolling 24 hours + 7 days |
-| Payment finalization | finalize success **> 99.9%** without manual repair | rolling 24 hours |
+| Service              | SLO                                                | Measurement window          |
+| -------------------- | -------------------------------------------------- | --------------------------- |
+| API availability     | 5xx error rate **< 1%**                            | rolling 1 hour + 24 hours   |
+| API latency          | p95 request latency **< 500ms**                    | rolling 15 minutes + 1 hour |
+| Mobile app stability | crash-free sessions **> 99.5%**                    | rolling 24 hours + 7 days   |
+| Payment finalization | finalize success **> 99.9%** without manual repair | rolling 24 hours            |
 
 ---
 

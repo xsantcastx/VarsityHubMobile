@@ -5,8 +5,9 @@
 The file you downloaded (`client_secret_...json`) is for **"Installed applications"** (desktop apps).
 
 For **mobile apps** (React Native/Expo), you need to create:
+
 1. ✅ **Android OAuth Client ID** (for Android devices)
-2. ✅ **iOS OAuth Client ID** (for iOS devices)  
+2. ✅ **iOS OAuth Client ID** (for iOS devices)
 3. ✅ **Web OAuth Client ID** (for Expo Go/web testing)
 
 ---
@@ -26,10 +27,10 @@ For **mobile apps** (React Native/Expo), you need to create:
 2. **Application type:** Select `Android`
 3. Fill in the form:
 
-| Field | Value |
-|-------|-------|
-| **Name** | `VarsityHub Mobile Android` |
-| **Package name** | `com.xsantcastx.varsityhub` |
+| Field                             | Value                                                         |
+| --------------------------------- | ------------------------------------------------------------- |
+| **Name**                          | `VarsityHub Mobile Android`                                   |
+| **Package name**                  | `com.xsantcastx.varsityhub`                                   |
 | **SHA-1 certificate fingerprint** | `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25` |
 
 4. Click **"CREATE"**
@@ -43,9 +44,9 @@ For **mobile apps** (React Native/Expo), you need to create:
 2. **Application type:** Select `iOS`
 3. Fill in the form:
 
-| Field | Value |
-|-------|-------|
-| **Name** | `VarsityHub Mobile iOS` |
+| Field         | Value                       |
+| ------------- | --------------------------- |
+| **Name**      | `VarsityHub Mobile iOS`     |
 | **Bundle ID** | `com.xsantcastx.varsityhub` |
 
 4. Click **"CREATE"**
@@ -59,12 +60,12 @@ For **mobile apps** (React Native/Expo), you need to create:
 2. **Application type:** Select `Web application`
 3. Fill in the form:
 
-| Field | Value |
-|-------|-------|
-| **Name** | `VarsityHub Mobile Web` |
-| **Authorized redirect URIs** | Add these two URLs: |
-| | `http://localhost:8081` |
-| | `https://auth.expo.io/@xsantcastx/VarsityHubMobile` |
+| Field                        | Value                                               |
+| ---------------------------- | --------------------------------------------------- |
+| **Name**                     | `VarsityHub Mobile Web`                             |
+| **Authorized redirect URIs** | Add these two URLs:                                 |
+|                              | `http://localhost:8081`                             |
+|                              | `https://auth.expo.io/@xsantcastx/VarsityHubMobile` |
 
 4. Click **"CREATE"**
 5. **Copy the Client ID**
@@ -92,6 +93,7 @@ EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID=YOUR_WEB_CLIENT_ID_HERE.apps.googleusercontent
 ```
 
 **Example with fake IDs:**
+
 ```bash
 EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=123456-abcdef.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=234567-ghijkl.apps.googleusercontent.com
@@ -115,11 +117,11 @@ npx expo start --clear
 
 ### Your Project Details
 
-| Property | Value |
-|----------|-------|
-| **Google Project ID** | `varsityhub-474715` |
-| **Package Name (Android)** | `com.xsantcastx.varsityhub` |
-| **Bundle ID (iOS)** | `com.xsantcastx.varsityhub` |
+| Property                      | Value                                                         |
+| ----------------------------- | ------------------------------------------------------------- |
+| **Google Project ID**         | `varsityhub-474715`                                           |
+| **Package Name (Android)**    | `com.xsantcastx.varsityhub`                                   |
+| **Bundle ID (iOS)**           | `com.xsantcastx.varsityhub`                                   |
 | **SHA-1 Fingerprint (Debug)** | `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25` |
 
 ---
@@ -161,6 +163,7 @@ After completing the setup:
 **Cause:** Environment variables not loaded
 
 **Fix:**
+
 1. Make sure `.env` file is in the **root** of your project (same folder as `package.json`)
 2. Check file name is exactly `.env` (not `.env.txt` or `.env.local`)
 3. Restart Expo: `npx expo start --clear`
@@ -174,6 +177,7 @@ After completing the setup:
 **Cause:** Client ID doesn't match package name or SHA-1
 
 **Fix:**
+
 1. Double-check package name in Google Console: `com.xsantcastx.varsityhub`
 2. Verify SHA-1 fingerprint: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
 3. Make sure you're using the **Android** client ID for Android (not the "Installed" one)

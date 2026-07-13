@@ -1,4 +1,5 @@
 # VarsityHub iOS - Final QA Checklist
+
 **December 11, 2025**
 
 > ⚠️ **Status:** Not executed inside this CLI environment (simulator/TestFlight access required). Use the steps below to run the flows on your device, then mark each checkbox accordingly.
@@ -12,10 +13,12 @@ This checklist covers the three user flows that are blockers to launch:
 ### **Flow 1: Email Verification → Fan Role → Feed**
 
 **Prerequisites:**
+
 - Simulator running (or TestFlight build)
 - Dev mode email verification enabled: `EXPO_PUBLIC_ENABLE_DEV_VERIFY=true` (shows code on screen)
 
 **Steps:**
+
 1. [ ] **Sign Up**
    - Open app
    - Tap "Don't have an account? Sign up"
@@ -61,6 +64,7 @@ This checklist covers the three user flows that are blockers to launch:
 ### **Flow 2: Email Verification → Coach Role → Onboarding**
 
 **Steps:**
+
 1. [ ] **Sign Up & Verify** (repeat Flow 1, steps 1-2)
    - Use different email: `test-coach@varsityhub.app`
 
@@ -147,6 +151,7 @@ Check server logs (Railway console or `eas logs`):
 ## ✅ FINAL SIGN-OFF
 
 **Pass Criteria:**
+
 - [ ] Flow 1 (Fan): Email verify → select role → onboard → feed ✅
 - [ ] Flow 2 (Coach): Email verify → select role → select plan → onboard ✅
 - [ ] Flow 3 (Errors): Invalid code, rate limiting, expiration handled gracefully ✅
@@ -156,6 +161,7 @@ Check server logs (Railway console or `eas logs`):
 - [ ] Coach plan gating visible (Rookie/Veteran/Legend options)
 
 **Status After QA:**
+
 - [ ] **PASS**: Ready for App Store submission
 - [ ] **FAIL**: Issues found (list below)
 
@@ -163,9 +169,9 @@ Check server logs (Railway console or `eas logs`):
 
 ## 🔴 ISSUES FOUND (if any)
 
-| Step | Issue | Severity | Fix |
-|------|-------|----------|-----|
-| (example) | Error on step-6 | High | Revert to step-5 fix |
+| Step      | Issue           | Severity | Fix                  |
+| --------- | --------------- | -------- | -------------------- |
+| (example) | Error on step-6 | High     | Revert to step-5 fix |
 
 ---
 

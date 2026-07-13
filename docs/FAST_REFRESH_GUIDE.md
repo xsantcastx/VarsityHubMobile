@@ -3,6 +3,7 @@
 ## Quick Start
 
 ### 1. Start Dev Server with Fast Refresh
+
 ```bash
 npm run dev
 # or
@@ -10,11 +11,14 @@ npx expo start --dev-client --clear
 ```
 
 ### 2. Open iOS Simulator
+
 Once Expo starts:
+
 - Press `i` to open iOS Simulator
 - Or press `a` for Android emulator
 
 ### 3. Test Fast Refresh
+
 1. Make a change to any component (e.g., change text color or label)
 2. Save the file (`Cmd+S`)
 3. **Fast Refresh should update instantly** without full reload
@@ -24,7 +28,7 @@ Once Expo starts:
 ✅ **Enabled by Default** - Expo enables Fast Refresh automatically  
 ✅ **Hot Reload** - Component state preserved on most changes  
 ✅ **Error Recovery** - Fix syntax errors and see changes immediately  
-✅ **Component State** - Your component state stays intact during edits  
+✅ **Component State** - Your component state stays intact during edits
 
 ## Keyboard Shortcuts in Expo Dev Tools
 
@@ -41,18 +45,21 @@ Once Expo starts:
 ✅ **metro.config.js** - Fast Refresh enabled  
 ✅ **babel.config.js** - react-refresh plugin included via babel-preset-expo  
 ✅ **worklets plugin** - `react-native-worklets/plugin` should be the last Babel plugin on Expo SDK 54  
-✅ **Development Mode** - Fast Refresh only works in dev mode  
+✅ **Development Mode** - Fast Refresh only works in dev mode
 
 ## Troubleshooting
 
 ### Fast Refresh Not Working?
+
 1. **Restart Metro bundler:**
+
    ```bash
    # Stop current server (Ctrl+C)
    npm run dev
    ```
 
 2. **Clear Metro cache:**
+
    ```bash
    npx expo start --dev-client --clear
    ```
@@ -72,6 +79,7 @@ Once Expo starts:
 ### When Fast Refresh Falls Back to Full Reload
 
 Fast Refresh automatically falls back to full reload when:
+
 - You change a file that's not a React component
 - You rename a file
 - You change exports (non-React exports)
@@ -90,6 +98,7 @@ This is **normal behavior** - just let it reload!
 ## Example Test
 
 Try this quick test:
+
 1. Open `app/sign-up.tsx`
 2. Find the title/heading text
 3. Change it to "Fast Refresh Test!"

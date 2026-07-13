@@ -56,6 +56,7 @@ You should see `EXPO_PUBLIC_SENTRY_DSN` in the list.
 ## How Sentry Works
 
 ### Code Flow:
+
 1. `app/_layout.tsx` calls `initSentry()`
 2. `utils/sentry.ts` checks for `EXPO_PUBLIC_SENTRY_DSN`:
    - First: `process.env.EXPO_PUBLIC_SENTRY_DSN` (from EAS secrets during builds)
@@ -64,6 +65,7 @@ You should see `EXPO_PUBLIC_SENTRY_DSN` in the list.
 4. Errors are captured and sent to Sentry dashboard
 
 ### Production Build Behavior:
+
 - ✅ **With EAS Secret**: Sentry works, errors tracked
 - ❌ **Without EAS Secret**: Sentry disabled, no error tracking
 
@@ -72,6 +74,7 @@ You should see `EXPO_PUBLIC_SENTRY_DSN` in the list.
 ## Testing Sentry
 
 ### 1. Local Development (with `.env`):
+
 ```bash
 # .env has EXPO_PUBLIC_SENTRY_DSN set
 npm run dev
@@ -79,6 +82,7 @@ npm run dev
 ```
 
 ### 2. Production Build (with EAS Secret):
+
 ```bash
 # Build with EAS secret set
 eas build --platform ios --profile production
@@ -103,6 +107,7 @@ eas build --platform ios --profile production
 ## Next Steps
 
 1. **Set Sentry DSN in EAS secrets** (if not already done):
+
    ```bash
    eas secret:create --name EXPO_PUBLIC_SENTRY_DSN --value <your-dsn> --scope project
    ```
@@ -122,15 +127,18 @@ eas build --platform ios --profile production
 ## Troubleshooting
 
 ### "Sentry DSN not configured" warning
+
 - **Cause**: DSN not set in EAS secrets
 - **Fix**: Run `eas secret:create --name EXPO_PUBLIC_SENTRY_DSN --value <dsn> --scope project`
 
 ### Errors not appearing in Sentry
+
 - **Check**: DSN format is correct (`https://xxx@xxx.ingest.sentry.io/xxx`)
 - **Check**: App is not in `__DEV__` mode (Sentry disabled in dev)
 - **Check**: EAS secret is set for the correct environment
 
 ### Build fails with Sentry error
+
 - **Check**: `SENTRY_AUTH_TOKEN` is set (for source map uploads)
 - **Note**: `SENTRY_ALLOW_FAILURE=true` in `eas.json` allows builds to continue even if Sentry fails
 

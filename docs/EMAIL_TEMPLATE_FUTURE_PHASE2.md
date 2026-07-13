@@ -80,6 +80,7 @@ or [manage this from your dashboard]
 ### Fields Required for Phase 2
 
 #### Currently Available (Phase 1)
+
 - `{{COACH_NAME}}` — From user.display_name
 - `{{COACH_EMAIL}}` — From user.email
 - `{{ORG_NAME}}` — From organization.name
@@ -87,6 +88,7 @@ or [manage this from your dashboard]
 - `{{SUPPORT_EMAIL}}` — From env config
 
 #### Requires Backend Implementation (Phase 2)
+
 - `{{ROLE_REQUESTED}}` — Requires role selection UI in signup + storage in join_request table
 - `{{TEAM_NAME}}` — Requires team-level join requests (currently org-level only)
 - `{{REQUESTED_BY}}` — Requires linking join request to referring admin (if applicable)
@@ -127,12 +129,14 @@ ALTER TABLE organizations ADD COLUMN seat_limit INT; -- Or derive from plan
 
 **Approval Flow Enhancement**:
 Currently admins just approve/deny. Phase 2 could allow:
+
 - Reassigning role before approval ("promote to assistant coach")
 - Limiting team access ("only Dallas Tigers, not Youth League")
 - Conditional approval ("verify with league first")
 
 **Seat Usage Alerts**:
 Once seats are tracked, admins could see:
+
 - "You have 2 seats left on Veteran" when approving coaches
 - Upgrade prompts if trying to exceed seat limit
 - Seat reallocation tools to shuffle users between teams
@@ -145,6 +149,7 @@ Set pending requests to auto-deny after 14 days, with optional reminder email at
 ## Keeping Phase 1 Accurate
 
 The Phase 1 minimal template (`server/src/routes/test-emails.ts`) uses **only fields the backend can actually provide**:
+
 - Coach name, email, organization
 - Request message (optional)
 - Request timestamp

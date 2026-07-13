@@ -16,15 +16,15 @@
 
 ## ✅ Configuration Checklist
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Package name (`applicationId`) | ✅ `com.xsantcastx.varsityhub` |
-| Version code / name | ⏳ ensure increment each release |
-| Google Maps API key | ✅ defined in `app.json` |
-| Permissions | ✅ Camera, Location, Storage |
-| Edge-to-edge UI | ✅ enabled |
-| Signing config | ⏳ configure via `MYAPP_UPLOAD_*` properties |
-| Play Console metadata | ⏳ add screenshots + text |
+| Item                           | Status                                       | Notes |
+| ------------------------------ | -------------------------------------------- | ----- |
+| Package name (`applicationId`) | ✅ `com.xsantcastx.varsityhub`               |
+| Version code / name            | ⏳ ensure increment each release             |
+| Google Maps API key            | ✅ defined in `app.json`                     |
+| Permissions                    | ✅ Camera, Location, Storage                 |
+| Edge-to-edge UI                | ✅ enabled                                   |
+| Signing config                 | ⏳ configure via `MYAPP_UPLOAD_*` properties |
+| Play Console metadata          | ⏳ add screenshots + text                    |
 
 ## 🔐 Security & Privacy
 

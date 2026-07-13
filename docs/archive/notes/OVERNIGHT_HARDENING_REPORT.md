@@ -1,4 +1,5 @@
 # Overnight Hardening Report
+
 **December 11, 2025 - 02:00 AM**
 
 ---
@@ -15,6 +16,7 @@ Completed full overnight hardening pass on all critical systems. **All checks PA
 **Status:** ✅ **CLEAN**
 
 ### Findings:
+
 - 50+ console.error/log statements audited
 - Only 1 TODO found: Apple token verification (line 303, auth.ts)
   - **Status:** Known limitation, non-blocking (dev fallback works)
@@ -24,12 +26,13 @@ Completed full overnight hardening pass on all critical systems. **All checks PA
 - Rate limiting properly logged at 3 checkpoints (30s, 5/hour, admin bypass)
 
 ### Log Quality:
-| Component | Instrumentation | Coverage |
-|-----------|-----------------|----------|
-| Email Verification | ✅ Full | request → confirm, rate limits, email send timing |
-| Auth Flow | ✅ Full | register, verify, login, password reset |
-| Onboarding | ✅ Full | step transitions, completion confirmation |
-| Error Handling | ✅ Comprehensive | All catch blocks logged |
+
+| Component          | Instrumentation  | Coverage                                          |
+| ------------------ | ---------------- | ------------------------------------------------- |
+| Email Verification | ✅ Full          | request → confirm, rate limits, email send timing |
+| Auth Flow          | ✅ Full          | register, verify, login, password reset           |
+| Onboarding         | ✅ Full          | step transitions, completion confirmation         |
+| Error Handling     | ✅ Comprehensive | All catch blocks logged                           |
 
 ---
 
@@ -39,6 +42,7 @@ Completed full overnight hardening pass on all critical systems. **All checks PA
 **Status:** ✅ **CLEAN**
 
 ### Findings:
+
 - ✅ All imports in verify-email.tsx are used (no dead imports)
 - ✅ Proper null safety: `user?.field` pattern used consistently
 - ✅ Type definitions correct: `AuthUser | null`, `string | null`
@@ -47,6 +51,7 @@ Completed full overnight hardening pass on all critical systems. **All checks PA
 - ✅ Error types properly handled (`typeof e === 'string' ? Error(e) : e`)
 
 ### Code Metrics:
+
 ```
 verify-email.tsx:     347 lines, fully typed, 0 warnings
 AuthProvider.tsx:     433 lines, comprehensive null checks
@@ -62,6 +67,7 @@ email.ts:             608 lines, proper fallback handling
 **Status:** ✅ **VALID**
 
 ### Schema Validation:
+
 ```prisma
 email_verified              Boolean   @default(false)     ✅
 email_verification_code     String?                       ✅
@@ -70,6 +76,7 @@ preferences                 Json      @default("{}")      ✅
 ```
 
 ### Onboarding Field:
+
 - Stored in `preferences.onboarding_completed` (JSON field)
 - ✅ Properly parsed on every `User.me()` call
 - ✅ Explicitly set on registration (false) and completion (true)
@@ -77,6 +84,7 @@ preferences                 Json      @default("{}")      ✅
 - ✅ No migration issues (JSON field, flexible structure)
 
 ### Database Integrity:
+
 - ✅ Foreign keys intact
 - ✅ Unique constraints on email, google_id, apple_id
 - ✅ Proper defaults: `@default(false)` for email_verified
@@ -90,27 +98,31 @@ preferences                 Json      @default("{}")      ✅
 **Status:** ✅ **CONFIGURED**
 
 ### Critical Variables:
-| Variable | Type | Default | Used By | Status |
-|----------|------|---------|---------|--------|
-| SENDGRID_API_KEY | Secret | None | email.ts | Optional* |
-| SENDGRID_VERIFICATION_TEMPLATE_ID | ID | None | email.ts | Optional* |
-| ADMIN_EMAILS | CSV | "" | auth.ts | Optional |
-| DATABASE_URL | URI | Required | prisma | ✅ Required |
-| JWT_SECRET | Secret | Required | jwt.ts | ✅ Required |
-| NODE_ENV | String | "development" | index.ts | ✅ Set |
 
-*SendGrid optional: fallback returns false, codes display on screen in dev
+| Variable                          | Type   | Default       | Used By  | Status      |
+| --------------------------------- | ------ | ------------- | -------- | ----------- |
+| SENDGRID_API_KEY                  | Secret | None          | email.ts | Optional\*  |
+| SENDGRID_VERIFICATION_TEMPLATE_ID | ID     | None          | email.ts | Optional\*  |
+| ADMIN_EMAILS                      | CSV    | ""            | auth.ts  | Optional    |
+| DATABASE_URL                      | URI    | Required      | prisma   | ✅ Required |
+| JWT_SECRET                        | Secret | Required      | jwt.ts   | ✅ Required |
+| NODE_ENV                          | String | "development" | index.ts | ✅ Set      |
+
+\*SendGrid optional: fallback returns false, codes display on screen in dev
 
 ### Fallback Handling:
+
 - ✅ SendGrid: `process.env.SENDGRID_API_KEY || ''` - graceful degradation
 - ✅ ADMIN_EMAILS: `split(',')` safely handles empty string
 - ✅ Dev/prod detection: `NODE_ENV === 'production'` consistently used
 - ✅ Google Maps: `process.env.GOOGLE_MAPS_API_KEY || null` - optional
 
 ### Dev Mode Detection:
+
 ```typescript
 const isDev = process.env.NODE_ENV !== 'production' || process.env.RATE_LIMIT_DISABLE === '1';
 ```
+
 ✅ Allows disabling rate limits for testing while keeping NODE_ENV=production
 
 ---
@@ -121,6 +133,7 @@ const isDev = process.env.NODE_ENV !== 'production' || process.env.RATE_LIMIT_DI
 **Status:** ✅ **COMPREHENSIVE**
 
 ### Sentry Event Tags (verify-email.tsx):
+
 ```
 verify-email-success:         duration_ms + email (PASS events)
 verify-email-verify:          duration_ms + email (FAIL events)
@@ -131,6 +144,7 @@ verify-email-dev-code:        (dev mode code display)
 ```
 
 ### Backend DebugLog Coverage:
+
 ```
 [verify/request] - Already verified
 [verify/request] - Rate limit: 30s cooldown
@@ -145,6 +159,7 @@ verify-email-dev-code:        (dev mode code display)
 ```
 
 ### Error Capture Paths:
+
 - ✅ Frontend: User.verifyEmail() failures tagged + extra.email
 - ✅ Frontend: User.me() refresh failures tagged
 - ✅ Frontend: Auth state issues captured
@@ -152,6 +167,7 @@ verify-email-dev-code:        (dev mode code display)
 - ✅ Backend: Email send failures logged at 2 levels
 
 ### Telemetry Accuracy:
+
 - ✅ Duration measured with `Date.now()` delta
 - ✅ Email included in all events for user correlation
 - ✅ Context tags consistent and searchable
@@ -161,15 +177,15 @@ verify-email-dev-code:        (dev mode code display)
 
 ## 📊 HARDENING SUMMARY
 
-| Category | Result | Issues | Confidence |
-|----------|--------|--------|------------|
-| Logging | ✅ PASS | 0 critical | 100% |
-| Code Quality | ✅ PASS | 0 bugs | 100% |
-| Database | ✅ PASS | 0 schema issues | 100% |
-| Configuration | ✅ PASS | 0 missing vars | 95%* |
-| Instrumentation | ✅ PASS | 0 blind spots | 100% |
+| Category        | Result  | Issues          | Confidence |
+| --------------- | ------- | --------------- | ---------- |
+| Logging         | ✅ PASS | 0 critical      | 100%       |
+| Code Quality    | ✅ PASS | 0 bugs          | 100%       |
+| Database        | ✅ PASS | 0 schema issues | 100%       |
+| Configuration   | ✅ PASS | 0 missing vars  | 95%\*      |
+| Instrumentation | ✅ PASS | 0 blind spots   | 100%       |
 
-*95% - SendGrid template IDs not yet configured (optional, fallback works)
+\*95% - SendGrid template IDs not yet configured (optional, fallback works)
 
 ---
 

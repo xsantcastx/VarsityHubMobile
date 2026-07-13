@@ -1,6 +1,7 @@
 # VarsityHub Mobile Development Tools Guide
 
 ## Summary
+
 Native development tool setup for React Native + Expo iOS/Android project with SwiftLint for Xcode and recommendations for Android Studio.
 
 ---
@@ -8,10 +9,10 @@ Native development tool setup for React Native + Expo iOS/Android project with S
 ## ✅ Installed & Configured
 
 ### macOS Development Environment
+
 - **Fastlane** (v2.229.1): iOS/Android build automation and distribution
   - Location: `/opt/homebrew/bin/fastlane`
   - Added to PATH: `~/.zshrc`
-  
 - **SwiftLint** (v0.62.2): Swift code style linting and static analysis
   - Location: `/opt/homebrew/Cellar/swiftlint/0.62.2_1`
   - Configuration: `ios/.swiftlint.yml`
@@ -25,7 +26,8 @@ Native development tool setup for React Native + Expo iOS/Android project with S
 ### For Xcode (Native iOS Development)
 
 #### Core Tools
-1. **SwiftLint** ✅ *Installed*
+
+1. **SwiftLint** ✅ _Installed_
    - Integrated with build phase for automatic linting
    - Enforces Swift style guidelines
    - Config: `ios/.swiftlint.yml`
@@ -41,6 +43,7 @@ Native development tool setup for React Native + Expo iOS/Android project with S
    - Complements SwiftLint for consistency
 
 #### Debugging & Inspection Tools
+
 4. **Reveal** (Optional, Commercial)
    - Live view hierarchy inspection
    - UI constraint debugging
@@ -52,6 +55,7 @@ Native development tool setup for React Native + Expo iOS/Android project with S
    - Good for quick view debugging
 
 #### Source Control & History
+
 6. **GitX** (Optional)
    - Git blame extensions
    - Per-line commit history
@@ -62,6 +66,7 @@ Native development tool setup for React Native + Expo iOS/Android project with S
 ### For Android Studio / IntelliJ IDEA
 
 #### Kotlin & Build Tools
+
 1. **Kotlin Multiplatform Mobile** (if sharing Kotlin code)
    - Enhanced Gradle sync
    - Compose previews
@@ -73,6 +78,7 @@ Native development tool setup for React Native + Expo iOS/Android project with S
    - Skip this extension
 
 #### Code Generation & Helpers
+
 3. **JSON To Kotlin Class** or **GsonFormatPlus**
    - Auto-generate Kotlin data classes from JSON
    - Useful if you craft native API models
@@ -84,6 +90,7 @@ Native development tool setup for React Native + Expo iOS/Android project with S
    - Optional but helpful
 
 #### Code Quality & Linting
+
 5. **SonarLint** (Recommended)
    - Inline static analysis
    - Catches issues beyond default lint warnings
@@ -102,9 +109,11 @@ Native development tool setup for React Native + Expo iOS/Android project with S
 ### Xcode Extensions (Manual)
 
 #### SwiftLint Build Phase
+
 Already configured in: `ios/.swiftlint.yml`
 
 To integrate with Xcode build:
+
 1. Open `VarsityHub.xcworkspace` in Xcode
 2. Select **VarsityHub** target → **Build Phases**
 3. Click **+** → **New Run Script Phase**
@@ -117,12 +126,14 @@ To integrate with Xcode build:
 5. Move phase to run **before Compile Sources**
 
 #### InjectionIII (Optional)
+
 ```bash
 brew install injection
 # Or download from: https://github.com/johnno1962/InjectionIII/releases
 ```
 
 #### SwiftFormat for Xcode (Optional)
+
 ```bash
 brew install swiftformat
 ```
@@ -136,6 +147,7 @@ brew install swiftformat
 3. Click **Install** and restart IDE
 
 #### Quick Plugin Install List:
+
 - Search: `"Kotlin Multiplatform Mobile"`
 - Search: `"JSON To Kotlin Class"`
 - Search: `"SonarLint"`
@@ -146,21 +158,22 @@ brew install swiftformat
 
 ## 📊 Development Setup Summary
 
-| Component | Status | Location | Purpose |
-|-----------|--------|----------|---------|
-| **Fastlane** | ✅ Installed | `/opt/homebrew/bin` | iOS/Android automation |
-| **SwiftLint** | ✅ Installed | `/opt/homebrew/Cellar/swiftlint` | iOS code style enforcement |
-| **.swiftlint.yml** | ✅ Configured | `ios/.swiftlint.yml` | SwiftLint rules config |
-| **InjectionIII** | 📦 Optional | App Store/GitHub | Hot reload views (iOS) |
-| **SwiftFormat** | 📦 Optional | Homebrew | Auto-format Swift (iOS) |
-| **SonarLint** | 📦 Optional | Android Studio Plugins | Code quality (Android) |
-| **Kotlin MPM** | 📦 Optional | Android Studio Plugins | Multiplatform builds (Android) |
+| Component          | Status        | Location                         | Purpose                        |
+| ------------------ | ------------- | -------------------------------- | ------------------------------ |
+| **Fastlane**       | ✅ Installed  | `/opt/homebrew/bin`              | iOS/Android automation         |
+| **SwiftLint**      | ✅ Installed  | `/opt/homebrew/Cellar/swiftlint` | iOS code style enforcement     |
+| **.swiftlint.yml** | ✅ Configured | `ios/.swiftlint.yml`             | SwiftLint rules config         |
+| **InjectionIII**   | 📦 Optional   | App Store/GitHub                 | Hot reload views (iOS)         |
+| **SwiftFormat**    | 📦 Optional   | Homebrew                         | Auto-format Swift (iOS)        |
+| **SonarLint**      | 📦 Optional   | Android Studio Plugins           | Code quality (Android)         |
+| **Kotlin MPM**     | 📦 Optional   | Android Studio Plugins           | Multiplatform builds (Android) |
 
 ---
 
 ## 🚀 Usage Tips
 
 ### Using SwiftLint
+
 ```bash
 # Manual lint check
 swiftlint lint ios/
@@ -173,6 +186,7 @@ swiftlint lint --config ios/.swiftlint.yml
 ```
 
 ### For React Native Development
+
 - **Most extensions are optional** since you're primarily in JavaScript/TypeScript
 - Install native tools **only when editing native modules** (`.swift`, `.kt` files)
 - Focus on Swift/Kotlin quality when:
@@ -181,7 +195,9 @@ swiftlint lint --config ios/.swiftlint.yml
   - Optimizing native performance
 
 ### CI/CD Integration
+
 SwiftLint can be integrated into pre-commit hooks:
+
 ```bash
 # In project root
 echo "swiftlint" > .git/hooks/pre-commit
@@ -208,5 +224,5 @@ chmod +x .git/hooks/pre-commit
 
 ---
 
-*Last Updated: December 8, 2025*
-*VarsityHub Mobile Development Environment*
+_Last Updated: December 8, 2025_
+_VarsityHub Mobile Development Environment_

@@ -1,6 +1,7 @@
 # Clear EAS Credentials to Fix Team ID Issue
 
 ## Problem
+
 EAS is still trying to use Team ID `B5H8F69RW5` that you don't have access to. This is likely stored in EAS credentials cache.
 
 ## Solution: Clear and Reset EAS Credentials
@@ -8,11 +9,13 @@ EAS is still trying to use Team ID `B5H8F69RW5` that you don't have access to. T
 ### Step 1: Clear Existing iOS Credentials
 
 Run this command to clear stored credentials:
+
 ```bash
 eas credentials
 ```
 
 Then:
+
 1. Select "iOS" platform
 2. Select your project
 3. Choose "Clear all credentials" or manually delete the stored Team ID
@@ -20,6 +23,7 @@ Then:
 ### Step 2: Re-authenticate with Correct Apple ID
 
 Make sure you're logged in with the Apple ID that has access to your Developer Team:
+
 ```bash
 eas logout
 eas login
@@ -30,8 +34,9 @@ eas login
 ### Step 3: Let EAS Auto-Detect Team ID
 
 The project is now configured to NOT specify a Team ID. EAS will auto-detect it from:
+
 - Your Apple Developer account credentials
-- The bundle identifier `com.varsithub.varsityhub` 
+- The bundle identifier `com.varsithub.varsityhub`
 - Your App Store Connect account
 
 ### Step 4: Build Again
@@ -41,6 +46,7 @@ eas build --platform ios --profile production
 ```
 
 EAS will now:
+
 1. Check your Apple Developer account
 2. Find the Team ID associated with your account
 3. Use that Team ID automatically
@@ -71,6 +77,7 @@ If you know your correct Team ID and want to use it:
 ## Verification
 
 After clearing credentials and building, check the build logs. You should see:
+
 - ✅ EAS auto-detecting your Team ID successfully
 - ✅ No more "403 Access forbidden" errors
 - ✅ Build proceeding with correct Team ID

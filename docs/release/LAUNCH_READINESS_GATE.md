@@ -42,18 +42,18 @@ Related docs:
 
 Fill every row before release.
 
-| # | Gate | Owner | Pass Criteria | Evidence | Status (PASS/FAIL/UNKNOWN) |
-|---|------|-------|---------------|----------|------------------------------|
-| 1 | Real-device smoke (iOS + Android) | Mobile QA | Auth, onboarding, payment, geofence, deep links, dark/light verified on physical devices | Test run IDs / checklist links | |
-| 2 | Production-like staging drill | Release owner | Full release flow succeeds in staging with prod-like config and realistic data | Staging runbook result link | |
-| 3 | Observability + alerting | Backend/Ops | Alerts fire for auth failures, payment/webhook failures, 5xx spikes, and geofence anomalies; logs support triage | Alert screenshots / dashboard links | |
-| 4 | Load + race/concurrency validation | Backend lead | Critical race-sensitive flows show no integrity drift under concurrent traffic | Load test report / logs | |
-| 5 | Rollback readiness drill | Incident commander | App/API/schema rollback path validated and time-bounded | Rollback drill notes | |
-| 6 | Security operations hygiene | Security owner | Secrets hygiene verified, dependency risks triaged, no unreviewed critical findings | Security scan links / ticket refs | |
-| 7 | Backup + restore drill | DB owner | Restore from recent backup works for critical tables and basic read/write checks | Restore drill evidence | |
-| 8 | Abuse/fraud controls | Backend/Ops | Rate limits and abuse controls active; suspicious flows are blocked and logged | Config proof / log examples | |
-| 9 | Canary and kill-switch readiness | Release owner | Canary plan, abort criteria, and safe stop path are documented and tested | Rollout plan link | |
-| 10 | Support and incident readiness | Product/Support | On-call/support runbooks ready for top incidents with ownership | Runbook links / rota snapshot | |
+| #   | Gate                               | Owner              | Pass Criteria                                                                                                    | Evidence                            | Status (PASS/FAIL/UNKNOWN) |
+| --- | ---------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------- | -------------------------- |
+| 1   | Real-device smoke (iOS + Android)  | Mobile QA          | Auth, onboarding, payment, geofence, deep links, dark/light verified on physical devices                         | Test run IDs / checklist links      |                            |
+| 2   | Production-like staging drill      | Release owner      | Full release flow succeeds in staging with prod-like config and realistic data                                   | Staging runbook result link         |                            |
+| 3   | Observability + alerting           | Backend/Ops        | Alerts fire for auth failures, payment/webhook failures, 5xx spikes, and geofence anomalies; logs support triage | Alert screenshots / dashboard links |                            |
+| 4   | Load + race/concurrency validation | Backend lead       | Critical race-sensitive flows show no integrity drift under concurrent traffic                                   | Load test report / logs             |                            |
+| 5   | Rollback readiness drill           | Incident commander | App/API/schema rollback path validated and time-bounded                                                          | Rollback drill notes                |                            |
+| 6   | Security operations hygiene        | Security owner     | Secrets hygiene verified, dependency risks triaged, no unreviewed critical findings                              | Security scan links / ticket refs   |                            |
+| 7   | Backup + restore drill             | DB owner           | Restore from recent backup works for critical tables and basic read/write checks                                 | Restore drill evidence              |                            |
+| 8   | Abuse/fraud controls               | Backend/Ops        | Rate limits and abuse controls active; suspicious flows are blocked and logged                                   | Config proof / log examples         |                            |
+| 9   | Canary and kill-switch readiness   | Release owner      | Canary plan, abort criteria, and safe stop path are documented and tested                                        | Rollout plan link                   |                            |
+| 10  | Support and incident readiness     | Product/Support    | On-call/support runbooks ready for top incidents with ownership                                                  | Runbook links / rota snapshot       |                            |
 
 ---
 
@@ -77,7 +77,7 @@ Evidence:
 ## Exception Log (if any)
 
 | Gate # | Approved by | Risk accepted | Mitigation now | Follow-up owner | Follow-up deadline |
-|--------|-------------|---------------|----------------|-----------------|--------------------|
+| ------ | ----------- | ------------- | -------------- | --------------- | ------------------ |
 |        |             |               |                |                 |                    |
 
 ---

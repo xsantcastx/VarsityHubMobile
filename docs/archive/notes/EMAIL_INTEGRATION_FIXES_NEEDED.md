@@ -1,9 +1,11 @@
 # Complete Email Integration Fix List
 
 ## Summary
+
 All 28 email templates are now integrated into routes, but TypeScript compilation fails due to parameter name mismatches. This document lists every required fix.
 
 ## Status
+
 - ✅ All route integrations added
 - ❌ Parameter names don't match function signatures
 - ⏳ Need to fix 50+ parameter mismatches across 6 files
@@ -13,6 +15,7 @@ All 28 email templates are now integrated into routes, but TypeScript compilatio
 ### File: server/src/routes/auth.ts (3 errors)
 
 **Error 1: Line 10 - Wrong import name**
+
 ```typescript
 // CURRENT (WRONG):
 import { sendLoginNewDeviceEmail } from '../lib/email.js';
@@ -72,6 +75,7 @@ Current has: `recipient_name`, `team_name`, `update_type`, `affected_member_name
 ### File: server/src/routes/events.ts (2 errors)
 
 **Error 1: Line 3 - Wrong function name**
+
 ```typescript
 // CURRENT (WRONG):
 import { sendEventRSVPEmail } from '../lib/email.js';
@@ -87,6 +91,7 @@ Current has: `user_name`, `event_name`, `event_date` (combined), `event_location
 ### File: server/src/routes/adminReports.ts (1 error)
 
 **Error 1: Line 8 - Wrong function name**
+
 ```typescript
 // CURRENT (WRONG):
 import { sendReportResolvedEmail } from '../lib/email.js';
@@ -102,6 +107,7 @@ Expected: `userName`, `planName`, `expiresDate`, `daysRemaining`, `renewalPrice`
 Current has: `user_name`, `plan_name`, `expiry_date`, `days_remaining`, `renewal_url`, `manage_billing_url`, `support_email`
 
 ## Next Steps
+
 1. Fix import names (3 files)
 2. Fix parameter names in all function calls
 3. Add missing imports (sendStaffMemberJoinedEmail in teams.ts)

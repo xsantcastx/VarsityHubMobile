@@ -11,14 +11,17 @@ The Core Values screen is VarsityHub's comprehensive safety and mission statemen
 ## Features Implemented
 
 ### 1. **Core Values Page**
+
 A scrollable page with four main cards:
 
 #### Our Mission Card
+
 - **Icon**: Flag (blue)
 - **Content**: VarsityHub's mission statement about bringing high school sports communities together
 - Emphasizes safety, positivity, and inclusivity
 
 #### Safety First Card
+
 - **Icon**: Shield with checkmark (green)
 - **Content**: Lists key safety features
   - 24/7 content moderation and reporting tools
@@ -27,6 +30,7 @@ A scrollable page with four main cards:
   - Verified coach and staff accounts
 
 #### Age-Based Messaging Card
+
 - **Icon**: People (amber/orange)
 - **Content**: Explains messaging restrictions by age
   - **Users 17 & under**: Can only message other minors of similar age
@@ -34,6 +38,7 @@ A scrollable page with four main cards:
   - **Cross-age messaging**: Blocked by default for protection
 
 #### Coach Exception Card
+
 - **Icon**: Checkmark circle (purple)
 - **Content**: Explains special coach permissions
   - Coaches auto-placed in group chats with all team members
@@ -42,9 +47,11 @@ A scrollable page with four main cards:
   - Parents can request to be added to team group chats
 
 ### 2. **Safe Zone Policy Modal**
+
 A modal that appears automatically on first visit to the Core Values page.
 
 #### Modal Features
+
 - **Semi-transparent overlay** (60% black)
 - **Rounded card design** with centered content
 - **Shield icon** at top (blue)
@@ -52,18 +59,22 @@ A modal that appears automatically on first visit to the Core Values page.
 - **Three policy items**:
 
 ##### 1. DM Policy for Minors
+
 - **Icon**: Lock (blue)
 - **Content**: Users 18+ can only DM coaches and staff to protect minors
 
 ##### 2. Coach Exception
+
 - **Icon**: People (green)
 - **Content**: Verified coaches auto-placed in group chats for safe team communication
 
 ##### 3. Anti-Bullying Reminder
+
 - **Icon**: Hand (amber/orange)
 - **Content**: Zero-tolerance for hate speech, harassment, or bullying
 
 #### Modal Controls
+
 - **"Got it!" button** at bottom dismisses the modal
 - **Tap outside** the modal also dismisses it
 - **AsyncStorage tracking**: Modal only shows once per user (stores `hasSeenSafeZonePolicy`)
@@ -74,6 +85,7 @@ A modal that appears automatically on first visit to the Core Values page.
 ## Technical Implementation
 
 ### File Structure
+
 ```
 app/
   core-values.tsx         # Main Core Values screen
@@ -83,6 +95,7 @@ app/
 ```
 
 ### Dependencies
+
 ```typescript
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -91,11 +104,13 @@ import { Modal, Pressable, ScrollView, SafeAreaView } from 'react-native';
 ```
 
 ### State Management
+
 ```typescript
 const [showSafeZoneModal, setShowSafeZoneModal] = useState(false);
 ```
 
 ### AsyncStorage Key
+
 ```typescript
 const SAFE_ZONE_KEY = 'hasSeenSafeZonePolicy';
 ```
@@ -103,9 +118,10 @@ const SAFE_ZONE_KEY = 'hasSeenSafeZonePolicy';
 Stores whether the user has seen the Safe Zone Policy modal before.
 
 ### First-Visit Detection
+
 ```typescript
 useEffect(() => {
-  AsyncStorage.getItem(SAFE_ZONE_KEY).then((val) => {
+  AsyncStorage.getItem(SAFE_ZONE_KEY).then(val => {
     if (!val) {
       setShowSafeZoneModal(true); // Show modal on first visit
     }
@@ -114,6 +130,7 @@ useEffect(() => {
 ```
 
 ### Modal Dismissal
+
 ```typescript
 const handleCloseSafeZone = async () => {
   await AsyncStorage.setItem(SAFE_ZONE_KEY, 'true'); // Mark as seen
@@ -126,11 +143,13 @@ const handleCloseSafeZone = async () => {
 ## UI/UX Design
 
 ### Theme Support
+
 - **Light Mode**: White background, dark text, light gray cards
 - **Dark Mode**: Dark blue background (#0B1120), light text, darker gray cards (#1F2937)
 - All colors adapt dynamically using `useColorScheme()` hook
 
 ### Layout Structure
+
 ```
 SafeAreaView
 └── Stack.Screen (header with shield icon button)
@@ -143,6 +162,7 @@ SafeAreaView
 ```
 
 ### Card Design
+
 - **Border radius**: 12px
 - **Padding**: 16px
 - **Border**: 1px hairline
@@ -152,6 +172,7 @@ SafeAreaView
 - **Bullet points**: 14px with 20px line height
 
 ### Modal Design
+
 - **Max width**: 500px (for tablets)
 - **Max height**: 85% of screen
 - **Border radius**: 16px
@@ -164,13 +185,14 @@ SafeAreaView
 ## Navigation Integration
 
 ### Settings Menu Link
+
 Already implemented in `app/settings/index.tsx`:
 
 ```typescript
 <SectionCard title="Legal">
-  <NavRow 
-    title="View Core Values" 
-    onPress={() => router.push('/settings/core-values')} 
+  <NavRow
+    title="View Core Values"
+    onPress={() => router.push('/settings/core-values')}
   />
   <NavRow title="Report Abuse" onPress={() => router.push('/report-abuse')} />
   <NavRow title="DM Restrictions Summary" onPress={() => router.push('/dm-restrictions')} />
@@ -186,6 +208,7 @@ Users access Core Values via: **Settings → Legal → View Core Values**
 ### Age-Based Messaging Logic
 
 #### For Minors (17 & under):
+
 ```typescript
 // Can only send DMs to other minors
 if (senderAge <= 17) {
@@ -203,6 +226,7 @@ if (senderAge <= 17) {
 ```
 
 #### For Adults (18+):
+
 ```typescript
 // Can only message other adults or coaches/staff
 if (senderAge >= 18) {
@@ -222,6 +246,7 @@ if (senderAge >= 18) {
 ### Coach Exception Logic
 
 #### For Coaches:
+
 ```typescript
 // Coaches can message anyone via group chats
 if (sender.role === 'coach' || sender.role === 'staff') {
@@ -237,12 +262,13 @@ if (sender.role === 'coach' || sender.role === 'staff') {
 ```
 
 #### Group Chat Creation:
+
 ```typescript
 // When a team is created, automatically create group chat with coach + all members
 async function createTeamGroupChat(teamId: string) {
   const teamMembers = await Team.getMembers(teamId);
   const coach = teamMembers.find(m => m.role === 'coach');
-  
+
   await GroupChat.create({
     name: `${team.name} Team Chat`,
     teamId: teamId,
@@ -258,6 +284,7 @@ async function createTeamGroupChat(teamId: string) {
 ## Testing Checklist
 
 ### ✅ Visual Testing
+
 - [ ] Core Values appears in Settings → Legal
 - [ ] All four cards render with correct icons and colors
 - [ ] Text is readable in both light and dark mode
@@ -265,6 +292,7 @@ async function createTeamGroupChat(teamId: string) {
 - [ ] "View Safe Zone Policy" button is visible and styled correctly
 
 ### ✅ Modal Testing
+
 - [ ] Safe Zone Policy modal appears on first visit
 - [ ] Modal displays all three policies with icons
 - [ ] "Got it!" button dismisses the modal
@@ -273,24 +301,28 @@ async function createTeamGroupChat(teamId: string) {
 - [ ] Header shield icon re-opens the modal
 
 ### ✅ Theme Testing
+
 - [ ] Light mode: White background, dark text, light gray cards
 - [ ] Dark mode: Dark blue background, light text, darker gray cards
 - [ ] All icons have correct colors in both themes
 - [ ] Modal overlay is semi-transparent in both themes
 
 ### ✅ Responsive Testing
+
 - [ ] Content scrolls properly on small screens
 - [ ] Modal scrolls if content is too tall
 - [ ] Modal is centered and doesn't exceed screen bounds
 - [ ] Text wraps correctly in all cards
 
 ### ✅ AsyncStorage Testing
+
 - [ ] First visit triggers modal automatically
 - [ ] Second visit does NOT trigger modal
 - [ ] Clearing AsyncStorage re-enables first-visit modal
 - [ ] Header button always works regardless of AsyncStorage state
 
 ### ✅ Accessibility Testing
+
 - [ ] All text is readable (sufficient contrast)
 - [ ] Icons are descriptive and match content
 - [ ] Touch targets are large enough (44x44px minimum)
@@ -301,6 +333,7 @@ async function createTeamGroupChat(teamId: string) {
 ## AsyncStorage Debugging
 
 ### Check if user has seen the modal:
+
 ```typescript
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -310,6 +343,7 @@ AsyncStorage.getItem('hasSeenSafeZonePolicy').then(val => {
 ```
 
 ### Reset the modal (for testing):
+
 ```typescript
 AsyncStorage.removeItem('hasSeenSafeZonePolicy').then(() => {
   console.log('Safe Zone Policy flag cleared. Modal will show again.');
@@ -317,6 +351,7 @@ AsyncStorage.removeItem('hasSeenSafeZonePolicy').then(() => {
 ```
 
 ### Clear ALL AsyncStorage (nuclear option):
+
 ```typescript
 AsyncStorage.clear().then(() => {
   console.log('All AsyncStorage cleared.');
@@ -328,6 +363,7 @@ AsyncStorage.clear().then(() => {
 ## Customization Options
 
 ### Change Modal Trigger
+
 If you want the modal to show every time instead of just once:
 
 ```typescript
@@ -338,6 +374,7 @@ useEffect(() => {
 ```
 
 ### Add More Policies
+
 Add another policy item to the modal:
 
 ```typescript
@@ -357,6 +394,7 @@ Add another policy item to the modal:
 ```
 
 ### Change Icon Colors
+
 Update icon colors to match your brand:
 
 ```typescript
@@ -368,10 +406,11 @@ Update icon colors to match your brand:
 ```
 
 ### Add More Cards
+
 Insert a new card between existing ones:
 
 ```typescript
-<View style={[styles.card, { 
+<View style={[styles.card, {
   backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
   borderColor: isDark ? '#374151' : '#E5E7EB'
 }]}>
@@ -392,10 +431,12 @@ Insert a new card between existing ones:
 ## Related Files
 
 ### Settings Integration
+
 - **`app/settings/index.tsx`**: Main settings screen with "View Core Values" link
 - **`app/settings/core-values.tsx`**: Export wrapper that redirects to `app/core-values.tsx`
 
 ### Related Screens
+
 - **`app/dm-restrictions.tsx`**: Detailed DM restrictions explanation
 - **`app/report-abuse.tsx`**: Abuse reporting form
 - **`app/blocked-users.tsx`**: View and manage blocked users
@@ -405,7 +446,9 @@ Insert a new card between existing ones:
 ## Future Enhancements
 
 ### 1. **Video Tutorial**
+
 Add an embedded video explaining the Safe Zone Policy:
+
 ```typescript
 <Video
   source={{ uri: 'https://varsityhub.com/videos/safe-zone-policy.mp4' }}
@@ -415,7 +458,9 @@ Add an embedded video explaining the Safe Zone Policy:
 ```
 
 ### 2. **Interactive Quiz**
+
 Test user understanding of safety policies:
+
 ```typescript
 const [quizCompleted, setQuizCompleted] = useState(false);
 
@@ -424,7 +469,9 @@ const [quizCompleted, setQuizCompleted] = useState(false);
 ```
 
 ### 3. **Age Verification**
+
 Require users to verify their age before dismissing the modal:
+
 ```typescript
 const [ageVerified, setAgeVerified] = useState(false);
 
@@ -432,7 +479,9 @@ const [ageVerified, setAgeVerified] = useState(false);
 ```
 
 ### 4. **Parental Consent**
+
 For minors, require parent email and consent:
+
 ```typescript
 const [parentEmail, setParentEmail] = useState('');
 const [consentGiven, setConsentGiven] = useState(false);
@@ -441,7 +490,9 @@ const [consentGiven, setConsentGiven] = useState(false);
 ```
 
 ### 5. **Analytics Tracking**
+
 Track how many users read the Core Values:
+
 ```typescript
 import Analytics from '@/utils/analytics';
 
@@ -452,7 +503,9 @@ Analytics.track('core_values_viewed', {
 ```
 
 ### 6. **Push Notification Reminder**
+
 Remind users to review Core Values periodically:
+
 ```typescript
 // Send quarterly reminder to re-read Core Values
 Notifications.scheduleNotification({
@@ -467,21 +520,23 @@ Notifications.scheduleNotification({
 ## Troubleshooting
 
 ### Modal Doesn't Appear
+
 **Issue**: Safe Zone Policy modal never shows on first visit
 
 **Solutions**:
+
 1. Check AsyncStorage permissions in `app.json`:
+
    ```json
    {
      "expo": {
-       "plugins": [
-         "@react-native-async-storage/async-storage"
-       ]
+       "plugins": ["@react-native-async-storage/async-storage"]
      }
    }
    ```
 
 2. Verify AsyncStorage import:
+
    ```typescript
    import AsyncStorage from '@react-native-async-storage/async-storage';
    ```
@@ -494,10 +549,13 @@ Notifications.scheduleNotification({
    ```
 
 ### Modal Shows Every Time
+
 **Issue**: Safe Zone Policy modal appears on every visit, not just the first
 
 **Solutions**:
+
 1. Check if AsyncStorage is saving properly:
+
    ```typescript
    const handleCloseSafeZone = async () => {
      try {
@@ -520,10 +578,13 @@ Notifications.scheduleNotification({
    ```
 
 ### Text Overflows Card
+
 **Issue**: Long text doesn't wrap properly in cards
 
 **Solutions**:
+
 1. Add `flex: 1` to text containers:
+
    ```typescript
    policyText: {
      flex: 1, // Allows text to wrap
@@ -539,10 +600,13 @@ Notifications.scheduleNotification({
    ```
 
 ### Icons Don't Match Theme
+
 **Issue**: Icons are wrong color in dark mode
 
 **Solutions**:
+
 1. Use dynamic color based on `isDark`:
+
    ```typescript
    color={isDark ? '#60A5FA' : '#3B82F6'}
    ```
@@ -560,30 +624,35 @@ Notifications.scheduleNotification({
 Before deploying to production:
 
 ### Content Review
+
 - [ ] All text is grammatically correct
 - [ ] Mission statement is approved by leadership
 - [ ] Safety policies match legal team's requirements
 - [ ] No placeholder text remains
 
 ### Legal Compliance
+
 - [ ] Safety policies comply with COPPA (Children's Online Privacy Protection Act)
 - [ ] Age verification meets legal requirements
 - [ ] Coach background checks are mentioned
 - [ ] Privacy policy link is accessible
 
 ### Performance
+
 - [ ] Modal animation is smooth (no lag)
 - [ ] AsyncStorage operations don't block UI
 - [ ] Images/icons load quickly
 - [ ] No memory leaks from modal
 
 ### Accessibility
+
 - [ ] Screen reader compatible
 - [ ] Sufficient color contrast (WCAG AA)
 - [ ] Touch targets are 44x44px minimum
 - [ ] Text is resizable
 
 ### Testing
+
 - [ ] Tested on iOS and Android
 - [ ] Tested on tablets and phones
 - [ ] Tested in light and dark mode
@@ -594,12 +663,15 @@ Before deploying to production:
 ## Support Resources
 
 ### Ionicons Icon Reference
+
 Browse all available icons: https://ionic.io/ionicons
 
 ### AsyncStorage Documentation
+
 Official docs: https://react-native-async-storage.github.io/async-storage/
 
 ### React Native Modal
+
 Official docs: https://reactnative.dev/docs/modal
 
 ---
@@ -607,6 +679,7 @@ Official docs: https://reactnative.dev/docs/modal
 ## Change Log
 
 ### Version 1.0.0 (Initial Release)
+
 - ✅ Implemented Core Values screen with 4 cards
 - ✅ Added Safe Zone Policy modal with 3 policies
 - ✅ Integrated AsyncStorage for first-visit detection
@@ -619,11 +692,12 @@ Official docs: https://reactnative.dev/docs/modal
 ## Contact
 
 For questions or issues with the Core Values implementation:
+
 - **Technical Issues**: Open a GitHub issue
 - **Content Changes**: Contact legal/compliance team
 - **Design Feedback**: Contact UX/UI team
 
 ---
 
-*Last Updated: [Current Date]*
-*Maintained by: VarsityHub Development Team*
+_Last Updated: [Current Date]_
+_Maintained by: VarsityHub Development Team_

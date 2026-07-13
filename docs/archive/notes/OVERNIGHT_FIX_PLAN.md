@@ -1,4 +1,5 @@
 # Overnight Navigation Fix Plan
+
 **Created:** December 10, 2025 3:12 AM
 **Issue:** App stuck on loading spinner, not redirecting to sign-in
 
@@ -7,6 +8,7 @@
 The app loads successfully but gets stuck on the index screen showing a loading spinner. The AuthProvider initialization completes but routing logic never executes properly.
 
 ### Symptoms:
+
 - ✅ Metro bundles successfully (3909-3975 modules)
 - ✅ App initializes (Sentry, HTTP client, push notifications)
 - ❌ No auth check logs appear in console
@@ -14,6 +16,7 @@ The app loads successfully but gets stuck on the index screen showing a loading 
 - ❌ Stuck on white screen with loading spinner
 
 ### Likely Root Causes:
+
 1. **Navigation State Race Condition**: `navState?.key` may not be available when AuthProvider tries to initialize
 2. **Timing Issue**: The `initializing` flag prevents routing useEffect from running if there's any delay
 3. **Missing Error Handling**: Silent failures in auth check or health check
@@ -22,9 +25,11 @@ The app loads successfully but gets stuck on the index screen showing a loading 
 ## Implemented Fixes (Committed)
 
 ### ✅ Added Debug Logging
+
 Added comprehensive console.log statements to track:
+
 - Navigation state readiness
-- Health check execution and results  
+- Health check execution and results
 - Auth check execution and results
 - Initialization completion
 - Routing decisions
@@ -34,6 +39,7 @@ Location: `context/AuthProvider.tsx` lines 228-276, 285-302, 354-359
 ## Remaining Tasks
 
 ### 1. Add Fallback Navigation Timeout
+
 **Priority: CRITICAL**
 **File:** `context/AuthProvider.tsx`
 
@@ -56,6 +62,7 @@ useEffect(() => {
 ```
 
 ### 2. Fix Navigation State Dependency
+
 **Priority: HIGH**  
 **File:** `app/_layout.tsx`
 
@@ -76,6 +83,7 @@ if (!loaded) {
 The `navState` check is too strict and may prevent the app from ever showing content.
 
 ### 3. Simplify Index Screen
+
 **Priority: MEDIUM**
 **File:** `app/index.tsx`
 
@@ -85,7 +93,7 @@ Add a direct redirect after a timeout if AuthProvider doesn't handle it:
 export default function Index() {
   const { loading, user } = useAuth();
   const router = useRouter();
-  
+
   useEffect(() => {
     // Fallback: if stuck loading for >3 seconds, manually redirect
     const timeout = setTimeout(() => {
@@ -96,10 +104,10 @@ export default function Index() {
         router.replace('/(tabs)');
       }
     }, 3000);
-    
+
     return () => clearTimeout(timeout);
   }, [user, router]);
-  
+
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
       <ActivityIndicator size="large" />
@@ -109,6 +117,7 @@ export default function Index() {
 ```
 
 ### 4. Add Error Boundary to Index
+
 **Priority: MEDIUM**
 **File:** `app/index.tsx`
 
@@ -127,6 +136,7 @@ export default function Index() {
 ```
 
 ### 5. Make AsyncStorage Non-Blocking
+
 **Priority: HIGH**
 **File:** `context/AuthProvider.tsx`
 
@@ -163,6 +173,7 @@ useEffect(() => {
 ```
 
 ### 6. Add Initialization Progress Indicator
+
 **Priority: LOW**
 **File:** `app/index.tsx`
 
@@ -184,6 +195,7 @@ return (
 ```
 
 ### 7. Test Health Check Timeout
+
 **Priority: MEDIUM**
 **File:** `context/AuthProvider.tsx`
 
@@ -195,10 +207,10 @@ const checkHealth = useCallback(async () => {
     console.log('[AuthProvider] Starting health check...');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    
+
     await httpGet('/health', { signal: controller.signal });
     clearTimeout(timeout);
-    
+
     console.log('[AuthProvider] Health check passed');
     setHealthOk(true);
     setHealthError(null);
@@ -214,6 +226,7 @@ const checkHealth = useCallback(async () => {
 ```
 
 ### 8. Add Metro Cache Clear to Morning Script
+
 **Priority: LOW**
 **File:** `MORNING_COMMANDS.sh`
 
@@ -230,7 +243,7 @@ rm -rf node_modules/.cache .expo ios/build android/build
 
 ## Execution Order
 
-1. ✅ **Remove `navState?.key` check from _layout.tsx** - Most likely culprit
+1. ✅ **Remove `navState?.key` check from \_layout.tsx** - Most likely culprit
 2. ✅ **Add fallback timeout to AuthProvider** - Safety net
 3. ✅ **Add fallback redirect to Index** - Last resort
 4. **Test on simulator** - Verify fixes work
@@ -276,6 +289,7 @@ npx expo start --ios --clear
 ## Rollback Plan
 
 If fixes cause issues:
+
 ```bash
 git revert HEAD~1  # Revert debug logs
 git revert HEAD~2  # Revert any other changes

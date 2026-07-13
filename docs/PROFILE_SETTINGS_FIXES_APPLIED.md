@@ -15,17 +15,20 @@ Fixed **critical real-world issues** in the profile and settings system that wou
 
 ### 1. ✅ Username Support in Profile Updates (CRITICAL)
 
-**Problem**: 
+**Problem**:
+
 - Username could not be updated after account creation
 - No way to change username or fix typos
 - Poor user experience
 
 **Real-World Impact**:
+
 - **User frustration** - Can't change username after creation
 - **No way to fix typos** - Must create new account
 - **Poor UX** - Username is important for identity
 
 **Fix Applied**:
+
 - Added `username` field to `updateMeSchema` with proper validation
 - Added username availability check before update
 - Validates format: lowercase letters, numbers, dots, underscores only
@@ -34,11 +37,12 @@ Fixed **critical real-world issues** in the profile and settings system that wou
 **Location**: `server/src/routes/auth.ts:492-513`
 
 **Code**:
+
 ```typescript
 username: z.string()
   .min(3).max(20)
-  .regex(/^[a-z0-9_.]+$/, { 
-    message: 'Username can only contain lowercase letters, numbers, dots, and underscores' 
+  .regex(/^[a-z0-9_.]+$/, {
+    message: 'Username can only contain lowercase letters, numbers, dots, and underscores'
   })
   .optional(),
 
@@ -54,7 +58,7 @@ if (data.username) {
     }
   });
   if (exists) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Username taken',
       message: 'This username is already in use.',
     });
@@ -67,17 +71,20 @@ if (data.username) {
 
 ### 2. ✅ Detailed Validation Error Responses (CRITICAL)
 
-**Problem**: 
+**Problem**:
+
 - Validation errors returned generic "Invalid payload"
 - No details about which field failed or why
 - Hard to debug for users and developers
 
 **Real-World Impact**:
+
 - **Poor UX** - Users don't know what to fix
 - **Developer frustration** - Hard to debug issues
 - **Inconsistent** - Other endpoints return detailed errors
 
 **Fix Applied**:
+
 - Changed all validation error responses to include detailed `issues` array
 - Each issue includes `path` and `message` for debugging
 - Consistent with other endpoints (events, posts, etc.)
@@ -85,13 +92,14 @@ if (data.username) {
 **Location**: `server/src/routes/auth.ts:499-513, 516-530, 570-576`
 
 **Code**:
+
 ```typescript
 if (!parsed.success) {
   return res.status(400).json({
     error: 'Invalid payload',
-    issues: parsed.error.issues.map((i) => ({ 
-      path: i.path, 
-      message: i.message 
+    issues: parsed.error.issues.map(i => ({
+      path: i.path,
+      message: i.message,
     })),
   });
 }
@@ -102,16 +110,19 @@ if (!parsed.success) {
 ### 3. ✅ Improved Preferences Merge Logic (CRITICAL)
 
 **Problem**:
+
 - Shallow merge could overwrite nested preferences
 - Could accidentally clear user preferences
 - No proper deep merge for nested objects
 
 **Real-World Impact**:
+
 - **Data loss** - Can accidentally clear preferences
 - **Security** - Could overwrite sensitive settings
 - **Bugs** - Unexpected behavior from partial updates
 
 **Fix Applied**:
+
 - Implemented proper deep merge for nested objects
 - Handles null/undefined values correctly
 - Preserves existing preferences when updating nested fields
@@ -120,14 +131,15 @@ if (!parsed.success) {
 **Location**: `server/src/routes/auth.ts:532-559`
 
 **Code**:
+
 ```typescript
 function mergePreferences(base: any, incoming: any) {
   if (!base && !incoming) return {};
   if (!base) return incoming;
   if (!incoming) return base;
-  
+
   const out = { ...base };
-  
+
   // Deep merge for nested objects
   for (const key in incoming) {
     if (incoming[key] === null || incoming[key] === undefined) {
@@ -135,10 +147,12 @@ function mergePreferences(base: any, incoming: any) {
       if (incoming[key] === null && key in incoming) {
         delete out[key];
       }
-    } else if (typeof incoming[key] === 'object' && 
-               !Array.isArray(incoming[key]) && 
-               incoming[key] !== null && 
-               incoming[key].constructor === Object) {
+    } else if (
+      typeof incoming[key] === 'object' &&
+      !Array.isArray(incoming[key]) &&
+      incoming[key] !== null &&
+      incoming[key].constructor === Object
+    ) {
       // Deep merge objects (but not arrays or special objects like Date)
       out[key] = mergePreferences(base[key], incoming[key]);
     } else {
@@ -146,7 +160,7 @@ function mergePreferences(base: any, incoming: any) {
       out[key] = incoming[key];
     }
   }
-  
+
   return out;
 }
 ```
@@ -156,16 +170,19 @@ function mergePreferences(base: any, incoming: any) {
 ### 4. ✅ Enhanced Avatar URL Validation (HIGH PRIORITY)
 
 **Problem**:
+
 - Only checked if URL was valid format
 - Didn't validate domain, protocol, or content type
 - Could set malicious or invalid URLs
 
 **Real-World Impact**:
+
 - **Security** - Can set malicious URLs
 - **UX** - Invalid URLs break images
 - **Performance** - Can set URLs to slow/unavailable servers
 
 **Fix Applied**:
+
 - Added protocol validation (only HTTPS allowed)
 - Added domain whitelist (Cloudinary, VarsityHub CDN)
 - Clear error messages for validation failures
@@ -173,6 +190,7 @@ function mergePreferences(base: any, incoming: any) {
 **Location**: `server/src/routes/auth.ts:494-503`
 
 **Code**:
+
 ```typescript
 avatar_url: z.string()
   .url({ message: 'Avatar URL must be a valid URL' })
@@ -197,15 +215,18 @@ avatar_url: z.string()
 ### 5. ✅ Improved Bio Validation (HIGH PRIORITY)
 
 **Problem**:
+
 - Bio could be set to empty string `""`
 - Should allow `null` or require minimum length
 - Empty strings are different from null
 
 **Real-World Impact**:
+
 - **Data inconsistency** - Empty string vs null confusion
 - **Display issues** - Empty string might show differently than null
 
 **Fix Applied**:
+
 - Transform empty strings to `null` automatically
 - Maintains backward compatibility
 - Cleaner data model
@@ -213,6 +234,7 @@ avatar_url: z.string()
 **Location**: `server/src/routes/auth.ts:504`
 
 **Code**:
+
 ```typescript
 bio: z.string()
   .max(1000)
@@ -226,22 +248,25 @@ bio: z.string()
 ### 6. ✅ Enhanced Display Name Validation (MEDIUM)
 
 **Problem**:
+
 - Display name could be set to whitespace-only strings
 - Should trim and validate
 
 **Fix Applied**:
+
 - Added refinement to check trimmed length
 - Prevents whitespace-only display names
 
 **Location**: `server/src/routes/auth.ts:493`
 
 **Code**:
+
 ```typescript
 display_name: z.string()
   .min(1)
   .max(120)
-  .refine((val) => val.trim().length > 0, { 
-    message: 'Display name cannot be only whitespace' 
+  .refine((val) => val.trim().length > 0, {
+    message: 'Display name cannot be only whitespace'
   })
   .optional(),
 ```
@@ -251,16 +276,19 @@ display_name: z.string()
 ### 7. ✅ Improved Account Deletion (CRITICAL)
 
 **Problem**:
+
 - Soft delete only set `banned: true` and cleared some fields
 - Didn't clean up relationships (follows, upvotes, bookmarks, comments)
 - Orphaned data remained in database
 
 **Real-World Impact**:
+
 - **Data bloat** - Orphaned records accumulate
 - **Privacy concerns** - User data remains accessible
 - **GDPR compliance** - May violate data deletion requirements
 
 **Fix Applied**:
+
 - Use transaction to ensure atomicity
 - Anonymize user data (clear username, preferences)
 - Remove follows (both directions)
@@ -271,8 +299,9 @@ display_name: z.string()
 **Location**: `server/src/routes/users.ts:239-280`
 
 **Code**:
+
 ```typescript
-await prisma.$transaction(async (tx) => {
+await prisma.$transaction(async tx => {
   // Anonymize user data
   await tx.user.update({
     where: { id },
@@ -287,21 +316,18 @@ await prisma.$transaction(async (tx) => {
       preferences: {}, // Clear preferences
     },
   });
-  
+
   // Remove follows
   await tx.follows.deleteMany({
     where: {
-      OR: [
-        { follower_id: id },
-        { following_id: id }
-      ]
-    }
+      OR: [{ follower_id: id }, { following_id: id }],
+    },
   });
-  
+
   // Remove interactions
   await tx.postUpvote.deleteMany({ where: { user_id: id } });
   await tx.postBookmark.deleteMany({ where: { user_id: id } });
-  
+
   // Delete comments
   await tx.comment.deleteMany({ where: { author_id: id } });
 });
@@ -344,6 +370,7 @@ await prisma.$transaction(async (tx) => {
 ## Testing Scenarios
 
 ### Test 1: Update Username
+
 ```bash
 PATCH /me { username: "newusername" }
 # Should: Update username if available
@@ -351,6 +378,7 @@ PATCH /me { username: "newusername" }
 ```
 
 ### Test 2: Invalid Avatar URL
+
 ```bash
 PATCH /me { avatar_url: "http://evil.com/image.jpg" }
 # Should: Return 400 with detailed error
@@ -358,6 +386,7 @@ PATCH /me { avatar_url: "http://evil.com/image.jpg" }
 ```
 
 ### Test 3: Preferences Merge
+
 ```bash
 # User has: { notifications: { game_event_reminders: true } }
 PATCH /me/preferences { notifications: { team_updates: true } }
@@ -366,6 +395,7 @@ PATCH /me/preferences { notifications: { team_updates: true } }
 ```
 
 ### Test 4: Account Deletion
+
 ```bash
 DELETE /users/me
 # Should: Anonymize user data
@@ -375,6 +405,7 @@ DELETE /users/me
 ```
 
 ### Test 5: Validation Errors
+
 ```bash
 PATCH /me { bio: "x".repeat(1001) }
 # Should: Return 400 with detailed error
@@ -404,6 +435,7 @@ PATCH /me { bio: "x".repeat(1001) }
 ## Conclusion
 
 The profile and settings system had **critical issues** that would have caused:
+
 - User frustration (can't change username)
 - Data loss (preferences overwritten)
 - Privacy concerns (incomplete account deletion)

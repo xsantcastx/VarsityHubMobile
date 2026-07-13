@@ -5,6 +5,7 @@
 ### ✅ Currently Implemented
 
 #### 1. **Swipe Toggle (Camera/Review)**
+
 - **Status**: ✅ IMPLEMENTED
 - **Location**: `app/create-post.tsx` lines 266-287
 - Gesture-based swipe toggle in the middle of screen
@@ -14,6 +15,7 @@
 - Opacity changes during gesture
 
 #### 2. **Rotating Prompts**
+
 - **Status**: ✅ IMPLEMENTED
 - **Location**: Lines 385-391
 - Uses `<RotatingPrompts>` component
@@ -22,6 +24,7 @@
 - Integrated into post creation screen
 
 #### 3. **Camera Integration**
+
 - **Status**: ✅ IMPLEMENTED
 - **Location**: Lines 205-257
 - Direct camera launch with `ImagePicker.launchCameraAsync()`
@@ -31,6 +34,7 @@
 - Automatic image resizing to 1280px width
 
 #### 4. **Nearest Event Auto-Suggestion**
+
 - **Status**: ✅ IMPLEMENTED
 - **Location**: Lines 114-153
 - Automatically suggests nearest game/event based on:
@@ -40,6 +44,7 @@
 - Auto-selects the closest upcoming game
 
 #### 5. **Media Validation**
+
 - **Status**: ✅ IMPLEMENTED
 - **Location**: Lines 26-50
 - File type validation (JPEG, PNG, GIF, WebP for images; MP4, MOV for videos)
@@ -51,6 +56,7 @@
 ### ❌ Missing Features (To Be Implemented)
 
 #### 1. **Video Recording with In-App Controls**
+
 - **Status**: ❌ MISSING
 - **Requirement**: "WHEN USER SELECTS VIDEO, START RECORDING"
 - **Current**: Uses system camera app
@@ -61,10 +67,11 @@
   - Consider using `expo-camera` for custom recording UI
 
 #### 2. **Video Cropping/Trimming**
+
 - **Status**: ❌ MISSING
 - **Requirement**: "ABLE TO CROP VIDEO ON TOP"
 - **Current**: No video editing capabilities
-- **Needed**: 
+- **Needed**:
   - Video trimming UI (start/end time selectors)
   - Timeline scrubber
   - Preview playback
@@ -74,10 +81,12 @@
     - `ffmpeg` for trimming (via `react-native-ffmpeg`)
 
 #### 3. **Post Destination Selection (Stories-Style)**
+
 - **Status**: ❌ MISSING
 - **Requirement**: "AFTER POST BUTTON, OPTIONS SHOWING THEIR FOLLOWING AND PERSONAL PAGE"
 - **Current**: Posts directly, no destination choice
 - **Needed**: Instagram Stories-style destination selector:
+
   ```
   ┌────────────────────────────────┐
   │  [Your Story]  [Close Friends] │
@@ -85,6 +94,7 @@
   │  Personal Page   Team Page     │
   └────────────────────────────────┘
   ```
+
   - Left/Right swipe to select destination
   - Options:
     - Your personal page
@@ -94,6 +104,7 @@
   - Visual feedback for selection
 
 #### 4. **Multi-Destination Posting**
+
 - **Status**: ❌ MISSING
 - **Requirement**: "PROMPTED IF THEY WANT TO POST ON THEIR PAGE, OR THE TEAM/EVENT PAGE"
 - **Current**: Single destination only
@@ -105,6 +116,7 @@
   - Post to multiple places simultaneously
 
 #### 5. **Story-Specific Upload**
+
 - **Status**: ❌ MISSING
 - **Requirement**: "ADD TO STORY, PROMPTS CAMERA NOT PHOTO GALLERY"
 - **Current**: Shows both camera and gallery options
@@ -121,6 +133,7 @@
 ### Phase 1: Video Editing (HIGH PRIORITY)
 
 #### A. Add Video Trimming UI
+
 ```typescript
 // New component: VideoTrimmer.tsx
 import { Video } from 'expo-av';
@@ -136,17 +149,17 @@ const VideoTrimmer = ({ videoUri, onTrim, onCancel }: VideoTrimmerProps) => {
   const [startTime, setStartTime] = useState(0);
   const [endTime, setEndTime] = useState(30);
   const [duration, setDuration] = useState(30);
-  
+
   return (
     <View style={styles.trimContainer}>
-      <Video 
+      <Video
         source={{ uri: videoUri }}
         style={styles.videoPreview}
         resizeMode="contain"
         shouldPlay
         isLooping
       />
-      
+
       <View style={styles.trimControls}>
         <Text>Start: {startTime.toFixed(1)}s</Text>
         <Slider
@@ -156,7 +169,7 @@ const VideoTrimmer = ({ videoUri, onTrim, onCancel }: VideoTrimmerProps) => {
           maximumValue={duration - 1}
           step={0.1}
         />
-        
+
         <Text>End: {endTime.toFixed(1)}s</Text>
         <Slider
           value={endTime}
@@ -165,7 +178,7 @@ const VideoTrimmer = ({ videoUri, onTrim, onCancel }: VideoTrimmerProps) => {
           maximumValue={duration}
           step={0.1}
         />
-        
+
         <View style={styles.trimButtons}>
           <Button title="Cancel" onPress={onCancel} />
           <Button title="Trim" onPress={() => onTrim(startTime, endTime)} />
@@ -177,6 +190,7 @@ const VideoTrimmer = ({ videoUri, onTrim, onCancel }: VideoTrimmerProps) => {
 ```
 
 #### B. Integrate Video Processing
+
 ```typescript
 // Add to create-post.tsx
 import { Video } from 'expo-av';
@@ -190,7 +204,7 @@ const handleVideoTrim = async (startTime: number, endTime: number) => {
     // Option 1: Use FFmpeg (requires expo-av or react-native-ffmpeg)
     // Option 2: Use cloud service for trimming
     // Option 3: Accept full video and trim on backend
-    
+
     setTrimRange({ start: startTime, end: endTime });
     setShowTrimmer(false);
   } catch (error) {
@@ -204,6 +218,7 @@ const handleVideoTrim = async (startTime: number, endTime: number) => {
 ### Phase 2: Post Destination Selector (HIGH PRIORITY)
 
 #### A. Create Destination Modal Component
+
 ```typescript
 // New component: PostDestinationModal.tsx
 interface Destination {
@@ -214,10 +229,10 @@ interface Destination {
   enabled: boolean;
 }
 
-const PostDestinationModal = ({ 
-  visible, 
-  onClose, 
-  onConfirm 
+const PostDestinationModal = ({
+  visible,
+  onClose,
+  onConfirm
 }: Props) => {
   const [destinations, setDestinations] = useState<Destination[]>([
     { id: '1', type: 'personal', name: 'Your Story', icon: '👤', enabled: true },
@@ -227,8 +242,8 @@ const PostDestinationModal = ({
   ]);
 
   const toggleDestination = (id: string) => {
-    setDestinations(prev => 
-      prev.map(dest => 
+    setDestinations(prev =>
+      prev.map(dest =>
         dest.id === id ? { ...dest, enabled: !dest.enabled } : dest
       )
     );
@@ -239,7 +254,7 @@ const PostDestinationModal = ({
       <View style={styles.modalOverlay}>
         <View style={styles.destinationCard}>
           <Text style={styles.modalTitle}>Share To</Text>
-          
+
           {/* Story-style left/right selector */}
           <View style={styles.primaryOptions}>
             <Pressable
@@ -252,7 +267,7 @@ const PostDestinationModal = ({
               <Text style={styles.primaryIcon}>{destinations[0].icon}</Text>
               <Text style={styles.primaryLabel}>{destinations[0].name}</Text>
             </Pressable>
-            
+
             <Pressable
               style={[
                 styles.primaryOption,
@@ -285,8 +300,8 @@ const PostDestinationModal = ({
             <Pressable style={styles.cancelButton} onPress={onClose}>
               <Text>Cancel</Text>
             </Pressable>
-            <Pressable 
-              style={styles.confirmButton} 
+            <Pressable
+              style={styles.confirmButton}
               onPress={() => onConfirm(destinations.filter(d => d.enabled))}
             >
               <Text style={styles.confirmButtonText}>Share</Text>
@@ -300,6 +315,7 @@ const PostDestinationModal = ({
 ```
 
 #### B. Integrate into Post Flow
+
 ```typescript
 // Update create-post.tsx onSubmit
 const [showDestinationModal, setShowDestinationModal] = useState(false);
@@ -313,7 +329,7 @@ const onSubmit = async () => {
 const handleDestinationConfirm = async (destinations: Destination[]) => {
   setSelectedDestinations(destinations);
   setShowDestinationModal(false);
-  
+
   // Now actually post to selected destinations
   await createPostsForDestinations(destinations);
 };
@@ -322,8 +338,10 @@ const createPostsForDestinations = async (destinations: Destination[]) => {
   setSubmitting(true);
   try {
     // Upload media once
-    const mediaUrl = picked?.uri ? await uploadFile(baseUrl, picked.uri, 'post-media', picked.mime) : null;
-    
+    const mediaUrl = picked?.uri
+      ? await uploadFile(baseUrl, picked.uri, 'post-media', picked.mime)
+      : null;
+
     // Create post for each destination
     for (const dest of destinations) {
       if (dest.type === 'personal') {
@@ -342,7 +360,7 @@ const createPostsForDestinations = async (destinations: Destination[]) => {
       }
       // ... handle other destination types
     }
-    
+
     Alert.alert('Success', 'Posted to selected destinations!');
     router.back();
   } catch (error) {
@@ -358,6 +376,7 @@ const createPostsForDestinations = async (destinations: Destination[]) => {
 ### Phase 3: Story-Specific Flow (MEDIUM PRIORITY)
 
 #### A. Separate Story Creation Screen
+
 ```typescript
 // New file: app/create-story.tsx
 export default function CreateStoryScreen() {
@@ -373,7 +392,7 @@ export default function CreateStoryScreen() {
       quality: 0.85,
       videoMaxDuration: 15, // Stories are shorter
     });
-    
+
     if (!result.canceled) {
       // Proceed with story creation
       setStoryMedia(result.assets[0]);
@@ -394,10 +413,11 @@ export default function CreateStoryScreen() {
 ```
 
 #### B. Update Create Menu
+
 ```typescript
 // app/create.tsx - add story option
-<Pressable 
-  style={styles.item} 
+<Pressable
+  style={styles.item}
   onPress={() => go('/create-story')}
 >
   <Text style={styles.itemText}>Add to Story</Text>
@@ -409,6 +429,7 @@ export default function CreateStoryScreen() {
 ## 📱 UI/UX Flow Diagram
 
 ### Current Flow:
+
 ```
 Create Post
     ↓
@@ -422,6 +443,7 @@ Add Caption
 ```
 
 ### Proposed Flow:
+
 ```
 Create Post
     ↓
@@ -446,6 +468,7 @@ Multi-Destination Selection (NEW)
 ```
 
 ### Story Flow (NEW):
+
 ```
 Add to Story
     ↓
@@ -465,16 +488,18 @@ Destination: [Your Story] or [Close Friends]
 ## 🔧 Technical Requirements
 
 ### Dependencies to Add:
+
 ```json
 {
-  "expo-av": "^14.0.0",  // Video playback for trimming
-  "@react-native-community/slider": "^4.5.0",  // Trim timeline
-  "expo-video-thumbnails": "^8.0.0",  // Video preview frames
-  "react-native-ffmpeg": "^0.5.0"  // Video processing (optional)
+  "expo-av": "^14.0.0", // Video playback for trimming
+  "@react-native-community/slider": "^4.5.0", // Trim timeline
+  "expo-video-thumbnails": "^8.0.0", // Video preview frames
+  "react-native-ffmpeg": "^0.5.0" // Video processing (optional)
 }
 ```
 
 ### API Changes Needed:
+
 ```typescript
 // Backend: Add destination field to posts
 interface Post {
@@ -502,6 +527,7 @@ interface Post {
 ## ✅ Summary
 
 ### What's Working:
+
 - ✅ Swipe toggle (blue/red for camera/review)
 - ✅ Camera integration
 - ✅ Rotating prompts
@@ -509,13 +535,16 @@ interface Post {
 - ✅ Media validation
 
 ### What's Missing:
+
 - ❌ Video trimming/cropping
 - ❌ Post destination selector (Stories-style)
 - ❌ Multi-destination posting
 - ❌ Story-only camera flow
 
 ### Next Steps:
+
 Would you like me to implement:
+
 1. The post destination selector modal first? (Instagram Stories-style)
 2. Video trimming functionality?
 3. Story-specific camera flow?

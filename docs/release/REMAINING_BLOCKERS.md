@@ -1,9 +1,11 @@
 # Implementation Guide: Remaining Critical Blockers
 
 ## Overview
+
 This guide covers the 4 remaining critical blockers that prevent production launch:
+
 1. Token Refresh Mechanism
-2. Subscription Verification  
+2. Subscription Verification
 3. Loading States
 4. Empty States
 
@@ -12,12 +14,15 @@ This guide covers the 4 remaining critical blockers that prevent production laun
 ## 1. Token Refresh Mechanism 🔐
 
 ### Problem
+
 Tokens expire but the app has no refresh flow. Users get logged out unexpectedly.
 
 ### Solution
+
 Implement short-lived access tokens + refresh token flow.
 
 ### Server Changes Needed
+
 ```typescript
 // Backend should return both tokens on login
 {
@@ -34,6 +39,7 @@ Implement short-lived access tokens + refresh token flow.
 ### Client Implementation
 
 **Step 1: Update `auth.ts` to support refresh tokens**
+
 ```typescript
 const REFRESH_TOKEN_KEY = 'auth_refresh_token_key';
 
@@ -63,7 +69,7 @@ export async function loadRefreshToken(): Promise<string | null> {
 async refresh() {
   const refreshToken = await loadRefreshToken();
   if (!refreshToken) throw new Error('No refresh token available');
-  
+
   const res = await httpPost('/auth/refresh', { refresh_token: refreshToken });
   if (res?.access_token) {
     await saveToken(res.access_token);
@@ -73,6 +79,7 @@ async refresh() {
 ```
 
 **Step 2: Update login/register to save refresh token**
+
 ```typescript
 async login(email: string, password: string) {
   const res = await httpPost('/auth/login', { email, password });
@@ -85,6 +92,7 @@ async login(email: string, password: string) {
 ```
 
 **Step 3: Intercept 401 errors in `http.ts`**
+
 ```typescript
 async function request(path: string, options: RequestInit = {}, ...): Promise<any> {
   try {
@@ -112,12 +120,15 @@ async function request(path: string, options: RequestInit = {}, ...): Promise<an
 ## 2. Subscription Verification 💳
 
 ### Problem
+
 App doesn't verify subscription status. Premium features aren't properly gated.
 
 ### Solution
+
 Check subscription at login and periodically refresh.
 
 ### Server Changes Needed
+
 ```typescript
 // New endpoint: GET /me/subscription
 {
@@ -135,6 +146,7 @@ Check subscription at login and periodically refresh.
 ### Client Implementation
 
 **Step 1: Update `AuthProvider.tsx` to fetch subscription**
+
 ```typescript
 interface AuthContextType {
   user: AuthUser | null;
@@ -147,12 +159,15 @@ async function checkSubscription() {
   try {
     const sub = await httpGet('/me/subscription');
     setSubscription(sub);
-    
+
     // Refresh every 5 minutes (or when app regains focus)
-    const timer = setInterval(() => {
-      void checkSubscription();
-    }, 5 * 60 * 1000);
-    
+    const timer = setInterval(
+      () => {
+        void checkSubscription();
+      },
+      5 * 60 * 1000
+    );
+
     return () => clearInterval(timer);
   } catch (error) {
     console.error('[auth] Failed to check subscription:', error);
@@ -162,6 +177,7 @@ async function checkSubscription() {
 ```
 
 **Step 2: Add feature gating helper**
+
 ```typescript
 // utils/subscriptionUtils.ts
 export function requireSubscription(feature: string, hasSubscription: boolean): void {
@@ -175,7 +191,7 @@ import { useAuth } from '@/context/AuthProvider';
 
 function CreateAdButton() {
   const { hasActiveSubscription } = useAuth();
-  
+
   const handlePress = () => {
     if (!hasActiveSubscription) {
       showErrorToast('This feature requires a subscription');
@@ -184,7 +200,7 @@ function CreateAdButton() {
     }
     // Continue with ad creation
   };
-  
+
   return (
     <Pressable disabled={!hasActiveSubscription} onPress={handlePress}>
       <Text>Create Ad</Text>
@@ -198,14 +214,17 @@ function CreateAdButton() {
 ## 3. Loading States ⏳
 
 ### Problem
+
 Many screens show nothing while loading. Poor UX.
 
 ### Solution
+
 Add skeleton screens and proper loading indicators to all data-fetching screens.
 
 ### Create Skeleton Components
 
 **Create `components/SkeletonCard.tsx`**
+
 ```typescript
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
@@ -218,7 +237,7 @@ export function SkeletonCard() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const shimmerAnim = useRef(new Animated.Value(0)).current;
-  
+
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -235,12 +254,12 @@ export function SkeletonCard() {
       ])
     ).start();
   }, []);
-  
+
   const opacity = shimmerAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0.3, 0.7],
   });
-  
+
   return (
     <Animated.View style={[styles.container, { opacity }]}>
       <View style={[styles.avatar, { backgroundColor: theme.text + '20' }]} />
@@ -277,11 +296,12 @@ const styles = StyleSheet.create({
 ### Apply to Screens
 
 **Example: `app/highlights.tsx`**
+
 ```typescript
 function HighlightsScreen() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
-  
+
   useEffect(() => {
     const loadHighlights = async () => {
       try {
@@ -294,7 +314,7 @@ function HighlightsScreen() {
     };
     void loadHighlights();
   }, []);
-  
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -304,17 +324,19 @@ function HighlightsScreen() {
       </View>
     );
   }
-  
+
   if (items.length === 0) {
     return <EmptyState message="No highlights yet" />;
   }
-  
+
   return <FlatList data={items} renderItem={renderItem} />;
 }
 ```
 
 ### Add to Critical Screens
+
 Priority order:
+
 1. Feed/Highlights (currently blank while loading)
 2. Messages (currently blank)
 3. Game Details (already has some loading)
@@ -326,12 +348,15 @@ Priority order:
 ## 4. Empty States 📭
 
 ### Problem
+
 When lists are empty, users don't know if it's loading, error, or actually empty.
 
 ### Solution
+
 Create `EmptyState` component used consistently across app.
 
 **Create `components/EmptyState.tsx`**
+
 ```typescript
 import { Ionicons } from '@expo/vector-icons';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
@@ -351,7 +376,7 @@ interface EmptyStateProps {
 export function EmptyState({ icon = 'inbox', title, message, action }: EmptyStateProps) {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
-  
+
   return (
     <View style={styles.container}>
       <Ionicons name={icon as any} size={64} color={theme.text + '40'} />
@@ -470,6 +495,7 @@ Week 2: Loading States + Empty States
 ## Testing Checklist
 
 ### Token Refresh
+
 - [ ] Token expires (set short expiry: 60 seconds for testing)
 - [ ] Make request after expiry
 - [ ] Verify refresh endpoint called
@@ -477,6 +503,7 @@ Week 2: Loading States + Empty States
 - [ ] Verify user stays logged in
 
 ### Subscription
+
 - [ ] Create two test users (one with, one without subscription)
 - [ ] Login as non-subscriber
 - [ ] Try to create ad
@@ -484,12 +511,14 @@ Week 2: Loading States + Empty States
 - [ ] Verify no network request succeeds
 
 ### Loading States
+
 - [ ] Load feed on slow network
 - [ ] Verify skeleton cards appear
 - [ ] Verify cards replaced when data loads
 - [ ] Verify smooth transition
 
 ### Empty States
+
 - [ ] Clear all posts for user
 - [ ] Navigate to profile
 - [ ] Verify empty state shows instead of blank screen
@@ -500,11 +529,13 @@ Week 2: Loading States + Empty States
 ## Code Examples - Complete Implementation
 
 **Full auth.ts with refresh token**
+
 ```typescript
 // See production-ready implementation in docs/token-refresh-complete.ts
 ```
 
 **Full http.ts with 401 retry**
+
 ```typescript
 // See production-ready implementation in docs/http-retry-complete.ts
 ```

@@ -5,6 +5,7 @@ This document explains the organized structure of the VarsityHub Mobile reposito
 ## 📁 Directory Overview
 
 ### Root Level (Production Code)
+
 ```
 VarsityHubMobile/
 ├── src/                    # Main React Native source code
@@ -26,6 +27,7 @@ VarsityHubMobile/
 ```
 
 ### Documentation (`.docs/`)
+
 Organized by purpose and workflow:
 
 ```
@@ -87,6 +89,7 @@ Organized by purpose and workflow:
 ```
 
 ### Logs and Cache (`.logs/` and `.cache/`)
+
 ```
 .logs/
 ├── overnight/              # Overnight automation run logs
@@ -99,6 +102,7 @@ Organized by purpose and workflow:
 ```
 
 ### Configuration Files (Root)
+
 ```
 .env                        # Environment variables (git ignored)
 .env.example                # Example environment template
@@ -113,6 +117,7 @@ eas.json                    # EAS build configuration
 ```
 
 ### GitHub Configuration (`.github/`)
+
 ```
 .github/
 ├── workflows/              # GitHub Actions CI/CD workflows
@@ -125,53 +130,62 @@ eas.json                    # EAS build configuration
 ## 🎯 How to Navigate
 
 ### For Development
+
 - **Start here:** `.docs/guides/IMPLEMENTATION_GUIDE.md`
 - **Quick setup:** `.docs/guides/DEVELOPER_TOOLKIT_QUICKREF.md`
 - **Debugging:** `.docs/guides/DEBUGGING_AND_MONITORING_QUICKSTART.md`
 
 ### For QA and Testing
+
 - **QA checklist:** `.docs/checklists/DAY_3_QA_CHECKLIST.md`
 - **API commands:** `.docs/qa/QA_QUICK_COMMANDS.md`
 - **Live monitoring:** `.docs/qa/QA_LIVE_MONITORING_DASHBOARD.md`
 
 ### For Security
+
 - **Security hardening:** `.docs/security/MOBILE_SECURITY_HARDENING.md`
 - **Snyk setup:** `.docs/security/SNYK_SETUP_GUIDE.md`
 - **Privacy/Legal:** `.docs/security/PRIVACY_POLICY.md`
 
 ### For Launch
+
 - **Launch procedures:** `.docs/launch/LAUNCH_GUIDE.md`
 - **Pre-launch audit:** `.docs/launch/PRE_QA_PRODUCTION_READINESS_AUDIT.md`
 - **Day 4 release:** `.docs/launch/DAY_4_RELEASE_GUIDE.md`
 
 ### For Automation
+
 - **Overnight automation:** `.docs/automation/OVERNIGHT_AUTOMATION.md`
 - **Setup automation:** `.docs/automation/OVERNIGHT_QUICKSTART.md`
 
 ## 📊 Document Organization Rules
 
-| Pattern | Location | Purpose |
-|---------|----------|---------|
-| `*_GUIDE.md` | `guides/` | Implementation guides and tutorials |
-| `*_CHECKLIST.md` | `checklists/` | Verification and testing checklists |
-| `*_PLAN.md` | `plans/` | Project plans and roadmaps |
-| `*_IMPLEMENTATION.md` | `architecture/` | Feature implementation docs |
-| `*_SECURITY.md` | `security/` | Security-related documentation |
-| `*_VERIFICATION.md` | `checklists/` | Verification and audit docs |
-| `QA_*.md` | `qa/` | QA and testing procedures |
-| `DAY_*.md` | Root `.docs/` | Daily progress (can be archived later) |
-| `LAUNCH_*.md` | `launch/` | Launch procedures |
-| `OVERNIGHT_*.md` | `automation/` | Overnight automation docs |
+| Pattern               | Location        | Purpose                                |
+| --------------------- | --------------- | -------------------------------------- |
+| `*_GUIDE.md`          | `guides/`       | Implementation guides and tutorials    |
+| `*_CHECKLIST.md`      | `checklists/`   | Verification and testing checklists    |
+| `*_PLAN.md`           | `plans/`        | Project plans and roadmaps             |
+| `*_IMPLEMENTATION.md` | `architecture/` | Feature implementation docs            |
+| `*_SECURITY.md`       | `security/`     | Security-related documentation         |
+| `*_VERIFICATION.md`   | `checklists/`   | Verification and audit docs            |
+| `QA_*.md`             | `qa/`           | QA and testing procedures              |
+| `DAY_*.md`            | Root `.docs/`   | Daily progress (can be archived later) |
+| `LAUNCH_*.md`         | `launch/`       | Launch procedures                      |
+| `OVERNIGHT_*.md`      | `automation/`   | Overnight automation docs              |
 
 ## 🧹 Housekeeping
 
 ### Daily Logs
+
 Production logs are stored in:
+
 - `.logs/overnight/` - Overnight automation results
 - `.cache/expo/` - Expo temporary files (can be safely deleted)
 
 ### Cleanup
+
 When starting fresh or before major milestones:
+
 ```bash
 # Safe to delete (regeneratable)
 rm -rf .cache/
@@ -187,40 +201,45 @@ mv .logs/overnight .logs/overnight-archive-DATE
 ## 🎓 Entry Points by Role
 
 ### **Backend Developer**
+
 1. `.docs/architecture/` - Understand system design
 2. `.docs/guides/IMPLEMENTATION_GUIDE.md` - Setup
 3. `api/` - API client code
 
 ### **Mobile Developer**
+
 1. `.docs/guides/DEVELOPER_TOOLKIT_QUICKREF.md` - Quick start
 2. `.docs/architecture/` - Feature architectures
 3. `src/` and `components/` - Main code
 
 ### **QA Engineer**
+
 1. `.docs/checklists/DAY_3_QA_CHECKLIST.md` - QA steps
 2. `.docs/qa/QA_QUICK_COMMANDS.md` - Testing commands
 3. `.docs/qa/QA_LIVE_MONITORING_DASHBOARD.md` - Monitoring
 
 ### **DevOps/Infrastructure**
+
 1. `.docs/guides/DOCKER_DEPLOYMENT.md` - Deployment
 2. `.docs/security/SNYK_SETUP_GUIDE.md` - Security scanning
 3. `.github/workflows/` - CI/CD pipelines
 
 ### **Product Manager**
+
 1. `.docs/launch/LAUNCH_GUIDE.md` - Launch timeline
 2. `.docs/plans/MASTER_LAUNCH_ACTION_PLAN.md` - Project plan
 3. `.docs/security/PRIVACY_POLICY.md` - Legal docs
 
 ## 📈 Update Frequency
 
-| Folder | Update Frequency | Purpose |
-|--------|------------------|---------|
-| `.docs/guides/` | Rarely | Long-term reference |
-| `.docs/checklists/` | Per release | Operational procedures |
-| `.docs/plans/` | Weekly | Project tracking |
-| `.docs/architecture/` | As needed | Design updates |
-| `.docs/security/` | Monthly | Compliance updates |
-| `.logs/` | Daily | Temporary results |
+| Folder                | Update Frequency | Purpose                |
+| --------------------- | ---------------- | ---------------------- |
+| `.docs/guides/`       | Rarely           | Long-term reference    |
+| `.docs/checklists/`   | Per release      | Operational procedures |
+| `.docs/plans/`        | Weekly           | Project tracking       |
+| `.docs/architecture/` | As needed        | Design updates         |
+| `.docs/security/`     | Monthly          | Compliance updates     |
+| `.logs/`              | Daily            | Temporary results      |
 
 ## ✅ Benefits of This Organization
 

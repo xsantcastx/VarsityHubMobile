@@ -1,7 +1,9 @@
 # Location-Based Event Posting & Push Notifications
 
 ## Overview
+
 This implementation adds two critical features to VarsityHub:
+
 1. **Geofenced Event Posting** - Users can only post to event pages when physically at the venue
 2. **Push Notifications** - Automated notifications for social interactions and game reminders
 
@@ -10,16 +12,19 @@ This implementation adds two critical features to VarsityHub:
 ### Business Rules
 
 **Story Posts** (24-hour ephemeral content):
+
 - Posting window: opens on the event's UTC start day, stays open until **48 hours after** game start time
 - Location requirement: Within **3km** of the venue
 - Stories are temporary content that expire after 24 hours
 
 **Regular Posts** (permanent content):
+
 - Posting window: opens **2 days before** game start, live window runs through **+2 hours** after start; after that, posting stays open-ended (no closing cutoff) only for users who already posted during the live window
 - Location requirement: Within **3km** of the venue (only enforced during the pre-event/live window — the post-event grace window skips the geofence check, since the qualifying live post already proved venue presence)
 - Posts are permanent and appear on the event page
 
 **General Rules:**
+
 - Prevents users from different states/locations from trolling games
 - Maintains authenticity of game content
 - Sample events/games (IDs starting with "sample-") bypass all geofencing checks
@@ -27,6 +32,7 @@ This implementation adds two critical features to VarsityHub:
 ### Technical Implementation
 
 #### Backend Components
+
 1. **`server/src/lib/geofencing.ts`** - Geolocation utilities
    - `calculateDistance()` - Haversine formula for lat/long distance (km or miles)
    - `isWithinGeofence()` - Check if user is within specified radius (km)
@@ -43,6 +49,7 @@ This implementation adds two critical features to VarsityHub:
 #### API Usage
 
 **Create Event Post:**
+
 ```typescript
 POST /posts
 {
@@ -57,12 +64,14 @@ POST /posts
 ```
 
 **Responses:**
+
 - ✅ Success (within geofence): `201 Created`
 - ❌ Too early/late: `403 { error: "Posting is available from [start] to [end]" }`
 - ❌ No location: `403 { error: "Location access required. You must be at the game venue to post." }`
 - ❌ Too far: `403 { error: "You must be at [venue] to post. You are X.XX km away.", distance: X.XX }`
 
 **Story Posting:**
+
 - ✅ Success: `201 Created`
 - ❌ Outside window: `403 { error: "Story posting is only available during the game (from [start] to [end])" }`
 - ❌ Too far: `403 { error: "You must be at [venue] to post a story. You are X.XX km away.", distance: X.XX }`
@@ -75,6 +84,7 @@ POST /posts
 4. **Show distance** to venue when user is too far
 
 Example:
+
 ```typescript
 import * as Location from 'expo-location';
 
@@ -89,13 +99,13 @@ const location = await Location.getCurrentPositionAsync({});
 
 // Create post
 await Post.create({
-  content: "Amazing game!",
+  content: 'Amazing game!',
   media_url: uploadedUrl,
   event_id: eventId,
   location: {
     lat: location.coords.latitude,
     lng: location.coords.longitude,
-  }
+  },
 });
 ```
 
@@ -106,24 +116,28 @@ await Post.create({
 ### Notification Triggers
 
 #### 1. New Direct Message
+
 - **When**: User receives a DM
 - **Title**: "New message from {sender_name}"
 - **Body**: Message preview (first 100 chars)
 - **Data**: `{ type: 'new_message', sender_id, screen: 'messages' }`
 
 #### 2. Post Interactions
+
 - **When**: Someone likes/comments on user's post
 - **Title**: "{actor_name} liked your post"
 - **Body**: "Tap to view"
 - **Data**: `{ type: 'post_interaction', interaction_type: 'like'|'comment', actor_id, post_id }`
 
 #### 3. New Follower
+
 - **When**: Someone follows the user
 - **Title**: "{follower_name} started following you"
 - **Body**: "Tap to view their profile"
 - **Data**: `{ type: 'new_follower', follower_id, screen: 'profile' }`
 
 #### 4. Game Reminders (RSVP'd Events)
+
 - **12 Hours Before**: "Game reminder: {event_title}" - "Your game starts in 12 hours at {location}"
 - **1 Hour Before**: "Game starting soon: {event_title}" - "Your game starts in 1 hour! Get ready!"
 - **Data**: `{ type: 'game_reminder', hours_before: 12|1, event_id }`
@@ -155,6 +169,7 @@ await Post.create({
 #### Database Requirements
 
 Users must store push tokens:
+
 ```prisma
 model User {
   push_token String?
@@ -165,6 +180,7 @@ model User {
 #### Cron Setup
 
 **Run hourly:**
+
 ```bash
 # Manual test
 npm run cron:game-reminders
@@ -174,6 +190,7 @@ npm run cron:game-reminders
 ```
 
 **Or use a job scheduler:**
+
 - AWS EventBridge (recommended for production)
 - Heroku Scheduler
 - Google Cloud Scheduler
@@ -186,6 +203,7 @@ npm run cron:game-reminders
 3. **Handle notification taps** with deep linking
 
 Example:
+
 ```typescript
 import * as Notifications from 'expo-notifications';
 import { User } from '@/api/entities';
@@ -203,8 +221,8 @@ await User.updatePreferences({ push_token: token });
 // Handle notification taps
 Notifications.addNotificationResponseReceivedListener(response => {
   const data = response.notification.request.content.data;
-  
-  switch(data.type) {
+
+  switch (data.type) {
     case 'new_message':
       router.push('/messages');
       break;
@@ -226,12 +244,14 @@ Notifications.addNotificationResponseReceivedListener(response => {
 ## Installation
 
 ### Backend Dependencies
+
 ```bash
 cd server
 npm install expo-server-sdk
 ```
 
 ### Package.json Scripts
+
 ```json
 {
   "scripts": {
@@ -245,6 +265,7 @@ npm install expo-server-sdk
 ## Testing
 
 ### Test Geofencing
+
 ```bash
 curl -X POST http://localhost:3000/posts \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -260,19 +281,16 @@ curl -X POST http://localhost:3000/posts \
 ```
 
 ### Test Push Notifications
+
 ```typescript
 import { sendPushNotification } from './lib/notifications';
 
 // Test notification
-await sendPushNotification(
-  'user_123',
-  'Test Notification',
-  'This is a test',
-  { type: 'test' }
-);
+await sendPushNotification('user_123', 'Test Notification', 'This is a test', { type: 'test' });
 ```
 
 ### Test Game Reminders
+
 ```bash
 npm run cron:game-reminders
 ```

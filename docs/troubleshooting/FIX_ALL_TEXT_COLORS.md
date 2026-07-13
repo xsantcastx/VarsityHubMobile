@@ -1,6 +1,7 @@
 # Comprehensive Text Color Fix - Light & Dark Mode Readability
 
 ## Problem
+
 Found **885+ instances** of hardcoded text colors that don't adapt to light/dark mode, causing poor readability.
 
 ## Solution Pattern
@@ -26,22 +27,27 @@ const palette = Colors[colorScheme ?? 'light'];
 ## Critical Fixes Applied
 
 ### ✅ Profile Page (app/profile.tsx)
+
 - Fixed "Create Your First Post" button: White text (#FFFFFF) on tint background
 - Fixed all muted text: Better contrast in light mode (#4B5563)
 - All text now uses theme colors
 
 ### ✅ Sign-In Page (app/sign-in.tsx)
+
 - Error text uses `palette.destructive`
 - Google button uses theme colors
 - All text adapts to theme
 
-### 🔄 Settings Pages (app/settings/*.tsx)
+### 🔄 Settings Pages (app/settings/\*.tsx)
+
 **Need to fix in each file:**
+
 1. Add `import { Colors } from '@/constants/Colors';`
 2. Replace `{ color: isDark ? '#ECEDEE' : '#11181C' }` → `{ color: Colors[colorScheme].text }`
 3. Replace `{ color: isDark ? '#9CA3AF' : '#6B7280' }` → `{ color: Colors[colorScheme].mutedText }`
 
 **Files to fix:**
+
 - settings/index.tsx (partially fixed)
 - settings/contact.tsx (partially fixed)
 - settings/request-host-event.tsx
@@ -58,19 +64,20 @@ const palette = Colors[colorScheme ?? 'light'];
 
 ## Common Replacements
 
-| Hardcoded Pattern | Replace With |
-|-------------------|--------------|
-| `isDark ? '#ECEDEE' : '#11181C'` | `Colors[colorScheme].text` |
-| `colorScheme === 'dark' ? '#ECEDEE' : '#11181C'` | `Colors[colorScheme].text` |
-| `isDark ? '#9CA3AF' : '#6B7280'` | `Colors[colorScheme].mutedText` |
-| `colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'` | `Colors[colorScheme].mutedText` |
-| `'#111827'`, `'#11181C'`, `'#374151'` | `Colors[colorScheme].text` |
-| `'#6B7280'`, `'#9CA3AF'` | `Colors[colorScheme].mutedText` (or `'#4B5563'` for light mode if too light) |
-| `'#b91c1c'`, `'#DC2626'` | `Colors[colorScheme].destructive` |
+| Hardcoded Pattern                                | Replace With                                                                 |
+| ------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `isDark ? '#ECEDEE' : '#11181C'`                 | `Colors[colorScheme].text`                                                   |
+| `colorScheme === 'dark' ? '#ECEDEE' : '#11181C'` | `Colors[colorScheme].text`                                                   |
+| `isDark ? '#9CA3AF' : '#6B7280'`                 | `Colors[colorScheme].mutedText`                                              |
+| `colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'` | `Colors[colorScheme].mutedText`                                              |
+| `'#111827'`, `'#11181C'`, `'#374151'`            | `Colors[colorScheme].text`                                                   |
+| `'#6B7280'`, `'#9CA3AF'`                         | `Colors[colorScheme].mutedText` (or `'#4B5563'` for light mode if too light) |
+| `'#b91c1c'`, `'#DC2626'`                         | `Colors[colorScheme].destructive`                                            |
 
 ## Button Text Colors
 
 ### Buttons with Tint Background:
+
 ```tsx
 // Always use white text for good contrast
 <Pressable style={{ backgroundColor: Colors[colorScheme].tint }}>
@@ -79,6 +86,7 @@ const palette = Colors[colorScheme ?? 'light'];
 ```
 
 ### Buttons with Surface Background:
+
 ```tsx
 // Use theme text color
 <Pressable style={{ backgroundColor: Colors[colorScheme].surface }}>
@@ -89,8 +97,9 @@ const palette = Colors[colorScheme ?? 'light'];
 ## Files Still Needing Fixes (Priority Order)
 
 ### High Priority (User-Facing Screens):
+
 1. ✅ profile.tsx - DONE
-2. ✅ sign-in.tsx - DONE  
+2. ✅ sign-in.tsx - DONE
 3. sign-up.tsx
 4. feed.tsx (partially fixed)
 5. highlights.tsx
@@ -98,9 +107,11 @@ const palette = Colors[colorScheme ?? 'light'];
 7. (tabs)/create-post.tsx
 
 ### Medium Priority (Settings):
-8. All app/settings/*.tsx files (10+ files)
+
+8. All app/settings/\*.tsx files (10+ files)
 
 ### Lower Priority:
+
 9. Admin screens
 10. Onboarding screens
 11. Other utility screens
@@ -108,6 +119,7 @@ const palette = Colors[colorScheme ?? 'light'];
 ## Verification Checklist
 
 For each file fixed:
+
 - [ ] Added `import { Colors } from '@/constants/Colors';`
 - [ ] Replaced all hardcoded text colors with `Colors[colorScheme].text` or `Colors[colorScheme].mutedText`
 - [ ] Button text uses appropriate contrast (white on tint, theme text on surface)

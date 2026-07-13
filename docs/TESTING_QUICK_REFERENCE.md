@@ -27,11 +27,13 @@ npm run test:smoke:debug
 ## Before Running Tests
 
 1. **Start Backend**:
+
    ```bash
    cd server && npm run dev
    ```
 
 2. **Start Frontend** (for E2E tests):
+
    ```bash
    npm run web:playwright
    ```
@@ -45,6 +47,7 @@ npm run test:smoke:debug
 ## Test Categories
 
 ### Smoke Tests (2-5 min)
+
 - App loads without errors
 - Health endpoints work
 - Basic navigation works
@@ -53,6 +56,7 @@ npm run test:smoke:debug
 **Run**: `npm run test:smoke`
 
 ### API Tests (5-10 min)
+
 - Health check endpoints
 - Authentication endpoints
 - Input validation
@@ -61,6 +65,7 @@ npm run test:smoke:debug
 **Run**: `npm run test:api`
 
 ### E2E Tests (10-30 min)
+
 - Complete signup flow
 - Login flow
 - User navigation
@@ -71,20 +76,24 @@ npm run test:smoke:debug
 ## Common Issues
 
 ### "Connection refused"
+
 - Backend not running: `cd server && npm run dev`
 - Frontend not running: `npm run web:playwright`
 
 ### "Element not found"
+
 - App structure changed
 - Add wait: `await page.waitForSelector(...)`
 - Check selectors in browser DevTools
 
 ### "Test timeout"
+
 - Services slow to start
 - Increase timeout in config
 - Check network connectivity
 
 ### "API returns 401"
+
 - Token expired
 - Test user not created
 - Check authentication flow
@@ -92,11 +101,13 @@ npm run test:smoke:debug
 ## Test Reports
 
 View HTML report:
+
 ```bash
 npx playwright show-report
 ```
 
 Reports location:
+
 - HTML: `playwright-report/index.html`
 - JSON: `test-results/smoke-results.json`
 - XML: `test-results/smoke-results.xml`
@@ -104,6 +115,7 @@ Reports location:
 ## CI/CD
 
 Tests run automatically on:
+
 - Pull requests
 - Pushes to main
 - Nightly builds

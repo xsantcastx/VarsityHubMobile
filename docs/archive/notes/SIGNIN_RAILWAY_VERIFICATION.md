@@ -8,6 +8,7 @@
 ## Executive Summary
 
 ✅ **Sign-in logic is correctly connected to Railway backend**
+
 - All endpoints properly configured
 - Authentication flow validated
 - API URLs correctly set
@@ -23,11 +24,13 @@
 ### 1. API URL Configuration ✅
 
 **In `.env` (Frontend)**
+
 ```
 EXPO_PUBLIC_API_URL=https://api-production-8ac3.up.railway.app
 ```
 
 **In `api/http.ts` (API Client)**
+
 ```typescript
 let url = config.apiUrl || envUrl || 'https://api-production-8ac3.up.railway.app';
 ```
@@ -39,6 +42,7 @@ let url = config.apiUrl || envUrl || 'https://api-production-8ac3.up.railway.app
 ### 2. Sign-In Endpoints Connected ✅
 
 **Google OAuth Flow:**
+
 ```typescript
 // Client: hooks/useGoogleAuth.ts
 // Sends idToken to backend
@@ -64,6 +68,7 @@ authRouter.post('/google', async (req, res) => {
 ---
 
 **Apple Sign-In Flow:**
+
 ```typescript
 // Client: hooks/useAppleAuth.ts
 // Sends identityToken to backend
@@ -91,22 +96,24 @@ authRouter.post('/apple', async (req, res) => {
 ### 3. Token Management ✅
 
 **Client Side (`api/auth.ts`):**
+
 ```typescript
 const TOKEN_KEY = 'auth_token_key';
 
 async function saveToken(token: string | null) {
-  setAuthToken(token);  // In-memory cache
+  setAuthToken(token); // In-memory cache
   if (Platform.OS === 'web') {
     window.localStorage.setItem(TOKEN_KEY, token || '');
   } else {
-    await SecureStore.setItemAsync(TOKEN_KEY, token || '');  // Secure storage
+    await SecureStore.setItemAsync(TOKEN_KEY, token || ''); // Secure storage
   }
 }
 ```
 
 **Token Usage (`api/http.ts`):**
+
 ```typescript
-const headers: Record<string, string> = { 
+const headers: Record<string, string> = {
   'Content-Type': 'application/json',
   ...
 };
@@ -115,6 +122,7 @@ if (token) headers['Authorization'] = `Bearer ${token}`;
 ```
 
 **Backend Validation (`server/src/middleware/auth.ts`):**
+
 ```typescript
 // Validates JWT tokens on protected routes
 // Extracts user ID from token
@@ -131,6 +139,7 @@ if (token) headers['Authorization'] = `Bearer ${token}`;
 **Railway URL:** `https://api-production-8ac3.up.railway.app`
 
 **Available Endpoints:**
+
 - `POST /auth/google` - Google OAuth token exchange
 - `POST /auth/apple` - Apple Sign-In token exchange
 - `POST /auth/login` - Email/password login
@@ -145,6 +154,7 @@ if (token) headers['Authorization'] = `Bearer ${token}`;
 ### 2. Environment Variables on Railway ✅
 
 **Critical Variables Set:**
+
 ```
 DATABASE_URL=postgresql://...  (PostgreSQL connection)
 JWT_SECRET=...                  (JWT signing secret)
@@ -160,6 +170,7 @@ GOOGLE_OAUTH_CLIENT_IDS=...     (OAuth validation)
 ### 3. Database Connection ✅
 
 **Prisma ORM:**
+
 - Connected to PostgreSQL on Railway
 - Schema includes `google_id` and `apple_id` fields
 - User creation and account linking working
@@ -172,6 +183,7 @@ GOOGLE_OAUTH_CLIENT_IDS=...     (OAuth validation)
 ### 4. Email Service Integration ✅
 
 **SendGrid:**
+
 - Email verification templates configured
 - Password reset templates set up
 - Account notification templates ready
@@ -184,6 +196,7 @@ GOOGLE_OAUTH_CLIENT_IDS=...     (OAuth validation)
 ## End-to-End Data Flow
 
 ### Google Sign-In Flow
+
 ```
 1. User clicks "Sign in with Google" on mobile
    ↓
@@ -214,6 +227,7 @@ GOOGLE_OAUTH_CLIENT_IDS=...     (OAuth validation)
 ---
 
 ### Apple Sign-In Flow
+
 ```
 1. User clicks "Sign in with Apple" on iOS
    ↓
@@ -246,6 +260,7 @@ GOOGLE_OAUTH_CLIENT_IDS=...     (OAuth validation)
 ## Configuration Checklist
 
 ### Frontend (.env)
+
 - [x] `EXPO_PUBLIC_API_URL` = Railway URL
 - [x] `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` = Configured
 - [x] `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` = Configured
@@ -253,6 +268,7 @@ GOOGLE_OAUTH_CLIENT_IDS=...     (OAuth validation)
 - [x] `EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID` = Configured
 
 ### Backend (Railway)
+
 - [x] `DATABASE_URL` = PostgreSQL connection
 - [x] `JWT_SECRET` = Set for token signing
 - [x] `GOOGLE_OAUTH_CLIENT_IDS` = Google validation
@@ -260,6 +276,7 @@ GOOGLE_OAUTH_CLIENT_IDS=...     (OAuth validation)
 - [x] `STRIPE_SECRET_KEY` = Payments
 
 ### Code
+
 - [x] `hooks/useGoogleAuth.ts` = Fully implemented
 - [x] `hooks/useAppleAuth.ts` = Fully implemented
 - [x] `api/auth.ts` = All methods working
@@ -271,6 +288,7 @@ GOOGLE_OAUTH_CLIENT_IDS=...     (OAuth validation)
 ## Test Results
 
 ### Unit Tests
+
 - ✅ 16/16 mock tests passing
 - ✅ Google OAuth logic verified
 - ✅ Apple Sign-In logic verified
@@ -278,6 +296,7 @@ GOOGLE_OAUTH_CLIENT_IDS=...     (OAuth validation)
 - ✅ Token management tested
 
 ### Integration Tests
+
 - ✅ 50+ test cases ready
 - ✅ /auth/google endpoint validated
 - ✅ /auth/apple endpoint validated
@@ -285,6 +304,7 @@ GOOGLE_OAUTH_CLIENT_IDS=...     (OAuth validation)
 - ✅ Account linking tested
 
 ### Security Tests
+
 - ✅ Password hashes never exposed
 - ✅ Tokens validated on backend
 - ✅ Email verification enforced
@@ -328,22 +348,23 @@ Response: {
 
 ## Connectivity Status
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| Frontend → Railway API | ✅ Connected | Using HTTPS to production |
-| Railway PostgreSQL | ✅ Connected | Database operational |
-| Google OAuth API | ✅ Connected | Token validation working |
-| Apple OAuth API | ✅ Connected | Token validation working |
-| SendGrid Email | ✅ Connected | Emails sending |
-| Stripe Payments | ✅ Connected | Ready for subscriptions |
-| JWT Token Flow | ✅ Working | Tokens generated and validated |
-| Secure Storage | ✅ Working | Tokens stored securely |
+| Component              | Status       | Details                        |
+| ---------------------- | ------------ | ------------------------------ |
+| Frontend → Railway API | ✅ Connected | Using HTTPS to production      |
+| Railway PostgreSQL     | ✅ Connected | Database operational           |
+| Google OAuth API       | ✅ Connected | Token validation working       |
+| Apple OAuth API        | ✅ Connected | Token validation working       |
+| SendGrid Email         | ✅ Connected | Emails sending                 |
+| Stripe Payments        | ✅ Connected | Ready for subscriptions        |
+| JWT Token Flow         | ✅ Working   | Tokens generated and validated |
+| Secure Storage         | ✅ Working   | Tokens stored securely         |
 
 ---
 
 ## Known Issues & Notes
 
 ### None Currently
+
 All systems are properly connected and functioning.
 
 ---
@@ -351,6 +372,7 @@ All systems are properly connected and functioning.
 ## Recent Changes
 
 ### Code Verified
+
 - ✅ `useGoogleAuth.ts` - Uses correct client IDs and redirect handling
 - ✅ `useAppleAuth.ts` - Implements simulator fallback and retry logic
 - ✅ `api/auth.ts` - Correctly calls Railway endpoints
@@ -358,6 +380,7 @@ All systems are properly connected and functioning.
 - ✅ `server/src/routes/auth.ts` - Validates tokens and manages users
 
 ### Configuration Verified
+
 - ✅ `app.json` - Correct app scheme and iOS bundle ID
 - ✅ `.env` - Correct Railway URL and OAuth credentials
 - ✅ `server/.env` - All required environment variables
@@ -367,24 +390,28 @@ All systems are properly connected and functioning.
 ## Next Steps for Team
 
 ### Immediate (Now)
+
 - [x] Sign-in code is ready
 - [x] All endpoints are live on Railway
 - [x] Tests are passing
 - [x] Configuration is correct
 
 ### Today
+
 - [ ] Run manual E2E tests on iOS/Android
 - [ ] Verify Google sign-in works on real device
 - [ ] Verify Apple sign-in works on iOS
 - [ ] Check Railway logs for any errors
 
 ### Before Production
+
 - [ ] Monitor sign-up success rates
 - [ ] Check for any auth-related errors in logs
 - [ ] Verify email verification flows
 - [ ] Test account linking scenarios
 
 ### Monitoring
+
 ```bash
 # Check Railway logs for auth errors
 # URL: https://railway.app (select project → logs)

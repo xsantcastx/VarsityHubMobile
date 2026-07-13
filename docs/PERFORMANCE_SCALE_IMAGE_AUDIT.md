@@ -9,44 +9,44 @@
 
 ### Main Queries by Page
 
-| Page | Endpoints Called | Key Tables | Filters/Sorts |
-|------|------------------|------------|---------------|
-| **Feed** | `GET /posts`, `GET /games`, `GET /highlights`, `GET /events`, `Game.votesSummary` (N calls) | Post, Game, Event, PostUpvote, PostBookmark, Follows | `deleted_at: null`, `created_at` desc, `author_id IN (...)`, `game_id`, `team_id` |
-| **Map** | `GET /games`, `GET /events` | Game, Event | `approval_status: approved`, `date >= now`, `status != cancelled` |
-| **Discover** | `GET /games`, `GET /posts` (trending/list), `GET /search`, `Team.allMembers`, `User.listAll` | Game, Post, User, Team, Organization | `created_at`, `upvotes_count`, zip/location, search `q` |
+| Page         | Endpoints Called                                                                             | Key Tables                                           | Filters/Sorts                                                                     |
+| ------------ | -------------------------------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Feed**     | `GET /posts`, `GET /games`, `GET /highlights`, `GET /events`, `Game.votesSummary` (N calls)  | Post, Game, Event, PostUpvote, PostBookmark, Follows | `deleted_at: null`, `created_at` desc, `author_id IN (...)`, `game_id`, `team_id` |
+| **Map**      | `GET /games`, `GET /events`                                                                  | Game, Event                                          | `approval_status: approved`, `date >= now`, `status != cancelled`                 |
+| **Discover** | `GET /games`, `GET /posts` (trending/list), `GET /search`, `Team.allMembers`, `User.listAll` | Game, Post, User, Team, Organization                 | `created_at`, `upvotes_count`, zip/location, search `q`                           |
 
 ### Schema Indexes vs. Query Needs
 
-| Table | Indexes (from schema) | Query Filters Used | Gap? |
-|-------|------------------------|--------------------|------|
-| **Post** | `created_at`, `author_id`, `game_id+created_at`, `game_id+type`, `team_id`, `team_id+is_pinned` | `deleted_at: null`, `author_id IN`, `created_at`, `country_code`, `upvotes_count`, `lat/lng`, `media_url` | ❌ No index on `deleted_at`; no index on `country_code`, `upvotes_count`, `lat`, `lng` |
-| **Game** | `date`, `latitude+longitude`, `home_team_id`, `away_team_id` | `approval_status`, `date` range | ✅ Adequate |
-| **Event** | `date`, `game_id`, `latitude+longitude`, `creator_id`, `approval_status`, `event_type` | `status != cancelled`, `approval_status`, `date >= now` | ⚠️ No index on `status` |
-| **Follows** | `follower_id`, `following_id` | `follower_id`, `following_id IN` | ✅ Adequate |
+| Table       | Indexes (from schema)                                                                           | Query Filters Used                                                                                        | Gap?                                                                                   |
+| ----------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| **Post**    | `created_at`, `author_id`, `game_id+created_at`, `game_id+type`, `team_id`, `team_id+is_pinned` | `deleted_at: null`, `author_id IN`, `created_at`, `country_code`, `upvotes_count`, `lat/lng`, `media_url` | ❌ No index on `deleted_at`; no index on `country_code`, `upvotes_count`, `lat`, `lng` |
+| **Game**    | `date`, `latitude+longitude`, `home_team_id`, `away_team_id`                                    | `approval_status`, `date` range                                                                           | ✅ Adequate                                                                            |
+| **Event**   | `date`, `game_id`, `latitude+longitude`, `creator_id`, `approval_status`, `event_type`          | `status != cancelled`, `approval_status`, `date >= now`                                                   | ⚠️ No index on `status`                                                                |
+| **Follows** | `follower_id`, `following_id`                                                                   | `follower_id`, `following_id IN`                                                                          | ✅ Adequate                                                                            |
 
 ### Top 3 Most Frequent Queries (by traffic)
 
-1. **`GET /posts`** (feed, discover)  
-   - **Query:** `Post.findMany({ where: { deleted_at: null, ... }, orderBy: created_at desc, take: limit+1 })`  
-   - **Indexes used:** `created_at` (partial). `deleted_at: null` has no dedicated index — PostgreSQL may scan rows where `deleted_at IS NULL`.  
+1. **`GET /posts`** (feed, discover)
+   - **Query:** `Post.findMany({ where: { deleted_at: null, ... }, orderBy: created_at desc, take: limit+1 })`
+   - **Indexes used:** `created_at` (partial). `deleted_at: null` has no dedicated index — PostgreSQL may scan rows where `deleted_at IS NULL`.
    - **EXPLAIN ANALYZE:** Run:
      ```sql
      EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM "Post" WHERE "deleted_at" IS NULL ORDER BY "created_at" DESC LIMIT 11;
      ```
    - **Risk:** Full table scan on `Post` if `deleted_at` is not indexed. Add `@@index([deleted_at])` or composite `@@index([deleted_at, created_at])`.
 
-2. **`GET /games`** (map, feed, discover)  
-   - **Query:** `Game.findMany({ where: { approval_status: 'approved', date: { gte, lte } }, orderBy: date, take: 50 })`  
-   - **Indexes used:** `date`, possibly `approval_status` (not in schema — would need `@@index([approval_status, date])`).  
+2. **`GET /games`** (map, feed, discover)
+   - **Query:** `Game.findMany({ where: { approval_status: 'approved', date: { gte, lte } }, orderBy: date, take: 50 })`
+   - **Indexes used:** `date`, possibly `approval_status` (not in schema — would need `@@index([approval_status, date])`).
    - **EXPLAIN ANALYZE:** Run:
      ```sql
      EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM "Game" WHERE "approval_status" = 'approved' AND "date" >= $1 AND "date" <= $2 ORDER BY "date" DESC LIMIT 50;
      ```
    - **Risk:** If `approval_status` is not in an index with `date`, may do index scan on `date` then filter — usually acceptable.
 
-3. **`GET /highlights`** (feed)  
-   - **Query:** `Post.findMany({ where: { country_code, created_at >= since, media_url != null, deleted_at: null }, orderBy: [upvotes_count desc, created_at desc], take: 10 })`  
-   - **Indexes used:** None of `country_code`, `upvotes_count`, `deleted_at` are indexed.  
+3. **`GET /highlights`** (feed)
+   - **Query:** `Post.findMany({ where: { country_code, created_at >= since, media_url != null, deleted_at: null }, orderBy: [upvotes_count desc, created_at desc], take: 10 })`
+   - **Indexes used:** None of `country_code`, `upvotes_count`, `deleted_at` are indexed.
    - **EXPLAIN ANALYZE:** Run:
      ```sql
      EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM "Post" WHERE "country_code" = 'US' AND "created_at" >= $1 AND "media_url" IS NOT NULL AND "deleted_at" IS NULL ORDER BY "upvotes_count" DESC, "created_at" DESC LIMIT 10;
@@ -99,11 +99,11 @@
 
 ### Endpoints Most Likely to Fail Under Load
 
-| Endpoint | Why |
-|----------|-----|
-| 1. **`GET /posts`** (feed) | Highest volume; trending fetches 500 rows; rate limit + DB load |
-| 2. **`GET /games`** + **`Game.votesSummary`** | Feed calls both; votesSummary is N separate requests |
-| 3. **`GET /highlights`** | Potential full table scan; no supporting index |
+| Endpoint                                      | Why                                                             |
+| --------------------------------------------- | --------------------------------------------------------------- |
+| 1. **`GET /posts`** (feed)                    | Highest volume; trending fetches 500 rows; rate limit + DB load |
+| 2. **`GET /games`** + **`Game.votesSummary`** | Feed calls both; votesSummary is N separate requests            |
+| 3. **`GET /highlights`**                      | Potential full table scan; no supporting index                  |
 
 ### Recommendations
 
@@ -118,11 +118,11 @@
 
 ### Compression Before Storage
 
-| Location | Compression? | Notes |
-|----------|--------------|-------|
-| **Server** (`uploads.ts`, `cloudinary.ts`) | ❌ **No** | Raw buffer sent to Cloudinary. No `sharp`, `jimp`, or `ffmpeg` before upload. |
-| **Cloudinary** | Cloudinary may apply transforms | Upload uses default settings; no `quality`, `fetch_format`, or `transformation` in upload params. |
-| **Client** | `expo-image-picker` quality: 0.8 | Images only; videos use original quality. |
+| Location                                   | Compression?                     | Notes                                                                                             |
+| ------------------------------------------ | -------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Server** (`uploads.ts`, `cloudinary.ts`) | ❌ **No**                        | Raw buffer sent to Cloudinary. No `sharp`, `jimp`, or `ffmpeg` before upload.                     |
+| **Cloudinary**                             | Cloudinary may apply transforms  | Upload uses default settings; no `quality`, `fetch_format`, or `transformation` in upload params. |
+| **Client**                                 | `expo-image-picker` quality: 0.8 | Images only; videos use original quality.                                                         |
 
 ### Client-Side Upload
 
@@ -131,20 +131,20 @@
 
 ### Server-Side Limits
 
-| Limit | Value | Location |
-|-------|-------|----------|
+| Limit             | Value      | Location                                                        |
+| ----------------- | ---------- | --------------------------------------------------------------- |
 | **Max file size** | **100 MB** | `uploads.ts` line 56: `limits: { fileSize: 100 * 1024 * 1024 }` |
-| **Enforced** | ✅ Yes | Multer rejects with `LIMIT_FILE_SIZE` → 413 response |
-| **General files** | 100 MB | Same for `/files` endpoint |
+| **Enforced**      | ✅ Yes     | Multer rejects with `LIMIT_FILE_SIZE` → 413 response            |
+| **General files** | 100 MB     | Same for `/files` endpoint                                      |
 
 ### 4K Video Upload
 
-| Scenario | Result |
-|----------|--------|
-| **4K video** (~500 MB–2 GB) | ❌ Rejected — 413 "File too large. Maximum size is 100MB." |
-| **4K video** (~50–80 MB) | ✅ Accepted — uploads to Cloudinary |
-| **Processing** | No transcoding; Cloudinary stores as uploaded. Playback may be slow on mobile. |
-| **Memory** | With `memoryStorage()`, entire file is buffered in RAM before upload. 80 MB × 10 concurrent = 800 MB RAM. |
+| Scenario                    | Result                                                                                                    |
+| --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **4K video** (~500 MB–2 GB) | ❌ Rejected — 413 "File too large. Maximum size is 100MB."                                                |
+| **4K video** (~50–80 MB)    | ✅ Accepted — uploads to Cloudinary                                                                       |
+| **Processing**              | No transcoding; Cloudinary stores as uploaded. Playback may be slow on mobile.                            |
+| **Memory**                  | With `memoryStorage()`, entire file is buffered in RAM before upload. 80 MB × 10 concurrent = 800 MB RAM. |
 
 ### Gaps
 

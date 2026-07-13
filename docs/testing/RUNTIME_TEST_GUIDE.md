@@ -11,16 +11,19 @@
 ## Quick Start (Choose Your Path)
 
 ### 🚀 Path 1: Fast Start (5-10 minutes)
+
 - Minimal setup
 - Expo Go only
 - Basic verification
 
 ### 🎯 Path 2: Standard (30-45 minutes)
+
 - Full dev environment
 - iOS/Android simulators
 - Comprehensive testing
 
 ### 🔬 Path 3: Deep Dive (1-2 hours)
+
 - Physical device testing
 - Production build verification
 - Complete end-to-end testing
@@ -44,6 +47,7 @@ curl http://localhost:4000 2>/dev/null || echo "Server not running - will start"
 ```
 
 **Requirements**:
+
 - ✅ Node.js 18+ installed
 - ✅ npm or yarn package manager
 - ✅ Expo CLI (installed via npm)
@@ -97,6 +101,7 @@ npm list expo | head -5
 ```
 
 **Expected Output**:
+
 ```
 varsityhubmobile@1.0.1
 └── expo@52.0.0
@@ -114,6 +119,7 @@ echo "Expected: 3 client IDs + 1 API URL"
 ```
 
 **Expected Output**:
+
 ```
 EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID="514463516787-..."
 EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID="514463516787-..."
@@ -130,6 +136,7 @@ npm run server:dev
 ```
 
 **Expected Output**:
+
 ```
 [Jobs] Running without Redis - using fallback mode
 API listening on http://0.0.0.0:4000
@@ -147,6 +154,7 @@ npm run dev:expo
 ```
 
 **Expected Output**:
+
 ```
 Starting Metro Bundler
 Waiting on http://localhost:8081
@@ -168,13 +176,17 @@ To open the app:
 **File**: `app/verify.tsx` (lines 80-98)
 
 **Code Being Tested**:
+
 ```typescript
 // Routes to different destinations based on user context
 const destination =
-  (data?.username === 'coach' ? '/coaching/step-3-plan' :
-   data?.status === 'is_onboarding' ? '/onboarding/step-2-basic' :
-   data?.is_onboarding_step_1_complete ? '/onboarding/step-3-plan' :
-   '/feed')
+  data?.username === 'coach'
+    ? '/coaching/step-3-plan'
+    : data?.status === 'is_onboarding'
+      ? '/onboarding/step-2-basic'
+      : data?.is_onboarding_step_1_complete
+        ? '/onboarding/step-3-plan'
+        : '/feed';
 ```
 
 #### How to Execute Test 1
@@ -202,12 +214,14 @@ Step 4: EXPECTED: Routes to "/coaching/step-3-plan" (coach-specific page)
 ```
 
 **✅ Success Criteria**:
+
 - [ ] Email arrives within 30 seconds
 - [ ] Verification link works
 - [ ] After verification, redirected to coach onboarding page (step-3-plan)
 - [ ] Coach-specific content visible (team setup, schedule, etc.)
 
 **❌ Failure Indicators**:
+
 - Email doesn't arrive (Check: SendGrid API key configured)
 - Link doesn't work (Check: API is running on port 4000)
 - Routes to wrong page (Check: User role saved correctly)
@@ -222,6 +236,7 @@ Step 4: EXPECTED: Routes to "/coaching/step-3-plan" (coach-specific page)
 **File**: `app/verify.tsx` (line 30 + lines 282-298)
 
 **Code Being Tested**:
+
 ```typescript
 const devVerificationEnabled = useMemo(() => __DEV__, [])
 
@@ -260,16 +275,19 @@ Step 6: EXPECTED: NO "🔧 Skip Verification" button
 ```
 
 **✅ Success Criteria - Development**:
+
 - [ ] Dev code visible in development environment
 - [ ] "🔧 DEV:" section shows user data
 - [ ] Skip button works and allows bypassing email verification
 
 **✅ Success Criteria - Production**:
+
 - [ ] Dev code completely hidden
 - [ ] Skip button not visible
 - [ ] Email verification required (no bypass)
 
 **❌ Failure Indicators**:
+
 - Dev code visible in production (Security issue!)
 - Skip button works in production (Security issue!)
 - Dev data exposed to users (Data leak!)
@@ -283,17 +301,18 @@ Step 6: EXPECTED: NO "🔧 Skip Verification" button
 **File**: `hooks/useGoogleAuth.ts` (lines 86-99)
 
 **Code Being Tested**:
+
 ```typescript
 const getClientId = useCallback(() => {
   if (Platform.OS === 'android') {
-    return clients.androidClientId
+    return clients.androidClientId;
   } else if (Platform.OS === 'ios') {
-    return clients.iosClientId || clients.expoClientId
+    return clients.iosClientId || clients.expoClientId;
   } else if (Platform.OS === 'web') {
-    return clients.webClientId
+    return clients.webClientId;
   }
-  return null
-}, [clients])
+  return null;
+}, [clients]);
 ```
 
 #### How to Execute Test 3
@@ -344,12 +363,14 @@ Step 8: Check user profile - should show correct account
 ```
 
 **✅ Success Criteria - All Platforms**:
+
 - [ ] iOS: Correct client ID used, OAuth flow completes
 - [ ] Android: Correct client ID used, OAuth flow completes
 - [ ] Web: Correct client ID used, OAuth flow completes
 - [ ] User profile shows logged-in account on all platforms
 
 **❌ Failure Indicators**:
+
 - OAuth fails on any platform (Wrong client ID configured)
 - Wrong client ID used (Check: Platform detection logic)
 - "invalid_client" error (Check: Client ID is valid for that platform)
@@ -434,6 +455,7 @@ Purpose: Web testing
 **Cause**: Backend server not running
 
 **Fix**:
+
 ```bash
 # In a new terminal:
 npm run server:dev
@@ -447,6 +469,7 @@ curl http://localhost:4000/api-docs
 **Cause**: Dependencies not installed
 
 **Fix**:
+
 ```bash
 # Clean install
 rm -rf node_modules package-lock.json
@@ -459,6 +482,7 @@ npm run dev:expo
 **Cause**: Wrong platform or mismatched client ID
 
 **Fix**:
+
 ```bash
 # Check environment variables
 grep "EXPO_PUBLIC_GOOGLE" .env
@@ -474,6 +498,7 @@ grep "EXPO_PUBLIC_GOOGLE" .env
 **Cause**: SendGrid not configured or API key wrong
 
 **Check**:
+
 ```bash
 # Look at backend logs during server:dev
 # Should show either:
@@ -489,6 +514,7 @@ grep "EXPO_PUBLIC_GOOGLE" .env
 **Cause**: Metro bundler cache or node_modules corrupt
 
 **Fix**:
+
 ```bash
 # Clear Metro cache
 npm run dev:expo -- --clear
@@ -504,24 +530,28 @@ npm run dev:expo
 ## Key Files Being Tested
 
 ### 1. Email Verification Flow
+
 - **File**: `app/verify.tsx`
 - **Lines**: 80-98 (routing logic), 30 (dev gate)
 - **Tests**: Route destination matches user context
 - **Verification**: Email link routes to correct onboarding step
 
 ### 2. Dev Code Security
+
 - **File**: `app/verify.tsx`
 - **Lines**: 30 (gate), 282-298 (conditional render)
 - **Tests**: Dev features hidden in production
 - **Verification**: No dev code in production builds
 
 ### 3. Google OAuth Platform Detection
+
 - **File**: `hooks/useGoogleAuth.ts`
 - **Lines**: 86-99 (platform detection)
 - **Tests**: Correct client ID per platform
 - **Verification**: OAuth succeeds on iOS, Android, Web
 
 ### Supporting Files
+
 - **config/env.ts**: Environment variable loading
 - **.env**: Configuration values (client IDs)
 - **app/sign-in.tsx**: Sign-in screen integration
@@ -536,13 +566,13 @@ npm run dev:expo
 ```
 ✅ Test 1: Email Verification - PASSED
    └─ All routing scenarios work correctly
-   
+
 ✅ Test 2: Dev Code Security - PASSED
    └─ Dev code hidden in production
-   
+
 ✅ Test 3: Google Sign-In - PASSED
    └─ Works on iOS, Android, Web
-   
+
 ═══════════════════════════════════════════════════════════════════
 
 RESULT: Production Ready ✅
@@ -557,13 +587,15 @@ Recommendation: READY FOR STAGING DEPLOYMENT
 1. Document which test failed
 2. Check troubleshooting section
 3. Review error logs:
+
    ```bash
    # Expo logs
    npm run dev:expo (watch for console output)
-   
+
    # Backend logs
    npm run server:dev (watch for API errors)
    ```
+
 4. Verify code matches documentation
 5. Contact: VarsityHub Development Team
 
@@ -572,6 +604,7 @@ Recommendation: READY FOR STAGING DEPLOYMENT
 ## Execution Checklist
 
 ### Pre-Test Setup
+
 - [ ] Node.js 18+ installed
 - [ ] npm dependencies installed (`npm install`)
 - [ ] `.env` file present with all client IDs
@@ -580,6 +613,7 @@ Recommendation: READY FOR STAGING DEPLOYMENT
 - [ ] Simulator/Device ready
 
 ### During Tests
+
 - [ ] Backend server running (`npm run server:dev`)
 - [ ] Expo dev server running (`npm run dev:expo`)
 - [ ] Device/simulator connected
@@ -588,6 +622,7 @@ Recommendation: READY FOR STAGING DEPLOYMENT
 - [ ] Email account accessible (for Test 1)
 
 ### After Tests
+
 - [ ] All 3 tests documented
 - [ ] Results recorded
 - [ ] Issues (if any) documented
@@ -601,16 +636,19 @@ Recommendation: READY FOR STAGING DEPLOYMENT
 When all 3 tests pass:
 
 ✅ **Code Analysis** (95% - Previous Phase)
+
 - All 5 critical fixes verified in code
 - Security gates properly implemented
 - Platform detection logic correct
 
 ✅ **Runtime Testing** (100% - This Phase)
+
 - Email verification works end-to-end
 - Dev code is secure in production
 - Google OAuth works on all platforms
 
 ✅ **Overall Assessment**
+
 - Code quality: A+ ✅
 - Security: A+ ✅
 - Platform support: 100% ✅
@@ -640,12 +678,14 @@ When all 3 tests pass:
 ## Contact & Support
 
 **Questions During Testing?**
+
 - Check the troubleshooting section
 - Review VERIFICATION_CHECKLIST.md for detailed steps
 - Check backend logs for errors
 - Verify environment configuration
 
 **Ready to Deploy?**
+
 - All 3 tests passing ✅
 - No critical issues found ✅
 - Documentation complete ✅

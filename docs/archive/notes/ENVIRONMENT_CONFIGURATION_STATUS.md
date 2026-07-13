@@ -6,23 +6,23 @@ This document captures the current state of every backend integration required f
 
 ## ✅ Configured & Verified
 
-| Component | Status | Evidence / Notes |
-| --- | --- | --- |
-| **Database** | ✅ | `DATABASE_URL` loaded (Railway Postgres). |
-| **JWT** | ✅ | `JWT_SECRET` present. |
-| **Cloudinary uploads** | ✅ | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` set; boot log shows “✅ Cloudinary configured – using cloud storage”. |
-| **Twilio SMS** | ✅ | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`, `TWILIO_PHONE_NUMBER` set; boot log shows “✅ Twilio configured – SMS verification enabled”. |
-| **Stripe** | ✅ | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and price IDs present. |
-| **SendGrid (core templates)** | ✅ | API key plus verification, password reset, team invite template IDs configured. |
-| **CORS** | ✅ | `ALLOWED_ORIGINS` populated with 10 explicit domains; `server/src/index.ts` now uses `isAllowedOrigin`. |
+| Component                     | Status | Evidence / Notes                                                                                                                                                     |
+| ----------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Database**                  | ✅     | `DATABASE_URL` loaded (Railway Postgres).                                                                                                                            |
+| **JWT**                       | ✅     | `JWT_SECRET` present.                                                                                                                                                |
+| **Cloudinary uploads**        | ✅     | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` set; boot log shows “✅ Cloudinary configured – using cloud storage”.                         |
+| **Twilio SMS**                | ✅     | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`, `TWILIO_PHONE_NUMBER` set; boot log shows “✅ Twilio configured – SMS verification enabled”. |
+| **Stripe**                    | ✅     | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and price IDs present.                                                                                                 |
+| **SendGrid (core templates)** | ✅     | API key plus verification, password reset, team invite template IDs configured.                                                                                      |
+| **CORS**                      | ✅     | `ALLOWED_ORIGINS` populated with 10 explicit domains; `server/src/index.ts` now uses `isAllowedOrigin`.                                                              |
 
 ## ⚠️ Pending / Optional
 
-| Component | Status | Next Action |
-| --- | --- | --- |
-| **SendGrid organization templates** | ⚠️ | Create and set `SENDGRID_ORG_INVITE_TEMPLATE_ID`, `SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID`, `SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID`, `SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID`. |
-| **Sentry DSN** | ⚠️ | Add `SENTRY_DSN` when ready for production error tracking. |
-| **Apple Sign-In** | ⏳ | Place `.keys/AuthKey_<ID>.p8` and set `APPLE_BUNDLE_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID` before enabling in production. |
+| Component                           | Status | Next Action                                                                                                                                                                            |
+| ----------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SendGrid organization templates** | ⚠️     | Create and set `SENDGRID_ORG_INVITE_TEMPLATE_ID`, `SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID`, `SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID`, `SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID`. |
+| **Sentry DSN**                      | ⚠️     | Add `SENTRY_DSN` when ready for production error tracking.                                                                                                                             |
+| **Apple Sign-In**                   | ⏳     | Place `.keys/AuthKey_<ID>.p8` and set `APPLE_BUNDLE_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID` before enabling in production.                                                                |
 
 ## Verification Checklist
 

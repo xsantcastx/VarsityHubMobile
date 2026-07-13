@@ -3,17 +3,20 @@
 ## Quick Start
 
 ### Start Development Server
+
 ```bash
 npm run dev
 ```
 
 This will:
+
 - ✅ Start Metro bundler on `localhost:8081`
 - ✅ Enable Fast Refresh for real-time updates
 - ✅ Clear cache for fresh start
 - ✅ Use dev-client for development builds
 
 ### Alternative: Use Dev Server Script
+
 ```bash
 npm run dev:server
 ```
@@ -28,16 +31,19 @@ npm run dev:server
 ## Configuration
 
 ### Metro Config (`metro.config.js`)
+
 - Fast Refresh explicitly enabled
 - Optimized for localhost development
 - Hot reloading enabled
 - Port 8081 configured
 
 ### Babel Config (`babel.config.js`)
+
 - `babel-preset-expo` includes `react-refresh/plugin` automatically
 - `react-native-worklets/plugin` must be last on Expo SDK 54 / Reanimated v4
 
 ### Package Scripts
+
 - `npm run dev` - Start with localhost, port 8081, clear cache
 - `npm run dev:local` - Start with localhost, port 8081 (no cache clear)
 - `npm run dev:server` - Use start-dev-server.sh script
@@ -45,6 +51,7 @@ npm run dev:server
 ## Verify Setup
 
 Run the verification script:
+
 ```bash
 bash scripts/verify-fast-refresh.sh
 ```
@@ -62,6 +69,7 @@ bash scripts/verify-fast-refresh.sh
 ### Fast Refresh Not Working?
 
 1. **Clear Metro cache:**
+
    ```bash
    npm run dev  # Already includes --clear flag
    ```
@@ -75,6 +83,7 @@ bash scripts/verify-fast-refresh.sh
    - Fix errors first, then it will hot reload
 
 4. **Verify configuration:**
+
    ```bash
    bash scripts/verify-fast-refresh.sh
    ```
@@ -86,6 +95,7 @@ bash scripts/verify-fast-refresh.sh
 ### Port Already in Use?
 
 If port 8081 is already in use:
+
 ```bash
 # Kill process on port 8081
 lsof -ti:8081 | xargs kill -9

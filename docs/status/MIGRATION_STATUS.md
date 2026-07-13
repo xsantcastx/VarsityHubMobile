@@ -36,22 +36,28 @@ This connects your frontend to the existing restore functionality.
 ## Next Steps
 
 ### 1. **No Migration Required**
+
 Since `deleted_at` already exists, you don't need to run:
+
 ```bash
 cd server && npx prisma migrate dev
 ```
 
 ### 2. **Run Tests** (when database is available)
+
 ```bash
 cd server && npm test
 ```
 
 **Note:** Tests require:
+
 - Database connection (DATABASE_URL in .env)
 - Network access (blocked in sandbox)
 
 ### 3. **Verify Restore Works**
+
 Test the restore flow:
+
 1. Delete a post (sets `deleted_at`)
 2. Call `Post.restore(id)` within the undo window
 3. Verify `deleted_at` is set to `null`
@@ -60,6 +66,7 @@ Test the restore flow:
 ## Restore Implementation Details
 
 **Backend Route** (`server/src/routes/posts.ts:717`):
+
 - ✅ Requires authentication
 - ✅ Author-only (403 if not author)
 - ✅ Checks if post is deleted (400 if not)
@@ -68,6 +75,7 @@ Test the restore flow:
 - ✅ Returns full post with relations
 
 **Time Window**:
+
 - Defined by `POST_UNDO_WINDOW_MS` constant
 - Check the value in `server/src/routes/posts.ts`
 
@@ -76,10 +84,10 @@ Test the restore flow:
 ✅ **Database**: Ready (deleted_at exists)  
 ✅ **Backend**: Ready (restore route exists)  
 ✅ **Frontend**: Ready (restore method added)  
-✅ **Migration**: Not needed  
+✅ **Migration**: Not needed
 
 **Action Required**: None - everything is already in place!
 
 ---
 
-*Report generated: January 2025*
+_Report generated: January 2025_

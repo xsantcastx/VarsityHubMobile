@@ -9,13 +9,13 @@ Clear visual borders help users understand where one workflow ends and another b
 
 ## When to use what
 
-| Need | Component / pattern |
-|------|----------------------|
-| Separate two sections of content | `<Divider />` or `<SectionHeader showBorder />` (default) |
-| Wrap a logical block (e.g. settings group, form step) | `<Card variant="outlined">` or `<Card variant="strong">` for emphasis |
-| Separate list rows | `borderBottomWidth: 1` + `Colors[scheme].border` (e.g. `SettingItem`, list rows) |
-| Modal/sheet header from body | `borderBottomWidth: 1` on header with theme border |
-| Major workflow boundary (e.g. payment step, approval block) | `<Card variant="strong">` or `<Divider weight="medium" />` |
+| Need                                                        | Component / pattern                                                              |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Separate two sections of content                            | `<Divider />` or `<SectionHeader showBorder />` (default)                        |
+| Wrap a logical block (e.g. settings group, form step)       | `<Card variant="outlined">` or `<Card variant="strong">` for emphasis            |
+| Separate list rows                                          | `borderBottomWidth: 1` + `Colors[scheme].border` (e.g. `SettingItem`, list rows) |
+| Modal/sheet header from body                                | `borderBottomWidth: 1` on header with theme border                               |
+| Major workflow boundary (e.g. payment step, approval block) | `<Card variant="strong">` or `<Divider weight="medium" />`                       |
 
 ## Components
 

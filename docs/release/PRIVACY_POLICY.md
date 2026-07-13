@@ -5,21 +5,25 @@
 ## 1. Information We Collect
 
 ### Account Information
+
 - Name, email address, phone number
 - Profile information (photo, bio, location, position/role)
 - Authentication credentials (managed securely, never stored in plain text)
 
 ### Usage Information
+
 - Posts, messages, photos, and videos you create
 - Teams and organizations you join
 - Events and games you attend
 - Connections with other users (follows, teammates)
 
 ### Location Information
+
 - GPS coordinates for event/game locations (only with permission)
 - General location for nearby events feature
 
 ### Device Information
+
 - Device type, operating system, unique identifiers
 - App version, crash logs (via Sentry)
 - IP address, user agent
