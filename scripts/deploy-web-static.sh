@@ -4,7 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPLOY_DIR="$(mktemp -d "${TMPDIR:-/tmp}/varsityhub-web-static.XXXXXX")"
 SCOPE="${VERCEL_SCOPE:-${1:-}}"
-CUSTOM_DOMAINS=(${VERCEL_CUSTOM_DOMAINS:-"www.varsityhub.app varsityhub.app"})
+if [[ -n "${VERCEL_CUSTOM_DOMAINS:-}" ]]; then
+  read -ra CUSTOM_DOMAINS <<< "$VERCEL_CUSTOM_DOMAINS"
+else
+  CUSTOM_DOMAINS=(www.varsityhub.app varsityhub.app)
+fi
 
 VERCEL_ARGS=()
 if [[ -n "${VERCEL_TOKEN:-}" ]]; then
