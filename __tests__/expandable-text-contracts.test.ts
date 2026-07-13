@@ -10,11 +10,15 @@ describe('expandable text contracts', () => {
     expect(expandableText).toContain('Pressable');
     expect(expandableText).toContain("android_ripple={{ color: 'rgba(37, 99, 235, 0.12)' }}");
     expect(expandableText).toContain('pressed && styles.toggleButtonPressed');
-    expect(expandableText).toContain("accessibilityLabel={expanded ? 'Collapse text' : 'Expand text'}");
+    expect(expandableText).toContain(
+      "accessibilityLabel={expanded ? 'Collapse text' : 'Expand text'}"
+    );
   });
 
   it('animates expansion instead of swapping text abruptly', () => {
-    expect(expandableText).toContain('LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);');
+    expect(expandableText).toContain(
+      'LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);'
+    );
     expect(expandableText).toContain('setExpanded(prev => !prev);');
   });
 });

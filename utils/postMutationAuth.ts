@@ -1,4 +1,8 @@
-import { getPostAuthRouteDecision, type PostAuthRouteDecision, type RoutingUserLike } from './appRouteDecisions';
+import {
+  getPostAuthRouteDecision,
+  type PostAuthRouteDecision,
+  type RoutingUserLike,
+} from './appRouteDecisions';
 
 type RefreshAuthFn<T extends RoutingUserLike> = () => Promise<T | null | undefined>;
 
@@ -28,7 +32,9 @@ export async function getFreshPostAuthState<T extends RoutingUserLike>(
   }
 
   if (!user) {
-    throw new Error('We saved your account, but could not refresh your latest access state. Please try again.');
+    throw new Error(
+      'We saved your account, but could not refresh your latest access state. Please try again.'
+    );
   }
 
   return {

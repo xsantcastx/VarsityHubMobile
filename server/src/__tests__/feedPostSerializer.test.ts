@@ -145,7 +145,13 @@ describe('serializeFeedPost', () => {
 
   it('passes through captured media dimensions', () => {
     const out = serializeFeedPost(
-      { id: 'p', media_url: 'https://cdn/x.mp4', media_width: 1080, media_height: 1920, media_duration_s: 12.5 },
+      {
+        id: 'p',
+        media_url: 'https://cdn/x.mp4',
+        media_width: 1080,
+        media_height: 1920,
+        media_duration_s: 12.5,
+      },
       emptySets
     );
     expect(out.media_width).toBe(1080);

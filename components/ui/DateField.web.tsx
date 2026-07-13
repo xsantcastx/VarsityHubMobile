@@ -43,10 +43,10 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
           outline: 'none',
           transition: 'border-color 0.2s',
         }}
-        onFocus={(e) => {
+        onFocus={e => {
           e.currentTarget.style.borderColor = Colors[colorScheme].tint;
         }}
-        onBlur={(e) => {
+        onBlur={e => {
           e.currentTarget.style.borderColor = Colors[colorScheme].border;
         }}
       />

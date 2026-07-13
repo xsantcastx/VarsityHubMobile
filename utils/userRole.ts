@@ -16,7 +16,7 @@ export function normalizeUserRole(role?: string | null, plan?: string | null): '
   }
 
   const coachKeywords = ['coach', 'organizer', 'manager', 'staff', 'owner', 'director', 'admin'];
-  if (coachKeywords.some((keyword) => raw.includes(keyword))) {
+  if (coachKeywords.some(keyword => raw.includes(keyword))) {
     return 'coach';
   }
 

@@ -36,13 +36,7 @@ export function useOrganizationSearch<T = any>(
   }, []);
 
   const search = useCallback(async (options: OrganizationSearchOptions = {}) => {
-    const {
-      query = '',
-      limit = 20,
-      mode = 'list',
-      sport,
-      orgType,
-    } = options;
+    const { query = '', limit = 20, mode = 'list', sport, orgType } = options;
 
     setLoading(true);
     try {

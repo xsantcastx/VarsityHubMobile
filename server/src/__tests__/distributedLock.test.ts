@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { withDistributedLock, runClusterOnce } from '../lib/distributedLock.js';
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 describe('withDistributedLock (local fallback)', () => {
   it('deduplicates concurrent calls for the same key', async () => {

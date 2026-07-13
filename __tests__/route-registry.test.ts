@@ -22,7 +22,7 @@ function walk(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
 
   const entries = fs.readdirSync(dir, { withFileTypes: true });
-  return entries.flatMap((entry) => {
+  return entries.flatMap(entry => {
     const next = path.join(dir, entry.name);
     if (entry.isDirectory()) return walk(next);
     return [next];
@@ -46,7 +46,7 @@ function normalizeRouteLike(value: string): string {
   const stripped = pathname
     .split('/')
     .filter(Boolean)
-    .filter((segment) => !/^\(.*\)$/.test(segment))
+    .filter(segment => !/^\(.*\)$/.test(segment))
     .join('/');
 
   return stripped ? `/${stripped}` : '/';
@@ -59,7 +59,7 @@ function fileToRoute(file: string): DeclaredRoute {
   if (rel.endsWith('/index')) rel = rel.slice(0, -'/index'.length);
 
   const route = normalizeRouteLike(rel);
-  const params = Array.from(route.matchAll(/\[([^\]]+)\]/g)).map((match) =>
+  const params = Array.from(route.matchAll(/\[([^\]]+)\]/g)).map(match =>
     match[1].replace('...', '')
   );
 
@@ -78,9 +78,7 @@ function routeToRegex(route: string): RegExp {
 function extractParamKeys(paramsBlock?: string): string[] {
   if (!paramsBlock) return [];
 
-  return Array.from(paramsBlock.matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*:/g)).map(
-    (match) => match[1]
-  );
+  return Array.from(paramsBlock.matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*:/g)).map(match => match[1]);
 }
 
 function extractNavigationCalls(file: string): NavigationCall[] {
@@ -152,29 +150,25 @@ function resolveDeclaredRoute(
 ): DeclaredRoute | undefined {
   const normalized = normalizeRouteLike(pathname);
 
-  return declaredRoutes.find((declared) => {
+  return declaredRoutes.find(declared => {
     if (declared.route === normalized) return true;
     return routeToRegex(declared.route).test(normalized);
   });
 }
 
 describe('route registry', () => {
-  const declaredRoutes = walk(APP_DIR)
-    .filter(isRoutableAppFile)
-    .map(fileToRoute);
+  const declaredRoutes = walk(APP_DIR).filter(isRoutableAppFile).map(fileToRoute);
 
-  const navigationCalls = SOURCE_DIRS.flatMap((dir) =>
-    walk(path.join(ROOT, dir))
-  )
-    .filter((file) => /\.(ts|tsx)$/.test(file))
-    .filter((file) => !/\.test\.(ts|tsx)$/.test(file))
-    .filter((file) => !/\/__tests__\//.test(file))
+  const navigationCalls = SOURCE_DIRS.flatMap(dir => walk(path.join(ROOT, dir)))
+    .filter(file => /\.(ts|tsx)$/.test(file))
+    .filter(file => !/\.test\.(ts|tsx)$/.test(file))
+    .filter(file => !/\/__tests__\//.test(file))
     .flatMap(extractNavigationCalls);
 
   it('every statically analyzable navigation target resolves to a declared route', () => {
     const unresolved = navigationCalls
-      .filter((call) => !resolveDeclaredRoute(call.pathname, declaredRoutes))
-      .map((call) => ({
+      .filter(call => !resolveDeclaredRoute(call.pathname, declaredRoutes))
+      .map(call => ({
         file: path.relative(ROOT, call.file),
         kind: call.kind,
         pathname: call.pathname,
@@ -185,19 +179,17 @@ describe('route registry', () => {
 
   it('every object-style dynamic route call supplies required path params', () => {
     const missingParams = navigationCalls
-      .map((call) => {
+      .map(call => {
         const declared = resolveDeclaredRoute(call.pathname, declaredRoutes);
         if (!declared) return null;
 
         const dynamicParams = Array.from(
           normalizeRouteLike(call.pathname).matchAll(/\[([^\]]+)\]/g)
-        ).map((match) => match[1].replace('...', ''));
+        ).map(match => match[1].replace('...', ''));
 
         if (dynamicParams.length === 0) return null;
 
-        const missing = dynamicParams.filter(
-          (param) => !call.paramKeys.includes(param)
-        );
+        const missing = dynamicParams.filter(param => !call.paramKeys.includes(param));
 
         if (missing.length === 0) return null;
 

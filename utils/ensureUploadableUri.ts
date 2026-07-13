@@ -34,7 +34,7 @@ function isImageFile(mimeType?: string, uri?: string): boolean {
  */
 export async function compressImageForUpload(
   uri: string,
-  mimeType?: string,
+  mimeType?: string
 ): Promise<{ uri: string; mimeType?: string }> {
   // Don't compress non-images (videos, PDFs, etc.)
   if (!isImageFile(mimeType, uri)) {
@@ -50,7 +50,7 @@ export async function compressImageForUpload(
     const manip = await ImageManipulator.manipulateAsync(
       localUri,
       [{ resize: { width: MAX_IMAGE_DIMENSION } }],
-      { compress: IMAGE_COMPRESS_QUALITY, format: ImageManipulator.SaveFormat.JPEG },
+      { compress: IMAGE_COMPRESS_QUALITY, format: ImageManipulator.SaveFormat.JPEG }
     );
     if (manip?.uri) {
       if (__DEV__) console.log('[media] Image compressed to:', manip.uri);
@@ -62,11 +62,10 @@ export async function compressImageForUpload(
 
   // Attempt 2: compress without resize (in case the resize dimension caused issues)
   try {
-    const manip = await ImageManipulator.manipulateAsync(
-      localUri,
-      [],
-      { compress: IMAGE_COMPRESS_QUALITY, format: ImageManipulator.SaveFormat.JPEG },
-    );
+    const manip = await ImageManipulator.manipulateAsync(localUri, [], {
+      compress: IMAGE_COMPRESS_QUALITY,
+      format: ImageManipulator.SaveFormat.JPEG,
+    });
     if (manip?.uri) {
       if (__DEV__) console.log('[media] Image compressed (no resize fallback) to:', manip.uri);
       return { uri: manip.uri, mimeType: 'image/jpeg' };
@@ -87,6 +86,9 @@ export async function compressImageForUpload(
  * Note: React Native's FormData sends the URI as-is to the server,
  * which iOS HTTP layer translates to the actual file content.
  */
-export async function ensureUploadableUri(uri: string, mimeType?: string): Promise<{ uri: string; mimeType?: string }> {
+export async function ensureUploadableUri(
+  uri: string,
+  mimeType?: string
+): Promise<{ uri: string; mimeType?: string }> {
   return compressImageForUpload(uri, mimeType);
 }

@@ -30,7 +30,14 @@ export function ZipCodeMapPreview({ zipCode, title = 'Your Area' }: ZipCodeMapPr
 }
 
 const styles = StyleSheet.create({
-  container: { borderRadius: 12, padding: 24, alignItems: 'center', justifyContent: 'center', minHeight: 160, gap: 8 },
+  container: {
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 160,
+    gap: 8,
+  },
   title: { fontSize: 16, fontWeight: '600', marginTop: 4 },
   desc: { fontSize: 13, textAlign: 'center' },
   note: { fontSize: 11, fontStyle: 'italic', marginTop: 2 },

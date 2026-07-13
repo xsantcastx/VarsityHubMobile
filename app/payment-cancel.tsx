@@ -49,21 +49,24 @@ function PaymentCancelScreen() {
 
   return (
     <>
-      <Stack.Screen options={{
-        title: isAd ? 'Checkout Cancelled' : 'Payment Cancelled',
-        headerShown: false,
-        gestureEnabled: true
-      }} />
+      <Stack.Screen
+        options={{
+          title: isAd ? 'Checkout Cancelled' : 'Payment Cancelled',
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.content}>
           <View style={[styles.contentInner, isLargeScreen && styles.contentInnerLarge]}>
             <View style={styles.cancelContainer}>
-              <MaterialIcons name="cancel" size={72} color={isAd ? adIconColor : theme.destructive} />
+              <MaterialIcons
+                name="cancel"
+                size={72}
+                color={isAd ? adIconColor : theme.destructive}
+              />
               <Text
-                style={[
-                  styles.cancelTitle,
-                  { color: isAd ? adAccentColor : theme.destructive },
-                ]}
+                style={[styles.cancelTitle, { color: isAd ? adAccentColor : theme.destructive }]}
               >
                 {isAd ? 'Checkout Cancelled' : 'Payment Cancelled'}
               </Text>

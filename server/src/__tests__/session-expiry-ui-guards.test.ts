@@ -20,7 +20,9 @@ describe('session expiry UI guards', () => {
   });
 
   it('routes story-upload auth failures through the shared upload-error handler', () => {
-    expect(gameDetailsSource).toContain("import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';");
+    expect(gameDetailsSource).toContain(
+      "import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';"
+    );
     expect(gameDetailsSource).toMatch(/logTag: 'story\.upload\.photo'/);
     expect(gameDetailsSource).toMatch(/logTag: 'story\.upload\.video'/);
     expect(gameDetailsSource).not.toContain(

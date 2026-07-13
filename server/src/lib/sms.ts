@@ -5,10 +5,12 @@ const authToken = process.env.TWILIO_AUTH_TOKEN;
 const verifySid = process.env.TWILIO_VERIFY_SERVICE_SID;
 
 if (!accountSid || !authToken || !verifySid) {
-  console.warn('[Twilio] Missing required environment variables. SMS functionality will be disabled.');
+  console.warn(
+    '[Twilio] Missing required environment variables. SMS functionality will be disabled.'
+  );
 }
 
-const client = (accountSid && authToken) ? twilio(accountSid, authToken) : null;
+const client = accountSid && authToken ? twilio(accountSid, authToken) : null;
 
 /**
  * Sends a verification code to a phone number using Twilio Verify.
@@ -22,9 +24,9 @@ export async function sendSmsVerification(phone: string): Promise<any> {
   }
 
   try {
-    const verification = await client.verify.v2.services(verifySid)
-      .verifications
-      .create({ to: phone, channel: 'sms' });
+    const verification = await client.verify.v2
+      .services(verifySid)
+      .verifications.create({ to: phone, channel: 'sms' });
     console.log(`[Twilio] Verification sent. Status: ${verification.status}`);
     return verification;
   } catch (error) {
@@ -44,15 +46,15 @@ export async function checkSmsVerification(phone: string, code: string): Promise
     console.log('[dev] SMS verification check: returning mock success.');
     // In dev, any 6-digit code starting with '1' is valid
     if (code.length === 6 && code.startsWith('1')) {
-        return { status: 'approved' };
+      return { status: 'approved' };
     }
     return { status: 'pending' };
   }
 
   try {
-    const verificationCheck = await client.verify.v2.services(verifySid)
-      .verificationChecks
-      .create({ to: phone, code });
+    const verificationCheck = await client.verify.v2
+      .services(verifySid)
+      .verificationChecks.create({ to: phone, code });
     console.log(`[Twilio] Verification check complete. Status: ${verificationCheck.status}`);
     return verificationCheck;
   } catch (error) {

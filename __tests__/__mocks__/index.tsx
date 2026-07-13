@@ -4,15 +4,17 @@ import React from 'react';
 
 const Stack = createNativeStackNavigator();
 
-export const MockedNavigator = ({ component, params = {} }: { component: React.ComponentType<any>, params?: any }) => {
+export const MockedNavigator = ({
+  component,
+  params = {},
+}: {
+  component: React.ComponentType<any>;
+  params?: any;
+}) => {
   return (
     <NavigationContainer>
       <Stack.Navigator>
-        <Stack.Screen
-          name="MockedScreen"
-          component={component}
-          initialParams={params}
-        />
+        <Stack.Screen name="MockedScreen" component={component} initialParams={params} />
       </Stack.Navigator>
     </NavigationContainer>
   );

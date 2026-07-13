@@ -14,8 +14,12 @@ describe('auth duplicate-account race guards', () => {
   });
 
   it('keeps OAuth create paths on the existing-account 409 flow after create races', () => {
-    expect(authSrc).toMatch(/buildOAuthExistingAccountConflict\(\{\s*email,\s*user:\s*existingUser,\s*providerLabel:\s*'Google'/);
-    expect(authSrc).toMatch(/buildOAuthExistingAccountConflict\(\{\s*email:\s*userEmail,\s*user:\s*existingUser,\s*providerLabel:\s*'Apple'/);
+    expect(authSrc).toMatch(
+      /buildOAuthExistingAccountConflict\(\{\s*email,\s*user:\s*existingUser,\s*providerLabel:\s*'Google'/
+    );
+    expect(authSrc).toMatch(
+      /buildOAuthExistingAccountConflict\(\{\s*email:\s*userEmail,\s*user:\s*existingUser,\s*providerLabel:\s*'Apple'/
+    );
     expect(authSrc).toMatch(/createErr\?\.code === 'P2002'/);
   });
 });

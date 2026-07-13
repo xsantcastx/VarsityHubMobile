@@ -15,7 +15,7 @@ const FILES = {
 };
 
 function snippets(source: string, pattern: RegExp): string[] {
-  return Array.from(source.matchAll(pattern)).map((match) => match[0]);
+  return Array.from(source.matchAll(pattern)).map(match => match[0]);
 }
 
 describe('organization data-access invariants', () => {
@@ -54,7 +54,9 @@ describe('organization data-access invariants', () => {
   });
 
   it('org join-request raw helpers cast enum status columns before comparing to text params', () => {
-    expect(FILES.organizationWorkflowState.includes('jr.status::text = ${normalizedStatus}')).toBe(true);
+    expect(FILES.organizationWorkflowState.includes('jr.status::text = ${normalizedStatus}')).toBe(
+      true
+    );
     expect(FILES.organizationWorkflowState.includes('jr.status = ${normalizedStatus}')).toBe(false);
   });
 
@@ -64,8 +66,8 @@ describe('organization data-access invariants', () => {
     const unsafeWriteCalls = runtimeFiles.flatMap(source =>
       snippets(
         source,
-        /(prisma|tx)\.organization(?:JoinRequest|Invite)\.(?:create|update|updateMany|upsert)\(\{[\s\S]{0,800}?\}\)/g,
-      ),
+        /(prisma|tx)\.organization(?:JoinRequest|Invite)\.(?:create|update|updateMany|upsert)\(\{[\s\S]{0,800}?\}\)/g
+      )
     );
 
     expect(unsafeWriteCalls.length).toBeGreaterThan(0);

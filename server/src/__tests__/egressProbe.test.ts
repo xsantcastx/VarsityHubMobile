@@ -34,11 +34,13 @@ describe('runEgressProbe', () => {
   });
 
   it('reports partial degradation when only some targets fail', async () => {
-    global.fetch = jest.fn().mockImplementation((url: unknown) =>
-      String(url).includes('cloudinary')
-        ? Promise.reject(new Error('connection refused'))
-        : Promise.resolve({ status: 200 })
-    ) as unknown as typeof fetch;
+    global.fetch = jest
+      .fn()
+      .mockImplementation((url: unknown) =>
+        String(url).includes('cloudinary')
+          ? Promise.reject(new Error('connection refused'))
+          : Promise.resolve({ status: 200 })
+      ) as unknown as typeof fetch;
 
     const { reachable, total } = await runEgressProbe(100);
 

@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { accountSuspendedHTML, addDays, reportDismissedHTML, reportResolvedHTML } from './ReportResolutionEmail';
+import {
+  accountSuspendedHTML,
+  addDays,
+  reportDismissedHTML,
+  reportResolvedHTML,
+} from './ReportResolutionEmail';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 
@@ -42,7 +47,7 @@ export default function EmailPreview() {
       <ThemedText type="title">Email Preview</ThemedText>
       <ThemedText type="default">Kind: {kind}</ThemedText>
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-        {(['resolved', 'dismissed', 'suspended'] as EmailKind[]).map((option) => {
+        {(['resolved', 'dismissed', 'suspended'] as EmailKind[]).map(option => {
           const active = option === kind;
           return (
             <Pressable
@@ -64,7 +69,9 @@ export default function EmailPreview() {
           );
         })}
       </View>
-      <ThemedView style={{ marginTop: 12, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12 }}>
+      <ThemedView
+        style={{ marginTop: 12, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12 }}
+      >
         <View pointerEvents="none">
           {/* Render HTML minimally by showing text. In-app rendering engines may vary. */}
           <ThemedText type="default">{previewHTML}</ThemedText>

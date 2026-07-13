@@ -52,7 +52,7 @@ export async function sendSmsVerificationCode(phoneNumber: string, code: string)
 
   try {
     const message = `Your VarsityHub verification code is: ${code}. This code expires in 30 minutes.`;
-    
+
     await client.messages.create({
       body: message,
       from: fromPhoneNumber,
@@ -79,7 +79,7 @@ export async function sendSmsPasswordReset(phoneNumber: string, code: string): P
 
   try {
     const message = `Your VarsityHub password reset code is: ${code}. This code expires in 30 minutes.`;
-    
+
     await client.messages.create({
       body: message,
       from: fromPhoneNumber,

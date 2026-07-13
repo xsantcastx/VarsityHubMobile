@@ -10,7 +10,16 @@ import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { safeGoBack } from '@/utils/navigation';
 import { isSessionExpiryError } from '@/utils/sessionExpiryError';
 
@@ -128,12 +137,18 @@ function AdminUsersScreen() {
           ]}
           onPress={() => setShowBanned(x => !x)}
         >
-          <Text style={[styles.toggleText, { color: showBanned ? '#fff' : Colors[colorScheme].text }]}>
+          <Text
+            style={[styles.toggleText, { color: showBanned ? '#fff' : Colors[colorScheme].text }]}
+          >
             Banned
           </Text>
         </Pressable>
       </View>
-      {loading ? <View style={sharedStyles.listLoading}><ActivityIndicator /></View> : null}
+      {loading ? (
+        <View style={sharedStyles.listLoading}>
+          <ActivityIndicator />
+        </View>
+      ) : null}
       {error ? <Text style={[sharedStyles.error, { color: '#b91c1c' }]}>{error}</Text> : null}
       {!loading && !error ? (
         <FlatList
@@ -152,24 +167,35 @@ function AdminUsersScreen() {
               <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
                 {item.display_name || '(no display)'}
               </Text>
-              <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>{item.email}</Text>
+              <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>
+                {item.email}
+              </Text>
               <View style={styles.badgesRow}>
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{item.email_verified ? 'VERIFIED' : 'UNVERIFIED'}</Text>
+                  <Text style={styles.badgeText}>
+                    {item.email_verified ? 'VERIFIED' : 'UNVERIFIED'}
+                  </Text>
                 </View>
                 {item.banned ? (
-                  <View style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
+                  <View
+                    style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}
+                  >
                     <Text style={[styles.badgeText, { color: '#991B1B' }]}>BANNED</Text>
                   </View>
                 ) : null}
               </View>
               <View style={styles.actionsRow}>
-                <Pressable style={styles.btn} onPress={() => toggleBan(String(item.id), !!item.banned)}>
+                <Pressable
+                  style={styles.btn}
+                  onPress={() => toggleBan(String(item.id), !!item.banned)}
+                >
                   <Text style={styles.btnText}>{item.banned ? 'Unban' : 'Ban'}</Text>
                 </Pressable>
                 <Pressable
                   style={[styles.btn, { backgroundColor: '#374151' }]}
-                  onPress={() => void router.push(`/admin-user-detail?id=${encodeURIComponent(String(item.id))}`)}
+                  onPress={() =>
+                    void router.push(`/admin-user-detail?id=${encodeURIComponent(String(item.id))}`)
+                  }
                 >
                   <Text style={styles.btnText}>View</Text>
                 </Pressable>
@@ -181,7 +207,9 @@ function AdminUsersScreen() {
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <MaterialIcons name="person-search" size={48} color={Colors[colorScheme].mutedText} />
-              <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No users match this filter</Text>
+              <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
+                No users match this filter
+              </Text>
               <Text style={[styles.emptyBody, { color: Colors[colorScheme].mutedText }]}>
                 Try adjusting your search or filter criteria.
               </Text>

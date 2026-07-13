@@ -7,7 +7,8 @@ const options = {
     info: {
       title: 'VarsityHub API',
       version: '1.0.0',
-      description: 'Sports social platform API for teams, games, posts, messaging, and event management',
+      description:
+        'Sports social platform API for teams, games, posts, messaging, and event management',
       contact: {
         name: 'VarsityHub Support',
         email: 'support@varsityhub.app',

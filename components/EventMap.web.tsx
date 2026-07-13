@@ -13,10 +13,8 @@ type MarkerPayload = {
   type?: 'game' | 'event' | 'post';
 };
 
-const LEAFLET_CSS =
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-const LEAFLET_JS =
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => {
@@ -272,7 +270,10 @@ export default function EventMapWeb({ events, onEventPress, dataLoaded = true }:
               },
             ]}
           >
-            <Text numberOfLines={1} style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>
+            <Text
+              numberOfLines={1}
+              style={[styles.eventTitle, { color: Colors[colorScheme].text }]}
+            >
               {marker.title}
             </Text>
           </Pressable>

@@ -25,10 +25,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { extractFunctionBody } from './helpers/extractFunctionBody.js';
 
-const SERVICE = readFileSync(
-  join(process.cwd(), 'src', 'lib', 'approvalService.ts'),
-  'utf8',
-);
+const SERVICE = readFileSync(join(process.cwd(), 'src', 'lib', 'approvalService.ts'), 'utf8');
 
 describe('Event approval state-machine race guard', () => {
   const approveBody = extractFunctionBody(SERVICE, 'approveEvent');
@@ -70,11 +67,11 @@ describe('Event approval state-machine race guard', () => {
     // inside the data payload of a non-updateMany call.
     const unguardedApprove =
       /prisma\.event\.update\(\{[\s\S]*?approval_status:\s*['"]approved['"][\s\S]*?\}\)/.exec(
-        approveBody,
+        approveBody
       );
     const unguardedReject =
       /prisma\.event\.update\(\{[\s\S]*?approval_status:\s*['"]rejected['"][\s\S]*?\}\)/.exec(
-        rejectBody,
+        rejectBody
       );
     expect(unguardedApprove).toBeNull();
     expect(unguardedReject).toBeNull();

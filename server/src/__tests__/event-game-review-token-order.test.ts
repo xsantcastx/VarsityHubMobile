@@ -33,8 +33,12 @@ describe('event/game review token order', () => {
 
   it('maps post-load race losses back to final-state pages instead of generic errors', () => {
     expect(eventsSrc).toContain('function renderEventFinalStatePage(');
-    expect(eventsSrc).toContain('const finalStatePage = latest ? renderEventFinalStatePage(latest, action) : null;');
+    expect(eventsSrc).toContain(
+      'const finalStatePage = latest ? renderEventFinalStatePage(latest, action) : null;'
+    );
     expect(gamesSrc).toContain('function renderGameFinalStatePage(');
-    expect(gamesSrc).toContain('const finalStatePage = latest ? renderGameFinalStatePage(latest, action) : null;');
+    expect(gamesSrc).toContain(
+      'const finalStatePage = latest ? renderGameFinalStatePage(latest, action) : null;'
+    );
   });
 });

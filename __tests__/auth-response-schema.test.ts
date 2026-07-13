@@ -1,7 +1,4 @@
-import {
-  validateAuthenticatedUser,
-  validateOnboardingCompletion,
-} from '@/api/schemas/auth';
+import { validateAuthenticatedUser, validateOnboardingCompletion } from '@/api/schemas/auth';
 import { captureException } from '@/utils/sentry';
 
 jest.mock('@/utils/sentry', () => ({

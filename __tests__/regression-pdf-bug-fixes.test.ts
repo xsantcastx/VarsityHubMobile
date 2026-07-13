@@ -20,10 +20,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const rootLayoutSrc = readFileSync(
-  join(process.cwd(), 'app', '_layout.tsx'),
-  'utf8'
-);
+const rootLayoutSrc = readFileSync(join(process.cwd(), 'app', '_layout.tsx'), 'utf8');
 
 const gameDetailsSrc = readFileSync(
   join(process.cwd(), 'app', 'game-details', 'GameDetailsScreen.tsx'),

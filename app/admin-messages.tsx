@@ -28,7 +28,9 @@ function AdminMessagesScreen() {
       const list = await MsgApi.listAll(200);
       setItems(Array.isArray(list) ? list : []);
     } catch (e: any) {
-      setError(e?.status === 403 ? 'Access denied (admin only).' : e?.message || 'Failed to load messages');
+      setError(
+        e?.status === 403 ? 'Access denied (admin only).' : e?.message || 'Failed to load messages'
+      );
     } finally {
       setLoading(false);
     }
@@ -65,8 +67,14 @@ function AdminMessagesScreen() {
         safeGoBack(router);
       }}
     >
-      {loading ? <View style={sharedStyles.listLoading}><ActivityIndicator /></View> : null}
-      {error ? <Text style={[sharedStyles.error, { color: Colors[colorScheme].mutedText }]}>{error}</Text> : null}
+      {loading ? (
+        <View style={sharedStyles.listLoading}>
+          <ActivityIndicator />
+        </View>
+      ) : null}
+      {error ? (
+        <Text style={[sharedStyles.error, { color: Colors[colorScheme].mutedText }]}>{error}</Text>
+      ) : null}
       {!loading && !error ? (
         <FlatList
           data={items}
@@ -85,9 +93,15 @@ function AdminMessagesScreen() {
                 {item.content || ''}
               </Text>
               <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>
-                {(item.sender?.display_name || item.sender?.username || item.sender_email || 'unknown') +
+                {(item.sender?.display_name ||
+                  item.sender?.username ||
+                  item.sender_email ||
+                  'unknown') +
                   ' → ' +
-                  (item.recipient?.display_name || item.recipient?.username || item.recipient_email || 'unknown')}
+                  (item.recipient?.display_name ||
+                    item.recipient?.username ||
+                    item.recipient_email ||
+                    'unknown')}
               </Text>
               <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>
                 {new Date(item.created_date || item.created_at || Date.now()).toLocaleString()}

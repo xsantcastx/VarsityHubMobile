@@ -19,7 +19,9 @@ describeDb('POST /auth/downgrade-to-fan', () => {
 
   afterAll(async () => {
     await prisma.teamMembership.deleteMany({ where: { user_id: { in: userIds } } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { user_id: { in: userIds } } }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { user_id: { in: userIds } } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: { in: orgIds } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => {});
   });

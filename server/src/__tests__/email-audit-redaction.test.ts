@@ -7,8 +7,9 @@ describe('EmailService audit logging', () => {
   const readEmailAuditPayload = (logSpy: ReturnType<typeof jest.spyOn>) => {
     const auditLine = [...logSpy.mock.calls]
       .reverse()
-      .find((call) => typeof call[0] === 'string' && call[0].includes('"EMAIL_AUDIT"'))
-      ?.[0] as string | undefined;
+      .find(call => typeof call[0] === 'string' && call[0].includes('"EMAIL_AUDIT"'))?.[0] as
+      | string
+      | undefined;
 
     expect(auditLine).toBeDefined();
     return JSON.parse(auditLine!);
@@ -100,10 +101,7 @@ describe('EmailService audit logging', () => {
     });
 
     const payload = readEmailAuditPayload(logSpy);
-    expect(payload.originalRecipient).toEqual([
-      '[redacted-minor-email]',
-      '[redacted-minor-email]',
-    ]);
+    expect(payload.originalRecipient).toEqual(['[redacted-minor-email]', '[redacted-minor-email]']);
 
     // Belt-and-braces: the raw minor addresses must never appear in ANY log
     // line this send produced (EMAIL_AUDIT, info-level attempt log, etc.).
@@ -193,10 +191,7 @@ describe('redactEmail / redactEmailList helper', () => {
 
   it('handles arrays via redactEmailList', async () => {
     const { redactEmailList } = await import('../lib/emailRedaction.js');
-    expect(redactEmailList(['a@b.com', 'c@d.org'])).toEqual([
-      'a***@b.com',
-      'c***@d.org',
-    ]);
+    expect(redactEmailList(['a@b.com', 'c@d.org'])).toEqual(['a***@b.com', 'c***@d.org']);
     expect(redactEmailList('single@x.com')).toBe('s***@x.com');
   });
 

@@ -16,48 +16,32 @@ export interface EmptyStateProps {
 /**
  * Reusable Empty State Component
  * Replaces 12+ duplicated empty state implementations
- * 
+ *
  * @example
- * <EmptyState 
+ * <EmptyState
  *   icon="calendar-outline"
- *   title="No Games Yet" 
+ *   title="No Games Yet"
  *   subtitle="Add your first game to get started"
  *   action={<Button>Add Game</Button>}
  * />
  */
-export function EmptyState({ 
+export function EmptyState({
   icon = 'alert-circle-outline',
-  title, 
-  subtitle, 
-  action, 
-  style 
+  title,
+  subtitle,
+  action,
+  style,
 }: EmptyStateProps) {
   const colorScheme = useColorScheme() ?? 'light';
 
   return (
     <View style={[styles.container, style]}>
-      <Ionicons
-        name={icon} 
-        size={64} 
-        color={Colors[colorScheme].mutedText} 
-      />
-      <Text 
-        style={[
-          styles.title,
-          typography.title,
-          { color: Colors[colorScheme].text }
-        ]}
-      >
+      <Ionicons name={icon} size={64} color={Colors[colorScheme].mutedText} />
+      <Text style={[styles.title, typography.title, { color: Colors[colorScheme].text }]}>
         {title}
       </Text>
       {subtitle && (
-        <Text 
-          style={[
-            styles.subtitle,
-            typography.body,
-            { color: Colors[colorScheme].mutedText }
-          ]}
-        >
+        <Text style={[styles.subtitle, typography.body, { color: Colors[colorScheme].mutedText }]}>
           {subtitle}
         </Text>
       )}

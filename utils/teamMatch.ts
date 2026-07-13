@@ -13,7 +13,8 @@ export const normalizeName = (s?: string | null) => {
 // Simple Levenshtein distance implementation (small datasets ok)
 const levenshtein = (a: string, b: string) => {
   if (a === b) return 0;
-  const al = a.length; const bl = b.length;
+  const al = a.length;
+  const bl = b.length;
   if (al === 0) return bl;
   if (bl === 0) return al;
   const v0 = new Array(bl + 1).fill(0);
@@ -30,7 +31,10 @@ const levenshtein = (a: string, b: string) => {
   return v1[bl];
 };
 
-export const findBestMatch = (teamName?: string | null, teams: Array<{ id: string; name: string; avatarUrl?: string | null }>=[]) => {
+export const findBestMatch = (
+  teamName?: string | null,
+  teams: Array<{ id: string; name: string; avatarUrl?: string | null }> = []
+) => {
   const target = normalizeName(teamName);
   if (!target) return null;
   let best: { score: number; team: any | null } = { score: Infinity, team: null };
@@ -47,7 +51,10 @@ export const findBestMatch = (teamName?: string | null, teams: Array<{ id: strin
     if (d < best.score) best = { score: d, team: t };
   }
   // Accept fuzzy match only if distance is reasonably small relative to length
-  if (best.team && best.score <= Math.max(1, Math.floor((normalizeName(best.team.name).length) * 0.28))) {
+  if (
+    best.team &&
+    best.score <= Math.max(1, Math.floor(normalizeName(best.team.name).length * 0.28))
+  ) {
     return best.team;
   }
   return null;

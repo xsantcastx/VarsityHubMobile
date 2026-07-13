@@ -10,17 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - Repository reorganization and cleanup
 - `.env.example` files for frontend and backend
 - `CONTRIBUTING.md` with contribution guidelines
 - Improved documentation structure
 
 ### Changed
+
 - Root directory cleanup (scripts, docs organized)
 - Updated `.gitignore` to exclude temporary directories
 - Improved project structure documentation
 
 ### Fixed
+
 - Missing environment variable documentation
 - Inconsistent documentation organization
 
@@ -29,16 +32,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.1] - 2025-01-17
 
 ### Added
+
 - Frontend duplicate consolidation (`utils/format.ts`, `hooks/useUser.ts`)
 - Overnight automation tasks
 - Improved linting and formatting
 
 ### Changed
+
 - Consolidated duplicate utility functions
 - Improved user data loading with reusable hooks
 - Updated TypeScript configurations
 
 ### Fixed
+
 - Fixed unused variable warnings
 - Fixed floating promise warnings
 - Fixed `useEffect` dependency arrays
@@ -48,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2024-12-XX
 
 ### Added
+
 - Initial release
 - Expo Router mobile app
 - Express.js backend API

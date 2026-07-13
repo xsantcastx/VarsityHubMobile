@@ -44,16 +44,19 @@ export function useDeviceLocation(): UseDeviceLocationResult {
   const lastFetchTimeRef = useRef(lastFetchTime);
   lastFetchTimeRef.current = lastFetchTime;
 
-  const assignLocation = useCallback((coords: Location.LocationObjectCoords, timestamp?: number) => {
-    const loc: DeviceLocation = {
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      accuracy: coords.accuracy ?? undefined,
-      timestamp,
-    };
-    setLocation(loc);
-    setAccuracyMeters(typeof coords.accuracy === 'number' ? coords.accuracy : null);
-  }, []);
+  const assignLocation = useCallback(
+    (coords: Location.LocationObjectCoords, timestamp?: number) => {
+      const loc: DeviceLocation = {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy ?? undefined,
+        timestamp,
+      };
+      setLocation(loc);
+      setAccuracyMeters(typeof coords.accuracy === 'number' ? coords.accuracy : null);
+    },
+    []
+  );
 
   const fetchLocation = useCallback(async () => {
     try {
@@ -69,7 +72,7 @@ export function useDeviceLocation(): UseDeviceLocationResult {
 
       // Try last known position first (faster, may be stale)
       const lastKnown = await Location.getLastKnownPositionAsync();
-      if (lastKnown?.coords && (now - (lastKnown.timestamp || 0)) < 30 * 60 * 1000) {
+      if (lastKnown?.coords && now - (lastKnown.timestamp || 0) < 30 * 60 * 1000) {
         assignLocation(lastKnown.coords, lastKnown.timestamp);
         setLastFetchTime(now);
         setLoading(false);
@@ -159,7 +162,8 @@ export function useDeviceLocation(): UseDeviceLocationResult {
   }, [fetchLocation]);
 
   const isPrecise = accuracyMeters == null ? true : accuracyMeters <= PRECISION_THRESHOLD;
-  const needsPreciseAccuracy = Platform.OS === 'android' && permissionGranted === true && !isPrecise;
+  const needsPreciseAccuracy =
+    Platform.OS === 'android' && permissionGranted === true && !isPrecise;
 
   return {
     location,

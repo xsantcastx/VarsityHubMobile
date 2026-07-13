@@ -1,6 +1,6 @@
 /**
  * Not Found Error
- * 
+ *
  * Thrown when a requested resource doesn't exist (404 Not Found)
  */
 

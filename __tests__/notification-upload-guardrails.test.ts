@@ -11,15 +11,21 @@ describe('upload guardrails', () => {
   it('edit-profile materializes iCloud assets before avatar/background manipulation', () => {
     const source = readRepoFile('app/(tabs)/edit-profile.tsx');
 
-    expect(source).toContain("import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';");
-    expect(source.match(/const localUri = await materializeICloudAssetIfNeeded\(uri\);/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(source).toContain(
+      "import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';"
+    );
+    expect(
+      source.match(/const localUri = await materializeICloudAssetIfNeeded\(uri\);/g)?.length
+    ).toBeGreaterThanOrEqual(2);
     expect(source).toMatch(/manipulateAsync\(\s*localUri,/);
   });
 
   it('edit-ad materializes iCloud assets before banner manipulation', () => {
     const source = readRepoFile('components/EditAdScreenBase.tsx');
 
-    expect(source).toContain("import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';");
+    expect(source).toContain(
+      "import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';"
+    );
     expect(source).toContain('const localUri = await materializeICloudAssetIfNeeded(asset.uri);');
     expect(source).toContain('ImageManipulator.manipulateAsync(');
     expect(source).toContain('localUri,');
@@ -38,7 +44,9 @@ describe('notification badge guardrails', () => {
   it('notifications screen syncs and clears badge state', () => {
     const source = readRepoFile('app/(tabs)/notifications/index.tsx');
 
-    expect(source).toContain("import { clearNotificationBadge, syncNotificationBadge } from '@/utils/pushNotifications';");
+    expect(source).toContain(
+      "import { clearNotificationBadge, syncNotificationBadge } from '@/utils/pushNotifications';"
+    );
     // Both badge calls are intentionally fire-and-forget: blocking the UI
     // on a badge update would slow mark-all-read for no user benefit.
     expect(source).toContain('void syncNotificationBadge();');

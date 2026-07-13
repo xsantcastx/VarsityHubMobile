@@ -10,10 +10,7 @@ import {
   hardDeleteAnonymizedUsers,
   ANONYMIZED_USER_RETENTION_DAYS_DEFAULT,
 } from '../lib/accountDeletion.js';
-import {
-  getObjectStorageAdapter,
-  ObjectStorageNotConfiguredError,
-} from '../lib/objectStorage.js';
+import { getObjectStorageAdapter, ObjectStorageNotConfiguredError } from '../lib/objectStorage.js';
 
 export async function recoverSlotFullRefundReleaseFailures(referenceTime = new Date()) {
   const cutoff = new Date(referenceTime.getTime() - 60 * 60 * 1000);
@@ -30,7 +27,10 @@ export async function recoverSlotFullRefundReleaseFailures(referenceTime = new D
 
   let recovered = 0;
   for (const tx of candidates) {
-    const metadata = ((tx.metadata as Record<string, unknown> | null) || {}) as Record<string, unknown>;
+    const metadata = ((tx.metadata as Record<string, unknown> | null) || {}) as Record<
+      string,
+      unknown
+    >;
     if (metadata.release_pending !== true) continue;
     if (!tx.order_id) continue;
 
@@ -118,7 +118,9 @@ export function startOvernightMonitoring() {
       console.log('[overnight] Health check complete');
     } catch (error) {
       console.error('[overnight] Health check failed:', error);
-      captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'overnight_health_check' } });
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        extra: { context: 'overnight_health_check' },
+      });
     }
   });
 
@@ -149,10 +151,14 @@ export function startQueueCleanup() {
         emailQueue.clean(thirtyDays, 1000, 'failed'),
       ]);
 
-      console.log(`[cleanup] Removed ${removedCompleted.length} completed jobs, ${removedFailed.length} failed jobs`);
+      console.log(
+        `[cleanup] Removed ${removedCompleted.length} completed jobs, ${removedFailed.length} failed jobs`
+      );
     } catch (error) {
       console.error('[cleanup] Cleanup failed:', error);
-      captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'queue_cleanup' } });
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        extra: { context: 'queue_cleanup' },
+      });
     }
   });
 
@@ -274,7 +280,7 @@ export function startAdGoLiveCheck() {
         take: 1000,
       });
       if (stalePendingApprovalAds.length > 0) {
-        const stalePendingApprovalIds = stalePendingApprovalAds.map((ad) => ad.id);
+        const stalePendingApprovalIds = stalePendingApprovalAds.map(ad => ad.id);
         await prisma.$transaction([
           prisma.adReservation.deleteMany({ where: { ad_id: { in: stalePendingApprovalIds } } }),
           prisma.ad.updateMany({
@@ -301,7 +307,7 @@ export function startAdGoLiveCheck() {
       // forever, which makes the UI treat never-paid dates like completed runs.
       const expiredPendingApprovalReservations = await releaseExpiredPendingApprovalReservations(
         prisma,
-        now,
+        now
       );
       if (expiredPendingApprovalReservations.adsTouched > 0) {
         debugLog(
@@ -350,13 +356,15 @@ export function startAdGoLiveCheck() {
 
       console.log(
         `[ad-lifecycle] Daily check complete ✅ ` +
-        `expired_archived=${expiredAds.length} stale_holds=${staleHolds.count} ` +
-        `stale_pending=${stalePendingApprovalAds.length} unpaid_archived=${unpaidAds.length} ` +
-        `stripe_dedup_cleaned=${deletedEvents.count}`
+          `expired_archived=${expiredAds.length} stale_holds=${staleHolds.count} ` +
+          `stale_pending=${stalePendingApprovalAds.length} unpaid_archived=${unpaidAds.length} ` +
+          `stripe_dedup_cleaned=${deletedEvents.count}`
       );
     } catch (error) {
       console.error('[ad-lifecycle] Check failed:', error);
-      captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'ad_lifecycle_check' } });
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        extra: { context: 'ad_lifecycle_check' },
+      });
     }
   });
 
@@ -382,7 +390,9 @@ export function startMessageCleanup() {
       console.log('[message-cleanup] Done ✅');
     } catch (error) {
       console.error('[message-cleanup] Failed:', error);
-      captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'message_cleanup' } });
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        extra: { context: 'message_cleanup' },
+      });
     }
   });
   debugLog('✅ Message cleanup started (runs daily at 3:30 AM)');
@@ -432,7 +442,9 @@ export function startNotificationCleanup() {
         where: { created_at: { lt: cutoff } },
       });
       if (deleted.count > 0) {
-        console.log(`[notification-cleanup] Deleted ${deleted.count} notifications older than ${retentionDays} days`);
+        console.log(
+          `[notification-cleanup] Deleted ${deleted.count} notifications older than ${retentionDays} days`
+        );
       }
       console.log('[notification-cleanup] Done ✅');
     } catch (error) {
@@ -444,7 +456,6 @@ export function startNotificationCleanup() {
   });
   debugLog('✅ Notification cleanup started (runs daily at 4:00 AM)');
 }
-
 
 /**
  * Stripe subscription reconciliation — runs daily at 4:15 AM.
@@ -692,14 +703,11 @@ export async function runDataExportCleanupSweep(): Promise<{
         // cost; operator can sweep externally.
         if (!(err instanceof ObjectStorageNotConfiguredError)) {
           storageDeleteFailed += 1;
-          captureException(
-            err instanceof Error ? err : new Error(String(err)),
-            {
-              extra: {
-                context: 'data_export_cleanup_storage_delete_failed',
-              },
-            }
-          );
+          captureException(err instanceof Error ? err : new Error(String(err)), {
+            extra: {
+              context: 'data_export_cleanup_storage_delete_failed',
+            },
+          });
         }
       }
     }

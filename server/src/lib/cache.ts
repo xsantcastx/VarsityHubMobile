@@ -17,7 +17,12 @@ async function getClient(): Promise<RedisClient | null> {
       .then(({ default: Redis }) => {
         const RedisCtor = Redis as unknown as new (
           url: string,
-          opts?: { maxRetriesPerRequest?: number; enableReadyCheck?: boolean; lazyConnect?: boolean; db?: number }
+          opts?: {
+            maxRetriesPerRequest?: number;
+            enableReadyCheck?: boolean;
+            lazyConnect?: boolean;
+            db?: number;
+          }
         ) => RedisClient;
         // Use Redis DB 2 for cache (DB 0 = BullMQ, DB 1 = rate limiting)
         return new RedisCtor(url, {
@@ -27,7 +32,7 @@ async function getClient(): Promise<RedisClient | null> {
           db: 2,
         });
       })
-      .catch((err) => {
+      .catch(err => {
         if (!warned) {
           warned = true;
           console.warn('[cache] Failed to initialize Redis client:', (err as any)?.message || err);

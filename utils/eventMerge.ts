@@ -1,6 +1,6 @@
 /**
  * Event Merge Detection Utilities
- * 
+ *
  * Detects duplicate/similar events that should be merged
  * Based on: same date/time ±15 min, same venue geofence (<150m)
  */
@@ -84,12 +84,7 @@ export function areLocationsNearby(
 ): boolean {
   if (!loc1 || !loc2) return false;
 
-  const distance = calculateDistance(
-    loc1.latitude,
-    loc1.longitude,
-    loc2.latitude,
-    loc2.longitude
-  );
+  const distance = calculateDistance(loc1.latitude, loc1.longitude, loc2.latitude, loc2.longitude);
 
   if (distance === null) {
     // Fallback to address comparison if no coordinates

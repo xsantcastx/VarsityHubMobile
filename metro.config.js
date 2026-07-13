@@ -29,7 +29,10 @@ config.resolver = {
 // Shim deprecated React Native modules to prevent errors
 config.resolver.extraNodeModules = {
   ...config.resolver.extraNodeModules,
-  '@react-native-community/push-notification-ios': path.resolve(__dirname, 'shims/PushNotificationIOS.js'),
+  '@react-native-community/push-notification-ios': path.resolve(
+    __dirname,
+    'shims/PushNotificationIOS.js'
+  ),
 };
 
 // Shim native-only modules on web so Metro doesn't try to bundle them
@@ -48,7 +51,10 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     };
   }
   if (platform === 'web' && moduleName === '@stripe/stripe-react-native') {
-    return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/stripe-react-native.js') };
+    return {
+      type: 'sourceFile',
+      filePath: path.resolve(__dirname, 'shims/stripe-react-native.js'),
+    };
   }
   if (platform === 'web' && moduleName === 'react-native-iap') {
     return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/react-native-iap.js') };
@@ -60,10 +66,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
 };
 
 // Ensure shims directory is included in the watch folders
-config.watchFolders = [
-  ...config.watchFolders,
-  path.resolve(__dirname, 'shims'),
-];
+config.watchFolders = [...config.watchFolders, path.resolve(__dirname, 'shims')];
 
 // Ensure Fast Refresh watch options are optimal
 config.watchFolders = [...new Set(config.watchFolders)]; // Remove duplicates
@@ -71,7 +74,7 @@ config.watchFolders = [...new Set(config.watchFolders)]; // Remove duplicates
 // Server configuration for localhost development with fast refresh
 config.server = {
   ...config.server,
-  enhanceMiddleware: (middleware) => {
+  enhanceMiddleware: middleware => {
     return middleware;
   },
 };

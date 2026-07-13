@@ -37,13 +37,16 @@ async function getRedis(): Promise<RedisClient | null> {
     });
     await redisClient.connect();
     debugLog('[redisRateLimit] Redis connected for auth rate limiting');
-    redisClient.on('error', (err) => {
+    redisClient.on('error', err => {
       console.warn('[redisRateLimit] Redis error, falling back to memory:', err.message);
       redisClient = null;
     });
     return redisClient;
   } catch (err) {
-    console.warn('[redisRateLimit] Failed to connect Redis, using in-memory fallback:', (err as Error).message);
+    console.warn(
+      '[redisRateLimit] Failed to connect Redis, using in-memory fallback:',
+      (err as Error).message
+    );
     redisClient = null;
     return null;
   }
@@ -135,14 +138,14 @@ export async function rlIncr(key: string, ttlMs: number): Promise<number> {
   if (redis) {
     try {
       // Atomic increment-or-create with TTL preservation
-      const result = await redis.eval(
+      const result = (await redis.eval(
         `local c = redis.call('incr', KEYS[1])
          if c == 1 then redis.call('pexpire', KEYS[1], ARGV[1]) end
          return c`,
         1,
         fullKey,
-        String(ttlMs),
-      ) as number;
+        String(ttlMs)
+      )) as number;
       return result;
     } catch {
       // fall through to memory

@@ -21,7 +21,9 @@ describe('startup side-effect guards', () => {
   });
 
   it('runs route backfills from the explicit startup entrypoint', () => {
-    expect(indexSrc).toContain("import { runRouteStartupBackfills } from './startup/routeBackfills.js';");
+    expect(indexSrc).toContain(
+      "import { runRouteStartupBackfills } from './startup/routeBackfills.js';"
+    );
     // Backfills are invoked at startup, now wrapped in runClusterOnce so they
     // run on a single replica only (multi-replica safety) instead of every one.
     expect(indexSrc).toContain('await runRouteStartupBackfills();');

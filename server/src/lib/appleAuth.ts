@@ -27,7 +27,9 @@ export async function verifyAppleToken(identityToken: string): Promise<AppleToke
   try {
     // Get Apple's public keys
     const response = await fetch('https://appleid.apple.com/auth/keys');
-    const { keys } = (await response.json()) as { keys: Array<{ kid: string; use: string; alg: string; kty: string; n: string; e: string }> };
+    const { keys } = (await response.json()) as {
+      keys: Array<{ kid: string; use: string; alg: string; kty: string; n: string; e: string }>;
+    };
 
     // Decode token header to find kid
     const header = JSON.parse(
@@ -44,7 +46,7 @@ export async function verifyAppleToken(identityToken: string): Promise<AppleToke
     // Convert JWK to PEM format for verification
     const n = Buffer.from(publicKey.n, 'base64');
     const e = Buffer.from(publicKey.e, 'base64');
-    
+
     // Build PKCS#1 RSA public key
     const publicKeyPem = createPublicKeyFromJWK(n, e);
 
@@ -68,7 +70,10 @@ export async function verifyAppleToken(identityToken: string): Promise<AppleToke
 
     return decoded;
   } catch (error) {
-    console.error('[apple-auth] Token verification failed:', error instanceof Error ? error.message : error);
+    console.error(
+      '[apple-auth] Token verification failed:',
+      error instanceof Error ? error.message : error
+    );
     return null;
   }
 }
@@ -81,7 +86,7 @@ function createPublicKeyFromJWK(n: Buffer, e: Buffer): string {
   // This converts JWK (JSON Web Key) to OpenSSL PEM format
   // For production, consider using a library like 'jwk-to-pem'
   // For now, we'll use Node's built-in crypto.createPublicKey
-  
+
   const keyObject = crypto.createPublicKey({
     key: {
       kty: 'RSA',
@@ -97,7 +102,7 @@ function createPublicKeyFromJWK(n: Buffer, e: Buffer): string {
 /**
  * Load Apple Sign In private key from file system
  * Used for server-to-server communication with Apple (if needed in future)
- * 
+ *
  * Key ID: LS9X6BV22K
  * Location: server/.keys/AuthKey_LS9X6BV22K.p8
  */
@@ -110,7 +115,10 @@ export function loadApplePrivateKey(): string | null {
     }
     return fs.readFileSync(keyPath, 'utf-8');
   } catch (error) {
-    console.error('[apple-auth] Failed to load private key:', error instanceof Error ? error.message : error);
+    console.error(
+      '[apple-auth] Failed to load private key:',
+      error instanceof Error ? error.message : error
+    );
     return null;
   }
 }
@@ -120,7 +128,7 @@ export function loadApplePrivateKey(): string | null {
  * - APPLE_BUNDLE_ID: Bundle identifier (com.varsithub.varsityhub-ios)
  * - APPLE_TEAM_ID: Apple Developer Team ID
  * - APPLE_KEY_ID: Key ID (LS9X6BV22K)
- * 
+ *
  * File location:
  * - server/.keys/AuthKey_LS9X6BV22K.p8
  */

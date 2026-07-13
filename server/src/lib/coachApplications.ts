@@ -42,10 +42,13 @@ type CoachFlowUser = {
   zip_code?: string | null;
 };
 
-type OrganizationJoinRequestLike = {
-  status?: string | null;
-  organization_id?: string | null;
-} | null | undefined;
+type OrganizationJoinRequestLike =
+  | {
+      status?: string | null;
+      organization_id?: string | null;
+    }
+  | null
+  | undefined;
 
 export type CoachAccountState =
   | 'fan_onboarding'
@@ -60,7 +63,7 @@ export type CoachAccountState =
   | 'coach_active';
 
 export function serializeCoachApplication(
-  application: CoachApplicationRecord | null | undefined,
+  application: CoachApplicationRecord | null | undefined
 ): CoachApplicationRecord | null {
   if (!application) return null;
   return {
@@ -72,7 +75,7 @@ export function serializeCoachApplication(
 
 export async function getLatestCoachApplication(
   prisma: PrismaClient,
-  userId: string,
+  userId: string
 ): Promise<CoachApplicationRecord | null> {
   return prisma.coachApplication.findFirst({
     where: {
@@ -86,7 +89,7 @@ export async function getLatestCoachApplication(
 export function getCoachFlowState(
   user: CoachFlowUser | null | undefined,
   application: CoachApplicationRecord | null | undefined,
-  joinRequest?: OrganizationJoinRequestLike,
+  joinRequest?: OrganizationJoinRequestLike
 ): {
   account_state: CoachAccountState;
   next_step: string;
@@ -96,20 +99,25 @@ export function getCoachFlowState(
   const onboardingCompleted = isUserOnboardingComplete(user as any);
   const organizationId = getCanonicalOrganizationId(user as any);
   const proceedingAsFan = isProceedingAsFan(user as any);
-  const prefs = (user?.preferences && typeof user.preferences === 'object'
-    ? (user.preferences as Record<string, unknown>)
-    : {}) as Record<string, unknown>;
+  const prefs = (
+    user?.preferences && typeof user.preferences === 'object'
+      ? (user.preferences as Record<string, unknown>)
+      : {}
+  ) as Record<string, unknown>;
   const username = String(user?.username || prefs.username || '').trim();
   const dateOfBirth = user?.date_of_birth || prefs.dob || null;
   const hasCompletedBasicInfo = Boolean(username && dateOfBirth);
-  const joinRequestStatus = String(joinRequest?.status || '').trim().toLowerCase();
+  const joinRequestStatus = String(joinRequest?.status || '')
+    .trim()
+    .toLowerCase();
   const hasOrganizationJoinRequest = Boolean(joinRequest?.organization_id);
   const pendingFanModeNextStep = '/(tabs)';
   const requiredCoachAgreementVersion = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
   const acceptedCoachAgreementAt = getCoachAgreementAcceptedAt(user as any);
   const acceptedCoachAgreementVersion = Number(getCoachAgreementVersion(user as any) ?? 0);
   const hasCurrentCoachAgreement =
-    Boolean(acceptedCoachAgreementAt) && acceptedCoachAgreementVersion >= requiredCoachAgreementVersion;
+    Boolean(acceptedCoachAgreementAt) &&
+    acceptedCoachAgreementVersion >= requiredCoachAgreementVersion;
 
   if (role !== 'coach') {
     return onboardingCompleted
@@ -147,7 +155,11 @@ export function getCoachFlowState(
         next_step: proceedingAsFan ? pendingFanModeNextStep : '/onboarding/league-pending-approval',
       };
     }
-    if (hasOrganizationJoinRequest || joinRequestStatus === 'pending' || joinRequestStatus === 'denied') {
+    if (
+      hasOrganizationJoinRequest ||
+      joinRequestStatus === 'pending' ||
+      joinRequestStatus === 'denied'
+    ) {
       return {
         account_state: 'coach_pending_approval',
         next_step: proceedingAsFan ? pendingFanModeNextStep : '/onboarding/pending-approval',

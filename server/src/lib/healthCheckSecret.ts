@@ -1,6 +1,4 @@
-export function resolveHealthCheckSecret(
-  env: NodeJS.ProcessEnv = process.env
-): string | undefined {
+export function resolveHealthCheckSecret(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const direct = env.HEALTH_CHECK_SECRET?.trim();
   if (direct) return direct;
 

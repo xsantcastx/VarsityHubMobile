@@ -15,7 +15,7 @@ export type TeamStateRow = {
 
 export async function getTeamState(
   teamId: string | null | undefined,
-  db: DbClientLike = prisma,
+  db: DbClientLike = prisma
 ): Promise<TeamStateRow | null> {
   if (!teamId) return null;
 
@@ -36,7 +36,7 @@ export async function getTeamState(
 
 export async function listTeamStates(
   teamIds: Array<string | null | undefined>,
-  db: DbClientLike = prisma,
+  db: DbClientLike = prisma
 ): Promise<TeamStateRow[]> {
   const filtered = [...new Set(teamIds.filter((teamId): teamId is string => Boolean(teamId)))];
   if (filtered.length === 0) return [];

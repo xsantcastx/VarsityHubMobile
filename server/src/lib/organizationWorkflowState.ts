@@ -58,7 +58,7 @@ type OrganizationInviteWithOrganizationRow = OrganizationInviteStateRow & {
 
 export async function getOrganizationJoinRequestState(
   requestId: string | null | undefined,
-  db: DbClientLike = prisma,
+  db: DbClientLike = prisma
 ): Promise<OrganizationJoinRequestStateRow | null> {
   if (!requestId) return null;
 
@@ -84,7 +84,7 @@ export async function getOrganizationJoinRequestState(
 export async function getOrganizationJoinRequestStateForUser(
   organizationId: string | null | undefined,
   userId: string | null | undefined,
-  db: DbClientLike = prisma,
+  db: DbClientLike = prisma
 ): Promise<OrganizationJoinRequestStateRow | null> {
   if (!organizationId || !userId) return null;
 
@@ -111,7 +111,7 @@ export async function getOrganizationJoinRequestStateForUser(
 export async function listOrganizationJoinRequestsForOrganization(
   organizationId: string,
   status?: string | null,
-  db: DbClientLike = prisma,
+  db: DbClientLike = prisma
 ) {
   const normalizedStatus =
     !status || status === 'all' ? null : status === 'rejected' ? 'denied' : status;
@@ -161,7 +161,7 @@ export async function listOrganizationJoinRequestsForOrganization(
         LIMIT 200
       `;
 
-  return rows.map((row) => ({
+  return rows.map(row => ({
     id: row.id,
     organization_id: row.organization_id,
     user_id: row.user_id,
@@ -183,7 +183,7 @@ export async function listOrganizationJoinRequestsForOrganization(
 
 export async function listOrganizationJoinRequestsForUser(
   userId: string,
-  db: DbClientLike = prisma,
+  db: DbClientLike = prisma
 ) {
   const rows = await db.$queryRaw<OrganizationJoinRequestWithOrganizationRow[]>`
     SELECT
@@ -207,7 +207,7 @@ export async function listOrganizationJoinRequestsForUser(
     LIMIT 100
   `;
 
-  return rows.map((row) => ({
+  return rows.map(row => ({
     id: row.id,
     organization_id: row.organization_id,
     user_id: row.user_id,
@@ -229,7 +229,7 @@ export async function listOrganizationJoinRequestsForUser(
 
 export async function getOrganizationInviteState(
   inviteId: string | null | undefined,
-  db: DbClientLike = prisma,
+  db: DbClientLike = prisma
 ): Promise<OrganizationInviteStateRow | null> {
   if (!inviteId) return null;
 
@@ -251,7 +251,7 @@ export async function getOrganizationInviteState(
 
 export async function listOrganizationInvitesForEmail(
   email: string | null | undefined,
-  db: DbClientLike = prisma,
+  db: DbClientLike = prisma
 ) {
   if (!email) return [];
 
@@ -285,7 +285,7 @@ export async function listOrganizationInvitesForEmail(
     LIMIT 100
   `;
 
-  return rows.map((row) => ({
+  return rows.map(row => ({
     id: row.id,
     organization_id: row.organization_id,
     email: row.email,

@@ -100,9 +100,11 @@ describeDb('GDPR data export — worker', () => {
     await processExportJob({
       data: { exportId: row.id, userId },
     } as any);
-    const firstKey = (await (prisma as any).dataExport.findUnique({
-      where: { id: row.id },
-    })).storage_key;
+    const firstKey = (
+      await (prisma as any).dataExport.findUnique({
+        where: { id: row.id },
+      })
+    ).storage_key;
 
     await processExportJob({
       data: { exportId: row.id, userId },

@@ -72,7 +72,10 @@ async function userCanAccessConversation(userId: string, conversationId: string)
   if (dm && (dm[1] === userId || dm[2] === userId)) return true;
   // Otherwise require an existing message in the conversation involving the user.
   const msg = await prisma.message.findFirst({
-    where: { conversation_id: conversationId, OR: [{ sender_id: userId }, { recipient_id: userId }] },
+    where: {
+      conversation_id: conversationId,
+      OR: [{ sender_id: userId }, { recipient_id: userId }],
+    },
     select: { id: true },
   });
   return !!msg;
@@ -111,7 +114,9 @@ export function initRealtime(httpServer: HttpServer): IOServer {
         console.error('[realtime] failed to enable Redis adapter; running single-node', err);
       });
   } else {
-    console.warn('[realtime] REDIS_URL not set — socket.io running single-node (no cross-replica fanout)');
+    console.warn(
+      '[realtime] REDIS_URL not set — socket.io running single-node (no cross-replica fanout)'
+    );
   }
 
   // Authenticate on handshake; reject unauthenticated sockets outright.
@@ -144,7 +149,9 @@ export function initRealtime(httpServer: HttpServer): IOServer {
         await socket.join(room(conversationId));
         ack?.(true);
       } catch (e) {
-        captureException(e instanceof Error ? e : new Error(String(e)), { context: 'realtime_join' });
+        captureException(e instanceof Error ? e : new Error(String(e)), {
+          context: 'realtime_join',
+        });
         ack?.(false);
       }
     });

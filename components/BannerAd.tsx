@@ -1,6 +1,6 @@
 /**
  * Clickable Banner Ad Component
- * 
+ *
  * Displays a banner ad with proper fit mode and handles clicks to open target URL
  */
 
@@ -96,7 +96,10 @@ export function BannerAd({
                 }
                 await Linking.openURL(normalizedUrl);
               } else {
-                Alert.alert('Invalid Link', 'Unable to open this link. Please check the URL format.');
+                Alert.alert(
+                  'Invalid Link',
+                  'Unable to open this link. Please check the URL format.'
+                );
               }
             } catch (error) {
               if (__DEV__) console.error('Error opening ad link:', error);
@@ -170,25 +173,14 @@ export function BannerAd({
         ]}
       >
         <View style={styles.placeholder}>
-          <MaterialIcons
-            name="image"
-            size={48}
-            color={Colors[colorScheme].mutedText}
-          />
+          <MaterialIcons name="image" size={48} color={Colors[colorScheme].mutedText} />
           {businessName && (
-            <Text
-              style={[styles.placeholderText, { color: Colors[colorScheme].text }]}
-            >
+            <Text style={[styles.placeholderText, { color: Colors[colorScheme].text }]}>
               {businessName}
             </Text>
           )}
           {description && (
-            <Text
-              style={[
-                styles.placeholderDesc,
-                { color: Colors[colorScheme].mutedText },
-              ]}
-            >
+            <Text style={[styles.placeholderDesc, { color: Colors[colorScheme].mutedText }]}>
               {description}
             </Text>
           )}
@@ -208,7 +200,7 @@ export function BannerAd({
           opacity: pressed ? 0.8 : 1,
         },
       ]}
-      onLayout={(e) => {
+      onLayout={e => {
         const { width, height } = e.nativeEvent.layout;
         if (width && height && (layout.width !== width || layout.height !== height)) {
           setLayout({ width, height });
@@ -223,9 +215,10 @@ export function BannerAd({
         source={{ uri: bannerUrl }}
         style={[
           styles.image,
-          base === 'rotate' && rotation !== 0 && {
-            transform: [{ scale: rotateScale }, { rotate: `${rotation}deg` }],
-          },
+          base === 'rotate' &&
+            rotation !== 0 && {
+              transform: [{ scale: rotateScale }, { rotate: `${rotation}deg` }],
+            },
         ]}
         contentFit={getContentFit()}
       />

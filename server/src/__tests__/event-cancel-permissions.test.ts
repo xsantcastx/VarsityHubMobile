@@ -135,7 +135,9 @@ describe('Event Cancel Permissions', () => {
     await prisma.event.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.teamMembership.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => {});
   });

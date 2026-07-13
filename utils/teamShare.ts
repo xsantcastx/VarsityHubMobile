@@ -14,4 +14,3 @@ export function canShareTeamQr(team: TeamShareCandidate | null | undefined): boo
 export function getCanonicalTeamShareUrl(teamId: string): string {
   return AppLinks.team(String(teamId).trim()).webUrl;
 }
-

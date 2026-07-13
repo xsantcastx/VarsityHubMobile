@@ -139,7 +139,10 @@ const toRgb = (color?: string | null): { r: number; g: number; b: number } | nul
   if (!match) return null;
   let value = match[1];
   if (value.length === 3) {
-    value = value.split('').map((c) => c + c).join('');
+    value = value
+      .split('')
+      .map(c => c + c)
+      .join('');
   }
   const num = parseInt(value, 16);
   return {
@@ -158,7 +161,7 @@ const rgba = (color: string, alpha: number) => {
 const adjustColor = (color: string | null | undefined, amount: number) => {
   const rgb = toRgb(color);
   if (!rgb) return null;
-  const adjust = (c: number) => clamp(Math.round(c + (amount * 255)), 0, 255);
+  const adjust = (c: number) => clamp(Math.round(c + amount * 255), 0, 255);
   const r = adjust(rgb.r);
   const g = adjust(rgb.g);
   const b = adjust(rgb.b);
@@ -174,10 +177,14 @@ const hashString = (value: string) => {
   return Math.abs(hash);
 };
 
-const pickFamily = (home?: TeamPaletteInput | null, away?: TeamPaletteInput | null, fallbackSeed?: string) => {
+const pickFamily = (
+  home?: TeamPaletteInput | null,
+  away?: TeamPaletteInput | null,
+  fallbackSeed?: string
+) => {
   const names = [home?.name ?? '', away?.name ?? ''].join(' ').toLowerCase();
   for (const [family, keywords] of Object.entries(FAMILY_KEYWORDS)) {
-    if (keywords.some((keyword) => names.includes(keyword))) {
+    if (keywords.some(keyword => names.includes(keyword))) {
       return family as keyof typeof GRADIENT_FAMILIES;
     }
   }
@@ -198,7 +205,11 @@ const pickFromOverrides = (overrides?: PaletteOverrides): Partial<MatchBannerPal
   };
 };
 
-const combineGradients = (base: [string, string], primary?: string | null, secondary?: string | null): [string, string] => {
+const combineGradients = (
+  base: [string, string],
+  primary?: string | null,
+  secondary?: string | null
+): [string, string] => {
   if (primary && secondary) return [primary, secondary];
   if (primary) {
     const shifted = adjustColor(primary, 0.12) ?? primary;
@@ -223,10 +234,18 @@ export const resolveMatchBannerPalette = (input: ResolvePaletteInput): MatchBann
   const familyTheme = family[theme];
 
   const backgroundGradient = (overrides.backgroundGradient ??
-    combineGradients(familyTheme.background, home?.primaryColor ?? input.overrides?.leftColor, away?.primaryColor ?? input.overrides?.rightColor)) as [string, string];
+    combineGradients(
+      familyTheme.background,
+      home?.primaryColor ?? input.overrides?.leftColor,
+      away?.primaryColor ?? input.overrides?.rightColor
+    )) as [string, string];
 
   const streakCore = overrides.streakGradient ?? {
-    colors: [rgba(familyTheme.streak[0], 0.0), rgba(familyTheme.streak[0], 0.75), rgba(familyTheme.streak[1], 0.0)],
+    colors: [
+      rgba(familyTheme.streak[0], 0.0),
+      rgba(familyTheme.streak[0], 0.75),
+      rgba(familyTheme.streak[1], 0.0),
+    ],
     locations: [0, 0.52, 1],
   };
 

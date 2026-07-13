@@ -16,8 +16,9 @@ describe('admin consent / moderation guards', () => {
 
   it('parental consent pending/approved overrides clear ban state and invalidate me cache', () => {
     const block =
-      adminSrc.match(/adminRouter\.patch\(\s*'\/users\/:id\/parental-consent'[\s\S]{0,5000}/)?.[0] ||
-      '';
+      adminSrc.match(
+        /adminRouter\.patch\(\s*'\/users\/:id\/parental-consent'[\s\S]{0,5000}/
+      )?.[0] || '';
     expect(block).toMatch(/status === 'approved'[\s\S]*?updateData\.banned = false/);
     expect(block).toMatch(/banned_until = null|banned_until:\s*null/);
     expect(block).toMatch(/status === 'pending'[\s\S]*?updateData\.banned = false/);
@@ -26,8 +27,9 @@ describe('admin consent / moderation guards', () => {
 
   it('parental consent pending override reissues a fresh consent email when parent_email exists', () => {
     const block =
-      adminSrc.match(/status === 'pending'[\s\S]{0,1800}sendParentalConsentRequestEmail\(\{/)?.[0] ||
-      '';
+      adminSrc.match(
+        /status === 'pending'[\s\S]{0,1800}sendParentalConsentRequestEmail\(\{/
+      )?.[0] || '';
     expect(block).toMatch(/issueConsentToken\(userId\)/);
     expect(block).toMatch(/parent_email/);
     expect(block).toMatch(/sendParentalConsentRequestEmail\(\{/);

@@ -1,6 +1,6 @@
 /**
  * Reusable UI Components - Export Index
- * 
+ *
  * Phase 1 Foundation Components:
  * - Card: Base card component with variants
  * - SectionHeader: Consistent section headers
@@ -10,7 +10,7 @@
  * - TeamCard: Team display cards
  * - StatCard: Statistics display
  * - LoadingState: Loading indicators
- * 
+ *
  * Usage:
  * import { Card, GameCard, EmptyState } from '@/components/ui';
  */
@@ -33,7 +33,12 @@ export type { EmptyStateProps } from './EmptyState';
 export { LoadingState } from './LoadingState';
 export type { LoadingStateProps } from './LoadingState';
 
-export { SkeletonCard, PostCardSkeleton, ProfileHeaderSkeleton, TeamCardSkeleton } from './SkeletonCard';
+export {
+  SkeletonCard,
+  PostCardSkeleton,
+  ProfileHeaderSkeleton,
+  TeamCardSkeleton,
+} from './SkeletonCard';
 
 // Domain Components
 export { GameCard } from './GameCard';
@@ -51,4 +56,3 @@ export type { SettingItemProps } from './SettingItem';
 
 export { Button } from './button';
 export type { ButtonProps } from './button';
-

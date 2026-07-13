@@ -2,14 +2,24 @@ import React from 'react';
 import { View, Text, StyleSheet, ViewProps, useColorScheme } from 'react-native';
 import { Colors } from '@/constants/Colors';
 
-export function Badge({ children, style }: { children?: React.ReactNode; style?: ViewProps['style'] }) {
+export function Badge({
+  children,
+  style,
+}: {
+  children?: React.ReactNode;
+  style?: ViewProps['style'];
+}) {
   const colorScheme = useColorScheme() ?? 'light';
   const isPrimitive = (v: any) => typeof v === 'string' || typeof v === 'number';
   const arrayIsPrimitive = Array.isArray(children) && children.every(isPrimitive);
   const shouldWrapInText = isPrimitive(children) || arrayIsPrimitive;
   return (
     <View style={[styles.badge, { backgroundColor: Colors[colorScheme].surface }, style]}>
-      {shouldWrapInText ? <Text style={[styles.text, { color: Colors[colorScheme].text }]}>{children as any}</Text> : children}
+      {shouldWrapInText ? (
+        <Text style={[styles.text, { color: Colors[colorScheme].text }]}>{children as any}</Text>
+      ) : (
+        children
+      )}
     </View>
   );
 }

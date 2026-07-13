@@ -16,8 +16,8 @@ export function getMaxBookableDateIso(now: Date, maxBookingHorizonDays: number):
 export function getDatesPastBookingHorizon(
   isoDates: string[],
   now: Date,
-  maxBookingHorizonDays: number,
+  maxBookingHorizonDays: number
 ): string[] {
   const cutoffMs = utcMidnightMsForDate(now) + maxBookingHorizonDays * DAY_MS;
-  return isoDates.filter((dateIso) => utcMidnightMsForIsoDate(dateIso) > cutoffMs);
+  return isoDates.filter(dateIso => utcMidnightMsForIsoDate(dateIso) > cutoffMs);
 }

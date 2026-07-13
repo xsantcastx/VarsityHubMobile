@@ -1,7 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
-import { resolveMatchBannerPalette, type MatchBannerPalette, type ResolvePaletteInput } from '../../utils/resolveMatchBannerPalette';
+import {
+  resolveMatchBannerPalette,
+  type MatchBannerPalette,
+  type ResolvePaletteInput,
+} from '../../utils/resolveMatchBannerPalette';
 
 type Props = {
   input: ResolvePaletteInput;
@@ -20,10 +24,18 @@ const usePalette = (input: ResolvePaletteInput): MatchBannerPalette => {
 
 const addOpacity = (color: string, alpha: number) => {
   if (color.startsWith('rgba')) return color;
-  return `${color}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`;
+  return `${color}${Math.round(alpha * 255)
+    .toString(16)
+    .padStart(2, '0')}`;
 };
 
-export default function MatchBannerOverlayLayer({ input, reduceMotion = false, variant = 'full', suppressBackground = false, suppressAllOverlays = false }: Props) {
+export default function MatchBannerOverlayLayer({
+  input,
+  reduceMotion = false,
+  variant = 'full',
+  suppressBackground = false,
+  suppressAllOverlays = false,
+}: Props) {
   const palette = usePalette(input);
   const sweepAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -42,7 +54,7 @@ export default function MatchBannerOverlayLayer({ input, reduceMotion = false, v
         toValue: 1,
         duration: palette.motion.sweepDuration,
         useNativeDriver: true,
-      }),
+      })
     );
     const glow = Animated.loop(
       Animated.sequence([
@@ -57,7 +69,7 @@ export default function MatchBannerOverlayLayer({ input, reduceMotion = false, v
           duration: 900,
           useNativeDriver: true,
         }),
-      ]),
+      ])
     );
     sweep.start();
     glow.start();
@@ -65,7 +77,13 @@ export default function MatchBannerOverlayLayer({ input, reduceMotion = false, v
       sweep.stop();
       glow.stop();
     };
-  }, [glowAnim, palette.motion.glowIntensity, palette.motion.sweepDuration, reduceMotion, sweepAnim]);
+  }, [
+    glowAnim,
+    palette.motion.glowIntensity,
+    palette.motion.sweepDuration,
+    reduceMotion,
+    sweepAnim,
+  ]);
 
   const sweepTranslate = sweepAnim.interpolate({ inputRange: [0, 1], outputRange: [-80, 80] });
   const glowScale = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.1] });
@@ -81,14 +99,19 @@ export default function MatchBannerOverlayLayer({ input, reduceMotion = false, v
         style={[styles.backgroundWash, suppressBackground ? { opacity: 0.12 } : null]}
       />
 
-      <Animated.View style={[styles.streakContainer, { transform: [{ translateX: sweepTranslate }], opacity: suppressBackground ? 0.12 : 1 }] }>
-          <LinearGradient
-            colors={palette.streakGradient.colors as any}
-            locations={palette.streakGradient.locations as any}
-            start={{ x: 0, y: 1 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.streakGradient}
-          />
+      <Animated.View
+        style={[
+          styles.streakContainer,
+          { transform: [{ translateX: sweepTranslate }], opacity: suppressBackground ? 0.12 : 1 },
+        ]}
+      >
+        <LinearGradient
+          colors={palette.streakGradient.colors as any}
+          locations={palette.streakGradient.locations as any}
+          start={{ x: 0, y: 1 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.streakGradient}
+        />
       </Animated.View>
 
       <Animated.View
@@ -109,14 +132,49 @@ export default function MatchBannerOverlayLayer({ input, reduceMotion = false, v
           {/* Decorative left/right streaks for hero banners (low opacity so logos show through) */}
           {suppressBackground ? (
             <>
-              <Animated.View style={[styles.sideStreakLeft, { backgroundColor: addOpacity(palette.accent, 0.28) }]} />
-              <Animated.View style={[styles.sideStreakRight, { backgroundColor: addOpacity(palette.accent, 0.28) }]} />
-              <Animated.View style={[styles.centerFlare, { backgroundColor: addOpacity(palette.accent, 0.45), opacity: 0.9, transform: [{ scale: glowScale }] }]} />
+              <Animated.View
+                style={[
+                  styles.sideStreakLeft,
+                  { backgroundColor: addOpacity(palette.accent, 0.28) },
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.sideStreakRight,
+                  { backgroundColor: addOpacity(palette.accent, 0.28) },
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.centerFlare,
+                  {
+                    backgroundColor: addOpacity(palette.accent, 0.45),
+                    opacity: 0.9,
+                    transform: [{ scale: glowScale }],
+                  },
+                ]}
+              />
             </>
           ) : (
             <>
-              <View style={[styles.particle, { backgroundColor: addOpacity(palette.accent, 0.4), top: '18%', left: '12%' }]} />
-              <View style={[styles.particle, { backgroundColor: addOpacity(palette.accent, 0.25), top: '32%', right: '8%', width: 6, height: 6 }]} />
+              <View
+                style={[
+                  styles.particle,
+                  { backgroundColor: addOpacity(palette.accent, 0.4), top: '18%', left: '12%' },
+                ]}
+              />
+              <View
+                style={[
+                  styles.particle,
+                  {
+                    backgroundColor: addOpacity(palette.accent, 0.25),
+                    top: '32%',
+                    right: '8%',
+                    width: 6,
+                    height: 6,
+                  },
+                ]}
+              />
             </>
           )}
         </View>
@@ -212,5 +270,3 @@ const styles = StyleSheet.create({
         }),
   },
 });
-
-

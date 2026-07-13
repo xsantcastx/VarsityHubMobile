@@ -31,9 +31,9 @@ function parseEnum(source: string, enumName: string): string[] {
   expect(match).toBeTruthy();
   return (match![1] || '')
     .split('\n')
-    .map((line) => line.trim())
+    .map(line => line.trim())
     .filter(Boolean)
-    .filter((line) => !line.startsWith('//'));
+    .filter(line => !line.startsWith('//'));
 }
 
 function sliceFunction(source: string, signature: string): string {
@@ -69,21 +69,14 @@ const ALLOWED_TUPLES = [
 const ALLOWED_TUPLE_SET = new Set(ALLOWED_TUPLES);
 
 function expectAllowedTuple(status: string, paymentStatus: string) {
-  expect(ALLOWED_TUPLE_SET.has(`${status}/${paymentStatus}` as (typeof ALLOWED_TUPLES)[number])).toBe(
-    true
-  );
+  expect(
+    ALLOWED_TUPLE_SET.has(`${status}/${paymentStatus}` as (typeof ALLOWED_TUPLES)[number])
+  ).toBe(true);
 }
 
 describe('ad lifecycle structural invariants', () => {
   it('pins the AdStatus enum surface', () => {
-    expect(AD_STATUSES).toEqual([
-      'draft',
-      'pending',
-      'active',
-      'approved',
-      'rejected',
-      'archived',
-    ]);
+    expect(AD_STATUSES).toEqual(['draft', 'pending', 'active', 'approved', 'rejected', 'archived']);
   });
 
   it('pins the AdPaymentStatus enum surface', () => {
@@ -108,8 +101,12 @@ describe('ad lifecycle structural invariants', () => {
   it('draft creation and submit-for-approval transitions stay explicit', () => {
     // Draft creation uses a ternary (bypassApproval ? 'approved' : 'draft') for App Review accounts;
     // the nominal path always produces 'draft'. Verify the ternary + 'unpaid' literal.
-    expect(ads).toMatch(/bypassApproval\s*\?\s*'approved'\s*:\s*'draft',\s*\n\s*payment_status:\s*'unpaid'/);
-    expect(ads).toMatch(/data:\s*\{\s*status:\s*'pending',\s*payment_status:\s*'pending_approval'\s*\}/);
+    expect(ads).toMatch(
+      /bypassApproval\s*\?\s*'approved'\s*:\s*'draft',\s*\n\s*payment_status:\s*'unpaid'/
+    );
+    expect(ads).toMatch(
+      /data:\s*\{\s*status:\s*'pending',\s*payment_status:\s*'pending_approval'\s*\}/
+    );
     expectAllowedTuple('draft', 'unpaid');
     expectAllowedTuple('pending', 'pending_approval');
   });
@@ -117,13 +114,17 @@ describe('ad lifecycle structural invariants', () => {
   it('admin approval and rejection keep ads inside the allowed tuple set', () => {
     const approveAd = sliceFunction(approvalService, 'export async function approveAd');
     expect(approveAd).toMatch(/status:\s*'approved'/);
-    expect(approveAd).toMatch(/payment_status:\s*ad\.payment_status === 'paid' \? 'paid' : 'unpaid'/);
+    expect(approveAd).toMatch(
+      /payment_status:\s*ad\.payment_status === 'paid' \? 'paid' : 'unpaid'/
+    );
     expectAllowedTuple('approved', 'paid');
     expectAllowedTuple('approved', 'unpaid');
 
     const rejectAd = sliceFunction(approvalService, 'export async function rejectAd');
     expect(rejectAd).toMatch(/status:\s*'draft'/);
-    expect(rejectAd).toMatch(/payment_status:\s*ad\.payment_status === 'paid' \? 'refund_pending' : 'unpaid'/);
+    expect(rejectAd).toMatch(
+      /payment_status:\s*ad\.payment_status === 'paid' \? 'refund_pending' : 'unpaid'/
+    );
     expect(rejectAd).toMatch(/data:\s*\{\s*payment_status:\s*'refunded'\s*\}/);
     expectAllowedTuple('draft', 'refund_pending');
     expectAllowedTuple('draft', 'unpaid');
@@ -131,7 +132,7 @@ describe('ad lifecycle structural invariants', () => {
   });
 
   it('content edits trigger re-review by moving status back to pending without inventing a new payment state', () => {
-    const updateRoute = sliceFunction(ads, "adsRouter.put(");
+    const updateRoute = sliceFunction(ads, 'adsRouter.put(');
     expect(updateRoute).toMatch(/const requiresReapproval/);
     expect(updateRoute).toMatch(/data\.status = 'pending'/);
     expect(updateRoute).not.toMatch(/data\.payment_status\s*=/);
@@ -165,7 +166,9 @@ describe('ad lifecycle structural invariants', () => {
     expect(unpaidReleases.length).toBeGreaterThanOrEqual(3);
     expect(overnightTasks).toMatch(/data:\s*\{\s*payment_status:\s*'unpaid'\s*\}/);
     expect(overnightTasks).toMatch(/status:\s*'pending',\s*payment_status:\s*'pending_approval'/);
-    expect(overnightTasks).toMatch(/data:\s*\{[\s\S]*status:\s*'draft',[\s\S]*payment_status:\s*'unpaid'[\s\S]*\}/);
+    expect(overnightTasks).toMatch(
+      /data:\s*\{[\s\S]*status:\s*'draft',[\s\S]*payment_status:\s*'unpaid'[\s\S]*\}/
+    );
 
     expectAllowedTuple('approved', 'unpaid');
     expectAllowedTuple('active', 'unpaid');
@@ -177,7 +180,9 @@ describe('ad lifecycle structural invariants', () => {
       'export async function releaseAdInventoryAfterSlotFullRefund'
     );
     expect(slotFullReleaseHelper).toMatch(/adReservation\.deleteMany/);
-    expect(slotFullReleaseHelper).toMatch(/payment_status:\s*\{\s*in:\s*\['hold', 'pending_approval'\]\s*\}/);
+    expect(slotFullReleaseHelper).toMatch(
+      /payment_status:\s*\{\s*in:\s*\['hold', 'pending_approval'\]\s*\}/
+    );
     expect(slotFullReleaseHelper).toMatch(/data:\s*\{\s*payment_status:\s*'unpaid'\s*\}/);
 
     const releaseCalls =
@@ -217,10 +222,14 @@ describe('ad lifecycle structural invariants', () => {
     const combined = [ads, payments, paymentInternals, approvalService, overnightTasks].join('\n');
     const found = new Set<string>();
 
-    for (const match of combined.matchAll(/status:\s*'([a-z_]+)'\s*,\s*payment_status:\s*'([a-z_]+)'/g)) {
+    for (const match of combined.matchAll(
+      /status:\s*'([a-z_]+)'\s*,\s*payment_status:\s*'([a-z_]+)'/g
+    )) {
       found.add(`${match[1]}/${match[2]}`);
     }
-    for (const match of combined.matchAll(/payment_status:\s*'([a-z_]+)'\s*,\s*status:\s*'([a-z_]+)'/g)) {
+    for (const match of combined.matchAll(
+      /payment_status:\s*'([a-z_]+)'\s*,\s*status:\s*'([a-z_]+)'/g
+    )) {
       found.add(`${match[2]}/${match[1]}`);
     }
 

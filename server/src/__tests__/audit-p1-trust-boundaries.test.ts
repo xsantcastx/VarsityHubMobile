@@ -139,7 +139,10 @@ describe('audit P1 — trust-boundary regression guards', () => {
     it('uses executeRaw with bound params for mention rewrites', () => {
       // After refactoring, the @mention rewrite lives in the shared `handleUpdateMe` function
       // used by both PUT /me and PATCH /me. The test looks for the function body.
-      const handlerBlock = auth.match(/async function handleUpdateMe[\s\S]+?return res\.json\(sanitizeUser\(user\)\);[\s\S]+?\n\}/m)?.[0] || '';
+      const handlerBlock =
+        auth.match(
+          /async function handleUpdateMe[\s\S]+?return res\.json\(sanitizeUser\(user\)\);[\s\S]+?\n\}/m
+        )?.[0] || '';
       expect(handlerBlock).toMatch(/\$executeRaw\(mentionRewriteSql\('Post'\)\)/);
       expect(handlerBlock).toMatch(/\$executeRaw\(mentionRewriteSql\('Comment'\)\)/);
       expect(handlerBlock).not.toMatch(/\$executeRawUnsafe/);
@@ -176,11 +179,14 @@ describe('audit P1 — trust-boundary regression guards', () => {
       for (const route of guardedRoutes) {
         const escapedRoute = route.replace(/\//g, '\\/');
         const block =
-          payments.match(new RegExp(`paymentsRouter\\.post\\(\\s*'${escapedRoute}'[\\s\\S]{0,2500}`))?.[0] ||
-          '';
+          payments.match(
+            new RegExp(`paymentsRouter\\.post\\(\\s*'${escapedRoute}'[\\s\\S]{0,2500}`)
+          )?.[0] || '';
         expect(block).toBeTruthy();
         if (route === '/subscribe' || route === '/checkout' || route === '/create-payment-sheet') {
-          expect(block).toMatch(/enforceVerifiedForSubscriptionFlow|createMembershipCheckoutSession/);
+          expect(block).toMatch(
+            /enforceVerifiedForSubscriptionFlow|createMembershipCheckoutSession/
+          );
         } else {
           expect(block).toMatch(/paid_by_owner:\s*true/);
           expect(block).toMatch(/OWNER_MANAGED_SUBSCRIPTION_ERROR/);
@@ -199,14 +205,17 @@ describe('audit P1 — trust-boundary regression guards', () => {
       const checkoutBlock =
         payments.match(/paymentsRouter\.post\(\s*'\/checkout'[\s\S]{0,2000}/)?.[0] || '';
       const paymentSheetBlock =
-        payments.match(/paymentsRouter\.post\(\s*'\/create-payment-sheet'[\s\S]{0,2000}/)?.[0] || '';
+        payments.match(/paymentsRouter\.post\(\s*'\/create-payment-sheet'[\s\S]{0,2000}/)?.[0] ||
+        '';
       expect(checkoutBlock).toMatch(/enforceVerifiedForAdPaymentFlow\(req, res, ad_id\)/);
       expect(paymentSheetBlock).toMatch(/enforceVerifiedForAdPaymentFlow\(req, res, ad_id\)/);
     });
 
     it('guards Apple ad receipt activation with the ad verification gate', () => {
       const block =
-        payments.match(/paymentsRouter\.post\(\s*'\/apple\/verify-ad-receipt'[\s\S]{0,1800}/)?.[0] || '';
+        payments.match(
+          /paymentsRouter\.post\(\s*'\/apple\/verify-ad-receipt'[\s\S]{0,1800}/
+        )?.[0] || '';
       expect(block).toMatch(/enforceVerifiedForAdPaymentFlow\(req, res, ad_id\)/);
     });
   });

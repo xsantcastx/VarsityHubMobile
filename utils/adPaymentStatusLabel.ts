@@ -1,4 +1,7 @@
-export function getAdPaymentStatusLabel(status?: string | null, paymentStatus?: string | null): string {
+export function getAdPaymentStatusLabel(
+  status?: string | null,
+  paymentStatus?: string | null
+): string {
   const normalizedStatus = String(status || 'draft').toLowerCase();
   const normalizedPaymentStatus = String(paymentStatus || 'unpaid').toLowerCase();
 

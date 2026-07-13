@@ -32,8 +32,14 @@ describe('Public site routes', () => {
 
   it('serves the exported web app when a web dist directory is available', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vh-public-site-'));
-    fs.writeFileSync(path.join(tempDir, 'index.html'), '<!doctype html><html><body>real web app</body></html>');
-    fs.writeFileSync(path.join(tempDir, 'sign-in.html'), '<!doctype html><html><body>sign in web app</body></html>');
+    fs.writeFileSync(
+      path.join(tempDir, 'index.html'),
+      '<!doctype html><html><body>real web app</body></html>'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, 'sign-in.html'),
+      '<!doctype html><html><body>sign in web app</body></html>'
+    );
 
     const previous = process.env.WEB_DIST_DIR;
     process.env.WEB_DIST_DIR = tempDir;

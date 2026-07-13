@@ -57,7 +57,11 @@ export function GamePostListScreen({
     setLoading(true);
     setError(null);
     try {
-      const page: any = await PostApi.filterPage({ game_id: String(gameId), type: postType }, null, pageSize);
+      const page: any = await PostApi.filterPage(
+        { game_id: String(gameId), type: postType },
+        null,
+        pageSize
+      );
       setItems(Array.isArray(page?.items) ? page.items : []);
       setCursor(page?.nextCursor ?? null);
     } catch {

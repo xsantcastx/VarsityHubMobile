@@ -1,7 +1,17 @@
 import Textarea from '@/components/ui/textarea';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useColorScheme,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
@@ -36,14 +46,27 @@ export default function FeedbackScreen() {
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) {
-          Alert.alert('Permission Required', 'Photo library access is needed to select a screenshot.');
+          Alert.alert(
+            'Permission Required',
+            'Photo library access is needed to select a screenshot.'
+          );
           return;
         }
       }
 
-      const result = source === 'camera'
-        ? await ImagePicker.launchCameraAsync({ ...pickerMediaTypesProp(), allowsEditing: true, quality: 0.8 } as any)
-        : await ImagePicker.launchImageLibraryAsync({ ...pickerMediaTypesProp(), allowsEditing: true, quality: 0.8, selectionLimit: 1 } as any);
+      const result =
+        source === 'camera'
+          ? await ImagePicker.launchCameraAsync({
+              ...pickerMediaTypesProp(),
+              allowsEditing: true,
+              quality: 0.8,
+            } as any)
+          : await ImagePicker.launchImageLibraryAsync({
+              ...pickerMediaTypesProp(),
+              allowsEditing: true,
+              quality: 0.8,
+              selectionLimit: 1,
+            } as any);
 
       if ((result as any).canceled || !(result as any).assets?.[0]) return;
 
@@ -54,10 +77,18 @@ export default function FeedbackScreen() {
       // Upload to Cloudinary
       setUploading(true);
       try {
-        const uploaded = await uploadFile(getApiBaseUrl(), localUri, asset.fileName || 'screenshot.jpg', 'image/jpeg');
+        const uploaded = await uploadFile(
+          getApiBaseUrl(),
+          localUri,
+          asset.fileName || 'screenshot.jpg',
+          'image/jpeg'
+        );
         setScreenshotUrl(uploaded?.url || uploaded?.path || null);
       } catch (e: any) {
-        Alert.alert('Upload Failed', e?.message || 'Could not upload the screenshot. You can still submit feedback without it.');
+        Alert.alert(
+          'Upload Failed',
+          e?.message || 'Could not upload the screenshot. You can still submit feedback without it.'
+        );
         setScreenshotUri(null);
         setScreenshotUrl(null);
       } finally {
@@ -74,7 +105,10 @@ export default function FeedbackScreen() {
   };
 
   const onSubmit = async () => {
-    if (!message.trim()) { Alert.alert('Please enter a message'); return; }
+    if (!message.trim()) {
+      Alert.alert('Please enter a message');
+      return;
+    }
     setSending(true);
     try {
       await Support.feedback({
@@ -99,28 +133,56 @@ export default function FeedbackScreen() {
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Leave Feedback', headerBackTitle: 'Back', headerShown: true }} />
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      edges={['bottom']}
+    >
+      <Stack.Screen
+        options={{ title: 'Leave Feedback', headerBackTitle: 'Back', headerShown: true }}
+      />
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
+      >
         <Text style={[styles.title, { color: theme.text }]}>Send Feedback</Text>
-        <Text style={[styles.subtitle, { color: theme.mutedText }]}>Help us improve VarsityHub</Text>
+        <Text style={[styles.subtitle, { color: theme.mutedText }]}>
+          Help us improve VarsityHub
+        </Text>
 
         {/* Category Selector */}
         <Text style={[styles.label, { color: theme.text }]}>Category</Text>
         <View style={styles.categoryRow}>
-          {categoryOptions.map((opt) => {
+          {categoryOptions.map(opt => {
             const isActive = category === opt.key;
             return (
               <Pressable
                 key={opt.key}
                 style={[
                   styles.categoryBtn,
-                  { borderColor: isActive ? theme.tint : theme.border, backgroundColor: isActive ? theme.tint + '15' : theme.surface },
+                  {
+                    borderColor: isActive ? theme.tint : theme.border,
+                    backgroundColor: isActive ? theme.tint + '15' : theme.surface,
+                  },
                 ]}
                 onPress={() => setCategory(opt.key)}
               >
-                <Ionicons name={opt.icon as any} size={18} color={isActive ? theme.tint : theme.mutedText} />
-                <Text style={[styles.categoryBtnText, { color: isActive ? theme.tint : theme.text, fontWeight: isActive ? '700' : '500' }]}>
+                <Ionicons
+                  name={opt.icon as any}
+                  size={18}
+                  color={isActive ? theme.tint : theme.mutedText}
+                />
+                <Text
+                  style={[
+                    styles.categoryBtnText,
+                    {
+                      color: isActive ? theme.tint : theme.text,
+                      fontWeight: isActive ? '700' : '500',
+                    },
+                  ]}
+                >
                   {opt.label}
                 </Text>
               </Pressable>
@@ -135,14 +197,21 @@ export default function FeedbackScreen() {
           placeholderTextColor={theme.mutedText}
           value={message}
           onChangeText={setMessage}
-          style={[styles.textarea, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
+          style={[
+            styles.textarea,
+            { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
+          ]}
         />
 
         {/* Screenshot Upload */}
         <Text style={[styles.label, { color: theme.text }]}>Screenshot (optional)</Text>
         {screenshotUri ? (
           <View style={[styles.screenshotPreview, { borderColor: theme.border }]}>
-            <Image source={{ uri: screenshotUri }} style={styles.screenshotImage} resizeMode="cover" />
+            <Image
+              source={{ uri: screenshotUri }}
+              style={styles.screenshotImage}
+              resizeMode="cover"
+            />
             {uploading && (
               <View style={styles.uploadingOverlay}>
                 <ActivityIndicator color="#fff" size="small" />
@@ -156,14 +225,20 @@ export default function FeedbackScreen() {
         ) : (
           <View style={styles.uploadRow}>
             <Pressable
-              style={[styles.uploadBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+              style={[
+                styles.uploadBtn,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
               onPress={() => pickImage('library')}
             >
               <Ionicons name="images-outline" size={22} color={theme.tint} />
               <Text style={[styles.uploadBtnText, { color: theme.text }]}>Photo Library</Text>
             </Pressable>
             <Pressable
-              style={[styles.uploadBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+              style={[
+                styles.uploadBtn,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
               onPress={() => pickImage('camera')}
             >
               <Ionicons name="camera-outline" size={22} color={theme.tint} />
@@ -174,7 +249,11 @@ export default function FeedbackScreen() {
 
         {/* Submit */}
         <Pressable
-          style={[styles.submitBtn, { backgroundColor: theme.tint }, (sending || uploading) && styles.submitBtnDisabled]}
+          style={[
+            styles.submitBtn,
+            { backgroundColor: theme.tint },
+            (sending || uploading) && styles.submitBtnDisabled,
+          ]}
           onPress={onSubmit}
           disabled={sending || uploading}
         >

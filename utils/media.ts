@@ -54,7 +54,7 @@ export const getCloudinaryVideoPreviewUrl = (url?: string | null): string | null
 
 export const resolveMediaType = (
   mediaUrl?: string | null,
-  explicitType?: string | null,
+  explicitType?: string | null
 ): ResolvedMediaType => {
   const normalizedMediaUrl = normalizeMediaUrl(mediaUrl);
   if (!normalizedMediaUrl) return null;
@@ -71,8 +71,7 @@ export const resolveMediaType = (
 
 export const resolvePostMedia = (item: MediaLike | null | undefined) => {
   const mediaUrl = normalizeMediaUrl(item?.media_url);
-  const previewUrl =
-    normalizeMediaUrl(item?.preview_url) || getCloudinaryVideoPreviewUrl(mediaUrl);
+  const previewUrl = normalizeMediaUrl(item?.preview_url) || getCloudinaryVideoPreviewUrl(mediaUrl);
   const mediaType = resolveMediaType(mediaUrl, item?.media_type);
   const isVideo = mediaType === 'video';
 

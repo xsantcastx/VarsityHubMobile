@@ -29,8 +29,7 @@ await initEmailService();
     .filter(Boolean);
   const adminNotificationEmails = ADMIN_NOTIFICATION_EMAILS;
   if (configuredAdminEmails.length === 0) {
-    const msg =
-      `[startup] ⚠️  ADMIN_EMAILS env var is empty — only the App Review demo account (${APP_REVIEW_EMAIL}) will have admin dashboard access`;
+    const msg = `[startup] ⚠️  ADMIN_EMAILS env var is empty — only the App Review demo account (${APP_REVIEW_EMAIL}) will have admin dashboard access`;
     console.warn(msg);
     captureMessage(msg, 'warning');
   } else {
@@ -128,8 +127,10 @@ await initEmailService();
 
     // Diagnostic fingerprint — safe to log, doesn't expose the full secret.
     let issue = 'does not match d-{uuid} format (expected d-{32 hex} or d-{8-4-4-4-12 hex})';
-    if (!value.startsWith('d-')) issue = 'missing d- prefix (legacy V2 template? regenerate as dynamic in SendGrid)';
-    else if (value.length !== 34 && value.length !== 38) issue = `wrong length (${value.length}, expected 34 compact or 38 hyphenated)`;
+    if (!value.startsWith('d-'))
+      issue = 'missing d- prefix (legacy V2 template? regenerate as dynamic in SendGrid)';
+    else if (value.length !== 34 && value.length !== 38)
+      issue = `wrong length (${value.length}, expected 34 compact or 38 hyphenated)`;
     else if (value !== raw) issue = 'contains leading/trailing whitespace in the env value';
     else if (/[^0-9a-f-]/i.test(value.slice(2))) issue = 'contains non-hex characters';
 
@@ -162,8 +163,10 @@ await initEmailService();
     console.log(`  ${icon} ${key}: prefix="${trimmed.slice(0, 4)}" len=${trimmed.length}${wsNote}`);
   }
 
-    if (invalid.length > 0) {
-    console.warn(`[startup] ⚠️  ${invalid.length} of ${templateVars.length} SendGrid template ID(s) failed format check:`);
+  if (invalid.length > 0) {
+    console.warn(
+      `[startup] ⚠️  ${invalid.length} of ${templateVars.length} SendGrid template ID(s) failed format check:`
+    );
     for (const entry of invalid) {
       console.warn(`    ${entry.key}: ${entry.issue}`);
     }
@@ -190,14 +193,22 @@ await initEmailService();
 // deploy (instead of surfacing only when a user tries an upload).
 void (async () => {
   try {
-    const { isCloudinaryConfigured, getCloudinaryCredentials, getCloudinaryFolder, uploadBufferToCloudinary, CloudinaryUpstreamError } = await import('./lib/cloudinary.js');
+    const {
+      isCloudinaryConfigured,
+      getCloudinaryCredentials,
+      getCloudinaryFolder,
+      uploadBufferToCloudinary,
+      CloudinaryUpstreamError,
+    } = await import('./lib/cloudinary.js');
     if (!isCloudinaryConfigured()) {
       console.warn('[startup] Cloudinary not configured — uploads will fail');
       return;
     }
     const { cloudName, apiKey, apiSecret } = getCloudinaryCredentials();
     const folder = getCloudinaryFolder();
-    console.log(`[startup] Cloudinary config: cloud=${cloudName} key_prefix=${apiKey.slice(0,4)}… secret_fingerprint=${apiSecret.slice(0,3)}…[${apiSecret.length}ch] folder=${folder}`);
+    console.log(
+      `[startup] Cloudinary config: cloud=${cloudName} key_prefix=${apiKey.slice(0, 4)}… secret_fingerprint=${apiSecret.slice(0, 3)}…[${apiSecret.length}ch] folder=${folder}`
+    );
     const tinyPng = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
       'base64'
@@ -217,11 +228,17 @@ void (async () => {
     const kind = isUpstream ? err.kind : 'unknown';
     const httpCode = isUpstream ? err.http_code : undefined;
     const message = err?.message || String(err);
-    console.error(`[startup] ❌ Cloudinary auth probe FAILED — kind=${kind} http=${httpCode} message="${message}"`);
+    console.error(
+      `[startup] ❌ Cloudinary auth probe FAILED — kind=${kind} http=${httpCode} message="${message}"`
+    );
     if (kind === 'invalid_signature') {
-      console.error('[startup] HINT: CLOUDINARY_API_SECRET on Railway does not match Cloudinary dashboard. Open Cloudinary → Settings → API Keys → copy API Secret → paste into Railway CLOUDINARY_API_SECRET → save → redeploy.');
+      console.error(
+        '[startup] HINT: CLOUDINARY_API_SECRET on Railway does not match Cloudinary dashboard. Open Cloudinary → Settings → API Keys → copy API Secret → paste into Railway CLOUDINARY_API_SECRET → save → redeploy.'
+      );
     } else if (kind === 'unauthorized') {
-      console.error('[startup] HINT: CLOUDINARY_API_KEY on Railway does not match Cloudinary dashboard. Verify it in Cloudinary → Settings → API Keys.');
+      console.error(
+        '[startup] HINT: CLOUDINARY_API_KEY on Railway does not match Cloudinary dashboard. Verify it in Cloudinary → Settings → API Keys.'
+      );
     }
     captureMessage(`Cloudinary boot probe failed: ${message}`, 'error', {
       context: 'cloudinary_boot_probe',

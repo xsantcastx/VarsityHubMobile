@@ -28,8 +28,8 @@ export async function logAdminActivity(
         target_type,
         target_id,
         description,
-        metadata: metadata ?? undefined
-      }
+        metadata: metadata ?? undefined,
+      },
     });
   } catch (error) {
     // Don't throw - logging failures shouldn't break admin operations
@@ -57,7 +57,7 @@ export async function logAdminActivityFromReq(
   try {
     const admin = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, email: true }
+      select: { id: true, email: true },
     });
 
     if (!admin) {

@@ -1,6 +1,6 @@
 /**
  * Zip Code Alternatives Modal
- * 
+ *
  * Displays alternative zip codes when requested zip is at capacity
  * Shows nearby options within 20-mile radius with distance and availability
  */
@@ -9,14 +9,7 @@ import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import {
-    ActivityIndicator,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { formatDistance } from '../utils/zipCodeUtils';
 
 interface ZipCodeAvailability {
@@ -89,7 +82,9 @@ export function ZipAlternativesModal({
         {loading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator color={theme.tint} />
-            <Text style={[styles.loadingText, { color: theme.mutedText }]}>Checking nearby availability...</Text>
+            <Text style={[styles.loadingText, { color: theme.mutedText }]}>
+              Checking nearby availability...
+            </Text>
           </View>
         )}
 
@@ -110,7 +105,7 @@ export function ZipAlternativesModal({
             <Text style={[styles.listTitle, { color: Colors[colorScheme].text }]}>
               Available Nearby Zip Codes
             </Text>
-            {alternatives.map((alt) => (
+            {alternatives.map(alt => (
               <Pressable
                 key={alt.zip}
                 style={[
@@ -125,9 +120,7 @@ export function ZipAlternativesModal({
                 {/* Zip and Distance */}
                 <View style={styles.alternativeHeader}>
                   <View style={styles.zipContainer}>
-                    <Text style={[styles.zipCode, { color: theme.text }]}>
-                      {alt.zip}
-                    </Text>
+                    <Text style={[styles.zipCode, { color: theme.text }]}>{alt.zip}</Text>
                     {alt.city && alt.state && (
                       <Text style={[styles.zipLocation, { color: theme.mutedText }]}>
                         {alt.city}, {alt.state}
@@ -137,14 +130,21 @@ export function ZipAlternativesModal({
                   {alt.distance !== undefined && (
                     <View style={[styles.distanceBadge, { backgroundColor: neutralSurface }]}>
                       <MaterialIcons name="location-on" size={14} color={theme.mutedText} />
-                      <Text style={[styles.distanceText, { color: theme.mutedText }]}>{formatDistance(alt.distance)}</Text>
+                      <Text style={[styles.distanceText, { color: theme.mutedText }]}>
+                        {formatDistance(alt.distance)}
+                      </Text>
                     </View>
                   )}
                 </View>
 
                 {/* Availability */}
                 <View style={styles.availabilityContainer}>
-                  <View style={[styles.availabilityBar, { backgroundColor: colorScheme === 'dark' ? theme.border : '#D1D5DB' }]}>
+                  <View
+                    style={[
+                      styles.availabilityBar,
+                      { backgroundColor: colorScheme === 'dark' ? theme.border : '#D1D5DB' },
+                    ]}
+                  >
                     <View
                       style={[
                         styles.availabilityFill,
@@ -162,7 +162,9 @@ export function ZipAlternativesModal({
 
                 {/* Select button */}
                 <View style={styles.selectButton}>
-                  <Text style={[styles.selectButtonText, { color: theme.tint }]}>Select This Zip</Text>
+                  <Text style={[styles.selectButtonText, { color: theme.tint }]}>
+                    Select This Zip
+                  </Text>
                   <MaterialIcons name="chevron-right" size={16} color={theme.tint} />
                 </View>
               </Pressable>

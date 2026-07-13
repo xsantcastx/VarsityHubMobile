@@ -53,7 +53,10 @@ const DEFAULTS: Required<Omit<BreakerOptions, 'errorFilter'>> = {
 // rolling failure stats actually accumulate.
 const breakers = new Map<string, CircuitBreaker<[() => Promise<unknown>], unknown>>();
 
-function getBreaker(name: string, options?: BreakerOptions): CircuitBreaker<[() => Promise<unknown>], unknown> {
+function getBreaker(
+  name: string,
+  options?: BreakerOptions
+): CircuitBreaker<[() => Promise<unknown>], unknown> {
   const existing = breakers.get(name);
   if (existing) return existing;
 
@@ -111,7 +114,12 @@ export async function runWithBreaker<T>(
 }
 
 /** Snapshot of breaker states for health/diagnostics endpoints. */
-export function getCircuitStats(): Array<{ name: string; open: boolean; halfOpen: boolean; closed: boolean }> {
+export function getCircuitStats(): Array<{
+  name: string;
+  open: boolean;
+  halfOpen: boolean;
+  closed: boolean;
+}> {
   return Array.from(breakers.entries()).map(([name, b]) => ({
     name,
     open: b.opened,

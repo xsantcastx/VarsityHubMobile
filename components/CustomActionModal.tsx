@@ -34,15 +34,9 @@ export default function CustomActionModal({
   const theme = Colors[colorScheme];
   const destructiveButtonBackground =
     colorScheme === 'dark' ? 'rgba(239, 68, 68, 0.18)' : '#FEE2E2';
-  const destructiveButtonBorder =
-    colorScheme === 'dark' ? 'rgba(239, 68, 68, 0.32)' : '#FCA5A5';
+  const destructiveButtonBorder = colorScheme === 'dark' ? 'rgba(239, 68, 68, 0.32)' : '#FCA5A5';
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={[styles.card, { backgroundColor: theme.background }]}>
           {title && <Text style={[styles.title, { color: theme.text }]}>{title}</Text>}
@@ -55,7 +49,9 @@ export default function CustomActionModal({
                 style={[
                   styles.optionBtn,
                   {
-                    backgroundColor: opt.isDestructive ? destructiveButtonBackground : theme.surface,
+                    backgroundColor: opt.isDestructive
+                      ? destructiveButtonBackground
+                      : theme.surface,
                     borderColor: opt.isDestructive ? destructiveButtonBorder : theme.border,
                   },
                 ]}

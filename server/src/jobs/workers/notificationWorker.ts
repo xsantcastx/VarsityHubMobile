@@ -1,12 +1,12 @@
 /**
  * Notification Worker
- * 
+ *
  * Processes notification jobs from the queue.
  * Handles push notification delivery with retry logic.
- * 
+ *
  * Run with: npx ts-node server/src/jobs/workers/notificationWorker.ts
  * Or configure as a Railway service
- * 
+ *
  * @module jobs/workers/notificationWorker
  */
 
@@ -44,7 +44,7 @@ export async function startNotificationWorker(): Promise<Worker<NotificationJob>
 
         try {
           await sendPushNotification(userId, title, body, data);
-          
+
           return {
             success: true,
             processedAt: new Date().toISOString(),
@@ -64,7 +64,7 @@ export async function startNotificationWorker(): Promise<Worker<NotificationJob>
       }
     );
 
-    worker.on('completed', (job) => {
+    worker.on('completed', job => {
       console.log(`[NotificationWorker] Job ${job.id} completed`);
     });
 
@@ -76,7 +76,7 @@ export async function startNotificationWorker(): Promise<Worker<NotificationJob>
       });
     });
 
-    worker.on('error', (err) => {
+    worker.on('error', err => {
       console.error('[NotificationWorker] Worker error:', err);
     });
 
@@ -102,14 +102,14 @@ export async function stopNotificationWorker(): Promise<void> {
 // Run if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   startNotificationWorker()
-    .then((w) => {
+    .then(w => {
       if (!w) {
         console.log('Worker not started - check REDIS_URL');
         process.exit(0);
       }
       console.log('Notification worker running. Press Ctrl+C to stop.');
     })
-    .catch((error) => {
+    .catch(error => {
       console.error('Fatal error starting worker:', error);
       process.exit(1);
     });

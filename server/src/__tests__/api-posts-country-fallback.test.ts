@@ -14,7 +14,9 @@ import { describe, it, expect, beforeAll, afterAll, jest } from '@jest/globals';
 jest.unstable_mockModule('../lib/geo.js', () => ({
   reverseGeocode: jest.fn<any>().mockRejectedValue(new Error('geocode down')),
   geocodeZip: jest.fn<any>().mockRejectedValue(new Error('geocode down')),
-  getCountryFromReqOrPrefs: jest.fn((_req: any, prefs: any) => prefs?.country_code || prefs?.country || null),
+  getCountryFromReqOrPrefs: jest.fn(
+    (_req: any, prefs: any) => prefs?.country_code || prefs?.country || null
+  ),
 }));
 
 import request from 'supertest';
@@ -77,7 +79,9 @@ beforeAll(async () => {
 afterAll(async () => {
   if (postIds.length) await prisma.post.deleteMany({ where: { id: { in: postIds } } });
   await prisma.user
-    .deleteMany({ where: { id: { in: [userWithPrefCountryId, userNoPrefCountryId, userNoLocationId] } } })
+    .deleteMany({
+      where: { id: { in: [userWithPrefCountryId, userNoPrefCountryId, userNoLocationId] } },
+    })
     .catch(() => {});
 });
 
@@ -125,13 +129,10 @@ it('defaults to US when the user has no preference country and reverse geocoding
 
 it('defaults to US when the user has no preference country and no location at all (else branch)', async () => {
   const token = signJwt({ id: userNoLocationId });
-  const res = await request(app)
-    .post('/posts')
-    .set('Authorization', `Bearer ${token}`)
-    .send({
-      content: 'no location at all post',
-      media_url: 'https://res.cloudinary.com/test/image/upload/x.jpg',
-    });
+  const res = await request(app).post('/posts').set('Authorization', `Bearer ${token}`).send({
+    content: 'no location at all post',
+    media_url: 'https://res.cloudinary.com/test/image/upload/x.jpg',
+  });
   expect(res.status).toBeLessThan(300);
   const postId = res.body?.id ?? res.body?.post?.id ?? null;
   expect(postId).toBeTruthy();

@@ -15,7 +15,11 @@ describe('PDF regression — post detail scroll jump controls', () => {
   it('renders accessible scroll-to-top and scroll-to-bottom actions', () => {
     expect(postDetailSrc).toMatch(/accessibilityLabel="Scroll to top"/);
     expect(postDetailSrc).toMatch(/accessibilityLabel="Scroll to bottom"/);
-    expect(postDetailSrc).toMatch(/activeScrollViewRef\.current\?\.scrollTo\(\{ y: 0, animated: true \}\)/);
-    expect(postDetailSrc).toMatch(/activeScrollViewRef\.current\?\.scrollTo\(\{ y: maxActiveScrollY, animated: true \}\)/);
+    expect(postDetailSrc).toMatch(
+      /activeScrollViewRef\.current\?\.scrollTo\(\{ y: 0, animated: true \}\)/
+    );
+    expect(postDetailSrc).toMatch(
+      /activeScrollViewRef\.current\?\.scrollTo\(\{ y: maxActiveScrollY, animated: true \}\)/
+    );
   });
 });

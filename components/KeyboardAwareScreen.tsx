@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-    ScrollView,
-    ScrollViewProps,
-    StyleSheet,
-    ViewStyle,
-} from 'react-native';
+import { ScrollView, ScrollViewProps, StyleSheet, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface KeyboardAwareScreenProps extends ScrollViewProps {

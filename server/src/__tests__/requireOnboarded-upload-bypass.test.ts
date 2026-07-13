@@ -7,10 +7,7 @@ const requireOnboardedSrc = readFileSync(
   'utf8'
 );
 
-const uploadsRouteSrc = readFileSync(
-  join(process.cwd(), 'src', 'routes', 'uploads.ts'),
-  'utf8'
-);
+const uploadsRouteSrc = readFileSync(join(process.cwd(), 'src', 'routes', 'uploads.ts'), 'utf8');
 
 describe('uploads architecture — requireOnboarded is not an upload gate', () => {
   it('does not apply requireOnboarded to any upload route', () => {

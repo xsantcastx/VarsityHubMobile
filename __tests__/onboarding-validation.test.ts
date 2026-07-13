@@ -65,7 +65,9 @@ describe('Onboarding step-2 validation', () => {
   });
 
   it('blocks under-18 coaches', () => {
-    expect(canContinue({ ...validBase, role: 'coach', isUnder18: true, affiliation: 'School' })).toBe(false);
+    expect(
+      canContinue({ ...validBase, role: 'coach', isUnder18: true, affiliation: 'School' })
+    ).toBe(false);
   });
 
   it('allows 18+ coaches with affiliation', () => {

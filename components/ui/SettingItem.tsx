@@ -17,39 +17,35 @@ export interface SettingItemProps {
 /**
  * Reusable Setting Item Component
  * Replaces repeated settings item patterns across settings screens
- * 
+ *
  * @example
- * <SettingItem 
+ * <SettingItem
  *   icon="pencil-outline"
  *   label="Edit Team Info"
  *   onPress={handleEdit}
  * />
- * 
- * <SettingItem 
+ *
+ * <SettingItem
  *   icon="trash-outline"
  *   label="Delete Team"
  *   onPress={handleDelete}
  *   destructive={true}
  * />
  */
-export function SettingItem({ 
+export function SettingItem({
   icon,
-  label, 
-  value, 
-  onPress, 
+  label,
+  value,
+  onPress,
   destructive = false,
   showChevron = true,
-  style 
+  style,
 }: SettingItemProps) {
   const colorScheme = useColorScheme() ?? 'light';
 
-  const textColor = destructive 
-    ? '#f44336' 
-    : Colors[colorScheme].text;
-  
-  const iconColor = destructive 
-    ? '#f44336' 
-    : Colors[colorScheme].icon;
+  const textColor = destructive ? '#f44336' : Colors[colorScheme].text;
+
+  const iconColor = destructive ? '#f44336' : Colors[colorScheme].icon;
 
   return (
     <Pressable
@@ -57,42 +53,21 @@ export function SettingItem({
       style={({ pressed }) => [
         styles.container,
         {
-          backgroundColor: pressed 
-            ? Colors[colorScheme].surface 
-            : Colors[colorScheme].card,
+          backgroundColor: pressed ? Colors[colorScheme].surface : Colors[colorScheme].card,
           borderBottomColor: Colors[colorScheme].border,
         },
         style,
       ]}
     >
       {/* Icon */}
-      {icon && (
-        <MaterialIcons 
-          name={icon} 
-          size={24} 
-          color={iconColor} 
-          style={styles.icon}
-        />
-      )}
+      {icon && <MaterialIcons name={icon} size={24} color={iconColor} style={styles.icon} />}
 
       {/* Label and Value */}
       <View style={styles.textContainer}>
-        <Text 
-          style={[
-            styles.label,
-            typography.body,
-            { color: textColor }
-          ]}
-        >
-          {label}
-        </Text>
+        <Text style={[styles.label, typography.body, { color: textColor }]}>{label}</Text>
         {value && (
-          <Text 
-            style={[
-              styles.value,
-              typography.caption,
-              { color: Colors[colorScheme].mutedText }
-            ]}
+          <Text
+            style={[styles.value, typography.caption, { color: Colors[colorScheme].mutedText }]}
           >
             {value}
           </Text>
@@ -101,11 +76,7 @@ export function SettingItem({
 
       {/* Chevron */}
       {showChevron && (
-        <MaterialIcons 
-          name="chevron-right" 
-          size={20} 
-          color={Colors[colorScheme].mutedText} 
-        />
+        <MaterialIcons name="chevron-right" size={20} color={Colors[colorScheme].mutedText} />
       )}
     </Pressable>
   );

@@ -20,7 +20,7 @@ type WeekUsage = { hasWeekday: boolean; hasWeekend: boolean };
 function buildWeekUsage(dates: string[]): Map<string, WeekUsage> {
   const weekMap = new Map<string, WeekUsage>();
 
-  dates.forEach((dateStr) => {
+  dates.forEach(dateStr => {
     const date = new Date(`${dateStr}T00:00:00.000Z`);
     const day = date.getUTCDay(); // 0 (Sun) .. 6 (Sat)
 
@@ -62,7 +62,8 @@ export function calculateAdPriceCents(isoDates: string[]): {
     if (week.hasWeekend) weekendBlocks += 1;
   }
 
-  const totalCents = weekdayBlocks * WEEKDAY_BLOCK_PRICE_CENTS + weekendBlocks * WEEKEND_BLOCK_PRICE_CENTS;
+  const totalCents =
+    weekdayBlocks * WEEKDAY_BLOCK_PRICE_CENTS + weekendBlocks * WEEKEND_BLOCK_PRICE_CENTS;
   return { totalCents, weekdayBlocks, weekendBlocks };
 }
 

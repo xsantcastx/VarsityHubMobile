@@ -40,14 +40,30 @@ export default function GlobalError({ error, retry }: ErrorBoundaryProps) {
   };
 
   return (
-    <View style={{ flex: 1, padding: 16, justifyContent: 'center', gap: 12, backgroundColor: colors.background }}>
-      <Text style={{ fontSize: 18, fontWeight: 'bold', color: colors.text }}>Something went wrong</Text>
+    <View
+      style={{
+        flex: 1,
+        padding: 16,
+        justifyContent: 'center',
+        gap: 12,
+        backgroundColor: colors.background,
+      }}
+    >
+      <Text style={{ fontSize: 18, fontWeight: 'bold', color: colors.text }}>
+        Something went wrong
+      </Text>
       {__DEV__ ? (
-        <Text selectable style={{ color: colors.mutedText }}>{String(error?.message ?? error)}</Text>
+        <Text selectable style={{ color: colors.mutedText }}>
+          {String(error?.message ?? error)}
+        </Text>
       ) : null}
       <Text style={{ color: colors.mutedText }}>Please restart the app or try again.</Text>
       <Button title="Try Again" onPress={retry} />
-      <Button title="Sign Out & Restart" onPress={handleSignOutAndRestart} color={colors.destructive} />
+      <Button
+        title="Sign Out & Restart"
+        onPress={handleSignOutAndRestart}
+        color={colors.destructive}
+      />
     </View>
   );
 }

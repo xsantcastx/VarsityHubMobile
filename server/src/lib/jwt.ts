@@ -8,15 +8,22 @@ const JWT_SECRET: Secret = process.env.JWT_SECRET as Secret;
 const jwtSecretString = typeof JWT_SECRET === 'string' ? JWT_SECRET : '';
 if (!jwtSecretString || jwtSecretString === 'dev-secret-change-me' || jwtSecretString.length < 32) {
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('FATAL: JWT_SECRET must be set to a secure random string (minimum 32 characters) in production');
+    throw new Error(
+      'FATAL: JWT_SECRET must be set to a secure random string (minimum 32 characters) in production'
+    );
   }
-  console.warn('WARNING: Using weak JWT_SECRET. Generate a secure secret with: openssl rand -base64 32');
+  console.warn(
+    'WARNING: Using weak JWT_SECRET. Generate a secure secret with: openssl rand -base64 32'
+  );
 }
 
 const DEFAULT_ACCESS_TOKEN_EXPIRY = '15m';
 export const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
-export function signJwt(payload: Record<string, unknown>, expiresIn: string = DEFAULT_ACCESS_TOKEN_EXPIRY): string {
+export function signJwt(
+  payload: Record<string, unknown>,
+  expiresIn: string = DEFAULT_ACCESS_TOKEN_EXPIRY
+): string {
   // @ts-expect-error - expiresIn accepts string but SignOptions type is strict
   const opts: SignOptions = { algorithm: 'HS256', expiresIn };
   return jwt.sign(payload, JWT_SECRET, opts);
@@ -101,7 +108,7 @@ export async function hashRefreshTokenSecret(secret: string): Promise<string> {
  * raw value).
  */
 export function parseRefreshToken(
-  raw: string,
+  raw: string
 ): { version: 1 } | { version: 2; keyId: string; secret: string } {
   const dotIdx = raw.indexOf('.');
   if (dotIdx !== 16) return { version: 1 };
@@ -119,7 +126,7 @@ export function parseRefreshToken(
 export async function verifyRefreshTokenHash(
   raw: string,
   storedHash: string,
-  version: number | null | undefined,
+  version: number | null | undefined
 ): Promise<boolean> {
   const v = version ?? 1;
   if (v === REFRESH_TOKEN_HASH_VERSION_V2) {

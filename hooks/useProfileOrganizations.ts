@@ -11,7 +11,9 @@ export interface UseProfileOrganizationsResult {
  * Fetches user's teams and hydrates their organizations in the background
  * Doesn't block profile rendering
  */
-export function useProfileOrganizations(userId: string | null | undefined): UseProfileOrganizationsResult {
+export function useProfileOrganizations(
+  userId: string | null | undefined
+): UseProfileOrganizationsResult {
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const requestInFlight = useRef(false);
@@ -61,15 +63,13 @@ export function useProfileOrganizations(userId: string | null | undefined): UseP
 
         // Try to fetch by ID first - batch fetch by organization IDs
         if (orgIds.size > 0) {
-          const orgPromises = Array.from(orgIds).map(id =>
-            Organization.get(id).catch(() => null)
-          );
+          const orgPromises = Array.from(orgIds).map(id => Organization.get(id).catch(() => null));
 
           const orgsData = await Promise.all(orgPromises);
-          
+
           // Check cancellation after fetch
           if (cancelled) return;
-          
+
           const validOrgs = orgsData.filter(org => org !== null);
 
           if (validOrgs.length > 0) {
@@ -91,15 +91,16 @@ export function useProfileOrganizations(userId: string | null | undefined): UseP
           );
 
           const searchResults = await Promise.all(searchPromises);
-          
+
           // Check cancellation after fetch
           if (cancelled) return;
-          
+
           const flatResults = searchResults.flat();
 
           // Deduplicate by ID
-          const uniqueOrgs = flatResults.filter((org: any, index: number, self: any[]) =>
-            org && org.id && self.findIndex((o: any) => o?.id === org.id) === index
+          const uniqueOrgs = flatResults.filter(
+            (org: any, index: number, self: any[]) =>
+              org && org.id && self.findIndex((o: any) => o?.id === org.id) === index
           );
 
           if (!cancelled) {
@@ -107,7 +108,8 @@ export function useProfileOrganizations(userId: string | null | undefined): UseP
           }
         }
       } catch (error) {
-        if (__DEV__) console.error('[useProfileOrganizations] Failed to load organizations:', error);
+        if (__DEV__)
+          console.error('[useProfileOrganizations] Failed to load organizations:', error);
         // Don't throw - just log and leave organizations empty
       } finally {
         requestInFlight.current = false;

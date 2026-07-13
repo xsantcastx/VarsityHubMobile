@@ -73,7 +73,9 @@ describe('GET /events/my-rsvps', () => {
     expect(typeof firstPage.headers['x-next-cursor']).toBe('string');
 
     const secondPage = await request(app)
-      .get(`/events/my-rsvps?limit=2&cursor=${encodeURIComponent(firstPage.headers['x-next-cursor'])}`)
+      .get(
+        `/events/my-rsvps?limit=2&cursor=${encodeURIComponent(firstPage.headers['x-next-cursor'])}`
+      )
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 

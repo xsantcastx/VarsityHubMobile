@@ -16,7 +16,9 @@ describe('App Review root-cause guards', () => {
   it('does not mutate the App Review account during server startup anymore', () => {
     expect(serverIndex).not.toMatch(/demo@varsityhub\.app/);
     expect(serverIndex).not.toMatch(/const reviewPassword/);
-    expect(serverIndex).not.toMatch(/prisma\.user\.upsert\(\{\s*where:\s*\{\s*email:\s*'demo@varsityhub\.app'/);
+    expect(serverIndex).not.toMatch(
+      /prisma\.user\.upsert\(\{\s*where:\s*\{\s*email:\s*'demo@varsityhub\.app'/
+    );
   });
 
   it('keeps the App Review fixture on a coach-approved rookie/free state', () => {
@@ -51,7 +53,9 @@ describe('App Review root-cause guards', () => {
   });
 
   it('limits ad approval bypass to the exact App Review demo email', () => {
-    expect(adsRoute).toMatch(/import \{ APP_REVIEW_EMAIL \} from '\.\.\/lib\/appReviewFixture\.js';/);
+    expect(adsRoute).toMatch(
+      /import \{ APP_REVIEW_EMAIL \} from '\.\.\/lib\/appReviewFixture\.js';/
+    );
     expect(adsRoute).toMatch(
       /String\(user\?\.email \|\| ''\)\s*\.trim\(\)\s*\.toLowerCase\(\)\s*===\s*APP_REVIEW_EMAIL\.toLowerCase\(\)/
     );

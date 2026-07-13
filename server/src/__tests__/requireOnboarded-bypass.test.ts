@@ -24,9 +24,7 @@ const hasBypass = (src: string, baseUrl: string) => {
   // Both middlewares express the bypass as:
   //   req.baseUrl === '/<path>' && req.method === 'POST' && (req.path === '/' || req.path === '/create')
   // gated by req.body?.onboarding === true. Catch all three parts.
-  const pattern = new RegExp(
-    `baseUrl\\s*===\\s*['"]${baseUrl.replace('/', '\\/')}['"]`,
-  );
+  const pattern = new RegExp(`baseUrl\\s*===\\s*['"]${baseUrl.replace('/', '\\/')}['"]`);
   return pattern.test(src);
 };
 

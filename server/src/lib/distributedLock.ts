@@ -32,7 +32,7 @@ return 0
 let redisClientPromise: Promise<RedisClient | null> | null = null;
 let redisWarned = false;
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function getRedisClient(): Promise<RedisClient | null> {
   const redisUrl = process.env.REDIS_URL;
@@ -43,7 +43,11 @@ async function getRedisClient(): Promise<RedisClient | null> {
       .then(({ default: Redis }) => {
         const RedisCtor = Redis as unknown as new (
           url: string,
-          options?: { maxRetriesPerRequest?: number; enableReadyCheck?: boolean; lazyConnect?: boolean }
+          options?: {
+            maxRetriesPerRequest?: number;
+            enableReadyCheck?: boolean;
+            lazyConnect?: boolean;
+          }
         ) => RedisClient;
         return new RedisCtor(redisUrl, {
           maxRetriesPerRequest: 1,
@@ -51,10 +55,13 @@ async function getRedisClient(): Promise<RedisClient | null> {
           lazyConnect: true,
         });
       })
-      .catch((err) => {
+      .catch(err => {
         if (!redisWarned) {
           redisWarned = true;
-          console.warn('[distributed-lock] Failed to initialize Redis client, falling back to local lock:', (err as any)?.message || err);
+          console.warn(
+            '[distributed-lock] Failed to initialize Redis client, falling back to local lock:',
+            (err as any)?.message || err
+          );
         }
         return null;
       });
@@ -71,7 +78,10 @@ async function getRedisClient(): Promise<RedisClient | null> {
   } catch (err) {
     if (!redisWarned) {
       redisWarned = true;
-      console.warn('[distributed-lock] Redis unavailable, falling back to local lock:', (err as any)?.message || err);
+      console.warn(
+        '[distributed-lock] Redis unavailable, falling back to local lock:',
+        (err as any)?.message || err
+      );
     }
     return null;
   }
@@ -139,7 +149,10 @@ async function executeWithOptionalRedisLock<T>(
     } catch (err) {
       if (!redisWarned) {
         redisWarned = true;
-        console.warn('[distributed-lock] Redis set lock failed, falling back to local lock:', (err as any)?.message || err);
+        console.warn(
+          '[distributed-lock] Redis set lock failed, falling back to local lock:',
+          (err as any)?.message || err
+        );
       }
       return task();
     }
@@ -147,7 +160,9 @@ async function executeWithOptionalRedisLock<T>(
   }
 
   if (!acquired) {
-    throw new Error(`Failed to acquire distributed lock for ${namespacedKey} within ${acquireTimeoutMs}ms`);
+    throw new Error(
+      `Failed to acquire distributed lock for ${namespacedKey} within ${acquireTimeoutMs}ms`
+    );
   }
 
   const renewEveryMs = Math.max(1000, Math.floor(ttlMs / 3));

@@ -1,6 +1,6 @@
 /**
  * Conflict Error
- * 
+ *
  * Thrown when a request conflicts with current state (409 Conflict)
  * e.g., duplicate email, resource already exists
  */

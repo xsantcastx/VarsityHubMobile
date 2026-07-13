@@ -24,7 +24,7 @@ const configureNotificationHandlers = async () => {
   if (handlerConfigured) return;
   const notif = await loadNotifications();
   if (!notif) return;
-  
+
   notif.setNotificationHandler({
     handleNotification: async () => ({
       // iOS 14+: shouldShowAlert is deprecated. Use the granular pair so iOS
@@ -60,20 +60,20 @@ const resolveProjectId = () => {
 
 export async function registerForPushNotifications(existingToken?: string | null) {
   if (Platform.OS === 'web') return null;
-  
+
   // Check if notifications module is available
   const notif = await loadNotifications();
   if (!notif) {
     if (__DEV__) console.log('[push] Notifications module not available (Simulator?)');
     return null;
   }
-  
+
   // Skip push notifications in Expo Go (requires development build)
   if (!Constants.appOwnership || Constants.appOwnership === 'expo') {
     if (__DEV__) console.log('[push] Skipping registration in Expo Go');
     return null;
   }
-  
+
   if (registrationPromise) return registrationPromise;
 
   registrationPromise = (async () => {
@@ -93,7 +93,7 @@ export async function registerForPushNotifications(existingToken?: string | null
 
       const projectId = resolveProjectId();
       const tokenResponse = await notif.getExpoPushTokenAsync(
-        projectId ? { projectId } : undefined,
+        projectId ? { projectId } : undefined
       );
       const token = tokenResponse?.data || null;
       if (!token) return null;

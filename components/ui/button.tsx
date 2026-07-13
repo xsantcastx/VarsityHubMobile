@@ -69,7 +69,9 @@ function renderButtonChild(
   }
 
   if (child.type === Text) {
-    const textChild = child as React.ReactElement<{ style?: React.ComponentProps<typeof Text>['style'] }>;
+    const textChild = child as React.ReactElement<{
+      style?: React.ComponentProps<typeof Text>['style'];
+    }>;
     return React.cloneElement(textChild, {
       style: [appliedTextStyle, textChild.props.style],
     });

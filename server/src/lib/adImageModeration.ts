@@ -42,9 +42,10 @@ export async function assertSafeFetchTarget(rawUrl: string): Promise<void> {
   // them so net.isIP and DNS lookup see a usable address. Hostname is also
   // lowercased here so suffix matches and DNS lookups are case-stable.
   const hostnameRaw = parsed.hostname.toLowerCase();
-  const hostname = hostnameRaw.startsWith('[') && hostnameRaw.endsWith(']')
-    ? hostnameRaw.slice(1, -1)
-    : hostnameRaw;
+  const hostname =
+    hostnameRaw.startsWith('[') && hostnameRaw.endsWith(']')
+      ? hostnameRaw.slice(1, -1)
+      : hostnameRaw;
 
   // Reject obvious local hostnames before DNS resolution. Catches the
   // common case (localhost, *.localhost, *.internal, *.local mDNS) plus
@@ -115,7 +116,13 @@ function isBlockedAddress(addr: string): boolean {
     // fc00::/7 unique local
     if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
     // fe80::/10 link-local
-    if (lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) return true;
+    if (
+      lower.startsWith('fe8') ||
+      lower.startsWith('fe9') ||
+      lower.startsWith('fea') ||
+      lower.startsWith('feb')
+    )
+      return true;
     return false;
   }
   // Anything else (malformed, etc.) — refuse
@@ -160,7 +167,9 @@ function getClient() {
   if (client) return client;
   const region = getRegion();
   if (!region) {
-    throw new Error('REKOGNITION_REGION or AWS_REGION is required when ad image moderation is enabled');
+    throw new Error(
+      'REKOGNITION_REGION or AWS_REGION is required when ad image moderation is enabled'
+    );
   }
   client = new RekognitionClient({ region });
   return client;
@@ -217,7 +226,7 @@ export async function moderateBannerUrl(url: string): Promise<StoredBannerModera
       })
     );
 
-    const labels: BannerModerationLabel[] = (response.ModerationLabels || []).map((label) => ({
+    const labels: BannerModerationLabel[] = (response.ModerationLabels || []).map(label => ({
       name: label.Name || 'Unknown',
       parent_name: label.ParentName || null,
       confidence: Number((label.Confidence || 0).toFixed(2)),
@@ -230,7 +239,8 @@ export async function moderateBannerUrl(url: string): Promise<StoredBannerModera
 
     return {
       banner_moderation_status: labels.length > 0 ? 'flagged' : 'clean',
-      banner_moderation_labels: labels.length > 0 ? (labels as Prisma.InputJsonValue) : Prisma.DbNull,
+      banner_moderation_labels:
+        labels.length > 0 ? (labels as Prisma.InputJsonValue) : Prisma.DbNull,
       banner_moderation_score: labels.length > 0 ? maxConfidence : null,
       banner_moderation_provider: PROVIDER,
       banner_moderation_error: null,

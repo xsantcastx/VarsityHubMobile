@@ -26,23 +26,23 @@ export interface AccessibilityAudit {
 export function auditTapTarget(dimensions: TapTargetDimensions): AccessibilityAudit {
   const { width, height } = dimensions;
   const meetsMinimumSize = width >= MIN_TAP_TARGET_SIZE && height >= MIN_TAP_TARGET_SIZE;
-  
+
   const audit: AccessibilityAudit = {
     meetsMinimumSize,
     actualWidth: width,
     actualHeight: height,
   };
-  
+
   if (!meetsMinimumSize) {
     const widthShortfall = MIN_TAP_TARGET_SIZE - width;
     const heightShortfall = MIN_TAP_TARGET_SIZE - height;
-    
+
     audit.suggestedPadding = {
       horizontal: widthShortfall > 0 ? Math.ceil(widthShortfall / 2) : 0,
       vertical: heightShortfall > 0 ? Math.ceil(heightShortfall / 2) : 0,
     };
   }
-  
+
   return audit;
 }
 

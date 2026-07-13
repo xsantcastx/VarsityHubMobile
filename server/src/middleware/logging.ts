@@ -24,13 +24,15 @@ export function requestLogging(req: RequestWithLogging, res: Response, next: Nex
   // Log response when finished — warn on slow requests in all environments
   res.on('finish', () => {
     const duration = req.startTime ? Date.now() - req.startTime : 0;
-    debugLog(
-      `[${req.requestId}] ← ${req.method} ${req.path} ${res.statusCode} (${duration}ms)`
-    );
+    debugLog(`[${req.requestId}] ← ${req.method} ${req.path} ${res.statusCode} (${duration}ms)`);
     if (duration > 2000) {
-      console.error(`[slow-request] ERROR ${req.method} ${req.path} took ${duration}ms (threshold: 2000ms)`);
+      console.error(
+        `[slow-request] ERROR ${req.method} ${req.path} took ${duration}ms (threshold: 2000ms)`
+      );
     } else if (duration > 500) {
-      console.warn(`[slow-request] WARN ${req.method} ${req.path} took ${duration}ms (threshold: 500ms)`);
+      console.warn(
+        `[slow-request] WARN ${req.method} ${req.path} took ${duration}ms (threshold: 500ms)`
+      );
     }
   });
 
@@ -48,7 +50,7 @@ export function paymentLogging(req: RequestWithLogging, res: Response, next: Nex
 
   // Log incoming payment request with body details
   debugLog(`[${reqId}] 💳 Payment Request: ${method} ${path}`);
-  
+
   if (req.body) {
     const { plan, team_count, promo_code } = req.body;
     if (plan) debugLog(`[${reqId}]   Plan: ${plan}`);
@@ -87,17 +89,17 @@ export function paymentErrorLogging(
   next: NextFunction
 ) {
   const reqId = req.requestId || 'unknown';
-  
+
   debugLog(`[${reqId}] ❌ Payment Error: ${err.message || err}`);
-  
+
   if (err.statusCode) {
     debugLog(`[${reqId}]   Status Code: ${err.statusCode}`);
   }
-  
+
   if (err.type) {
     debugLog(`[${reqId}]   Error Type: ${err.type}`);
   }
-  
+
   if (err.raw) {
     debugLog(`[${reqId}]   Stripe Raw: ${JSON.stringify(err.raw).substring(0, 200)}`);
   }

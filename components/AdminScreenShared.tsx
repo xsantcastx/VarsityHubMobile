@@ -25,17 +25,15 @@ export function AdminGuardState({
 }: AdminGuardStateProps) {
   return (
     <SafeAreaView
-      style={[
-        styles.container,
-        styles.centered,
-        { backgroundColor },
-      ]}
+      style={[styles.container, styles.centered, { backgroundColor }]}
       edges={['top', 'bottom']}
     >
       {loading ? (
         <ActivityIndicator />
       ) : (
-        <Text style={{ color: textColor, fontSize: 16, fontWeight: '600' }}>Admin access required</Text>
+        <Text style={{ color: textColor, fontSize: 16, fontWeight: '600' }}>
+          Admin access required
+        </Text>
       )}
     </SafeAreaView>
   );

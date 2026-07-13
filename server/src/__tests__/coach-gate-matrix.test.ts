@@ -49,10 +49,7 @@ describeDb('requireOnboarded coach gate matrix', () => {
     // the shared dev DB rather than an isolated ephemeral test database.
     const lingeringUsers = await prisma.user.findMany({
       where: {
-        OR: [
-          { email: { startsWith: 'coach-gate-' } },
-          { username: { startsWith: 'cg' } },
-        ],
+        OR: [{ email: { startsWith: 'coach-gate-' } }, { username: { startsWith: 'cg' } }],
       },
       select: { id: true },
     });
@@ -66,79 +63,109 @@ describeDb('requireOnboarded coach gate matrix', () => {
 
     if (lingeringUserIds.length || lingeringOrgIds.length) {
       if (lingeringOrgIds.length && lingeringUserIds.length) {
-        await prisma.teamInvite.deleteMany({
-          where: {
-            OR: [
-              { team: { organization_id: { in: lingeringOrgIds } } },
-              { invited_by_user_id: { in: lingeringUserIds } },
-            ],
-          },
-        }).catch(() => {});
-        await prisma.teamMembership.deleteMany({
-          where: {
-            OR: [
-              { user_id: { in: lingeringUserIds } },
-              { team: { organization_id: { in: lingeringOrgIds } } },
-            ],
-          },
-        }).catch(() => {});
-        await prisma.organizationJoinRequest.deleteMany({
-          where: {
-            OR: [
-              { user_id: { in: lingeringUserIds } },
-              { organization_id: { in: lingeringOrgIds } },
-            ],
-          },
-        }).catch(() => {});
-        await prisma.organizationMembership.deleteMany({
-          where: {
-            OR: [
-              { user_id: { in: lingeringUserIds } },
-              { organization_id: { in: lingeringOrgIds } },
-            ],
-          },
-        }).catch(() => {});
+        await prisma.teamInvite
+          .deleteMany({
+            where: {
+              OR: [
+                { team: { organization_id: { in: lingeringOrgIds } } },
+                { invited_by_user_id: { in: lingeringUserIds } },
+              ],
+            },
+          })
+          .catch(() => {});
+        await prisma.teamMembership
+          .deleteMany({
+            where: {
+              OR: [
+                { user_id: { in: lingeringUserIds } },
+                { team: { organization_id: { in: lingeringOrgIds } } },
+              ],
+            },
+          })
+          .catch(() => {});
+        await prisma.organizationJoinRequest
+          .deleteMany({
+            where: {
+              OR: [
+                { user_id: { in: lingeringUserIds } },
+                { organization_id: { in: lingeringOrgIds } },
+              ],
+            },
+          })
+          .catch(() => {});
+        await prisma.organizationMembership
+          .deleteMany({
+            where: {
+              OR: [
+                { user_id: { in: lingeringUserIds } },
+                { organization_id: { in: lingeringOrgIds } },
+              ],
+            },
+          })
+          .catch(() => {});
       } else if (lingeringOrgIds.length) {
-        await prisma.teamInvite.deleteMany({
-          where: { team: { organization_id: { in: lingeringOrgIds } } },
-        }).catch(() => {});
-        await prisma.teamMembership.deleteMany({
-          where: { team: { organization_id: { in: lingeringOrgIds } } },
-        }).catch(() => {});
-        await prisma.organizationJoinRequest.deleteMany({
-          where: { organization_id: { in: lingeringOrgIds } },
-        }).catch(() => {});
-        await prisma.organizationMembership.deleteMany({
-          where: { organization_id: { in: lingeringOrgIds } },
-        }).catch(() => {});
+        await prisma.teamInvite
+          .deleteMany({
+            where: { team: { organization_id: { in: lingeringOrgIds } } },
+          })
+          .catch(() => {});
+        await prisma.teamMembership
+          .deleteMany({
+            where: { team: { organization_id: { in: lingeringOrgIds } } },
+          })
+          .catch(() => {});
+        await prisma.organizationJoinRequest
+          .deleteMany({
+            where: { organization_id: { in: lingeringOrgIds } },
+          })
+          .catch(() => {});
+        await prisma.organizationMembership
+          .deleteMany({
+            where: { organization_id: { in: lingeringOrgIds } },
+          })
+          .catch(() => {});
       } else if (lingeringUserIds.length) {
-        await prisma.teamInvite.deleteMany({
-          where: { invited_by_user_id: { in: lingeringUserIds } },
-        }).catch(() => {});
-        await prisma.teamMembership.deleteMany({
-          where: { user_id: { in: lingeringUserIds } },
-        }).catch(() => {});
-        await prisma.organizationJoinRequest.deleteMany({
-          where: { user_id: { in: lingeringUserIds } },
-        }).catch(() => {});
-        await prisma.organizationMembership.deleteMany({
-          where: { user_id: { in: lingeringUserIds } },
-        }).catch(() => {});
+        await prisma.teamInvite
+          .deleteMany({
+            where: { invited_by_user_id: { in: lingeringUserIds } },
+          })
+          .catch(() => {});
+        await prisma.teamMembership
+          .deleteMany({
+            where: { user_id: { in: lingeringUserIds } },
+          })
+          .catch(() => {});
+        await prisma.organizationJoinRequest
+          .deleteMany({
+            where: { user_id: { in: lingeringUserIds } },
+          })
+          .catch(() => {});
+        await prisma.organizationMembership
+          .deleteMany({
+            where: { user_id: { in: lingeringUserIds } },
+          })
+          .catch(() => {});
       }
 
       if (lingeringOrgIds.length) {
-        await prisma.team.deleteMany({
-          where: { organization_id: { in: lingeringOrgIds } },
-        }).catch(() => {});
-        await prisma.organization.deleteMany({
-          where: { id: { in: lingeringOrgIds } },
-        }).catch(() => {});
+        await prisma.team
+          .deleteMany({
+            where: { organization_id: { in: lingeringOrgIds } },
+          })
+          .catch(() => {});
+        await prisma.organization
+          .deleteMany({
+            where: { id: { in: lingeringOrgIds } },
+          })
+          .catch(() => {});
       }
 
       if (lingeringUserIds.length) {
-        await prisma.user.deleteMany({
-          where: { id: { in: lingeringUserIds } },
-        }).catch(() => {});
+        await prisma.user
+          .deleteMany({
+            where: { id: { in: lingeringUserIds } },
+          })
+          .catch(() => {});
       }
     }
   });
@@ -147,33 +174,47 @@ describeDb('requireOnboarded coach gate matrix', () => {
     if (!prisma) return;
 
     if (cleanup.teams.length) {
-      await prisma.teamInvite.deleteMany({
-        where: { team_id: { in: cleanup.teams } },
-      }).catch(() => {});
-      await prisma.teamMembership.deleteMany({
-        where: { team_id: { in: cleanup.teams } },
-      }).catch(() => {});
-      await prisma.team.deleteMany({
-        where: { id: { in: cleanup.teams } },
-      }).catch(() => {});
+      await prisma.teamInvite
+        .deleteMany({
+          where: { team_id: { in: cleanup.teams } },
+        })
+        .catch(() => {});
+      await prisma.teamMembership
+        .deleteMany({
+          where: { team_id: { in: cleanup.teams } },
+        })
+        .catch(() => {});
+      await prisma.team
+        .deleteMany({
+          where: { id: { in: cleanup.teams } },
+        })
+        .catch(() => {});
     }
 
     if (cleanup.orgs.length) {
-      await prisma.organizationJoinRequest.deleteMany({
-        where: { organization_id: { in: cleanup.orgs } },
-      }).catch(() => {});
-      await prisma.organizationMembership.deleteMany({
-        where: { organization_id: { in: cleanup.orgs } },
-      }).catch(() => {});
-      await prisma.organization.deleteMany({
-        where: { id: { in: cleanup.orgs } },
-      }).catch(() => {});
+      await prisma.organizationJoinRequest
+        .deleteMany({
+          where: { organization_id: { in: cleanup.orgs } },
+        })
+        .catch(() => {});
+      await prisma.organizationMembership
+        .deleteMany({
+          where: { organization_id: { in: cleanup.orgs } },
+        })
+        .catch(() => {});
+      await prisma.organization
+        .deleteMany({
+          where: { id: { in: cleanup.orgs } },
+        })
+        .catch(() => {});
     }
 
     if (cleanup.users.length) {
-      await prisma.user.deleteMany({
-        where: { id: { in: cleanup.users } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: cleanup.users } },
+        })
+        .catch(() => {});
     }
   });
 

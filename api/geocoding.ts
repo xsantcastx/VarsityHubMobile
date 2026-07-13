@@ -37,7 +37,9 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
     return cached.value;
   }
 
-  const result = (await httpPost('/geocoding/location', { location: trimmed })) as GeocodingResult | null;
+  const result = (await httpPost('/geocoding/location', {
+    location: trimmed,
+  })) as GeocodingResult | null;
   if (!result || typeof result.latitude !== 'number' || typeof result.longitude !== 'number') {
     return null;
   }
@@ -50,7 +52,11 @@ export function clearGeocodeCache() {
   geocodeCache.clear();
 }
 
-export async function autocompleteLocations(query: string, limit: number = 6, zip?: string): Promise<PlaceSuggestion[]> {
+export async function autocompleteLocations(
+  query: string,
+  limit: number = 6,
+  zip?: string
+): Promise<PlaceSuggestion[]> {
   const trimmed = query.trim();
   if (trimmed.length < 3) return [];
 
@@ -63,14 +69,17 @@ export async function autocompleteLocations(query: string, limit: number = 6, zi
 
   try {
     const zipParam = zip ? `&zip=${encodeURIComponent(zip)}` : '';
-    const res: any = await httpGet(`/geocoding/autocomplete?input=${encodeURIComponent(trimmed)}&limit=${limit}${zipParam}`);
+    const res: any = await httpGet(
+      `/geocoding/autocomplete?input=${encodeURIComponent(trimmed)}&limit=${limit}${zipParam}`
+    );
     const suggestions: PlaceSuggestion[] = Array.isArray(res?.suggestions) ? res.suggestions : [];
     suggestionCache.set(cacheKey, { timestamp: Date.now(), suggestions });
     return suggestions.slice(0, limit);
   } catch (error: any) {
     // If endpoint doesn't exist, return empty array
     if (error?.message?.includes('Cannot GET') || error?.status === 404) {
-      if (__DEV__) console.log('[geocoding] Autocomplete endpoint not available, returning empty results');
+      if (__DEV__)
+        console.log('[geocoding] Autocomplete endpoint not available, returning empty results');
       return [];
     }
     throw error;

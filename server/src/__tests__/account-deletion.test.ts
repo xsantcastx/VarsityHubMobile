@@ -59,7 +59,11 @@ async function createPasswordUser(): Promise<{ id: string; email: string; token:
   return { id: user.id, email, token };
 }
 
-async function createUnverifiedPasswordUser(): Promise<{ id: string; email: string; token: string }> {
+async function createUnverifiedPasswordUser(): Promise<{
+  id: string;
+  email: string;
+  token: string;
+}> {
   const email = `delete-acct-unverified-${randomUUID()}@example.com`;
   const password_hash = await bcrypt.hash(PASSWORD, 10);
   const user = await prisma.user.create({
@@ -149,7 +153,10 @@ describe('POST /auth/account/delete', () => {
 
     it('rejects with 401 INVALID_PASSWORD when password is wrong', async () => {
       const { token } = await createPasswordUser();
-      const res = await deleteAccount(token, { delete_confirmation: 'DELETE', password: WRONG_PASSWORD });
+      const res = await deleteAccount(token, {
+        delete_confirmation: 'DELETE',
+        password: WRONG_PASSWORD,
+      });
       expect(res.status).toBe(401);
       expect(res.body?.error).toBe('INVALID_PASSWORD');
     });
@@ -194,14 +201,20 @@ describe('POST /auth/account/delete', () => {
     it('returns 200 with already_deleted=true on a second call', async () => {
       const { token } = await createPasswordUser();
 
-      const first = await deleteAccount(token, { delete_confirmation: 'DELETE', password: PASSWORD });
+      const first = await deleteAccount(token, {
+        delete_confirmation: 'DELETE',
+        password: PASSWORD,
+      });
       expect(first.status).toBe(200);
 
       // Second call uses the same token. The token MAY be invalidated post-
       // delete (session_epoch bump etc.) — accept either 401 (token killed)
       // OR 200 with already_deleted (account already gone). Both are correct
       // observable outcomes.
-      const second = await deleteAccount(token, { delete_confirmation: 'DELETE', password: PASSWORD });
+      const second = await deleteAccount(token, {
+        delete_confirmation: 'DELETE',
+        password: PASSWORD,
+      });
 
       if (second.status === 200) {
         expect(second.body?.already_deleted).toBe(true);

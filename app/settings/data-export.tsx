@@ -70,7 +70,7 @@ function formatRetryWindow(seconds?: number): string | null {
   return `${minutes}m`;
 }
 
-function statusTone(status: ExportStatus, isDark: boolean, theme: typeof Colors['light']) {
+function statusTone(status: ExportStatus, isDark: boolean, theme: (typeof Colors)['light']) {
   switch (status) {
     case 'ready':
       return {
@@ -115,12 +115,7 @@ function StatusBadge({ status, isDark }: { status: ExportStatus; isDark: boolean
   const theme = Colors[colorScheme];
   const tone = statusTone(status, isDark, theme);
   return (
-    <View
-      style={[
-        styles.badge,
-        { backgroundColor: tone.bg, borderColor: tone.border },
-      ]}
-    >
+    <View style={[styles.badge, { backgroundColor: tone.bg, borderColor: tone.border }]}>
       <Text style={[styles.badgeText, { color: tone.text }]}>{tone.label}</Text>
     </View>
   );
@@ -177,12 +172,9 @@ export default function DataExportScreen() {
     }, [load])
   );
 
-  const latestReady = useMemo(
-    () => rows.find((row) => row.status === 'ready'),
-    [rows]
-  );
+  const latestReady = useMemo(() => rows.find(row => row.status === 'ready'), [rows]);
   const inFlight = useMemo(
-    () => rows.find((row) => row.status === 'pending' || row.status === 'building'),
+    () => rows.find(row => row.status === 'pending' || row.status === 'building'),
     [rows]
   );
 
@@ -217,7 +209,7 @@ export default function DataExportScreen() {
         'Export Requested',
         'Your archive is queued. This screen will refresh automatically while it builds.'
       );
-      setRows((current) => [row as DataExportRow, ...current]);
+      setRows(current => [row as DataExportRow, ...current]);
       void load('silent');
     } catch (e: any) {
       const serverError = e?.data?.error || e?.message || '';
@@ -240,12 +232,15 @@ export default function DataExportScreen() {
           action: 'request',
           status: e?.status,
         });
-        captureException(e instanceof Error ? e : new Error(String(serverError || 'request_failed')), {
-          action: 'request',
-          screen: 'settings-data-export',
-          status: e?.status,
-          server_error: serverError || undefined,
-        });
+        captureException(
+          e instanceof Error ? e : new Error(String(serverError || 'request_failed')),
+          {
+            action: 'request',
+            screen: 'settings-data-export',
+            status: e?.status,
+            server_error: serverError || undefined,
+          }
+        );
       }
       void load('silent');
     } finally {
@@ -253,98 +248,114 @@ export default function DataExportScreen() {
     }
   }, [load]);
 
-  const downloadExport = useCallback(async (row: DataExportRow) => {
-    setBusyId(row.id);
-    try {
-      const result: any = await DataExport.download(row.id);
-      if (!result?.url) {
-        throw new Error('Download URL missing');
-      }
-      await Linking.openURL(result.url);
-      void load('silent');
-    } catch (e: any) {
-      const errorCode = e?.data?.error || e?.message || '';
-      if (e?.status === 409) {
-        Alert.alert('Export Not Ready', 'This archive is still being built.');
-      } else if (e?.status === 410) {
-        Alert.alert('Export Expired', 'This archive has expired. Request a new export.');
-      } else if (e?.status === 503) {
-        Alert.alert(
-          'Export Failed',
-          e?.data?.error_category
-            ? `The export failed (${e.data.error_category}). Request a new one.`
-            : 'This export failed. Request a new one.'
-        );
-      } else {
-        Alert.alert('Download Failed', errorCode || 'Unable to open the archive.');
-        captureBreadcrumb('data export download failed', 'data-export', {
-          action: 'download',
-          export_id: row.id,
-          status: e?.status,
-        });
-        captureException(e instanceof Error ? e : new Error(String(errorCode || 'download_failed')), {
-          action: 'download',
-          screen: 'settings-data-export',
-          export_id: row.id,
-          status: e?.status,
-          server_error: e?.data?.error,
-          error_category: e?.data?.error_category,
-        });
-      }
-      void load('silent');
-    } finally {
-      setBusyId(null);
-    }
-  }, [load]);
-
-  const deleteExport = useCallback((row: DataExportRow) => {
-    Alert.alert(
-      row.status === 'ready' ? 'Delete Archive?' : 'Dismiss Export?',
-      row.status === 'ready'
-        ? 'This will expire the archive immediately and remove its download link.'
-        : 'This will clear the current export attempt from your active list.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: row.status === 'ready' ? 'Delete' : 'Dismiss',
-          style: 'destructive',
-          onPress: async () => {
-            setBusyId(row.id);
-            try {
-              await DataExport.delete(row.id);
-              setRows((current) =>
-                current.map((item) =>
-                  item.id === row.id
-                    ? { ...item, status: 'expired', expires_at: item.expires_at ?? new Date().toISOString() }
-                    : item
-                )
-              );
-              void load('silent');
-            } catch (e: any) {
-              Alert.alert(
-                'Delete Failed',
-                e?.data?.error || e?.message || 'Unable to update this export.'
-              );
-              captureBreadcrumb('data export delete failed', 'data-export', {
-                action: 'delete',
-                export_id: row.id,
-                status: e?.status,
-              });
-              captureException(e instanceof Error ? e : new Error(String(e?.message || 'delete_failed')), {
-                action: 'delete',
-                screen: 'settings-data-export',
-                export_id: row.id,
-                status: e?.status,
-                server_error: e?.data?.error,
-              });
-            } finally {
-              setBusyId(null);
+  const downloadExport = useCallback(
+    async (row: DataExportRow) => {
+      setBusyId(row.id);
+      try {
+        const result: any = await DataExport.download(row.id);
+        if (!result?.url) {
+          throw new Error('Download URL missing');
+        }
+        await Linking.openURL(result.url);
+        void load('silent');
+      } catch (e: any) {
+        const errorCode = e?.data?.error || e?.message || '';
+        if (e?.status === 409) {
+          Alert.alert('Export Not Ready', 'This archive is still being built.');
+        } else if (e?.status === 410) {
+          Alert.alert('Export Expired', 'This archive has expired. Request a new export.');
+        } else if (e?.status === 503) {
+          Alert.alert(
+            'Export Failed',
+            e?.data?.error_category
+              ? `The export failed (${e.data.error_category}). Request a new one.`
+              : 'This export failed. Request a new one.'
+          );
+        } else {
+          Alert.alert('Download Failed', errorCode || 'Unable to open the archive.');
+          captureBreadcrumb('data export download failed', 'data-export', {
+            action: 'download',
+            export_id: row.id,
+            status: e?.status,
+          });
+          captureException(
+            e instanceof Error ? e : new Error(String(errorCode || 'download_failed')),
+            {
+              action: 'download',
+              screen: 'settings-data-export',
+              export_id: row.id,
+              status: e?.status,
+              server_error: e?.data?.error,
+              error_category: e?.data?.error_category,
             }
+          );
+        }
+        void load('silent');
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [load]
+  );
+
+  const deleteExport = useCallback(
+    (row: DataExportRow) => {
+      Alert.alert(
+        row.status === 'ready' ? 'Delete Archive?' : 'Dismiss Export?',
+        row.status === 'ready'
+          ? 'This will expire the archive immediately and remove its download link.'
+          : 'This will clear the current export attempt from your active list.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: row.status === 'ready' ? 'Delete' : 'Dismiss',
+            style: 'destructive',
+            onPress: async () => {
+              setBusyId(row.id);
+              try {
+                await DataExport.delete(row.id);
+                setRows(current =>
+                  current.map(item =>
+                    item.id === row.id
+                      ? {
+                          ...item,
+                          status: 'expired',
+                          expires_at: item.expires_at ?? new Date().toISOString(),
+                        }
+                      : item
+                  )
+                );
+                void load('silent');
+              } catch (e: any) {
+                Alert.alert(
+                  'Delete Failed',
+                  e?.data?.error || e?.message || 'Unable to update this export.'
+                );
+                captureBreadcrumb('data export delete failed', 'data-export', {
+                  action: 'delete',
+                  export_id: row.id,
+                  status: e?.status,
+                });
+                captureException(
+                  e instanceof Error ? e : new Error(String(e?.message || 'delete_failed')),
+                  {
+                    action: 'delete',
+                    screen: 'settings-data-export',
+                    export_id: row.id,
+                    status: e?.status,
+                    server_error: e?.data?.error,
+                  }
+                );
+              } finally {
+                setBusyId(null);
+              }
+            },
           },
-        },
-      ]
-    );
-  }, [load]);
+        ]
+      );
+    },
+    [load]
+  );
 
   return (
     <>
@@ -365,13 +376,18 @@ export default function DataExportScreen() {
             }
             contentContainerStyle={styles.content}
           >
-            <View style={[styles.hero, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <View
+              style={[styles.hero, { backgroundColor: palette.card, borderColor: palette.border }]}
+            >
               <View style={styles.heroIconWrap}>
                 <Ionicons name="download-outline" size={26} color={palette.tint} />
               </View>
-              <Text style={[styles.heroTitle, { color: palette.text }]}>Export your VarsityHub data</Text>
+              <Text style={[styles.heroTitle, { color: palette.text }]}>
+                Export your VarsityHub data
+              </Text>
               <Text style={[styles.heroBody, { color: palette.mutedText }]}>
-                Build a ZIP archive of the profile, posts, follows, messages, events, ads, and other account data currently tied to you.
+                Build a ZIP archive of the profile, posts, follows, messages, events, ads, and other
+                account data currently tied to you.
               </Text>
               <Text style={[styles.heroFootnote, { color: palette.mutedText }]}>
                 Archives expire after 7 days. You can request one export every 24 hours.
@@ -399,8 +415,18 @@ export default function DataExportScreen() {
             </View>
 
             {error ? (
-              <View style={[styles.errorCard, { backgroundColor: isDark ? '#3F1D1D' : '#FEF2F2', borderColor: isDark ? '#7F1D1D' : '#FECACA' }]}>
-                <Text style={[styles.errorText, { color: isDark ? '#FCA5A5' : '#B91C1C' }]}>{error}</Text>
+              <View
+                style={[
+                  styles.errorCard,
+                  {
+                    backgroundColor: isDark ? '#3F1D1D' : '#FEF2F2',
+                    borderColor: isDark ? '#7F1D1D' : '#FECACA',
+                  },
+                ]}
+              >
+                <Text style={[styles.errorText, { color: isDark ? '#FCA5A5' : '#B91C1C' }]}>
+                  {error}
+                </Text>
               </View>
             ) : null}
 
@@ -412,7 +438,12 @@ export default function DataExportScreen() {
             </View>
 
             {rows.length === 0 ? (
-              <View style={[styles.emptyCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <View
+                style={[
+                  styles.emptyCard,
+                  { backgroundColor: palette.card, borderColor: palette.border },
+                ]}
+              >
                 <Ionicons name="archive-outline" size={36} color={palette.mutedText} />
                 <Text style={[styles.emptyTitle, { color: palette.text }]}>No exports yet</Text>
                 <Text style={[styles.emptyBody, { color: palette.mutedText }]}>
@@ -420,12 +451,15 @@ export default function DataExportScreen() {
                 </Text>
               </View>
             ) : (
-              rows.map((row) => {
+              rows.map(row => {
                 const isBusy = busyId === row.id;
                 return (
                   <View
                     key={row.id}
-                    style={[styles.rowCard, { backgroundColor: palette.card, borderColor: palette.border }]}
+                    style={[
+                      styles.rowCard,
+                      { backgroundColor: palette.card, borderColor: palette.border },
+                    ]}
                   >
                     <View style={styles.rowHeader}>
                       <View style={{ flex: 1 }}>
@@ -475,7 +509,10 @@ export default function DataExportScreen() {
                         <Pressable
                           onPress={() => void load('refresh')}
                           disabled={isBusy}
-                          style={[styles.actionButton, { backgroundColor: palette.surface || palette.border }]}
+                          style={[
+                            styles.actionButton,
+                            { backgroundColor: palette.surface || palette.border },
+                          ]}
                         >
                           <Text style={[styles.actionSecondaryText, { color: palette.text }]}>
                             Refresh
@@ -487,7 +524,11 @@ export default function DataExportScreen() {
                         <Pressable
                           onPress={() => deleteExport(row)}
                           disabled={isBusy}
-                          style={[styles.actionButton, styles.secondaryAction, { borderColor: palette.border }]}
+                          style={[
+                            styles.actionButton,
+                            styles.secondaryAction,
+                            { borderColor: palette.border },
+                          ]}
                         >
                           <Text style={[styles.actionSecondaryText, { color: palette.text }]}>
                             {row.status === 'ready' ? 'Delete' : 'Dismiss'}

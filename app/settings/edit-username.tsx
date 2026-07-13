@@ -25,9 +25,9 @@ export default function EditUsernameScreen() {
 
   const onSave = async () => {
     const v = username.trim().toLowerCase(); // Usernames must be lowercase
-    if (!v) { 
-      Alert.alert('Enter a username'); 
-      return; 
+    if (!v) {
+      Alert.alert('Enter a username');
+      return;
     }
     // Check if username hasn't changed
     if (user?.username && v === user.username.toLowerCase()) {
@@ -36,7 +36,10 @@ export default function EditUsernameScreen() {
     }
     // Validate username format (lowercase letters, numbers, dots, underscores only)
     if (!/^[a-z0-9_.]+$/.test(v)) {
-      Alert.alert('Invalid username', 'Username can only contain lowercase letters, numbers, dots, and underscores');
+      Alert.alert(
+        'Invalid username',
+        'Username can only contain lowercase letters, numbers, dots, and underscores'
+      );
       return;
     }
     if (v.length < 3) {
@@ -50,7 +53,9 @@ export default function EditUsernameScreen() {
     setSaving(true);
     try {
       await User.updateMe({ username: v });
-      await checkAuth().catch((e) => { if (__DEV__) console.warn('[edit-username] Auth refresh failed:', e); }); // VAL-2
+      await checkAuth().catch(e => {
+        if (__DEV__) console.warn('[edit-username] Auth refresh failed:', e);
+      }); // VAL-2
       Alert.alert('Success', 'Username updated successfully');
       safeGoBack(router);
     } catch (e: any) {
@@ -66,14 +71,17 @@ export default function EditUsernameScreen() {
       } else if (e?.response?.data?.error) {
         errorMessage = e.response.data.error;
       }
-      Alert.alert('Save failed', errorMessage); 
-    } finally { 
-      setSaving(false); 
+      Alert.alert('Save failed', errorMessage);
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}
+      edges={['bottom']}
+    >
       <Stack.Screen
         options={{
           title: 'Edit Username',
@@ -81,21 +89,32 @@ export default function EditUsernameScreen() {
           headerShown: true,
         }}
       />
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets>
-        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Username</Text>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
+      >
+        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+          Username
+        </Text>
         <Text style={[styles.hint, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
-          This is your @ handle (e.g., @rwerwqer). Lowercase letters, numbers, dots, and underscores only.
+          This is your @ handle (e.g., @rwerwqer). Lowercase letters, numbers, dots, and underscores
+          only.
         </Text>
         {authLoading ? (
-          <Text style={[styles.hint, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Loading...</Text>
+          <Text style={[styles.hint, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+            Loading...
+          </Text>
         ) : (
-          <Input 
-            value={username} 
-            onChangeText={(text) => setUsername(text.toLowerCase())} 
-            placeholder={user?.username || "username"} 
+          <Input
+            value={username}
+            onChangeText={text => setUsername(text.toLowerCase())}
+            placeholder={user?.username || 'username'}
             autoCapitalize="none"
             autoCorrect={false}
-            style={{ marginBottom: 24 }} 
+            style={{ marginBottom: 24 }}
           />
         )}
         <Button onPress={onSave} disabled={saving || authLoading}>
@@ -107,7 +126,7 @@ export default function EditUsernameScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
+  container: {
     flex: 1,
   },
   content: {
@@ -117,9 +136,9 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingTop: 24,
   },
-  label: { 
-    fontSize: 14, 
-    fontWeight: '600', 
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
     marginBottom: 8,
   },
   hint: {

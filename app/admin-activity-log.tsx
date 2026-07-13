@@ -5,9 +5,16 @@ import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 
 interface ActivityLogItem {
   id: string;
@@ -40,7 +47,9 @@ function AdminActivityLogScreen() {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setDebouncedQuery(searchQuery), 400);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [searchQuery]);
 
   // Reset to page 1 when filter or debounced query changes
@@ -49,31 +58,38 @@ function AdminActivityLogScreen() {
     setItems([]);
   }, [filter, debouncedQuery]);
 
-  const load = useCallback(async (pageToLoad = 1, append = false) => {
-    if (!isAdmin) return;
-    if (append) setLoadingMore(true);
-    else setLoading(true);
-    setError(null);
-    
-    try {
-      const params = new URLSearchParams();
-      if (filter !== 'all') params.append('type', filter);
-      if (debouncedQuery) params.append('q', debouncedQuery);
-      params.append('page', String(pageToLoad));
-      params.append('limit', '50');
-      
-      const { httpGet } = await import('@/api/http');
-      const data = await httpGet(`/admin/activity-log?${params}`);
-      const fetched = Array.isArray(data?.activities) ? data.activities : Array.isArray(data) ? data : [];
-      setItems(prev => append ? [...prev, ...fetched] : fetched);
-      setHasMore(fetched.length === 50);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load activity log');
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [filter, isAdmin, debouncedQuery]);
+  const load = useCallback(
+    async (pageToLoad = 1, append = false) => {
+      if (!isAdmin) return;
+      if (append) setLoadingMore(true);
+      else setLoading(true);
+      setError(null);
+
+      try {
+        const params = new URLSearchParams();
+        if (filter !== 'all') params.append('type', filter);
+        if (debouncedQuery) params.append('q', debouncedQuery);
+        params.append('page', String(pageToLoad));
+        params.append('limit', '50');
+
+        const { httpGet } = await import('@/api/http');
+        const data = await httpGet(`/admin/activity-log?${params}`);
+        const fetched = Array.isArray(data?.activities)
+          ? data.activities
+          : Array.isArray(data)
+            ? data
+            : [];
+        setItems(prev => (append ? [...prev, ...fetched] : fetched));
+        setHasMore(fetched.length === 50);
+      } catch (e: any) {
+        setError(e?.message || 'Failed to load activity log');
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [filter, isAdmin, debouncedQuery]
+  );
 
   useEffect(() => {
     void load(1, false);
@@ -95,12 +111,18 @@ function AdminActivityLogScreen() {
 
   const getActionIcon = (targetType: string) => {
     switch (targetType) {
-      case 'user': return 'person';
-      case 'team': return 'shield';
-      case 'ad': return 'megaphone';
-      case 'post': return 'document-text';
-      case 'message': return 'chatbubble';
-      default: return 'flash';
+      case 'user':
+        return 'person';
+      case 'team':
+        return 'shield';
+      case 'ad':
+        return 'megaphone';
+      case 'post':
+        return 'document-text';
+      case 'message':
+        return 'chatbubble';
+      default:
+        return 'flash';
     }
   };
 
@@ -109,12 +131,9 @@ function AdminActivityLogScreen() {
       style={[
         styles.filterChip,
         {
-          backgroundColor: filter === value
-            ? (colorScheme === 'dark' ? '#3B82F6' : '#3B82F6')
-            : palette.surface,
-          borderColor: filter === value
-            ? '#3B82F6'
-            : palette.border,
+          backgroundColor:
+            filter === value ? (colorScheme === 'dark' ? '#3B82F6' : '#3B82F6') : palette.surface,
+          borderColor: filter === value ? '#3B82F6' : palette.border,
         },
       ]}
       onPress={() => setFilter(value)}
@@ -123,9 +142,7 @@ function AdminActivityLogScreen() {
         style={[
           styles.filterChipText,
           {
-            color: filter === value
-              ? 'white'
-              : palette.text,
+            color: filter === value ? 'white' : palette.text,
           },
         ]}
       >
@@ -146,23 +163,21 @@ function AdminActivityLogScreen() {
     >
       <View style={styles.logHeader}>
         <View style={[styles.iconCircle, { backgroundColor: getActionColor(item.action) + '20' }]}>
-          <MaterialIcons name={getActionIcon(item.target_type) as any} size={20} color={getActionColor(item.action)} />
+          <MaterialIcons
+            name={getActionIcon(item.target_type) as any}
+            size={20}
+            color={getActionColor(item.action)}
+          />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.logAction, { color: palette.text }]}>
-            {item.action}
-          </Text>
-          <Text style={[styles.logAdmin, { color: palette.mutedText }]}>
-            by {item.admin_email}
-          </Text>
+          <Text style={[styles.logAction, { color: palette.text }]}>{item.action}</Text>
+          <Text style={[styles.logAdmin, { color: palette.mutedText }]}>by {item.admin_email}</Text>
         </View>
         <Text style={[styles.logTime, { color: palette.mutedText }]}>
           {new Date(item.timestamp).toLocaleTimeString()}
         </Text>
       </View>
-      <Text style={[styles.logDesc, { color: palette.mutedText }]}>
-        {item.description}
-      </Text>
+      <Text style={[styles.logDesc, { color: palette.mutedText }]}>{item.description}</Text>
       <View style={styles.logMeta}>
         <View style={[styles.badge, { backgroundColor: palette.surface }]}>
           <Text style={[styles.badgeText, { color: palette.mutedText }]}>
@@ -178,14 +193,28 @@ function AdminActivityLogScreen() {
 
   if (adminLoading) {
     return (
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }}>
+      <SafeAreaView
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: Colors[colorScheme].background,
+        }}
+      >
         <ActivityIndicator color={Colors[colorScheme].tint} />
       </SafeAreaView>
     );
   }
   if (!isAdmin) {
     return (
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }}>
+      <SafeAreaView
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: Colors[colorScheme].background,
+        }}
+      >
         <Text style={{ color: Colors[colorScheme].text }}>Admin access required</Text>
       </SafeAreaView>
     );
@@ -203,7 +232,12 @@ function AdminActivityLogScreen() {
           headerStyle: { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' },
           headerTintColor: palette.text,
           headerLeft: () => (
-            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
+            <Pressable
+              onPress={() => {
+                safeGoBack(router);
+              }}
+              style={{ paddingRight: 8 }}
+            >
               <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
@@ -247,14 +281,16 @@ function AdminActivityLogScreen() {
       ) : items.length === 0 ? (
         <View style={styles.centerContainer}>
           <MaterialIcons name="content-paste" size={64} color={palette.border} />
-          <Text style={[styles.emptyText, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+          <Text
+            style={[styles.emptyText, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}
+          >
             No activity found
           </Text>
         </View>
       ) : (
         <FlatList
           data={items}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}

@@ -2,7 +2,7 @@ import { httpGet } from '@/api/http';
 
 /**
  * Zip Code Radius & Alternatives Utilities
- * 
+ *
  * Handles zip code validation, nearby zip suggestions,
  * and ad capacity checking for 20-mile radius coverage
  */
@@ -22,7 +22,6 @@ interface ZipCodeAvailability {
   reserved: number;
   distance?: number; // miles from original zip
 }
-
 
 /**
  * Validates international postal code format
@@ -67,7 +66,6 @@ export function calculateDistanceMiles(
   return R * c;
 }
 
-
 /**
  * Finds nearby zip codes within radius, sorted by distance
  */
@@ -77,8 +75,8 @@ export function findNearbyZipCodes(
   radiusMiles: number = 20
 ): Array<ZipCodeLocation & { distance: number }> {
   return allZips
-    .filter((zip) => zip.zip !== centerZip.zip)
-    .map((zip) => ({
+    .filter(zip => zip.zip !== centerZip.zip)
+    .map(zip => ({
       ...zip,
       distance: calculateDistanceMiles(
         centerZip.latitude,
@@ -87,7 +85,7 @@ export function findNearbyZipCodes(
         zip.longitude
       ),
     }))
-    .filter((zip) => zip.distance <= radiusMiles)
+    .filter(zip => zip.distance <= radiusMiles)
     .sort((a, b) => a.distance - b.distance);
 }
 
@@ -100,13 +98,7 @@ export async function checkZipCapacity(
   dateRange: string[]
 ): Promise<ZipCodeAvailability> {
   const normalizedZip = normalizeZipCode(zip);
-  const uniqueDates = Array.from(
-    new Set(
-      dateRange
-        .map((d) => String(d).trim())
-        .filter(Boolean)
-    )
-  );
+  const uniqueDates = Array.from(new Set(dateRange.map(d => String(d).trim()).filter(Boolean)));
 
   if (!uniqueDates.length) {
     throw new Error('No reservation dates provided');
@@ -127,7 +119,7 @@ export async function checkZipCapacity(
   > = response?.availability || {};
 
   let highestReserved = 0;
-  const allDatesAvailable = uniqueDates.every((date) => {
+  const allDatesAvailable = uniqueDates.every(date => {
     const entry = availability[date];
     const slotsUsed = typeof entry?.slotsUsed === 'number' ? entry.slotsUsed : 0;
     highestReserved = Math.max(highestReserved, slotsUsed);
@@ -145,7 +137,6 @@ export async function checkZipCapacity(
   };
 }
 
-
 /**
  * Formats distance for display
  */
@@ -162,4 +153,3 @@ export function formatDistance(miles: number): string {
 export function getCoverageDescription(zip: string, radiusMiles: number = 20): string {
   return `Your ad will reach users within ${radiusMiles} miles of ${zip}`;
 }
-

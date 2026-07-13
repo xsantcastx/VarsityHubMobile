@@ -270,9 +270,11 @@ describeDb('Critical Server Flows', () => {
       await prisma.teamMembership.deleteMany({ where: { team_id: id } }).catch(() => {});
       await prisma.team.delete({ where: { id } }).catch(() => {});
     }
-    await prisma.organizationMembership.deleteMany({
-      where: { organization_id: { in: cleanupIds.orgs } },
-    }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({
+        where: { organization_id: { in: cleanupIds.orgs } },
+      })
+      .catch(() => {});
     for (const id of cleanupIds.orgs) {
       await prisma.organization.delete({ where: { id } }).catch(() => {});
     }
@@ -401,8 +403,7 @@ describeDb('Critical Server Flows', () => {
 
   describe('asyncHandler Error Propagation', () => {
     it('should return JSON error (not crash) for non-existent post', async () => {
-      const res = await request(app)
-        .get('/posts/00000000-0000-0000-0000-000000000000');
+      const res = await request(app).get('/posts/00000000-0000-0000-0000-000000000000');
 
       // Should be 404 or valid error, NOT a raw exception / 500 stack trace
       expect([404, 400]).toContain(res.statusCode);
@@ -766,9 +767,7 @@ describeDb('Critical Server Flows', () => {
       });
 
       try {
-        const quoteDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .slice(0, 10);
+        const quoteDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const expectedPricing = calculateAdPriceCents([quoteDate]);
         const expectedTax = calculateSalesTax(expectedPricing.totalCents, '10001');
         const res = await request(app)

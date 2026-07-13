@@ -16,11 +16,7 @@ export interface DividerProps {
  * Horizontal divider line for clear visual separation between sections and list items.
  * Use for strong workflow boundaries: between sections, after section headers, between card groups.
  */
-export function Divider({
-  weight = 'thin',
-  marginVertical = 0,
-  style,
-}: DividerProps) {
+export function Divider({ weight = 'thin', marginVertical = 0, style }: DividerProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const lineWidth = weight === 'medium' ? borderWidth.medium : borderWidth.thin;
 

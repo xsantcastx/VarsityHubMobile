@@ -18,9 +18,9 @@ describe('settings canonical state contracts', () => {
     expect(settingsScreen).toContain(
       'const { user, checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();'
     );
-    expect(settingsScreen).toContain("import {");
-    expect(settingsScreen).toContain("getAuthSnapshot,");
-    expect(settingsScreen).toContain("getFreshAuthSnapshot,");
+    expect(settingsScreen).toContain('import {');
+    expect(settingsScreen).toContain('getAuthSnapshot,');
+    expect(settingsScreen).toContain('getFreshAuthSnapshot,');
     expect(settingsScreen).toContain('const getSettingsSnapshot = useCallback(');
     expect(settingsScreen).toContain('const fallback = (options?.fallback ?? user ?? null)');
     expect(settingsScreen).toContain('getAuthSnapshot(checkAuth, fallback)');

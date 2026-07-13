@@ -74,7 +74,9 @@ function toPreferenceDateString(value: Date | string | null | undefined): string
   return undefined;
 }
 
-export function getCanonicalUserRole(source: UserAuthStateSource | null | undefined): CanonicalUserRole {
+export function getCanonicalUserRole(
+  source: UserAuthStateSource | null | undefined
+): CanonicalUserRole {
   const fromColumn = normalizeRole(source?.role);
   if (fromColumn) return fromColumn;
   const prefs = getPreferencesObject(source?.preferences);
@@ -88,7 +90,9 @@ export function isUserOnboardingComplete(source: UserAuthStateSource | null | un
   return prefs.onboarding_completed === true;
 }
 
-export function getCanonicalOrganizationId(source: UserAuthStateSource | null | undefined): string | null {
+export function getCanonicalOrganizationId(
+  source: UserAuthStateSource | null | undefined
+): string | null {
   const fromColumn = asNullableString(source?.organization_id);
   if (fromColumn) return fromColumn;
   const prefs = getPreferencesObject(source?.preferences);
@@ -102,21 +106,20 @@ export function isProceedingAsFan(source: UserAuthStateSource | null | undefined
   return prefs.proceeding_as_fan === true;
 }
 
-export function hasCoachFanModeAccess(
-  source: UserAuthStateSource | null | undefined,
-): boolean {
+export function hasCoachFanModeAccess(source: UserAuthStateSource | null | undefined): boolean {
   const role = getCanonicalUserRole(source);
   if (role !== 'coach') return false;
 
-  const approvalStatus = typeof source?.approval_status === 'string'
-    ? source.approval_status.trim().toUpperCase()
-    : '';
+  const approvalStatus =
+    typeof source?.approval_status === 'string' ? source.approval_status.trim().toUpperCase() : '';
 
-  return (approvalStatus === 'PENDING' || approvalStatus === 'REJECTED') && isProceedingAsFan(source);
+  return (
+    (approvalStatus === 'PENDING' || approvalStatus === 'REJECTED') && isProceedingAsFan(source)
+  );
 }
 
 export function getCoachAgreementAcceptedAt(
-  source: UserAuthStateSource | null | undefined,
+  source: UserAuthStateSource | null | undefined
 ): Date | string | null {
   const fromColumn = source?.coach_agreement_accepted_at;
   if (fromColumn instanceof Date || typeof fromColumn === 'string') return fromColumn;
@@ -125,7 +128,9 @@ export function getCoachAgreementAcceptedAt(
   return fallback instanceof Date || typeof fallback === 'string' ? fallback : null;
 }
 
-export function getCoachAgreementVersion(source: UserAuthStateSource | null | undefined): number | null {
+export function getCoachAgreementVersion(
+  source: UserAuthStateSource | null | undefined
+): number | null {
   const fromColumn = asNullableNumber(source?.coach_agreement_version);
   if (fromColumn !== null) return fromColumn;
   const prefs = getPreferencesObject(source?.preferences);
@@ -141,7 +146,7 @@ export function getCoachAgreementVersion(source: UserAuthStateSource | null | un
 
 export function mergeAuthStateIntoPreferences(
   currentPreferences: unknown,
-  patch: UserAuthStatePatch,
+  patch: UserAuthStatePatch
 ): Record<string, any> {
   const next = getPreferencesObject(currentPreferences);
 

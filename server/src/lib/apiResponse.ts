@@ -52,10 +52,6 @@ export function apiError(
  * return apiSuccess(res, { id: '123', name: 'Test' });
  * return apiSuccess(res, { ok: true }, 201);
  */
-export function apiSuccess(
-  res: Response,
-  data: any,
-  status = 200
-): Response {
+export function apiSuccess(res: Response, data: any, status = 200): Response {
   return res.status(status).json(data);
 }

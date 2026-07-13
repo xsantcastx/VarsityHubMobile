@@ -5,14 +5,14 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -59,7 +59,7 @@ export default function TeamSearchInput({
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  
+
   const [showPicker, setShowPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [teams, setTeams] = useState<TeamOption[]>([]);
@@ -145,7 +145,7 @@ export default function TeamSearchInput({
 
   const renderTeamItem = ({ item }: { item: TeamOption }) => {
     const disambiguation = renderDisambiguation(item);
-    
+
     return (
       <Pressable
         style={[styles.teamItem, { borderBottomColor: Colors[colorScheme].border }]}
@@ -188,19 +188,19 @@ export default function TeamSearchInput({
       <Pressable
         style={[
           styles.input,
-          { 
-            backgroundColor: Colors[colorScheme].card, 
-            borderColor: error ? '#DC2626' : Colors[colorScheme].border 
+          {
+            backgroundColor: Colors[colorScheme].card,
+            borderColor: error ? '#DC2626' : Colors[colorScheme].border,
           },
           disabled && styles.inputDisabled,
         ]}
         onPress={() => !disabled && setShowPicker(true)}
         disabled={disabled}
       >
-        <Text 
+        <Text
           style={[
-            styles.inputText, 
-            { color: value ? Colors[colorScheme].text : Colors[colorScheme].mutedText }
+            styles.inputText,
+            { color: value ? Colors[colorScheme].text : Colors[colorScheme].mutedText },
           ]}
           numberOfLines={1}
         >
@@ -216,9 +216,7 @@ export default function TeamSearchInput({
       </Pressable>
 
       {/* Error Message */}
-      {error && (
-        <Text style={styles.errorText}>{error}</Text>
-      )}
+      {error && <Text style={styles.errorText}>{error}</Text>}
 
       {/* Deep Link to Team Page */}
       {showDeepLink && selectedTeam && selectedTeam.id !== 'manual' && (
@@ -237,15 +235,18 @@ export default function TeamSearchInput({
         presentationStyle="pageSheet"
         onRequestClose={() => setShowPicker(false)}
       >
-        <View style={[styles.modalContainer, { 
-          paddingTop: Math.max(insets.top, 16),
-          backgroundColor: Colors[colorScheme].background 
-        }]}>
+        <View
+          style={[
+            styles.modalContainer,
+            {
+              paddingTop: Math.max(insets.top, 16),
+              backgroundColor: Colors[colorScheme].background,
+            },
+          ]}
+        >
           {/* Modal Header */}
           <View style={[styles.modalHeader, { borderBottomColor: Colors[colorScheme].border }]}>
-            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
-              {label}
-            </Text>
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>{label}</Text>
             <Pressable onPress={() => setShowPicker(false)} hitSlop={8}>
               <MaterialIcons name="close" size={24} color={Colors[colorScheme].text} />
             </Pressable>
@@ -253,10 +254,15 @@ export default function TeamSearchInput({
 
           {/* Search Input */}
           <View style={styles.searchContainer}>
-            <View style={[styles.searchInputContainer, { 
-              backgroundColor: Colors[colorScheme].card,
-              borderColor: Colors[colorScheme].border 
-            }]}>
+            <View
+              style={[
+                styles.searchInputContainer,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
               <MaterialIcons name="search" size={20} color={Colors[colorScheme].mutedText} />
               <TextInput
                 style={[styles.searchInput, { color: Colors[colorScheme].text }]}
@@ -300,7 +306,7 @@ export default function TeamSearchInput({
           {!loading && (
             <FlatList
               data={teams}
-              keyExtractor={(item) => item.id}
+              keyExtractor={item => item.id}
               renderItem={renderTeamItem}
               contentContainerStyle={styles.listContent}
               ListEmptyComponent={

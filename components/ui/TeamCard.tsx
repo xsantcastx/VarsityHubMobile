@@ -26,20 +26,15 @@ export interface TeamCardProps {
 /**
  * Reusable Team Card Component
  * Replaces 8+ duplicated team card implementations
- * 
+ *
  * @example
- * <TeamCard 
+ * <TeamCard
  *   team={team}
  *   onPress={handlePress}
  *   showRole={true}
  * />
  */
-export function TeamCard({ 
-  team, 
-  onPress, 
-  showRole = false,
-  style 
-}: TeamCardProps) {
+export function TeamCard({ team, onPress, showRole = false, style }: TeamCardProps) {
   const colorScheme = useColorScheme() ?? 'light';
 
   // Get role badge color
@@ -81,10 +76,7 @@ export function TeamCard({
       <View style={styles.header}>
         {/* Team Logo */}
         {team.logo_url ? (
-          <Image 
-            source={{ uri: team.logo_url }} 
-            style={styles.logo}
-          />
+          <Image source={{ uri: team.logo_url }} style={styles.logo} />
         ) : (
           <View style={[styles.logoPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
             <MaterialIcons name="shield" size={24} color={Colors[colorScheme].icon} />
@@ -94,12 +86,8 @@ export function TeamCard({
         {/* Team Info */}
         <View style={styles.info}>
           <View style={styles.titleRow}>
-            <Text 
-              style={[
-                styles.teamName, 
-                typography.heading,
-                { color: Colors[colorScheme].text }
-              ]}
+            <Text
+              style={[styles.teamName, typography.heading, { color: Colors[colorScheme].text }]}
               numberOfLines={1}
             >
               {team.name}
@@ -112,16 +100,16 @@ export function TeamCard({
             <View style={styles.metaRow}>
               {team.sport && (
                 <View style={styles.metaItem}>
-                  <MaterialIcons 
-                    name="sports-basketball" 
-                    size={14} 
-                    color={Colors[colorScheme].mutedText} 
+                  <MaterialIcons
+                    name="sports-basketball"
+                    size={14}
+                    color={Colors[colorScheme].mutedText}
                   />
-                  <Text 
+                  <Text
                     style={[
-                      styles.metaText, 
+                      styles.metaText,
                       typography.caption,
-                      { color: Colors[colorScheme].mutedText }
+                      { color: Colors[colorScheme].mutedText },
                     ]}
                   >
                     {team.sport}
@@ -130,16 +118,12 @@ export function TeamCard({
               )}
               {team.season && (
                 <View style={styles.metaItem}>
-                  <MaterialIcons 
-                    name="event" 
-                    size={14} 
-                    color={Colors[colorScheme].mutedText} 
-                  />
-                  <Text 
+                  <MaterialIcons name="event" size={14} color={Colors[colorScheme].mutedText} />
+                  <Text
                     style={[
-                      styles.metaText, 
+                      styles.metaText,
                       typography.caption,
-                      { color: Colors[colorScheme].mutedText }
+                      { color: Colors[colorScheme].mutedText },
                     ]}
                   >
                     {team.season}
@@ -153,16 +137,12 @@ export function TeamCard({
           {team.member_count !== undefined && (
             <View style={styles.metaRow}>
               <View style={styles.metaItem}>
-                <MaterialIcons 
-                  name="group" 
-                  size={14} 
-                  color={Colors[colorScheme].mutedText} 
-                />
-                <Text 
+                <MaterialIcons name="group" size={14} color={Colors[colorScheme].mutedText} />
+                <Text
                   style={[
-                    styles.metaText, 
+                    styles.metaText,
                     typography.caption,
-                    { color: Colors[colorScheme].mutedText }
+                    { color: Colors[colorScheme].mutedText },
                   ]}
                 >
                   {team.member_count} {team.member_count === 1 ? 'member' : 'members'}
@@ -174,11 +154,7 @@ export function TeamCard({
 
         {/* Chevron */}
         {onPress && (
-          <MaterialIcons 
-            name="chevron-right" 
-            size={24} 
-            color={Colors[colorScheme].mutedText} 
-          />
+          <MaterialIcons name="chevron-right" size={24} color={Colors[colorScheme].mutedText} />
         )}
       </View>
     </Card>

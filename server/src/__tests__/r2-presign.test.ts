@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { createR2UploadTicket, getR2KeyPrefix, isR2Configured } from '../lib/r2.js';
 
-const R2_KEYS = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_BASE_URL'];
+const R2_KEYS = [
+  'R2_ACCOUNT_ID',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
+  'R2_BUCKET',
+  'R2_PUBLIC_BASE_URL',
+];
 
 describe('R2 presign', () => {
   const saved: Record<string, string | undefined> = {};

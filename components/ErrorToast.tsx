@@ -1,6 +1,6 @@
 /**
  * ErrorToast - Global error notification component
- * 
+ *
  * Usage:
  * import { showErrorToast } from '@/components/ErrorToast';
  * showErrorToast('Something went wrong!');
@@ -9,7 +9,15 @@
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import {
+  Animated,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useColorScheme,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type ToastType = 'error' | 'success' | 'warning' | 'info';
@@ -57,7 +65,7 @@ function showToast(message: string, type: ToastType, duration = 3000) {
 }
 
 function hideToast(id: string) {
-  const index = toasts.findIndex((t) => t.id === id);
+  const index = toasts.findIndex(t => t.id === id);
   if (index !== -1) {
     toasts.splice(index, 1);
     notifyListeners();
@@ -65,7 +73,7 @@ function hideToast(id: string) {
 }
 
 function notifyListeners() {
-  listeners.forEach((listener) => listener([...toasts]));
+  listeners.forEach(listener => listener([...toasts]));
 }
 
 export function ErrorToastContainer() {
@@ -94,7 +102,7 @@ export function ErrorToastContainer() {
       ]}
       pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
     >
-      {visibleToasts.map((toast) => (
+      {visibleToasts.map(toast => (
         <ToastItem key={toast.id} toast={toast} onDismiss={() => hideToast(toast.id)} />
       ))}
     </View>
@@ -122,7 +130,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         useNativeDriver,
       }),
     ]).start();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- fadeAnim and slideAnim are Animated.Values (ref-like), initial mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fadeAnim and slideAnim are Animated.Values (ref-like), initial mount only
   }, []);
 
   const getToastStyle = () => {
@@ -157,7 +165,12 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       <Text style={styles.message} numberOfLines={3}>
         {toast.message}
       </Text>
-      <Pressable onPress={onDismiss} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss">
+      <Pressable
+        onPress={onDismiss}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss"
+      >
         <Ionicons name="close" size={20} color="#fff" />
       </Pressable>
     </Animated.View>

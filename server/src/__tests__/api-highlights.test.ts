@@ -109,7 +109,9 @@ describe('GET /highlights — block filter', () => {
   afterAll(async () => {
     await prisma.post.deleteMany({ where: { id: { in: [blockedPostId, visiblePostId] } } });
     await prisma.blockedUser.deleteMany({ where: { blocker_id: viewerId } });
-    await prisma.user.deleteMany({ where: { id: { in: [viewerId, blockedAuthorId, visibleAuthorId] } } });
+    await prisma.user.deleteMany({
+      where: { id: { in: [viewerId, blockedAuthorId, visibleAuthorId] } },
+    });
   });
 
   it('excludes posts from blocked users', async () => {
@@ -136,10 +138,7 @@ describe('GET /highlights — block filter', () => {
 
     expect(res.status).toBe(200);
     // visiblePostId should appear in nationalTop or ranked (it has upvotes_count=100)
-    const allPosts = [
-      ...(res.body.nationalTop ?? []),
-      ...(res.body.ranked ?? []),
-    ];
+    const allPosts = [...(res.body.nationalTop ?? []), ...(res.body.ranked ?? [])];
     const postIds = allPosts.map((p: any) => p.id);
     expect(postIds).toContain(visiblePostId);
   });
@@ -217,10 +216,7 @@ describe('GET /highlights — privacy filter', () => {
       .set('Authorization', `Bearer ${viewerToken}`);
 
     expect(res.status).toBe(200);
-    const allPosts = [
-      ...(res.body.nationalTop ?? []),
-      ...(res.body.ranked ?? []),
-    ];
+    const allPosts = [...(res.body.nationalTop ?? []), ...(res.body.ranked ?? [])];
     const postIds = allPosts.map((p: any) => p.id);
     expect(postIds).not.toContain(privatePostId);
   });

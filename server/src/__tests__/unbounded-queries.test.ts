@@ -107,7 +107,13 @@ describe('Prisma query bounds — no unbounded findMany', () => {
     const allFindings = files.flatMap(analyze);
     if (allFindings.length > 0) {
       const formatted = allFindings
-        .map((f) => `  ${f.file}:${f.line}\n${f.snippet.split('\n').map((l) => '    ' + l).join('\n')}`)
+        .map(
+          f =>
+            `  ${f.file}:${f.line}\n${f.snippet
+              .split('\n')
+              .map(l => '    ' + l)
+              .join('\n')}`
+        )
         .join('\n\n');
       throw new Error(
         `Found ${allFindings.length} unbounded findMany call(s). Each MUST have take: N, be scoped by an { in: [...] } input bound, or carry a // @allow-unbounded-findMany comment.\n\n${formatted}`

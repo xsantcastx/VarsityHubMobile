@@ -12,7 +12,7 @@ export function parseMentions(content: string): string[] {
   if (!content || typeof content !== 'string') return [];
   // Match @username - word chars after @, support usernames with letters, numbers, underscores
   const matches = content.matchAll(/\B@([a-zA-Z0-9_]+)/g);
-  const usernames = [...matches].map((m) => m[1].toLowerCase());
+  const usernames = [...matches].map(m => m[1].toLowerCase());
   return [...new Set(usernames)];
 }
 
@@ -33,7 +33,7 @@ export async function notifyMentions(params: {
 
   const users = await prisma.user.findMany({
     where: {
-      OR: usernames.map((u) => ({ username: { equals: u, mode: 'insensitive' as const } })),
+      OR: usernames.map(u => ({ username: { equals: u, mode: 'insensitive' as const } })),
       id: { not: actorId },
       banned: false,
     },
@@ -50,8 +50,8 @@ export async function notifyMentions(params: {
     prisma.blockedUser.findMany({
       where: {
         OR: [
-          { blocker_id: actorId, blocked_id: { in: users.map((u) => u.id) } },
-          { blocked_id: actorId, blocker_id: { in: users.map((u) => u.id) } },
+          { blocker_id: actorId, blocked_id: { in: users.map(u => u.id) } },
+          { blocked_id: actorId, blocker_id: { in: users.map(u => u.id) } },
         ],
       },
       select: { blocker_id: true, blocked_id: true },
@@ -64,7 +64,7 @@ export async function notifyMentions(params: {
     blockedIds.add(b.blocker_id === actorId ? b.blocked_id : b.blocker_id);
   }
 
-  let recipients = filteredRecipients.filter((u) => {
+  let recipients = filteredRecipients.filter(u => {
     if (blockedIds.has(u.id)) return false;
     const prefs = u.preferences as any;
     if (prefs?.notifications?.mentions === false) return false;
@@ -92,7 +92,7 @@ export async function notifyMentions(params: {
     const teamId = postAny.team_id as string;
     const teamAny = postAny.team;
     if (teamAny?.is_private) {
-      const recipientIds = recipients.map((u) => u.id);
+      const recipientIds = recipients.map(u => u.id);
       const [teamMembers, teamFollowers, orgAdmins] = await Promise.all([
         prisma.teamMembership.findMany({
           where: {
@@ -122,24 +122,25 @@ export async function notifyMentions(params: {
           : Promise.resolve([] as Array<{ user_id: string }>),
       ]);
       const visibleUserIds = new Set<string>([
-        ...teamMembers.map((m) => m.user_id),
-        ...teamFollowers.map((f) => f.user_id),
-        ...orgAdmins.map((a) => a.user_id),
+        ...teamMembers.map(m => m.user_id),
+        ...teamFollowers.map(f => f.user_id),
+        ...orgAdmins.map(a => a.user_id),
       ]);
-      recipients = recipients.filter((u) => visibleUserIds.has(u.id));
+      recipients = recipients.filter(u => visibleUserIds.has(u.id));
     }
   }
 
-  const recipientIds = recipients.map((u) => u.id);
+  const recipientIds = recipients.map(u => u.id);
   if (recipientIds.length === 0) return;
 
-  const title = context === 'post'
-    ? `${actorName} mentioned you in a post`
-    : `${actorName} mentioned you in a comment`;
+  const title =
+    context === 'post'
+      ? `${actorName} mentioned you in a post`
+      : `${actorName} mentioned you in a comment`;
 
   try {
     await prisma.notification.createMany({
-      data: recipientIds.map((recipientId) => ({
+      data: recipientIds.map(recipientId => ({
         user_id: recipientId,
         actor_id: actorId,
         type: 'MENTION',
@@ -152,7 +153,7 @@ export async function notifyMentions(params: {
   }
 
   await Promise.allSettled(
-    recipientIds.map((recipientId) =>
+    recipientIds.map(recipientId =>
       sendPushNotification(
         recipientId,
         title,

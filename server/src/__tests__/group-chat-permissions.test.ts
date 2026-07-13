@@ -149,13 +149,22 @@ describe('Group Chat Permissions', () => {
   });
 
   afterAll(async () => {
-    const userIds = [creatorId, coachId, orgManagerId, strangerId, rosterMemberId, offRosterUserId].filter(Boolean);
+    const userIds = [
+      creatorId,
+      coachId,
+      orgManagerId,
+      strangerId,
+      rosterMemberId,
+      offRosterUserId,
+    ].filter(Boolean);
     await prisma.groupChatMessage.deleteMany({ where: { chat_id: chatId } }).catch(() => {});
     await prisma.groupChatMember.deleteMany({ where: { chat_id: chatId } }).catch(() => {});
     await prisma.groupChat.deleteMany({ where: { id: chatId } }).catch(() => {});
     await prisma.teamMembership.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => {});
   });

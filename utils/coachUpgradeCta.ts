@@ -25,7 +25,7 @@ type CoachUpgradeUser = CoachUserLike & {
 };
 
 export function getCoachUpgradeCta(
-  user: CoachUpgradeUser | null | undefined,
+  user: CoachUpgradeUser | null | undefined
 ): CoachUpgradeCta | null {
   const coachAccess = getCoachAccessState(user);
 
@@ -44,9 +44,7 @@ export function getCoachUpgradeCta(
   if (coachAccess.isPendingCoach) {
     const recoveryRoute = getCoachRecoveryRoute(user);
     const route =
-      recoveryRoute && recoveryRoute !== '/(tabs)'
-        ? recoveryRoute
-        : getPendingCoachRoute(user);
+      recoveryRoute && recoveryRoute !== '/(tabs)' ? recoveryRoute : getPendingCoachRoute(user);
     return {
       kind: 'resume',
       title: 'View Coach Application Status',

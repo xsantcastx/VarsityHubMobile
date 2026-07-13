@@ -28,10 +28,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import {
-  getObjectStorageAdapter,
-  ObjectStorageNotConfiguredError,
-} from '../lib/objectStorage.js';
+import { getObjectStorageAdapter, ObjectStorageNotConfiguredError } from '../lib/objectStorage.js';
 import { captureException } from '../lib/sentry.js';
 
 export const dataExportRouter = Router();
@@ -53,12 +50,7 @@ async function queueDataExportJob(args: { exportId: string; userId: string }) {
 function serializeExport(row: any) {
   return {
     id: row.id,
-    status: row.status as
-      | 'pending'
-      | 'building'
-      | 'ready'
-      | 'expired'
-      | 'failed',
+    status: row.status as 'pending' | 'building' | 'ready' | 'expired' | 'failed',
     requested_at: row.requested_at,
     started_at: row.started_at,
     completed_at: row.completed_at,
@@ -140,10 +132,7 @@ dataExportRouter.post(
       const retryAfterSeconds = Math.max(
         1,
         Math.ceil(
-          (new Date(recentReady.requested_at).getTime() +
-            RATE_LIMIT_WINDOW_MS -
-            Date.now()) /
-            1000
+          (new Date(recentReady.requested_at).getTime() + RATE_LIMIT_WINDOW_MS - Date.now()) / 1000
         )
       );
       res.setHeader('Retry-After', String(retryAfterSeconds));
@@ -186,8 +175,7 @@ dataExportRouter.post(
       );
       return res.status(503).json({
         error: 'EXPORT_QUEUE_UNAVAILABLE',
-        message:
-          'Data exports are temporarily unavailable. Please try again later.',
+        message: 'Data exports are temporarily unavailable. Please try again later.',
       });
     }
 
@@ -241,8 +229,7 @@ dataExportRouter.get(
     if (row.status === 'expired') {
       return res.status(410).json({
         error: 'EXPORT_EXPIRED',
-        message:
-          'This archive has expired. Request a new export to download your data.',
+        message: 'This archive has expired. Request a new export to download your data.',
       });
     }
     if (row.status === 'failed') {
@@ -268,8 +255,7 @@ dataExportRouter.get(
     let ttlSeconds: number;
     try {
       const storage = getObjectStorageAdapter();
-      ttlSeconds =
-        Number(process.env.DATA_EXPORT_SIGNED_URL_TTL_SECONDS) || 300;
+      ttlSeconds = Number(process.env.DATA_EXPORT_SIGNED_URL_TTL_SECONDS) || 300;
       url = await storage.getSignedDownloadUrl(row.storage_key, ttlSeconds);
     } catch (err) {
       if (err instanceof ObjectStorageNotConfiguredError) {
@@ -296,10 +282,9 @@ dataExportRouter.get(
       })
       .catch((err: any) => {
         // A failed counter bump must not block the download.
-        captureException(
-          err instanceof Error ? err : new Error(String(err)),
-          { extra: { context: 'data_export_download_counter_bump_failed' } }
-        );
+        captureException(err instanceof Error ? err : new Error(String(err)), {
+          extra: { context: 'data_export_download_counter_bump_failed' },
+        });
       });
 
     const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();

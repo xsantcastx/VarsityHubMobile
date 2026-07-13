@@ -5,9 +5,7 @@ type EmailSenderEnv = {
   FROM_EMAIL?: string | undefined;
 };
 
-export function resolveEmailFrom(
-  env: EmailSenderEnv = process.env as EmailSenderEnv
-): string {
+export function resolveEmailFrom(env: EmailSenderEnv = process.env as EmailSenderEnv): string {
   const emailFrom = (env.EMAIL_FROM || '').trim();
   const fromEmail = (env.FROM_EMAIL || '').trim();
   return emailFrom || fromEmail || CANONICAL_EMAIL_FROM;

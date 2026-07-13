@@ -8,7 +8,11 @@ import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
  * Use this on screens inside a Tabs navigator that need iOS-style
  * swipe-from-left-edge back navigation.
  */
-export default function SwipeBackContainer({ children, style, ...rest }: ViewProps & { children: React.ReactNode }) {
+export default function SwipeBackContainer({
+  children,
+  style,
+  ...rest
+}: ViewProps & { children: React.ReactNode }) {
   const { edgeSwipeGesture } = useEdgeSwipeBack();
 
   return (

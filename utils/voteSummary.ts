@@ -12,7 +12,7 @@ export type VoteSummary = {
 export const buildVoteSummary = (
   teamA: number,
   teamB: number,
-  userVote: VoteOption | null,
+  userVote: VoteOption | null
 ): VoteSummary => {
   const safeA = Math.max(0, teamA);
   const safeB = Math.max(0, teamB);
@@ -30,10 +30,7 @@ export const parseVoteSummary = (payload: any): VoteSummary => {
   return buildVoteSummary(teamA, teamB, userVote);
 };
 
-export const applyVoteSelection = (
-  prev: VoteSummary | null,
-  team: VoteOption,
-): VoteSummary => {
+export const applyVoteSelection = (prev: VoteSummary | null, team: VoteOption): VoteSummary => {
   const baseline = prev ?? buildVoteSummary(0, 0, null);
   if (baseline.userVote === team) {
     return baseline;

@@ -1,11 +1,11 @@
 import {
-    getCanonicalBillingState as getCanonicalBillingStateShared,
-    getCanonicalPendingPlan as getCanonicalPendingPlanShared,
-    getCanonicalPlan as getCanonicalPlanShared,
-    getEffectiveEntitledPlan as getEffectiveEntitledPlanShared,
-    getSelectedPlan as getSelectedPlanShared,
-    isPaymentApproved as isPaymentApprovedShared,
-    isPaymentPending as isPaymentPendingShared,
+  getCanonicalBillingState as getCanonicalBillingStateShared,
+  getCanonicalPendingPlan as getCanonicalPendingPlanShared,
+  getCanonicalPlan as getCanonicalPlanShared,
+  getEffectiveEntitledPlan as getEffectiveEntitledPlanShared,
+  getSelectedPlan as getSelectedPlanShared,
+  isPaymentApproved as isPaymentApprovedShared,
+  isPaymentPending as isPaymentPendingShared,
 } from '@varsityhub/shared/runtime/billingCore';
 import { getPreferencesObject } from './userAuthState.js';
 
@@ -28,13 +28,13 @@ export type UserBillingStatePatch = {
 };
 
 export function getCanonicalPlan(
-  source: UserBillingStateSource | null | undefined,
+  source: UserBillingStateSource | null | undefined
 ): CanonicalMembershipPlan {
   return getCanonicalPlanShared(source);
 }
 
 export function getCanonicalPendingPlan(
-  source: UserBillingStateSource | null | undefined,
+  source: UserBillingStateSource | null | undefined
 ): CanonicalMembershipPlan | null {
   return getCanonicalPendingPlanShared(source);
 }
@@ -48,20 +48,20 @@ export function isPaymentApproved(source: UserBillingStateSource | null | undefi
 }
 
 export function getSelectedPlan(
-  source: UserBillingStateSource | null | undefined,
+  source: UserBillingStateSource | null | undefined
 ): CanonicalMembershipPlan {
   return getSelectedPlanShared(source);
 }
 
 export function getEffectiveEntitledPlan(
-  source: UserBillingStateSource | null | undefined,
+  source: UserBillingStateSource | null | undefined
 ): CanonicalMembershipPlan {
   return getEffectiveEntitledPlanShared(source);
 }
 
 export function mergeBillingStateIntoPreferences(
   currentPreferences: unknown,
-  patch: UserBillingStatePatch,
+  patch: UserBillingStatePatch
 ): Record<string, any> {
   const next = getPreferencesObject(currentPreferences);
 
@@ -85,9 +85,7 @@ export function mergeBillingStateIntoPreferences(
   return next;
 }
 
-export function buildBillingStateColumns(
-  patch: UserBillingStatePatch,
-): Record<string, unknown> {
+export function buildBillingStateColumns(patch: UserBillingStatePatch): Record<string, unknown> {
   const out: Record<string, unknown> = {};
 
   if (patch.plan !== undefined && patch.plan !== null) out.plan = patch.plan;
@@ -102,8 +100,6 @@ export function buildBillingStateColumns(
   return out;
 }
 
-export function getCanonicalBillingState(
-  source: UserBillingStateSource | null | undefined,
-) {
+export function getCanonicalBillingState(source: UserBillingStateSource | null | undefined) {
   return getCanonicalBillingStateShared(source);
 }

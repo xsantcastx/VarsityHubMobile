@@ -77,7 +77,9 @@ describeDb('Ad engagement metrics', () => {
     if (adId) {
       await prisma.ad.deleteMany({ where: { id: adId } }).catch(() => {});
     }
-    await prisma.user.deleteMany({ where: { id: { in: [viewerId, ownerId].filter(Boolean) } } }).catch(() => {});
+    await prisma.user
+      .deleteMany({ where: { id: { in: [viewerId, ownerId].filter(Boolean) } } })
+      .catch(() => {});
   });
 
   it('records impressions and clicks on active paid ads', async () => {

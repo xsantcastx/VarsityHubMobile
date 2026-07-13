@@ -31,15 +31,10 @@ describe('handleCoachAccessError', () => {
 
   it('sends proceeding-as-fan coaches home instead of resurfacing approval status', () => {
     expect(
-      handleCoachAccessError(
-        router,
-        { data: { code: 'APPROVAL_REJECTED' } },
-        'editing events',
-        {
-          approval_status: 'REJECTED',
-          preferences: { role: 'coach', proceeding_as_fan: true },
-        }
-      )
+      handleCoachAccessError(router, { data: { code: 'APPROVAL_REJECTED' } }, 'editing events', {
+        approval_status: 'REJECTED',
+        preferences: { role: 'coach', proceeding_as_fan: true },
+      })
     ).toBe(true);
 
     const [, , buttons] = alertSpy.mock.calls[0];
@@ -50,18 +45,13 @@ describe('handleCoachAccessError', () => {
 
   it('prefers top-level fan mode over stale preferences for approval-required recovery', () => {
     expect(
-      handleCoachAccessError(
-        router,
-        { data: { code: 'APPROVAL_REQUIRED' } },
-        'creating teams',
-        {
-          approval_status: 'PENDING',
-          account_state: 'coach_application_submitted',
-          next_step: '/onboarding/league-pending-approval',
-          proceeding_as_fan: true,
-          preferences: { role: 'coach', proceeding_as_fan: false },
-        } as any
-      )
+      handleCoachAccessError(router, { data: { code: 'APPROVAL_REQUIRED' } }, 'creating teams', {
+        approval_status: 'PENDING',
+        account_state: 'coach_application_submitted',
+        next_step: '/onboarding/league-pending-approval',
+        proceeding_as_fan: true,
+        preferences: { role: 'coach', proceeding_as_fan: false },
+      } as any)
     ).toBe(true);
 
     const [, , buttons] = alertSpy.mock.calls[0];

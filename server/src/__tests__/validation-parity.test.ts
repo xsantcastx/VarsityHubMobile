@@ -44,12 +44,8 @@ describe('validation parity (frontend ↔ backend)', () => {
     });
 
     it('client enforces the same min/max/regex', () => {
-      expect(clientEdit).toMatch(
-        new RegExp(`length\\s*<\\s*${CANONICAL.usernameMin}`)
-      );
-      expect(clientEdit).toMatch(
-        new RegExp(`length\\s*>\\s*${CANONICAL.usernameMax}`)
-      );
+      expect(clientEdit).toMatch(new RegExp(`length\\s*<\\s*${CANONICAL.usernameMin}`));
+      expect(clientEdit).toMatch(new RegExp(`length\\s*>\\s*${CANONICAL.usernameMax}`));
       expect(clientEdit).toContain(CANONICAL.usernameRegex);
     });
   });
@@ -65,9 +61,7 @@ describe('validation parity (frontend ↔ backend)', () => {
 
     it('client enforces the same min length', () => {
       const clientReset = read('app/forgot-password.tsx');
-      expect(clientReset).toMatch(
-        new RegExp(`password\\.length\\s*<\\s*${CANONICAL.passwordMin}`)
-      );
+      expect(clientReset).toMatch(new RegExp(`password\\.length\\s*<\\s*${CANONICAL.passwordMin}`));
     });
   });
 });

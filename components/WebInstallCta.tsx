@@ -27,8 +27,10 @@ export function WebInstallCta() {
       style={[
         styles.container,
         {
-          backgroundColor: colorScheme === 'dark' ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.92)',
-          borderColor: colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.08)',
+          backgroundColor:
+            colorScheme === 'dark' ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.92)',
+          borderColor:
+            colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.08)',
         },
       ]}
     >

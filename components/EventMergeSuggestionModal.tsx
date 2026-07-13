@@ -1,6 +1,6 @@
 /**
  * Event Merge Suggestion Modal
- * 
+ *
  * Displays merge suggestions when duplicate events are detected
  * Allows coaches to merge or dismiss duplicate game events
  */

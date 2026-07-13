@@ -3,7 +3,7 @@ const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
 export const detectMediaType = (url?: string | null): 'video' | 'image' => {
   if (!url) return 'image';
   const sanitized = url.split('?')[0].split('#')[0].toLowerCase();
-  return VIDEO_EXTENSIONS.some((ext) => sanitized.endsWith(ext)) ? 'video' : 'image';
+  return VIDEO_EXTENSIONS.some(ext => sanitized.endsWith(ext)) ? 'video' : 'image';
 };
 
 /**

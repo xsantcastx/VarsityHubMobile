@@ -15,7 +15,15 @@ type Props = {
   appearance?: 'classic' | 'sparkle' | 'sporty';
 };
 
-export default function MatchBannerCapture({ leftImage, rightImage, leftName, rightName, bannerHeight = 260, onUploaded, appearance = 'classic' }: Props) {
+export default function MatchBannerCapture({
+  leftImage,
+  rightImage,
+  leftName,
+  rightName,
+  bannerHeight = 260,
+  onUploaded,
+  appearance = 'classic',
+}: Props) {
   const viewRef = useRef<View | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -41,12 +49,38 @@ export default function MatchBannerCapture({ leftImage, rightImage, leftName, ri
 
   return (
     <View>
-      <ViewShot ref={(r: any) => { viewRef.current = r; }} options={{ format: 'png', quality: 0.9 }}>
-  <MatchBanner leftImage={leftImage} rightImage={rightImage} leftName={leftName} rightName={rightName} height={bannerHeight} appearance={appearance} />
+      <ViewShot
+        ref={(r: any) => {
+          viewRef.current = r;
+        }}
+        options={{ format: 'png', quality: 0.9 }}
+      >
+        <MatchBanner
+          leftImage={leftImage}
+          rightImage={rightImage}
+          leftName={leftName}
+          rightName={rightName}
+          height={bannerHeight}
+          appearance={appearance}
+        />
       </ViewShot>
 
-      <Pressable onPress={captureAndUpload} style={{ marginTop: 12, padding: 12, backgroundColor: '#2563EB', borderRadius: 8, alignItems: 'center' }} disabled={uploading}>
-        {uploading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>Capture & Upload Banner</Text>}
+      <Pressable
+        onPress={captureAndUpload}
+        style={{
+          marginTop: 12,
+          padding: 12,
+          backgroundColor: '#2563EB',
+          borderRadius: 8,
+          alignItems: 'center',
+        }}
+        disabled={uploading}
+      >
+        {uploading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Capture & Upload Banner</Text>
+        )}
       </Pressable>
     </View>
   );

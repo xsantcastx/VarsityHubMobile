@@ -48,10 +48,9 @@ const FORBIDDEN_MIGRATION_DIRS: Set<string> = new Set([
   '20260422110117_add_story_and_message_hot_query_indexes',
 ]);
 
-
 function listMigrationDirs(): string[] {
   return readdirSync(MIGRATIONS_DIR)
-    .filter((entry) => {
+    .filter(entry => {
       if (entry === 'migration_lock.toml') return false;
       const full = join(MIGRATIONS_DIR, entry);
       return statSync(full).isDirectory();
@@ -67,7 +66,7 @@ describe('Prisma migrations — shape + invariants', () => {
   });
 
   it('does not contain known-forbidden duplicate migration directories', () => {
-    const forbidden = migrationDirs.filter((dir) => FORBIDDEN_MIGRATION_DIRS.has(dir));
+    const forbidden = migrationDirs.filter(dir => FORBIDDEN_MIGRATION_DIRS.has(dir));
     expect(forbidden).toEqual([]);
   });
 
@@ -101,9 +100,7 @@ describe('Prisma migrations — shape + invariants', () => {
   });
 
   it('migration timestamps are strictly monotonic (no collisions)', () => {
-    const timestamps = migrationDirs
-      .map((d) => d.slice(0, 14))
-      .filter((t) => /^\d{14}$/.test(t));
+    const timestamps = migrationDirs.map(d => d.slice(0, 14)).filter(t => /^\d{14}$/.test(t));
     const seen = new Set<string>();
     const collisions: string[] = [];
     for (const t of timestamps) {
@@ -116,7 +113,7 @@ describe('Prisma migrations — shape + invariants', () => {
   it('lexicographic sort matches numeric timestamp sort (excluding grandfathered)', () => {
     // Trips if someone hand-edits a directory name in a way that breaks
     // the ordering invariant Prisma relies on.
-    const filtered = migrationDirs.filter((d) => !NAMING_GRANDFATHER.has(d));
+    const filtered = migrationDirs.filter(d => !NAMING_GRANDFATHER.has(d));
     const lex = [...filtered];
     const byTs = [...filtered].sort((a, b) => {
       const at = parseInt(a.slice(0, 14), 10);
@@ -132,7 +129,7 @@ describe('Prisma migrations — shape + invariants', () => {
       // refuses to run if more than threshold rows would be deleted —
       // without that guard, a future schema-drift regression that leaks
       // many NULL-org_id rows could silently mass-delete real teams.
-      const dir = migrationDirs.find((d) => d.endsWith('_team_org_required'));
+      const dir = migrationDirs.find(d => d.endsWith('_team_org_required'));
       expect(dir).toBeTruthy();
       const sql = readFileSync(join(MIGRATIONS_DIR, dir!, 'migration.sql'), 'utf8');
       expect(sql).toMatch(/ORPHAN_THRESHOLD/);
@@ -146,7 +143,7 @@ describe('Prisma migrations — shape + invariants', () => {
     });
 
     it('organization duplicate backstop uses normalized partial unique indexes', () => {
-      const dir = migrationDirs.find((d) => d.endsWith('_organization_duplicate_name_backstop'));
+      const dir = migrationDirs.find(d => d.endsWith('_organization_duplicate_name_backstop'));
       expect(dir).toBeTruthy();
       const sql = readFileSync(join(MIGRATIONS_DIR, dir!, 'migration.sql'), 'utf8');
       expect(sql).toContain('DROP INDEX IF EXISTS "Organization_name_zip_code_key"');

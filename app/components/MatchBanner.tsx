@@ -1,7 +1,19 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Dimensions, Easing, Image, ImageBackground, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  ImageBackground,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import MatchBannerLottie from './MatchBannerLottie';
 import MatchBannerOverlayLayer from './MatchBannerOverlayLayer';
 
@@ -30,7 +42,27 @@ type Props = {
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-export default React.memo(function MatchBanner({ leftImage, rightImage, leftName = '', rightName = '', leftScore, rightScore, height = 260, variant = 'full', leftColor, rightColor, appearance = 'classic', hero = false, onVsPress, onLeftPress, onRightPress, onGoingPress, goingCount, headerFade, onPress }: Props) {
+export default React.memo(function MatchBanner({
+  leftImage,
+  rightImage,
+  leftName = '',
+  rightName = '',
+  leftScore,
+  rightScore,
+  height = 260,
+  variant = 'full',
+  leftColor,
+  rightColor,
+  appearance = 'classic',
+  hero = false,
+  onVsPress,
+  onLeftPress,
+  onRightPress,
+  onGoingPress,
+  goingCount,
+  headerFade,
+  onPress,
+}: Props) {
   const halfStyle = { width: SCREEN_WIDTH / 2 };
   const colorScheme = useColorScheme() ?? 'light';
   const [reduceMotionEnabled, setReduceMotionEnabled] = useState(false);
@@ -38,12 +70,12 @@ export default React.memo(function MatchBanner({ leftImage, rightImage, leftName
   const vsAnim = vsAnimRef.current;
   const sparkleAnimRef = useRef(new Animated.Value(0));
   const sparkleAnim = sparkleAnimRef.current;
-  const [lottieLoaded, setLottieLoaded] = useState(false)
+  const [lottieLoaded, setLottieLoaded] = useState(false);
   const handleLottieLoaded = useCallback((v: boolean) => {
     setLottieLoaded(v);
   }, []);
-  const rightAnimRef = useRef(new Animated.Value(0))
-  const rightAnim = rightAnimRef.current
+  const rightAnimRef = useRef(new Animated.Value(0));
+  const rightAnim = rightAnimRef.current;
   useEffect(() => {
     let mounted = true;
 
@@ -56,18 +88,25 @@ export default React.memo(function MatchBanner({ leftImage, rightImage, leftName
         const enabled = await AccessibilityInfo.isReduceMotionEnabled();
         if (mounted) update(enabled);
       } catch (err) {
-        if (__DEV__) console.warn('[MatchBanner] reduceMotion check failed:', (err as Error)?.message);
+        if (__DEV__)
+          console.warn('[MatchBanner] reduceMotion check failed:', (err as Error)?.message);
       }
     };
 
     void fetch();
-    const subscription = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (enabled) => update(enabled));
+    const subscription = AccessibilityInfo.addEventListener?.('reduceMotionChanged', enabled =>
+      update(enabled)
+    );
     return () => {
       mounted = false;
       if (subscription && typeof subscription.remove === 'function') {
         subscription.remove();
       } else if (subscription) {
-        try { (subscription as any)(); } catch (err) { if (__DEV__) console.warn('[MatchBanner] remove subscription:', (err as Error)?.message); }
+        try {
+          (subscription as any)();
+        } catch (err) {
+          if (__DEV__) console.warn('[MatchBanner] remove subscription:', (err as Error)?.message);
+        }
       }
     };
   }, []);
@@ -97,23 +136,43 @@ export default React.memo(function MatchBanner({ leftImage, rightImage, leftName
 
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(vsAnim, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(vsAnim, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ]),
+        Animated.timing(vsAnim, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(vsAnim, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
     );
 
     const sparkleLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(sparkleAnim, { toValue: 1, duration: 1100, useNativeDriver: true }),
         Animated.timing(sparkleAnim, { toValue: 0, duration: 1100, useNativeDriver: true }),
-      ]),
+      ])
     );
 
     const rLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(rightAnim, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(rightAnim, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ]),
+        Animated.timing(rightAnim, {
+          toValue: 1,
+          duration: 1400,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(rightAnim, {
+          toValue: 0,
+          duration: 1400,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
     );
 
     loop.start();
@@ -126,71 +185,138 @@ export default React.memo(function MatchBanner({ leftImage, rightImage, leftName
     };
   }, [hero, reduceMotionEnabled, vsAnim, sparkleAnim, rightAnim]);
 
-  const scale = reduceMotionEnabled ? 1 : vsAnim.interpolate({ inputRange: [0, 1], outputRange: [hero ? 0.96 : 0.98, hero ? 1.12 : 1.06] });
-  const glow = reduceMotionEnabled ? 1 : vsAnim.interpolate({ inputRange: [0, 1], outputRange: [hero ? 0.7 : 0.6, 1] });
+  const scale = reduceMotionEnabled
+    ? 1
+    : vsAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [hero ? 0.96 : 0.98, hero ? 1.12 : 1.06],
+      });
+  const glow = reduceMotionEnabled
+    ? 1
+    : vsAnim.interpolate({ inputRange: [0, 1], outputRange: [hero ? 0.7 : 0.6, 1] });
 
   const compact = variant === 'compact';
   const shouldAnimate = !reduceMotionEnabled;
   const containerBackground = colorScheme === 'dark' ? '#020617' : '#e2e8f0';
 
   // adaptive font sizes for long names
-  const leftFontSize = compact ? (leftName.length > 18 ? 16 : 20) : (leftName.length > 20 ? 28 : 34)
-  const rightFontSize = compact ? (rightName.length > 18 ? 14 : 16) : (rightName.length > 20 ? 22 : 28)
+  const leftFontSize = compact ? (leftName.length > 18 ? 16 : 20) : leftName.length > 20 ? 28 : 34;
+  const rightFontSize = compact
+    ? rightName.length > 18
+      ? 14
+      : 16
+    : rightName.length > 20
+      ? 22
+      : 28;
 
   // Combine headerFade (if provided) with local vs scale/glow for entrance
   const rootOpacity = headerFade ? headerFade : 1;
-  const paletteInput = useMemo(() => ({
-    home: leftName ? { id: leftName.toLowerCase(), name: leftName, primaryColor: leftColor ?? null } : undefined,
-    away: rightName ? { id: rightName.toLowerCase(), name: rightName, primaryColor: rightColor ?? null } : undefined,
-    appearance,
-    theme: colorScheme,
-    variant,
-    overrides: {
-      leftColor: leftColor ?? null,
-      rightColor: rightColor ?? null,
-    },
-  }), [appearance, colorScheme, leftColor, leftName, rightColor, rightName, variant]);
-  
+  const paletteInput = useMemo(
+    () => ({
+      home: leftName
+        ? { id: leftName.toLowerCase(), name: leftName, primaryColor: leftColor ?? null }
+        : undefined,
+      away: rightName
+        ? { id: rightName.toLowerCase(), name: rightName, primaryColor: rightColor ?? null }
+        : undefined,
+      appearance,
+      theme: colorScheme,
+      variant,
+      overrides: {
+        leftColor: leftColor ?? null,
+        rightColor: rightColor ?? null,
+      },
+    }),
+    [appearance, colorScheme, leftColor, leftName, rightColor, rightName, variant]
+  );
+
   const bannerContent = (
-    <Animated.View style={[styles.root, { height: compact ? Math.min(140, height) : height, opacity: rootOpacity, backgroundColor: containerBackground } as any]}>
-          {/* Top bar removed - team names now shown in VS overlay only */}
+    <Animated.View
+      style={[
+        styles.root,
+        {
+          height: compact ? Math.min(140, height) : height,
+          opacity: rootOpacity,
+          backgroundColor: containerBackground,
+        } as any,
+      ]}
+    >
+      {/* Top bar removed - team names now shown in VS overlay only */}
 
       {/* Left half */}
-      <Pressable onPress={onLeftPress || onPress} accessibilityRole="button" accessibilityLabel={leftName ? `${leftName} team` : 'Left team'} style={({ pressed }) => [{ width: SCREEN_WIDTH / 2, opacity: pressed ? 0.9 : 1 }]} android_ripple={{ color: 'rgba(255,255,255,0.06)' }}>
+      <Pressable
+        onPress={onLeftPress || onPress}
+        accessibilityRole="button"
+        accessibilityLabel={leftName ? `${leftName} team` : 'Left team'}
+        style={({ pressed }) => [{ width: SCREEN_WIDTH / 2, opacity: pressed ? 0.9 : 1 }]}
+        android_ripple={{ color: 'rgba(255,255,255,0.06)' }}
+      >
         <ImageBackground
-            source={leftImage ? { uri: leftImage } : undefined}
-            style={[styles.half, halfStyle] as any}
-            imageStyle={styles.imageCover as any}
-          >
-            {!leftImage && <View style={[styles.fallback, { backgroundColor: '#9b1c1c' }] as any} />}
-            {/* if this is a hero banner (real logos) we intentionally skip inner gradient overlays to keep images clean */}
-            {!hero && <View style={[styles.innerGradientLeft as any, compact ? (styles.innerGradientCompact as any) : null]} />}
-          </ImageBackground>
+          source={leftImage ? { uri: leftImage } : undefined}
+          style={[styles.half, halfStyle] as any}
+          imageStyle={styles.imageCover as any}
+        >
+          {!leftImage && <View style={[styles.fallback, { backgroundColor: '#9b1c1c' }] as any} />}
+          {/* if this is a hero banner (real logos) we intentionally skip inner gradient overlays to keep images clean */}
+          {!hero && (
+            <View
+              style={[
+                styles.innerGradientLeft as any,
+                compact ? (styles.innerGradientCompact as any) : null,
+              ]}
+            />
+          )}
+        </ImageBackground>
       </Pressable>
 
       {/* Right half */}
-      <Pressable onPress={onRightPress || onPress} accessibilityRole="button" accessibilityLabel={rightName ? `${rightName} team` : 'Right team'} style={({ pressed }) => [{ width: SCREEN_WIDTH / 2, opacity: pressed ? 0.9 : 1 }]} android_ripple={{ color: 'rgba(255,255,255,0.06)' }}>
+      <Pressable
+        onPress={onRightPress || onPress}
+        accessibilityRole="button"
+        accessibilityLabel={rightName ? `${rightName} team` : 'Right team'}
+        style={({ pressed }) => [{ width: SCREEN_WIDTH / 2, opacity: pressed ? 0.9 : 1 }]}
+        android_ripple={{ color: 'rgba(255,255,255,0.06)' }}
+      >
         <ImageBackground
-            source={rightImage ? { uri: rightImage } : undefined}
-            style={[styles.half, halfStyle, styles.rightHalf] as any}
-            imageStyle={styles.imageCover as any}
-          >
-            {!rightImage && <View style={[styles.fallback, { backgroundColor: '#0b558d' }] as any} />}
-            {!hero && <View style={[styles.innerGradientRight as any, compact ? (styles.innerGradientCompact as any) : null]} />}
-          </ImageBackground>
+          source={rightImage ? { uri: rightImage } : undefined}
+          style={[styles.half, halfStyle, styles.rightHalf] as any}
+          imageStyle={styles.imageCover as any}
+        >
+          {!rightImage && <View style={[styles.fallback, { backgroundColor: '#0b558d' }] as any} />}
+          {!hero && (
+            <View
+              style={[
+                styles.innerGradientRight as any,
+                compact ? (styles.innerGradientCompact as any) : null,
+              ]}
+            />
+          )}
+        </ImageBackground>
       </Pressable>
 
-  {/* If hero is true we want a clean look: fully suppress decorative overlays */}
-  <MatchBannerOverlayLayer input={paletteInput} reduceMotion={reduceMotionEnabled} variant={variant} suppressBackground={!!hero} suppressAllOverlays={!!hero} />
+      {/* If hero is true we want a clean look: fully suppress decorative overlays */}
+      <MatchBannerOverlayLayer
+        input={paletteInput}
+        reduceMotion={reduceMotionEnabled}
+        variant={variant}
+        suppressBackground={!!hero}
+        suppressAllOverlays={!!hero}
+      />
 
       {/* Animated VS overlay - stacked: Left name above VS, Right name below VS */}
-      <Animated.View style={[styles.vsWrapper as any, { transform: [{ scale }], opacity: glow }]} pointerEvents="box-none">
-        <Animated.View style={[styles.titlesColumn as any, { opacity: glow }]} pointerEvents="box-none">
-          <Pressable 
+      <Animated.View
+        style={[styles.vsWrapper as any, { transform: [{ scale }], opacity: glow }]}
+        pointerEvents="box-none"
+      >
+        <Animated.View
+          style={[styles.titlesColumn as any, { opacity: glow }]}
+          pointerEvents="box-none"
+        >
+          <Pressable
             style={styles.topTitleWrap as any}
             onPress={onLeftPress}
             disabled={!onLeftPress}
-            accessibilityRole={onLeftPress ? "button" : undefined}
+            accessibilityRole={onLeftPress ? 'button' : undefined}
             accessibilityLabel={onLeftPress ? `View ${leftName} team page` : undefined}
           >
             {leftImage ? (
@@ -198,7 +324,10 @@ export default React.memo(function MatchBanner({ leftImage, rightImage, leftName
             ) : null}
             <View style={styles.sideTitleBg as any}>
               <Text
-                style={[styles.sideTitle as any, { fontSize: leftFontSize, color: leftColor || Colors[colorScheme].text } as any]}
+                style={[
+                  styles.sideTitle as any,
+                  { fontSize: leftFontSize, color: leftColor || Colors[colorScheme].text } as any,
+                ]}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
@@ -216,18 +345,20 @@ export default React.memo(function MatchBanner({ leftImage, rightImage, leftName
           >
             <View style={[styles.vsBadge as any, hero ? styles.vsBadgeHero : null]}>
               {leftScore != null && rightScore != null ? (
-                <Text style={[styles.vsText as any, hero ? styles.vsTextHero : null]}>{`${leftScore} - ${rightScore}`}</Text>
+                <Text
+                  style={[styles.vsText as any, hero ? styles.vsTextHero : null]}
+                >{`${leftScore} - ${rightScore}`}</Text>
               ) : (
                 <Text style={[styles.vsText as any, hero ? styles.vsTextHero : null]}>{'VS'}</Text>
               )}
             </View>
           </Pressable>
 
-          <Pressable 
+          <Pressable
             style={styles.bottomTitleWrap as any}
             onPress={onRightPress}
             disabled={!onRightPress}
-            accessibilityRole={onRightPress ? "button" : undefined}
+            accessibilityRole={onRightPress ? 'button' : undefined}
             accessibilityLabel={onRightPress ? `View ${rightName} team page` : undefined}
           >
             {rightImage ? (
@@ -235,7 +366,10 @@ export default React.memo(function MatchBanner({ leftImage, rightImage, leftName
             ) : null}
             <View style={styles.sideTitleBg as any}>
               <Text
-                style={[styles.sideTitle as any, { fontSize: rightFontSize, color: rightColor || Colors[colorScheme].text } as any]}
+                style={[
+                  styles.sideTitle as any,
+                  { fontSize: rightFontSize, color: rightColor || Colors[colorScheme].text } as any,
+                ]}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
@@ -250,12 +384,25 @@ export default React.memo(function MatchBanner({ leftImage, rightImage, leftName
           <>
             <Animated.View
               style={[
-                (styles.sparkle as any),
+                styles.sparkle as any,
                 {
-                  opacity: sparkleAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 1, 0] }) as any,
+                  opacity: sparkleAnim.interpolate({
+                    inputRange: [0, 0.5, 1],
+                    outputRange: [0, 1, 0],
+                  }) as any,
                   transform: [
-                    { translateY: sparkleAnim.interpolate({ inputRange: [0, 1], outputRange: [-6, 6] }) as any },
-                    { scale: sparkleAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.6, 1, 0.6] }) as any },
+                    {
+                      translateY: sparkleAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-6, 6],
+                      }) as any,
+                    },
+                    {
+                      scale: sparkleAnim.interpolate({
+                        inputRange: [0, 0.5, 1],
+                        outputRange: [0.6, 1, 0.6],
+                      }) as any,
+                    },
                   ],
                 },
               ]}
@@ -263,43 +410,64 @@ export default React.memo(function MatchBanner({ leftImage, rightImage, leftName
 
             <Animated.View
               style={[
-                (styles.sparkle2 as any),
+                styles.sparkle2 as any,
                 {
-                  opacity: sparkleAnim.interpolate({ inputRange: [0, 0.3, 0.7, 1], outputRange: [0, 0.8, 0.4, 0] }) as any,
+                  opacity: sparkleAnim.interpolate({
+                    inputRange: [0, 0.3, 0.7, 1],
+                    outputRange: [0, 0.8, 0.4, 0],
+                  }) as any,
                   transform: [
-                    { translateY: sparkleAnim.interpolate({ inputRange: [0, 1], outputRange: [8, -8] }) as any },
-                    { rotate: sparkleAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) as any },
+                    {
+                      translateY: sparkleAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [8, -8],
+                      }) as any,
+                    },
+                    {
+                      rotate: sparkleAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0deg', '45deg'],
+                      }) as any,
+                    },
                   ],
                 },
               ]}
             />
           </>
         )}
-  </Animated.View>
-  {/* Lottie micro-animation (optional, loaded dynamically) */}
-  {appearance && (
-    <MatchBannerLottie
-      preset={appearance}
-      style={{ position: 'absolute', left: '50%', top: '50%', marginLeft: hero ? -56 : -40, marginTop: hero ? -56 : -40, zIndex: 35 }}
-      size={hero ? 112 : 80}
-      tintColor={undefined}
-      onLoaded={handleLottieLoaded}
-      disabled={!shouldAnimate}
-    />
-  )}
+      </Animated.View>
+      {/* Lottie micro-animation (optional, loaded dynamically) */}
+      {appearance && (
+        <MatchBannerLottie
+          preset={appearance}
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            marginLeft: hero ? -56 : -40,
+            marginTop: hero ? -56 : -40,
+            zIndex: 35,
+          }}
+          size={hero ? 112 : 80}
+          tintColor={undefined}
+          onLoaded={handleLottieLoaded}
+          disabled={!shouldAnimate}
+        />
+      )}
     </Animated.View>
   );
 
-  const rsvpBadge = (typeof goingCount === 'number') ? (
-    <Pressable
-      onPress={onGoingPress}
-      accessibilityRole={onGoingPress ? 'button' : undefined}
-      accessibilityLabel="View RSVP details"
-      style={styles.goingBadge as any}
-    >
-      <Text style={styles.goingBadgeText as any}>{Math.max(0, goingCount!)} going</Text>
-    </Pressable>
-  ) : null;
+  const rsvpBadge =
+    typeof goingCount === 'number' ? (
+      <Pressable
+        onPress={onGoingPress}
+        accessibilityRole={onGoingPress ? 'button' : undefined}
+        accessibilityLabel="View RSVP details"
+        style={styles.goingBadge as any}
+      >
+        <Text style={styles.goingBadgeText as any}>{Math.max(0, goingCount!)} going</Text>
+      </Pressable>
+    ) : null;
 
   return (
     <View style={{ position: 'relative' }}>
@@ -347,7 +515,7 @@ const styles = StyleSheet.create({
           textShadowOffset: { width: 0, height: 1 },
           textShadowRadius: 2,
         }),
-    maxWidth: '48%'
+    maxWidth: '48%',
   },
   teamNameLeft: {
     textAlign: 'left',
@@ -388,7 +556,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     // simple shadow for Android as well
     ...Platform.select({
-      ios: { textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
+      ios: {
+        textShadowColor: 'rgba(0,0,0,0.9)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
+      },
       android: { elevation: 6 },
     }),
   },
@@ -405,14 +577,14 @@ const styles = StyleSheet.create({
   },
   innerGradientLeft: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.08)'
+    backgroundColor: 'rgba(0,0,0,0.08)',
   },
   innerGradientRight: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.08)'
+    backgroundColor: 'rgba(0,0,0,0.08)',
   },
   innerGradientCompact: {
-    backgroundColor: 'rgba(0,0,0,0.06)'
+    backgroundColor: 'rgba(0,0,0,0.06)',
   },
   vsBadge: {
     width: 84,
@@ -422,7 +594,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)'
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   vsBadgeHero: {
     width: 112,
@@ -432,7 +604,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)'
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   // removed vsBadgeContainer - centering handled by titlesRow
   titlesRow: {
@@ -471,7 +643,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   sideTitleWrap: { flex: 1, paddingHorizontal: 6 },
-  sideTitleBg: { backgroundColor: 'rgba(0,0,0,0.28)', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999 },
+  sideTitleBg: {
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
   sideTitle: {
     color: '#fff',
     fontWeight: '900',

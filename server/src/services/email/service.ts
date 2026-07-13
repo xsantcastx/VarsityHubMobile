@@ -1,12 +1,16 @@
 /**
  * Email Service Singleton
- * 
+ *
  * Provides a configured instance of EmailService
  */
 
 import { EmailService } from './EmailService.js';
 import type { EmailServiceConfig } from './types.js';
-import { CANONICAL_EMAIL_FROM, isCanonicalEmailFrom, resolveEmailFrom } from '../../lib/emailSender.js';
+import {
+  CANONICAL_EMAIL_FROM,
+  isCanonicalEmailFrom,
+  resolveEmailFrom,
+} from '../../lib/emailSender.js';
 
 let emailServiceInstance: EmailService | null = null;
 
@@ -63,7 +67,7 @@ export function initEmailService(): { success: boolean; errors: string[] } {
     console.log(`   Retries: ${config.retryAttempts}`);
   } else {
     console.warn('⚠️ Email service configuration issues:');
-    validation.errors.forEach((error) => {
+    validation.errors.forEach(error => {
       console.warn(`   - ${error}`);
     });
     if (!service.isConfigured()) {

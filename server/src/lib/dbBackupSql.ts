@@ -35,7 +35,7 @@ export function buildRowValuesClause(
   paramIdx: number,
   castFor: (col: string) => string
 ): { clause: string; nextParamIdx: number } {
-  const placeholders = columns.map((col) => {
+  const placeholders = columns.map(col => {
     const ph = `$${paramIdx++}`;
     const cast = castFor(col);
     return cast ? `${ph}::${cast}` : ph;

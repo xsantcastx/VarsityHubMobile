@@ -2,7 +2,10 @@ import { Gesture } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useContext } from 'react';
-import { NavigationHistoryContext, getNavigationFallback } from '@/context/NavigationHistoryContext';
+import {
+  NavigationHistoryContext,
+  getNavigationFallback,
+} from '@/context/NavigationHistoryContext';
 
 const EDGE_WIDTH = 40; // Left edge zone in px
 const SWIPE_THRESHOLD = 60; // Min horizontal distance to trigger back
@@ -58,7 +61,7 @@ export function useEdgeSwipeBack() {
         stateManager.activate();
       }
     })
-    .onEnd((e) => {
+    .onEnd(e => {
       'worklet';
       if (
         startedAtEdge.value &&

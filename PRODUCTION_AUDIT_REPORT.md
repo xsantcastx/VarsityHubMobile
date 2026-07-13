@@ -31,8 +31,8 @@ The codebase is **in good shape for an Apple production build**. Recent changes 
 - **Expo:** `app.json` valid; version `1.0.1`, runtimeVersion `1.0.1`, iOS buildNumber `49`.
 - **EAS:** `eas.json` has production profile with `distribution: "store"`, `autoIncrement: true`, iOS `credentialsSource: "remote"`, `buildConfiguration: "Release"`.
 - **Apple submission:** `eas.json` submit.production.ios has `appleId`, `ascAppId` (6758405187), `appleTeamId` (B5H8F69RW5).
-- **Bundle IDs:**  
-  - iOS: `com.varsithub.varsityhub-ios` in `app.json`, `Info.plist`, server `auth.ts` and `appleAuth.ts` (with env fallback).  
+- **Bundle IDs:**
+  - iOS: `com.varsithub.varsityhub-ios` in `app.json`, `Info.plist`, server `auth.ts` and `appleAuth.ts` (with env fallback).
   - Android: `com.varsityhub.varsityhub` in `app.json` and `android/app/build.gradle` (namespace + applicationId).
 - **Entry point:** `App.tsx` exports `expo-router/entry`; root `_layout.tsx` initializes Sentry, Stripe, theme, and auth; `app/index.tsx` defers to `AuthProvider` for routing.
 
@@ -51,7 +51,7 @@ The codebase is **in good shape for an Apple production build**. Recent changes 
 
 - **Frontend:** FRONTEND_AUDIT_REPORT.md reports A+; SecureStore, auth-aware deep links, admin guards, URL allowlist.
 - **Backend:** INTEGRATION_AUDIT_REPORT and rate limits / payment confidence checks referenced in AUDIT_RUN_SUMMARY.
-- **Stripe:** Live publishable key in `app.json` extra and EAS production env (pk_live_*).
+- **Stripe:** Live publishable key in `app.json` extra and EAS production env (pk*live*\*).
 - **API:** Production API URL HTTPS; EXPO_PUBLIC_FORCE_REMOTE_API and localhost override in `config/env.ts`.
 
 ### 2.5 TypeScript and lint
@@ -115,18 +115,18 @@ eas submit --platform ios --profile production
 
 ## 4. Checklist before Apple submission
 
-| Check | Status |
-|-------|--------|
-| iOS bundle ID `com.varsithub.varsityhub-ios` in app.json, Info.plist, server | ✅ |
-| EAS production profile (store, Release, remote credentials) | ✅ |
-| eas.json submit.production.ios (appleId, ascAppId, appleTeamId) | ✅ |
-| Sentry source map upload disabled so builds don’t fail | ✅ |
-| Stripe live key and production API URL in app.json / EAS | ✅ |
-| TypeScript compiles; no blocking lint errors | ✅ |
-| AuthProvider and Apple Sign-In bundle ID aligned with server | ✅ |
-| Run verify:build from VarsityHubMobile | ⚠️ Run before each build |
-| Clean git in VarsityHubMobile and commit before build | ⚠️ Recommended |
-| Root app.json vs VarsityHubMobile/app.json | ⚠️ Clarify or remove root file |
+| Check                                                                        | Status                         |
+| ---------------------------------------------------------------------------- | ------------------------------ |
+| iOS bundle ID `com.varsithub.varsityhub-ios` in app.json, Info.plist, server | ✅                             |
+| EAS production profile (store, Release, remote credentials)                  | ✅                             |
+| eas.json submit.production.ios (appleId, ascAppId, appleTeamId)              | ✅                             |
+| Sentry source map upload disabled so builds don’t fail                       | ✅                             |
+| Stripe live key and production API URL in app.json / EAS                     | ✅                             |
+| TypeScript compiles; no blocking lint errors                                 | ✅                             |
+| AuthProvider and Apple Sign-In bundle ID aligned with server                 | ✅                             |
+| Run verify:build from VarsityHubMobile                                       | ⚠️ Run before each build       |
+| Clean git in VarsityHubMobile and commit before build                        | ⚠️ Recommended                 |
+| Root app.json vs VarsityHubMobile/app.json                                   | ⚠️ Clarify or remove root file |
 
 ---
 

@@ -1,8 +1,4 @@
-import {
-  buildRowValuesClause,
-  enumCastTypeName,
-  type ColumnTypeInfo,
-} from '../lib/dbBackupSql.js';
+import { buildRowValuesClause, enumCastTypeName, type ColumnTypeInfo } from '../lib/dbBackupSql.js';
 
 describe('dbBackupSql — enum-aware INSERT placeholder builder', () => {
   describe('enumCastTypeName', () => {
@@ -12,7 +8,13 @@ describe('dbBackupSql — enum-aware INSERT placeholder builder', () => {
     });
 
     it('returns "" for base scalar types (text, integer, boolean, timestamp)', () => {
-      for (const dataType of ['text', 'integer', 'boolean', 'timestamp without time zone', 'jsonb']) {
+      for (const dataType of [
+        'text',
+        'integer',
+        'boolean',
+        'timestamp without time zone',
+        'jsonb',
+      ]) {
         expect(enumCastTypeName({ dataType, udtName: 'whatever' })).toBe('');
       }
     });

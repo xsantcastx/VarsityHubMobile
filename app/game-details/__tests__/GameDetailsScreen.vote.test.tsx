@@ -175,18 +175,16 @@ jest.mock('@/api/entities', () => ({
     feedForGame: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
   },
   Event: {
-    get: jest
-      .fn()
-      .mockResolvedValue({
-        id: 'event-1',
-        title: 'Event',
-        date: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-        location: 'Test Field',
-        banner_url: null,
-        cover_image_url: null,
-        capacity: 100,
-        attendees_count: 0,
-      }),
+    get: jest.fn().mockResolvedValue({
+      id: 'event-1',
+      title: 'Event',
+      date: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      location: 'Test Field',
+      banner_url: null,
+      cover_image_url: null,
+      capacity: 100,
+      attendees_count: 0,
+    }),
     rsvp: jest.fn(),
     rsvpStatus: jest.fn().mockResolvedValue({ count: 0, capacity: 100, going: false }),
   },

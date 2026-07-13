@@ -25,7 +25,7 @@ import {
  */
 export async function startNewSession(
   userId: string,
-  deviceInfo: string | null,
+  deviceInfo: string | null
 ): Promise<{ access_token: string; refresh_token: string; session_epoch: number }> {
   // v2 always: bcrypt-over-secret with a key_id lookup index.
   const { raw: rawRefresh, keyId, secret } = generateRefreshTokenV2();

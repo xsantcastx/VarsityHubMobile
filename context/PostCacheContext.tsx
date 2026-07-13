@@ -47,58 +47,74 @@ export const PostCacheProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Keep module-level ref in sync with the active cache instance
   useEffect(() => {
     activeCacheRef = cache;
-    return () => { activeCacheRef = null; };
+    return () => {
+      activeCacheRef = null;
+    };
   }, [cache]);
 
-  const get = useCallback((id: string) => {
-    return cache.get(id);
-  }, [cache]);
+  const get = useCallback(
+    (id: string) => {
+      return cache.get(id);
+    },
+    [cache]
+  );
 
-  const set = useCallback((id: string, post: CachedPost) => {
-    // Delete-then-set to move the key to the end (most recent) for eviction ordering
-    cache.delete(id);
-    cache.set(id, post);
-    evictIfNeeded(cache);
-  }, [cache]);
+  const set = useCallback(
+    (id: string, post: CachedPost) => {
+      // Delete-then-set to move the key to the end (most recent) for eviction ordering
+      cache.delete(id);
+      cache.set(id, post);
+      evictIfNeeded(cache);
+    },
+    [cache]
+  );
 
-  const setBatch = useCallback((posts: CachedPost[]) => {
-    posts.forEach(post => {
-      if (post?.id) {
-        cache.delete(post.id);
-        cache.set(post.id, post);
-      }
-    });
-    evictIfNeeded(cache);
-  }, [cache]);
+  const setBatch = useCallback(
+    (posts: CachedPost[]) => {
+      posts.forEach(post => {
+        if (post?.id) {
+          cache.delete(post.id);
+          cache.set(post.id, post);
+        }
+      });
+      evictIfNeeded(cache);
+    },
+    [cache]
+  );
 
-  const remove = useCallback((id: string) => {
-    cache.delete(id);
-  }, [cache]);
+  const remove = useCallback(
+    (id: string) => {
+      cache.delete(id);
+    },
+    [cache]
+  );
 
   /** Alias for remove — drops a single post so the next fetch gets fresh data */
-  const invalidate = useCallback((id: string) => {
-    cache.delete(id);
-  }, [cache]);
+  const invalidate = useCallback(
+    (id: string) => {
+      cache.delete(id);
+    },
+    [cache]
+  );
 
   const clear = useCallback(() => {
     cache.clear();
   }, [cache]);
 
-  const value = useMemo<PostCacheContextType>(() => ({
-    cache,
-    get,
-    set,
-    setBatch,
-    remove,
-    invalidate,
-    clear,
-  }), [cache, get, set, setBatch, remove, invalidate, clear]);
-
-  return (
-    <PostCacheContext.Provider value={value}>
-      {children}
-    </PostCacheContext.Provider>
+  const value = useMemo<PostCacheContextType>(
+    () => ({
+      cache,
+      get,
+      set,
+      setBatch,
+      remove,
+      invalidate,
+      clear,
+    }),
+    [cache, get, set, setBatch, remove, invalidate, clear]
   );
+
+  return <PostCacheContext.Provider value={value}>{children}</PostCacheContext.Provider>;
 };
 
 export const usePostCache = () => {

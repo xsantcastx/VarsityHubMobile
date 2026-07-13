@@ -146,10 +146,7 @@ export function validateEventSummaryArray(
   return payload as EventSummaryArrayResponse;
 }
 
-export function validateEventRsvpArray(
-  endpoint: string,
-  payload: unknown
-): EventRsvpArrayResponse {
+export function validateEventRsvpArray(endpoint: string, payload: unknown): EventRsvpArrayResponse {
   const result = eventRsvpArraySchema.safeParse(payload);
   if (result.success) return result.data;
   reportShapeDrift(endpoint, result, payload);

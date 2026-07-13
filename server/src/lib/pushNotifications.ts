@@ -92,9 +92,7 @@ export async function sendPushNotification(
       }
     }
 
-    return tickets
-      .filter((t: any) => t.status === 'ok' && t.id)
-      .map((t: any) => t.id);
+    return tickets.filter((t: any) => t.status === 'ok' && t.id).map((t: any) => t.id);
   } catch (error) {
     console.error(`Failed to send notification to user ${userId}:`, error);
     return [];

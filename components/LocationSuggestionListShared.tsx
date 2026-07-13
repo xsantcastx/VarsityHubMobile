@@ -39,13 +39,7 @@ export function LocationSuggestionListShared({
 }: LocationSuggestionListSharedProps) {
   return (
     <>
-      {querying ? (
-        <ActivityIndicator
-          size="small"
-          color={tintColor}
-          style={spinnerStyle}
-        />
-      ) : null}
+      {querying ? <ActivityIndicator size="small" color={tintColor} style={spinnerStyle} /> : null}
 
       {suggestions.length > 0 ? (
         <View
@@ -67,24 +61,13 @@ export function LocationSuggestionListShared({
               ]}
               onPress={() => onSelect(suggestion)}
             >
-              <MaterialIcons
-                name="location-on"
-                size={16}
-                color={tintColor}
-                style={styles.icon}
-              />
+              <MaterialIcons name="location-on" size={16} color={tintColor} style={styles.icon} />
               <View style={styles.content}>
                 <Text style={[mainTextStyle, { color: textColor }]}>
-                  {suggestion.structured_formatting?.main_text ||
-                    suggestion.description}
+                  {suggestion.structured_formatting?.main_text || suggestion.description}
                 </Text>
                 {suggestion.structured_formatting?.secondary_text ? (
-                  <Text
-                    style={[
-                      secondaryTextStyle,
-                      { color: mutedTextColor },
-                    ]}
-                  >
+                  <Text style={[secondaryTextStyle, { color: mutedTextColor }]}>
                     {suggestion.structured_formatting.secondary_text}
                   </Text>
                 ) : null}

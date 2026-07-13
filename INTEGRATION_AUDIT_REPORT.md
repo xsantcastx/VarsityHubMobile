@@ -45,13 +45,13 @@ The integration is well-architected: centralized HTTP client, consistent auth fl
 
 ### Token Lifecycle
 
-| Step | Frontend | Backend |
-|------|----------|---------|
-| Login/Register | `auth.login()` → saves `access_token`, `refresh_token` | Returns `{ access_token, refresh_token, user, needs_verification? }` |
-| API calls | `http.ts` adds `Authorization: Bearer <token>` | `authMiddleware` verifies JWT, sets `req.user` |
-| 401 response | Triggers `auth.refreshToken()` | — |
-| Refresh | `POST /auth/refresh` with `{ refreshToken }` | Validates refresh token, returns new pair |
-| Logout | `auth.logout()` → clears tokens, calls `POST /auth/logout` | Invalidates refresh token (best-effort) |
+| Step           | Frontend                                                   | Backend                                                              |
+| -------------- | ---------------------------------------------------------- | -------------------------------------------------------------------- |
+| Login/Register | `auth.login()` → saves `access_token`, `refresh_token`     | Returns `{ access_token, refresh_token, user, needs_verification? }` |
+| API calls      | `http.ts` adds `Authorization: Bearer <token>`             | `authMiddleware` verifies JWT, sets `req.user`                       |
+| 401 response   | Triggers `auth.refreshToken()`                             | —                                                                    |
+| Refresh        | `POST /auth/refresh` with `{ refreshToken }`               | Validates refresh token, returns new pair                            |
+| Logout         | `auth.logout()` → clears tokens, calls `POST /auth/logout` | Invalidates refresh token (best-effort)                              |
 
 ### Alignment ✓
 
@@ -62,10 +62,10 @@ The integration is well-architected: centralized HTTP client, consistent auth fl
 
 ### Gaps
 
-| Issue | Severity | Notes |
-|-------|----------|-------|
-| Refresh bypasses http client | LOW | `auth.refreshToken()` uses raw `fetch`; no retry/timeout. Acceptable for single attempt. |
-| Web localStorage for refresh | LOW | XSS could steal refresh token on web. Mitigated by React Native Web surface. |
+| Issue                        | Severity | Notes                                                                                    |
+| ---------------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| Refresh bypasses http client | LOW      | `auth.refreshToken()` uses raw `fetch`; no retry/timeout. Acceptable for single attempt. |
+| Web localStorage for refresh | LOW      | XSS could steal refresh token on web. Mitigated by React Native Web surface.             |
 
 ---
 
@@ -73,14 +73,14 @@ The integration is well-architected: centralized HTTP client, consistent auth fl
 
 ### /me and /auth/me
 
-| Frontend Call | Path | Backend Mount | Status |
-|---------------|------|---------------|--------|
-| `auth.me()` | `GET /me` | `app.get('/me', ...)` | ✓ |
-| `User.updateMe()` | `PUT /auth/me` | `authRouter.put('/me', ...)` under `/auth` | ✓ |
-| `User.patchMe()` | `PATCH /me` | `app.patch('/me', ...)` | ✓ |
-| `User.updatePreferences()` | `PATCH /me/preferences` | `app.patch('/me/preferences', ...)` | ✓ |
-| `User.completeOnboarding()` | `POST /me/complete-onboarding` | `app.post('/me/complete-onboarding', ...)` | ✓ |
-| Subscription | `GET /me/subscription` | `app.get('/me/subscription', ...)` | ✓ |
+| Frontend Call               | Path                           | Backend Mount                              | Status |
+| --------------------------- | ------------------------------ | ------------------------------------------ | ------ |
+| `auth.me()`                 | `GET /me`                      | `app.get('/me', ...)`                      | ✓      |
+| `User.updateMe()`           | `PUT /auth/me`                 | `authRouter.put('/me', ...)` under `/auth` | ✓      |
+| `User.patchMe()`            | `PATCH /me`                    | `app.patch('/me', ...)`                    | ✓      |
+| `User.updatePreferences()`  | `PATCH /me/preferences`        | `app.patch('/me/preferences', ...)`        | ✓      |
+| `User.completeOnboarding()` | `POST /me/complete-onboarding` | `app.post('/me/complete-onboarding', ...)` | ✓      |
+| Subscription                | `GET /me/subscription`         | `app.get('/me/subscription', ...)`         | ✓      |
 
 **Note:** `/me` is mounted at app root; `/auth/me` is under auth router. Both resolve correctly.
 
@@ -96,14 +96,14 @@ The integration is well-architected: centralized HTTP client, consistent auth fl
 
 ### Frontend Handling
 
-| Status | Frontend Behavior |
-|--------|-------------------|
-| 401 | Refresh token → retry; if refresh fails, clear auth, throw |
-| 403 | No refresh; throw with `err.data` (ban_reason, banned_until) |
-| 404 | Throw; some paths suppressed in dev |
-| 429 | User message; no retry; `err.data` preserved |
-| 502 | Retry with backoff (Railway infra) |
-| 408 | Timeout; retry once |
+| Status | Frontend Behavior                                            |
+| ------ | ------------------------------------------------------------ |
+| 401    | Refresh token → retry; if refresh fails, clear auth, throw   |
+| 403    | No refresh; throw with `err.data` (ban_reason, banned_until) |
+| 404    | Throw; some paths suppressed in dev                          |
+| 429    | User message; no retry; `err.data` preserved                 |
+| 502    | Retry with backoff (Railway infra)                           |
+| 408    | Timeout; retry once                                          |
 
 ### Alignment ✓
 
@@ -113,9 +113,9 @@ The integration is well-architected: centralized HTTP client, consistent auth fl
 
 ### Gap
 
-| Issue | Severity | Notes |
-|-------|----------|-------|
-| retryAfter not used | LOW | Backend sends `retryAfter` in 429; frontend shows generic message. Could improve UX with countdown. |
+| Issue               | Severity | Notes                                                                                               |
+| ------------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| retryAfter not used | LOW      | Backend sends `retryAfter` in 429; frontend shows generic message. Could improve UX with countdown. |
 
 ---
 
@@ -123,14 +123,14 @@ The integration is well-architected: centralized HTTP client, consistent auth fl
 
 ### Fields Used by Frontend
 
-| Field | Source | Frontend Use |
-|-------|--------|--------------|
-| `user.id` | GET /me | Identity, API calls |
-| `user.email_verified` | GET /me | Redirect to /verify if false |
+| Field                                   | Source  | Frontend Use                    |
+| --------------------------------------- | ------- | ------------------------------- |
+| `user.id`                               | GET /me | Identity, API calls             |
+| `user.email_verified`                   | GET /me | Redirect to /verify if false    |
 | `user.preferences.onboarding_completed` | GET /me | Redirect to onboarding if false |
-| `user.preferences.role` | GET /me | Coach vs fan flows |
-| `user.approval_status` | GET /me | Pending coach blocking |
-| `user.role` / `user.is_admin` | GET /me | Admin panel visibility |
+| `user.preferences.role`                 | GET /me | Coach vs fan flows              |
+| `user.approval_status`                  | GET /me | Pending coach blocking          |
+| `user.role` / `user.is_admin`           | GET /me | Admin panel visibility          |
 
 ### Backend Enforcement
 
@@ -146,18 +146,18 @@ The integration is well-architected: centralized HTTP client, consistent auth fl
 
 ### API Modules → Backend Routes
 
-| api/*.ts | Primary Backend | Notes |
-|----------|-----------------|-------|
-| auth.ts | /auth/*, /me | Token, login, register, verify |
-| user.ts | /users/*, /me/* | User CRUD, follow, lookup |
-| teams.ts | /teams/* | Teams, members, invites |
-| posts.ts | /posts/* | Posts, comments, upvotes |
-| events.ts | /events/* | Events, RSVPs |
-| games.ts | /games/* | Games, media |
-| messages.ts | /messages/* | DMs |
-| organizations.ts | /organizations/* | Orgs, members, invites |
-| payments.ts | /payments/* | Stripe, subscriptions |
-| upload.ts | /uploads/* | Cloudinary signatures, uploads |
+| api/\*.ts        | Primary Backend   | Notes                          |
+| ---------------- | ----------------- | ------------------------------ |
+| auth.ts          | /auth/\*, /me     | Token, login, register, verify |
+| user.ts          | /users/_, /me/_   | User CRUD, follow, lookup      |
+| teams.ts         | /teams/\*         | Teams, members, invites        |
+| posts.ts         | /posts/\*         | Posts, comments, upvotes       |
+| events.ts        | /events/\*        | Events, RSVPs                  |
+| games.ts         | /games/\*         | Games, media                   |
+| messages.ts      | /messages/\*      | DMs                            |
+| organizations.ts | /organizations/\* | Orgs, members, invites         |
+| payments.ts      | /payments/\*      | Stripe, subscriptions          |
+| upload.ts        | /uploads/\*       | Cloudinary signatures, uploads |
 
 ### Path Consistency ✓
 
@@ -171,9 +171,9 @@ The integration is well-architected: centralized HTTP client, consistent auth fl
 
 ### Team Deep Links (Fixed)
 
-| Deep Link Type | ROUTE_MAP Target | Actual Screen | Status |
-|----------------|------------------|---------------|--------|
-| `team` | `/(tabs)/team-page` | team-page.tsx | ✅ FIXED — loads `Team.get(id)` correctly |
+| Deep Link Type | ROUTE_MAP Target    | Actual Screen | Status                                    |
+| -------------- | ------------------- | ------------- | ----------------------------------------- |
+| `team`         | `/(tabs)/team-page` | team-page.tsx | ✅ FIXED — loads `Team.get(id)` correctly |
 
 ### Other Mappings ✓
 
@@ -189,7 +189,7 @@ The integration is well-architected: centralized HTTP client, consistent auth fl
 ### Frontend no-store Paths
 
 ```ts
-/^\/(me|auth\/me|rsvps|follows|support|search|users|teams|team-memberships|team-invites|events\/)/
+/^\/(me|auth\/me|rsvps|follows|support|search|users|teams|team-memberships|team-invites|events\/)/;
 ```
 
 ### Backend noStore
@@ -260,4 +260,4 @@ Applied to `/me`, `/me/preferences`, `/me/complete-onboarding`, `/me/subscriptio
 
 ---
 
-*Integration audit complete. Backend and frontend work together cohesively; the team deep link fix is the main actionable gap.*
+_Integration audit complete. Backend and frontend work together cohesively; the team deep link fix is the main actionable gap._

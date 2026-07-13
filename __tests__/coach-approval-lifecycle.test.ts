@@ -1,9 +1,6 @@
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { getNotificationHrefForUser } from '@/utils/notificationPresentation';
-import {
-  getCoachApprovalNotificationRoute,
-  getCoachRecoveryRoute,
-} from '@/utils/roleChecks';
+import { getCoachApprovalNotificationRoute, getCoachRecoveryRoute } from '@/utils/roleChecks';
 
 describe('coach approval lifecycle', () => {
   const pendingFanModeUser = {
@@ -50,7 +47,9 @@ describe('coach approval lifecycle', () => {
   });
 
   it('routes newly approved coaches into the app without reopening the pending screen', () => {
-    expect(getPostAuthRouteDecision(approvedAwaitingAgreementUser as any).route).toBe('/(tabs)/feed');
+    expect(getPostAuthRouteDecision(approvedAwaitingAgreementUser as any).route).toBe(
+      '/(tabs)/feed'
+    );
     expect(getCoachRecoveryRoute(approvedAwaitingAgreementUser as any)).toBeNull();
   });
 

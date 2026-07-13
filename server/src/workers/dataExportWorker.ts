@@ -23,10 +23,7 @@ import { prisma } from '../lib/prisma.js';
 import { debugLog } from '../lib/debugLog.js';
 import { captureException } from '../lib/sentry.js';
 import { buildUserDataExportArchive } from '../lib/dataExport/builder.js';
-import {
-  getObjectStorageAdapter,
-  ObjectStorageNotConfiguredError,
-} from '../lib/objectStorage.js';
+import { getObjectStorageAdapter, ObjectStorageNotConfiguredError } from '../lib/objectStorage.js';
 
 let worker: WorkerType<DataExportJob> | null = null;
 
@@ -91,8 +88,7 @@ export async function processExportJob(job: Job<DataExportJob>): Promise<void> {
     await storage.putObject(storageKey, zipBuffer, 'application/zip');
 
     const retentionDays =
-      Number(process.env.DATA_EXPORT_RETENTION_DAYS) ||
-      DATA_EXPORT_RETENTION_DAYS_DEFAULT;
+      Number(process.env.DATA_EXPORT_RETENTION_DAYS) || DATA_EXPORT_RETENTION_DAYS_DEFAULT;
     const expiresAt = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000);
 
     await p.dataExport.update({
@@ -116,7 +112,10 @@ export async function processExportJob(job: Job<DataExportJob>): Promise<void> {
     let errorCategory = 'build_failed';
     if (err instanceof ObjectStorageNotConfiguredError) {
       errorCategory = 'storage_not_configured';
-    } else if ((err as any)?.name === 'AccessDenied' || (err as any)?.$metadata?.httpStatusCode === 403) {
+    } else if (
+      (err as any)?.name === 'AccessDenied' ||
+      (err as any)?.$metadata?.httpStatusCode === 403
+    ) {
       errorCategory = 'storage_access_denied';
     } else if ((err as any)?.$metadata?.httpStatusCode >= 500) {
       errorCategory = 'storage_5xx';
@@ -131,10 +130,9 @@ export async function processExportJob(job: Job<DataExportJob>): Promise<void> {
         // If even the failure-recording update blows up, surface to Sentry —
         // the job is lost but the row remains stuck in 'building'. A stuck
         // row at TTL + retention will be picked up by the cleanup cron.
-        captureException(
-          nestedErr instanceof Error ? nestedErr : new Error(String(nestedErr)),
-          { extra: { context: 'data_export_worker_failure_update_failed', exportId } }
-        );
+        captureException(nestedErr instanceof Error ? nestedErr : new Error(String(nestedErr)), {
+          extra: { context: 'data_export_worker_failure_update_failed', exportId },
+        });
       });
 
     // Also send the original error to Sentry so we get stack traces in
@@ -180,10 +178,7 @@ export async function startDataExportWorker(): Promise<void> {
     });
 
     worker.on('failed', (job, err) => {
-      console.error(
-        `[data-export-worker] Job ${job?.id} failed:`,
-        err?.message || err
-      );
+      console.error(`[data-export-worker] Job ${job?.id} failed:`, err?.message || err);
     });
 
     worker.on('error', err => {

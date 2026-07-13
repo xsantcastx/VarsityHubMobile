@@ -8,11 +8,11 @@ type MasonryGridProps = {
   gap?: number;
 };
 
-export default function MasonryGrid({ 
-  data, 
-  numColumns = 2, 
+export default function MasonryGrid({
+  data,
+  numColumns = 2,
   renderItem,
-  gap = 8 
+  gap = 8,
 }: MasonryGridProps) {
   const { width } = Dimensions.get('window');
   const columnWidth = (width - (numColumns + 1) * gap) / numColumns;
@@ -41,9 +41,12 @@ export default function MasonryGrid({
   return (
     <View style={styles.container}>
       {columns.map((column, columnIndex) => (
-        <View 
-          key={columnIndex} 
-          style={[styles.column, { width: columnWidth, marginRight: columnIndex < numColumns - 1 ? gap : 0 }]}
+        <View
+          key={columnIndex}
+          style={[
+            styles.column,
+            { width: columnWidth, marginRight: columnIndex < numColumns - 1 ? gap : 0 },
+          ]}
         >
           {column.map(({ item, index }) => {
             // v1.0.2 audit fix: prefer a stable id-based key. Only fall back to a
@@ -67,7 +70,7 @@ export default function MasonryGrid({
 // Helper function to estimate item height
 function calculateItemHeight(item: any, _width: number): number {
   const hasMedia = item?.media_url;
-  
+
   // Base heights for different content types
   if (hasMedia) {
     // Random heights to create Pinterest-style varied layout
@@ -75,13 +78,13 @@ function calculateItemHeight(item: any, _width: number): number {
     const randomHeight = heights[Math.floor(Math.random() * heights.length)];
     return randomHeight + 100; // +100 for footer and padding
   }
-  
+
   if (item?.poll) {
     // Polls need more height
     const optionsCount = item.poll.options?.length || 2;
-    return 200 + (optionsCount * 45);
+    return 200 + optionsCount * 45;
   }
-  
+
   // Text-only posts
   const contentLength = (item?.content || item?.caption || '').length;
   if (contentLength > 200) return 280;

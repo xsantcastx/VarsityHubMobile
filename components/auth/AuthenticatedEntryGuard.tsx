@@ -24,7 +24,8 @@ export function AuthenticatedEntryGuard(props: {
     >
       <Text style={[styles.title, { color: palette.text }]}>You are already signed in</Text>
       <Text style={[styles.body, { color: palette.mutedText }]}>
-        Signed in as {props.email || 'this account'}. Sign out before using a different login on this device.
+        Signed in as {props.email || 'this account'}. Sign out before using a different login on
+        this device.
       </Text>
       <Button onPress={props.onContinue}>Continue to app</Button>
       <View style={styles.spacer} />

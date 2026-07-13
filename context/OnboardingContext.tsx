@@ -1,5 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, {
+  createContext,
+  PropsWithChildren,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import {
   createInitialState,
@@ -17,7 +27,9 @@ type ServerOnboardingPatch = Partial<{
   [K in keyof OnboardingState]: OnboardingState[K] | null;
 }>;
 
-function normalizeServerOnboardingPatch(serverPrefs: Record<string, unknown>): ServerOnboardingPatch {
+function normalizeServerOnboardingPatch(
+  serverPrefs: Record<string, unknown>
+): ServerOnboardingPatch {
   const filtered = Object.fromEntries(
     Object.entries(serverPrefs).filter(([, v]) => v !== undefined)
   ) as ServerOnboardingPatch;
@@ -31,13 +43,31 @@ function normalizeServerOnboardingPatch(serverPrefs: Record<string, unknown>): S
   return filtered;
 }
 
-export type Affiliation = 'none' | 'other' | 'school' | 'independent' | 'university' | 'high_school' | 'club' | 'youth' | 'professional';
+export type Affiliation =
+  | 'none'
+  | 'other'
+  | 'school'
+  | 'independent'
+  | 'university'
+  | 'high_school'
+  | 'club'
+  | 'youth'
+  | 'professional';
 export type Plan = 'rookie' | 'veteran' | 'legend';
 // Rookie is a plan, not a role
 export type UserRole = 'fan' | 'coach';
 export type TeamRole = 'Team Manager' | 'Coach' | 'Admin';
 export type Intent = 'find_local_games' | 'add_players' | 'follow';
-export type Interest = 'Football' | 'Basketball' | 'Baseball' | 'Soccer' | 'Volleyball' | 'Track & Field' | 'Swimming' | 'Hockey' | 'Other';
+export type Interest =
+  | 'Football'
+  | 'Basketball'
+  | 'Baseball'
+  | 'Soccer'
+  | 'Volleyball'
+  | 'Track & Field'
+  | 'Swimming'
+  | 'Hockey'
+  | 'Other';
 
 export type OnboardingState = {
   role?: UserRole;
@@ -98,12 +128,9 @@ export function OBProvider({ children }: PropsWithChildren) {
   const [progress, setProgress] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const initRef = useRef(false);
-  
+
   // Reducer-based state management
-  const [reducerState, dispatch] = useReducer(
-    onboardingReducer,
-    createInitialState()
-  );
+  const [reducerState, dispatch] = useReducer(onboardingReducer, createInitialState());
 
   // Load state from AsyncStorage on mount.
   // ONBOARDING_REDUCER_STATE_KEY is the canonical local source — it is persisted on every
@@ -162,11 +189,20 @@ export function OBProvider({ children }: PropsWithChildren) {
   // Log failures so we can trace them; user experience continues via in-memory state.
   // v1.0.2 pass 4: wrapped in useCallback so downstream callbacks keep stable references.
   const persistAsync = useCallback((key: string, value: string) => {
-    AsyncStorage.setItem(key, value).catch((err) => {
-      if (__DEV__) console.warn(`[OnboardingContext] AsyncStorage.setItem failed for ${key}:`, err?.message || err);
-      captureBreadcrumb('Onboarding state persistence failed', 'onboarding.storage', {
-        key,
-      }, 'warning');
+    AsyncStorage.setItem(key, value).catch(err => {
+      if (__DEV__)
+        console.warn(
+          `[OnboardingContext] AsyncStorage.setItem failed for ${key}:`,
+          err?.message || err
+        );
+      captureBreadcrumb(
+        'Onboarding state persistence failed',
+        'onboarding.storage',
+        {
+          key,
+        },
+        'warning'
+      );
       captureException(err instanceof Error ? err : new Error(String(err)), {
         tags: { context: 'onboarding_storage_persist_failed' },
         key,
@@ -175,39 +211,48 @@ export function OBProvider({ children }: PropsWithChildren) {
   }, []);
 
   // Persist state to AsyncStorage on change
-  const setAndPersistState = useCallback((newState: React.SetStateAction<OnboardingState>) => {
-    setState(prevState => {
-      const updatedState = typeof newState === 'function' ? newState(prevState) : newState;
-      persistAsync(ONBOARDING_STATE_KEY, JSON.stringify(updatedState));
+  const setAndPersistState = useCallback(
+    (newState: React.SetStateAction<OnboardingState>) => {
+      setState(prevState => {
+        const updatedState = typeof newState === 'function' ? newState(prevState) : newState;
+        persistAsync(ONBOARDING_STATE_KEY, JSON.stringify(updatedState));
+
+        // Sync with reducer
+        dispatch({ type: 'UPDATE_DRAFT', data: updatedState });
+
+        return updatedState;
+      });
+    },
+    [persistAsync]
+  );
+
+  const setAndPersistProgress = useCallback(
+    (newProgress: number) => {
+      setProgress(newProgress);
+      persistAsync(ONBOARDING_PROGRESS_KEY, newProgress.toString());
 
       // Sync with reducer
-      dispatch({ type: 'UPDATE_DRAFT', data: updatedState });
+      dispatch({ type: 'SET_STEP', stepIndex: newProgress, reason: 'LEGACY_SET_PROGRESS' });
+    },
+    [persistAsync]
+  );
 
-      return updatedState;
-    });
-  }, [persistAsync]);
-
-  const setAndPersistProgress = useCallback((newProgress: number) => {
-    setProgress(newProgress);
-    persistAsync(ONBOARDING_PROGRESS_KEY, newProgress.toString());
-
-    // Sync with reducer
-    dispatch({ type: 'SET_STEP', stepIndex: newProgress, reason: 'LEGACY_SET_PROGRESS' });
-  }, [persistAsync]);
-
-  const hydrateFromServer = useCallback((serverPrefs: Record<string, unknown>) => {
-    if (!serverPrefs || Object.keys(serverPrefs).length === 0) return;
-    // Apply all defined values, including nulls, so server-side clears wipe stale
-    // local draft data instead of leaving old IDs/plans behind.
-    const filtered = normalizeServerOnboardingPatch(serverPrefs);
-    if (Object.keys(filtered).length === 0) return;
-    setState(prev => {
-      const merged = { ...prev, ...filtered } as OnboardingState;
-      persistAsync(ONBOARDING_STATE_KEY, JSON.stringify(merged));
-      return merged;
-    });
-    dispatch({ type: 'INIT_FROM_PROFILE', profile: filtered as Partial<OnboardingState> });
-  }, [persistAsync]);
+  const hydrateFromServer = useCallback(
+    (serverPrefs: Record<string, unknown>) => {
+      if (!serverPrefs || Object.keys(serverPrefs).length === 0) return;
+      // Apply all defined values, including nulls, so server-side clears wipe stale
+      // local draft data instead of leaving old IDs/plans behind.
+      const filtered = normalizeServerOnboardingPatch(serverPrefs);
+      if (Object.keys(filtered).length === 0) return;
+      setState(prev => {
+        const merged = { ...prev, ...filtered } as OnboardingState;
+        persistAsync(ONBOARDING_STATE_KEY, JSON.stringify(merged));
+        return merged;
+      });
+      dispatch({ type: 'INIT_FROM_PROFILE', profile: filtered as Partial<OnboardingState> });
+    },
+    [persistAsync]
+  );
 
   const clearOnboarding = useCallback(async () => {
     setState({});
@@ -225,13 +270,16 @@ export function OBProvider({ children }: PropsWithChildren) {
   // Persist reducer state
   useEffect(() => {
     if (isLoaded && reducerState.initialized) {
-      persistAsync(ONBOARDING_REDUCER_STATE_KEY, JSON.stringify({
-        currentStepIndex: reducerState.currentStepIndex,
-        completedStepIds: Array.from(reducerState.completedStepIds),
-        draftData: reducerState.draftData,
-        isSaving: reducerState.isSaving,
-        initialized: reducerState.initialized,
-      }));
+      persistAsync(
+        ONBOARDING_REDUCER_STATE_KEY,
+        JSON.stringify({
+          currentStepIndex: reducerState.currentStepIndex,
+          completedStepIds: Array.from(reducerState.completedStepIds),
+          draftData: reducerState.draftData,
+          isSaving: reducerState.isSaving,
+          initialized: reducerState.initialized,
+        })
+      );
     }
   }, [
     reducerState.currentStepIndex,
@@ -250,25 +298,35 @@ export function OBProvider({ children }: PropsWithChildren) {
 
   const canNavigate = !reducerState.isSaving;
 
-  const value = useMemo(() => ({
-    state,
-    setState: setAndPersistState,
-    clearOnboarding,
-    hydrateFromServer,
-    progress,
-    setProgress: setAndPersistProgress,
-    isLoaded,
-    reducerState,
-    dispatch,
-    nextStep,
-    canNavigate,
-  }), [state, setAndPersistState, clearOnboarding, progress, setAndPersistProgress, isLoaded, reducerState, dispatch, nextStep, canNavigate]);
-
-  return (
-    <OBContext.Provider value={value}>
-      {children}
-    </OBContext.Provider>
+  const value = useMemo(
+    () => ({
+      state,
+      setState: setAndPersistState,
+      clearOnboarding,
+      hydrateFromServer,
+      progress,
+      setProgress: setAndPersistProgress,
+      isLoaded,
+      reducerState,
+      dispatch,
+      nextStep,
+      canNavigate,
+    }),
+    [
+      state,
+      setAndPersistState,
+      clearOnboarding,
+      progress,
+      setAndPersistProgress,
+      isLoaded,
+      reducerState,
+      dispatch,
+      nextStep,
+      canNavigate,
+    ]
   );
+
+  return <OBContext.Provider value={value}>{children}</OBContext.Provider>;
 }
 
 export function useOnboarding() {

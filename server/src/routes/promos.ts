@@ -21,42 +21,55 @@ const redeemSchema = z.object({
 
 export const promosRouter = Router();
 
-promosRouter.post('/preview', requireAuth as any, promoCodeLimiter as any, asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    if (!req.user) return apiError(res, 401, 'Unauthorized');
-    const parsed = previewSchema.safeParse(req.body || {});
-    if (!parsed.success) return apiError(res, 400, 'Invalid payload', 'VALIDATION_ERROR', parsed.error.issues);
-    const { code, subtotal_cents, service } = parsed.data;
-    const result = await previewPromo({
-      code: String(code || ''),
-      subtotalCents: Number(subtotal_cents || 0),
-      service: service ? String(service) : undefined,
-      userId: req.user.id,
-    });
-    return res.json(result);
-  } catch (err) {
-    console.error('[promos] POST /preview error:', err);
-    return apiError(res, 500, 'Internal server error', 'INTERNAL_ERROR');
-  }
-}));
+promosRouter.post(
+  '/preview',
+  requireAuth as any,
+  promoCodeLimiter as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return apiError(res, 401, 'Unauthorized');
+      const parsed = previewSchema.safeParse(req.body || {});
+      if (!parsed.success)
+        return apiError(res, 400, 'Invalid payload', 'VALIDATION_ERROR', parsed.error.issues);
+      const { code, subtotal_cents, service } = parsed.data;
+      const result = await previewPromo({
+        code: String(code || ''),
+        subtotalCents: Number(subtotal_cents || 0),
+        service: service ? String(service) : undefined,
+        userId: req.user.id,
+      });
+      return res.json(result);
+    } catch (err) {
+      console.error('[promos] POST /preview error:', err);
+      return apiError(res, 500, 'Internal server error', 'INTERNAL_ERROR');
+    }
+  })
+);
 
-promosRouter.post('/redeem', requireAuth as any, promoCodeLimiter as any, asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    if (!req.user) return apiError(res, 401, 'Unauthorized');
-    const parsed = redeemSchema.safeParse(req.body || {});
-    if (!parsed.success) return apiError(res, 400, 'Invalid payload', 'VALIDATION_ERROR', parsed.error.issues);
-    const { code, subtotal_cents, service, order_id } = parsed.data;
-    const result = await redeemPromo({
-      code: String(code || ''),
-      subtotalCents: Number(subtotal_cents || 0),
-      service: service ? String(service) : undefined,
-      userId: req.user.id,
-      orderId: order_id ? String(order_id) : undefined,
-    });
-    if (!('ok' in result) || !result.ok) return apiError(res, 400, 'Promo code validation failed', 'PROMO_INVALID', result);
-    return res.json(result);
-  } catch (err) {
-    console.error('[promos] POST /redeem error:', err);
-    return apiError(res, 500, 'Internal server error', 'INTERNAL_ERROR');
-  }
-}));
+promosRouter.post(
+  '/redeem',
+  requireAuth as any,
+  promoCodeLimiter as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return apiError(res, 401, 'Unauthorized');
+      const parsed = redeemSchema.safeParse(req.body || {});
+      if (!parsed.success)
+        return apiError(res, 400, 'Invalid payload', 'VALIDATION_ERROR', parsed.error.issues);
+      const { code, subtotal_cents, service, order_id } = parsed.data;
+      const result = await redeemPromo({
+        code: String(code || ''),
+        subtotalCents: Number(subtotal_cents || 0),
+        service: service ? String(service) : undefined,
+        userId: req.user.id,
+        orderId: order_id ? String(order_id) : undefined,
+      });
+      if (!('ok' in result) || !result.ok)
+        return apiError(res, 400, 'Promo code validation failed', 'PROMO_INVALID', result);
+      return res.json(result);
+    } catch (err) {
+      console.error('[promos] POST /redeem error:', err);
+      return apiError(res, 500, 'Internal server error', 'INTERNAL_ERROR');
+    }
+  })
+);

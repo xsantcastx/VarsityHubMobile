@@ -17,7 +17,7 @@ interface State {
 /**
  * Error Boundary component to catch React errors and display fallback UI
  * Prevents app crashes and provides recovery options
- * 
+ *
  * Usage:
  * <ErrorBoundary>
  *   <YourComponent />
@@ -83,8 +83,8 @@ function ErrorBoundaryFallback({ error, onReset }: { error: Error | null; onRese
         <Text style={[styles.message, { color: colors.mutedText }]}>
           Please restart the app or try again.
         </Text>
-        <TouchableOpacity 
-          style={[styles.button, { backgroundColor: colors.tint }]} 
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.tint }]}
           onPress={onReset}
         >
           <Text style={styles.buttonText}>Try Again</Text>

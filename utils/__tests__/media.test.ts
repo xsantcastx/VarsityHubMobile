@@ -13,9 +13,7 @@ describe('resolveMediaType', () => {
   });
 
   it('detects video urls with query params and hash fragments', () => {
-    expect(resolveMediaType('https://cdn.example.com/clip.mp4?token=123#t=2', null)).toBe(
-      'video',
-    );
+    expect(resolveMediaType('https://cdn.example.com/clip.mp4?token=123#t=2', null)).toBe('video');
   });
 
   it('detects mkv videos that older client regexes missed', () => {
@@ -30,7 +28,7 @@ describe('resolvePostMedia', () => {
         media_url: 'https://cdn.example.com/clip.mp4',
         media_type: 'video',
         preview_url: 'https://cdn.example.com/clip.jpg',
-      }),
+      })
     ).toMatchObject({
       isVideo: true,
       displayImageUrl: 'https://cdn.example.com/clip.jpg',
@@ -42,7 +40,7 @@ describe('resolvePostMedia', () => {
       resolvePostMedia({
         media_url: 'https://cdn.example.com/clip.mp4?token=123',
         media_type: 'video',
-      }),
+      })
     ).toMatchObject({
       isVideo: true,
       displayImageUrl: null,
@@ -54,7 +52,7 @@ describe('resolvePostMedia', () => {
       resolvePostMedia({
         media_url: 'https://res.cloudinary.com/demo/video/upload/v123/clip.mp4',
         media_type: 'video',
-      }),
+      })
     ).toMatchObject({
       isVideo: true,
       displayImageUrl:

@@ -91,7 +91,10 @@ export function getCanonicalDob(user: AgeSource | null | undefined): Date | null
  * hours, using UTC vs local is noise; both produce the same answer except on
  * the birthday boundary, which is fine for age-gating purposes.
  */
-export function getUserAge(user: AgeSource | null | undefined, now: Date = new Date()): number | null {
+export function getUserAge(
+  user: AgeSource | null | undefined,
+  now: Date = new Date()
+): number | null {
   const dob = getCanonicalDob(user);
   if (!dob) return null;
   // UTC throughout so a server in any timezone returns the same age for the
@@ -138,7 +141,10 @@ export function isMinor(user: AgeSource | null | undefined, now: Date = new Date
  * for feature gates where "unknown age" must be treated as "not qualified" —
  * e.g. the coach 18+ gate. Complements `isMinor()`.
  */
-export function isVerifiedAdult(user: AgeSource | null | undefined, now: Date = new Date()): boolean {
+export function isVerifiedAdult(
+  user: AgeSource | null | undefined,
+  now: Date = new Date()
+): boolean {
   const age = getUserAge(user, now);
   return age !== null && age >= 18;
 }
@@ -152,7 +158,10 @@ export function isVerifiedAdult(user: AgeSource | null | undefined, now: Date = 
  * Keep this helper as the single semantic switch so legacy call sites collapse
  * onto the new contract instead of each re-implementing age windows.
  */
-export function requiresParentalConsent(user: AgeSource | null | undefined, now: Date = new Date()): boolean {
+export function requiresParentalConsent(
+  user: AgeSource | null | undefined,
+  now: Date = new Date()
+): boolean {
   void user;
   void now;
   return false;

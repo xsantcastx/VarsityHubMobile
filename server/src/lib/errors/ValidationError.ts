@@ -1,6 +1,6 @@
 /**
  * Validation Error
- * 
+ *
  * Thrown when input validation fails (400 Bad Request)
  */
 

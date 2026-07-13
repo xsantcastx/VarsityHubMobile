@@ -25,7 +25,9 @@ describe('admin email review token order', () => {
     const start = reportsSrc.indexOf('async function handleEmailReportReview');
     const end = reportsSrc.indexOf("adminReportsRouter.get(\n  '/:id/resolve'", start);
     const slice = reportsSrc.slice(start, end);
-    expect(slice.indexOf('const transition = await prisma.abuseReport.updateMany')).toBeGreaterThan(0);
+    expect(slice.indexOf('const transition = await prisma.abuseReport.updateMany')).toBeGreaterThan(
+      0
+    );
     expect(slice.indexOf('const consumeResult = await consumeReviewToken')).toBeGreaterThan(
       slice.indexOf('const transition = await prisma.abuseReport.updateMany')
     );

@@ -30,7 +30,7 @@ export function OfflineBanner() {
   // Listen for real-time connectivity changes (only if native module exists)
   useEffect(() => {
     if (!NetInfoModule) return;
-    const unsubscribe = NetInfoModule.addEventListener((state) => {
+    const unsubscribe = NetInfoModule.addEventListener(state => {
       const isConnected = state.isConnected !== false && state.isInternetReachable !== false;
       setNetworkConnected(isConnected);
       // When connectivity returns, auto-retry the health check
@@ -61,7 +61,7 @@ export function OfflineBanner() {
 
   const message = !networkConnected
     ? 'No internet connection'
-    : (healthError || 'Unable to connect to server');
+    : healthError || 'Unable to connect to server';
 
   return (
     <View style={[styles.banner, { backgroundColor: errorBg }]}>
@@ -71,18 +71,14 @@ export function OfflineBanner() {
           size={20}
           color={errorColor}
         />
-        <Text style={[styles.text, { color: errorColor }]}>
-          {message}
-        </Text>
+        <Text style={[styles.text, { color: errorColor }]}>{message}</Text>
       </View>
       <Pressable
         onPress={handleRetry}
         disabled={retrying}
         style={[styles.retryButton, { backgroundColor: errorColor }]}
       >
-        <Text style={styles.retryText}>
-          {retrying ? 'Retrying...' : 'Retry'}
-        </Text>
+        <Text style={styles.retryText}>{retrying ? 'Retrying...' : 'Retry'}</Text>
       </Pressable>
     </View>
   );

@@ -18,7 +18,7 @@ const MAPPING = {
   'plus.circle.fill': 'add-circle',
   'square.grid.2x2.fill': 'grid-view',
   'paperplane.fill': 'send',
-  'magnifyingglass': 'search',
+  magnifyingglass: 'search',
   'star.fill': 'star',
   'person.crop.circle': 'person',
   'video.fill': 'videocam',

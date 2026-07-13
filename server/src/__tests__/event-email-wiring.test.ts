@@ -18,8 +18,6 @@ describe('event email wiring', () => {
   });
 
   it('sends attendee update emails from the live patch route', () => {
-    expect(eventsSrc).toMatch(
-      /eventsRouter\.patch\(\s*'\/:id'[\s\S]*?sendEventUpdatedEmail\(\{/
-    );
+    expect(eventsSrc).toMatch(/eventsRouter\.patch\(\s*'\/:id'[\s\S]*?sendEventUpdatedEmail\(\{/);
   });
 });

@@ -54,11 +54,13 @@ fullApp.use('/messages', messagesRouter);
 fullApp.use('/notifications', notificationsRouter);
 fullApp.use('/reports', reportsRouter);
 fullApp.use('/support', supportRouter);
-fullApp.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
-  if (typeof err?.toJSON === 'function') return res.status(status).json(err.toJSON());
-  return res.status(status).json({ error: err?.message || 'Internal server error' });
-});
+fullApp.use(
+  (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
+    if (typeof err?.toJSON === 'function') return res.status(status).json(err.toJSON());
+    return res.status(status).json({ error: err?.message || 'Internal server error' });
+  }
+);
 
 /* ──────────────────────────────────────────── */
 /*  Test data identifiers                       */
@@ -80,13 +82,13 @@ let rookieId: string, rookieToken: string;
 let veteranId: string, veteranToken: string;
 
 // Shared fixtures
-let orgId: string;           // org owned by rookie (for team tests)
-let vetOrgId: string;        // org owned by veteran
-let rookieTeamId: string;    // team owned by rookie
-let veteranTeamId: string;   // team owned by veteran
-let testPostId: string;      // post created by fan
-let testEventId: string;     // event created by veteran
-let targetUserId: string;    // another user for follow/block/message tests
+let orgId: string; // org owned by rookie (for team tests)
+let vetOrgId: string; // org owned by veteran
+let rookieTeamId: string; // team owned by rookie
+let veteranTeamId: string; // team owned by veteran
+let testPostId: string; // post created by fan
+let testEventId: string; // event created by veteran
+let targetUserId: string; // another user for follow/block/message tests
 
 /* ──────────────────────────────────────────── */
 /*  Helpers                                     */
@@ -95,7 +97,7 @@ async function createUser(
   email: string,
   displayName: string,
   role: 'fan' | 'coach',
-  plan?: 'rookie' | 'veteran' | 'legend',
+  plan?: 'rookie' | 'veteran' | 'legend'
 ) {
   return createTestUser({
     prisma,
@@ -107,7 +109,12 @@ async function createUser(
     plan,
     username:
       role === 'coach'
-        ? uniqueUsername(`${displayName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6)}_`)
+        ? uniqueUsername(
+            `${displayName
+              .toLowerCase()
+              .replace(/[^a-z0-9]/g, '')
+              .slice(0, 6)}_`
+          )
         : undefined,
   });
 }
@@ -131,8 +138,18 @@ function classify(status: number, body: any): Verdict {
 beforeAll(async () => {
   // Create users
   ({ id: fanId, token: fanToken } = await createUser(FAN_EMAIL, 'Matrix Fan', 'fan'));
-  ({ id: rookieId, token: rookieToken } = await createUser(ROOKIE_EMAIL, 'Matrix Rookie', 'coach', 'rookie'));
-  ({ id: veteranId, token: veteranToken } = await createUser(VETERAN_EMAIL, 'Matrix Veteran', 'coach', 'veteran'));
+  ({ id: rookieId, token: rookieToken } = await createUser(
+    ROOKIE_EMAIL,
+    'Matrix Rookie',
+    'coach',
+    'rookie'
+  ));
+  ({ id: veteranId, token: veteranToken } = await createUser(
+    VETERAN_EMAIL,
+    'Matrix Veteran',
+    'coach',
+    'veteran'
+  ));
 
   // Target user for social interactions
   const target = await createUser(`matrix-target-${ts}@example.com`, 'Matrix Target', 'fan');
@@ -211,25 +228,43 @@ afterAll(async () => {
     const teamIds = [rookieTeamId, veteranTeamId].filter(Boolean);
 
     // Posts
-    if (userIds.length) await prisma.post.deleteMany({ where: { author_id: { in: userIds } } }).catch(() => {});
+    if (userIds.length)
+      await prisma.post.deleteMany({ where: { author_id: { in: userIds } } }).catch(() => {});
     // Events
-    if (userIds.length) await prisma.event.deleteMany({ where: { creator_id: { in: userIds } } }).catch(() => {});
+    if (userIds.length)
+      await prisma.event.deleteMany({ where: { creator_id: { in: userIds } } }).catch(() => {});
     // Team invites
-    if (teamIds.length) await prisma.teamInvite.deleteMany({ where: { team_id: { in: teamIds } } }).catch(() => {});
+    if (teamIds.length)
+      await prisma.teamInvite.deleteMany({ where: { team_id: { in: teamIds } } }).catch(() => {});
     // Team memberships
-    if (teamIds.length) await prisma.teamMembership.deleteMany({ where: { team_id: { in: teamIds } } }).catch(() => {});
+    if (teamIds.length)
+      await prisma.teamMembership
+        .deleteMany({ where: { team_id: { in: teamIds } } })
+        .catch(() => {});
     // Teams
-    if (teamIds.length) await prisma.team.deleteMany({ where: { id: { in: teamIds } } }).catch(() => {});
+    if (teamIds.length)
+      await prisma.team.deleteMany({ where: { id: { in: teamIds } } }).catch(() => {});
     // Org memberships
-    if (orgIds.length) await prisma.organizationMembership.deleteMany({ where: { organization_id: { in: orgIds } } }).catch(() => {});
+    if (orgIds.length)
+      await prisma.organizationMembership
+        .deleteMany({ where: { organization_id: { in: orgIds } } })
+        .catch(() => {});
     // Orgs
-    if (orgIds.length) await prisma.organization.deleteMany({ where: { id: { in: orgIds } } }).catch(() => {});
+    if (orgIds.length)
+      await prisma.organization.deleteMany({ where: { id: { in: orgIds } } }).catch(() => {});
     // Follows
     if (userIds.length) {
-      await prisma.follows.deleteMany({ where: { OR: [{ follower_id: { in: userIds } }, { following_id: { in: userIds } }] } }).catch(() => {});
+      await prisma.follows
+        .deleteMany({
+          where: { OR: [{ follower_id: { in: userIds } }, { following_id: { in: userIds } }] },
+        })
+        .catch(() => {});
     }
     // Reports
-    if (userIds.length) await prisma.abuseReport.deleteMany({ where: { reporter_id: { in: userIds } } }).catch(() => {});
+    if (userIds.length)
+      await prisma.abuseReport
+        .deleteMany({ where: { reporter_id: { in: userIds } } })
+        .catch(() => {});
     // Users
     if (userIds.length) await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   } catch (e) {
@@ -259,9 +294,9 @@ function record(
   rookie: { status: number; body: any },
   veteran: { status: number; body: any },
   opts: {
-    coachOnly?: boolean;       // Fan should NOT get GRANTED
-    veteranOnly?: boolean;     // Rookie should NOT get GRANTED
-  } = {},
+    coachOnly?: boolean; // Fan should NOT get GRANTED
+    veteranOnly?: boolean; // Rookie should NOT get GRANTED
+  } = {}
 ) {
   const fv = classify(fan.status, fan.body);
   const rv = classify(rookie.status, rookie.body);
@@ -286,8 +321,10 @@ function record(
 
   // Flag: denial without clean error message
   if (fv === 'DENIED' && !fan.body?.error && !fan.body?.message) flags.push('FLAG_BAD_DENIAL_FAN');
-  if (rv === 'DENIED' && !rookie.body?.error && !rookie.body?.message) flags.push('FLAG_BAD_DENIAL_ROOKIE');
-  if (vv === 'DENIED' && !veteran.body?.error && !veteran.body?.message) flags.push('FLAG_BAD_DENIAL_VETERAN');
+  if (rv === 'DENIED' && !rookie.body?.error && !rookie.body?.message)
+    flags.push('FLAG_BAD_DENIAL_ROOKIE');
+  if (vv === 'DENIED' && !veteran.body?.error && !veteran.body?.message)
+    flags.push('FLAG_BAD_DENIAL_VETERAN');
 
   matrix.push({
     feature,
@@ -302,17 +339,17 @@ function record(
 }
 
 /* Helper to hit an endpoint as all 3 users */
-async function hitAll(method: 'get' | 'post' | 'patch' | 'put' | 'delete', path: string, body?: any) {
+async function hitAll(
+  method: 'get' | 'post' | 'patch' | 'put' | 'delete',
+  path: string,
+  body?: any
+) {
   const r = (token: string) => {
     const req = (request(fullApp) as any)[method](path).set('Authorization', `Bearer ${token}`);
     if (body && ['post', 'patch', 'put'].includes(method)) return req.send(body);
     return req;
   };
-  const [fan, rookie, veteran] = await Promise.all([
-    r(fanToken),
-    r(rookieToken),
-    r(veteranToken),
-  ]);
+  const [fan, rookie, veteran] = await Promise.all([r(fanToken), r(rookieToken), r(veteranToken)]);
   return { fan, rookie, veteran };
 }
 
@@ -357,7 +394,9 @@ describe('Access Matrix — Full Feature Scan', () => {
         name: `AccessTest Team ${ts}`,
         organization_id: orgId,
       });
-      const { flags } = record('Create team', 'POST /teams', fan, rookie, veteran, { coachOnly: true });
+      const { flags } = record('Create team', 'POST /teams', fan, rookie, veteran, {
+        coachOnly: true,
+      });
 
       // Fan MUST be denied
       expect(fan.status).toBe(403);
@@ -402,7 +441,9 @@ describe('Access Matrix — Full Feature Scan', () => {
         email: `invite-test-${ts}@example.com`,
         role: 'coach',
       });
-      record('Invite to team', 'POST /teams/:id/invites', fan, rookie, veteran, { coachOnly: true });
+      record('Invite to team', 'POST /teams/:id/invites', fan, rookie, veteran, {
+        coachOnly: true,
+      });
       // Fan should be denied (not team owner)
       expect(fan.status).toBeGreaterThanOrEqual(403);
       // Veteran should be denied (not member of this team)
@@ -428,15 +469,25 @@ describe('Access Matrix — Full Feature Scan', () => {
     it('GET /organizations/mine — my organizations', async () => {
       const { fan, rookie, veteran } = await hitAll('get', '/organizations/mine');
       record('My organizations', 'GET /organizations/mine', fan, rookie, veteran);
-      expect(fan.status).toBe(200);   // empty array
+      expect(fan.status).toBe(200); // empty array
       expect(rookie.status).toBe(200); // has org
       expect(veteran.status).toBe(200);
     });
 
     it('POST /organizations — create organization', async () => {
       const tempFan = await createUser(`matrix-org-fan-${ts}@example.com`, 'Matrix Org Fan', 'fan');
-      const tempRookie = await createUser(`matrix-org-rookie-${ts}@example.com`, 'Matrix Org Rookie', 'coach', 'rookie');
-      const tempVeteran = await createUser(`matrix-org-veteran-${ts}@example.com`, 'Matrix Org Veteran', 'coach', 'veteran');
+      const tempRookie = await createUser(
+        `matrix-org-rookie-${ts}@example.com`,
+        'Matrix Org Rookie',
+        'coach',
+        'rookie'
+      );
+      const tempVeteran = await createUser(
+        `matrix-org-veteran-${ts}@example.com`,
+        'Matrix Org Veteran',
+        'coach',
+        'veteran'
+      );
       const createOrg = (token: string, suffix: string) =>
         request(fullApp)
           .post('/organizations')
@@ -455,13 +506,17 @@ describe('Access Matrix — Full Feature Scan', () => {
       for (const res of [fan, rookie, veteran]) {
         const id = res.body?.id || res.body?.organization?.id;
         if (id) {
-          await prisma.organizationMembership.deleteMany({ where: { organization_id: id } }).catch(() => {});
+          await prisma.organizationMembership
+            .deleteMany({ where: { organization_id: id } })
+            .catch(() => {});
           await prisma.organization.delete({ where: { id } }).catch(() => {});
         }
       }
-      await prisma.user.deleteMany({
-        where: { id: { in: [tempFan.id, tempRookie.id, tempVeteran.id] } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: [tempFan.id, tempRookie.id, tempVeteran.id] } },
+        })
+        .catch(() => {});
     });
 
     it('POST /organizations/:id/invite — invite to org (veteran+ plan)', async () => {
@@ -469,7 +524,9 @@ describe('Access Matrix — Full Feature Scan', () => {
         email: `org-invite-${ts}@example.com`,
         role: 'member',
       });
-      record('Invite to org', 'POST /organizations/:id/invite', fan, rookie, veteran, { veteranOnly: true });
+      record('Invite to org', 'POST /organizations/:id/invite', fan, rookie, veteran, {
+        veteranOnly: true,
+      });
       // Fan: denied (not org member)
       expect(fan.status).toBeGreaterThanOrEqual(403);
       // Rookie: denied (plan too low OR not org member)
@@ -477,9 +534,23 @@ describe('Access Matrix — Full Feature Scan', () => {
     });
 
     it('POST /organizations/join-requests — request to join org', async () => {
-      const tempFan = await createUser(`matrix-join-fan-${ts}@example.com`, 'Matrix Join Fan', 'fan');
-      const tempRookie = await createUser(`matrix-join-rookie-${ts}@example.com`, 'Matrix Join Rookie', 'coach', 'rookie');
-      const tempVeteran = await createUser(`matrix-join-veteran-${ts}@example.com`, 'Matrix Join Veteran', 'coach', 'veteran');
+      const tempFan = await createUser(
+        `matrix-join-fan-${ts}@example.com`,
+        'Matrix Join Fan',
+        'fan'
+      );
+      const tempRookie = await createUser(
+        `matrix-join-rookie-${ts}@example.com`,
+        'Matrix Join Rookie',
+        'coach',
+        'rookie'
+      );
+      const tempVeteran = await createUser(
+        `matrix-join-veteran-${ts}@example.com`,
+        'Matrix Join Veteran',
+        'coach',
+        'veteran'
+      );
       const requestJoin = (token: string) =>
         request(fullApp)
           .post('/organizations/join-requests')
@@ -495,15 +566,19 @@ describe('Access Matrix — Full Feature Scan', () => {
       ]);
       record('Join request', 'POST /organizations/join-requests', fan, rookie, veteran);
       // Cleanup join requests
-      await prisma.organizationJoinRequest.deleteMany({
-        where: {
-          user_id: { in: [tempFan.id, tempRookie.id, tempVeteran.id] },
-          organization_id: orgId,
-        },
-      }).catch(() => {});
-      await prisma.user.deleteMany({
-        where: { id: { in: [tempFan.id, tempRookie.id, tempVeteran.id] } },
-      }).catch(() => {});
+      await prisma.organizationJoinRequest
+        .deleteMany({
+          where: {
+            user_id: { in: [tempFan.id, tempRookie.id, tempVeteran.id] },
+            organization_id: orgId,
+          },
+        })
+        .catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: [tempFan.id, tempRookie.id, tempVeteran.id] } },
+        })
+        .catch(() => {});
     });
   });
 
@@ -573,7 +648,9 @@ describe('Access Matrix — Full Feature Scan', () => {
 
     it('GET /events/pending — view pending events (coach/admin only)', async () => {
       const { fan, rookie, veteran } = await hitAll('get', '/events/pending');
-      record('View pending events', 'GET /events/pending', fan, rookie, veteran, { coachOnly: true });
+      record('View pending events', 'GET /events/pending', fan, rookie, veteran, {
+        coachOnly: true,
+      });
       // Fan should be denied
       expect(fan.status).toBe(403);
     });
@@ -663,7 +740,10 @@ describe('Access Matrix — Full Feature Scan', () => {
 
     it('GET /ads/for-feed — get feed ads (public)', async () => {
       const todayISO = new Date().toISOString().slice(0, 10);
-      const { fan, rookie, veteran } = await hitAll('get', `/ads/for-feed?date=${todayISO}&zip=10001`);
+      const { fan, rookie, veteran } = await hitAll(
+        'get',
+        `/ads/for-feed?date=${todayISO}&zip=10001`
+      );
       record('Feed ads', 'GET /ads/for-feed', fan, rookie, veteran);
       expect(fan.status).toBe(200);
     });
@@ -671,7 +751,10 @@ describe('Access Matrix — Full Feature Scan', () => {
     it('GET /ads/availability — check ad availability (public)', async () => {
       const from = new Date().toISOString().slice(0, 10);
       const to = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-      const { fan, rookie, veteran } = await hitAll('get', `/ads/availability?zip=10001&from=${from}&to=${to}`);
+      const { fan, rookie, veteran } = await hitAll(
+        'get',
+        `/ads/availability?zip=10001&from=${from}&to=${to}`
+      );
       record('Ad availability', 'GET /ads/availability', fan, rookie, veteran);
       expect(fan.status).toBe(200);
     });
@@ -848,11 +931,21 @@ describe('Access Matrix — Full Feature Scan', () => {
     it('prints the full access matrix and checks for flags', () => {
       // Print formatted matrix
       console.log('\n');
-      console.log('╔═══════════════════════════════════════════════════════════════════════════════════════════════════════╗');
-      console.log('║                              ACCESS MATRIX — FULL FEATURE SCAN                                      ║');
-      console.log('╠═══════════════════════════════════════════════════════════════════════════════════════════════════════╣');
-      console.log('║ Feature                    │ Endpoint                           │  Fan  │ Rookie│  Vet  │ Flags      ║');
-      console.log('╠═══════════════════════════════════════════════════════════════════════════════════════════════════════╣');
+      console.log(
+        '╔═══════════════════════════════════════════════════════════════════════════════════════════════════════╗'
+      );
+      console.log(
+        '║                              ACCESS MATRIX — FULL FEATURE SCAN                                      ║'
+      );
+      console.log(
+        '╠═══════════════════════════════════════════════════════════════════════════════════════════════════════╣'
+      );
+      console.log(
+        '║ Feature                    │ Endpoint                           │  Fan  │ Rookie│  Vet  │ Flags      ║'
+      );
+      console.log(
+        '╠═══════════════════════════════════════════════════════════════════════════════════════════════════════╣'
+      );
 
       for (const row of matrix) {
         const feat = row.feature.padEnd(26).slice(0, 26);
@@ -864,9 +957,15 @@ describe('Access Matrix — Full Feature Scan', () => {
         console.log(`║ ${feat} │ ${ep} │ ${f} │ ${r} │ ${v} │ ${fl.padEnd(10).slice(0, 10)} ║`);
       }
 
-      console.log('╠═══════════════════════════════════════════════════════════════════════════════════════════════════════╣');
-      console.log('║ Legend: G=Granted  D=Denied  C=Crashed  N=Not Found                                                ║');
-      console.log('╚═══════════════════════════════════════════════════════════════════════════════════════════════════════╝');
+      console.log(
+        '╠═══════════════════════════════════════════════════════════════════════════════════════════════════════╣'
+      );
+      console.log(
+        '║ Legend: G=Granted  D=Denied  C=Crashed  N=Not Found                                                ║'
+      );
+      console.log(
+        '╚═══════════════════════════════════════════════════════════════════════════════════════════════════════╝'
+      );
 
       // Collect all flags
       const allFlags = matrix.flatMap(r => r.flags);
@@ -897,7 +996,9 @@ describe('Access Matrix — Full Feature Scan', () => {
       const lines: string[] = [];
       lines.push('ACCESS MATRIX — FULL FEATURE SCAN');
       lines.push('═'.repeat(105));
-      lines.push(`${'Feature'.padEnd(26)} │ ${'Endpoint'.padEnd(36)} │ ${'Fan'.padEnd(5)} │ ${'Rook'.padEnd(5)} │ ${'Vet'.padEnd(5)} │ Flags`);
+      lines.push(
+        `${'Feature'.padEnd(26)} │ ${'Endpoint'.padEnd(36)} │ ${'Fan'.padEnd(5)} │ ${'Rook'.padEnd(5)} │ ${'Vet'.padEnd(5)} │ Flags`
+      );
       lines.push('─'.repeat(105));
       for (const row of matrix) {
         const feat = row.feature.padEnd(26).slice(0, 26);

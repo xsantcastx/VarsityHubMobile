@@ -58,7 +58,7 @@ export function getCompositeAdBadge(
   status?: string,
   paymentStatus?: string,
   dates: string[] = [],
-  now = new Date(),
+  now = new Date()
 ): AdBadgePresentation {
   const normalizedStatus = String(status || 'draft');
   const normalizedPaymentStatus = String(paymentStatus || 'unpaid');

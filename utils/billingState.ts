@@ -26,7 +26,9 @@ export type BillingUserLike = {
   preferences?: BillingPreferencesLike | null;
 };
 
-export function getCanonicalPlan(source: BillingUserLike | null | undefined): CanonicalMembershipPlan {
+export function getCanonicalPlan(
+  source: BillingUserLike | null | undefined
+): CanonicalMembershipPlan {
   return getCanonicalPlanShared(source);
 }
 
@@ -44,7 +46,9 @@ export function isPaymentApproved(source: BillingUserLike | null | undefined): b
   return isPaymentApprovedShared(source);
 }
 
-export function getSelectedPlan(source: BillingUserLike | null | undefined): CanonicalMembershipPlan {
+export function getSelectedPlan(
+  source: BillingUserLike | null | undefined
+): CanonicalMembershipPlan {
   return getSelectedPlanShared(source);
 }
 

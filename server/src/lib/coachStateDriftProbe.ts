@@ -24,7 +24,7 @@ type DriftBucket = {
 };
 
 export async function runCoachStateDriftProbe(
-  prisma: PrismaClient,
+  prisma: PrismaClient
 ): Promise<{ ok: true; total: number; buckets: DriftBucket[] }> {
   const buckets: DriftBucket[] = [];
   const actionableKinds = new Set([
@@ -36,7 +36,9 @@ export async function runCoachStateDriftProbe(
   // Bucket 1: coach marked APPROVED but has no CoachApplication record at all.
   // These are legacy-flow coaches (approved before CoachApplication shipped).
   // Not a bug per se, but worth visibility to decide whether to backfill.
-  const legacyApproved = await prisma.$queryRaw<Array<{ user_id: string; email: string; approval_status: string }>>`
+  const legacyApproved = await prisma.$queryRaw<
+    Array<{ user_id: string; email: string; approval_status: string }>
+  >`
     SELECT u.id AS user_id, u.email, u.approval_status::text AS approval_status
     FROM "User" u
     LEFT JOIN "CoachApplication" ca
@@ -58,7 +60,9 @@ export async function runCoachStateDriftProbe(
 
   // Bucket 2: CoachApplication.status='approved' but User.approval_status != 'APPROVED'.
   // This is a real drift — something wrote one side without the other.
-  const appApprovedUserNot = await prisma.$queryRaw<Array<{ user_id: string; email: string; approval_status: string; application_id: string }>>`
+  const appApprovedUserNot = await prisma.$queryRaw<
+    Array<{ user_id: string; email: string; approval_status: string; application_id: string }>
+  >`
     SELECT u.id AS user_id, u.email, u.approval_status::text AS approval_status, ca.id AS application_id
     FROM "User" u
     JOIN "CoachApplication" ca
@@ -78,7 +82,9 @@ export async function runCoachStateDriftProbe(
 
   // Bucket 3: User.approval_status='REJECTED' but latest CoachApplication is 'submitted' or 'approved'.
   // Means the user's approval flag and the application don't tell the same story.
-  const userRejectedAppLive = await prisma.$queryRaw<Array<{ user_id: string; email: string; application_id: string; application_status: string }>>`
+  const userRejectedAppLive = await prisma.$queryRaw<
+    Array<{ user_id: string; email: string; application_id: string; application_status: string }>
+  >`
     SELECT u.id AS user_id, u.email, ca.id AS application_id, ca.status::text AS application_status
     FROM "User" u
     JOIN "CoachApplication" ca ON ca.user_id = u.id
@@ -105,7 +111,9 @@ export async function runCoachStateDriftProbe(
   // Bucket 4: Stuck in coach_final_setup_required for >7d (approved but no org).
   // These are coaches whose admin approval landed but who never came back to
   // finish their setup. Not data drift, but visibility lets ops follow up.
-  const stuckFinalSetup = await prisma.$queryRaw<Array<{ user_id: string; email: string; approved_at: Date | null }>>`
+  const stuckFinalSetup = await prisma.$queryRaw<
+    Array<{ user_id: string; email: string; approved_at: Date | null }>
+  >`
     SELECT u.id AS user_id, u.email, ca.reviewed_at AS approved_at
     FROM "User" u
     JOIN "CoachApplication" ca
@@ -129,9 +137,7 @@ export async function runCoachStateDriftProbe(
   const total = buckets.reduce((acc, b) => acc + b.rows.length, 0);
 
   if (total > 0) {
-    const summary = buckets
-      .map(b => `${b.kind}=${b.rows.length}`)
-      .join(' ');
+    const summary = buckets.map(b => `${b.kind}=${b.rows.length}`).join(' ');
     console.warn(`[coach-state-drift] FINDINGS ${summary}`);
     const actionableBuckets = buckets.filter(bucket => actionableKinds.has(bucket.kind));
     // De-dup (Sentry noise): emit exactly ONE issue per drift kind via the

@@ -13,17 +13,16 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 
 // TODO v1.1: Wire up navigation from settings or discover
 function RequestHostEventScreen() {
@@ -47,7 +46,7 @@ function RequestHostEventScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   // Google Maps location autocomplete
   const requestLocationSuggestions = useCallback((text: string) => {
@@ -73,17 +72,20 @@ function RequestHostEventScreen() {
     }, 300);
   }, []);
 
-  const handleLocationChange = useCallback((text: string) => {
-    setLocation(text);
-    setLocationTouched(true);
-    setSelectedPlace(null);
-    setErrors(prev => ({ ...prev, location: '' }));
-    if (text.length >= 3) {
-      requestLocationSuggestions(text);
-    } else {
-      setLocationSuggestions([]);
-    }
-  }, [requestLocationSuggestions]);
+  const handleLocationChange = useCallback(
+    (text: string) => {
+      setLocation(text);
+      setLocationTouched(true);
+      setSelectedPlace(null);
+      setErrors(prev => ({ ...prev, location: '' }));
+      if (text.length >= 3) {
+        requestLocationSuggestions(text);
+      } else {
+        setLocationSuggestions([]);
+      }
+    },
+    [requestLocationSuggestions]
+  );
 
   const handleSelectLocation = useCallback((suggestion: PlaceSuggestion) => {
     setLocation(suggestion.description);
@@ -103,7 +105,7 @@ function RequestHostEventScreen() {
   }, []);
 
   const validateForm = (): boolean => {
-    const newErrors: {[key: string]: string} = {};
+    const newErrors: { [key: string]: string } = {};
     if (!title.trim()) {
       newErrors.title = 'Event title is required';
     }
@@ -120,7 +122,10 @@ function RequestHostEventScreen() {
   const handleSubmit = async () => {
     if (!validateForm()) return;
     if (!profileEmail) {
-      Alert.alert('Error', 'Your profile email is required to submit a request. Please update your profile first.');
+      Alert.alert(
+        'Error',
+        'Your profile email is required to submit a request. Please update your profile first.'
+      );
       return;
     }
     setSubmitting(true);
@@ -144,7 +149,18 @@ function RequestHostEventScreen() {
         content: `New event host request submitted: ${title}\nLocation: ${location}\nDate: ${date.toLocaleString()}\nRequested by: ${displayName || 'Unknown'} (${profileEmail})`,
         recipient_email: getConfig().adminEmails[0] || 'admin@varsityhub.app',
       });
-      Alert.alert('Request Submitted!', 'Your request to host an event has been submitted. You will be notified when it is reviewed.', [{ text: 'OK', onPress: () => { safeGoBack(router); } }]);
+      Alert.alert(
+        'Request Submitted!',
+        'Your request to host an event has been submitted. You will be notified when it is reviewed.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              safeGoBack(router);
+            },
+          },
+        ]
+      );
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to submit request. Please try again.');
     } finally {
@@ -180,8 +196,13 @@ function RequestHostEventScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Request to Host Event', headerBackTitle: 'Back', headerShown: true }} />
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['bottom']}
+    >
+      <Stack.Screen
+        options={{ title: 'Request to Host Event', headerBackTitle: 'Back', headerShown: true }}
+      />
       <KeyboardAwareScreen style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <EventFormHeader
           title="Request to Host Event"
@@ -194,21 +215,35 @@ function RequestHostEventScreen() {
           <TextInput
             style={[
               styles.input,
-              { backgroundColor: Colors[colorScheme].card, borderColor: errors.title ? Colors[colorScheme].destructive : Colors[colorScheme].border, color: Colors[colorScheme].text },
+              {
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: errors.title
+                  ? Colors[colorScheme].destructive
+                  : Colors[colorScheme].border,
+                color: Colors[colorScheme].text,
+              },
             ]}
             placeholder="e.g., Varsity Basketball Game"
             placeholderTextColor={Colors[colorScheme].mutedText}
             value={title}
             onChangeText={setTitle}
           />
-          {errors.title && <Text style={[styles.errorText, { color: Colors[colorScheme].destructive }]}>{errors.title}</Text>}
+          {errors.title && (
+            <Text style={[styles.errorText, { color: Colors[colorScheme].destructive }]}>
+              {errors.title}
+            </Text>
+          )}
         </View>
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Description</Text>
           <TextInput
             style={[
               styles.textArea,
-              { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text },
+              {
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: Colors[colorScheme].border,
+                color: Colors[colorScheme].text,
+              },
             ]}
             placeholder="Describe your event..."
             placeholderTextColor={Colors[colorScheme].mutedText}
@@ -231,25 +266,41 @@ function RequestHostEventScreen() {
             <Pressable
               style={[
                 styles.dateTimeButton,
-                { backgroundColor: Colors[colorScheme].card, borderColor: errors.date ? Colors[colorScheme].destructive : Colors[colorScheme].border },
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: errors.date
+                    ? Colors[colorScheme].destructive
+                    : Colors[colorScheme].border,
+                },
               ]}
               onPress={() => setShowDatePicker(true)}
             >
               <MaterialIcons name="event" size={20} color={Colors[colorScheme].mutedText} />
-              <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>{date.toLocaleDateString()}</Text>
+              <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>
+                {date.toLocaleDateString()}
+              </Text>
             </Pressable>
             <Pressable
               style={[
                 styles.dateTimeButton,
-                { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
               ]}
               onPress={() => setShowTimePicker(true)}
             >
               <MaterialIcons name="access-time" size={20} color={Colors[colorScheme].mutedText} />
-              <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>{date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+              <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>
+                {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
             </Pressable>
           </View>
-          {errors.date && <Text style={[styles.errorText, { color: Colors[colorScheme].destructive }]}>{errors.date}</Text>}
+          {errors.date && (
+            <Text style={[styles.errorText, { color: Colors[colorScheme].destructive }]}>
+              {errors.date}
+            </Text>
+          )}
         </View>
         {showDatePicker && (
           <DateTimePicker
@@ -274,7 +325,13 @@ function RequestHostEventScreen() {
             <TextInput
               style={[
                 styles.input,
-                { backgroundColor: Colors[colorScheme].card, borderColor: errors.location ? Colors[colorScheme].destructive : Colors[colorScheme].border, color: Colors[colorScheme].text },
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: errors.location
+                    ? Colors[colorScheme].destructive
+                    : Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                },
               ]}
               placeholder="Start typing an address, venue, or city"
               placeholderTextColor={Colors[colorScheme].mutedText}
@@ -294,14 +351,32 @@ function RequestHostEventScreen() {
               borderColor={Colors[colorScheme].border}
             />
           </View>
-          {errors.location && <Text style={[styles.errorText, { color: Colors[colorScheme].destructive }]}>{errors.location}</Text>}
-          {!selectedPlace && locationTouched && location.length >= 3 && locationSuggestions.length === 0 && !locationQuerying && (
-            <Text style={[styles.inputHelperText, { color: Colors[colorScheme].mutedText }]}>Tip: Select a suggested location for better accuracy, or continue typing to enter manually</Text>
+          {errors.location && (
+            <Text style={[styles.errorText, { color: Colors[colorScheme].destructive }]}>
+              {errors.location}
+            </Text>
           )}
+          {!selectedPlace &&
+            locationTouched &&
+            location.length >= 3 &&
+            locationSuggestions.length === 0 &&
+            !locationQuerying && (
+              <Text style={[styles.inputHelperText, { color: Colors[colorScheme].mutedText }]}>
+                Tip: Select a suggested location for better accuracy, or continue typing to enter
+                manually
+              </Text>
+            )}
         </View>
-        <View style={[styles.infoBox, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}> 
+        <View
+          style={[
+            styles.infoBox,
+            { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+          ]}
+        >
           <MaterialIcons name="info" size={20} color={Colors[colorScheme].tint} />
-          <Text style={[styles.infoText, { color: Colors[colorScheme].mutedText }]}>Requests will be reviewed by coaches or admins before approval.</Text>
+          <Text style={[styles.infoText, { color: Colors[colorScheme].mutedText }]}>
+            Requests will be reviewed by coaches or admins before approval.
+          </Text>
         </View>
         <Pressable
           style={[
@@ -331,14 +406,36 @@ const styles = StyleSheet.create({
   section: { marginBottom: 20 },
   label: { fontWeight: '700', marginBottom: 4 },
   input: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 4 },
-  textArea: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16, minHeight: 80, marginBottom: 4 },
+  textArea: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    minHeight: 80,
+    marginBottom: 4,
+  },
   dateTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
-  dateTimeButton: { flex: 1, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 8, padding: 12, marginRight: 8 },
+  dateTimeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginRight: 8,
+  },
   dateTimeText: { marginLeft: 8, fontSize: 16 },
   locationFieldWrapper: { position: 'relative' },
   errorText: { marginTop: 2, marginBottom: 2 },
   inputHelperText: { fontSize: 12, marginTop: 2 },
-  infoBox: { flexDirection: 'row', alignItems: 'center', padding: 12, borderWidth: 1, borderRadius: 8, marginBottom: 16 },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
   infoText: { marginLeft: 8, fontSize: 14 },
   submitButton: { marginTop: 16, borderRadius: 8, padding: 16, alignItems: 'center' },
   submitButtonDisabled: { opacity: 0.6 },

@@ -8,10 +8,10 @@
 
 ### 1. npm audit (dependency vulnerabilities)
 
-| Package | Result |
-|---------|--------|
+| Package                 | Result               |
+| ----------------------- | -------------------- |
 | Root (VarsityHubMobile) | ✅ 0 vulnerabilities |
-| Server | ✅ 0 vulnerabilities |
+| Server                  | ✅ 0 vulnerabilities |
 
 ---
 
@@ -19,11 +19,11 @@
 
 Runs: `npm audit` (root + server) + `verify:rate-limits` + `test:payments:confidence`
 
-| Check | Result |
-|-------|--------|
-| npm audit (root) | ✅ Pass |
-| npm audit (server) | ✅ Pass |
-| Rate limit coverage | ✅ All 21 sensitive endpoint checks passed |
+| Check                     | Result                                                                 |
+| ------------------------- | ---------------------------------------------------------------------- |
+| npm audit (root)          | ✅ Pass                                                                |
+| npm audit (server)        | ✅ Pass                                                                |
+| Rate limit coverage       | ✅ All 21 sensitive endpoint checks passed                             |
 | Payments confidence tests | ✅ 8 tests passed (finalization, distributed lock, transaction logger) |
 
 ---
@@ -42,20 +42,21 @@ Runs: `npm audit` (root + server) + `verify:rate-limits` + `test:payments:confid
 
 **Result:** ❌ 1 error, 1 warning
 
-| Step | Status |
-|------|--------|
-| App version check | ✅ Pass |
-| Critical files | ✅ Pass |
-| Sample event posting | ✅ Pass |
-| Coach onboarding | ⚠️ Warning (coach role handling check) |
-| Upload functionality | ✅ Pass |
-| Build dependencies | ✅ Pass |
-| **TypeScript compilation** | **❌ Error** |
-| Expo configuration | ✅ Pass |
+| Step                       | Status                                 |
+| -------------------------- | -------------------------------------- |
+| App version check          | ✅ Pass                                |
+| Critical files             | ✅ Pass                                |
+| Sample event posting       | ✅ Pass                                |
+| Coach onboarding           | ⚠️ Warning (coach role handling check) |
+| Upload functionality       | ✅ Pass                                |
+| Build dependencies         | ✅ Pass                                |
+| **TypeScript compilation** | **❌ Error**                           |
+| Expo configuration         | ✅ Pass                                |
 
 **TypeScript error:**
+
 ```
-app/(tabs)/_layout.tsx(50,11): error TS2322: Type '{ tabBarActiveTintColor: string; ... tabBarBackground: undefined; ... }' 
+app/(tabs)/_layout.tsx(50,11): error TS2322: Type '{ tabBarActiveTintColor: string; ... tabBarBackground: undefined; ... }'
 is not assignable to type 'BottomTabNavigationOptions | ...'
 ```
 
@@ -69,22 +70,22 @@ is not assignable to type 'BottomTabNavigationOptions | ...'
 
 ## Existing Audit Reports (static)
 
-| Report | Location | Grade |
-|--------|----------|-------|
-| Backend security | `server/BACKEND_AUDIT_REPORT.md` | B |
-| Frontend security | `FRONTEND_AUDIT_REPORT.md` | A+ |
-| Integration | `INTEGRATION_AUDIT_REPORT.md` | A- |
+| Report            | Location                         | Grade |
+| ----------------- | -------------------------------- | ----- |
+| Backend security  | `server/BACKEND_AUDIT_REPORT.md` | B     |
+| Frontend security | `FRONTEND_AUDIT_REPORT.md`       | A+    |
+| Integration       | `INTEGRATION_AUDIT_REPORT.md`    | A-    |
 
 ---
 
 ## Summary
 
-| Audit | Status |
-|-------|--------|
-| npm audit (root + server) | ✅ Pass |
-| verify:p0:foundation | ✅ Pass |
-| Rate limit verification | ✅ Pass |
-| Comprehensive app audit | ❌ TypeScript error in _layout.tsx |
-| System architecture audit | ⚠️ Not run (tsx sandbox) |
+| Audit                     | Status                              |
+| ------------------------- | ----------------------------------- |
+| npm audit (root + server) | ✅ Pass                             |
+| verify:p0:foundation      | ✅ Pass                             |
+| Rate limit verification   | ✅ Pass                             |
+| Comprehensive app audit   | ❌ TypeScript error in \_layout.tsx |
+| System architecture audit | ⚠️ Not run (tsx sandbox)            |
 
 **Action:** Fix the TypeScript error in `app/(tabs)/_layout.tsx` (tabBarBackground type) to pass the comprehensive app audit.

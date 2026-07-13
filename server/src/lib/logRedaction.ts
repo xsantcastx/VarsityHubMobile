@@ -6,8 +6,7 @@ export function redactEmail(email: string | null | undefined): string {
 
   const local = trimmed.slice(0, atIndex);
   const domain = trimmed.slice(atIndex + 1);
-  const localPreview =
-    local.length <= 2 ? `${local.charAt(0) || '*'}*` : `${local.slice(0, 2)}***`;
+  const localPreview = local.length <= 2 ? `${local.charAt(0) || '*'}*` : `${local.slice(0, 2)}***`;
   const [domainName, ...domainRest] = domain.split('.');
   const domainPreview = domainName ? `${domainName.slice(0, 2)}***` : '***';
   const suffix = domainRest.length > 0 ? `.${domainRest.join('.')}` : '';

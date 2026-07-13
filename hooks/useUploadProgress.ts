@@ -79,61 +79,61 @@ export function useUploadProgress(): UseUploadProgressReturn {
     setState(initialState);
   }, []);
 
-  const upload = useCallback(async (
-    uri: string,
-    filename?: string,
-    mimeType?: string
-  ): Promise<any> => {
-    setState({
-      ...initialState,
-      uploading: true,
-    });
+  const upload = useCallback(
+    async (uri: string, filename?: string, mimeType?: string): Promise<any> => {
+      setState({
+        ...initialState,
+        uploading: true,
+      });
 
-    const onProgress: UploadProgressCallback = (progress, loaded, total) => {
-      setState(prev => ({
-        ...prev,
-        progress,
-        loaded,
-        total,
-      }));
-    };
+      const onProgress: UploadProgressCallback = (progress, loaded, total) => {
+        setState(prev => ({
+          ...prev,
+          progress,
+          loaded,
+          total,
+        }));
+      };
 
-    try {
-      const result = await uploadFileWithProgress(
-        getApiBaseUrl(),
-        uri,
-        filename,
-        mimeType,
-        { onProgress, timeoutMs: 300000 } // 5 minute timeout for large files
-      );
+      try {
+        const result = await uploadFileWithProgress(
+          getApiBaseUrl(),
+          uri,
+          filename,
+          mimeType,
+          { onProgress, timeoutMs: 300000 } // 5 minute timeout for large files
+        );
 
-      setState(prev => ({
-        ...prev,
-        uploading: false,
-        progress: 100,
-        result,
-        error: null,
-      }));
+        setState(prev => ({
+          ...prev,
+          uploading: false,
+          progress: 100,
+          result,
+          error: null,
+        }));
 
-      return result;
-    } catch (err: any) {
-      const errorMessage = err?.message || 'Upload failed';
-      setState(prev => ({
-        ...prev,
-        uploading: false,
-        error: errorMessage,
-        result: null,
-      }));
-      throw err;
-    }
-  }, []);
+        return result;
+      } catch (err: any) {
+        const errorMessage = err?.message || 'Upload failed';
+        setState(prev => ({
+          ...prev,
+          uploading: false,
+          error: errorMessage,
+          result: null,
+        }));
+        throw err;
+      }
+    },
+    []
+  );
 
   // Generate progress text
-  const progressText = state.uploading || state.progress > 0
-    ? state.total > 0
-      ? `${state.progress}% (${formatBytes(state.loaded)} / ${formatBytes(state.total)})`
-      : `${state.progress}%`
-    : '';
+  const progressText =
+    state.uploading || state.progress > 0
+      ? state.total > 0
+        ? `${state.progress}% (${formatBytes(state.loaded)} / ${formatBytes(state.total)})`
+        : `${state.progress}%`
+      : '';
 
   return {
     ...state,

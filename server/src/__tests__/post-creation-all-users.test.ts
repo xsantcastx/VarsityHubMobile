@@ -81,7 +81,10 @@ describeDb('Post creation — all authenticated users allowed', () => {
       },
     });
     unapprovedCoachId = unapprovedCoach.id;
-    unapprovedCoachToken = signJwt({ id: unapprovedCoach.id, se: unapprovedCoach.session_epoch ?? 0 });
+    unapprovedCoachToken = signJwt({
+      id: unapprovedCoach.id,
+      se: unapprovedCoach.session_epoch ?? 0,
+    });
   });
 
   afterAll(async () => {

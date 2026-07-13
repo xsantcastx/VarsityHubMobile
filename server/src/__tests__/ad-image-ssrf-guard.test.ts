@@ -62,10 +62,7 @@ describe('assertSafeFetchTarget — SSRF guard', () => {
       await expectRejection('http://printer.local/img.png', /host not allowed/i);
     });
     it('rejects *.internal suffix (Railway internal hostnames)', async () => {
-      await expectRejection(
-        'http://postgres-tngr.railway.internal:5432/',
-        /host not allowed/i
-      );
+      await expectRejection('http://postgres-tngr.railway.internal:5432/', /host not allowed/i);
     });
     it('rejects *.localhost suffix', async () => {
       await expectRejection('http://api.localhost/x', /host not allowed/i);
@@ -86,10 +83,7 @@ describe('assertSafeFetchTarget — SSRF guard', () => {
       await expectRejection('http://172.20.5.5/banner.png', /blocked address/i);
     });
     it('rejects 169.254.169.254 cloud metadata', async () => {
-      await expectRejection(
-        'http://169.254.169.254/latest/meta-data/',
-        /blocked address/i
-      );
+      await expectRejection('http://169.254.169.254/latest/meta-data/', /blocked address/i);
     });
     it('rejects 0.0.0.0', async () => {
       await expectRejection('http://0.0.0.0/x', /blocked address/i);

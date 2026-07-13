@@ -10,7 +10,7 @@ export type OrganizationStateRow = {
 };
 
 export async function getOrganizationState(
-  orgId: string | null | undefined,
+  orgId: string | null | undefined
 ): Promise<OrganizationStateRow | null> {
   if (!orgId) return null;
 

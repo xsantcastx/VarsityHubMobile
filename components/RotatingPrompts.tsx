@@ -1,6 +1,6 @@
 /**
  * Rotating Prompts Component
- * 
+ *
  * Displays helpful rotating tips to guide users when creating content
  * Cycles through prompts automatically with smooth transitions
  */
@@ -98,8 +98,8 @@ export function RotatingPrompts({
         useNativeDriver: true,
       }).start(() => {
         // Change prompt
-        setCurrentIndex((prev) => (prev + 1) % prompts.length);
-        
+        setCurrentIndex(prev => (prev + 1) % prompts.length);
+
         // Fade in
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -130,15 +130,12 @@ export function RotatingPrompts({
         </View>
       )}
       <Text
-        style={[
-          compact ? styles.textCompact : styles.text,
-          { color: Colors[colorScheme].text },
-        ]}
+        style={[compact ? styles.textCompact : styles.text, { color: Colors[colorScheme].text }]}
         numberOfLines={2}
       >
         {currentPrompt.text}
       </Text>
-      
+
       {/* Pagination dots */}
       {prompts.length > 1 && !compact && (
         <View style={styles.pagination}>
@@ -171,32 +168,59 @@ function getCategoryColor(category: Prompt['category']): string {
   }
 }
 
-
 /**
  * Prompt presets for different contexts
  */
 export const PromptPresets = {
   posting: DEFAULT_PROMPTS,
-  
+
   game: [
     { icon: 'trophy' as const, text: 'Capture the winning moment!', category: 'ideas' as const },
-    { icon: 'people' as const, text: 'Show team spirit and celebration', category: 'ideas' as const },
-    { icon: 'videocam' as const, text: 'Record key plays in landscape mode', category: 'tips' as const },
+    {
+      icon: 'people' as const,
+      text: 'Show team spirit and celebration',
+      category: 'ideas' as const,
+    },
+    {
+      icon: 'videocam' as const,
+      text: 'Record key plays in landscape mode',
+      category: 'tips' as const,
+    },
     { icon: 'star' as const, text: 'Highlight standout performances', category: 'ideas' as const },
   ],
-  
+
   practice: [
-    { icon: 'basketball' as const, text: 'Show off new skills and drills', category: 'ideas' as const },
-    { icon: 'flash' as const, text: 'Use good lighting for indoor shots', category: 'tips' as const },
-    { icon: 'trophy' as const, text: 'Celebrate personal achievements', category: 'ideas' as const },
-    { icon: 'people' as const, text: 'Feature your practice squad', category: 'engagement' as const },
+    {
+      icon: 'basketball' as const,
+      text: 'Show off new skills and drills',
+      category: 'ideas' as const,
+    },
+    {
+      icon: 'flash' as const,
+      text: 'Use good lighting for indoor shots',
+      category: 'tips' as const,
+    },
+    {
+      icon: 'trophy' as const,
+      text: 'Celebrate personal achievements',
+      category: 'ideas' as const,
+    },
+    {
+      icon: 'people' as const,
+      text: 'Feature your practice squad',
+      category: 'engagement' as const,
+    },
   ],
-  
+
   story: [
     { icon: 'camera' as const, text: 'Quick moments, big impact!', category: 'ideas' as const },
     { icon: 'timer' as const, text: 'Stories disappear in 24 hours', category: 'tips' as const },
     { icon: 'flash' as const, text: 'Use filters to enhance your shot', category: 'tips' as const },
-    { icon: 'heart' as const, text: 'Share behind-the-scenes content', category: 'engagement' as const },
+    {
+      icon: 'heart' as const,
+      text: 'Share behind-the-scenes content',
+      category: 'engagement' as const,
+    },
   ],
 };
 

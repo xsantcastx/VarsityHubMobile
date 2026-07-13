@@ -30,7 +30,7 @@ class TestingMonitor {
       console.log('🔍 Testing Monitor: Skipping (no window object)');
       return;
     }
-    
+
     if (this.isMonitoring) return;
     this.isMonitoring = true;
 
@@ -56,7 +56,7 @@ class TestingMonitor {
     };
 
     // Capture unhandled errors
-    window.addEventListener('error', (event) => {
+    window.addEventListener('error', event => {
       this.log({
         timestamp: new Date().toISOString(),
         type: 'error',
@@ -69,7 +69,7 @@ class TestingMonitor {
     });
 
     // Capture unhandled promise rejections
-    window.addEventListener('unhandledrejection', (event) => {
+    window.addEventListener('unhandledrejection', event => {
       this.log({
         timestamp: new Date().toISOString(),
         type: 'error',
@@ -109,11 +109,11 @@ class TestingMonitor {
 
   private log(error: ErrorLog) {
     this.errors.push(error);
-    
+
     // Also send to console for immediate visibility
     const emoji = error.type === 'error' ? '❌' : error.type === 'warning' ? '⚠️' : 'ℹ️';
     console.log(`${emoji} [${error.type.toUpperCase()}] ${error.message}`);
-    
+
     // Store in localStorage for persistence
     try {
       localStorage.setItem('testing-errors', JSON.stringify(this.errors));
@@ -127,11 +127,14 @@ class TestingMonitor {
   }
 
   getErrorReport() {
-    const grouped = this.errors.reduce((acc, error) => {
-      if (!acc[error.type]) acc[error.type] = [];
-      acc[error.type].push(error);
-      return acc;
-    }, {} as Record<string, ErrorLog[]>);
+    const grouped = this.errors.reduce(
+      (acc, error) => {
+        if (!acc[error.type]) acc[error.type] = [];
+        acc[error.type].push(error);
+        return acc;
+      },
+      {} as Record<string, ErrorLog[]>
+    );
 
     return {
       total: this.errors.length,

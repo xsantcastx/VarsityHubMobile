@@ -33,12 +33,9 @@ describe('normalizeUserRole', () => {
       ['staff member', null, 'coach'],
     ];
 
-    it.each(cases)(
-      'normalizeUserRole(%j, %j) → %s',
-      (role, plan, expected) => {
-        expect(normalizeUserRole(role, plan)).toBe(expected);
-      },
-    );
+    it.each(cases)('normalizeUserRole(%j, %j) → %s', (role, plan, expected) => {
+      expect(normalizeUserRole(role, plan)).toBe(expected);
+    });
   });
 
   describe('plan-based inference (no explicit role)', () => {
@@ -58,7 +55,7 @@ describe('normalizeUserRole', () => {
       'normalizeUserRole(%j, %j) → %s (inferred from plan)',
       (role, plan, expected) => {
         expect(normalizeUserRole(role, plan)).toBe(expected);
-      },
+      }
     );
   });
 
@@ -88,12 +85,9 @@ describe('normalizeUserRole', () => {
       ['SUPPORTER', null, 'fan'],
     ];
 
-    it.each(cases)(
-      'normalizeUserRole(%j, %j) → %s (trimmed + lowered)',
-      (role, plan, expected) => {
-        expect(normalizeUserRole(role, plan)).toBe(expected);
-      },
-    );
+    it.each(cases)('normalizeUserRole(%j, %j) → %s (trimmed + lowered)', (role, plan, expected) => {
+      expect(normalizeUserRole(role, plan)).toBe(expected);
+    });
   });
 
   describe('unknown role strings fallback', () => {
@@ -113,12 +107,9 @@ describe('normalizeUserRole', () => {
       ['unknown', 'veteran', 'coach'],
     ];
 
-    it.each(cases)(
-      'normalizeUserRole(%j, %j) → %s',
-      (role, plan, expected) => {
-        expect(normalizeUserRole(role, plan)).toBe(expected);
-      },
-    );
+    it.each(cases)('normalizeUserRole(%j, %j) → %s', (role, plan, expected) => {
+      expect(normalizeUserRole(role, plan)).toBe(expected);
+    });
   });
 });
 
@@ -138,4 +129,3 @@ describe('isCoachRole', () => {
     expect(isCoachRole('player', null)).toBe(false);
   });
 });
-

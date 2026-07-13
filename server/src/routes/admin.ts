@@ -7,17 +7,17 @@ import { renderReviewPage, renderResultPage } from '../lib/reviewPage.js';
 import { sendAccountModerationEmail } from '../lib/email.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
 import {
-    checkReportSpike,
-    getUserModerationHistory,
-    issueWarning,
-    suspendUser,
+  checkReportSpike,
+  getUserModerationHistory,
+  issueWarning,
+  suspendUser,
 } from '../lib/moderation.js';
 import { prisma } from '../lib/prisma.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import {
-    getAllTransactions,
-    getTransactionBySession,
-    getTransactionSummary,
+  getAllTransactions,
+  getTransactionBySession,
+  getTransactionSummary,
 } from '../lib/transactionLogger.js';
 import { invalidateMeCacheForUser, updateUserAndInvalidate } from '../lib/userCache.js';
 import { wipeCloudinary, wipeDatabase } from '../lib/wipeProduction.js';
@@ -25,8 +25,8 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { adminLimiter } from '../middleware/rateLimiters.js';
 import {
-    isEmailAdmin,
-    requireAdmin as requireAdminMiddleware,
+  isEmailAdmin,
+  requireAdmin as requireAdminMiddleware,
 } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -110,15 +110,27 @@ async function handleCoachReview(
   const coachName = coach.display_name || coach.username || coach.email || 'Unknown Coach';
   if (coach.approval_status === 'APPROVED') {
     if (signedInAdmin) {
-      return res.json({ ok: true, already_final: true, message: `Coach ${coachName} already approved` });
+      return res.json({
+        ok: true,
+        already_final: true,
+        message: `Coach ${coachName} already approved`,
+      });
     }
-    return res.send(renderCoachResultPage('Already Approved', `${coachName} was already approved.`, true));
+    return res.send(
+      renderCoachResultPage('Already Approved', `${coachName} was already approved.`, true)
+    );
   }
   if (coach.approval_status === 'REJECTED') {
     if (signedInAdmin) {
-      return res.json({ ok: true, already_final: true, message: `Coach ${coachName} already rejected` });
+      return res.json({
+        ok: true,
+        already_final: true,
+        message: `Coach ${coachName} already rejected`,
+      });
     }
-    return res.send(renderCoachResultPage('Already Rejected', `${coachName} was already rejected.`, true));
+    return res.send(
+      renderCoachResultPage('Already Rejected', `${coachName} was already rejected.`, true)
+    );
   }
 
   if (req.method === 'GET') {
@@ -242,178 +254,178 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const [
-        totalUsers,
-        verifiedUsers,
-        bannedUsers,
-        totalTeams,
-        totalAds,
-        pendingAds,
-        totalPosts,
-        totalMessages,
-        recentActivity,
-        pendingLeagues,
-        eventsWithoutCoordinates,
-        pendingCoaches,
-      ] = await Promise.all([
-        // Total users
-        prisma.user.count(),
+    const [
+      totalUsers,
+      verifiedUsers,
+      bannedUsers,
+      totalTeams,
+      totalAds,
+      pendingAds,
+      totalPosts,
+      totalMessages,
+      recentActivity,
+      pendingLeagues,
+      eventsWithoutCoordinates,
+      pendingCoaches,
+    ] = await Promise.all([
+      // Total users
+      prisma.user.count(),
 
-        // Verified users (email verified)
-        prisma.user.count({ where: { email_verified: true } }),
+      // Verified users (email verified)
+      prisma.user.count({ where: { email_verified: true } }),
 
-        // Banned users
-        prisma.user.count({ where: { banned: true } }),
+      // Banned users
+      prisma.user.count({ where: { banned: true } }),
 
-        // Total teams
-        prisma.team.count(),
+      // Total teams
+      prisma.team.count(),
 
-        // Total ads
-        prisma.ad.count(),
+      // Total ads
+      prisma.ad.count(),
 
-        // Pending ads (status = pending)
-        prisma.ad.count({ where: { status: 'pending' } }),
+      // Pending ads (status = pending)
+      prisma.ad.count({ where: { status: 'pending' } }),
 
-        // Total posts
-        prisma.post.count({ where: { deleted_at: null } }),
+      // Total posts
+      prisma.post.count({ where: { deleted_at: null } }),
 
-        // Total messages
-        prisma.message.count(),
+      // Total messages
+      prisma.message.count(),
 
-        // Recent activity (last 5 admin actions)
-        prisma.adminActivityLog
-          .findMany({
-            orderBy: { timestamp: 'desc' },
-            take: 5,
-            select: {
-              id: true,
-              admin_email: true,
-              action: true,
-              target_type: true,
-              description: true,
-              timestamp: true,
-            },
-          })
-          .catch(err => {
-            console.error('[admin] Failed to fetch recent activity:', err);
-            return [] as Array<{
-              id: string;
-              admin_email: string;
-              action: string;
-              target_type: string;
-              description: string;
-              timestamp: Date;
-            }>;
-          }),
+      // Recent activity (last 5 admin actions)
+      prisma.adminActivityLog
+        .findMany({
+          orderBy: { timestamp: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            admin_email: true,
+            action: true,
+            target_type: true,
+            description: true,
+            timestamp: true,
+          },
+        })
+        .catch(err => {
+          console.error('[admin] Failed to fetch recent activity:', err);
+          return [] as Array<{
+            id: string;
+            admin_email: string;
+            action: string;
+            target_type: string;
+            description: string;
+            timestamp: Date;
+          }>;
+        }),
 
-        // Pending leagues (not yet approved by admin)
-        prisma.organization
-          .findMany({
-            where: { admin_approved: false, status: { not: 'rejected' } },
-            orderBy: { created_at: 'desc' },
-            take: 200,
-            select: {
-              id: true,
-              name: true,
-              sport: true,
-              description: true,
-              created_at: true,
-              logo_url: true,
-              supporting_document_url: true,
-              leagueOwner: { select: { id: true, display_name: true, email: true } },
-              _count: { select: { teams: true, memberships: true } },
-            },
-          })
-          .catch(err => {
-            console.error('[admin] Failed to fetch pending leagues:', err);
-            return [];
-          }),
+      // Pending leagues (not yet approved by admin)
+      prisma.organization
+        .findMany({
+          where: { admin_approved: false, status: { not: 'rejected' } },
+          orderBy: { created_at: 'desc' },
+          take: 200,
+          select: {
+            id: true,
+            name: true,
+            sport: true,
+            description: true,
+            created_at: true,
+            logo_url: true,
+            supporting_document_url: true,
+            leagueOwner: { select: { id: true, display_name: true, email: true } },
+            _count: { select: { teams: true, memberships: true } },
+          },
+        })
+        .catch(err => {
+          console.error('[admin] Failed to fetch pending leagues:', err);
+          return [];
+        }),
 
-        // Events/games with a location string but no lat/lng coordinates
-        prisma.game
-          .count({
-            where: {
-              location: { not: null },
-              latitude: null,
-              longitude: null,
-            },
-          })
-          .catch(err => {
-            console.error('[admin] Failed to count events without coords:', err);
-            return 0;
-          }),
+      // Events/games with a location string but no lat/lng coordinates
+      prisma.game
+        .count({
+          where: {
+            location: { not: null },
+            latitude: null,
+            longitude: null,
+          },
+        })
+        .catch(err => {
+          console.error('[admin] Failed to count events without coords:', err);
+          return 0;
+        }),
 
-        // Pending coaches (users with approval_status = 'PENDING' and coach preferences)
-        prisma.user
-          .findMany({
-            where: {
-              approval_status: 'PENDING',
-              OR: [{ role: 'coach' as any }, { preferences: { path: ['role'], equals: 'coach' } }],
-            },
-            orderBy: { created_at: 'desc' },
-            take: 200,
-            select: {
-              id: true,
-              display_name: true,
-              email: true,
-              username: true,
-              avatar_url: true,
-              created_at: true,
-              preferences: true,
-              coachApplications: {
-                where: { status: { in: ['submitted', 'approved', 'rejected'] } },
-                orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-                take: 1,
-                select: {
-                  id: true,
-                  status: true,
-                  organization_name: true,
-                  org_type: true,
-                  location: true,
-                  zip_code: true,
-                  place_id: true,
-                  supporting_document_url: true,
-                  background_url: true,
-                  payload: true,
-                  submitted_at: true,
-                  reviewed_at: true,
-                  reviewed_by: true,
-                  review_note: true,
-                  created_at: true,
-                  updated_at: true,
-                },
+      // Pending coaches (users with approval_status = 'PENDING' and coach preferences)
+      prisma.user
+        .findMany({
+          where: {
+            approval_status: 'PENDING',
+            OR: [{ role: 'coach' as any }, { preferences: { path: ['role'], equals: 'coach' } }],
+          },
+          orderBy: { created_at: 'desc' },
+          take: 200,
+          select: {
+            id: true,
+            display_name: true,
+            email: true,
+            username: true,
+            avatar_url: true,
+            created_at: true,
+            preferences: true,
+            coachApplications: {
+              where: { status: { in: ['submitted', 'approved', 'rejected'] } },
+              orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+              take: 1,
+              select: {
+                id: true,
+                status: true,
+                organization_name: true,
+                org_type: true,
+                location: true,
+                zip_code: true,
+                place_id: true,
+                supporting_document_url: true,
+                background_url: true,
+                payload: true,
+                submitted_at: true,
+                reviewed_at: true,
+                reviewed_by: true,
+                review_note: true,
+                created_at: true,
+                updated_at: true,
               },
             },
-          })
-          .catch(err => {
-            console.error('[admin] Failed to fetch pending coaches:', err);
-            return [];
-          }),
-      ]);
+          },
+        })
+        .catch(err => {
+          console.error('[admin] Failed to fetch pending coaches:', err);
+          return [];
+        }),
+    ]);
 
-      const normalizedPendingCoaches = (pendingCoaches || []).map((coach: any) => ({
-        ...coach,
-        coach_application: Array.isArray(coach.coachApplications)
-          ? coach.coachApplications[0] || null
-          : null,
-        coachApplications: undefined,
-      }));
+    const normalizedPendingCoaches = (pendingCoaches || []).map((coach: any) => ({
+      ...coach,
+      coach_application: Array.isArray(coach.coachApplications)
+        ? coach.coachApplications[0] || null
+        : null,
+      coachApplications: undefined,
+    }));
 
-      return res.json({
-        ok: true,
-        totalUsers,
-        verifiedUsers,
-        bannedUsers,
-        totalTeams,
-        totalAds,
-        pendingAds,
-        pendingLeagues: pendingLeagues || [],
-        pendingCoaches: normalizedPendingCoaches,
-        totalPosts,
-        totalMessages,
-        recentActivity: recentActivity || [],
-        eventsWithoutCoordinates: eventsWithoutCoordinates || 0,
-      });
+    return res.json({
+      ok: true,
+      totalUsers,
+      verifiedUsers,
+      bannedUsers,
+      totalTeams,
+      totalAds,
+      pendingAds,
+      pendingLeagues: pendingLeagues || [],
+      pendingCoaches: normalizedPendingCoaches,
+      totalPosts,
+      totalMessages,
+      recentActivity: recentActivity || [],
+      eventsWithoutCoordinates: eventsWithoutCoordinates || 0,
+    });
   })
 );
 
@@ -543,10 +555,10 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const daysParam = Number.parseInt(String(req.query.days || '7'), 10);
-      const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 1), 30) : 7;
-      const report = await getFounderMetricsReport(days);
-      return res.json({ ok: true, report });
+    const daysParam = Number.parseInt(String(req.query.days || '7'), 10);
+    const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 1), 30) : 7;
+    const report = await getFounderMetricsReport(days);
+    return res.json({ ok: true, report });
   })
 );
 
@@ -564,75 +576,75 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const { type, q, page = '1', limit = '50' } = req.query;
+    const { type, q, page = '1', limit = '50' } = req.query;
 
-      const pageNum = parseInt(String(page), 10);
-      const limitNum = Math.max(1, Math.min(parseInt(String(limit), 10), 100)); // Max 100 per page
-      const skip = (pageNum - 1) * limitNum;
+    const pageNum = parseInt(String(page), 10);
+    const limitNum = Math.max(1, Math.min(parseInt(String(limit), 10), 100)); // Max 100 per page
+    const skip = (pageNum - 1) * limitNum;
 
-      // Build where clause
-      const where: any = {};
+    // Build where clause
+    const where: any = {};
 
-      // Filter by type
-      if (type && type !== 'all') {
-        where.target_type = String(type);
-      }
+    // Filter by type
+    if (type && type !== 'all') {
+      where.target_type = String(type);
+    }
 
-      // Search query
-      if (q && typeof q === 'string' && q.trim()) {
-        where.OR = [
-          { action: { contains: String(q), mode: 'insensitive' } },
-          { description: { contains: String(q), mode: 'insensitive' } },
-          { admin_email: { contains: String(q), mode: 'insensitive' } },
-        ];
-      }
+    // Search query
+    if (q && typeof q === 'string' && q.trim()) {
+      where.OR = [
+        { action: { contains: String(q), mode: 'insensitive' } },
+        { description: { contains: String(q), mode: 'insensitive' } },
+        { admin_email: { contains: String(q), mode: 'insensitive' } },
+      ];
+    }
 
-      // Check if AdminActivityLog table exists, if not return empty results
-      try {
-        const [activities, total] = await Promise.all([
-          prisma.adminActivityLog.findMany({
-            where,
-            skip,
-            take: limitNum,
-            orderBy: { timestamp: 'desc' },
-            select: {
-              id: true,
-              admin_id: true,
-              admin_email: true,
-              action: true,
-              target_type: true,
-              target_id: true,
-              description: true,
-              metadata: true,
-              timestamp: true,
-            },
-          }),
-          prisma.adminActivityLog.count({ where }),
-        ]);
-
-        return res.json({
-          ok: true,
-          activities,
-          pagination: {
-            page: pageNum,
-            limit: limitNum,
-            total,
-            pages: Math.ceil(total / limitNum),
+    // Check if AdminActivityLog table exists, if not return empty results
+    try {
+      const [activities, total] = await Promise.all([
+        prisma.adminActivityLog.findMany({
+          where,
+          skip,
+          take: limitNum,
+          orderBy: { timestamp: 'desc' },
+          select: {
+            id: true,
+            admin_id: true,
+            admin_email: true,
+            action: true,
+            target_type: true,
+            target_id: true,
+            description: true,
+            metadata: true,
+            timestamp: true,
           },
-        });
-      } catch (error) {
-        // Table doesn't exist yet, return empty results
-        return res.json({
-          ok: true,
-          activities: [],
-          pagination: {
-            page: pageNum,
-            limit: limitNum,
-            total: 0,
-            pages: 0,
-          },
-        });
-      }
+        }),
+        prisma.adminActivityLog.count({ where }),
+      ]);
+
+      return res.json({
+        ok: true,
+        activities,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          pages: Math.ceil(total / limitNum),
+        },
+      });
+    } catch (error) {
+      // Table doesn't exist yet, return empty results
+      return res.json({
+        ok: true,
+        activities: [],
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: 0,
+          pages: 0,
+        },
+      });
+    }
   })
 );
 
@@ -656,9 +668,12 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const { type, status, userId, startDate, endDate, limit = '50', offset = '0' } = req.query;
+    const { type, status, userId, startDate, endDate, limit = '50', offset = '0' } = req.query;
 
-      const dateParam = z.string().optional().transform((value, ctx) => {
+    const dateParam = z
+      .string()
+      .optional()
+      .transform((value, ctx) => {
         if (!value) return undefined;
         const parsed = new Date(value);
         if (Number.isNaN(parsed.getTime())) {
@@ -671,38 +686,38 @@ adminRouter.get(
         return parsed;
       });
 
-      const dateParsed = z
-        .object({
-          startDate: dateParam,
-          endDate: dateParam,
-        })
-        .safeParse({ startDate, endDate });
-      if (!dateParsed.success) {
-        return res
-          .status(400)
-          .json({ error: 'Invalid date format. Use ISO date strings for startDate and endDate.' });
-      }
+    const dateParsed = z
+      .object({
+        startDate: dateParam,
+        endDate: dateParam,
+      })
+      .safeParse({ startDate, endDate });
+    if (!dateParsed.success) {
+      return res
+        .status(400)
+        .json({ error: 'Invalid date format. Use ISO date strings for startDate and endDate.' });
+    }
 
-      const filters: any = {};
-      if (type) filters.transactionType = String(type);
-      if (status) filters.status = String(status);
-      if (userId) filters.userId = String(userId);
-      if (dateParsed.data.startDate) filters.startDate = dateParsed.data.startDate;
-      if (dateParsed.data.endDate) filters.endDate = dateParsed.data.endDate;
+    const filters: any = {};
+    if (type) filters.transactionType = String(type);
+    if (status) filters.status = String(status);
+    if (userId) filters.userId = String(userId);
+    if (dateParsed.data.startDate) filters.startDate = dateParsed.data.startDate;
+    if (dateParsed.data.endDate) filters.endDate = dateParsed.data.endDate;
 
-      const transactions = await getAllTransactions(
-        filters,
-        parseInt(String(limit)),
-        parseInt(String(offset))
-      );
+    const transactions = await getAllTransactions(
+      filters,
+      parseInt(String(limit)),
+      parseInt(String(offset))
+    );
 
-      return res.json({
-        ok: true,
-        transactions,
-        filters,
-        limit: parseInt(String(limit)),
-        offset: parseInt(String(offset)),
-      });
+    return res.json({
+      ok: true,
+      transactions,
+      filters,
+      limit: parseInt(String(limit)),
+      offset: parseInt(String(offset)),
+    });
   })
 );
 
@@ -718,21 +733,21 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const { startDate, endDate } = req.query;
+    const { startDate, endDate } = req.query;
 
-      const start = startDate ? new Date(String(startDate)) : undefined;
-      const end = endDate ? new Date(String(endDate)) : undefined;
+    const start = startDate ? new Date(String(startDate)) : undefined;
+    const end = endDate ? new Date(String(endDate)) : undefined;
 
-      const summary = await getTransactionSummary(start, end);
+    const summary = await getTransactionSummary(start, end);
 
-      return res.json({
-        ok: true,
-        summary,
-        dateRange: {
-          start: start?.toISOString(),
-          end: end?.toISOString(),
-        },
-      });
+    return res.json({
+      ok: true,
+      summary,
+      dateRange: {
+        start: start?.toISOString(),
+        end: end?.toISOString(),
+      },
+    });
   })
 );
 
@@ -745,22 +760,22 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const { sessionId } = req.params;
+    const { sessionId } = req.params;
 
-      if (!sessionId) {
-        return res.status(400).json({ error: 'Session ID required' });
-      }
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID required' });
+    }
 
-      const transaction = await getTransactionBySession(sessionId);
+    const transaction = await getTransactionBySession(sessionId);
 
-      if (!transaction) {
-        return res.status(404).json({ error: 'Transaction not found' });
-      }
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
 
-      return res.json({
-        ok: true,
-        transaction,
-      });
+    return res.json({
+      ok: true,
+      transaction,
+    });
   })
 );
 
@@ -777,8 +792,8 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (_req: AuthedRequest, res) => {
-      const spike = await checkReportSpike();
-      return res.json(spike);
+    const spike = await checkReportSpike();
+    return res.json(spike);
   })
 );
 
@@ -791,8 +806,8 @@ adminRouter.get(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      const history = await getUserModerationHistory(req.params.id);
-      return res.json(history);
+    const history = await getUserModerationHistory(req.params.id);
+    return res.json(history);
   })
 );
 
@@ -810,35 +825,35 @@ adminRouter.post(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-      const parsed = warnSchema.safeParse(req.body);
-      if (!parsed.success)
-        return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
-      const { reason, severity } = parsed.data;
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const parsed = warnSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { reason, severity } = parsed.data;
 
-      const result = await issueWarning({
-        userId: req.params.id,
+    const result = await issueWarning({
+      userId: req.params.id,
+      reason,
+      severity,
+      issuedBy: req.user.id,
+    });
+
+    const warnedUser = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: { email: true, display_name: true },
+    });
+    if (warnedUser?.email) {
+      sendAccountModerationEmail({
+        to: warnedUser.email,
+        action: 'warning',
         reason,
-        severity,
-        issuedBy: req.user.id,
-      });
+        userName: warnedUser.display_name || undefined,
+      }).catch(err =>
+        console.warn('[admin] sendAccountModerationEmail (warning) failed:', err?.message ?? err)
+      );
+    }
 
-      const warnedUser = await prisma.user.findUnique({
-        where: { id: req.params.id },
-        select: { email: true, display_name: true },
-      });
-      if (warnedUser?.email) {
-        sendAccountModerationEmail({
-          to: warnedUser.email,
-          action: 'warning',
-          reason,
-          userName: warnedUser.display_name || undefined,
-        }).catch(err =>
-          console.warn('[admin] sendAccountModerationEmail (warning) failed:', err?.message ?? err)
-        );
-      }
-
-      return res.json({ ok: true, ...result });
+    return res.json({ ok: true, ...result });
   })
 );
 
@@ -856,19 +871,19 @@ adminRouter.post(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-      const parsed = suspendSchema.safeParse(req.body);
-      if (!parsed.success)
-        return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
-      const { days: suspendDays, reason } = parsed.data;
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const parsed = suspendSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { days: suspendDays, reason } = parsed.data;
 
-      await suspendUser({
-        userId: req.params.id,
-        days: suspendDays,
-        reason,
-        adminId: req.user.id,
-      });
-      return res.json({ ok: true, suspended_days: suspendDays });
+    await suspendUser({
+      userId: req.params.id,
+      days: suspendDays,
+      reason,
+      adminId: req.user.id,
+    });
+    return res.json({ ok: true, suspended_days: suspendDays });
   })
 );
 
@@ -885,69 +900,69 @@ adminRouter.post(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-      const parsed = banSchema.safeParse(req.body || {});
-      if (!parsed.success)
-        return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
-      const { reason } = parsed.data;
-      const bannedUserId = req.params.id;
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const parsed = banSchema.safeParse(req.body || {});
+    if (!parsed.success)
+      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { reason } = parsed.data;
+    const bannedUserId = req.params.id;
 
-      await updateUserAndInvalidate(prisma, {
-        where: { id: bannedUserId },
-        data: {
-          banned: true,
-          ban_reason: reason || 'Banned by admin for violating community guidelines.',
-          // Bump session_epoch so existing access tokens fail the auth gate
-          // immediately (auth middleware compares jwt.se to user.session_epoch).
-          // Without this, a banned user keeps using their access token until
-          // it naturally expires — refresh-token deletion below only stops
-          // them from minting NEW tokens, not from using their current one.
-          session_epoch: { increment: 1 },
-        },
-      });
+    await updateUserAndInvalidate(prisma, {
+      where: { id: bannedUserId },
+      data: {
+        banned: true,
+        ban_reason: reason || 'Banned by admin for violating community guidelines.',
+        // Bump session_epoch so existing access tokens fail the auth gate
+        // immediately (auth middleware compares jwt.se to user.session_epoch).
+        // Without this, a banned user keeps using their access token until
+        // it naturally expires — refresh-token deletion below only stops
+        // them from minting NEW tokens, not from using their current one.
+        session_epoch: { increment: 1 },
+      },
+    });
 
-      // Revoke all refresh tokens so banned user can't get new access tokens
-      await prisma.refreshToken.deleteMany({ where: { user_id: bannedUserId } });
+    // Revoke all refresh tokens so banned user can't get new access tokens
+    await prisma.refreshToken.deleteMany({ where: { user_id: bannedUserId } });
 
-      // Audit log: who banned whom (for compliance and debugging)
-      console.warn('[ADMIN_AUDIT] user_banned', {
-        admin_id: req.user.id,
-        banned_user_id: bannedUserId,
-        reason: reason || 'Banned by admin',
-        at: new Date().toISOString(),
-      });
+    // Audit log: who banned whom (for compliance and debugging)
+    console.warn('[ADMIN_AUDIT] user_banned', {
+      admin_id: req.user.id,
+      banned_user_id: bannedUserId,
+      reason: reason || 'Banned by admin',
+      at: new Date().toISOString(),
+    });
 
-      await logAdminActivityFromReq(
-        req,
-        'BAN_USER',
-        'user',
-        bannedUserId,
-        `Banned user ${bannedUserId}${reason ? ': ' + reason : ''}`
+    await logAdminActivityFromReq(
+      req,
+      'BAN_USER',
+      'user',
+      bannedUserId,
+      `Banned user ${bannedUserId}${reason ? ': ' + reason : ''}`
+    );
+
+    await issueWarning({
+      userId: req.params.id,
+      reason: reason || 'Banned by admin',
+      severity: 'final_warning',
+      issuedBy: req.user.id,
+    });
+
+    const bannedUser = await prisma.user.findUnique({
+      where: { id: bannedUserId },
+      select: { email: true, display_name: true },
+    });
+    if (bannedUser?.email) {
+      sendAccountModerationEmail({
+        to: bannedUser.email,
+        action: 'permanent_ban',
+        reason: reason || 'Banned by admin for violating community guidelines.',
+        userName: bannedUser.display_name || undefined,
+      }).catch(err =>
+        console.warn('[admin] sendAccountModerationEmail (ban) failed:', err?.message ?? err)
       );
+    }
 
-      await issueWarning({
-        userId: req.params.id,
-        reason: reason || 'Banned by admin',
-        severity: 'final_warning',
-        issuedBy: req.user.id,
-      });
-
-      const bannedUser = await prisma.user.findUnique({
-        where: { id: bannedUserId },
-        select: { email: true, display_name: true },
-      });
-      if (bannedUser?.email) {
-        sendAccountModerationEmail({
-          to: bannedUser.email,
-          action: 'permanent_ban',
-          reason: reason || 'Banned by admin for violating community guidelines.',
-          userName: bannedUser.display_name || undefined,
-        }).catch(err =>
-          console.warn('[admin] sendAccountModerationEmail (ban) failed:', err?.message ?? err)
-        );
-      }
-
-      return res.json({ ok: true, banned: true });
+    return res.json({ ok: true, banned: true });
   })
 );
 
@@ -960,48 +975,48 @@ adminRouter.post(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-      const unbannedUserId = req.params.id;
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const unbannedUserId = req.params.id;
 
-      await updateUserAndInvalidate(prisma, {
-        where: { id: unbannedUserId },
-        data: {
-          banned: false,
-          banned_until: null,
-          ban_reason: null,
-        },
-      });
+    await updateUserAndInvalidate(prisma, {
+      where: { id: unbannedUserId },
+      data: {
+        banned: false,
+        banned_until: null,
+        ban_reason: null,
+      },
+    });
 
-      // Audit log
-      console.warn('[ADMIN_AUDIT] user_unbanned', {
-        admin_id: req.user.id,
-        unbanned_user_id: unbannedUserId,
-        at: new Date().toISOString(),
-      });
+    // Audit log
+    console.warn('[ADMIN_AUDIT] user_unbanned', {
+      admin_id: req.user.id,
+      unbanned_user_id: unbannedUserId,
+      at: new Date().toISOString(),
+    });
 
-      await logAdminActivityFromReq(
-        req,
-        'UNBAN_USER',
-        'user',
-        unbannedUserId,
-        `Unbanned user ${unbannedUserId}`
+    await logAdminActivityFromReq(
+      req,
+      'UNBAN_USER',
+      'user',
+      unbannedUserId,
+      `Unbanned user ${unbannedUserId}`
+    );
+
+    const unbannedUser = await prisma.user.findUnique({
+      where: { id: unbannedUserId },
+      select: { email: true, display_name: true },
+    });
+    if (unbannedUser?.email) {
+      sendAccountModerationEmail({
+        to: unbannedUser.email,
+        action: 'recovery',
+        userName: unbannedUser.display_name || undefined,
+      }).catch(err =>
+        console.warn('[admin] sendAccountModerationEmail (recovery) failed:', err?.message ?? err)
       );
+    }
 
-      const unbannedUser = await prisma.user.findUnique({
-        where: { id: unbannedUserId },
-        select: { email: true, display_name: true },
-      });
-      if (unbannedUser?.email) {
-        sendAccountModerationEmail({
-          to: unbannedUser.email,
-          action: 'recovery',
-          userName: unbannedUser.display_name || undefined,
-        }).catch(err =>
-          console.warn('[admin] sendAccountModerationEmail (recovery) failed:', err?.message ?? err)
-        );
-      }
-
-      return res.json({ ok: true, banned: false });
+    return res.json({ ok: true, banned: false });
   })
 );
 
@@ -1014,78 +1029,76 @@ adminRouter.post(
   requireVerified as any,
   requireAdminMiddleware as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-      if (req.headers['x-confirm-wipe'] !== 'YES_WIPE_EVERYTHING') {
-        return res
-          .status(400)
-          .json({ error: 'Missing confirmation header: x-confirm-wipe: YES_WIPE_EVERYTHING' });
-      }
+    if (req.headers['x-confirm-wipe'] !== 'YES_WIPE_EVERYTHING') {
+      return res
+        .status(400)
+        .json({ error: 'Missing confirmation header: x-confirm-wipe: YES_WIPE_EVERYTHING' });
+    }
 
-      const demo = await prisma.user.findFirst({ where: { email: 'demo@varsityhub.app' } });
-      const adminEmail =
-        (process.env.ADMIN_EMAILS || '')
-          .split(',')
-          .map(s => s.trim())
-          .filter(Boolean)[0] || '';
-      const admin = adminEmail
-        ? await prisma.user.findFirst({ where: { email: adminEmail } })
-        : null;
-      const keepIds = [demo?.id, admin?.id].filter(Boolean) as string[];
-      if (keepIds.length === 0) {
-        return res.status(500).json({
-          error: 'Wipe aborted: no preserved admin/demo account found',
-        });
-      }
-
-      await prisma.$transaction(async tx => {
-        // Use raw SQL to bypass FK constraints, but keep the whole wipe atomic.
-        await tx.$executeRaw`DELETE FROM "Story"`;
-        await tx.$executeRaw`DELETE FROM "GameVote"`;
-        await tx.$executeRaw`DELETE FROM "EventRsvp"`;
-        await tx.$executeRaw`DELETE FROM "AdReservation"`;
-        await tx.$executeRaw`DELETE FROM "Ad"`;
-        await tx.$executeRaw`DELETE FROM "PollVote"`;
-        await tx.$executeRaw`DELETE FROM "PollOption"`;
-        await tx.$executeRaw`DELETE FROM "Poll"`;
-        await tx.$executeRaw`DELETE FROM "PostUpvote"`;
-        await tx.$executeRaw`DELETE FROM "PostBookmark"`;
-        await tx.$executeRaw`DELETE FROM "CategoryAssignment"`;
-        await tx.$executeRaw`DELETE FROM "Comment"`;
-        await tx.$executeRaw`DELETE FROM "Notification"`;
-        await tx.$executeRaw`DELETE FROM "Message"`;
-        await tx.$executeRaw`DELETE FROM "Follows"`;
-        await tx.$executeRaw`DELETE FROM "TeamFollow"`;
-        await tx.$executeRaw`DELETE FROM "OrganizationFollow"`;
-        await tx.$executeRaw`DELETE FROM "CategoryFollow"`;
-        await tx.$executeRaw`DELETE FROM "BlockedUser"`;
-        await tx.$executeRaw`DELETE FROM "GroupChatMessage"`;
-        await tx.$executeRaw`DELETE FROM "GroupChatMember"`;
-        await tx.$executeRaw`DELETE FROM "GroupChat"`;
-        await tx.$executeRaw`DELETE FROM "Post"`;
-        await tx.$executeRaw`DELETE FROM "Event"`;
-        await tx.$executeRaw`DELETE FROM "Game"`;
-        await tx.$executeRaw`DELETE FROM "TeamMembership"`;
-        await tx.$executeRaw`DELETE FROM "TeamInvite"`;
-        await tx.$executeRaw`DELETE FROM "Team"`;
-        await tx.$executeRaw`DELETE FROM "OrganizationMembership"`;
-        await tx.$executeRaw`DELETE FROM "OrganizationJoinRequest"`;
-        await tx.$executeRaw`DELETE FROM "Organization"`;
-        await tx.$executeRaw`DELETE FROM "UserWarning"`;
-        await tx.$executeRaw`DELETE FROM "AbuseReport"`;
-        await tx.$executeRaw`DELETE FROM "AdminActivityLog"`;
-        await tx.$executeRaw(
-          Prisma.sql`DELETE FROM "RefreshToken" WHERE "user_id" NOT IN (${Prisma.join(keepIds)})`
-        );
-        await tx.$executeRaw(
-          Prisma.sql`DELETE FROM "User" WHERE "id" NOT IN (${Prisma.join(keepIds)})`
-        );
+    const demo = await prisma.user.findFirst({ where: { email: 'demo@varsityhub.app' } });
+    const adminEmail =
+      (process.env.ADMIN_EMAILS || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)[0] || '';
+    const admin = adminEmail ? await prisma.user.findFirst({ where: { email: adminEmail } }) : null;
+    const keepIds = [demo?.id, admin?.id].filter(Boolean) as string[];
+    if (keepIds.length === 0) {
+      return res.status(500).json({
+        error: 'Wipe aborted: no preserved admin/demo account found',
       });
+    }
 
-      const remaining = await prisma.user.count();
-      return res.json({
-        ok: true,
-        message: `Wiped. Users remaining: ${remaining}`,
-        demo_kept: !!demo,
-      });
+    await prisma.$transaction(async tx => {
+      // Use raw SQL to bypass FK constraints, but keep the whole wipe atomic.
+      await tx.$executeRaw`DELETE FROM "Story"`;
+      await tx.$executeRaw`DELETE FROM "GameVote"`;
+      await tx.$executeRaw`DELETE FROM "EventRsvp"`;
+      await tx.$executeRaw`DELETE FROM "AdReservation"`;
+      await tx.$executeRaw`DELETE FROM "Ad"`;
+      await tx.$executeRaw`DELETE FROM "PollVote"`;
+      await tx.$executeRaw`DELETE FROM "PollOption"`;
+      await tx.$executeRaw`DELETE FROM "Poll"`;
+      await tx.$executeRaw`DELETE FROM "PostUpvote"`;
+      await tx.$executeRaw`DELETE FROM "PostBookmark"`;
+      await tx.$executeRaw`DELETE FROM "CategoryAssignment"`;
+      await tx.$executeRaw`DELETE FROM "Comment"`;
+      await tx.$executeRaw`DELETE FROM "Notification"`;
+      await tx.$executeRaw`DELETE FROM "Message"`;
+      await tx.$executeRaw`DELETE FROM "Follows"`;
+      await tx.$executeRaw`DELETE FROM "TeamFollow"`;
+      await tx.$executeRaw`DELETE FROM "OrganizationFollow"`;
+      await tx.$executeRaw`DELETE FROM "CategoryFollow"`;
+      await tx.$executeRaw`DELETE FROM "BlockedUser"`;
+      await tx.$executeRaw`DELETE FROM "GroupChatMessage"`;
+      await tx.$executeRaw`DELETE FROM "GroupChatMember"`;
+      await tx.$executeRaw`DELETE FROM "GroupChat"`;
+      await tx.$executeRaw`DELETE FROM "Post"`;
+      await tx.$executeRaw`DELETE FROM "Event"`;
+      await tx.$executeRaw`DELETE FROM "Game"`;
+      await tx.$executeRaw`DELETE FROM "TeamMembership"`;
+      await tx.$executeRaw`DELETE FROM "TeamInvite"`;
+      await tx.$executeRaw`DELETE FROM "Team"`;
+      await tx.$executeRaw`DELETE FROM "OrganizationMembership"`;
+      await tx.$executeRaw`DELETE FROM "OrganizationJoinRequest"`;
+      await tx.$executeRaw`DELETE FROM "Organization"`;
+      await tx.$executeRaw`DELETE FROM "UserWarning"`;
+      await tx.$executeRaw`DELETE FROM "AbuseReport"`;
+      await tx.$executeRaw`DELETE FROM "AdminActivityLog"`;
+      await tx.$executeRaw(
+        Prisma.sql`DELETE FROM "RefreshToken" WHERE "user_id" NOT IN (${Prisma.join(keepIds)})`
+      );
+      await tx.$executeRaw(
+        Prisma.sql`DELETE FROM "User" WHERE "id" NOT IN (${Prisma.join(keepIds)})`
+      );
+    });
+
+    const remaining = await prisma.user.count();
+    return res.json({
+      ok: true,
+      message: `Wiped. Users remaining: ${remaining}`,
+      demo_kept: !!demo,
+    });
   })
 );
 

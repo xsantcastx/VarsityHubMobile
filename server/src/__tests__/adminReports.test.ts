@@ -8,7 +8,7 @@ const describeDb = shouldSkipDbTests ? describe.skip : describe;
 
 /**
  * Unit tests for adminReports severity-gated suspension logic.
- * 
+ *
  * Tests:
  * 1. Resolved with suspend_45_days applies 45-day suspension
  * 2. Resolved with suspend_7_days applies 7-day suspension
@@ -25,7 +25,7 @@ describeDb('adminReports Sanctions Logic', () => {
     const user = await prisma.user.findUnique({
       where: { id: testUserId },
     });
-    return (user?.preferences && typeof user.preferences === 'object')
+    return user?.preferences && typeof user.preferences === 'object'
       ? (user.preferences as Record<string, any>)
       : {};
   };
@@ -77,7 +77,7 @@ describeDb('adminReports Sanctions Logic', () => {
   afterAll(async () => {
     // Clean up test data
     await prisma.abuseReport.deleteMany({ where: { id: testReportId } });
-    const ids = [testUserId, adminUserId].filter((id) => typeof id === 'string' && id.length > 0);
+    const ids = [testUserId, adminUserId].filter(id => typeof id === 'string' && id.length > 0);
     if (ids.length > 0) {
       await prisma.user.deleteMany({ where: { id: { in: ids } } });
     }
@@ -192,9 +192,10 @@ describeDb('adminReports Sanctions Logic', () => {
     const user = await prisma.user.findUnique({
       where: { id: testUserId },
     });
-    const prefs = (user?.preferences && typeof user.preferences === 'object')
-      ? (user.preferences as Record<string, any>)
-      : {};
+    const prefs =
+      user?.preferences && typeof user.preferences === 'object'
+        ? (user.preferences as Record<string, any>)
+        : {};
 
     expect(prefs.offense_count).toBe(0);
     expect(prefs.suspension_until).toBeNull();
@@ -202,7 +203,13 @@ describeDb('adminReports Sanctions Logic', () => {
 
   it('should reject invalid severity values', async () => {
     // This would typically be caught at the API level, but verify the type guard
-    const validSeverities = ['warning', 'content_removal', 'suspend_7_days', 'suspend_45_days', 'permanent_ban'];
+    const validSeverities = [
+      'warning',
+      'content_removal',
+      'suspend_7_days',
+      'suspend_45_days',
+      'permanent_ban',
+    ];
     const invalidSeverity = 'invalid_severity';
 
     const isValid = validSeverities.includes(invalidSeverity);
@@ -212,9 +219,7 @@ describeDb('adminReports Sanctions Logic', () => {
   it('should calculate reinstatement date correctly for 45-day suspension', async () => {
     const now = new Date();
     const until = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
-    const daysDiff = Math.floor(
-      (until.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)
-    );
+    const daysDiff = Math.floor((until.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
     expect(daysDiff).toBe(45);
   });
 });

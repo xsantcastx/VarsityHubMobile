@@ -30,7 +30,14 @@ export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Pro
   return (
     <SafeAreaView
       edges={['top', 'left', 'right']}
-      style={[styles.safeArea, { paddingTop: Math.max(insets.top, 16), borderBottomColor: theme.border, backgroundColor: theme.background }]}
+      style={[
+        styles.safeArea,
+        {
+          paddingTop: Math.max(insets.top, 16),
+          borderBottomColor: theme.border,
+          backgroundColor: theme.background,
+        },
+      ]}
     >
       <View style={styles.headerRow}>
         <Pressable
@@ -48,7 +55,9 @@ export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Pro
         </Pressable>
         <View style={styles.textContainer}>
           {title ? <Text style={[styles.title, { color: theme.text }]}>{title}</Text> : null}
-          {subtitle ? <Text style={[styles.subtitle, { color: theme.mutedText }]}>{subtitle}</Text> : null}
+          {subtitle ? (
+            <Text style={[styles.subtitle, { color: theme.mutedText }]}>{subtitle}</Text>
+          ) : null}
         </View>
         <View style={styles.rightSlot}>{rightSlot}</View>
       </View>

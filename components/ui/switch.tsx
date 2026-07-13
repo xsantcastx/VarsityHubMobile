@@ -4,7 +4,7 @@ import { Switch as RNSwitch, SwitchProps } from 'react-native';
 
 export function Switch(props: SwitchProps) {
   const colorScheme = useColorScheme();
-  
+
   return (
     <RNSwitch
       trackColor={{
@@ -19,4 +19,3 @@ export function Switch(props: SwitchProps) {
 }
 
 export default Switch;
-

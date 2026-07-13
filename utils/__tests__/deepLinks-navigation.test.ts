@@ -58,9 +58,9 @@ describe('handleDeepLink navigation contract', () => {
   it('does not push when the deep link already matches the current route', () => {
     (getCurrentHref as jest.Mock).mockReturnValue('/organization?id=org-123&tab=requests');
 
-    expect(
-      handleDeepLink('https://varsityhub.app/organization?tab=requests&id=org-123')
-    ).toBe(true);
+    expect(handleDeepLink('https://varsityhub.app/organization?tab=requests&id=org-123')).toBe(
+      true
+    );
 
     expect(router.push).not.toHaveBeenCalled();
   });

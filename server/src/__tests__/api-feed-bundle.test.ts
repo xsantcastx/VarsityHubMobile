@@ -189,31 +189,41 @@ describeDb('GET /feed/bundle', () => {
 
   afterAll(async () => {
     try {
-      await prisma.message.deleteMany({
-        where: {
-          OR: [{ sender_id: { in: userIds } }, { recipient_id: { in: userIds } }],
-        },
-      }).catch(() => {});
-      await prisma.notification.deleteMany({
-        where: {
-          OR: [{ user_id: { in: userIds } }, { actor_id: { in: userIds } }],
-        },
-      }).catch(() => {});
+      await prisma.message
+        .deleteMany({
+          where: {
+            OR: [{ sender_id: { in: userIds } }, { recipient_id: { in: userIds } }],
+          },
+        })
+        .catch(() => {});
+      await prisma.notification
+        .deleteMany({
+          where: {
+            OR: [{ user_id: { in: userIds } }, { actor_id: { in: userIds } }],
+          },
+        })
+        .catch(() => {});
       await prisma.game.deleteMany({ where: { id: { in: gameIds } } }).catch(() => {});
-      await prisma.postUpvote.deleteMany({
-        where: {
-          user_id: { in: userIds },
-          post_id: { in: postIds },
-        },
-      }).catch(() => {});
-      await prisma.teamFollow.deleteMany({
-        where: { user_id: { in: userIds }, team_id: { in: teamIds } },
-      }).catch(() => {});
-      await prisma.follows.deleteMany({
-        where: {
-          OR: [{ follower_id: { in: userIds } }, { following_id: { in: userIds } }],
-        },
-      }).catch(() => {});
+      await prisma.postUpvote
+        .deleteMany({
+          where: {
+            user_id: { in: userIds },
+            post_id: { in: postIds },
+          },
+        })
+        .catch(() => {});
+      await prisma.teamFollow
+        .deleteMany({
+          where: { user_id: { in: userIds }, team_id: { in: teamIds } },
+        })
+        .catch(() => {});
+      await prisma.follows
+        .deleteMany({
+          where: {
+            OR: [{ follower_id: { in: userIds } }, { following_id: { in: userIds } }],
+          },
+        })
+        .catch(() => {});
       await prisma.ad.deleteMany({ where: { id: { in: adIds } } }).catch(() => {});
       await prisma.post.deleteMany({ where: { id: { in: postIds } } }).catch(() => {});
       await prisma.team.deleteMany({ where: { id: { in: teamIds } } }).catch(() => {});
@@ -245,7 +255,9 @@ describeDb('GET /feed/bundle', () => {
     expect(res.body?.unread_messages).toBe(1);
 
     const followedIds = (res.body?.posts?.items ?? []).map((item: any) => item.id);
-    const teamIdsFromBundle = (res.body?.posts_followed_teams?.items ?? []).map((item: any) => item.id);
+    const teamIdsFromBundle = (res.body?.posts_followed_teams?.items ?? []).map(
+      (item: any) => item.id
+    );
     expect(followedIds.length).toBeGreaterThan(0);
     expect(teamIdsFromBundle.length).toBeGreaterThan(0);
     expect(res.body?.posts?.followed_feed_meta?.following_count).toBe(1);
@@ -308,7 +320,10 @@ describeDb('GET /feed/bundle', () => {
   });
 
   it('includes followed-user posts even after the viewer follows more than 1000 users', async () => {
-    const overflowUserIds = Array.from({ length: 1001 }, (_, index) => `feed-overflow-user-${ts}-${index}`);
+    const overflowUserIds = Array.from(
+      { length: 1001 },
+      (_, index) => `feed-overflow-user-${ts}-${index}`
+    );
     const overflowPostId = `feed-overflow-post-${ts}`;
     const overflowAuthorId = overflowUserIds[overflowUserIds.length - 1]!;
 
@@ -323,7 +338,7 @@ describeDb('GET /feed/bundle', () => {
     userIds.push(...overflowUserIds);
 
     await prisma.follows.createMany({
-      data: overflowUserIds.map((followingId) => ({
+      data: overflowUserIds.map(followingId => ({
         follower_id: viewerId,
         following_id: followingId,
         status: 'accepted',
@@ -352,7 +367,10 @@ describeDb('GET /feed/bundle', () => {
   });
 
   it('includes followed-team game posts even after the viewer follows more than 1000 teams', async () => {
-    const overflowTeamIds = Array.from({ length: 1001 }, (_, index) => `feed-overflow-team-${ts}-${index}`);
+    const overflowTeamIds = Array.from(
+      { length: 1001 },
+      (_, index) => `feed-overflow-team-${ts}-${index}`
+    );
     const overflowGameId = `feed-overflow-game-${ts}`;
     const overflowPostId = `feed-overflow-team-post-${ts}`;
     const overflowTeamId = overflowTeamIds[overflowTeamIds.length - 1]!;
@@ -368,7 +386,7 @@ describeDb('GET /feed/bundle', () => {
     teamIds.push(...overflowTeamIds);
 
     await prisma.teamFollow.createMany({
-      data: overflowTeamIds.map((teamId) => ({
+      data: overflowTeamIds.map(teamId => ({
         user_id: viewerId,
         team_id: teamId,
       })),
@@ -404,7 +422,9 @@ describeDb('GET /feed/bundle', () => {
       .set('Authorization', `Bearer ${viewerToken}`);
 
     expect(res.status).toBe(200);
-    expect(res.body?.posts_followed_teams?.followed_teams_feed_meta?.followed_teams_count).toBe(1002);
+    expect(res.body?.posts_followed_teams?.followed_teams_feed_meta?.followed_teams_count).toBe(
+      1002
+    );
     expect((res.body?.posts_followed_teams?.items ?? []).map((item: any) => item.id)).toContain(
       overflowPostId
     );

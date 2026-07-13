@@ -15,22 +15,24 @@ export interface CardProps extends ViewProps {
  * Enhanced Card Component
  * Supports theme, variants, and pressable functionality
  */
-export function Card({ 
-  style, 
+export function Card({
+  style,
   variant = 'outlined',
   pressable = false,
   onPress,
   padding = 'lg',
-  ...props 
+  ...props
 }: CardProps) {
   const colorScheme = useColorScheme() ?? 'light';
-  
+
   const Wrapper = pressable ? Pressable : View;
-  
+
   const borderStyle =
-    variant === 'default' ? { borderWidth: 0 } :
-    variant === 'strong' ? { borderWidth: borderWidth.medium, borderColor: Colors[colorScheme].border } :
-    { borderWidth: borderWidth.thin, borderColor: Colors[colorScheme].border };
+    variant === 'default'
+      ? { borderWidth: 0 }
+      : variant === 'strong'
+        ? { borderWidth: borderWidth.medium, borderColor: Colors[colorScheme].border }
+        : { borderWidth: borderWidth.thin, borderColor: Colors[colorScheme].border };
 
   const cardStyle = [
     styles.card,
@@ -40,28 +42,20 @@ export function Card({
       ...borderStyle,
     },
     variant === 'elevated' && shadows.md,
-    style
+    style,
   ];
-  
+
   return (
-    <Wrapper 
-      {...(props as any)} 
-      style={cardStyle}
-      onPress={pressable ? onPress : undefined}
-    />
+    <Wrapper {...(props as any)} style={cardStyle} onPress={pressable ? onPress : undefined} />
   );
 }
 
 export function CardHeader({ style, ...props }: ViewProps) {
   const colorScheme = useColorScheme() ?? 'light';
   return (
-    <View 
-      {...props} 
-      style={[
-        styles.section, 
-        { borderBottomColor: Colors[colorScheme].border },
-        style
-      ]} 
+    <View
+      {...props}
+      style={[styles.section, { borderBottomColor: Colors[colorScheme].border }, style]}
     />
   );
 }
@@ -73,13 +67,9 @@ export function CardContent({ style, ...props }: ViewProps) {
 export function CardFooter({ style, ...props }: ViewProps) {
   const colorScheme = useColorScheme() ?? 'light';
   return (
-    <View 
-      {...props} 
-      style={[
-        styles.section, 
-        { borderTopColor: Colors[colorScheme].border },
-        style
-      ]} 
+    <View
+      {...props}
+      style={[styles.section, { borderTopColor: Colors[colorScheme].border }, style]}
     />
   );
 }
@@ -89,10 +79,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     overflow: 'hidden',
   },
-  section: { 
+  section: {
     padding: spacing.md,
   },
 });
 
 export default Card;
-

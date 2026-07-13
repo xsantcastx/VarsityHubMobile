@@ -1,5 +1,13 @@
 import * as SecureStore from 'expo-secure-store';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Platform, useColorScheme as useSystemColorScheme } from 'react-native';
 import { useAuth } from '@/context/AuthProvider';
 
@@ -67,14 +75,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       }
     };
     void loadTheme();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [user?.id]);
 
   // Calculate actual color scheme based on preference
-  const colorScheme: ActualColorScheme = 
-    themePreference === 'system' 
-      ? (systemColorScheme ?? 'light') 
-      : themePreference;
+  const colorScheme: ActualColorScheme =
+    themePreference === 'system' ? (systemColorScheme ?? 'light') : themePreference;
 
   // Save theme preference to storage when changed
   const setThemePreference = useCallback(async (theme: ColorScheme) => {
@@ -90,15 +98,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const value = useMemo(() => ({
-    colorScheme, themePreference, setThemePreference,
-  }), [colorScheme, themePreference, setThemePreference]);
-
-  return (
-    <ThemeContext.Provider value={value}>
-      {children}
-    </ThemeContext.Provider>
+  const value = useMemo(
+    () => ({
+      colorScheme,
+      themePreference,
+      setThemePreference,
+    }),
+    [colorScheme, themePreference, setThemePreference]
   );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useCustomColorScheme(): ActualColorScheme {

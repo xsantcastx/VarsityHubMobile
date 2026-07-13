@@ -61,7 +61,7 @@ describe('Route push notifications are non-blocking', () => {
 
     if (findings.length > 0) {
       const formatted = findings
-        .map((f) => `  ${f.file}:${f.line}\n    ${f.snippet.replace(/\n/g, '\n    ')}`)
+        .map(f => `  ${f.file}:${f.line}\n    ${f.snippet.replace(/\n/g, '\n    ')}`)
         .join('\n\n');
       throw new Error(
         `Found ${findings.length} awaited route-level sendPushNotification call(s). Use fire-and-forget with .catch(...) instead.\n\n${formatted}`

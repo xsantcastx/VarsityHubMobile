@@ -31,4 +31,3 @@ const Input = React.forwardRef<TextInput, TextInputProps>((props, ref) => {
 export { Input };
 
 export default Input;
-

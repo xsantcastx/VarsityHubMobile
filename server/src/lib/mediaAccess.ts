@@ -20,7 +20,11 @@ export function signMediaPath(path: string, ttlSeconds: number = DEFAULT_TTL_SEC
   return { path: normalized, token, exp };
 }
 
-export function verifyMediaSignature(path: string, token?: string | null, exp?: number | null): boolean {
+export function verifyMediaSignature(
+  path: string,
+  token?: string | null,
+  exp?: number | null
+): boolean {
   if (!SIGNING_SECRET) return false;
   if (!token || !exp) return false;
   const now = Math.floor(Date.now() / 1000);
@@ -31,4 +35,3 @@ export function verifyMediaSignature(path: string, token?: string | null, exp?: 
   if (expected.length !== token.length) return false;
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(token));
 }
-

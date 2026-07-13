@@ -1,6 +1,6 @@
 /**
  * Transaction Logger
- * 
+ *
  * Centralized logging for all financial transactions
  * Ensures compliance with 7-year retention requirements
  */
@@ -16,12 +16,12 @@ export interface TransactionLogData {
   stripeSessionId?: string;
   stripePaymentIntentId?: string;
   stripeSubscriptionId?: string;
-  
+
   // User and order
   userId?: string;
   userEmail?: string;
   orderId?: string;
-  
+
   // Financial details (in cents)
   subtotalCents?: number;
   taxCents?: number;
@@ -29,16 +29,16 @@ export interface TransactionLogData {
   discountCents?: number;
   totalCents?: number;
   netCents?: number;
-  
+
   // Promo code
   promoCode?: string;
   promoDiscountCents?: number;
-  
+
   // Metadata
   currency?: string;
   paymentMethod?: string;
   metadata?: Record<string, any>;
-  
+
   // Audit trail
   ipAddress?: string;
   userAgent?: string;
@@ -56,30 +56,30 @@ export async function logTransaction(data: TransactionLogData) {
         stripe_session_id: data.stripeSessionId,
         stripe_payment_intent_id: data.stripePaymentIntentId,
         stripe_subscription_id: data.stripeSubscriptionId,
-        
+
         user_id: data.userId,
         user_email: data.userEmail,
         order_id: data.orderId,
-        
+
         subtotal_cents: data.subtotalCents || 0,
         tax_cents: data.taxCents || 0,
         stripe_fee_cents: data.stripeFeeeCents || 0,
         discount_cents: data.discountCents || 0,
         total_cents: data.totalCents || 0,
         net_cents: data.netCents || (data.totalCents || 0) - (data.stripeFeeeCents || 0),
-        
+
         promo_code: data.promoCode,
         promo_discount_cents: data.promoDiscountCents || 0,
-        
+
         currency: data.currency || 'usd',
         payment_method: data.paymentMethod,
         metadata: data.metadata ? JSON.parse(JSON.stringify(data.metadata)) : null,
-        
+
         ip_address: data.ipAddress,
         user_agent: data.userAgent,
       },
     });
-    
+
     debugLog(`[transaction-log] Created log ${log.id} for ${data.transactionType}`);
     return log;
   } catch (error) {
@@ -102,18 +102,22 @@ export async function updateTransactionStatus(
       status,
       updated_at: new Date(),
     };
-    
+
     if (additionalData) {
-      if (additionalData.stripePaymentIntentId) updateData.stripe_payment_intent_id = additionalData.stripePaymentIntentId;
-      if (additionalData.stripeSubscriptionId) updateData.stripe_subscription_id = additionalData.stripeSubscriptionId;
-      if (additionalData.stripeFeeeCents !== undefined) updateData.stripe_fee_cents = additionalData.stripeFeeeCents;
+      if (additionalData.stripePaymentIntentId)
+        updateData.stripe_payment_intent_id = additionalData.stripePaymentIntentId;
+      if (additionalData.stripeSubscriptionId)
+        updateData.stripe_subscription_id = additionalData.stripeSubscriptionId;
+      if (additionalData.stripeFeeeCents !== undefined)
+        updateData.stripe_fee_cents = additionalData.stripeFeeeCents;
       if (additionalData.totalCents !== undefined) {
         updateData.total_cents = additionalData.totalCents;
         updateData.net_cents = additionalData.totalCents - (additionalData.stripeFeeeCents || 0);
       }
-      if (additionalData.metadata) updateData.metadata = JSON.parse(JSON.stringify(additionalData.metadata));
+      if (additionalData.metadata)
+        updateData.metadata = JSON.parse(JSON.stringify(additionalData.metadata));
     }
-    
+
     // Accept session IDs, payment-intent IDs, and subscription IDs so callers
     // can update transaction status regardless of Stripe flow type.
     const matchingLog = await prisma.transactionLog.findFirst({
@@ -137,7 +141,7 @@ export async function updateTransactionStatus(
       where: { id: matchingLog.id },
       data: updateData,
     });
-    
+
     debugLog(`[transaction-log] Updated log ${log.id} to ${status}`);
     return log;
   } catch (error) {
@@ -201,7 +205,7 @@ export async function getAllTransactions(
 ) {
   try {
     const where: any = {};
-    
+
     if (filters?.type) where.transaction_type = filters.type;
     if (filters?.status) where.status = filters.status;
     if (filters?.userId) where.user_id = filters.userId;
@@ -210,7 +214,7 @@ export async function getAllTransactions(
       if (filters.startDate) where.created_at.gte = filters.startDate;
       if (filters.endDate) where.created_at.lte = filters.endDate;
     }
-    
+
     const [transactions, total] = await Promise.all([
       prisma.transactionLog.findMany({
         where,
@@ -229,7 +233,7 @@ export async function getAllTransactions(
       }),
       prisma.transactionLog.count({ where }),
     ]);
-    
+
     return { transactions, total };
   } catch (error) {
     console.error('[transaction-log] Failed to get transactions:', error);
@@ -248,10 +252,7 @@ export function calculateStripeFee(totalCents: number): number {
 /**
  * Get transaction summary stats
  */
-export async function getTransactionSummary(
-  startDate?: Date,
-  endDate?: Date
-) {
+export async function getTransactionSummary(startDate?: Date, endDate?: Date) {
   try {
     const where: any = {};
     if (startDate || endDate) {
@@ -259,39 +260,35 @@ export async function getTransactionSummary(
       if (startDate) where.created_at.gte = startDate;
       if (endDate) where.created_at.lte = endDate;
     }
-    
-    const [
-      totalTransactions,
-      completedTransactions,
-      totalRevenue,
-      totalFees,
-      totalDiscounts,
-    ] = await Promise.all([
-      prisma.transactionLog.count({ where }),
-      prisma.transactionLog.count({ 
-        where: { ...where, status: 'COMPLETED' } 
-      }),
-      prisma.transactionLog.aggregate({
-        where: { ...where, status: 'COMPLETED' },
-        _sum: { total_cents: true },
-      }),
-      prisma.transactionLog.aggregate({
-        where: { ...where, status: 'COMPLETED' },
-        _sum: { stripe_fee_cents: true },
-      }),
-      prisma.transactionLog.aggregate({
-        where: { ...where, status: 'COMPLETED' },
-        _sum: { discount_cents: true },
-      }),
-    ]);
-    
+
+    const [totalTransactions, completedTransactions, totalRevenue, totalFees, totalDiscounts] =
+      await Promise.all([
+        prisma.transactionLog.count({ where }),
+        prisma.transactionLog.count({
+          where: { ...where, status: 'COMPLETED' },
+        }),
+        prisma.transactionLog.aggregate({
+          where: { ...where, status: 'COMPLETED' },
+          _sum: { total_cents: true },
+        }),
+        prisma.transactionLog.aggregate({
+          where: { ...where, status: 'COMPLETED' },
+          _sum: { stripe_fee_cents: true },
+        }),
+        prisma.transactionLog.aggregate({
+          where: { ...where, status: 'COMPLETED' },
+          _sum: { discount_cents: true },
+        }),
+      ]);
+
     return {
       totalTransactions,
       completedTransactions,
       totalRevenueCents: totalRevenue._sum.total_cents || 0,
       totalFeesCents: totalFees._sum.stripe_fee_cents || 0,
       totalDiscountsCents: totalDiscounts._sum.discount_cents || 0,
-      netRevenueCents: (totalRevenue._sum.total_cents || 0) - (totalFees._sum.stripe_fee_cents || 0),
+      netRevenueCents:
+        (totalRevenue._sum.total_cents || 0) - (totalFees._sum.stripe_fee_cents || 0),
     };
   } catch (error) {
     console.error('[transaction-log] Failed to get summary:', error);
@@ -309,10 +306,7 @@ export async function getTransactionSummary(
 /**
  * Get transaction breakdown by type
  */
-export async function getTransactionBreakdownByType(
-  startDate?: Date,
-  endDate?: Date
-) {
+export async function getTransactionBreakdownByType(startDate?: Date, endDate?: Date) {
   try {
     const where: any = { status: 'COMPLETED' };
     if (startDate || endDate) {
@@ -332,7 +326,7 @@ export async function getTransactionBreakdownByType(
       },
     });
 
-    return transactions.map((t) => ({
+    return transactions.map(t => ({
       type: t.transaction_type,
       count: t._count.id,
       revenueCents: t._sum.total_cents || 0,
@@ -360,23 +354,25 @@ export async function getEndOfDayReport(date?: Date) {
     getTransactionSummary(startOfDay, endOfDay),
     getTransactionBreakdownByType(startOfDay, endOfDay),
     // Get breakdown by status
-    prisma.transactionLog.groupBy({
-      by: ['status'],
-      where: {
-        created_at: {
-          gte: startOfDay,
-          lte: endOfDay,
+    prisma.transactionLog
+      .groupBy({
+        by: ['status'],
+        where: {
+          created_at: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
         },
-      },
-      _count: { id: true },
-    }).catch(() => []),
+        _count: { id: true },
+      })
+      .catch(() => []),
   ]);
 
   return {
     date: targetDate.toISOString().split('T')[0],
     summary,
     breakdownByType: breakdown,
-    breakdownByStatus: statusBreakdown.map((s) => ({
+    breakdownByStatus: statusBreakdown.map(s => ({
       status: s.status,
       count: s._count.id,
     })),

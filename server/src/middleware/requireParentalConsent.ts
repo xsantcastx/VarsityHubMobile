@@ -38,9 +38,7 @@ const ALLOWED_EXACT = ['/me'];
 
 function isAllowedPath(path: string): boolean {
   if (ALLOWED_EXACT.includes(path)) return true;
-  return ALLOWED_PREFIXES.some(
-    (prefix) => path === prefix || path.startsWith(prefix + '/')
-  );
+  return ALLOWED_PREFIXES.some(prefix => path === prefix || path.startsWith(prefix + '/'));
 }
 
 export async function requireParentalConsent(

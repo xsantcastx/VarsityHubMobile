@@ -83,9 +83,11 @@ describeDb('Post upvote reconciliation', () => {
   afterAll(async () => {
     if (!prisma) return;
     if (createdUserIds.length) {
-      await prisma.user.deleteMany({
-        where: { id: { in: createdUserIds } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: createdUserIds } },
+        })
+        .catch(() => {});
     }
   });
 

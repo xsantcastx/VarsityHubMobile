@@ -15,9 +15,7 @@ describe('admin session-expiry UI guards', () => {
   it('admin dashboard defers expired-session approvals to the global auth handler and still surfaces load-state copy', () => {
     expect(adminDashboardSource).toMatch(/from ['"]@\/utils\/sessionExpiryError['"]/);
     expect(adminDashboardSource).toContain('if (isSessionExpiryError(e)) {');
-    expect(adminDashboardSource).toContain(
-      "'Your admin session expired. Please sign in again.'"
-    );
+    expect(adminDashboardSource).toContain("'Your admin session expired. Please sign in again.'");
     expect(adminDashboardSource).not.toContain("Alert.alert('Session expired'");
   });
 

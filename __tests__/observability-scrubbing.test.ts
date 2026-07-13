@@ -93,7 +93,8 @@ describe('observability payload scrubbing', () => {
       setTag: jest.fn(),
       setContext: jest.fn(),
     };
-    sentryMock.withScope.mockImplementation(((cb: (currentScope: typeof scope) => void) => cb(scope)) as any);
+    sentryMock.withScope.mockImplementation(((cb: (currentScope: typeof scope) => void) =>
+      cb(scope)) as any);
 
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const sentry = require('@/utils/sentry') as typeof import('@/utils/sentry');
@@ -129,7 +130,8 @@ describe('observability payload scrubbing', () => {
       setTag: jest.fn(),
       setContext: jest.fn(),
     };
-    sentryMock.withScope.mockImplementation(((cb: (currentScope: typeof scope) => void) => cb(scope)) as any);
+    sentryMock.withScope.mockImplementation(((cb: (currentScope: typeof scope) => void) =>
+      cb(scope)) as any);
 
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const sentry = require('@/utils/sentry') as typeof import('@/utils/sentry');
@@ -209,15 +211,21 @@ describe('observability payload scrubbing', () => {
     const sentry = require('@/utils/sentry') as typeof import('@/utils/sentry');
 
     sentry.initSentry();
-    const initOptions = sentryMock.init.mock.calls[0]?.[0] as { beforeSend?: (event: any, hint?: any) => any } | undefined;
-    const beforeSend = initOptions?.beforeSend as
-      | ((event: any, hint?: any) => any)
+    const initOptions = sentryMock.init.mock.calls[0]?.[0] as
+      | { beforeSend?: (event: any, hint?: any) => any }
       | undefined;
+    const beforeSend = initOptions?.beforeSend as ((event: any, hint?: any) => any) | undefined;
 
     expect(beforeSend).toEqual(expect.any(Function));
     const result = beforeSend?.(
       { exception: { values: [{ value: 'Cannot connect to server' }] }, tags: {} },
-      { originalException: { message: 'Cannot connect to server at https://api.example.com', isNetworkError: true, status: 0 } }
+      {
+        originalException: {
+          message: 'Cannot connect to server at https://api.example.com',
+          isNetworkError: true,
+          status: 0,
+        },
+      }
     );
     expect(result).toBeNull();
   });
@@ -227,10 +235,10 @@ describe('observability payload scrubbing', () => {
     const sentry = require('@/utils/sentry') as typeof import('@/utils/sentry');
 
     sentry.initSentry();
-    const initOptions = sentryMock.init.mock.calls[0]?.[0] as { beforeSend?: (event: any, hint?: any) => any } | undefined;
-    const beforeSend = initOptions?.beforeSend as
-      | ((event: any, hint?: any) => any)
+    const initOptions = sentryMock.init.mock.calls[0]?.[0] as
+      | { beforeSend?: (event: any, hint?: any) => any }
       | undefined;
+    const beforeSend = initOptions?.beforeSend as ((event: any, hint?: any) => any) | undefined;
 
     expect(beforeSend).toEqual(expect.any(Function));
     const result = beforeSend?.(
@@ -238,7 +246,9 @@ describe('observability payload scrubbing', () => {
         exception: { values: [{ value: 'Invalid email or password. Please try again.' }] },
         tags: { context: 'email-password-login' },
       },
-      { originalException: { message: 'Invalid email or password. Please try again.', status: 401 } }
+      {
+        originalException: { message: 'Invalid email or password. Please try again.', status: 401 },
+      }
     );
     expect(result).toBeNull();
   });

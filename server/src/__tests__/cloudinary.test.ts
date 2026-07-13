@@ -22,12 +22,9 @@ function expectedCloudinarySignature(form: FormData, apiSecret: string): string 
   });
   const toSign = Object.keys(fields)
     .sort()
-    .map((k) => `${k}=${fields[k]}`)
+    .map(k => `${k}=${fields[k]}`)
     .join('&');
-  return crypto
-    .createHash('sha1')
-    .update(`${toSign}${apiSecret}`)
-    .digest('hex');
+  return crypto.createHash('sha1').update(`${toSign}${apiSecret}`).digest('hex');
 }
 
 function makeFile(mimetype: string, name = 'upload.bin'): Express.Multer.File {
@@ -63,7 +60,8 @@ describe('cloudinary upload helper — universal signature & form-parity suite',
       ok: true,
       json: async () => ({
         public_id: 'varsityhub/production/banner',
-        secure_url: 'https://res.cloudinary.com/demo-cloud/image/upload/v1/varsityhub/production/banner.jpg',
+        secure_url:
+          'https://res.cloudinary.com/demo-cloud/image/upload/v1/varsityhub/production/banner.jpg',
         resource_type: 'image',
         bytes: 3,
         format: 'jpg',
@@ -84,7 +82,9 @@ describe('cloudinary upload helper — universal signature & form-parity suite',
 
   describe('signature matches what Cloudinary reconstructs from the form body', () => {
     it('image upload (server-proxy path from /uploads)', async () => {
-      await uploadBufferToCloudinary(makeFile('image/jpeg', 'banner.jpg'), { resourceType: 'image' });
+      await uploadBufferToCloudinary(makeFile('image/jpeg', 'banner.jpg'), {
+        resourceType: 'image',
+      });
       const form = getFetchForm();
       expect(form.get('signature')).toBe(
         expectedCloudinarySignature(form, process.env.CLOUDINARY_API_SECRET as string)
@@ -100,7 +100,9 @@ describe('cloudinary upload helper — universal signature & form-parity suite',
     });
 
     it('auto upload (used by /uploads/files for PDFs and misc media)', async () => {
-      await uploadBufferToCloudinary(makeFile('application/pdf', 'doc.pdf'), { resourceType: 'auto' });
+      await uploadBufferToCloudinary(makeFile('application/pdf', 'doc.pdf'), {
+        resourceType: 'auto',
+      });
       const form = getFetchForm();
       expect(form.get('signature')).toBe(
         expectedCloudinarySignature(form, process.env.CLOUDINARY_API_SECRET as string)
@@ -108,7 +110,9 @@ describe('cloudinary upload helper — universal signature & form-parity suite',
     });
 
     it('avatar upload (forced resourceType: image)', async () => {
-      await uploadBufferToCloudinary(makeFile('image/png', 'avatar.png'), { resourceType: 'image' });
+      await uploadBufferToCloudinary(makeFile('image/png', 'avatar.png'), {
+        resourceType: 'image',
+      });
       const form = getFetchForm();
       expect(form.get('signature')).toBe(
         expectedCloudinarySignature(form, process.env.CLOUDINARY_API_SECRET as string)
@@ -218,7 +222,13 @@ describe('cloudinary upload helper — universal signature & form-parity suite',
       jest.resetAllMocks();
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ public_id: 'p', secure_url: 'u', resource_type: 'video', bytes: 3, format: 'mp4' }),
+        json: async () => ({
+          public_id: 'p',
+          secure_url: 'u',
+          resource_type: 'video',
+          bytes: 3,
+          format: 'mp4',
+        }),
       } as Response) as any;
       await uploadBufferToCloudinary(makeFile('video/mp4'), { resourceType: 'video' });
       expect(getFetchUrl()).toBe('https://api.cloudinary.com/v1_1/demo-cloud/video/upload');
@@ -251,15 +261,18 @@ describe('cloudinary upload helper — universal signature & form-parity suite',
       global.fetch = jest.fn().mockResolvedValue({
         ok: false,
         status: 401,
-        json: async () => ({ error: { message: 'Invalid Signature xxx. String to sign - "folder=...&timestamp=..."' } }),
+        json: async () => ({
+          error: { message: 'Invalid Signature xxx. String to sign - "folder=...&timestamp=..."' },
+        }),
       } as Response) as any;
-      await expect(uploadBufferToCloudinary(makeFile('image/jpeg'), { resourceType: 'image' }))
-        .rejects.toMatchObject({
-          name: 'CloudinaryUpstreamError',
-          http_code: 401,
-          kind: 'invalid_signature',
-          isUpstreamFailure: true,
-        });
+      await expect(
+        uploadBufferToCloudinary(makeFile('image/jpeg'), { resourceType: 'image' })
+      ).rejects.toMatchObject({
+        name: 'CloudinaryUpstreamError',
+        http_code: 401,
+        kind: 'invalid_signature',
+        isUpstreamFailure: true,
+      });
     });
 
     it('classifies 401 "Unknown API key" as unauthorized (not invalid_signature)', async () => {
@@ -268,11 +281,12 @@ describe('cloudinary upload helper — universal signature & form-parity suite',
         status: 401,
         json: async () => ({ error: { message: 'Unknown API key abc' } }),
       } as Response) as any;
-      await expect(uploadBufferToCloudinary(makeFile('image/jpeg'), { resourceType: 'image' }))
-        .rejects.toMatchObject({
-          name: 'CloudinaryUpstreamError',
-          kind: 'unauthorized',
-        });
+      await expect(
+        uploadBufferToCloudinary(makeFile('image/jpeg'), { resourceType: 'image' })
+      ).rejects.toMatchObject({
+        name: 'CloudinaryUpstreamError',
+        kind: 'unauthorized',
+      });
     });
 
     it('classifies 5xx failures as server_error', async () => {
@@ -281,11 +295,12 @@ describe('cloudinary upload helper — universal signature & form-parity suite',
         status: 503,
         json: async () => ({ error: { message: 'Service unavailable' } }),
       } as Response) as any;
-      await expect(uploadBufferToCloudinary(makeFile('image/jpeg'), { resourceType: 'image' }))
-        .rejects.toMatchObject({
-          name: 'CloudinaryUpstreamError',
-          kind: 'server_error',
-        });
+      await expect(
+        uploadBufferToCloudinary(makeFile('image/jpeg'), { resourceType: 'image' })
+      ).rejects.toMatchObject({
+        name: 'CloudinaryUpstreamError',
+        kind: 'server_error',
+      });
     });
   });
 
@@ -296,14 +311,16 @@ describe('cloudinary upload helper — universal signature & form-parity suite',
   describe('credential validation', () => {
     it('throws a non-upstream error when credentials are missing', async () => {
       delete process.env.CLOUDINARY_CLOUD_NAME;
-      await expect(uploadBufferToCloudinary(makeFile('image/jpeg'), { resourceType: 'image' }))
-        .rejects.toThrow(/not configured/i);
+      await expect(
+        uploadBufferToCloudinary(makeFile('image/jpeg'), { resourceType: 'image' })
+      ).rejects.toThrow(/not configured/i);
     });
 
     it('throws a non-upstream error when placeholder credentials are detected', async () => {
       process.env.CLOUDINARY_API_SECRET = 'your-api-secret';
-      await expect(uploadBufferToCloudinary(makeFile('image/jpeg'), { resourceType: 'image' }))
-        .rejects.toThrow(/placeholder/i);
+      await expect(
+        uploadBufferToCloudinary(makeFile('image/jpeg'), { resourceType: 'image' })
+      ).rejects.toThrow(/placeholder/i);
     });
   });
 });

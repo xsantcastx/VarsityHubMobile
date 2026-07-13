@@ -160,7 +160,7 @@ describe('Email Verification', () => {
         </html>
       `;
 
-      htmlParts.forEach((part) => {
+      htmlParts.forEach(part => {
         expect(mockHtml).toContain(part);
       });
     });
@@ -187,7 +187,7 @@ Thanks,
 The VarsityHub Team
       `.trim();
 
-      requiredContent.forEach((content) => {
+      requiredContent.forEach(content => {
         expect(mockPlainText).toContain(content);
       });
     });
@@ -245,7 +245,8 @@ describe('Email Service Configuration', () => {
   });
 
   it('should have fallback from email', () => {
-    const defaultFrom = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
+    const defaultFrom =
+      process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
 
     expect(defaultFrom).toBeDefined();
     expect(defaultFrom.length).toBeGreaterThan(0);

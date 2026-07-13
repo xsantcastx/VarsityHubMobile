@@ -18,7 +18,10 @@ import * as MediaLibrary from 'expo-media-library';
  * that surfaced as the useless "Image Error — something went wrong" fallback.
  */
 export class ICloudMaterializationError extends Error {
-  constructor(message: string, public readonly cause?: unknown) {
+  constructor(
+    message: string,
+    public readonly cause?: unknown
+  ) {
     super(message);
     this.name = 'ICloudMaterializationError';
   }
@@ -68,9 +71,12 @@ export async function materializeICloudAssetIfNeeded(uri: string): Promise<strin
       // throw a more specific error on the first failed read.
       return uri;
     }
-    const info = await (getInfo as (id: string, opts?: any) => Promise<{ localUri?: string }>)(assetId, {
-      shouldDownloadFromNetwork: true,
-    });
+    const info = await (getInfo as (id: string, opts?: any) => Promise<{ localUri?: string }>)(
+      assetId,
+      {
+        shouldDownloadFromNetwork: true,
+      }
+    );
 
     if (info?.localUri) {
       if (__DEV__) console.log('[media] iCloud asset materialized to:', info.localUri);

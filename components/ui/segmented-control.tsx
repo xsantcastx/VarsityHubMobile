@@ -1,6 +1,14 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Platform, StyleProp, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
+import {
+  Platform,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewStyle,
+} from 'react-native';
 
 interface SegmentedControlProps {
   tabs: string[];
@@ -14,8 +22,14 @@ export function SegmentedControl({ tabs, selected, onChange, style }: SegmentedC
   const palette = Colors[colorScheme];
 
   return (
-    <View style={[styles.container, { borderColor: palette.border, backgroundColor: palette.surface }, style]}>
-      {tabs.map((tab) => (
+    <View
+      style={[
+        styles.container,
+        { borderColor: palette.border, backgroundColor: palette.surface },
+        style,
+      ]}
+    >
+      {tabs.map(tab => (
         <TouchableOpacity
           key={tab}
           style={[
@@ -25,7 +39,9 @@ export function SegmentedControl({ tabs, selected, onChange, style }: SegmentedC
           ]}
           onPress={() => onChange(tab)}
         >
-          <Text style={[styles.tabText, { color: selected === tab ? palette.text : palette.mutedText }]}>
+          <Text
+            style={[styles.tabText, { color: selected === tab ? palette.text : palette.mutedText }]}
+          >
             {tab}
           </Text>
         </TouchableOpacity>

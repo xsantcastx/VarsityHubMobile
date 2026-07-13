@@ -31,7 +31,7 @@ interface StateTransition {
   action: Action;
   fromStatus: AdStatus;
   fromPayment: AdPaymentStatus;
-  expectedStatus: AdStatus | null;       // null = should be rejected/forbidden
+  expectedStatus: AdStatus | null; // null = should be rejected/forbidden
   expectedPayment: AdPaymentStatus | null;
   description: string;
 }
@@ -231,37 +231,23 @@ for (const t of INVALID_TRANSITIONS) {
 // Tests
 // ---------------------------------------------------------------------------
 describe('Ad Lifecycle — Valid Transitions', () => {
-  it.each(VALID_TRANSITIONS.map((t) => [t.description, t] as const))(
-    '%s',
-    (_desc, transition) => {
-      const key = transitionKey(
-        transition.fromStatus,
-        transition.fromPayment,
-        transition.action,
-      );
-      const result = stateMachine.get(key);
-      expect(result).toBeDefined();
-      expect(result!.status).toBe(transition.expectedStatus);
-      expect(result!.payment).toBe(transition.expectedPayment);
-    },
-  );
+  it.each(VALID_TRANSITIONS.map(t => [t.description, t] as const))('%s', (_desc, transition) => {
+    const key = transitionKey(transition.fromStatus, transition.fromPayment, transition.action);
+    const result = stateMachine.get(key);
+    expect(result).toBeDefined();
+    expect(result!.status).toBe(transition.expectedStatus);
+    expect(result!.payment).toBe(transition.expectedPayment);
+  });
 });
 
 describe('Ad Lifecycle — Invalid Transitions', () => {
-  it.each(INVALID_TRANSITIONS.map((t) => [t.description, t] as const))(
-    '%s',
-    (_desc, transition) => {
-      const key = transitionKey(
-        transition.fromStatus,
-        transition.fromPayment,
-        transition.action,
-      );
-      // Should NOT exist in valid transitions
-      expect(stateMachine.has(key)).toBe(false);
-      // Should be in our invalid set
-      expect(invalidSet.has(key)).toBe(true);
-    },
-  );
+  it.each(INVALID_TRANSITIONS.map(t => [t.description, t] as const))('%s', (_desc, transition) => {
+    const key = transitionKey(transition.fromStatus, transition.fromPayment, transition.action);
+    // Should NOT exist in valid transitions
+    expect(stateMachine.has(key)).toBe(false);
+    // Should be in our invalid set
+    expect(invalidSet.has(key)).toBe(true);
+  });
 });
 
 describe('Ad Lifecycle — Happy Path Sequence', () => {
@@ -323,7 +309,14 @@ describe('Ad Lifecycle — Happy Path Sequence', () => {
 });
 
 describe('Ad Lifecycle — State Machine Completeness', () => {
-  const allStatuses: AdStatus[] = ['draft', 'pending', 'approved', 'active', 'rejected', 'archived'];
+  const allStatuses: AdStatus[] = [
+    'draft',
+    'pending',
+    'approved',
+    'active',
+    'rejected',
+    'archived',
+  ];
   const allActions: Action[] = [
     'submit_for_approval',
     'approve',
@@ -339,12 +332,17 @@ describe('Ad Lifecycle — State Machine Completeness', () => {
       for (const action of allActions) {
         // We test with a representative payment status for each state
         const representativePayment: AdPaymentStatus =
-          status === 'draft' ? 'unpaid' :
-          status === 'pending' ? 'pending_approval' :
-          status === 'approved' ? 'unpaid' :
-          status === 'active' ? 'paid' :
-          status === 'rejected' ? 'unpaid' :
-          'paid'; // archived
+          status === 'draft'
+            ? 'unpaid'
+            : status === 'pending'
+              ? 'pending_approval'
+              : status === 'approved'
+                ? 'unpaid'
+                : status === 'active'
+                  ? 'paid'
+                  : status === 'rejected'
+                    ? 'unpaid'
+                    : 'paid'; // archived
 
         const key = transitionKey(status, representativePayment, action);
         if (!stateMachine.has(key) && !invalidSet.has(key)) {
@@ -359,7 +357,7 @@ describe('Ad Lifecycle — State Machine Completeness', () => {
     if (uncovered.length > 0) {
       console.warn(
         `Uncovered state+action combos (${uncovered.length}):\n` +
-        uncovered.map((c) => `  - ${c}`).join('\n'),
+          uncovered.map(c => `  - ${c}`).join('\n')
       );
     }
 

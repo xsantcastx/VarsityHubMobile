@@ -37,7 +37,7 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
   }
 
   // Skip DB lookup for public endpoints — even if a token is present
-  if (PUBLIC_EXACT_PATHS.has(req.path) || PUBLIC_PREFIXES.some((p) => req.path.startsWith(p))) {
+  if (PUBLIC_EXACT_PATHS.has(req.path) || PUBLIC_PREFIXES.some(p => req.path.startsWith(p))) {
     clearUserContext();
     return next();
   }
@@ -100,15 +100,31 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
     // Banned or suspended users get explicit 403 with reason
     if (user.banned) {
       clearUserContext();
-      return _res.status(403).json({ error: 'Your account has been banned.', code: 'ACCOUNT_BANNED', ban_reason: (user as any).ban_reason || undefined });
+      return _res
+        .status(403)
+        .json({
+          error: 'Your account has been banned.',
+          code: 'ACCOUNT_BANNED',
+          ban_reason: (user as any).ban_reason || undefined,
+        });
     }
     if (user.banned_until && new Date(user.banned_until) > new Date()) {
       clearUserContext();
-      return _res.status(403).json({ error: 'Your account is temporarily suspended.', code: 'ACCOUNT_SUSPENDED', banned_until: user.banned_until });
+      return _res
+        .status(403)
+        .json({
+          error: 'Your account is temporarily suspended.',
+          code: 'ACCOUNT_SUSPENDED',
+          banned_until: user.banned_until,
+        });
     }
 
     // Reject tokens issued before the last password change
-    if (payload.iat && user.password_changed_at && payload.iat < Math.floor(user.password_changed_at.getTime() / 1000)) {
+    if (
+      payload.iat &&
+      user.password_changed_at &&
+      payload.iat < Math.floor(user.password_changed_at.getTime() / 1000)
+    ) {
       clearUserContext();
       return next();
     }

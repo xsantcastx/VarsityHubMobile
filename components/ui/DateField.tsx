@@ -39,7 +39,11 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
     }
     if (selectedDate) {
       // Normalize to local midnight to prevent timezone offset shifting the day
-      const normalized = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      const normalized = new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        selectedDate.getDate()
+      );
       setDate(normalized);
       dateRef.current = normalized;
     }
@@ -56,7 +60,7 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
     ? parseLocalDate(value).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
-        day: 'numeric'
+        day: 'numeric',
       })
     : placeholder || 'Select date';
 
@@ -73,24 +77,29 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
           },
         ]}
       >
-        <Text style={[styles.text, { color: value ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
+        <Text
+          style={[
+            styles.text,
+            { color: value ? Colors[colorScheme].text : Colors[colorScheme].mutedText },
+          ]}
+        >
           {displayValue}
         </Text>
       </Pressable>
-      
+
       {Platform.OS === 'ios' ? (
-        <Modal
-          visible={show}
-          transparent={true}
-          animationType="slide"
-        >
+        <Modal visible={show} transparent={true} animationType="slide">
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: Colors[colorScheme].background }]}>
+            <View
+              style={[styles.modalContent, { backgroundColor: Colors[colorScheme].background }]}
+            >
               <View style={styles.modalHeader}>
                 <Pressable onPress={() => setShow(false)}>
                   <Text style={[styles.cancelButton, { color: theme.mutedText }]}>Cancel</Text>
                 </Pressable>
-                <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Select Date</Text>
+                <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
+                  Select Date
+                </Text>
                 <Pressable onPress={handleConfirm}>
                   <Text style={styles.doneButton}>Done</Text>
                 </Pressable>
@@ -115,7 +124,11 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
             onChange={(event, selectedDate) => {
               setShow(false);
               if (selectedDate) {
-                const normalized = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                const normalized = new Date(
+                  selectedDate.getFullYear(),
+                  selectedDate.getMonth(),
+                  selectedDate.getDate()
+                );
                 setDate(normalized);
                 const formatted = formatLocalDate(normalized);
                 onChange(formatted);

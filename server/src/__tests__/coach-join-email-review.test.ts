@@ -88,16 +88,18 @@ describe('Coach join request email-token review routes', () => {
     await prisma.notification
       .deleteMany({ where: { user_id: { in: [ownerId, coachId] } } })
       .catch(() => {});
-    await prisma.organizationJoinRequest.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+    await prisma.organizationJoinRequest
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: [ownerId, coachId] } } }).catch(() => {});
   });
 
   it('rejects requests without a token', async () => {
-    const res = await request(app).get(
-      `/organizations/join-requests/${requestId}/email/approve`
-    );
+    const res = await request(app).get(`/organizations/join-requests/${requestId}/email/approve`);
     expect(res.status).toBe(401);
     expect(res.text).toMatch(/Link Expired/i);
   });
@@ -127,10 +129,7 @@ describe('Coach join request email-token review routes', () => {
   });
 
   it('approves the coach directly on GET with a valid approve token (no confirmation form)', async () => {
-    const token = signReviewToken(
-      { requestId, orgId, action: 'approve_join_request' },
-      '48h'
-    );
+    const token = signReviewToken({ requestId, orgId, action: 'approve_join_request' }, '48h');
     const res = await request(app).get(
       `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
     );
@@ -155,10 +154,7 @@ describe('Coach join request email-token review routes', () => {
   it('shows an "already reviewed" page when the join request is no longer pending', async () => {
     // The previous test already approved this request, so a new token now lands
     // on the request-status guard rather than executing again.
-    const token = signReviewToken(
-      { requestId, orgId, action: 'approve_join_request' },
-      '48h'
-    );
+    const token = signReviewToken({ requestId, orgId, action: 'approve_join_request' }, '48h');
     const res = await request(app).get(
       `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
     );
@@ -226,9 +222,15 @@ describe('Join-request approval stamps agreement fields (email-link path)', () =
 
   afterAll(async () => {
     await prisma.adminActivityLog.deleteMany({ where: { target_id: coachId2 } }).catch(() => {});
-    await prisma.notification.deleteMany({ where: { user_id: { in: [ownerId2, coachId2] } } }).catch(() => {});
-    await prisma.organizationJoinRequest.deleteMany({ where: { organization_id: orgId2 } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId2 } }).catch(() => {});
+    await prisma.notification
+      .deleteMany({ where: { user_id: { in: [ownerId2, coachId2] } } })
+      .catch(() => {});
+    await prisma.organizationJoinRequest
+      .deleteMany({ where: { organization_id: orgId2 } })
+      .catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId2 } })
+      .catch(() => {});
     await prisma.organization.delete({ where: { id: orgId2 } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: [ownerId2, coachId2] } } }).catch(() => {});
   });
@@ -245,7 +247,11 @@ describe('Join-request approval stamps agreement fields (email-link path)', () =
 
     const updated = await prisma.user.findUnique({
       where: { id: coachId2 },
-      select: { approval_status: true, coach_agreement_accepted_at: true, coach_agreement_version: true },
+      select: {
+        approval_status: true,
+        coach_agreement_accepted_at: true,
+        coach_agreement_version: true,
+      },
     });
 
     expect(updated?.approval_status).toBe('APPROVED');
@@ -338,9 +344,15 @@ describe('Join-request approval stamps agreement fields (in-app path)', () => {
 
   afterAll(async () => {
     await prisma.adminActivityLog.deleteMany({ where: { target_id: coachId3 } }).catch(() => {});
-    await prisma.notification.deleteMany({ where: { user_id: { in: [ownerId3, coachId3] } } }).catch(() => {});
-    await prisma.organizationJoinRequest.deleteMany({ where: { organization_id: orgId3 } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId3 } }).catch(() => {});
+    await prisma.notification
+      .deleteMany({ where: { user_id: { in: [ownerId3, coachId3] } } })
+      .catch(() => {});
+    await prisma.organizationJoinRequest
+      .deleteMany({ where: { organization_id: orgId3 } })
+      .catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId3 } })
+      .catch(() => {});
     await prisma.organization.delete({ where: { id: orgId3 } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: [ownerId3, coachId3] } } }).catch(() => {});
   });
@@ -354,7 +366,11 @@ describe('Join-request approval stamps agreement fields (in-app path)', () => {
 
     const updated = await prisma.user.findUnique({
       where: { id: coachId3 },
-      select: { approval_status: true, coach_agreement_accepted_at: true, coach_agreement_version: true },
+      select: {
+        approval_status: true,
+        coach_agreement_accepted_at: true,
+        coach_agreement_version: true,
+      },
     });
 
     expect(updated?.approval_status).toBe('APPROVED');

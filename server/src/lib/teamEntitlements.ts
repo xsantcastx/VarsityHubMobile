@@ -1,12 +1,23 @@
 import { Prisma } from '@prisma/client';
-import { getAuthorizedUsersPerTeam, getMaxRosterSizePerTeam, getMaxTeamsForPlan, resolvePlan } from './planLimits.js';
+import {
+  getAuthorizedUsersPerTeam,
+  getMaxRosterSizePerTeam,
+  getMaxTeamsForPlan,
+  resolvePlan,
+} from './planLimits.js';
 import { prisma } from './prisma.js';
 import { getUserPlans } from '../middleware/subscription.js';
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
 export const TEAM_MANAGEMENT_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
-export const TEAM_AUTHORIZED_ROLES = ['manager', 'coach', 'assistant_coach', 'equipment', 'health_wellness'] as const;
+export const TEAM_AUTHORIZED_ROLES = [
+  'manager',
+  'coach',
+  'assistant_coach',
+  'equipment',
+  'health_wellness',
+] as const;
 
 type NullableLimit = number | null;
 
@@ -43,7 +54,10 @@ function mergeLargestLimit(current: NullableLimit | undefined, next: NullableLim
   return Math.max(current ?? 0, next ?? 0);
 }
 
-function compareTeamOwnership(a: { team_id: string; team: { created_at: Date } | null }, b: { team_id: string; team: { created_at: Date } | null }) {
+function compareTeamOwnership(
+  a: { team_id: string; team: { created_at: Date } | null },
+  b: { team_id: string; team: { created_at: Date } | null }
+) {
   const aCreatedAt = a.team?.created_at?.getTime?.() ?? 0;
   const bCreatedAt = b.team?.created_at?.getTime?.() ?? 0;
   if (aCreatedAt !== bCreatedAt) return aCreatedAt - bCreatedAt;
@@ -59,9 +73,10 @@ export function isAuthorizedTeamRole(role?: string | null): boolean {
 }
 
 export function buildTeamPlanLockedError(entitlement: TeamEntitlementState) {
-  const message = typeof entitlement.maxTeams === 'number'
-    ? `This team is outside the owner's current plan allowance of ${entitlement.maxTeams} team${entitlement.maxTeams === 1 ? '' : 's'}. Upgrade or remove extra teams to manage it again.`
-    : 'This team is outside the owner\'s current plan allowance. Upgrade or remove extra teams to manage it again.';
+  const message =
+    typeof entitlement.maxTeams === 'number'
+      ? `This team is outside the owner's current plan allowance of ${entitlement.maxTeams} team${entitlement.maxTeams === 1 ? '' : 's'}. Upgrade or remove extra teams to manage it again.`
+      : "This team is outside the owner's current plan allowance. Upgrade or remove extra teams to manage it again.";
 
   return {
     error: 'TEAM_PLAN_LOCKED',
@@ -111,7 +126,7 @@ function buildTeamEntitlementState(
     const ownedTeamIds = (ownershipRowsByOwnerId.get(ownerId) || [])
       .slice()
       .sort(compareTeamOwnership)
-      .map((row) => row.team_id);
+      .map(row => row.team_id);
 
     const teamIndex = ownedTeamIds.indexOf(teamId);
     const ownerEntitlesTeam = teamIndex !== -1 && (maxTeams === null || teamIndex < maxTeams);
@@ -174,7 +189,7 @@ export async function getTeamEntitlementStates(
     ownerIdsByTeamId.set(membership.team_id, existing);
   }
 
-  const ownerIds = [...new Set(ownerMemberships.map((membership) => membership.user_id))];
+  const ownerIds = [...new Set(ownerMemberships.map(membership => membership.user_id))];
   if (ownerIds.length === 0) {
     for (const teamId of uniqueTeamIds) {
       result.set(teamId, buildUnlockedTeamEntitlementState(teamId));
@@ -204,7 +219,7 @@ export async function getTeamEntitlementStates(
   ]);
 
   const ownerPlans = Object.fromEntries(
-    ownerIds.map((ownerId) => [ownerId, resolvePlan(ownerPlansMap.get(ownerId))])
+    ownerIds.map(ownerId => [ownerId, resolvePlan(ownerPlansMap.get(ownerId))])
   );
   const ownershipRowsByOwnerId = new Map<
     string,
@@ -227,7 +242,10 @@ export async function getTeamEntitlementStates(
   return result;
 }
 
-export async function getTeamEntitlementState(db: DbClient, teamId: string): Promise<TeamEntitlementState> {
+export async function getTeamEntitlementState(
+  db: DbClient,
+  teamId: string
+): Promise<TeamEntitlementState> {
   return (
     (await getTeamEntitlementStates(db, [teamId])).get(teamId) ||
     buildUnlockedTeamEntitlementState(teamId)
@@ -277,9 +295,14 @@ export async function guardTeamMembershipMutation(
         role: { in: [...TEAM_AUTHORIZED_ROLES] as any },
       },
     });
-    const nextAuthorizedCount = currentAuthorizedCount + (nextAuthorized ? 1 : 0) - (existingAuthorized ? 1 : 0);
+    const nextAuthorizedCount =
+      currentAuthorizedCount + (nextAuthorized ? 1 : 0) - (existingAuthorized ? 1 : 0);
     if (nextAuthorizedCount > entitlement.maxAuthorizedUsers) {
-      return { ok: false, status: 403, body: buildAuthorizedUserLimitError(entitlement.maxAuthorizedUsers) };
+      return {
+        ok: false,
+        status: 403,
+        body: buildAuthorizedUserLimitError(entitlement.maxAuthorizedUsers),
+      };
     }
   }
 

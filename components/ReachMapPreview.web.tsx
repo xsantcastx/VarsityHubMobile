@@ -24,11 +24,10 @@ export function ReachMapPreview({
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].surface }]}>
       <View style={styles.content}>
         <MaterialIcons name="map" size={48} color={Colors[colorScheme].mutedText} />
-        <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-          Map Preview
-        </Text>
+        <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Map Preview</Text>
         <Text style={[styles.description, { color: Colors[colorScheme].mutedText }]}>
-          Your ad will reach users within {radiusKm} km of ZIP code {zipCode}. Booking stays tied to this ZIP code.
+          Your ad will reach users within {radiusKm} km of ZIP code {zipCode}. Booking stays tied to
+          this ZIP code.
         </Text>
         <Text style={[styles.note, { color: Colors[colorScheme].mutedText }]}>
           Interactive maps are available on the mobile app

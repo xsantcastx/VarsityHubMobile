@@ -9,7 +9,11 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 type ThemeOption = 'light' | 'dark';
 const DISMISS_KEY = 'vh:web-theme-toggle:dismissed';
 
-const OPTIONS: Array<{ value: ThemeOption; label: string; icon: ComponentProps<typeof MaterialIcons>['name'] }> = [
+const OPTIONS: Array<{
+  value: ThemeOption;
+  label: string;
+  icon: ComponentProps<typeof MaterialIcons>['name'];
+}> = [
   { value: 'light', label: 'Light', icon: 'light-mode' },
   { value: 'dark', label: 'Dark', icon: 'dark-mode' },
 ];
@@ -37,8 +41,10 @@ export function WebThemeToggle() {
       style={[
         styles.container,
         {
-          backgroundColor: colorScheme === 'dark' ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.92)',
-          borderColor: colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.08)',
+          backgroundColor:
+            colorScheme === 'dark' ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.92)',
+          borderColor:
+            colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.08)',
         },
       ]}
       pointerEvents="box-none"

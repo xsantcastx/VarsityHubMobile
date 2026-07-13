@@ -30,7 +30,9 @@ export function useAppleAuth() {
         if (mounted) setAvailable(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const signInInProgressRef = useRef(false);
@@ -39,7 +41,8 @@ export function useAppleAuth() {
     async <T>(exchange: (identityToken: string) => Promise<T>): Promise<T> => {
       if (signInInProgressRef.current) {
         // eslint-disable-next-line no-console
-        if (__DEV__) console.log('[Apple Auth] Sign-in already in progress, skipping duplicate call');
+        if (__DEV__)
+          console.log('[Apple Auth] Sign-in already in progress, skipping duplicate call');
         throw new Error('User canceled Apple sign-in');
       }
       signInInProgressRef.current = true;
@@ -61,7 +64,9 @@ export function useAppleAuth() {
         const apiBase = getApiBaseUrl();
         const isLocalDev = apiBase.includes('localhost') || apiBase.includes('127.0.0.1');
         if (appleNotAvailable && !isLocalDev) {
-          throw new Error('Apple Sign-In is not available on this device. Make sure you are signed into iCloud and Sign in with Apple is enabled, or use email/password.');
+          throw new Error(
+            'Apple Sign-In is not available on this device. Make sure you are signed into iCloud and Sign in with Apple is enabled, or use email/password.'
+          );
         }
 
         let credential;
@@ -69,7 +74,8 @@ export function useAppleAuth() {
           // Local dev only: use a mock credential so simulator dev can iterate
           // on the post-auth UI without needing a real Apple sign-in flow.
           // eslint-disable-next-line no-console
-          if (__DEV__) console.log('[Apple Auth] Using simulator mock credential (local dev server)');
+          if (__DEV__)
+            console.log('[Apple Auth] Using simulator mock credential (local dev server)');
           credential = {
             user: 'sim-dev-apple-user',
             authorizationCode: null,
@@ -113,8 +119,7 @@ export function useAppleAuth() {
             }
 
             const isSimulatorUnknown =
-              errCode === 'err_request_unknown' ||
-              errMsg.includes('unknown reason');
+              errCode === 'err_request_unknown' || errMsg.includes('unknown reason');
             if (__DEV__ && Platform.OS === 'ios' && isSimulatorUnknown) {
               // eslint-disable-next-line no-console
               if (__DEV__) console.log('[Apple Auth] Simulator fallback (native auth unavailable)');
@@ -180,7 +185,10 @@ export function useAppleAuth() {
             if (isRetryable && attempts < maxAttempts) {
               const delayMs = 1000 * Math.pow(2, attempts - 1);
               // eslint-disable-next-line no-console
-              if (__DEV__) console.log(`[Apple Auth] Retry attempt ${attempts}/${maxAttempts} after ${delayMs}ms`);
+              if (__DEV__)
+                console.log(
+                  `[Apple Auth] Retry attempt ${attempts}/${maxAttempts} after ${delayMs}ms`
+                );
               await new Promise(resolve => setTimeout(resolve, delayMs));
             } else {
               break;
@@ -196,39 +204,44 @@ export function useAppleAuth() {
         const message = err?.message || 'Apple sign-in failed';
         const normalizedMessage = String(message).toLowerCase();
         const code = String(err?.code || '').toLowerCase();
-        
-        const isCanceled = 
+
+        const isCanceled =
           message.toLowerCase().includes('cancel') ||
           code.includes('canceled') ||
           code.includes('cancelled') ||
           code === 'err_request_canceled';
-        
+
         if (isCanceled) {
           // eslint-disable-next-line no-console
           if (__DEV__) console.log('[Apple Auth] User canceled sign-in (not showing error)');
           throw err;
         }
-        
+
         if (!(__DEV__ && Platform.OS === 'ios')) {
           // eslint-disable-next-line no-console
           if (__DEV__) console.error('[Apple Auth] Error:', err);
         } else {
           // eslint-disable-next-line no-console
-          if (__DEV__) console.log('[Apple Auth] Native Apple auth unavailable (expected in simulator)');
+          if (__DEV__)
+            console.log('[Apple Auth] Native Apple auth unavailable (expected in simulator)');
         }
-        
+
         if (__DEV__ && Platform.OS === 'ios') {
           // eslint-disable-next-line no-console
-          if (__DEV__) console.log('[Apple Auth] Native auth not available in simulator - expected behavior');
+          if (__DEV__)
+            console.log('[Apple Auth] Native auth not available in simulator - expected behavior');
           throw err;
         }
-        
+
         if (err?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
           setError(message);
           throw err;
         }
 
-        if (normalizedMessage.includes('timeout') || normalizedMessage.includes('server did not respond')) {
+        if (
+          normalizedMessage.includes('timeout') ||
+          normalizedMessage.includes('server did not respond')
+        ) {
           const friendlyMessage = `Cannot connect to server at ${getApiBaseUrl()}. Please check your internet connection and try again.`;
           const networkErr: any = new Error(friendlyMessage);
           networkErr.isNetworkError = true;
@@ -258,11 +271,15 @@ export function useAppleAuth() {
   );
 
   const signInWithApple = useCallback(async (): Promise<AppleAuthResult> => {
-    return runAppleAuth(identityToken => User.loginViaApple(identityToken) as Promise<AppleAuthResult>);
+    return runAppleAuth(
+      identityToken => User.loginViaApple(identityToken) as Promise<AppleAuthResult>
+    );
   }, [runAppleAuth]);
 
   const linkWithApple = useCallback(async (): Promise<AppleLinkResult> => {
-    return runAppleAuth(identityToken => User.linkAppleProvider(identityToken) as Promise<AppleLinkResult>);
+    return runAppleAuth(
+      identityToken => User.linkAppleProvider(identityToken) as Promise<AppleLinkResult>
+    );
   }, [runAppleAuth]);
 
   return {

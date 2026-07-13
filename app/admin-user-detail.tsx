@@ -5,7 +5,17 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 import { getApiBaseUrl, httpGet, httpPost } from '../api/http';
@@ -37,7 +47,8 @@ function AdminUserDetailScreen() {
 
   const load = useCallback(async () => {
     if (!isAdmin || !id) return;
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     try {
       const d = await User.getFull(String(id));
       setDetail(d);
@@ -47,9 +58,11 @@ function AdminUserDetailScreen() {
           ? 'Your admin session expired. Please sign in again.'
           : e?.status === 403
             ? 'Access denied (admin only).'
-            : (e?.message || 'Failed to load user')
+            : e?.message || 'Failed to load user'
       );
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [id, isAdmin]);
 
   const loadModeration = useCallback(async () => {
@@ -62,16 +75,24 @@ function AdminUserDetailScreen() {
       if (!isSessionExpiryError(e)) {
         /* moderation may not exist yet */
       }
+    } finally {
+      setModLoading(false);
     }
-    finally { setModLoading(false); }
   }, [id, isAdmin]);
 
-  useEffect(() => { void load(); void loadModeration(); }, [load, loadModeration]);
+  useEffect(() => {
+    void load();
+    void loadModeration();
+  }, [load, loadModeration]);
 
   const onDownload = async () => {
     if (!id) return;
     const url = getApiBaseUrl() + `/users/${encodeURIComponent(String(id))}/export`;
-    try { await WebBrowser.openBrowserAsync(url); } catch { /* no-op */ }
+    try {
+      await WebBrowser.openBrowserAsync(url);
+    } catch {
+      /* no-op */
+    }
   };
 
   const onWarn = async () => {
@@ -92,7 +113,9 @@ function AdminUserDetailScreen() {
         return;
       }
       Alert.alert('Error', e?.message || 'Failed to issue warning');
-    } finally { setActionLoading(false); }
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const onSuspend = async () => {
@@ -115,7 +138,9 @@ function AdminUserDetailScreen() {
         return;
       }
       Alert.alert('Error', e?.message || 'Failed to suspend user');
-    } finally { setActionLoading(false); }
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const [banModalVisible, setBanModalVisible] = useState(false);
@@ -207,11 +232,14 @@ function AdminUserDetailScreen() {
     placeholder: string;
   }) => (
     <TextInput
-      style={[styles.textInput, {
-        color: palette.text,
-        borderColor: palette.border,
-        backgroundColor: modalInputBackground,
-      }]}
+      style={[
+        styles.textInput,
+        {
+          color: palette.text,
+          borderColor: palette.border,
+          backgroundColor: modalInputBackground,
+        },
+      ]}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
@@ -243,7 +271,9 @@ function AdminUserDetailScreen() {
         onPress={onConfirm}
         disabled={disabled}
       >
-        {actionLoading ? <ActivityIndicator color="white" size="small" /> : (
+        {actionLoading ? (
+          <ActivityIndicator color="white" size="small" />
+        ) : (
           <Text style={{ color: 'white', fontWeight: '700' }}>{confirmLabel}</Text>
         )}
       </Pressable>
@@ -252,7 +282,13 @@ function AdminUserDetailScreen() {
 
   if (adminLoading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: palette.background }]} edges={['top', 'bottom']}>
+      <SafeAreaView
+        style={[
+          styles.container,
+          { justifyContent: 'center', alignItems: 'center', backgroundColor: palette.background },
+        ]}
+        edges={['top', 'bottom']}
+      >
         <ActivityIndicator color={palette.tint} />
       </SafeAreaView>
     );
@@ -260,36 +296,69 @@ function AdminUserDetailScreen() {
 
   if (!isAdmin) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-        <Text style={{ color: palette.text, fontSize: 16, fontWeight: '600' }}>Admin access required</Text>
+      <SafeAreaView
+        style={[
+          styles.container,
+          { justifyContent: 'center', alignItems: 'center', backgroundColor: palette.background },
+        ]}
+        edges={['top', 'bottom']}
+      >
+        <Text style={{ color: palette.text, fontSize: 16, fontWeight: '600' }}>
+          Admin access required
+        </Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{
-        title: 'Admin · User Detail',
-        headerLeft: () => (
-          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
-            <MaterialIcons name="chevron-left" size={24} color={palette.tint} />
-          </Pressable>
-        ),
-      }} />
-      {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator color={palette.tint} /></View> : null}
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: palette.background }]}
+      edges={['top', 'bottom']}
+    >
+      <Stack.Screen
+        options={{
+          title: 'Admin · User Detail',
+          headerLeft: () => (
+            <Pressable
+              onPress={() => {
+                safeGoBack(router);
+              }}
+              style={{ paddingLeft: 8 }}
+            >
+              <MaterialIcons name="chevron-left" size={24} color={palette.tint} />
+            </Pressable>
+          ),
+        }}
+      />
+      {loading ? (
+        <View style={{ padding: 24, alignItems: 'center' }}>
+          <ActivityIndicator color={palette.tint} />
+        </View>
+      ) : null}
       {error ? <Text style={[styles.error, { color: palette.mutedText }]}>{error}</Text> : null}
       {!loading && !error && detail ? (
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
           {/* User Info Header */}
           <View style={[styles.header, { borderBottomColor: palette.border }]}>
-            <Text style={[styles.title, { color: palette.text }]}>{detail.user?.display_name || '(no name)'}</Text>
+            <Text style={[styles.title, { color: palette.text }]}>
+              {detail.user?.display_name || '(no name)'}
+            </Text>
             <Text style={[styles.meta, { color: palette.mutedText }]}>{detail.user?.email}</Text>
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
-              <View style={[styles.badge, { backgroundColor: palette.card, borderColor: palette.border }]}>
-                <Text style={[styles.badgeText, { color: palette.text }]}>{detail.user?.email_verified ? 'VERIFIED' : 'UNVERIFIED'}</Text>
+              <View
+                style={[
+                  styles.badge,
+                  { backgroundColor: palette.card, borderColor: palette.border },
+                ]}
+              >
+                <Text style={[styles.badgeText, { color: palette.text }]}>
+                  {detail.user?.email_verified ? 'VERIFIED' : 'UNVERIFIED'}
+                </Text>
               </View>
               {detail.user?.banned ? (
-                <View style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
+                <View
+                  style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}
+                >
                   <Text style={[styles.badgeText, { color: '#991B1B' }]}>BANNED</Text>
                 </View>
               ) : null}
@@ -318,12 +387,18 @@ function AdminUserDetailScreen() {
                 <Text style={styles.actionBtnText}>Suspend</Text>
               </Pressable>
               {detail.user?.banned ? (
-                <Pressable style={[styles.actionBtn, { backgroundColor: '#10B981' }]} onPress={onUnban}>
+                <Pressable
+                  style={[styles.actionBtn, { backgroundColor: '#10B981' }]}
+                  onPress={onUnban}
+                >
                   <MaterialIcons name="check-circle" size={16} color="white" />
                   <Text style={styles.actionBtnText}>Unban</Text>
                 </Pressable>
               ) : (
-                <Pressable style={[styles.actionBtn, { backgroundColor: '#EF4444' }]} onPress={onBan}>
+                <Pressable
+                  style={[styles.actionBtn, { backgroundColor: '#EF4444' }]}
+                  onPress={onBan}
+                >
                   <MaterialIcons name="block" size={16} color="white" />
                   <Text style={styles.actionBtnText}>Ban User</Text>
                 </Pressable>
@@ -337,7 +412,9 @@ function AdminUserDetailScreen() {
             {modLoading ? (
               <ActivityIndicator style={{ marginTop: 8 }} color={palette.tint} />
             ) : warnings.length === 0 ? (
-              <Text style={[styles.meta, { color: palette.mutedText, marginTop: 4 }]}>No warnings or actions on record.</Text>
+              <Text style={[styles.meta, { color: palette.mutedText, marginTop: 4 }]}>
+                No warnings or actions on record.
+              </Text>
             ) : (
               <>
                 <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
@@ -351,15 +428,32 @@ function AdminUserDetailScreen() {
                 {warnings.map((w: any) => (
                   <View
                     key={w.id}
-                    style={[styles.card, {
-                      backgroundColor: palette.surface,
-                      borderColor: palette.border,
-                      borderLeftWidth: 3,
-                      borderLeftColor: severityColor(w.severity),
-                    }]}
+                    style={[
+                      styles.card,
+                      {
+                        backgroundColor: palette.surface,
+                        borderColor: palette.border,
+                        borderLeftWidth: 3,
+                        borderLeftColor: severityColor(w.severity),
+                      },
+                    ]}
                   >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <View style={[styles.badge, { backgroundColor: severityColor(w.severity) + '20', borderColor: severityColor(w.severity) }]}>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <View
+                        style={[
+                          styles.badge,
+                          {
+                            backgroundColor: severityColor(w.severity) + '20',
+                            borderColor: severityColor(w.severity),
+                          },
+                        ]}
+                      >
                         <Text style={[styles.badgeText, { color: severityColor(w.severity) }]}>
                           {(w.severity || 'warning').toUpperCase().replace('_', ' ')}
                         </Text>
@@ -368,7 +462,9 @@ function AdminUserDetailScreen() {
                         {new Date(w.created_at).toLocaleDateString()}
                       </Text>
                     </View>
-                    <Text style={[{ marginTop: 6, color: palette.text, fontSize: 13 }]}>{w.reason}</Text>
+                    <Text style={[{ marginTop: 6, color: palette.text, fontSize: 13 }]}>
+                      {w.reason}
+                    </Text>
                   </View>
                 ))}
               </>
@@ -384,15 +480,26 @@ function AdminUserDetailScreen() {
               ads.map((item: any) => (
                 <View
                   key={String(item.id)}
-                  style={[styles.card, {
-                    backgroundColor: palette.surface,
-                    borderColor: palette.border,
-                  }]}
+                  style={[
+                    styles.card,
+                    {
+                      backgroundColor: palette.surface,
+                      borderColor: palette.border,
+                    },
+                  ]}
                 >
-                  <Text style={[styles.cardTitle, { color: palette.text }]}>{item.business_name || '(no business)'}</Text>
-                  <Text style={[styles.meta, { color: palette.mutedText }]}>Status: {item.status || 'draft'} · Payment: {item.payment_status || 'unpaid'}</Text>
-                  <Text style={[styles.meta, { color: palette.mutedText }]}>Zip {item.target_zip_code || ''}</Text>
-                  <Text style={[styles.meta, { color: palette.mutedText }]}>Dates: {(datesByAd[item.id] || []).join(', ') || '—'}</Text>
+                  <Text style={[styles.cardTitle, { color: palette.text }]}>
+                    {item.business_name || '(no business)'}
+                  </Text>
+                  <Text style={[styles.meta, { color: palette.mutedText }]}>
+                    Status: {item.status || 'draft'} · Payment: {item.payment_status || 'unpaid'}
+                  </Text>
+                  <Text style={[styles.meta, { color: palette.mutedText }]}>
+                    Zip {item.target_zip_code || ''}
+                  </Text>
+                  <Text style={[styles.meta, { color: palette.mutedText }]}>
+                    Dates: {(datesByAd[item.id] || []).join(', ') || '—'}
+                  </Text>
                 </View>
               ))
             )}
@@ -409,16 +516,25 @@ function AdminUserDetailScreen() {
           <>
             <Text style={[styles.label, { color: palette.text }]}>Severity</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-              {(['warning', 'strike', 'final_warning'] as Severity[]).map((s) => (
+              {(['warning', 'strike', 'final_warning'] as Severity[]).map(s => (
                 <Pressable
                   key={s}
-                  style={[styles.chip, {
-                    backgroundColor: warnSeverity === s ? severityColor(s) : 'transparent',
-                    borderColor: severityColor(s),
-                  }]}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: warnSeverity === s ? severityColor(s) : 'transparent',
+                      borderColor: severityColor(s),
+                    },
+                  ]}
                   onPress={() => setWarnSeverity(s)}
                 >
-                  <Text style={{ color: warnSeverity === s ? 'white' : severityColor(s), fontSize: 12, fontWeight: '700' }}>
+                  <Text
+                    style={{
+                      color: warnSeverity === s ? 'white' : severityColor(s),
+                      fontSize: 12,
+                      fontWeight: '700',
+                    }}
+                  >
                     {s.toUpperCase().replace('_', ' ')}
                   </Text>
                 </Pressable>
@@ -452,16 +568,27 @@ function AdminUserDetailScreen() {
           <>
             <Text style={[styles.label, { color: palette.text }]}>Duration (days)</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-              {['1', '3', '7', '14', '30'].map((d) => (
+              {['1', '3', '7', '14', '30'].map(d => (
                 <Pressable
                   key={d}
-                  style={[styles.chip, {
-                    backgroundColor: suspendDays === d ? '#F59E0B' : 'transparent',
-                    borderColor: '#F59E0B',
-                  }]}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: suspendDays === d ? '#F59E0B' : 'transparent',
+                      borderColor: '#F59E0B',
+                    },
+                  ]}
                   onPress={() => setSuspendDays(d)}
                 >
-                  <Text style={{ color: suspendDays === d ? 'white' : '#F59E0B', fontSize: 12, fontWeight: '700' }}>{d}d</Text>
+                  <Text
+                    style={{
+                      color: suspendDays === d ? 'white' : '#F59E0B',
+                      fontSize: 12,
+                      fontWeight: '700',
+                    }}
+                  >
+                    {d}d
+                  </Text>
                 </Pressable>
               ))}
             </View>
@@ -519,22 +646,53 @@ const styles = StyleSheet.create({
   meta: {},
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
   badgeText: { fontWeight: '800', fontSize: 10 },
-  btn: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8 },
+  btn: {
+    alignSelf: 'flex-start',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 8,
+  },
   btnText: { color: 'white', fontWeight: '800' },
   section: { padding: 16 },
   sectionTitle: { fontWeight: '800', fontSize: 16, marginBottom: 10 },
   card: { padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
   cardTitle: { fontWeight: '800' },
   error: { color: '#b91c1c', padding: 12 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
   actionBtnText: { color: 'white', fontWeight: '700', fontSize: 13 },
   label: { fontWeight: '700', fontSize: 13, marginBottom: 6 },
   chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
-  textInput: { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 14, minHeight: 60, textAlignVertical: 'top' },
+  textInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 14,
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
   modalTitle: { fontWeight: '800', fontSize: 18, marginBottom: 4 },
-  modalBtn: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  modalBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
 
 export default AdminUserDetailScreen;

@@ -25,14 +25,14 @@ export const Colors = {
   },
   dark: {
     text: '#F5F5F5',
-    background: '#0f172a',  // Dark navy blue (slate-900)
-    card: '#1e293b',        // Slightly lighter navy (slate-800)
+    background: '#0f172a', // Dark navy blue (slate-900)
+    card: '#1e293b', // Slightly lighter navy (slate-800)
     surface: '#1e293b',
-    border: '#334155',      // Slate-700 for better contrast
-    mutedText: '#94a3b8',   // Slate-400
+    border: '#334155', // Slate-700 for better contrast
+    mutedText: '#94a3b8', // Slate-400
     elevated: '#1e293b',
     tint: tintColorDark,
-    icon: '#cbd5e1',        // Slate-300
+    icon: '#cbd5e1', // Slate-300
     tabIconDefault: '#94a3b8',
     tabIconSelected: tintColorDark,
     destructive: '#EF4444',

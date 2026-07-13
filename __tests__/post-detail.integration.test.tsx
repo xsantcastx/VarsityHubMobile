@@ -1,12 +1,12 @@
 /**
  * Post Detail Integration Test
- * 
+ *
  * These tests validate the post-detail screen's core functionality:
  * - Loading posts from cache vs API
  * - Upvote/downvote functionality
  * - Comment display and submission
  * - Error handling and retry logic
- * 
+ *
  * Note: These are integration test descriptions that verify the actual
  * component behavior when integrated with PostCacheContext.
  */
@@ -192,5 +192,3 @@ describe('Post Detail Integration Tests', () => {
     });
   });
 });
-
-

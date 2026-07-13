@@ -1,6 +1,6 @@
 /**
  * useRequireAdmin - Client-side admin route guard
- * 
+ *
  * Prevents unauthorized users from accessing admin screens
  * Redirects to home if not admin
  */

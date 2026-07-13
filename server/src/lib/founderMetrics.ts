@@ -48,10 +48,14 @@ function fillDailyCounts(dateKeys: string[], rows: RawDailyRow[]): DailyCount[] 
   for (const row of rows) {
     map.set(toDateKey(row.day), Number(row.count || 0));
   }
-  return dateKeys.map((date) => ({ date, count: map.get(date) ?? 0 }));
+  return dateKeys.map(date => ({ date, count: map.get(date) ?? 0 }));
 }
 
-async function getDailyCounts(table: '"User"' | '"AbuseReport"' | '"Message"', start: Date, end: Date) {
+async function getDailyCounts(
+  table: '"User"' | '"AbuseReport"' | '"Message"',
+  start: Date,
+  end: Date
+) {
   return prisma.$queryRaw<RawDailyRow[]>`
     SELECT date_trunc('day', created_at) AS day, COUNT(*)::int AS count
     FROM ${Prisma.raw(table)}

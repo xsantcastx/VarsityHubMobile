@@ -9,9 +9,12 @@ const CLOUDINARY_PLACEHOLDERS = {
   apiSecret: ['your-api-secret', 'your-cloudinary-secret', 'abcdefghijklmnopqrstuvwxyz', ''],
 };
 
-function isPlaceholder(value: string | undefined, key: keyof typeof CLOUDINARY_PLACEHOLDERS): boolean {
+function isPlaceholder(
+  value: string | undefined,
+  key: keyof typeof CLOUDINARY_PLACEHOLDERS
+): boolean {
   if (!value) return true;
-  return CLOUDINARY_PLACEHOLDERS[key].some((p) => p && value.trim() === p);
+  return CLOUDINARY_PLACEHOLDERS[key].some(p => p && value.trim() === p);
 }
 
 function trimEnv(key: string): string {
@@ -32,20 +35,36 @@ function getRawCredentials(): { cloudName: string; apiKey: string; apiSecret: st
 export const isCloudinaryConfigured = (): boolean => {
   const { cloudName, apiKey, apiSecret } = getRawCredentials();
   if (!cloudName || !apiKey || !apiSecret) return false;
-  if (isPlaceholder(cloudName, 'cloudName') || isPlaceholder(apiKey, 'apiKey') || isPlaceholder(apiSecret, 'apiSecret')) {
+  if (
+    isPlaceholder(cloudName, 'cloudName') ||
+    isPlaceholder(apiKey, 'apiKey') ||
+    isPlaceholder(apiSecret, 'apiSecret')
+  ) {
     return false;
   }
   return true;
 };
 
 /** Returns trimmed, validated credentials. Use this everywhere — never read process.env directly. */
-export function getCloudinaryCredentials(): { cloudName: string; apiKey: string; apiSecret: string } {
+export function getCloudinaryCredentials(): {
+  cloudName: string;
+  apiKey: string;
+  apiSecret: string;
+} {
   const { cloudName, apiKey, apiSecret } = getRawCredentials();
   if (!cloudName || !apiKey || !apiSecret) {
-    throw new Error('Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in server/.env');
+    throw new Error(
+      'Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in server/.env'
+    );
   }
-  if (isPlaceholder(cloudName, 'cloudName') || isPlaceholder(apiKey, 'apiKey') || isPlaceholder(apiSecret, 'apiSecret')) {
-    throw new Error('Cloudinary has placeholder credentials. Replace with real values from Cloudinary Console → API Keys.');
+  if (
+    isPlaceholder(cloudName, 'cloudName') ||
+    isPlaceholder(apiKey, 'apiKey') ||
+    isPlaceholder(apiSecret, 'apiSecret')
+  ) {
+    throw new Error(
+      'Cloudinary has placeholder credentials. Replace with real values from Cloudinary Console → API Keys.'
+    );
   }
   return { cloudName, apiKey, apiSecret };
 }
@@ -76,7 +95,7 @@ const getCloudinaryConfig = () => getCloudinaryCredentials();
 const createSignature = (params: Record<string, string>, apiSecret: string) => {
   const toSign = Object.keys(params)
     .sort()
-    .map((key) => `${key}=${params[key]}`)
+    .map(key => `${key}=${params[key]}`)
     .join('&');
 
   return crypto.createHash('sha1').update(`${toSign}${apiSecret}`).digest('hex');
@@ -185,7 +204,9 @@ export async function uploadBufferToCloudinary(
   );
 
   if (!response.ok) {
-    const errorPayload = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
+    const errorPayload = (await response.json().catch(() => ({}))) as {
+      error?: { message?: string };
+    };
     const message = errorPayload?.error?.message || `Cloudinary upload failed (${response.status})`;
 
     // v1.0.3: classify the failure so the HTTP route can translate an upstream
@@ -207,7 +228,7 @@ export async function uploadBufferToCloudinary(
     // common cause: rotated in dashboard but not updated in env).
     const toSignString = Object.keys(signedParams)
       .sort()
-      .map((k) => `${k}=${signedParams[k]}`)
+      .map(k => `${k}=${signedParams[k]}`)
       .join('&');
     const secretFingerprint = `${apiSecret.slice(0, 3)}…[${apiSecret.length}ch]`;
     console.error('[cloudinary] Upload rejected — diagnostic dump', {
@@ -237,9 +258,9 @@ export async function uploadBufferToCloudinary(
  * Handles optional transformations and version segments. Returns null if the URL
  * is not a recognizable Cloudinary asset URL.
  */
-export function extractCloudinaryPublicId(url: string | null | undefined):
-  | { publicId: string; resourceType: 'image' | 'video' }
-  | null {
+export function extractCloudinaryPublicId(
+  url: string | null | undefined
+): { publicId: string; resourceType: 'image' | 'video' } | null {
   if (!url || typeof url !== 'string') return null;
   try {
     const u = new URL(url);
@@ -290,14 +311,12 @@ export async function destroyCloudinaryAsset(
     api_key: apiKey,
     signature,
   });
-  const response = await runWithBreaker(
-    'cloudinary-destroy',
-    () =>
-      fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/destroy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      })
+  const response = await runWithBreaker('cloudinary-destroy', () =>
+    fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/destroy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    })
   );
   if (!response.ok) {
     const err = (await response.json().catch(() => ({}))) as { error?: { message?: string } };

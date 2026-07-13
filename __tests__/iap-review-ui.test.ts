@@ -27,7 +27,9 @@ describe('iap review ui guards', () => {
     expect(manageSubscription).toContain('contentInnerLarge');
     expect(manageSubscription).toContain('maxWidth: 720');
     expect(manageSubscription).toContain('syncBillingState');
-    expect(manageSubscription).toContain('checkAuth({ forceRefresh: options?.forceRefresh === true })');
+    expect(manageSubscription).toContain(
+      'checkAuth({ forceRefresh: options?.forceRefresh === true })'
+    );
   });
 
   it('subscription paywall constrains content width and keeps restore purchases visible', () => {

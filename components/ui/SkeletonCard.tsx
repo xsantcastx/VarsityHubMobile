@@ -48,7 +48,12 @@ export function SkeletonCard({ width, height, borderRadius = 8, style }: Skeleto
 export function PostCardSkeleton() {
   const colorScheme = useCustomColorScheme();
   return (
-    <View style={[styles.postCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+    <View
+      style={[
+        styles.postCard,
+        { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+      ]}
+    >
       {/* Header: avatar + name + timestamp */}
       <View style={styles.postHeader}>
         <SkeletonCard width={40} height={40} borderRadius={20} />
@@ -102,7 +107,12 @@ export function ProfileHeaderSkeleton() {
 export function TeamCardSkeleton() {
   const colorScheme = useCustomColorScheme();
   return (
-    <View style={[styles.teamCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+    <View
+      style={[
+        styles.teamCard,
+        { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+      ]}
+    >
       {/* Team logo */}
       <SkeletonCard width={56} height={56} borderRadius={12} />
       {/* Text area */}

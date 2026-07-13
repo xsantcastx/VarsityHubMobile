@@ -16,20 +16,20 @@ export interface SectionHeaderProps {
 /**
  * Reusable Section Header Component
  * Replaces 50+ duplicated section headers across the app
- * 
+ *
  * @example
- * <SectionHeader 
- *   title="MY TEAMS" 
+ * <SectionHeader
+ *   title="MY TEAMS"
  *   subtitle="Manage your teams"
  *   action={<Button>Add</Button>}
  * />
  */
-export function SectionHeader({ 
-  title, 
-  subtitle, 
-  action, 
+export function SectionHeader({
+  title,
+  subtitle,
+  action,
   showBorder = true,
-  style 
+  style,
 }: SectionHeaderProps) {
   const colorScheme = useColorScheme() ?? 'light';
 
@@ -42,22 +42,12 @@ export function SectionHeader({
       ]}
     >
       <View style={styles.textContainer}>
-        <Text 
-          style={[
-            styles.title, 
-            typography.heading,
-            { color: Colors[colorScheme].text }
-          ]}
-        >
+        <Text style={[styles.title, typography.heading, { color: Colors[colorScheme].text }]}>
           {title}
         </Text>
         {subtitle && (
-          <Text 
-            style={[
-              styles.subtitle,
-              typography.body,
-              { color: Colors[colorScheme].mutedText }
-            ]}
+          <Text
+            style={[styles.subtitle, typography.body, { color: Colors[colorScheme].mutedText }]}
           >
             {subtitle}
           </Text>

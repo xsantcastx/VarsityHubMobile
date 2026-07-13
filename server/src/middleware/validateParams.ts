@@ -9,7 +9,8 @@
 import type { Request, Response, NextFunction } from 'express';
 
 // Match Prisma CUID (c + 24-25 alphanumeric) or UUID v4
-const VALID_ID_PATTERN = /^(c[a-z0-9]{24,25}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const VALID_ID_PATTERN =
+  /^(c[a-z0-9]{24,25}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
 /**
  * Express param callback — validates a single named param.
@@ -30,7 +31,21 @@ export function validateIdParam(req: Request, res: Response, next: NextFunction,
  */
 export function registerIdValidation(router: import('express').Router) {
   // Note: sessionId excluded — Stripe session IDs (cs_test_...) are not CUID/UUID format
-  const paramNames = ['id', 'userId', 'teamId', 'orgId', 'inviteId', 'postId', 'gameId', 'eventId', 'adId', 'membershipId', 'mediaId', 'commentId', 'reportId'];
+  const paramNames = [
+    'id',
+    'userId',
+    'teamId',
+    'orgId',
+    'inviteId',
+    'postId',
+    'gameId',
+    'eventId',
+    'adId',
+    'membershipId',
+    'mediaId',
+    'commentId',
+    'reportId',
+  ];
   for (const name of paramNames) {
     router.param(name, validateIdParam);
   }

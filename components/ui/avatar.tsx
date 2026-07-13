@@ -2,9 +2,10 @@ import React from 'react';
 import { Image, ImageProps, View, Text, StyleSheet } from 'react-native';
 
 export function Avatar({ uri, size = 40 }: { uri?: string; size?: number }) {
-  if (uri) return <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
+  if (uri)
+    return <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
   return (
-    <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2 }]}> 
+    <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2 }]}>
       <Text style={styles.fallbackText}>?</Text>
     </View>
   );
@@ -15,7 +16,11 @@ export function AvatarImage(props: ImageProps) {
 }
 
 export function AvatarFallback({ children }: { children?: React.ReactNode }) {
-  return <View style={styles.fallback}><Text style={styles.fallbackText}>{children}</Text></View>;
+  return (
+    <View style={styles.fallback}>
+      <Text style={styles.fallbackText}>{children}</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -24,4 +29,3 @@ const styles = StyleSheet.create({
 });
 
 export default Avatar;
-

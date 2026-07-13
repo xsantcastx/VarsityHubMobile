@@ -372,7 +372,10 @@ describe('coach onboarding logic — universal suite', () => {
 
     it('defensively treats non-boolean prefs value as incomplete', () => {
       expect(
-        isUserOnboardingComplete({ onboarding_completed: null, preferences: { onboarding_completed: 'yes' } })
+        isUserOnboardingComplete({
+          onboarding_completed: null,
+          preferences: { onboarding_completed: 'yes' },
+        })
       ).toBe(false);
     });
   });
@@ -384,7 +387,10 @@ describe('coach onboarding logic — universal suite', () => {
 
     it('falls back to prefs when column is empty', () => {
       expect(
-        getCanonicalOrganizationId({ organization_id: null, preferences: { organization_id: 'org_xyz' } })
+        getCanonicalOrganizationId({
+          organization_id: null,
+          preferences: { organization_id: 'org_xyz' },
+        })
       ).toBe('org_xyz');
     });
 
@@ -442,11 +448,15 @@ describe('coach onboarding logic — universal suite', () => {
     });
 
     it('false when column false (even if prefs true)', () => {
-      expect(isProceedingAsFan({ proceeding_as_fan: false, preferences: { proceeding_as_fan: true } })).toBe(false);
+      expect(
+        isProceedingAsFan({ proceeding_as_fan: false, preferences: { proceeding_as_fan: true } })
+      ).toBe(false);
     });
 
     it('falls back to prefs when column null', () => {
-      expect(isProceedingAsFan({ proceeding_as_fan: null, preferences: { proceeding_as_fan: true } })).toBe(true);
+      expect(
+        isProceedingAsFan({ proceeding_as_fan: null, preferences: { proceeding_as_fan: true } })
+      ).toBe(true);
     });
   });
 
@@ -498,7 +508,11 @@ describe('coach onboarding logic — universal suite', () => {
 
   describe('buildAuthStateColumns + mergeAuthStateIntoPreferences — lockstep writers', () => {
     it('building role="coach" + onboarding_completed=true produces BOTH column and prefs updates', () => {
-      const patch = { role: 'coach' as const, onboarding_completed: true, organization_id: 'org_1' };
+      const patch = {
+        role: 'coach' as const,
+        onboarding_completed: true,
+        organization_id: 'org_1',
+      };
       const columns = buildAuthStateColumns(patch);
       const prefs = mergeAuthStateIntoPreferences({}, patch);
 

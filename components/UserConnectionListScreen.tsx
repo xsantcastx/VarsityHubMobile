@@ -11,14 +11,14 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Pressable,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 

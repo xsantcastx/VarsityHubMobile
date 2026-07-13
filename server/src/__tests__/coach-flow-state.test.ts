@@ -3,7 +3,7 @@ import { getCoachFlowState } from '../lib/coachApplications.js';
 
 describe('getCoachFlowState', () => {
   const buildApplication = (
-    overrides: Partial<Parameters<typeof getCoachFlowState>[1]> = {},
+    overrides: Partial<Parameters<typeof getCoachFlowState>[1]> = {}
   ): Parameters<typeof getCoachFlowState>[1] => ({
     id: 'app_1',
     status: 'submitted',
@@ -25,7 +25,7 @@ describe('getCoachFlowState', () => {
   });
 
   const buildJoinRequest = (
-    overrides: Partial<NonNullable<Parameters<typeof getCoachFlowState>[2]>> = {},
+    overrides: Partial<NonNullable<Parameters<typeof getCoachFlowState>[2]>> = {}
   ): NonNullable<Parameters<typeof getCoachFlowState>[2]> => ({
     id: 'join_1',
     organization_id: 'org_1',

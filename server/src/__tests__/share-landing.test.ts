@@ -84,7 +84,10 @@ describe('share-landing — content-type branching', () => {
     const res = await request(app)
       .get('/posts/abc')
       .set('Accept', '*/*')
-      .set('User-Agent', 'facebookexternalhit/1.1 (+https://www.facebook.com/externalhit_uatext.php)');
+      .set(
+        'User-Agent',
+        'facebookexternalhit/1.1 (+https://www.facebook.com/externalhit_uatext.php)'
+      );
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -150,7 +153,9 @@ describe('share-landing — OG metadata enrichment', () => {
     expect(res.text).toContain('Westhill Wildcats');
     expect(res.text).toContain('Official team page for Westhill basketball.');
     expect(res.text).toContain('https://cdn.example.com/team-logo.jpg');
-    expect(teamFindUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'team_123' } }));
+    expect(teamFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'team_123' } })
+    );
   });
 
   it('user landing uses @username for the title', async () => {

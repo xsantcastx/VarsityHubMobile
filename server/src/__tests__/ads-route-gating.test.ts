@@ -11,7 +11,9 @@ const extractRegistrationLine = (source: string, pattern: RegExp): string | null
   if (!match) return null;
   const start = match.index ?? 0;
   const tail = source.slice(start);
-  const handlerMatch = tail.match(/asyncHandler\s*\(|handleAdSubmitForApproval\b|handleAdApprove\b|handleAdReject\b/);
+  const handlerMatch = tail.match(
+    /asyncHandler\s*\(|handleAdSubmitForApproval\b|handleAdApprove\b|handleAdReject\b/
+  );
   const end = handlerMatch ? (handlerMatch.index ?? tail.length) : tail.length;
   return tail.slice(0, end + 32);
 };

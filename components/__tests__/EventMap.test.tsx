@@ -3,7 +3,7 @@ import React from 'react';
 import EventMap from '../EventMap';
 import type { EventMapProps } from '../EventMap.types';
 
-const flushPromises = () => new Promise<void>((resolve) => setImmediate(resolve));
+const flushPromises = () => new Promise<void>(resolve => setImmediate(resolve));
 
 // Mock react-native-maps. The MapView mock forwards the ref and exposes no-op
 // implementations of the imperative methods EventMap calls (fitToCoordinates,
@@ -22,24 +22,27 @@ jest.mock('react-native-maps', () => {
     __esModule: true,
     default: MapViewMock,
     MapView: MapViewMock,
-    Marker: (props: any) => ReactMock.createElement(View, { testID: 'Marker', ...props }, props.children),
+    Marker: (props: any) =>
+      ReactMock.createElement(View, { testID: 'Marker', ...props }, props.children),
   };
 });
 
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
-  getCurrentPositionAsync: jest.fn(() => Promise.resolve({
-    coords: {
-      latitude: 37.7749,
-      longitude: -122.4194,
-      altitude: null,
-      accuracy: 10,
-      altitudeAccuracy: null,
-      heading: null,
-      speed: null,
-    },
-    timestamp: Date.now(),
-  })),
+  getCurrentPositionAsync: jest.fn(() =>
+    Promise.resolve({
+      coords: {
+        latitude: 37.7749,
+        longitude: -122.4194,
+        altitude: null,
+        accuracy: 10,
+        altitudeAccuracy: null,
+        heading: null,
+        speed: null,
+      },
+      timestamp: Date.now(),
+    })
+  ),
 }));
 
 jest.mock('@/hooks/useColorScheme', () => ({
@@ -100,10 +103,7 @@ describe('EventMap', () => {
   });
 
   it('dedupes marker press + callout press so one tap cannot open two pages', async () => {
-    const nowSpy = jest
-      .spyOn(Date, 'now')
-      .mockReturnValueOnce(1000)
-      .mockReturnValueOnce(1100);
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(1100);
     const onEventPress = jest.fn();
     const { findByTestId } = render(<EventMap {...baseProps({ onEventPress })} />);
     const marker = await findByTestId('Marker');

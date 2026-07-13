@@ -32,7 +32,9 @@ export class SendGridProvider implements EmailProvider {
   }
 
   isConfigured(): boolean {
-    return Boolean(isValidSendGridApiKey(this.apiKey) && this.defaultFrom && this.isValidEmail(this.defaultFrom));
+    return Boolean(
+      isValidSendGridApiKey(this.apiKey) && this.defaultFrom && this.isValidEmail(this.defaultFrom)
+    );
   }
 
   validateConfig(): { valid: boolean; errors: string[] } {

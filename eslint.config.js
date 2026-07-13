@@ -74,11 +74,7 @@ module.exports = [
         {
           patterns: [
             {
-              group: [
-                '@/features/*/*',
-                '@/features/*/*/*',
-                '@/features/*/*/*/*',
-              ],
+              group: ['@/features/*/*', '@/features/*/*/*', '@/features/*/*/*/*'],
               message:
                 'Import from a feature public barrel only (for example "@/features/team"), not another feature’s internals.',
             },

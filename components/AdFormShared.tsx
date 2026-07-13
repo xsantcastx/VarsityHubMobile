@@ -31,12 +31,7 @@ export function AdFormLoading({ title, message, textColor }: AdFormLoadingProps)
   );
 }
 
-export function AdFormHeader({
-  title,
-  subtitle,
-  textColor,
-  mutedTextColor,
-}: AdFormHeaderProps) {
+export function AdFormHeader({ title, subtitle, textColor, mutedTextColor }: AdFormHeaderProps) {
   return (
     <View style={adFormSharedStyles.header}>
       <Text style={[adFormSharedStyles.title, { color: textColor }]}>{title}</Text>
@@ -57,7 +52,11 @@ export function AdFormPrimaryCta({
       disabled={disabled}
       style={[adFormSharedStyles.cta, disabled && adFormSharedStyles.ctaDisabled]}
     >
-      {loading ? <ActivityIndicator color="#fff" /> : <Text style={adFormSharedStyles.ctaText}>{label}</Text>}
+      {loading ? (
+        <ActivityIndicator color="#fff" />
+      ) : (
+        <Text style={adFormSharedStyles.ctaText}>{label}</Text>
+      )}
     </Pressable>
   );
 }

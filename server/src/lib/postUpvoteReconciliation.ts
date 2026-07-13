@@ -13,7 +13,7 @@ type UpvoteDriftRow = {
 
 export async function findPostUpvoteCountDrift(
   limit = DEFAULT_RECONCILE_LIMIT,
-  db: DbClient = prisma,
+  db: DbClient = prisma
 ): Promise<UpvoteDriftRow[]> {
   const safeLimit = Math.max(1, Math.min(limit, 5000));
   return db.$queryRaw<UpvoteDriftRow[]>`
@@ -35,7 +35,7 @@ export async function findPostUpvoteCountDrift(
 
 export async function runPostUpvoteReconciliation(
   limit = DEFAULT_RECONCILE_LIMIT,
-  db: DbClient = prisma,
+  db: DbClient = prisma
 ): Promise<{
   scanned: number;
   fixed: number;

@@ -42,7 +42,7 @@ describe('Advertisements', () => {
   describe('Ad Status', () => {
     const validStatuses = ['draft', 'pending', 'approved', 'active', 'paused', 'archived'];
 
-    validStatuses.forEach((status) => {
+    validStatuses.forEach(status => {
       it(`should accept valid status: ${status}`, () => {
         expect(validStatuses).toContain(status);
       });
@@ -52,7 +52,7 @@ describe('Advertisements', () => {
   describe('Payment Status', () => {
     const validPaymentStatuses = ['unpaid', 'pending', 'paid', 'failed', 'refunded'];
 
-    validPaymentStatuses.forEach((status) => {
+    validPaymentStatuses.forEach(status => {
       it(`should accept valid payment status: ${status}`, () => {
         expect(validPaymentStatuses).toContain(status);
       });
@@ -68,7 +68,7 @@ describe('Advertisements', () => {
     it('should accept valid US zip codes', () => {
       const validZips = ['10001', '90210', '75201', '98101'];
 
-      validZips.forEach((zip) => {
+      validZips.forEach(zip => {
         expect(zip).toMatch(/^\d{5}$/);
       });
     });
@@ -76,7 +76,7 @@ describe('Advertisements', () => {
     it('should reject invalid zip codes', () => {
       const invalidZips = ['1001', '900210', '9021a'];
 
-      invalidZips.forEach((zip) => {
+      invalidZips.forEach(zip => {
         expect(zip).not.toMatch(/^\d{5}$/);
       });
     });
@@ -121,7 +121,7 @@ describe('Advertisements', () => {
         'https://res.cloudinary.com/mycloud/image.jpg',
       ];
 
-      validUrls.forEach((url) => {
+      validUrls.forEach(url => {
         expect(url).toMatch(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i);
       });
     });

@@ -1,14 +1,14 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -80,14 +80,21 @@ function CreateEventScreen() {
     const timerRef = side === 'home' ? homeTimerRef : awayTimerRef;
 
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (query.length < 2) { setResults([]); setSearching(false); return; }
+    if (query.length < 2) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
     setSearching(true);
     timerRef.current = setTimeout(async () => {
       try {
         const res = await Team.list(query, false, { limit: 8 });
         setResults(res.teams || res.data || []);
-      } catch { setResults([]); }
-      finally { setSearching(false); }
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
     }, 300);
   }, []);
 
@@ -96,14 +103,21 @@ function CreateEventScreen() {
     setSelectedPlace(null);
     setErrors(prev => ({ ...prev, location: '' }));
     if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
-    if (text.length < 3) { setLocationSuggestions([]); setLocationQuerying(false); return; }
+    if (text.length < 3) {
+      setLocationSuggestions([]);
+      setLocationQuerying(false);
+      return;
+    }
     setLocationQuerying(true);
     locationTimerRef.current = setTimeout(async () => {
       try {
         const suggestions = await autocompleteLocations(text, 6);
         setLocationSuggestions(suggestions);
-      } catch { setLocationSuggestions([]); }
-      finally { setLocationQuerying(false); }
+      } catch {
+        setLocationSuggestions([]);
+      } finally {
+        setLocationQuerying(false);
+      }
     }, 300);
   }, []);
 
@@ -175,7 +189,12 @@ function CreateEventScreen() {
       await httpPost('/games', gameData);
 
       Alert.alert('Event Created!', 'Your event has been published and is visible to all users.', [
-        { text: 'OK', onPress: () => { safeGoBack(router); } },
+        {
+          text: 'OK',
+          onPress: () => {
+            safeGoBack(router);
+          },
+        },
       ]);
     } catch (e: any) {
       if (isSessionExpiryError(e)) {
@@ -185,7 +204,9 @@ function CreateEventScreen() {
       // Surface Zod validation details if available
       const issues = e?.data?.issues;
       if (issues && Array.isArray(issues)) {
-        errorMsg = issues.map((i: any) => `${i.path?.join?.('.') || i.path}: ${i.message}`).join('\n');
+        errorMsg = issues
+          .map((i: any) => `${i.path?.join?.('.') || i.path}: ${i.message}`)
+          .join('\n');
       }
       Alert.alert('Error', errorMsg);
     } finally {
@@ -195,15 +216,23 @@ function CreateEventScreen() {
 
   if (adminLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['bottom']}
+      >
         <ActivityIndicator style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />
       </SafeAreaView>
     );
   }
   if (!isAdmin) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
-        <Text style={{ textAlign: 'center', marginTop: 40, color: Colors[colorScheme].text }}>Admin access required</Text>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['bottom']}
+      >
+        <Text style={{ textAlign: 'center', marginTop: 40, color: Colors[colorScheme].text }}>
+          Admin access required
+        </Text>
       </SafeAreaView>
     );
   }
@@ -213,7 +242,7 @@ function CreateEventScreen() {
     selectedTeam: TeamResult | null,
     searchQuery: string,
     results: TeamResult[],
-    searching: boolean,
+    searching: boolean
   ) => {
     const label = side === 'home' ? 'Home Team' : 'Away Team';
     const errorKey = side === 'home' ? 'homeTeam' : 'awayTeam';
@@ -225,14 +254,29 @@ function CreateEventScreen() {
       return (
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>{label} *</Text>
-          <View style={[styles.selectedTeam, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].tint }]}>
+          <View
+            style={[
+              styles.selectedTeam,
+              { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].tint },
+            ]}
+          >
             <View style={{ flex: 1 }}>
-              <Text style={[styles.selectedTeamName, { color: Colors[colorScheme].text }]}>{selectedTeam.name}</Text>
+              <Text style={[styles.selectedTeamName, { color: Colors[colorScheme].text }]}>
+                {selectedTeam.name}
+              </Text>
               {selectedTeam.sport && (
-                <Text style={{ fontSize: 13, color: Colors[colorScheme].mutedText }}>{selectedTeam.sport}</Text>
+                <Text style={{ fontSize: 13, color: Colors[colorScheme].mutedText }}>
+                  {selectedTeam.sport}
+                </Text>
               )}
             </View>
-            <Pressable onPress={() => { setSelected(null); setSearch(''); setResults([]); }}>
+            <Pressable
+              onPress={() => {
+                setSelected(null);
+                setSearch('');
+                setResults([]);
+              }}
+            >
               <MaterialIcons name="close" size={20} color={Colors[colorScheme].mutedText} />
             </Pressable>
           </View>
@@ -254,21 +298,40 @@ function CreateEventScreen() {
               },
             ]}
             value={searchQuery}
-            onChangeText={(text) => { setSearch(text); searchTeams(text, side); }}
+            onChangeText={text => {
+              setSearch(text);
+              searchTeams(text, side);
+            }}
             placeholder={`Search for ${side} team...`}
             placeholderTextColor={Colors[colorScheme].mutedText}
             autoCapitalize="words"
             autoCorrect={false}
           />
           {searching && (
-            <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={{ position: 'absolute', right: 12, top: 12 }} />
+            <ActivityIndicator
+              size="small"
+              color={Colors[colorScheme].tint}
+              style={{ position: 'absolute', right: 12, top: 12 }}
+            />
           )}
           {results.length > 0 && (
-            <View style={[styles.suggestionList, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+            <View
+              style={[
+                styles.suggestionList,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
               {results.map((team, index) => (
                 <Pressable
                   key={team.id}
-                  style={[styles.suggestionItem, { borderBottomColor: Colors[colorScheme].border }, index === results.length - 1 && { borderBottomWidth: 0 }]}
+                  style={[
+                    styles.suggestionItem,
+                    { borderBottomColor: Colors[colorScheme].border },
+                    index === results.length - 1 && { borderBottomWidth: 0 },
+                  ]}
                   onPress={() => {
                     setSelected(team);
                     setSearch('');
@@ -276,11 +339,24 @@ function CreateEventScreen() {
                     setErrors(prev => ({ ...prev, [errorKey]: '' }));
                   }}
                 >
-                  <MaterialIcons name="groups" size={16} color={Colors[colorScheme].tint} style={{ marginRight: 8 }} />
+                  <MaterialIcons
+                    name="groups"
+                    size={16}
+                    color={Colors[colorScheme].tint}
+                    style={{ marginRight: 8 }}
+                  />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '500', color: Colors[colorScheme].text }}>{team.name}</Text>
+                    <Text
+                      style={{ fontSize: 15, fontWeight: '500', color: Colors[colorScheme].text }}
+                    >
+                      {team.name}
+                    </Text>
                     {team.sport && (
-                      <Text style={{ fontSize: 13, color: Colors[colorScheme].mutedText, marginTop: 1 }}>{team.sport}</Text>
+                      <Text
+                        style={{ fontSize: 13, color: Colors[colorScheme].mutedText, marginTop: 1 }}
+                      >
+                        {team.sport}
+                      </Text>
                     )}
                   </View>
                 </Pressable>
@@ -304,7 +380,10 @@ function CreateEventScreen() {
                 },
               ]}
               value={awayTeamName}
-              onChangeText={(text) => { setAwayTeamName(text); setErrors(prev => ({ ...prev, awayTeam: '' })); }}
+              onChangeText={text => {
+                setAwayTeamName(text);
+                setErrors(prev => ({ ...prev, awayTeam: '' }));
+              }}
               placeholder="e.g., Lincoln High School"
               placeholderTextColor={Colors[colorScheme].mutedText}
             />
@@ -320,7 +399,13 @@ function CreateEventScreen() {
       edges={['bottom']}
     >
       <Stack.Screen options={{ title: 'Create Official Event' }} />
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
+      >
         <EventFormHeader
           title="Create Official Event"
           subtitle="As an administrator, this event will be automatically approved and published."
@@ -332,7 +417,7 @@ function CreateEventScreen() {
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Type *</Text>
           <View style={styles.typeGrid}>
-            {EVENT_TYPES.map((type) => (
+            {EVENT_TYPES.map(type => (
               <Pressable
                 key={type.value}
                 style={[
@@ -340,7 +425,9 @@ function CreateEventScreen() {
                   {
                     backgroundColor: Colors[colorScheme].card,
                     borderColor:
-                      eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                      eventType === type.value
+                        ? Colors[colorScheme].tint
+                        : Colors[colorScheme].border,
                   },
                 ]}
                 onPress={() => setEventType(type.value)}
@@ -351,7 +438,9 @@ function CreateEventScreen() {
                     styles.typeLabel,
                     {
                       color:
-                        eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].mutedText,
+                        eventType === type.value
+                          ? Colors[colorScheme].tint
+                          : Colors[colorScheme].mutedText,
                     },
                   ]}
                 >

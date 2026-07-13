@@ -4,10 +4,7 @@ import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
 import { captureException } from './sentry.js';
 import { invalidateMeCacheForUsers } from './userCache.js';
-import {
-  buildBillingStateColumns,
-  mergeBillingStateIntoPreferences,
-} from './userBillingState.js';
+import { buildBillingStateColumns, mergeBillingStateIntoPreferences } from './userBillingState.js';
 
 const require = createRequire(import.meta.url);
 const StripeCtor = require('stripe') as typeof import('stripe').default;
@@ -230,7 +227,10 @@ export async function cleanupStripeBillingForDeletedUser(params: {
   for (const currentSubscriptionId of subscriptionIdsToCancel) {
     const subscription = await retrieveSubscriptionSafe(currentSubscriptionId);
     if (!subscription) continue;
-    if (!ENTITLED_STRIPE_STATUSES.has(subscription.status) && subscription.status !== 'incomplete') {
+    if (
+      !ENTITLED_STRIPE_STATUSES.has(subscription.status) &&
+      subscription.status !== 'incomplete'
+    ) {
       continue;
     }
     // Immediate cancel with proration — account deletion is a "stop everything
@@ -368,9 +368,7 @@ async function reconcileUserBillingState(user: BillingUserRecord): Promise<{
 
   if (subscription) {
     stripeCustomerId =
-      typeof subscription.customer === 'string'
-        ? subscription.customer
-        : stripeCustomerId;
+      typeof subscription.customer === 'string' ? subscription.customer : stripeCustomerId;
     const priceId = subscription.items?.data?.[0]?.price?.id || null;
     const plan =
       getPlanFromPriceId(priceId) ||
@@ -412,7 +410,9 @@ async function reconcileUserBillingState(user: BillingUserRecord): Promise<{
   return { updated, reason: stripeCustomerId ? 'no_subscription_found' : 'no_billing_identifiers' };
 }
 
-export async function runStripeSubscriptionReconciliation(limit = RECONCILE_LIMIT_DEFAULT): Promise<{
+export async function runStripeSubscriptionReconciliation(
+  limit = RECONCILE_LIMIT_DEFAULT
+): Promise<{
   scanned: number;
   updated: number;
   failed: number;

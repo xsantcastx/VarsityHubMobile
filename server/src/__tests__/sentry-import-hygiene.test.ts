@@ -25,10 +25,10 @@ function walkTsFiles(dir: string): string[] {
 describe('Sentry import hygiene', () => {
   it('routes server-side Sentry usage through lib/sentry.ts', () => {
     const offenders = walkTsFiles(serverSrcDir)
-      .filter((filePath) => !filePath.endsWith(path.join('lib', 'sentry.ts')))
-      .filter((filePath) => !filePath.includes(`${path.sep}__tests__${path.sep}`))
-      .filter((filePath) => fs.readFileSync(filePath, 'utf8').includes("from '@sentry/node'"))
-      .map((filePath) => path.relative(serverSrcDir, filePath));
+      .filter(filePath => !filePath.endsWith(path.join('lib', 'sentry.ts')))
+      .filter(filePath => !filePath.includes(`${path.sep}__tests__${path.sep}`))
+      .filter(filePath => fs.readFileSync(filePath, 'utf8').includes("from '@sentry/node'"))
+      .map(filePath => path.relative(serverSrcDir, filePath));
 
     expect(offenders).toEqual([]);
   });

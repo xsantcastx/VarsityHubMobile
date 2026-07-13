@@ -5,17 +5,15 @@ async function cacheDelLazy(key: string): Promise<void> {
   await cacheDel(key);
 }
 
-export async function invalidateMeCacheForUser(
-  userId: string | null | undefined,
-): Promise<void> {
+export async function invalidateMeCacheForUser(userId: string | null | undefined): Promise<void> {
   if (!userId) return;
   await cacheDelLazy(`me:${userId}`);
 }
 
 export async function invalidateMeCacheForUsers(
-  userIds: Array<string | null | undefined>,
+  userIds: Array<string | null | undefined>
 ): Promise<void> {
-  await Promise.all(userIds.map((userId) => invalidateMeCacheForUser(userId)));
+  await Promise.all(userIds.map(userId => invalidateMeCacheForUser(userId)));
 }
 
 type UserUpdateArgs = Parameters<PrismaClient['user']['update']>[0];
@@ -28,7 +26,7 @@ type UserUpdateClient = {
 
 export async function updateUserAndInvalidate(
   client: UserUpdateClient,
-  args: UserUpdateArgs,
+  args: UserUpdateArgs
 ): Promise<UserUpdateResult> {
   const updated = await client.user.update(args);
   const updatedId = (updated as { id?: string | null })?.id ?? null;

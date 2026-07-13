@@ -5,7 +5,17 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
@@ -13,10 +23,10 @@ import { getApiBaseUrl } from '@/api/http';
 import settings from '@/api/settings';
 import { uploadFile } from '@/api/upload';
 import {
-    AdFormHeader,
-    AdFormLoading,
-    AdFormPrimaryCta,
-    adFormSharedStyles as sharedStyles,
+  AdFormHeader,
+  AdFormLoading,
+  AdFormPrimaryCta,
+  adFormSharedStyles as sharedStyles,
 } from '@/components/AdFormShared';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -27,7 +37,13 @@ import { safeGoBack } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
 
 type AdStatus = 'draft' | 'pending' | 'approved' | 'active' | 'rejected' | 'archived';
-type PaymentStatus = 'unpaid' | 'paid' | 'refunded' | 'pending_approval' | 'hold' | 'refund_pending';
+type PaymentStatus =
+  | 'unpaid'
+  | 'paid'
+  | 'refunded'
+  | 'pending_approval'
+  | 'hold'
+  | 'refund_pending';
 
 export function EditAdScreenBase({
   renderReachPreview,
@@ -60,13 +76,17 @@ export function EditAdScreenBase({
   const urlValid = !targetUrl.trim() || /^https?:\/\/.+/.test(targetUrl.trim());
 
   const canSave = useMemo(() => {
-    return !!id
-      && business.trim().length > 0 && business.trim().length <= 200
-      && contactEmail.trim().length > 0 && emailValid
-      && contactName.trim().length <= 200
-      && desc.trim().length <= 1000
-      && zipValid
-      && urlValid;
+    return (
+      !!id &&
+      business.trim().length > 0 &&
+      business.trim().length <= 200 &&
+      contactEmail.trim().length > 0 &&
+      emailValid &&
+      contactName.trim().length <= 200 &&
+      desc.trim().length <= 1000 &&
+      zipValid &&
+      urlValid
+    );
   }, [id, business, contactEmail, contactName, desc, emailValid, zipValid, urlValid]);
 
   const load = useCallback(async () => {
@@ -98,7 +118,7 @@ export function EditAdScreenBase({
         }
       } catch {
         const local = await settings.getJson<any[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
-        const found = local.find((entry) => String(entry.id) === String(id));
+        const found = local.find(entry => String(entry.id) === String(id));
         if (found) {
           setContactName(found.contact_name || '');
           setContactEmail(found.contact_email || '');
@@ -120,14 +140,19 @@ export function EditAdScreenBase({
     void load();
   }, [load]);
 
-  useFocusEffect(useCallback(() => {
-    if (id) void load();
-  }, [id, load]));
+  useFocusEffect(
+    useCallback(() => {
+      if (id) void load();
+    }, [id, load])
+  );
 
   const pickBanner = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission Required', 'Please allow photo library access in Settings to upload a banner image.');
+      Alert.alert(
+        'Permission Required',
+        'Please allow photo library access in Settings to upload a banner image.'
+      );
       return;
     }
 
@@ -193,14 +218,20 @@ export function EditAdScreenBase({
   };
 
   return (
-    <SafeAreaView style={[sharedStyles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
+    <SafeAreaView
+      style={[sharedStyles.container, { backgroundColor: theme.background }]}
+      edges={['bottom']}
+    >
       <Stack.Screen
         options={{
           title: 'Edit Ad',
           headerShown: true,
           headerLeft: showHeaderChevron
             ? () => (
-                <Pressable onPress={() => safeGoBack(router, '/my-ads')} style={{ paddingRight: 8 }}>
+                <Pressable
+                  onPress={() => safeGoBack(router, '/my-ads')}
+                  style={{ paddingRight: 8 }}
+                >
                   <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
                 </Pressable>
               )
@@ -208,7 +239,11 @@ export function EditAdScreenBase({
         }}
       />
       {loading ? (
-        <AdFormLoading title="Edit Ad" message="Loading ad details..." textColor={theme.mutedText} />
+        <AdFormLoading
+          title="Edit Ad"
+          message="Loading ad details..."
+          textColor={theme.mutedText}
+        />
       ) : (
         <ScrollView
           contentContainerStyle={sharedStyles.scrollContent}
@@ -224,10 +259,18 @@ export function EditAdScreenBase({
             mutedTextColor={theme.mutedText}
           />
 
-          <View style={[sharedStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View
+            style={[
+              sharedStyles.card,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+          >
             <Text style={[sharedStyles.label, { color: theme.text }]}>Business Name *</Text>
             <TextInput
-              style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              style={[
+                sharedStyles.input,
+                { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+              ]}
               value={business}
               onChangeText={setBusiness}
               placeholder="Acme Pizza"
@@ -236,7 +279,10 @@ export function EditAdScreenBase({
 
             <Text style={[sharedStyles.label, { color: theme.text }]}>Contact Name</Text>
             <TextInput
-              style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              style={[
+                sharedStyles.input,
+                { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+              ]}
               value={contactName}
               onChangeText={setContactName}
               placeholder="John Smith"
@@ -247,7 +293,10 @@ export function EditAdScreenBase({
 
             <Text style={[sharedStyles.label, { color: theme.text }]}>Contact Email *</Text>
             <TextInput
-              style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              style={[
+                sharedStyles.input,
+                { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+              ]}
               value={contactEmail}
               autoCapitalize="none"
               keyboardType="email-address"
@@ -259,7 +308,10 @@ export function EditAdScreenBase({
 
             <Text style={[sharedStyles.label, { color: theme.text }]}>Target Zip Code</Text>
             <TextInput
-              style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              style={[
+                sharedStyles.input,
+                { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+              ]}
               value={zip}
               onChangeText={setZip}
               keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
@@ -273,25 +325,51 @@ export function EditAdScreenBase({
             <Text style={[sharedStyles.label, { color: theme.text }]}>Banner Image</Text>
             {bannerUrl ? (
               <View style={[styles.bannerPreview, { backgroundColor: theme.surface }]}>
-                <Image source={{ uri: bannerUrl }} style={styles.bannerImage} contentFit="contain" />
+                <Image
+                  source={{ uri: bannerUrl }}
+                  style={styles.bannerImage}
+                  contentFit="contain"
+                />
               </View>
             ) : (
-              <View style={[styles.bannerPlaceholder, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Text style={[styles.bannerPlaceholderText, { color: theme.mutedText }]}>No banner uploaded</Text>
-                <Text style={[sharedStyles.muted, { color: theme.mutedText }]}>Recommended: 16:9 ratio, PNG/JPG</Text>
+              <View
+                style={[
+                  styles.bannerPlaceholder,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+              >
+                <Text style={[styles.bannerPlaceholderText, { color: theme.mutedText }]}>
+                  No banner uploaded
+                </Text>
+                <Text style={[sharedStyles.muted, { color: theme.mutedText }]}>
+                  Recommended: 16:9 ratio, PNG/JPG
+                </Text>
               </View>
             )}
-            <Pressable style={[styles.uploadBtn, uploading && styles.uploadBtnDisabled]} onPress={pickBanner} disabled={uploading}>
+            <Pressable
+              style={[styles.uploadBtn, uploading && styles.uploadBtnDisabled]}
+              onPress={pickBanner}
+              disabled={uploading}
+            >
               {uploading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.uploadBtnText}>{bannerUrl ? 'Replace Banner' : 'Upload Banner'}</Text>
+                <Text style={styles.uploadBtnText}>
+                  {bannerUrl ? 'Replace Banner' : 'Upload Banner'}
+                </Text>
               )}
             </Pressable>
 
             <Text style={[sharedStyles.label, { color: theme.text }]}>Website Link (Optional)</Text>
             <TextInput
-              style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: urlValid ? theme.border : '#cc0000', color: theme.text }]}
+              style={[
+                sharedStyles.input,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: urlValid ? theme.border : '#cc0000',
+                  color: theme.text,
+                },
+              ]}
               value={targetUrl}
               onChangeText={setTargetUrl}
               placeholder="https://example.com"
@@ -300,14 +378,22 @@ export function EditAdScreenBase({
               placeholderTextColor={theme.mutedText}
             />
             {targetUrl.trim() && !urlValid ? (
-              <Text style={[sharedStyles.helperText, { color: '#cc0000' }]}>Must start with https:// (e.g. https://example.com)</Text>
+              <Text style={[sharedStyles.helperText, { color: '#cc0000' }]}>
+                Must start with https:// (e.g. https://example.com)
+              </Text>
             ) : targetUrl.trim() ? (
-              <Text style={[sharedStyles.helperText, { color: theme.mutedText }]}>Users can tap your ad to visit this website</Text>
+              <Text style={[sharedStyles.helperText, { color: theme.mutedText }]}>
+                Users can tap your ad to visit this website
+              </Text>
             ) : null}
 
             <Text style={[sharedStyles.label, { color: theme.text }]}>Description</Text>
             <TextInput
-              style={[sharedStyles.input, sharedStyles.textArea, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              style={[
+                sharedStyles.input,
+                sharedStyles.textArea,
+                { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+              ]}
               value={desc}
               onChangeText={setDesc}
               multiline
@@ -318,27 +404,57 @@ export function EditAdScreenBase({
               maxLength={1000}
             />
 
-            <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View
+              style={[
+                styles.infoCard,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
               <Text style={[styles.infoLabel, { color: theme.mutedText }]}>Ad Status</Text>
-              <Text style={[styles.infoValue, { color: theme.text }]}>{status.charAt(0).toUpperCase() + status.slice(1)}</Text>
+              <Text style={[styles.infoValue, { color: theme.text }]}>
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </Text>
             </View>
 
-            <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View
+              style={[
+                styles.infoCard,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
               <Text style={[styles.infoLabel, { color: theme.mutedText }]}>Payment Status</Text>
-              <Text style={[styles.infoValue, { color: theme.text }]}>{getAdPaymentStatusLabel(status, payment)}</Text>
+              <Text style={[styles.infoValue, { color: theme.text }]}>
+                {getAdPaymentStatusLabel(status, payment)}
+              </Text>
             </View>
           </View>
 
-          <AdFormPrimaryCta label="Save Changes" onPress={save} disabled={!canSave || saving} loading={saving} />
+          <AdFormPrimaryCta
+            label="Save Changes"
+            onPress={save}
+            disabled={!canSave || saving}
+            loading={saving}
+          />
 
           {payment === 'paid' && bookedDates.length > 0 ? (
-            <View style={[styles.bookedDatesCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.bookedDatesTitle, { color: theme.text }]}>Scheduled Campaign Dates</Text>
+            <View
+              style={[
+                styles.bookedDatesCard,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
+              <Text style={[styles.bookedDatesTitle, { color: theme.text }]}>
+                Scheduled Campaign Dates
+              </Text>
               <View style={styles.bookedDatesWrap}>
-                {bookedDates.map((date) => (
+                {bookedDates.map(date => (
                   <View key={date} style={[styles.bookedDateChip, { borderColor: theme.border }]}>
                     <Text style={[styles.bookedDateText, { color: theme.text }]}>
-                      {new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      {new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
                     </Text>
                   </View>
                 ))}
@@ -346,10 +462,17 @@ export function EditAdScreenBase({
             </View>
           ) : (
             <Pressable
-              onPress={() => void router.push({ pathname: '/ad-calendar', params: { adId: String(id || '') } })}
-              style={[styles.ctaSecondary, { backgroundColor: theme.surface, borderColor: theme.border }]}
+              onPress={() =>
+                void router.push({ pathname: '/ad-calendar', params: { adId: String(id || '') } })
+              }
+              style={[
+                styles.ctaSecondary,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
             >
-              <Text style={[styles.ctaSecondaryText, { color: theme.text }]}>Schedule Campaign Dates</Text>
+              <Text style={[styles.ctaSecondaryText, { color: theme.text }]}>
+                Schedule Campaign Dates
+              </Text>
             </Pressable>
           )}
         </ScrollView>

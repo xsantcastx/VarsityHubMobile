@@ -1,16 +1,16 @@
 /**
  * Background Job Queue Configuration
- * 
+ *
  * Provides BullMQ-based job queues for async processing of:
  * - Push notifications
  * - Email delivery
  * - Analytics events
  * - Media processing
  * - Scheduled tasks
- * 
+ *
  * Requires Redis to be configured via REDIS_URL env var.
  * Falls back to in-memory processing when Redis is not available.
- * 
+ *
  * @module jobs/queues
  */
 
@@ -101,7 +101,7 @@ let dataExportQueue: Queue<DataExportJob> | null = null;
  */
 async function getRedisConnection(): Promise<RedisClient | null> {
   if (redisConnection) return redisConnection;
-  
+
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) {
     if (!isPlaywrightE2E) {
@@ -117,17 +117,17 @@ async function getRedisConnection(): Promise<RedisClient | null> {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
     });
-    
+
     if (redisConnection) {
       redisConnection.on('connect', () => {
         console.log('[Jobs] Redis connected');
       });
-      
+
       redisConnection.on('error', (err: any) => {
         console.error('[Jobs] Redis error:', err?.message || err);
       });
     }
-    
+
     return redisConnection;
   } catch (error) {
     console.error('[Jobs] Failed to connect to Redis:', error);
@@ -141,7 +141,7 @@ async function getRedisConnection(): Promise<RedisClient | null> {
  */
 export async function initializeQueues(): Promise<boolean> {
   if (queuesInitialized) return true;
-  
+
   const connection = await getRedisConnection();
   if (!connection) {
     console.log('[Jobs] Running without Redis - using fallback mode');
@@ -209,14 +209,14 @@ export async function initializeQueues(): Promise<boolean> {
  */
 export async function queueNotification(job: NotificationJob): Promise<string | null> {
   if (!queuesInitialized) await initializeQueues();
-  
+
   if (notificationQueue) {
     const added = await notificationQueue.add('send', job, {
       priority: 1, // High priority
     });
     return added.id || null;
   }
-  
+
   // Fallback: process immediately
   console.log('[Jobs] Fallback: Processing notification immediately');
   try {
@@ -240,12 +240,12 @@ export async function queueNotification(job: NotificationJob): Promise<string | 
  */
 export async function queueAnalytics(job: AnalyticsJob): Promise<string | null> {
   if (!queuesInitialized) await initializeQueues();
-  
+
   if (analyticsQueue) {
     const added = await analyticsQueue.add('track', job);
     return added.id || null;
   }
-  
+
   // Fallback: log immediately
   console.log('[Analytics]', job.event, job.properties);
   return 'immediate';
@@ -257,9 +257,7 @@ export async function queueAnalytics(job: AnalyticsJob): Promise<string | null> 
  * Mirrors the `__setObjectStorageAdapterForTests` pattern so the
  * HTTP endpoint test suite can run without a real queue backend.
  */
-let queueDataExportOverride:
-  | ((job: DataExportJob) => Promise<string | null>)
-  | null = null;
+let queueDataExportOverride: ((job: DataExportJob) => Promise<string | null>) | null = null;
 
 /**
  * Test-only: install or clear the `queueDataExport` override. Returns the
@@ -316,14 +314,14 @@ export async function queueDataExport(job: DataExportJob): Promise<string | null
  */
 export async function queueMediaJob(job: MediaJob): Promise<string | null> {
   if (!queuesInitialized) await initializeQueues();
-  
+
   if (mediaQueue) {
     const added = await mediaQueue.add(job.type, job, {
       priority: job.type === 'backup' ? 3 : 2, // Lower priority for backups
     });
     return added.id || null;
   }
-  
+
   console.warn('[Jobs] Media job queued but will not be processed (no Redis)');
   return null;
 }
@@ -333,12 +331,12 @@ export async function queueMediaJob(job: MediaJob): Promise<string | null> {
  */
 export async function getQueueStats(): Promise<Record<string, any>> {
   if (!queuesInitialized) await initializeQueues();
-  
+
   const stats: Record<string, any> = {
     redis: !!redisConnection,
     queues: {},
   };
-  
+
   const queues = [
     { name: 'notifications', queue: notificationQueue },
     { name: 'emails', queue: emailQueue },
@@ -346,7 +344,7 @@ export async function getQueueStats(): Promise<Record<string, any>> {
     { name: 'media', queue: mediaQueue },
     { name: 'scheduler', queue: schedulerQueue },
   ];
-  
+
   for (const { name, queue } of queues) {
     if (queue) {
       try {
@@ -364,7 +362,7 @@ export async function getQueueStats(): Promise<Record<string, any>> {
       stats.queues[name] = { status: 'not initialized' };
     }
   }
-  
+
   return stats;
 }
 
@@ -373,22 +371,25 @@ export async function getQueueStats(): Promise<Record<string, any>> {
  */
 export async function shutdownQueues(): Promise<void> {
   console.log('[Jobs] Shutting down queues...');
-  
+
   const queues = [notificationQueue, emailQueue, analyticsQueue, mediaQueue, schedulerQueue];
-  
-  await Promise.all(
-    queues.filter(Boolean).map((q) => q!.close())
-  );
-  
+
+  await Promise.all(queues.filter(Boolean).map(q => q!.close()));
+
   if (redisConnection) {
     await redisConnection.quit();
     redisConnection = null;
   }
-  
+
   queuesInitialized = false;
   console.log('[Jobs] All queues shutdown complete');
 }
 
 export {
-    analyticsQueue, dataExportQueue, emailQueue, mediaQueue, notificationQueue, schedulerQueue
+  analyticsQueue,
+  dataExportQueue,
+  emailQueue,
+  mediaQueue,
+  notificationQueue,
+  schedulerQueue,
 };

@@ -71,18 +71,14 @@ describeDb('Refresh token reuse detection', () => {
     expect(refreshToken).toBeTruthy();
 
     // 2. First refresh — succeeds, old token is deleted, new one issued
-    const refresh1 = await request(app)
-      .post('/auth/refresh')
-      .send({ refresh_token: refreshToken });
+    const refresh1 = await request(app).post('/auth/refresh').send({ refresh_token: refreshToken });
     expect(refresh1.status).toBe(200);
     expect(refresh1.body.access_token).toBeTruthy();
 
     // 3. Replay the ORIGINAL token — it was deleted during step 2.
     // Sequential replay returns plain 401 (no TOKEN_REUSED code — that only fires
     // via the P2025 concurrent-access path).
-    const refresh2 = await request(app)
-      .post('/auth/refresh')
-      .send({ refresh_token: refreshToken });
+    const refresh2 = await request(app).post('/auth/refresh').send({ refresh_token: refreshToken });
     expect(refresh2.status).toBe(401);
 
     // 4. The new token from step 2 is still valid — sessions are NOT killed for

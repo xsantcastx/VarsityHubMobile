@@ -5,20 +5,40 @@ import ANIM_SPARKLE from '../../assets/animations/sparkle.json';
 import ANIM_SPARKLE_BETTER from '../../assets/animations/sparkle_better.json';
 
 // Dynamic Lottie wrapper - attempts to load lottie-react-native at runtime.
-export default function MatchBannerLottie({ style, onLoaded, tintColor, size = 80, preset = 'sparkle', disabled = false }: { style?: any; onLoaded?: (loaded: boolean) => void; tintColor?: string; size?: number; preset?: 'classic' | 'sparkle' | 'sporty'; disabled?: boolean }) {
-  const [LottieView, setLottieView] = useState<any>(null)
-  const animationRef = useRef<any>(null)
+export default function MatchBannerLottie({
+  style,
+  onLoaded,
+  tintColor,
+  size = 80,
+  preset = 'sparkle',
+  disabled = false,
+}: {
+  style?: any;
+  onLoaded?: (loaded: boolean) => void;
+  tintColor?: string;
+  size?: number;
+  preset?: 'classic' | 'sparkle' | 'sporty';
+  disabled?: boolean;
+}) {
+  const [LottieView, setLottieView] = useState<any>(null);
+  const animationRef = useRef<any>(null);
   const onLoadedRef = useRef<typeof onLoaded | undefined>(onLoaded);
 
   // keep latest onLoaded in a ref so the dynamic-import effect does not need it
-  useEffect(() => { onLoadedRef.current = onLoaded; }, [onLoaded]);
+  useEffect(() => {
+    onLoadedRef.current = onLoaded;
+  }, [onLoaded]);
 
   useEffect(() => {
     let mounted = true;
 
     if (disabled) {
       setLottieView(null);
-      try { onLoadedRef.current && onLoadedRef.current(false); } catch (e) { if (__DEV__) console.warn('[MatchBannerLottie] onLoaded(false):', (e as Error)?.message); }
+      try {
+        onLoadedRef.current && onLoadedRef.current(false);
+      } catch (e) {
+        if (__DEV__) console.warn('[MatchBannerLottie] onLoaded(false):', (e as Error)?.message);
+      }
       return () => {
         mounted = false;
       };
@@ -29,10 +49,18 @@ export default function MatchBannerLottie({ style, onLoaded, tintColor, size = 8
         const mod = await import('lottie-react-native');
         if (mounted) {
           setLottieView(() => mod.default || mod);
-          try { onLoadedRef.current && onLoadedRef.current(true); } catch (e) { if (__DEV__) console.warn('[MatchBannerLottie] onLoaded(true):', (e as Error)?.message); }
+          try {
+            onLoadedRef.current && onLoadedRef.current(true);
+          } catch (e) {
+            if (__DEV__) console.warn('[MatchBannerLottie] onLoaded(true):', (e as Error)?.message);
+          }
         }
       } catch {
-        try { onLoadedRef.current && onLoadedRef.current(false); } catch (e) { if (__DEV__) console.warn('[MatchBannerLottie] onLoaded(false):', (e as Error)?.message); }
+        try {
+          onLoadedRef.current && onLoadedRef.current(false);
+        } catch (e) {
+          if (__DEV__) console.warn('[MatchBannerLottie] onLoaded(false):', (e as Error)?.message);
+        }
       }
     })();
 
@@ -43,12 +71,12 @@ export default function MatchBannerLottie({ style, onLoaded, tintColor, size = 8
 
   if (disabled || !LottieView) {
     // show nothing (or a tiny loader) when lottie isn't available
-    return null
+    return null;
   }
 
   // pick asset based on preset. Only reference animation files that actually exist in the repo
   // to avoid Metro bundler resolution errors. If you add new JSON assets, update this map.
-  
+
   let anim: any = ANIM_SPARKLE_BETTER;
   if (preset === 'sparkle') {
     anim = ANIM_SPARKLE_BETTER;
@@ -71,5 +99,5 @@ export default function MatchBannerLottie({ style, onLoaded, tintColor, size = 8
         colorFilters={tintColor ? [{ keypath: 'dot', color: tintColor }] : undefined}
       />
     </View>
-  )
+  );
 }

@@ -9,7 +9,18 @@ import { captureException } from '@/utils/sentry';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 
@@ -23,7 +34,13 @@ type ApiJoinRequest = {
   created_at: string;
   reviewed_at?: string | null;
   rejection_reason?: string | null;
-  user: { id: string; display_name?: string | null; username?: string | null; avatar_url?: string | null; email?: string };
+  user: {
+    id: string;
+    display_name?: string | null;
+    username?: string | null;
+    avatar_url?: string | null;
+    email?: string;
+  };
 };
 
 type JoinRequest = {
@@ -61,7 +78,11 @@ function OrganizationJoinRequestsScreen() {
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
   const [error, setError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [rejectModal, setRejectModal] = useState<{ visible: boolean; request: JoinRequest | null; reason: string }>({ visible: false, request: null, reason: '' });
+  const [rejectModal, setRejectModal] = useState<{
+    visible: boolean;
+    request: JoinRequest | null;
+    reason: string;
+  }>({ visible: false, request: null, reason: '' });
   // Tracks which deep-link signature we've already handled. A boolean
   // ref made every email link after the first a silent no-op even when
   // the new link pointed at a different request — admins reported "the
@@ -71,8 +92,12 @@ function OrganizationJoinRequestsScreen() {
   const isSessionExpiryError = (err: any) => {
     const status = err?.status || err?.response?.status;
     const serverData = err?.data || err?.response?.data;
-    const message = String(serverData?.error || serverData?.message || err?.message || '').toLowerCase();
-    return err?.isSessionExpired === true || (status === 401 && message.includes('session expired'));
+    const message = String(
+      serverData?.error || serverData?.message || err?.message || ''
+    ).toLowerCase();
+    return (
+      err?.isSessionExpired === true || (status === 401 && message.includes('session expired'))
+    );
   };
 
   const loadRequests = useCallback(async () => {
@@ -95,7 +120,9 @@ function OrganizationJoinRequestsScreen() {
         getAuthSnapshot(checkAuth, user).catch(() => null),
         Organization.members(params.organization_id).catch(() => []),
       ]);
-      if (!getOrganizationAccess(currentUser as any, Array.isArray(members) ? members : []).isOwner) {
+      if (
+        !getOrganizationAccess(currentUser as any, Array.isArray(members) ? members : []).isOwner
+      ) {
         setLoading(false);
         setError('Only the organization owner can review coach requests for this organization.');
         return;
@@ -114,9 +141,10 @@ function OrganizationJoinRequestsScreen() {
         message: r.message || '',
         status: r.status === 'denied' ? 'rejected' : r.status,
         created_at: r.created_at,
-        approved_at: r.status === 'approved' ? r.reviewed_at ?? undefined : undefined,
-        rejected_at: r.status === 'denied' ? r.reviewed_at ?? undefined : undefined,
-        rejection_reason: r.status === 'denied' ? (r.rejection_reason || r.message || undefined) : undefined,
+        approved_at: r.status === 'approved' ? (r.reviewed_at ?? undefined) : undefined,
+        rejected_at: r.status === 'denied' ? (r.reviewed_at ?? undefined) : undefined,
+        rejection_reason:
+          r.status === 'denied' ? r.rejection_reason || r.message || undefined : undefined,
       }));
       setRequests(mapped);
     } catch (err: any) {
@@ -138,38 +166,47 @@ function OrganizationJoinRequestsScreen() {
     void loadRequests();
   }, [loadRequests]);
 
-  const handleApprove = useCallback(async (request: JoinRequest) => {
-    Alert.alert(
-      'Approve Request',
-      `Allow ${request.requester_name} to join ${params.organization_name || 'this organization'}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Approve',
-          style: 'default',
-          onPress: () => {
-            void (async () => {
-              setProcessingId(request.id);
-              try {
-                await Organization.approveJoinRequest(request.id);
-                Alert.alert('Success', `${request.requester_name} has been added to your organization!`);
-                await loadRequests();
-              } catch (err: any) {
-                if (isSessionExpiryError(err)) {
-                  return;
+  const handleApprove = useCallback(
+    async (request: JoinRequest) => {
+      Alert.alert(
+        'Approve Request',
+        `Allow ${request.requester_name} to join ${params.organization_name || 'this organization'}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Approve',
+            style: 'default',
+            onPress: () => {
+              void (async () => {
+                setProcessingId(request.id);
+                try {
+                  await Organization.approveJoinRequest(request.id);
+                  Alert.alert(
+                    'Success',
+                    `${request.requester_name} has been added to your organization!`
+                  );
+                  await loadRequests();
+                } catch (err: any) {
+                  if (isSessionExpiryError(err)) {
+                    return;
+                  }
+                  if (__DEV__)
+                    console.error('[OrganizationJoinRequests] Error approving request:', err);
+                  captureException(err, {
+                    tags: { screen: 'organization-join-requests', action: 'approve' },
+                  });
+                  Alert.alert('Error', err?.message || 'Failed to approve request');
+                } finally {
+                  setProcessingId(null);
                 }
-                if (__DEV__) console.error('[OrganizationJoinRequests] Error approving request:', err);
-                captureException(err, { tags: { screen: 'organization-join-requests', action: 'approve' } });
-                Alert.alert('Error', err?.message || 'Failed to approve request');
-              } finally {
-                setProcessingId(null);
-              }
-            })();
+              })();
+            },
           },
-        },
-      ]
-    );
-  }, [loadRequests, params.organization_name]);
+        ]
+      );
+    },
+    [loadRequests, params.organization_name]
+  );
 
   const handleReject = useCallback((request: JoinRequest) => {
     setRejectModal({ visible: true, request, reason: '' });
@@ -197,14 +234,14 @@ function OrganizationJoinRequestsScreen() {
   const submitReject = () => {
     void (async () => {
       if (!rejectModal.request) return;
-      
+
       // Validate reason is not empty
       const reason = rejectModal.reason.trim();
       if (!reason) {
         Alert.alert('Reason Required', 'Please provide a reason for rejecting this request.');
         return;
       }
-      
+
       setProcessingId(rejectModal.request.id);
       try {
         await Organization.rejectJoinRequest(rejectModal.request.id, reason);
@@ -244,7 +281,7 @@ function OrganizationJoinRequestsScreen() {
     }
   };
 
-  const pendingRequests = requests.filter((r) => r.status === 'pending');
+  const pendingRequests = requests.filter(r => r.status === 'pending');
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen
@@ -255,11 +292,10 @@ function OrganizationJoinRequestsScreen() {
       />
 
       {/* Custom Header */}
-      <View style={[styles.header, { backgroundColor: theme.background, borderColor: theme.border }]}>
-        <Pressable 
-          onPress={() => safeGoBack(router, fallbackRoute)} 
-          style={styles.backButton}
-        >
+      <View
+        style={[styles.header, { backgroundColor: theme.background, borderColor: theme.border }]}
+      >
+        <Pressable onPress={() => safeGoBack(router, fallbackRoute)} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <View style={styles.headerTextContainer}>
@@ -274,7 +310,12 @@ function OrganizationJoinRequestsScreen() {
       </View>
 
       {/* Filter Tabs */}
-      <View style={[styles.filterContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
+      <View
+        style={[
+          styles.filterContainer,
+          { backgroundColor: theme.background, borderColor: theme.border },
+        ]}
+      >
         <Pressable
           onPress={() => setFilter('pending')}
           style={[
@@ -282,12 +323,7 @@ function OrganizationJoinRequestsScreen() {
             { backgroundColor: filter === 'pending' ? theme.tint : 'transparent' },
           ]}
         >
-          <Text
-            style={[
-              styles.filterText,
-              { color: filter === 'pending' ? '#fff' : theme.text },
-            ]}
-          >
+          <Text style={[styles.filterText, { color: filter === 'pending' ? '#fff' : theme.text }]}>
             Pending {pendingRequests.length > 0 ? `(${pendingRequests.length})` : ''}
           </Text>
         </Pressable>
@@ -298,12 +334,7 @@ function OrganizationJoinRequestsScreen() {
             { backgroundColor: filter === 'all' ? theme.tint : 'transparent' },
           ]}
         >
-          <Text
-            style={[
-              styles.filterText,
-              { color: filter === 'all' ? '#fff' : theme.text },
-            ]}
-          >
+          <Text style={[styles.filterText, { color: filter === 'all' ? '#fff' : theme.text }]}>
             All
           </Text>
         </Pressable>
@@ -317,7 +348,10 @@ function OrganizationJoinRequestsScreen() {
         <View style={styles.errorContainer}>
           <MaterialIcons name="error-outline" size={48} color={theme.mutedText} />
           <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
-          <Pressable onPress={loadRequests} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
+          <Pressable
+            onPress={loadRequests}
+            style={[styles.retryButton, { backgroundColor: theme.tint }]}
+          >
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>
         </View>
@@ -348,7 +382,7 @@ function OrganizationJoinRequestsScreen() {
             </View>
           ) : (
             <View style={styles.requestsList}>
-              {requests.map((request) => {
+              {requests.map(request => {
                 const isPending = request.status === 'pending';
                 const isProcessing = processingId === request.id;
 
@@ -400,7 +434,12 @@ function OrganizationJoinRequestsScreen() {
 
                     {/* Rejection Reason */}
                     {request.status === 'rejected' && request.rejection_reason && (
-                      <View style={[styles.rejectionContainer, { backgroundColor: '#fef2f2', borderColor: '#fee2e2' }]}>
+                      <View
+                        style={[
+                          styles.rejectionContainer,
+                          { backgroundColor: '#fef2f2', borderColor: '#fee2e2' },
+                        ]}
+                      >
                         <MaterialIcons name="cancel" size={16} color="#dc2626" />
                         <Text style={[styles.rejectionText, { color: '#dc2626' }]}>
                           {request.rejection_reason}
@@ -419,21 +458,31 @@ function OrganizationJoinRequestsScreen() {
                         <Pressable
                           onPress={() => handleReject(request)}
                           disabled={isProcessing}
-                          style={[styles.actionButton, styles.rejectButton, { borderColor: theme.border }]}
+                          style={[
+                            styles.actionButton,
+                            styles.rejectButton,
+                            { borderColor: theme.border },
+                          ]}
                         >
                           {isProcessing ? (
                             <ActivityIndicator size="small" color="#dc2626" />
                           ) : (
                             <>
                               <MaterialIcons name="cancel" size={20} color="#dc2626" />
-                              <Text style={[styles.rejectButtonText, { color: '#dc2626' }]}>Reject</Text>
+                              <Text style={[styles.rejectButtonText, { color: '#dc2626' }]}>
+                                Reject
+                              </Text>
                             </>
                           )}
                         </Pressable>
                         <Pressable
                           onPress={() => handleApprove(request)}
                           disabled={isProcessing}
-                          style={[styles.actionButton, styles.approveButton, { backgroundColor: theme.tint }]}
+                          style={[
+                            styles.actionButton,
+                            styles.approveButton,
+                            { backgroundColor: theme.tint },
+                          ]}
                         >
                           {isProcessing ? (
                             <ActivityIndicator size="small" color="#fff" />
@@ -464,17 +513,22 @@ function OrganizationJoinRequestsScreen() {
           style={styles.modalBackdrop}
           onPress={() => setRejectModal({ visible: false, request: null, reason: '' })}
         >
-          <Pressable style={[styles.modalCard, { backgroundColor: theme.background }]} onPress={() => {}}>
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: theme.background }]}
+            onPress={() => {}}
+          >
             <Text style={[styles.modalTitle, { color: theme.text }]}>Reject Request</Text>
             <Text style={[styles.modalSubtitle, { color: theme.mutedText }]}>
-              {rejectModal.request ? `Provide a reason for rejecting ${rejectModal.request.requester_name}.` : ''}
+              {rejectModal.request
+                ? `Provide a reason for rejecting ${rejectModal.request.requester_name}.`
+                : ''}
             </Text>
             <TextInput
               placeholder="Reason (required)"
               placeholderTextColor={theme.mutedText}
               style={[styles.modalInput, { color: theme.text, borderColor: theme.border }]}
               value={rejectModal.reason}
-              onChangeText={(text) => setRejectModal((prev) => ({ ...prev, reason: text }))}
+              onChangeText={text => setRejectModal(prev => ({ ...prev, reason: text }))}
               multiline
               numberOfLines={3}
             />

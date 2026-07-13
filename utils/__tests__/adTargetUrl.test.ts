@@ -12,9 +12,7 @@ describe('ad target URL helpers', () => {
   });
 
   it('preserves existing https links', () => {
-    expect(normalizeAdTargetUrl('https://varsityhub.app/path')).toBe(
-      'https://varsityhub.app/path'
-    );
+    expect(normalizeAdTargetUrl('https://varsityhub.app/path')).toBe('https://varsityhub.app/path');
   });
 
   it('rejects non-web schemes', () => {

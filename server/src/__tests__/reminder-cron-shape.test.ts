@@ -96,9 +96,7 @@ describe('notifyUpcomingGames — query shape', () => {
     const callArg = eventRsvpFindMany.mock.calls[0][0] as any;
     expect(callArg.where.event.date).toBeDefined();
     expect(callArg.where.event.OR).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ approval_status: 'approved' }),
-      ])
+      expect.arrayContaining([expect.objectContaining({ approval_status: 'approved' })])
     );
   });
 
@@ -146,10 +144,7 @@ describe('notifyUpcomingGames — query shape', () => {
   });
 
   it('respects dedup hits — does not create notification for already-reminded user/event pairs', async () => {
-    eventRsvpFindMany.mockResolvedValueOnce([
-      rsvp('u1', 'e1'),
-      rsvp('u2', 'e1'),
-    ] as any);
+    eventRsvpFindMany.mockResolvedValueOnce([rsvp('u1', 'e1'), rsvp('u2', 'e1')] as any);
     notificationFindMany.mockResolvedValueOnce([
       { user_id: 'u1', meta: { event_id: 'e1' } },
     ] as any);

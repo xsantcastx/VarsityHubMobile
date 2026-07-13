@@ -55,9 +55,7 @@ export interface UseUnsavedChangesReturn {
  * };
  * ```
  */
-export function useUnsavedChanges(
-  options: UseUnsavedChangesOptions = {}
-): UseUnsavedChangesReturn {
+export function useUnsavedChanges(options: UseUnsavedChangesOptions = {}): UseUnsavedChangesReturn {
   const {
     initialValues = {},
     message = 'You have unsaved changes. Are you sure you want to leave?',
@@ -75,7 +73,7 @@ export function useUnsavedChanges(
   useEffect(() => {
     initialRef.current = initialValues;
     currentRef.current = { ...initialValues };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- using serialized key to deep-compare initialValues
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- using serialized key to deep-compare initialValues
   }, [initialValuesKey]);
 
   // Track a value change
@@ -109,29 +107,32 @@ export function useUnsavedChanges(
   }, []);
 
   // Confirm navigation if dirty
-  const confirmLeave = useCallback((onConfirm: () => void) => {
-    if (!isDirty || !enabled) {
-      onConfirm();
-      return;
-    }
+  const confirmLeave = useCallback(
+    (onConfirm: () => void) => {
+      if (!isDirty || !enabled) {
+        onConfirm();
+        return;
+      }
 
-    Alert.alert(
-      title,
-      message,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Discard',
-          style: 'destructive',
-          onPress: () => {
-            setIsDirty(false);
-            onConfirm();
+      Alert.alert(
+        title,
+        message,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => {
+              setIsDirty(false);
+              onConfirm();
+            },
           },
-        },
-      ],
-      { cancelable: true }
-    );
-  }, [isDirty, enabled, title, message]);
+        ],
+        { cancelable: true }
+      );
+    },
+    [isDirty, enabled, title, message]
+  );
 
   // Handle hardware back button (Android)
   useEffect(() => {

@@ -6,7 +6,7 @@ export default function EditAdScreen() {
   return (
     <EditAdScreenBase
       showHeaderChevron
-      renderReachPreview={(zipCode) => (
+      renderReachPreview={zipCode => (
         <ReachMapPreview zipCode={zipCode} radiusKm={AD_GEOFENCE_RADIUS_KM} />
       )}
     />

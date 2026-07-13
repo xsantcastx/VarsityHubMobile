@@ -1,6 +1,6 @@
 /**
  * Authentication Error
- * 
+ *
  * Thrown when user authentication fails (401 Unauthorized)
  */
 

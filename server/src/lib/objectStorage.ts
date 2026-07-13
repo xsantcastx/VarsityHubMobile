@@ -117,11 +117,9 @@ class S3CompatibleAdapter implements ObjectStorageAdapter {
     const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
     const e = this.env();
     const ttl = Math.max(30, ttlSeconds ?? e.defaultTtl);
-    return getSignedUrl(
-      client,
-      new GetObjectCommand({ Bucket: e.bucket, Key: key }),
-      { expiresIn: ttl }
-    );
+    return getSignedUrl(client, new GetObjectCommand({ Bucket: e.bucket, Key: key }), {
+      expiresIn: ttl,
+    });
   }
 
   async deleteObject(key: string): Promise<void> {

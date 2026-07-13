@@ -22,7 +22,7 @@ export default function AppearancePicker({ value = 'classic', onChange }: Props)
     <View style={styles.container} accessibilityRole="radiogroup">
       <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Appearance</Text>
       <View style={styles.row}>
-        {presets.map((p) => (
+        {presets.map(p => (
           <Pressable
             key={p.id}
             onPress={() => onChange(p.id)}

@@ -15,7 +15,7 @@ describe('Payments', () => {
     it('should total price for multiple dates', () => {
       const weekdayPrice = 800; // $8
       const weekendPrice = 1000; // $10
-      
+
       // 2 weekdays + 1 weekend = $8 + $8 + $10 = $26
       const total = weekdayPrice + weekdayPrice + weekendPrice;
       expect(total).toBe(2600);
@@ -53,7 +53,7 @@ describe('Payments', () => {
   describe('Transaction Status', () => {
     const validStatuses = ['pending', 'completed', 'failed', 'refunded'];
 
-    validStatuses.forEach((status) => {
+    validStatuses.forEach(status => {
       it(`should accept valid status: ${status}`, () => {
         expect(validStatuses).toContain(status);
       });

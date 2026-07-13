@@ -18,7 +18,7 @@ function getTodayUtcStart(now: Date): Date {
 export async function releaseExpiredPendingApprovalReservationsForAd(
   db: ReservationDbClient,
   adId: string,
-  now: Date = new Date(),
+  now: Date = new Date()
 ): Promise<ExpiredReservationCleanupResult> {
   const ad = await db.ad.findUnique({
     where: { id: adId },
@@ -118,7 +118,7 @@ export async function releaseExpiredPendingApprovalReservationsForAd(
 export async function releaseExpiredPendingApprovalReservations(
   db: ReservationDbClient,
   now: Date = new Date(),
-  limit = 1000,
+  limit = 1000
 ) {
   const todayUtcStart = getTodayUtcStart(now);
   const candidates = await db.ad.findMany({

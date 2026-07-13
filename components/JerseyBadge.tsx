@@ -2,13 +2,13 @@ import { Platform, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 /**
  * Jersey badge component that displays a jersey number with customizable colors.
- * 
+ *
  * Features:
  * - 6 color variant combinations based on jersey number ranges
  * - Sport-specific emojis (basketball 🏀, football 🏈, baseball ⚾, soccer ⚽)
  * - Team color theming support
  * - Responsive sizing
- * 
+ *
  * Color Variants (based on jersey number):
  * - 0-16: Red/White/Black
  * - 17-33: Gold/Green
@@ -23,16 +23,16 @@ export type Sport = 'basketball' | 'football' | 'baseball' | 'soccer' | 'volleyb
 export interface JerseyBadgeProps {
   /** Jersey number to display (0-99) */
   jerseyNumber: number | string;
-  
+
   /** Sport type for emoji selection */
   sport?: Sport;
-  
+
   /** Optional team color to override variant colors */
   teamColor?: string;
-  
+
   /** Size of the badge */
   size?: 'small' | 'medium' | 'large';
-  
+
   /** Additional custom styles */
   style?: ViewStyle;
 }
@@ -58,10 +58,10 @@ function getSportEmoji(sport: Sport = 'other'): string {
  */
 function getColorVariant(jerseyNumber: number | string): [string, string, string] {
   const num = typeof jerseyNumber === 'string' ? parseInt(jerseyNumber, 10) : jerseyNumber;
-  
+
   // Handle invalid numbers
   if (isNaN(num)) return ['#ef4444', '#ffffff', '#000000']; // Red/White/Black
-  
+
   // Determine variant based on number range
   if (num >= 0 && num <= 16) {
     return ['#ef4444', '#ffffff', '#000000']; // Red/White/Black
@@ -100,10 +100,10 @@ export function JerseyBadge({
   const [primaryColor, secondaryColor, accentColor] = getColorVariant(jerseyNumber);
   const dimensions = getSizeDimensions(size);
   const emoji = getSportEmoji(sport);
-  
+
   // Use team color as primary if provided
   const bgColor = teamColor || primaryColor;
-  
+
   return (
     <View
       style={[
@@ -131,11 +131,9 @@ export function JerseyBadge({
       >
         {jerseyNumber}
       </Text>
-      
+
       {/* Sport emoji */}
-      <Text style={[styles.emoji, { fontSize: dimensions.emojiSize }]}>
-        {emoji}
-      </Text>
+      <Text style={[styles.emoji, { fontSize: dimensions.emojiSize }]}>{emoji}</Text>
     </View>
   );
 }

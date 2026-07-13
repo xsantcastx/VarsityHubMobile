@@ -1,6 +1,6 @@
 /**
  * Email Service Types
- * 
+ *
  * Centralized type definitions for the email service
  */
 

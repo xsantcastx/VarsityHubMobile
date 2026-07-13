@@ -62,7 +62,8 @@ describe('Stripe webhook signature verification', () => {
     // syntactically-valid header with a hash that wasn't produced by our test
     // secret — Stripe SDK's constructEvent will compute the expected HMAC,
     // compare, fail, throw. Handler must catch and return 400.
-    const tamperedSig = 't=1735000000,v1=0000000000000000000000000000000000000000000000000000000000000000';
+    const tamperedSig =
+      't=1735000000,v1=0000000000000000000000000000000000000000000000000000000000000000';
 
     const res = await request(buildWebhookOnlyApp())
       .post('/payments/webhook')

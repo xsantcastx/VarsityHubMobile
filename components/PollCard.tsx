@@ -37,11 +37,13 @@ export default function PollCard({ poll, onVote }: PollCardProps) {
   const isExpired = (() => {
     if (!poll.endsAt) return false;
     const expiresDate = new Date(poll.endsAt);
-    const endOfExpiryDay = new Date(Date.UTC(
-      expiresDate.getUTCFullYear(),
-      expiresDate.getUTCMonth(),
-      expiresDate.getUTCDate() + 1,
-    ));
+    const endOfExpiryDay = new Date(
+      Date.UTC(
+        expiresDate.getUTCFullYear(),
+        expiresDate.getUTCMonth(),
+        expiresDate.getUTCDate() + 1
+      )
+    );
     return new Date() >= endOfExpiryDay;
   })();
 
@@ -60,11 +62,9 @@ export default function PollCard({ poll, onVote }: PollCardProps) {
         }
       } else {
         // Optimistic update if no API callback
-        setOptions(prev => prev.map(opt => 
-          opt.id === optionId 
-            ? { ...opt, votes: opt.votes + 1 }
-            : opt
-        ));
+        setOptions(prev =>
+          prev.map(opt => (opt.id === optionId ? { ...opt, votes: opt.votes + 1 } : opt))
+        );
         setTotalVotes(prev => prev + 1);
       }
       setSelectedOption(optionId);
@@ -81,7 +81,12 @@ export default function PollCard({ poll, onVote }: PollCardProps) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+      ]}
+    >
       {/* Poll Header */}
       <View style={styles.header}>
         <Ionicons name="bar-chart" size={20} color={Colors[colorScheme].tint} />
@@ -92,7 +97,7 @@ export default function PollCard({ poll, onVote }: PollCardProps) {
 
       {/* Poll Options */}
       <View style={styles.optionsContainer}>
-        {options.map((option) => {
+        {options.map(option => {
           const percentage = getPercentage(option.votes);
           const isSelected = selectedOption === option.id;
           const showResults = hasVoted || isExpired;
@@ -110,35 +115,42 @@ export default function PollCard({ poll, onVote }: PollCardProps) {
             >
               {showResults && (
                 <LinearGradient
-                  colors={
-                    isSelected 
-                      ? ['#3B82F6', '#2563EB'] 
-                      : ['#D1D5DB', '#D1D5DB']
-                  }
+                  colors={isSelected ? ['#3B82F6', '#2563EB'] : ['#D1D5DB', '#D1D5DB']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={[styles.resultBar, { width: `${percentage}%` }]}
                 />
               )}
-              
+
               <View style={styles.optionContent}>
-                <Text 
+                <Text
                   style={[
-                    styles.optionText, 
+                    styles.optionText,
                     { color: Colors[colorScheme].text },
-                    showResults && styles.optionTextBold
-                  ]} 
+                    showResults && styles.optionTextBold,
+                  ]}
                   numberOfLines={2}
                 >
                   {option.text}
                 </Text>
-                
+
                 {showResults && (
                   <View style={styles.resultInfo}>
                     {isSelected && (
-                      <Ionicons name="checkmark-circle" size={16} color="#3B82F6" style={styles.checkIcon} />
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color="#3B82F6"
+                        style={styles.checkIcon}
+                      />
                     )}
-                    <Text style={[styles.percentage, { color: isSelected ? '#3B82F6' : theme.mutedText }, isSelected && styles.percentageSelected]}>
+                    <Text
+                      style={[
+                        styles.percentage,
+                        { color: isSelected ? '#3B82F6' : theme.mutedText },
+                        isSelected && styles.percentageSelected,
+                      ]}
+                    >
                       {percentage}%
                     </Text>
                   </View>
@@ -157,15 +169,20 @@ export default function PollCard({ poll, onVote }: PollCardProps) {
             {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}
           </Text>
         </View>
-        
+
         {poll.endsAt && (
           <View style={styles.footerRight}>
-            <Ionicons 
-              name={isExpired ? "close-circle" : "time"}
-              size={14} 
-              color={isExpired ? "#EF4444" : Colors[colorScheme].mutedText} 
+            <Ionicons
+              name={isExpired ? 'close-circle' : 'time'}
+              size={14}
+              color={isExpired ? '#EF4444' : Colors[colorScheme].mutedText}
             />
-            <Text style={[styles.footerText, { color: isExpired ? "#EF4444" : Colors[colorScheme].mutedText }]}>
+            <Text
+              style={[
+                styles.footerText,
+                { color: isExpired ? '#EF4444' : Colors[colorScheme].mutedText },
+              ]}
+            >
               {isExpired ? 'Ended' : `Ends ${formatTimeRemaining(poll.endsAt)}`}
             </Text>
           </View>
@@ -179,12 +196,12 @@ function formatTimeRemaining(endsAt: string): string {
   const now = new Date();
   const end = new Date(endsAt);
   const diff = end.getTime() - now.getTime();
-  
+
   if (diff <= 0) return 'now';
-  
+
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const days = Math.floor(hours / 24);
-  
+
   if (days > 0) return `in ${days}d`;
   if (hours > 0) return `in ${hours}h`;
   return 'soon';

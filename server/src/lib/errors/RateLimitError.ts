@@ -1,6 +1,6 @@
 /**
  * Rate Limit Error
- * 
+ *
  * Thrown when rate limit is exceeded (429 Too Many Requests)
  */
 

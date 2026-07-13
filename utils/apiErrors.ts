@@ -69,24 +69,18 @@ export function extractApiError(
   // Some endpoints put the short code in `error` (e.g.
   // `{ error: 'AGE_REQUIREMENT' }`) and the human message in `message`.
   // Treat an all-caps error value as a code.
-  const dataErrorField =
-    data && typeof data === 'object' ? (data as any).error : null;
+  const dataErrorField = data && typeof data === 'object' ? (data as any).error : null;
   const inferredCode =
-    typeof dataErrorField === 'string' &&
-    /^[A-Z][A-Z0-9_]{2,}$/.test(dataErrorField.trim())
+    typeof dataErrorField === 'string' && /^[A-Z][A-Z0-9_]{2,}$/.test(dataErrorField.trim())
       ? dataErrorField.trim()
       : null;
   const code = dataCode ?? inferredCode;
 
   const dataMessage =
     data && typeof data === 'object'
-      ? (typeof (data as any).message === 'string'
-          ? (data as any).message
-          : null) ??
+      ? ((typeof (data as any).message === 'string' ? (data as any).message : null) ??
         // If `error` isn't a short code, it might be the message itself.
-        (typeof dataErrorField === 'string' && !inferredCode
-          ? dataErrorField
-          : null)
+        (typeof dataErrorField === 'string' && !inferredCode ? dataErrorField : null))
       : typeof data === 'string'
         ? data
         : null;

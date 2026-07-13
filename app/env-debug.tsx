@@ -40,7 +40,9 @@ export default function EnvDebugScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Process Info:</Text>
         <Text style={styles.value}>typeof process: {typeof process}</Text>
-        <Text style={styles.value}>process.env exists: {!!(typeof process !== 'undefined' && process.env)}</Text>
+        <Text style={styles.value}>
+          process.env exists: {!!(typeof process !== 'undefined' && process.env)}
+        </Text>
       </View>
     </ScrollView>
   );

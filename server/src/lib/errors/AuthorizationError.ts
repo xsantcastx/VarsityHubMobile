@@ -1,6 +1,6 @@
 /**
  * Authorization Error
- * 
+ *
  * Thrown when user lacks permission for an action (403 Forbidden)
  */
 

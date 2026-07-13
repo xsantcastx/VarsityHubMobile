@@ -1,6 +1,6 @@
 /**
  * API Integration Tests for Users Endpoints
- * 
+ *
  * Tests the users API endpoints with real HTTP requests
  */
 
@@ -48,17 +48,18 @@ describeDb('Users API Endpoints', () => {
 
   afterAll(async () => {
     // Clean up test data
-    await prisma.user.deleteMany({
-      where: {
-        id: { in: [testUser.id, otherUser.id] },
-      },
-    }).catch(() => {});
+    await prisma.user
+      .deleteMany({
+        where: {
+          id: { in: [testUser.id, otherUser.id] },
+        },
+      })
+      .catch(() => {});
   });
 
   describe('GET /users/:id', () => {
     it('should return user by id', async () => {
-      const res = await request(app)
-        .get(`/users/${testUser.id}`);
+      const res = await request(app).get(`/users/${testUser.id}`);
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.id).toBe(testUser.id);
@@ -68,8 +69,7 @@ describeDb('Users API Endpoints', () => {
     });
 
     it('should return 404 for non-existent user', async () => {
-      const res = await request(app)
-        .get(`/users/${missingUserId}`);
+      const res = await request(app).get(`/users/${missingUserId}`);
 
       expect(res.statusCode).toEqual(404);
     });
@@ -86,8 +86,7 @@ describeDb('Users API Endpoints', () => {
         },
       });
 
-      const res = await request(app)
-        .get(`/users/${testUser.id}/posts`);
+      const res = await request(app).get(`/users/${testUser.id}/posts`);
 
       expect(res.statusCode).toEqual(200);
       expect(Array.isArray(res.body.items)).toBe(true);
@@ -99,8 +98,7 @@ describeDb('Users API Endpoints', () => {
 
   describe('GET /users/:id/followers', () => {
     it('should require authentication', async () => {
-      const res = await request(app)
-        .get(`/users/${testUser.id}/followers`);
+      const res = await request(app).get(`/users/${testUser.id}/followers`);
 
       expect(res.statusCode).toEqual(401);
     });
@@ -122,8 +120,7 @@ describeDb('Users API Endpoints', () => {
 
   describe('GET /users/:id/following', () => {
     it('should require authentication', async () => {
-      const res = await request(app)
-        .get(`/users/${testUser.id}/following`);
+      const res = await request(app).get(`/users/${testUser.id}/following`);
 
       expect(res.statusCode).toEqual(401);
     });
@@ -145,8 +142,7 @@ describeDb('Users API Endpoints', () => {
 
   describe('GET /users/search/mentions', () => {
     it('should require authentication', async () => {
-      const res = await request(app)
-        .get('/users/search/mentions?q=other');
+      const res = await request(app).get('/users/search/mentions?q=other');
       expect(res.statusCode).toEqual(401);
     });
 

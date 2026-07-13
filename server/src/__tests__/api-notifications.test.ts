@@ -32,7 +32,9 @@ describe('API Notification Endpoints', () => {
 
   afterAll(async () => {
     if (createdNotificationIds.length > 0) {
-      await prisma.notification.deleteMany({ where: { id: { in: createdNotificationIds } } }).catch(() => {});
+      await prisma.notification
+        .deleteMany({ where: { id: { in: createdNotificationIds } } })
+        .catch(() => {});
     }
     if (userId) {
       await prisma.user.delete({ where: { id: userId } }).catch(() => {});

@@ -56,12 +56,13 @@ export async function getPendingEventReviewRecipients(
   prisma: PrismaClient,
   params: { teamId?: string | null }
 ): Promise<EventReviewRecipient[]> {
-  const teamId = typeof params.teamId === 'string' && params.teamId.trim().length > 0
-    ? params.teamId.trim()
-    : null;
+  const teamId =
+    typeof params.teamId === 'string' && params.teamId.trim().length > 0
+      ? params.teamId.trim()
+      : null;
 
   if (!teamId) {
-    return getAllAdminEmails().map((email) => ({
+    return getAllAdminEmails().map(email => ({
       userId: null,
       email,
       displayName: 'Admin',
@@ -141,7 +142,7 @@ export async function getPendingEventReviewRecipients(
     return [...deduped.values()];
   }
 
-  return getAllAdminEmails().map((email) => ({
+  return getAllAdminEmails().map(email => ({
     userId: null,
     email,
     displayName: 'Admin',
@@ -180,7 +181,7 @@ export async function notifyPendingEventReviewers(
   });
 
   await Promise.all(
-    recipients.map((recipient) =>
+    recipients.map(recipient =>
       sendEventPendingReviewEmail({
         to: recipient.email,
         reviewerName: recipient.displayName,
@@ -193,16 +194,13 @@ export async function notifyPendingEventReviewers(
         reviewId: params.reviewId,
         reviewKind,
         coachNotes,
-      }).catch((err) => {
-        console.error(
-          '[eventReviewNotifications] Failed sending event review email:',
-          {
-            reviewId: params.reviewId,
-            reviewKind,
-            to: recipient.email,
-            error: (err as any)?.message || err,
-          }
-        );
+      }).catch(err => {
+        console.error('[eventReviewNotifications] Failed sending event review email:', {
+          reviewId: params.reviewId,
+          reviewKind,
+          to: recipient.email,
+          error: (err as any)?.message || err,
+        });
       })
     )
   );

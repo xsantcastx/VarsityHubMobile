@@ -11,7 +11,9 @@ describe('teams billing source of truth', () => {
     expect(teamsRoute).toMatch(/select:\s*\{[\s\S]{0,500}payment_pending:\s*true/);
     expect(teamsRoute).toMatch(/select:\s*\{[\s\S]{0,600}payment_approved:\s*true/);
     expect(teamsRoute).toContain('let effectivePlan = getEffectiveEntitledPlan(me as any);');
-    expect(teamsRoute).toContain('const billingContext = await buildTeamCreateBillingContext(req.user!.id, user);');
+    expect(teamsRoute).toContain(
+      'const billingContext = await buildTeamCreateBillingContext(req.user!.id, user);'
+    );
   });
 
   it('POST /teams no longer trusts mutable preferences.plan for entitlement checks', () => {

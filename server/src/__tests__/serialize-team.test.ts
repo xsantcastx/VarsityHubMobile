@@ -6,10 +6,7 @@
  * list-vs-detail drift that prompted this helper.
  */
 import { describe, expect, it } from '@jest/globals';
-import {
-  serializeTeam,
-  SERIALIZE_TEAM_BASELINE_FIELDS,
-} from '../lib/serializeTeam.js';
+import { serializeTeam, SERIALIZE_TEAM_BASELINE_FIELDS } from '../lib/serializeTeam.js';
 
 const MINIMAL_ROW = {
   id: 'team_123',

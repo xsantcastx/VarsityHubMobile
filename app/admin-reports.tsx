@@ -5,15 +5,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
@@ -38,7 +38,10 @@ interface AbuseReport {
   };
 }
 
-function parseReportTarget(subject: string): { targetType: string | null; targetId: string | null } {
+function parseReportTarget(subject: string): {
+  targetType: string | null;
+  targetId: string | null;
+} {
   const match = String(subject || '').match(/\[([a-z_]+):([^\]]+)\]/i);
   return {
     targetType: match?.[1] || null,
@@ -80,33 +83,36 @@ function AdminReportsScreen() {
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
-  const loadReports = useCallback(async (showRefreshing = false) => {
-    if (!isAdmin) return; // Don't load until admin status confirmed
-    if (showRefreshing) setRefreshing(true);
-    else setLoading(true);
-    setError(null);
+  const loadReports = useCallback(
+    async (showRefreshing = false) => {
+      if (!isAdmin) return; // Don't load until admin status confirmed
+      if (showRefreshing) setRefreshing(true);
+      else setLoading(true);
+      setError(null);
 
-    try {
-      // Use API client instead of direct fetch
-      const { httpGet } = await import('@/api/http');
-      const [reportsData, statsData] = await Promise.all([
-        httpGet(`/admin/reports?status=${filterStatus}`),
-        httpGet('/admin/reports/stats'),
-      ]);
+      try {
+        // Use API client instead of direct fetch
+        const { httpGet } = await import('@/api/http');
+        const [reportsData, statsData] = await Promise.all([
+          httpGet(`/admin/reports?status=${filterStatus}`),
+          httpGet('/admin/reports/stats'),
+        ]);
 
-      setReports(reportsData.reports || []);
-      setStats(statsData);
-    } catch (e: any) {
-      setError(
-        isSessionExpiryError(e)
-          ? 'Your admin session expired. Please sign in again.'
-          : e?.message || 'Failed to load reports'
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [filterStatus, isAdmin]);
+        setReports(reportsData.reports || []);
+        setStats(statsData);
+      } catch (e: any) {
+        setError(
+          isSessionExpiryError(e)
+            ? 'Your admin session expired. Please sign in again.'
+            : e?.message || 'Failed to load reports'
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [filterStatus, isAdmin]
+  );
 
   useEffect(() => {
     void loadReports();
@@ -173,9 +179,9 @@ function AdminReportsScreen() {
     try {
       // Use API client instead of direct fetch
       const { httpPost } = await import('@/api/http');
-      const data = await httpPost('/admin/reports/bulk-update', { 
-        report_ids: Array.from(selectedReports), 
-        status 
+      const data = await httpPost('/admin/reports/bulk-update', {
+        report_ids: Array.from(selectedReports),
+        status,
       });
       setSelectedReports(new Set());
       await loadReports(true);
@@ -194,34 +200,30 @@ function AdminReportsScreen() {
       return;
     }
 
-    Alert.alert(
-      'Confirm Delete',
-      `Delete ${selectedReports.size} selected report(s)?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Use API client instead of direct fetch
-              const { httpPost } = await import('@/api/http');
-              const data: any = await httpPost('/admin/reports/bulk-delete', {
-                report_ids: Array.from(selectedReports),
-              });
-              setSelectedReports(new Set());
-              await loadReports(true);
-              Alert.alert('Success', `Deleted ${data?.deleted ?? selectedReports.size} reports`);
-            } catch (e: any) {
-              if (isSessionExpiryError(e)) {
-                return;
-              }
-              Alert.alert('Error', e?.message || 'Failed to delete reports');
+    Alert.alert('Confirm Delete', `Delete ${selectedReports.size} selected report(s)?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            // Use API client instead of direct fetch
+            const { httpPost } = await import('@/api/http');
+            const data: any = await httpPost('/admin/reports/bulk-delete', {
+              report_ids: Array.from(selectedReports),
+            });
+            setSelectedReports(new Set());
+            await loadReports(true);
+            Alert.alert('Success', `Deleted ${data?.deleted ?? selectedReports.size} reports`);
+          } catch (e: any) {
+            if (isSessionExpiryError(e)) {
+              return;
             }
+            Alert.alert('Error', e?.message || 'Failed to delete reports');
           }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
@@ -231,9 +233,11 @@ function AdminReportsScreen() {
       resolved: '#10B981',
       dismissed: '#6B7280',
     };
-    
+
     return (
-      <View style={[styles.badge, { backgroundColor: colors[status as keyof typeof colors] + '20' }]}>
+      <View
+        style={[styles.badge, { backgroundColor: colors[status as keyof typeof colors] + '20' }]}
+      >
         <Text style={[styles.badgeText, { color: colors[status as keyof typeof colors] }]}>
           {status.charAt(0).toUpperCase() + status.slice(1)}
         </Text>
@@ -246,30 +250,36 @@ function AdminReportsScreen() {
     const { targetType } = parseReportTarget(report.subject);
     const preview = getReportPreview(report);
     const isAdReport = targetType === 'ad';
-    
+
     return (
-      <Pressable 
-        style={[styles.reportCard, { 
-          backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-          borderColor: isSelected 
-            ? '#3B82F6' 
-            : Colors[colorScheme].border,
-          borderWidth: isSelected ? 2 : 1,
-        }]}
+      <Pressable
+        style={[
+          styles.reportCard,
+          {
+            backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
+            borderColor: isSelected ? '#3B82F6' : Colors[colorScheme].border,
+            borderWidth: isSelected ? 2 : 1,
+          },
+        ]}
         onPress={() => toggleSelectReport(report.id)}
       >
         <View style={styles.reportHeader}>
           <View style={styles.reportHeaderLeft}>
-            <Ionicons 
+            <Ionicons
               name={isSelected ? 'checkbox' : 'square-outline'}
-              size={24} 
-              color={isSelected ? '#3B82F6' : (colorScheme === 'dark' ? '#9CA3AF' : '#6B7280')} 
+              size={24}
+              color={isSelected ? '#3B82F6' : colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'}
             />
             <View style={{ marginLeft: 12 }}>
               <Text style={[styles.reporterName, { color: Colors[colorScheme].text }]}>
                 {report.reporter_name}
               </Text>
-              <Text style={[styles.reporterEmail, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+              <Text
+                style={[
+                  styles.reporterEmail,
+                  { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' },
+                ]}
+              >
                 {report.reporter_email}
               </Text>
             </View>
@@ -280,8 +290,8 @@ function AdminReportsScreen() {
         <Text style={[styles.reportSubject, { color: Colors[colorScheme].text }]}>
           {report.subject}
         </Text>
-        
-        <Text 
+
+        <Text
           style={[styles.reportMessage, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}
           numberOfLines={3}
         >
@@ -290,7 +300,8 @@ function AdminReportsScreen() {
 
         <View style={styles.reportFooter}>
           <Text style={[styles.reportDate, { color: Colors[colorScheme].mutedText }]}>
-            {new Date(report.created_at).toLocaleDateString()} {new Date(report.created_at).toLocaleTimeString()}
+            {new Date(report.created_at).toLocaleDateString()}{' '}
+            {new Date(report.created_at).toLocaleTimeString()}
           </Text>
           <View style={styles.reportActions}>
             {isAdReport && report.status !== 'resolved' && report.status !== 'dismissed' && (
@@ -302,7 +313,11 @@ function AdminReportsScreen() {
                     'Remove this ad from feed and notify the advertiser?',
                     [
                       { text: 'Cancel', style: 'cancel' },
-                      { text: 'Take Down', style: 'destructive', onPress: () => void takeDownAd(report) },
+                      {
+                        text: 'Take Down',
+                        style: 'destructive',
+                        onPress: () => void takeDownAd(report),
+                      },
                     ]
                   );
                 }}
@@ -310,13 +325,13 @@ function AdminReportsScreen() {
                 <Text style={[styles.actionBtnText, { color: '#DC2626' }]}>Take Down Ad</Text>
               </Pressable>
             )}
-            <Pressable 
+            <Pressable
               style={[styles.actionBtn, { backgroundColor: '#10B981' + '20' }]}
               onPress={() => updateReportStatus(report.id, 'resolved')}
             >
               <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Resolve</Text>
             </Pressable>
-            <Pressable 
+            <Pressable
               style={[styles.actionBtn, { backgroundColor: Colors.light.mutedText + '20' }]}
               onPress={() => updateReportStatus(report.id, 'dismissed')}
             >
@@ -332,7 +347,12 @@ function AdminReportsScreen() {
     return (
       <SafeAreaView
         edges={['top']}
-        style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB' }}
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB',
+        }}
       >
         <ActivityIndicator size="large" color="#3B82F6" />
       </SafeAreaView>
@@ -343,9 +363,22 @@ function AdminReportsScreen() {
     return (
       <SafeAreaView
         edges={['top']}
-        style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB' }}
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB',
+        }}
       >
-        <Text style={{ color: Colors[colorScheme].text, fontSize: 18, fontWeight: '600', paddingHorizontal: 24, textAlign: 'center' }}>
+        <Text
+          style={{
+            color: Colors[colorScheme].text,
+            fontSize: 18,
+            fontWeight: '600',
+            paddingHorizontal: 24,
+            textAlign: 'center',
+          }}
+        >
           Admin access required
         </Text>
       </SafeAreaView>
@@ -353,37 +386,40 @@ function AdminReportsScreen() {
   }
 
   return (
-    <SafeAreaView 
+    <SafeAreaView
       edges={['top']}
       style={{ flex: 1, backgroundColor: Colors[colorScheme].background }}
     >
       <Stack.Screen options={{ headerShown: false }} />
-      
+
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Header */}
-        <View style={[styles.header, { backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
-          <Pressable onPress={() => { safeGoBack(router); }} style={styles.backButton}>
-            <Ionicons 
-              name="arrow-back" 
-              size={24} 
-              color={Colors[colorScheme].text} 
-            />
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: Colors[colorScheme].card,
+              borderBottomColor: Colors[colorScheme].border,
+            },
+          ]}
+        >
+          <Pressable
+            onPress={() => {
+              safeGoBack(router);
+            }}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>
             Abuse Reports
           </Text>
           <View style={styles.headerRight}>
-            <Ionicons 
-              name="alert-circle-outline" 
-              size={24} 
-              color={Colors[colorScheme].mutedText} 
-            />
+            <Ionicons name="alert-circle-outline" size={24} color={Colors[colorScheme].mutedText} />
           </View>
         </View>
 
@@ -419,13 +455,17 @@ function AdminReportsScreen() {
                   </Text>
                 </View>
                 <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
-                  <Text style={[styles.statNumber, { color: Colors.light.mutedText }]}>{stats.dismissed}</Text>
+                  <Text style={[styles.statNumber, { color: Colors.light.mutedText }]}>
+                    {stats.dismissed}
+                  </Text>
                   <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
                     Dismissed
                   </Text>
                 </View>
                 <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
-                  <Text style={[styles.statNumber, { color: Colors[colorScheme].tint }]}>{stats.total}</Text>
+                  <Text style={[styles.statNumber, { color: Colors[colorScheme].tint }]}>
+                    {stats.total}
+                  </Text>
                   <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
                     Total
                   </Text>
@@ -434,16 +474,21 @@ function AdminReportsScreen() {
             )}
 
             {/* Filter Tabs */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.filterContainer}
+            >
               {['all', 'pending', 'reviewed', 'resolved', 'dismissed'].map(status => (
                 <Pressable
                   key={status}
                   style={[
                     styles.filterTab,
                     {
-                      backgroundColor: filterStatus === status
-                        ? Colors[colorScheme].tint
-                        : Colors[colorScheme].card,
+                      backgroundColor:
+                        filterStatus === status
+                          ? Colors[colorScheme].tint
+                          : Colors[colorScheme].card,
                     },
                   ]}
                   onPress={() => setFilterStatus(status)}
@@ -452,9 +497,10 @@ function AdminReportsScreen() {
                     style={[
                       styles.filterTabText,
                       {
-                        color: filterStatus === status
-                          ? Colors.dark.text
-                          : Colors[colorScheme].mutedText,
+                        color:
+                          filterStatus === status
+                            ? Colors.dark.text
+                            : Colors[colorScheme].mutedText,
                       },
                     ]}
                   >
@@ -477,20 +523,20 @@ function AdminReportsScreen() {
                   <Pressable style={styles.bulkActionBtn} onPress={deselectAll}>
                     <Text style={styles.bulkActionBtnText}>None</Text>
                   </Pressable>
-                  <Pressable 
-                    style={[styles.bulkActionBtn, { backgroundColor: '#10B981' }]} 
+                  <Pressable
+                    style={[styles.bulkActionBtn, { backgroundColor: '#10B981' }]}
                     onPress={() => bulkUpdateStatus('resolved')}
                   >
                     <Text style={[styles.bulkActionBtnText, { color: 'white' }]}>Resolve</Text>
                   </Pressable>
-                  <Pressable 
-                    style={[styles.bulkActionBtn, { backgroundColor: '#6B7280' }]} 
+                  <Pressable
+                    style={[styles.bulkActionBtn, { backgroundColor: '#6B7280' }]}
                     onPress={() => bulkUpdateStatus('dismissed')}
                   >
                     <Text style={[styles.bulkActionBtnText, { color: 'white' }]}>Dismiss</Text>
                   </Pressable>
-                  <Pressable 
-                    style={[styles.bulkActionBtn, { backgroundColor: '#EF4444' }]} 
+                  <Pressable
+                    style={[styles.bulkActionBtn, { backgroundColor: '#EF4444' }]}
                     onPress={bulkDelete}
                   >
                     <Text style={[styles.bulkActionBtnText, { color: 'white' }]}>Delete</Text>
@@ -503,10 +549,10 @@ function AdminReportsScreen() {
             <View style={styles.reportsSection}>
               {reports.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Ionicons 
+                  <Ionicons
                     name="document-text-outline"
-                    size={64} 
-                    color={Colors[colorScheme].mutedText} 
+                    size={64}
+                    color={Colors[colorScheme].mutedText}
                   />
                   <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
                     No reports found

@@ -88,7 +88,7 @@ describe('GET /follows/teams', () => {
     expect(ids).toContain(teamId);
   });
 
-  it('403 when trying to view another user\'s follows', async () => {
+  it("403 when trying to view another user's follows", async () => {
     const res = await request(app)
       .get(`/follows/teams?user_id=${userId}`)
       .set('Authorization', `Bearer ${otherToken}`);

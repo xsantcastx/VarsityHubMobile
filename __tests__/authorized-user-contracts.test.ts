@@ -24,7 +24,9 @@ describe('authorized-user contracts', () => {
 
   it('organization admin-summary includes pending authorized invite data for the frontend', () => {
     expect(organizationsRoute).toContain('pending_authorized_invites');
-    expect(organizationsRoute).toContain('authorized_invites: pendingInvites.map(serializeOrganizationAdminInvite)');
+    expect(organizationsRoute).toContain(
+      'authorized_invites: pendingInvites.map(serializeOrganizationAdminInvite)'
+    );
     expect(organizationsRoute).toContain("'/:id/invites/:inviteId/cancel'");
   });
 

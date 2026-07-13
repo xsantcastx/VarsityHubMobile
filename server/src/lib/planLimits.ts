@@ -9,10 +9,10 @@ const __dirname = path.dirname(__filename);
 
 /**
  * Resolve plan definitions file from multiple possible locations.
- * 
+ *
  * Build process copies shared/ to dist/shared/ during npm run build.
  * Dockerfile also copies shared/ to /app/shared/ in the container.
- * 
+ *
  * We check in order:
  * 1. dist/shared/plan-definitions.json (relative to compiled file)
  * 2. /app/shared/plan-definitions.json (Docker container path)
@@ -27,16 +27,16 @@ function resolvePlanDefinitionsPath(): string {
     // Relative paths from compiled file location (most common in production)
     path.resolve(__dirname, '../../shared/plan-definitions.json'), // dist/lib -> dist/shared
     path.resolve(__dirname, '../../../shared/plan-definitions.json'), // dist/lib -> shared
-    
+
     // Absolute Docker paths
     '/app/shared/plan-definitions.json',
     '/app/dist/shared/plan-definitions.json',
-    
+
     // Local development paths (relative to cwd)
     path.resolve(cwd, 'shared/plan-definitions.json'),
     path.resolve(cwd, 'dist/shared/plan-definitions.json'),
     path.resolve(cwd, '../shared/plan-definitions.json'),
-    
+
     // Additional fallbacks
     path.resolve(__dirname, '../../../../shared/plan-definitions.json'),
     path.resolve(__dirname, '../../../../../shared/plan-definitions.json'),
@@ -44,7 +44,7 @@ function resolvePlanDefinitionsPath(): string {
 
   // Remove duplicates while preserving order
   const uniquePaths = Array.from(new Set(candidatePaths));
-  
+
   for (const candidatePath of uniquePaths) {
     if (fs.existsSync(candidatePath)) {
       return candidatePath;
@@ -60,9 +60,7 @@ function resolvePlanDefinitionsPath(): string {
     `Directory contents at __dirname: ${fs.existsSync(__dirname) ? fs.readdirSync(__dirname).join(', ') : 'does not exist'}`,
   ].join('\n');
 
-  throw new Error(
-    `plan-definitions.json not found in any expected location.\n\n${diagnosticInfo}`
-  );
+  throw new Error(`plan-definitions.json not found in any expected location.\n\n${diagnosticInfo}`);
 }
 
 const planDefinitionsPath = resolvePlanDefinitionsPath();

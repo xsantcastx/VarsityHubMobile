@@ -15,7 +15,7 @@ describe('manage-subscription contracts', () => {
 
   it('resyncs billing through checkAuth after lifecycle and payment transitions', () => {
     expect(screen).toContain('const syncBillingState = useCallback(');
-    expect(screen).toContain("async (options?: { forceRefresh?: boolean }) => {");
+    expect(screen).toContain('async (options?: { forceRefresh?: boolean }) => {');
     expect(screen).toContain(
       'return (await checkAuth({ forceRefresh: options?.forceRefresh === true }).catch('
     );

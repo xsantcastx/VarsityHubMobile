@@ -9,10 +9,7 @@ import { sendError } from '../lib/http/sendError.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import { getOrganizationState } from '../lib/organizationState.js';
 import { DEMO_LEAGUE_NAMES } from '../lib/demoContent.js';
-import {
-  getVeteranTotalTeamAllowance,
-  resolveOwnerBillingOrgId,
-} from '../lib/paymentInternals.js';
+import { getVeteranTotalTeamAllowance, resolveOwnerBillingOrgId } from '../lib/paymentInternals.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { SERVER_ROOKIE_PROGRAM_LIMIT } from '../lib/planDefinitions.js';
 import { planSupportsExtracurricular } from '../lib/planLimits.js';

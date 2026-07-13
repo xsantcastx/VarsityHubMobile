@@ -6,7 +6,7 @@ export function HapticTab(props: BottomTabBarButtonProps) {
   return (
     <PlatformPressable
       {...props}
-      onPressIn={(_ev) => {
+      onPressIn={_ev => {
         if (process.env.EXPO_OS === 'ios') {
           void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }

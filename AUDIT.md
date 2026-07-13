@@ -2,7 +2,7 @@
 
 **Date**: April 17, 2026  
 **Scope**: React Native/Expo frontend + Express/Prisma/PostgreSQL backend  
-**Commit**: Post v1.0.2 bug-fix round  
+**Commit**: Post v1.0.2 bug-fix round
 
 ---
 
@@ -44,6 +44,7 @@ TypeScript compiles cleanly. Tests run in the existing Jest + postgres CI pipeli
 ### Fix #6: Coach post to any team's game — ALREADY GUARDED
 
 Verified the existing code already handles this via three layers:
+
 1. `teamMembership` check for geofencing bypass (lines 893-900)
 2. Non-team-members blocked if game has no event location data (lines 923-930)
 3. Explicit `team_id` posts require management role membership (lines 935-953)
@@ -108,43 +109,43 @@ The `[SAMPLE_GAME:]` prefix in post titles is embedded across 10+ code paths wit
 
 ### Backend Surface Area
 
-| Category | Count |
-|----------|-------|
-| Route files | 18 |
-| HTTP endpoints | ~160 |
-| Middleware files | 11 |
-| External integrations | 9 (SendGrid, Stripe, Apple IAP, Google OAuth, Google Maps, Cloudinary, Sentry, Redis, Expo Push) |
-| Background jobs / cron | 7 (game-reminders, overnightTasks, scheduler, emailWorker, notificationWorker, subscriptionExpiryChecker, dbBackupSync) |
+| Category               | Count                                                                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Route files            | 18                                                                                                                                                      |
+| HTTP endpoints         | ~160                                                                                                                                                    |
+| Middleware files       | 11                                                                                                                                                      |
+| External integrations  | 9 (SendGrid, Stripe, Apple IAP, Google OAuth, Google Maps, Cloudinary, Sentry, Redis, Expo Push)                                                        |
+| Background jobs / cron | 7 (game-reminders, overnightTasks, scheduler, emailWorker, notificationWorker, subscriptionExpiryChecker, dbBackupSync)                                 |
 | Env-var gated features | 10+ (DISABLE_RATE_LIMITING, ENABLE_DEV_CODES, ADMIN_EMAILS, ALLOW_APPLE_SIM_TOKENS, DISABLE_GAME_REMINDERS, DISABLE_SCHEDULER, DB_BACKUP_ENABLED, etc.) |
 
 ### Frontend Surface Area
 
-| Category | Count |
-|----------|-------|
-| Screen files (app/) | ~79 registered routes |
-| API modules (api/) | 11 files |
-| Context providers | 4 (AuthProvider, OnboardingContext, PostCacheContext, NavigationHistoryContext) |
-| Custom hooks | 21 |
-| Tab screens | 5 (Feed, Highlights, Create, Discover, Profile) |
+| Category            | Count                                                                           |
+| ------------------- | ------------------------------------------------------------------------------- |
+| Screen files (app/) | ~79 registered routes                                                           |
+| API modules (api/)  | 11 files                                                                        |
+| Context providers   | 4 (AuthProvider, OnboardingContext, PostCacheContext, NavigationHistoryContext) |
+| Custom hooks        | 21                                                                              |
+| Tab screens         | 5 (Feed, Highlights, Create, Discover, Profile)                                 |
 
 ### Middleware Chain (Applied to All Requests)
 
-| Middleware | File | Purpose |
-|-----------|------|---------|
-| `requestLogger` | logging.ts | Request ID, method, path, duration |
-| `authMiddleware` | auth.ts | Parses JWT, populates `req.user` |
-| `errorHandler` | errorHandler.ts | Global catch for structured JSON errors |
+| Middleware       | File            | Purpose                                 |
+| ---------------- | --------------- | --------------------------------------- |
+| `requestLogger`  | logging.ts      | Request ID, method, path, duration      |
+| `authMiddleware` | auth.ts         | Parses JWT, populates `req.user`        |
+| `errorHandler`   | errorHandler.ts | Global catch for structured JSON errors |
 
 ### Per-Route Guards
 
-| Guard | What It Checks |
-|-------|---------------|
-| `requireAuth` | `req.user` exists + not banned |
-| `requireVerified` | `email_verified === true` |
-| `requireOnboarded` | `onboarding_completed === true`, approval_status for coaches, org admin_approved |
-| `requireAdmin` | User email in `ADMIN_EMAILS` env var |
-| `requirePlan(tier)` | User's subscription >= requested tier |
-| `asyncHandler` | Catches promise rejections → 500 instead of server crash |
+| Guard               | What It Checks                                                                   |
+| ------------------- | -------------------------------------------------------------------------------- |
+| `requireAuth`       | `req.user` exists + not banned                                                   |
+| `requireVerified`   | `email_verified === true`                                                        |
+| `requireOnboarded`  | `onboarding_completed === true`, approval_status for coaches, org admin_approved |
+| `requireAdmin`      | User email in `ADMIN_EMAILS` env var                                             |
+| `requirePlan(tier)` | User's subscription >= requested tier                                            |
+| `asyncHandler`      | Catches promise rejections → 500 instead of server crash                         |
 
 ---
 
@@ -154,26 +155,26 @@ The `[SAMPLE_GAME:]` prefix in post titles is embedded across 10+ code paths wit
 
 **135+ route handlers use raw `async (req, res) =>` without `asyncHandler` wrapper.** An unhandled promise rejection in any of these will crash the entire Node process.
 
-| Route File | Unwrapped Count |
-|-----------|----------------|
-| organizations.ts | 27 |
-| admin.ts | 19 |
-| teams.ts | 18 |
-| games.ts | 17 |
-| users.ts | 12 |
-| ads.ts | 11 |
-| geocoding.ts | 7 |
-| group-chats.ts | 6 |
-| test-emails.ts | 6 |
-| test-notifications.ts | 5 |
-| posts.ts | 5 |
-| events.ts | 5 |
-| tournaments.ts | 5 |
-| team-memberships.ts | 3 |
-| uploads.ts | 3 |
-| promos.ts | 2 |
-| gameStories.ts | 2 |
-| reports.ts | 1 |
+| Route File            | Unwrapped Count |
+| --------------------- | --------------- |
+| organizations.ts      | 27              |
+| admin.ts              | 19              |
+| teams.ts              | 18              |
+| games.ts              | 17              |
+| users.ts              | 12              |
+| ads.ts                | 11              |
+| geocoding.ts          | 7               |
+| group-chats.ts        | 6               |
+| test-emails.ts        | 6               |
+| test-notifications.ts | 5               |
+| posts.ts              | 5               |
+| events.ts             | 5               |
+| tournaments.ts        | 5               |
+| team-memberships.ts   | 3               |
+| uploads.ts            | 3               |
+| promos.ts             | 2               |
+| gameStories.ts        | 2               |
+| reports.ts            | 1               |
 
 Only ~29 handlers (primarily in auth.ts and payments.ts) are properly wrapped.
 
@@ -189,11 +190,11 @@ Client code must handle all three. No consistent contract.
 
 ### MEDIUM: Client-Server Route Mismatches
 
-| Client Call | Expected Endpoint | Server Status |
-|-------------|------------------|--------------|
-| `User.patchMe()` | `PATCH /me` | May alias to `PATCH /auth/me` — verify |
-| `User.searchForMentions()` | `GET /users/search/mentions` | Exists in users.ts but needs verification |
-| Team invite | `POST /teams/:id/invite` AND `POST /team-invites` | Duplicate routes — two paths to same function |
+| Client Call                | Expected Endpoint                                 | Server Status                                 |
+| -------------------------- | ------------------------------------------------- | --------------------------------------------- |
+| `User.patchMe()`           | `PATCH /me`                                       | May alias to `PATCH /auth/me` — verify        |
+| `User.searchForMentions()` | `GET /users/search/mentions`                      | Exists in users.ts but needs verification     |
+| Team invite                | `POST /teams/:id/invite` AND `POST /team-invites` | Duplicate routes — two paths to same function |
 
 ### MEDIUM: Auth Enforcement Gaps
 
@@ -212,6 +213,7 @@ Routes accessing `req.user` without `requireAuth`:
 **Path**: Google Sign-In button → `loginViaGoogle(idToken)` → `POST /auth/google` → JWT creation → `checkAuth()` → onboarding
 
 **Issues found**:
+
 - `auth.ts:560-586` — If user changes their email on Google, the old email persists in the DB. OAuth re-auth doesn't update email.
 - `auth.ts:599` — `email_verified: true` set on both new and existing users linking Google. Correct.
 - Fire-and-forget email send means if SendGrid is down during registration, user is registered but can't verify. They hit `requireVerified` walls.
@@ -221,6 +223,7 @@ Routes accessing `req.user` without `requireAuth`:
 **Path**: Settings → Upgrade to Coach → step-2-basic → step-3-league → completeOnboarding → approval wait → admin approves → coach gains access
 
 **Issues found**:
+
 - **CRITICAL**: `auth.ts:1934` — Plan selection from client is ignored; server always sets `rookie`. User thinks they selected Veteran/Legend but gets Rookie.
 - **HIGH**: `auth.ts:1119, 1988` — If admin approves a coach and then the coach makes a stale `completeOnboarding()` call (e.g., from a cached page), the approval_status could be overwritten back to PENDING.
 - **HIGH**: `auth.ts:1909-1918` — Team/org ownership not verified during coach applications. A coach could claim membership in any org.
@@ -231,6 +234,7 @@ Routes accessing `req.user` without `requireAuth`:
 **Path**: Center tab → create-post → select game → write content → attach photo → `Post.create()` → server validation → geofencing → DB insert → notifications
 
 **Issues found**:
+
 - **HIGH**: `posts.ts:675-721` — Permission check verifies user is a coach but doesn't verify team membership. A coach can post to any team's game, not just their own.
 - **MEDIUM**: `posts.ts:755-767` — Location geocoding failure creates a post without location data. Post becomes invisible to location-filtered feeds.
 - `posts.ts:784-788` — Sample game workaround stores game reference in title as `[SAMPLE_GAME:...]` string. Breaks game_id foreign key queries.
@@ -240,6 +244,7 @@ Routes accessing `req.user` without `requireAuth`:
 **Path**: Event detail → RSVP button → toggleRsvp → `Event.rsvp()` → server handler → DB → response → state update
 
 **Issues found**:
+
 - **HIGH**: Double-tap race: `event-detail.tsx:108-144` uses `rsvping` boolean guard but React state batching means two rapid taps can both fire before state updates.
 - **MEDIUM**: `events.ts:554-594` — Server uses Serializable transaction (good) but two concurrent requests that pass initial check can both succeed before lock acquisition.
 - RSVP status fetched separately from event load (`event-detail.tsx:62-72`) — failure is silently swallowed, showing stale count.
@@ -249,6 +254,7 @@ Routes accessing `req.user` without `requireAuth`:
 **Path**: Profile → Follow button → `User.follow()` → server (pending for private) → accept → notification
 
 **Issues found**:
+
 - **MEDIUM**: `profile.tsx:168-203` — Optimistic update sets `isFollowing` immediately. For private profiles, server returns `PENDING` status but client shows "Following". After server refresh (our v1.0.2 fix), this should self-correct, but there's a brief visual lie.
 - Rapid follow/unfollow toggling can create state divergence. `followLoading` boolean prevents overlapping calls, but network latency means the server state may not match what the user sees for several seconds.
 
@@ -257,6 +263,7 @@ Routes accessing `req.user` without `requireAuth`:
 **Path**: Paywall → initiate payment → (iOS: Apple IAP / Android: Stripe) → receipt validation → subscription active
 
 **Issues found**:
+
 - **HIGH**: `AuthProvider.tsx:791-807` — If user starts checkout then navigates away or force-closes, `payment_pending=true` flag persists. On relaunch, user is redirected back to paywall in a loop. No recovery without admin clearing the flag.
 - Stripe webhook failures are not surfaced to the user. If webhook processing fails, user paid but doesn't get upgraded.
 
@@ -265,6 +272,7 @@ Routes accessing `req.user` without `requireAuth`:
 **Path**: Admin dashboard → pending coaches → approve → `Organization.approveCoach()` → server → email → coach gains access
 
 **Issues found**:
+
 - **MEDIUM**: All approval/rejection emails are fire-and-forget. If SendGrid is down, coach is approved but never notified.
 - No admin audit log for approval actions (beyond general activity log).
 
@@ -272,7 +280,7 @@ Routes accessing `req.user` without `requireAuth`:
 
 - **DMs**: `Message.send()` has no message deduplication. Double-tap sends duplicate messages.
 - **Discover**: Map view now correctly filters past events (v1.0.2 fix). Location bias works when Google Maps API key is set.
-- **Ad booking**: 56-day horizon enforced correctly. Checkout holds are atomic (fatal on failure). Tax display updated to "Est. Tax*" (v1.0.2 fix).
+- **Ad booking**: 56-day horizon enforced correctly. Checkout holds are atomic (fatal on failure). Tax display updated to "Est. Tax\*" (v1.0.2 fix).
 
 ---
 
@@ -280,42 +288,42 @@ Routes accessing `req.user` without `requireAuth`:
 
 ### Network Failures
 
-| Scenario | Behavior | Severity |
-|----------|----------|----------|
-| API timeout during post creation | Upload lost, no draft recovery | HIGH |
-| 502 on payment endpoint | Auto-retry may double-charge | MEDIUM |
-| SendGrid down at signup | User registered but can't verify email; stuck | HIGH |
-| Cloudinary down | Post creation fails; user loses composed content | MEDIUM |
-| Google Maps key missing | Geocoding returns null silently; posts lack location | MEDIUM |
+| Scenario                         | Behavior                                             | Severity |
+| -------------------------------- | ---------------------------------------------------- | -------- |
+| API timeout during post creation | Upload lost, no draft recovery                       | HIGH     |
+| 502 on payment endpoint          | Auto-retry may double-charge                         | MEDIUM   |
+| SendGrid down at signup          | User registered but can't verify email; stuck        | HIGH     |
+| Cloudinary down                  | Post creation fails; user loses composed content     | MEDIUM   |
+| Google Maps key missing          | Geocoding returns null silently; posts lack location | MEDIUM   |
 
 ### Auth Edge Cases
 
-| Scenario | Behavior | Severity |
-|----------|----------|----------|
-| Two simultaneous 401s trigger refresh race | `refreshPromise` lock exists but clears before second caller checks; stale tokens possible | CRITICAL |
-| Deep link to protected screen while logged out | Deferred via `consumePendingDeepLink()` — works correctly | OK |
-| Logout during in-flight token refresh | Race between `clearTokens()` and refresh callback storing new token | HIGH |
-| Token cached in SecureStore survives app uninstall (iOS Keychain) | User reinstalls and may auto-login with stale token | LOW |
+| Scenario                                                          | Behavior                                                                                   | Severity |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------- |
+| Two simultaneous 401s trigger refresh race                        | `refreshPromise` lock exists but clears before second caller checks; stale tokens possible | CRITICAL |
+| Deep link to protected screen while logged out                    | Deferred via `consumePendingDeepLink()` — works correctly                                  | OK       |
+| Logout during in-flight token refresh                             | Race between `clearTokens()` and refresh callback storing new token                        | HIGH     |
+| Token cached in SecureStore survives app uninstall (iOS Keychain) | User reinstalls and may auto-login with stale token                                        | LOW      |
 
 ### Concurrency
 
-| Scenario | Behavior | Severity |
-|----------|----------|----------|
-| Double-tap RSVP button | `rsvping` guard exists but React batching can bypass it | HIGH |
-| Double-tap Create Post | No idempotency key; duplicate posts possible | MEDIUM |
-| Rapid follow/unfollow | Server uses P2002 catch for idempotency; client optimistic update may diverge briefly | MEDIUM |
-| Team creation race condition | Wrapped in `$transaction` (Serializable) — correctly handled | OK |
-| Ad booking concurrent checkout | Fatal-on-failure hold pattern prevents partial bookings — correctly handled | OK |
+| Scenario                       | Behavior                                                                              | Severity |
+| ------------------------------ | ------------------------------------------------------------------------------------- | -------- |
+| Double-tap RSVP button         | `rsvping` guard exists but React batching can bypass it                               | HIGH     |
+| Double-tap Create Post         | No idempotency key; duplicate posts possible                                          | MEDIUM   |
+| Rapid follow/unfollow          | Server uses P2002 catch for idempotency; client optimistic update may diverge briefly | MEDIUM   |
+| Team creation race condition   | Wrapped in `$transaction` (Serializable) — correctly handled                          | OK       |
+| Ad booking concurrent checkout | Fatal-on-failure hold pattern prevents partial bookings — correctly handled           | OK       |
 
 ### Dependency Failures
 
-| Dependency | Failure Mode | Recovery |
-|-----------|-------------|----------|
-| Redis down | Rate limiters fall back to in-memory (if configured) or fail open | MEDIUM |
-| SendGrid down | All emails silently drop; fire-and-forget pattern | HIGH |
-| Stripe webhooks fail | User paid but plan not upgraded; requires manual fix | HIGH |
-| Cloudinary down | Upload fails; post creation blocked | MEDIUM |
-| Expo Push down | Notifications silently fail; fire-and-forget | LOW |
+| Dependency           | Failure Mode                                                      | Recovery |
+| -------------------- | ----------------------------------------------------------------- | -------- |
+| Redis down           | Rate limiters fall back to in-memory (if configured) or fail open | MEDIUM   |
+| SendGrid down        | All emails silently drop; fire-and-forget pattern                 | HIGH     |
+| Stripe webhooks fail | User paid but plan not upgraded; requires manual fix              | HIGH     |
+| Cloudinary down      | Upload fails; post creation blocked                               | MEDIUM   |
+| Expo Push down       | Notifications silently fail; fire-and-forget                      | LOW      |
 
 ---
 
@@ -358,6 +366,7 @@ Minor issues: some deep link paths may not resolve correctly if auth state isn't
 The auth middleware chain is solid (authMiddleware → requireAuth → requireVerified → requireOnboarded → requirePlan). Token rotation on refresh is good. Timing-safe comparisons for verification codes. Role escalation blocked on generic endpoints.
 
 Issues pulling the grade down:
+
 - 135+ handlers without asyncHandler could expose unhandled errors.
 - Refresh token race condition between simultaneous 401s.
 - Coach post permission doesn't verify team membership.
@@ -408,11 +417,13 @@ The codebase is well-architected at a structural level but has significant gaps 
 **Effort**: ~2 hours (mechanical find-and-replace).  
 **Risk of not doing it**: A single database timeout, Prisma error, or external API failure in ANY unwrapped handler will crash the Node process, taking down all users.
 
-**How**: 
+**How**:
+
 ```bash
 # Find all raw async handlers
 grep -rn "async (req" server/src/routes/ --include="*.ts" | grep -v asyncHandler | wc -l
 ```
+
 Then wrap each with `asyncHandler()`.
 
 ### 2. Standardize error response shape + add idempotency to mutations — HIGH
@@ -420,6 +431,7 @@ Then wrap each with `asyncHandler()`.
 **Impact**: Prevents duplicate RSVPs, posts, messages, and follows. Gives clients a consistent error contract.  
 **Effort**: ~4 hours.  
 **How**:
+
 - Pick one error shape: `{ error: string, code?: string, message?: string }`.
 - Add `Idempotency-Key` header support to POST endpoints for RSVP, post creation, message send, and follow.
 - Add client-side debounce/disable on all mutation buttons (enforce `loading` state before React render).
@@ -429,6 +441,7 @@ Then wrap each with `asyncHandler()`.
 **Impact**: Catches regressions before they hit production. Coach onboarding, payments, RSVP, and post creation are the highest-traffic paths.  
 **Effort**: ~8 hours.  
 **How**:
+
 - Write server-side integration tests using a test database.
 - Test: register → verify → upgrade to coach → complete onboarding → admin approve → create post.
 - Test: RSVP flow with concurrent requests.
@@ -439,25 +452,25 @@ Then wrap each with `asyncHandler()`.
 
 ## Appendix: All Issues Ranked
 
-| # | Severity | Issue | Status |
-|---|----------|-------|--------|
-| 1 | CRITICAL | 135+ async handlers without asyncHandler | ✅ FIXED (Fix #1) |
-| 2 | CRITICAL | Refresh token race on simultaneous 401s | ✅ FIXED (Fix #8) |
-| 3 | CRITICAL | Plan selection ignored during coach upgrade | ✅ FIXED (Fix #4) |
-| 4 | HIGH | Coach can post to any team's game | ✅ ALREADY GUARDED (Fix #6) |
-| 5 | HIGH | Approval status overwritable by stale onboarding call | ✅ FIXED (Fix #5) |
-| 6 | HIGH | SendGrid down blocks email verification | ✅ ALREADY HANDLED (resend UI exists) |
-| 7 | HIGH | Payment failure leaves user in paywall loop | ✅ FIXED (Fix #7) |
-| 8 | HIGH | Double-tap RSVP creates duplicate records | ✅ ALREADY GUARDED (disabled + rsvping + Serializable txn) |
-| 9 | HIGH | No draft recovery for post composition | ✅ ALREADY IMPLEMENTED (auto-save + restore prompt) |
-| 10 | HIGH | Stripe webhook failure = user paid but not upgraded | ✅ ALREADY HANDLED (dedup + retry + Sentry) |
-| 11 | MEDIUM | 3 different error response shapes | ✅ FIXED (Fix #9 — mixed shapes normalized) |
-| 12 | MEDIUM | Duplicate team invite routes | ⏳ v1.0.3 (low risk, both paths work) |
-| 13 | MEDIUM | Double-tap post creation (no idempotency) | ✅ FIXED (Fix #2 — dedup guard) |
-| 14 | MEDIUM | Follow state divergence on rapid toggle | ✅ ALREADY HANDLED (P2002 catch + followLoading) |
-| 15 | MEDIUM | Redis failure mode unclear (rate limiting) | ✅ ALREADY HANDLED (graceful memory fallback) |
-| 16 | MEDIUM | Event capacity not type-validated | ✅ ALREADY TYPE-SAFE (Prisma Int?) |
-| 17 | MEDIUM | 502 retry on non-idempotent POST | ✅ FIXED (Fix #14 — mutations no longer retried) |
-| 18 | LOW | OAuth re-auth doesn't update email | ✅ FIXED (Fix #17 — email sync on re-auth) |
-| 19 | LOW | Token persists across iOS app reinstall | ⏳ v1.0.3 (iOS Keychain behavior, low impact) |
-| 20 | LOW | Sample game title workaround breaks FK queries | ⏳ v1.0.3 (needs migration, workaround functional) |
+| #   | Severity | Issue                                                 | Status                                                     |
+| --- | -------- | ----------------------------------------------------- | ---------------------------------------------------------- |
+| 1   | CRITICAL | 135+ async handlers without asyncHandler              | ✅ FIXED (Fix #1)                                          |
+| 2   | CRITICAL | Refresh token race on simultaneous 401s               | ✅ FIXED (Fix #8)                                          |
+| 3   | CRITICAL | Plan selection ignored during coach upgrade           | ✅ FIXED (Fix #4)                                          |
+| 4   | HIGH     | Coach can post to any team's game                     | ✅ ALREADY GUARDED (Fix #6)                                |
+| 5   | HIGH     | Approval status overwritable by stale onboarding call | ✅ FIXED (Fix #5)                                          |
+| 6   | HIGH     | SendGrid down blocks email verification               | ✅ ALREADY HANDLED (resend UI exists)                      |
+| 7   | HIGH     | Payment failure leaves user in paywall loop           | ✅ FIXED (Fix #7)                                          |
+| 8   | HIGH     | Double-tap RSVP creates duplicate records             | ✅ ALREADY GUARDED (disabled + rsvping + Serializable txn) |
+| 9   | HIGH     | No draft recovery for post composition                | ✅ ALREADY IMPLEMENTED (auto-save + restore prompt)        |
+| 10  | HIGH     | Stripe webhook failure = user paid but not upgraded   | ✅ ALREADY HANDLED (dedup + retry + Sentry)                |
+| 11  | MEDIUM   | 3 different error response shapes                     | ✅ FIXED (Fix #9 — mixed shapes normalized)                |
+| 12  | MEDIUM   | Duplicate team invite routes                          | ⏳ v1.0.3 (low risk, both paths work)                      |
+| 13  | MEDIUM   | Double-tap post creation (no idempotency)             | ✅ FIXED (Fix #2 — dedup guard)                            |
+| 14  | MEDIUM   | Follow state divergence on rapid toggle               | ✅ ALREADY HANDLED (P2002 catch + followLoading)           |
+| 15  | MEDIUM   | Redis failure mode unclear (rate limiting)            | ✅ ALREADY HANDLED (graceful memory fallback)              |
+| 16  | MEDIUM   | Event capacity not type-validated                     | ✅ ALREADY TYPE-SAFE (Prisma Int?)                         |
+| 17  | MEDIUM   | 502 retry on non-idempotent POST                      | ✅ FIXED (Fix #14 — mutations no longer retried)           |
+| 18  | LOW      | OAuth re-auth doesn't update email                    | ✅ FIXED (Fix #17 — email sync on re-auth)                 |
+| 19  | LOW      | Token persists across iOS app reinstall               | ⏳ v1.0.3 (iOS Keychain behavior, low impact)              |
+| 20  | LOW      | Sample game title workaround breaks FK queries        | ⏳ v1.0.3 (needs migration, workaround functional)         |

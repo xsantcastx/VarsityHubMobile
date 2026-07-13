@@ -92,13 +92,19 @@ describe('Team transfer authorization boundaries', () => {
   afterAll(async () => {
     await prisma.teamMembership.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({
-      where: { organization_id: { in: [sourceOrgId, targetOrgId].filter(Boolean) } },
-    }).catch(() => {});
-    await prisma.organization.deleteMany({
-      where: { id: { in: [sourceOrgId, targetOrgId].filter(Boolean) } },
-    }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [moverId].filter(Boolean) } } }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({
+        where: { organization_id: { in: [sourceOrgId, targetOrgId].filter(Boolean) } },
+      })
+      .catch(() => {});
+    await prisma.organization
+      .deleteMany({
+        where: { id: { in: [sourceOrgId, targetOrgId].filter(Boolean) } },
+      })
+      .catch(() => {});
+    await prisma.user
+      .deleteMany({ where: { id: { in: [moverId].filter(Boolean) } } })
+      .catch(() => {});
   });
 
   it('blocks moving a team into a target org when requester is only a non-admin member there', async () => {

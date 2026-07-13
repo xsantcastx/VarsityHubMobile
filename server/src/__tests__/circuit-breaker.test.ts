@@ -37,7 +37,7 @@ describe('runWithBreaker', () => {
           throw new Error('upstream down');
         },
         { volumeThreshold: 2, errorThresholdPercentage: 50, resetTimeout: 10_000 }
-      ).catch((e) => e);
+      ).catch(e => e);
 
     // Drive enough failures through the rolling window to trip the breaker.
     let lastError: any;
@@ -50,7 +50,7 @@ describe('runWithBreaker', () => {
     expect(lastError.isCircuitOpen).toBe(true);
     expect(lastError.circuit).toBe(name);
 
-    const stats = getCircuitStats().find((s) => s.name === name);
+    const stats = getCircuitStats().find(s => s.name === name);
     expect(stats?.open).toBe(true);
   });
 
@@ -69,9 +69,10 @@ describe('runWithBreaker', () => {
           errorThresholdPercentage: 50,
           resetTimeout: 10_000,
           // 4xx => expected business failure, must not open the circuit.
-          errorFilter: (err: any) => typeof err?.code === 'number' && err.code >= 400 && err.code < 500,
+          errorFilter: (err: any) =>
+            typeof err?.code === 'number' && err.code >= 400 && err.code < 500,
         }
-      ).catch((e) => e);
+      ).catch(e => e);
 
     let lastError: any;
     for (let i = 0; i < 6; i++) {
@@ -82,7 +83,7 @@ describe('runWithBreaker', () => {
     expect(lastError).not.toBeInstanceOf(CircuitOpenError);
     expect(lastError.code).toBe(422);
 
-    const stats = getCircuitStats().find((s) => s.name === name);
+    const stats = getCircuitStats().find(s => s.name === name);
     expect(stats?.open).toBe(false);
   });
 });

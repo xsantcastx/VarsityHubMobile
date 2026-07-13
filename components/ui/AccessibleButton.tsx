@@ -1,6 +1,6 @@
 /**
  * Accessible Button Component
- * 
+ *
  * Example component demonstrating WCAG 2.1 AA compliant button design
  * Uses accessibility utilities to ensure proper contrast and tap targets
  */

@@ -7,12 +7,7 @@
  * tests fail loudly.
  */
 import { describe, expect, it } from '@jest/globals';
-import {
-  extractApiError,
-  apiErrorMessage,
-  apiErrorStatus,
-  apiErrorCode,
-} from '../utils/apiErrors';
+import { extractApiError, apiErrorMessage, apiErrorStatus, apiErrorCode } from '../utils/apiErrors';
 
 describe('extractApiError — shape handling', () => {
   it('handles raw axios error (err.response.status / err.response.data)', () => {

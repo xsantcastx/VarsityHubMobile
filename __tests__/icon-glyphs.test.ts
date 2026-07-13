@@ -12,7 +12,7 @@ type IconHit = {
 };
 
 function collectStaticIconUsages(iconSet: 'MaterialIcons' | 'Ionicons'): IconHit[] {
-  const roots = ['app', 'components'].map((dir) => path.join(process.cwd(), dir));
+  const roots = ['app', 'components'].map(dir => path.join(process.cwd(), dir));
   const files: string[] = [];
 
   const walk = (dir: string) => {
@@ -58,13 +58,17 @@ function collectStaticIconUsages(iconSet: 'MaterialIcons' | 'Ionicons'): IconHit
 describe('static icon names', () => {
   it('uses valid MaterialIcons names', () => {
     const hits = collectStaticIconUsages('MaterialIcons');
-    const invalid = hits.filter((hit) => !Object.prototype.hasOwnProperty.call(materialGlyphs, hit.name));
+    const invalid = hits.filter(
+      hit => !Object.prototype.hasOwnProperty.call(materialGlyphs, hit.name)
+    );
     expect(invalid).toEqual([]);
   });
 
   it('uses valid Ionicons names', () => {
     const hits = collectStaticIconUsages('Ionicons');
-    const invalid = hits.filter((hit) => !Object.prototype.hasOwnProperty.call(ioniconGlyphs, hit.name));
+    const invalid = hits.filter(
+      hit => !Object.prototype.hasOwnProperty.call(ioniconGlyphs, hit.name)
+    );
     expect(invalid).toEqual([]);
   });
 });

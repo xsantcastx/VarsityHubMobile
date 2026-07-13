@@ -39,7 +39,7 @@ export function redactEmail(value: unknown): string {
  * Preserves array shape so JSON audit logs remain structurally equivalent.
  */
 export function redactEmailList(value: unknown): string | string[] {
-  if (Array.isArray(value)) return value.map((v) => redactEmail(v));
+  if (Array.isArray(value)) return value.map(v => redactEmail(v));
   return redactEmail(value);
 }
 
@@ -53,5 +53,5 @@ export function sanitizeEmailSubject(value: unknown): string {
 
 export function sanitizeEmailLogMessage(value: unknown): string {
   if (typeof value !== 'string' || value.trim().length === 0) return '[redacted-log]';
-  return sanitizeEmailSubject(value).replace(EMAIL_PATTERN, (match) => redactEmail(match));
+  return sanitizeEmailSubject(value).replace(EMAIL_PATTERN, match => redactEmail(match));
 }

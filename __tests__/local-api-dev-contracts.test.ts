@@ -18,15 +18,23 @@ describe('local api dev contracts', () => {
   });
 
   it('app config and runtime honor EXPO_PUBLIC_USE_LOCAL_API for dev builds', () => {
-    expect(appConfig).toContain("const useLocalApi = isTruthy(process.env.EXPO_PUBLIC_USE_LOCAL_API || '0');");
-    expect(appConfig).toContain("EXPO_PUBLIC_USE_LOCAL_API: useLocalApi ? '1' : process.env.EXPO_PUBLIC_USE_LOCAL_API || '0',");
+    expect(appConfig).toContain(
+      "const useLocalApi = isTruthy(process.env.EXPO_PUBLIC_USE_LOCAL_API || '0');"
+    );
+    expect(appConfig).toContain(
+      "EXPO_PUBLIC_USE_LOCAL_API: useLocalApi ? '1' : process.env.EXPO_PUBLIC_USE_LOCAL_API || '0',"
+    );
 
-    expect(httpTransport).toContain('const processUseLocalApi = processEnv.EXPO_PUBLIC_USE_LOCAL_API;');
+    expect(httpTransport).toContain(
+      'const processUseLocalApi = processEnv.EXPO_PUBLIC_USE_LOCAL_API;'
+    );
     expect(httpTransport).toContain('if (__DEV__ && useLocalApi) {');
     expect(httpTransport).toContain("Platform.OS === 'android'");
 
     expect(envConfig).toContain("| 'EXPO_PUBLIC_USE_LOCAL_API'");
-    expect(envConfig).toContain("const useLocalApi = readBoolean('EXPO_PUBLIC_USE_LOCAL_API', false);");
+    expect(envConfig).toContain(
+      "const useLocalApi = readBoolean('EXPO_PUBLIC_USE_LOCAL_API', false);"
+    );
     expect(envConfig).toContain('if (__DEV__ && useLocalApi) {');
   });
 });

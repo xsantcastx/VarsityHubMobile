@@ -23,9 +23,11 @@ describeDb('updateTransactionStatus transaction reference coverage', () => {
 
   afterAll(async () => {
     if (!prisma || !dbReady || !createdIds.length) return;
-    await prisma.transactionLog.deleteMany({
-      where: { id: { in: createdIds } },
-    }).catch(() => {});
+    await prisma.transactionLog
+      .deleteMany({
+        where: { id: { in: createdIds } },
+      })
+      .catch(() => {});
   });
 
   it('updates by stripe_session_id', async () => {

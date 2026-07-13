@@ -133,7 +133,10 @@ function PendingApproval() {
     } catch (err: any) {
       const code = err?.data?.code || err?.code;
       if (code === 'RESEND_COOLDOWN') {
-        Alert.alert('Too Soon', 'An approval email was already sent recently. Please wait 24 hours before resending.');
+        Alert.alert(
+          'Too Soon',
+          'An approval email was already sent recently. Please wait 24 hours before resending.'
+        );
       } else if (code === 'ALREADY_APPROVED') {
         Alert.alert('Already Approved', 'Your organization has already been approved.');
       } else {

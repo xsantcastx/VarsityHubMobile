@@ -3,12 +3,7 @@ import { LocationSuggestionListShared } from '@/components/LocationSuggestionLis
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 interface LocationPickerProps {
   value: string;
@@ -57,32 +52,35 @@ export default function LocationPicker({
     };
   }, []);
 
-  const fetchSuggestions = useCallback((text: string) => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-
-    if (text.trim().length < 3) {
-      setSuggestions([]);
-      setQuerying(false);
-      return;
-    }
-
-    setQuerying(true);
-    timerRef.current = setTimeout(async () => {
-      try {
-        const zip = zipBias?.replace(/\D/g, '').slice(0, 5);
-        const results = await autocompleteLocations(text, 6, zip?.length === 5 ? zip : undefined);
-        setSuggestions(results);
-      } catch (err) {
-        if (__DEV__) console.warn('[LocationPicker] Autocomplete failed:', err);
-        setSuggestions([]);
-      } finally {
-        setQuerying(false);
+  const fetchSuggestions = useCallback(
+    (text: string) => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
       }
-    }, 300);
-  }, [zipBias]);
+
+      if (text.trim().length < 3) {
+        setSuggestions([]);
+        setQuerying(false);
+        return;
+      }
+
+      setQuerying(true);
+      timerRef.current = setTimeout(async () => {
+        try {
+          const zip = zipBias?.replace(/\D/g, '').slice(0, 5);
+          const results = await autocompleteLocations(text, 6, zip?.length === 5 ? zip : undefined);
+          setSuggestions(results);
+        } catch (err) {
+          if (__DEV__) console.warn('[LocationPicker] Autocomplete failed:', err);
+          setSuggestions([]);
+        } finally {
+          setQuerying(false);
+        }
+      }, 300);
+    },
+    [zipBias]
+  );
 
   const handleChangeText = useCallback(
     (text: string) => {
@@ -96,7 +94,7 @@ export default function LocationPicker({
 
       fetchSuggestions(text);
     },
-    [onLocationSelect, fetchSuggestions],
+    [onLocationSelect, fetchSuggestions]
   );
 
   const handleSelect = useCallback(
@@ -129,7 +127,7 @@ export default function LocationPicker({
         }
       })();
     },
-    [onLocationSelect],
+    [onLocationSelect]
   );
 
   return (

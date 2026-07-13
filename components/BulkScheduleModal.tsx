@@ -3,17 +3,17 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 // @ts-ignore
 import { Team as TeamAPI } from '@/api/entities';
@@ -51,7 +51,9 @@ export default function BulkScheduleModal({
   const [loading, setLoading] = useState(false);
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [activeDropdown, setActiveDropdown] = useState<{type: string, gameIndex?: number} | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<{ type: string; gameIndex?: number } | null>(
+    null
+  );
   const [games, setGames] = useState<BulkGameData[]>([
     {
       opponent: '',
@@ -75,8 +77,10 @@ export default function BulkScheduleModal({
       date: '',
       time: templateSettings.defaultTime,
       location: templateSettings.defaultLocation,
-      type: templateSettings.alternateHomeAway 
-        ? (games.length % 2 === 0 ? 'home' : 'away')
+      type: templateSettings.alternateHomeAway
+        ? games.length % 2 === 0
+          ? 'home'
+          : 'away'
         : 'home',
     };
     setGames([...games, newGame]);
@@ -88,10 +92,12 @@ export default function BulkScheduleModal({
     }
   };
 
-  const handleGameChange = (index: number, field: keyof BulkGameData, value: string | 'home' | 'away' | 'neutral') => {
-    const updatedGames = games.map((game, i) =>
-      i === index ? { ...game, [field]: value } : game
-    );
+  const handleGameChange = (
+    index: number,
+    field: keyof BulkGameData,
+    value: string | 'home' | 'away' | 'neutral'
+  ) => {
+    const updatedGames = games.map((game, i) => (i === index ? { ...game, [field]: value } : game));
     setGames(updatedGames);
   };
 
@@ -130,44 +136,48 @@ export default function BulkScheduleModal({
   }, [visible, currentTeamId]);
 
   const generateTemplate = () => {
-    const availableTeams = teams.length > 0 ? teams : [
-      { id: '1', name: 'Eagles' },
-      { id: '2', name: 'Warriors' },
-      { id: '3', name: 'Lightning' },
-      { id: '4', name: 'Thunder' },
-      { id: '5', name: 'Rockets' },
-      { id: '6', name: 'Titans' },
-      { id: '7', name: 'Phoenix' },
-      { id: '8', name: 'Wildcats' },
-    ].filter(team => team.id !== currentTeamId);
-    
+    const availableTeams =
+      teams.length > 0
+        ? teams
+        : [
+            { id: '1', name: 'Eagles' },
+            { id: '2', name: 'Warriors' },
+            { id: '3', name: 'Lightning' },
+            { id: '4', name: 'Thunder' },
+            { id: '5', name: 'Rockets' },
+            { id: '6', name: 'Titans' },
+            { id: '7', name: 'Phoenix' },
+            { id: '8', name: 'Wildcats' },
+          ].filter(team => team.id !== currentTeamId);
+
     const startDate = new Date();
     const templateGames: BulkGameData[] = [];
-    
+
     for (let i = 0; i < Math.min(8, availableTeams.length); i++) {
       const gameDate = new Date(startDate);
-      gameDate.setDate(startDate.getDate() + (i * 7)); // Weekly games
-      
+      gameDate.setDate(startDate.getDate() + i * 7); // Weekly games
+
       templateGames.push({
         opponent: availableTeams[i].name,
         date: gameDate.toISOString().split('T')[0],
         time: templateSettings.defaultTime,
-        location: templateSettings.alternateHomeAway && i % 2 === 1 
-          ? 'Away Venue' 
-          : templateSettings.defaultLocation,
+        location:
+          templateSettings.alternateHomeAway && i % 2 === 1
+            ? 'Away Venue'
+            : templateSettings.defaultLocation,
         type: templateSettings.alternateHomeAway && i % 2 === 1 ? 'away' : 'home',
       });
     }
-    
+
     setGames(templateGames);
   };
 
   const handleSave = async () => {
     // Validate games
-    const validGames = games.filter(game => 
-      game.opponent.trim() && game.date && game.time && game.location.trim()
+    const validGames = games.filter(
+      game => game.opponent.trim() && game.date && game.time && game.location.trim()
     );
-    
+
     if (validGames.length === 0) {
       Alert.alert('Error', 'Please add at least one valid game with all fields filled.');
       return;
@@ -178,13 +188,15 @@ export default function BulkScheduleModal({
       await onSave(validGames);
       onClose();
       // Reset form
-      setGames([{
-        opponent: '',
-        date: '',
-        time: '7:00 PM',
-        location: '',
-        type: 'home',
-      }]);
+      setGames([
+        {
+          opponent: '',
+          date: '',
+          time: '7:00 PM',
+          location: '',
+          type: 'home',
+        },
+      ]);
     } catch {
       Alert.alert('Error', 'Failed to create games. Please try again.');
     } finally {
@@ -193,328 +205,600 @@ export default function BulkScheduleModal({
   };
 
   const timeOptions = [
-    '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM',
-    '4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM'
+    '10:00 AM',
+    '11:00 AM',
+    '12:00 PM',
+    '1:00 PM',
+    '2:00 PM',
+    '3:00 PM',
+    '4:00 PM',
+    '5:00 PM',
+    '6:00 PM',
+    '7:00 PM',
+    '8:00 PM',
+    '9:00 PM',
   ];
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <View style={{ flex: 1 }} onTouchStart={() => setActiveDropdown(null)}>
-      <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-        {/* Header */}
-        <View style={[styles.header, { borderBottomColor: Colors[colorScheme].border }]}>
-          <Pressable onPress={onClose} style={styles.closeButton}>
-            <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
-          </Pressable>
-          <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-            Bulk Schedule
-          </Text>
-          <Pressable 
-            onPress={handleSave} 
-            disabled={loading}
-            style={[styles.saveButton, { backgroundColor: Colors[colorScheme].tint }]}
-          >
-            <Text style={styles.saveButtonText}>
-              {loading ? 'Creating...' : 'Create All'}
-            </Text>
-          </Pressable>
-        </View>
-
-        <Text style={[styles.teamContext, { color: Colors[colorScheme].mutedText }]}>
-          Scheduling for {currentTeamName || 'your team'}
-        </Text>
-
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Template Settings */}
-          <View style={[styles.section, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-            <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-              Template Settings
-            </Text>
-            
-            <View style={styles.templateRow}>
-              <Text style={[styles.templateLabel, { color: Colors[colorScheme].text }]}>
-                Use Template
-              </Text>
-              <Switch
-                value={templateSettings.useTemplate}
-                onValueChange={(value) => setTemplateSettings(prev => ({ ...prev, useTemplate: value }))}
-                trackColor={{ false: Colors[colorScheme].border, true: Colors[colorScheme].tint }}
-              />
-            </View>
-
-            {templateSettings.useTemplate && (
-              <>
-                <View style={styles.templateRow}>
-                  <Text style={[styles.templateLabel, { color: Colors[colorScheme].text }]}>
-                    Default Time
-                  </Text>
-                  <Pressable 
-                    style={[styles.templateSelect, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => {
-                      Alert.alert(
-                        'Select Default Time',
-                        '',
-                        timeOptions.map(time => ({
-                          text: time,
-                          onPress: () => setTemplateSettings(prev => ({ ...prev, defaultTime: time }))
-                        }))
-                      );
-                    }}
-                  >
-                    <Text style={[styles.templateSelectText, { color: Colors[colorScheme].text }]}>
-                      {templateSettings.defaultTime}
-                    </Text>
-                    <Ionicons name="chevron-down" size={16} color={Colors[colorScheme].mutedText} />
-                  </Pressable>
-                </View>
-
-                <View style={styles.templateRow}>
-                  <Text style={[styles.templateLabel, { color: Colors[colorScheme].text }]}>
-                    Default Location
-                  </Text>
-                  <TextInput
-                    value={templateSettings.defaultLocation}
-                    onChangeText={(value) => setTemplateSettings(prev => ({ ...prev, defaultLocation: value }))}
-                    style={[styles.templateInput, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
-                    placeholder="Home Stadium"
-                    placeholderTextColor={Colors[colorScheme].mutedText}
-                  />
-                </View>
-
-                <View style={styles.templateRow}>
-                  <Text style={[styles.templateLabel, { color: Colors[colorScheme].text }]}>
-                    Alternate Home/Away
-                  </Text>
-                  <Switch
-                    value={templateSettings.alternateHomeAway}
-                    onValueChange={(value) => setTemplateSettings(prev => ({ ...prev, alternateHomeAway: value }))}
-                    trackColor={{ false: Colors[colorScheme].border, true: Colors[colorScheme].tint }}
-                  />
-                </View>
-
-                <Pressable 
-                  style={[styles.generateButton, { backgroundColor: Colors[colorScheme].tint }]}
-                  onPress={generateTemplate}
-                >
-                  <Ionicons name="flash" size={16} color="#fff" />
-                  <Text style={styles.generateButtonText}>Generate 8-Game Template</Text>
-                </Pressable>
-              </>
-            )}
+        <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+          {/* Header */}
+          <View style={[styles.header, { borderBottomColor: Colors[colorScheme].border }]}>
+            <Pressable onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
+            </Pressable>
+            <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Bulk Schedule</Text>
+            <Pressable
+              onPress={handleSave}
+              disabled={loading}
+              style={[styles.saveButton, { backgroundColor: Colors[colorScheme].tint }]}
+            >
+              <Text style={styles.saveButtonText}>{loading ? 'Creating...' : 'Create All'}</Text>
+            </Pressable>
           </View>
 
-          {/* Games List */}
-          <View style={[styles.section, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-            <View style={styles.sectionHeader}>
+          <Text style={[styles.teamContext, { color: Colors[colorScheme].mutedText }]}>
+            Scheduling for {currentTeamName || 'your team'}
+          </Text>
+
+          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            {/* Template Settings */}
+            <View
+              style={[
+                styles.section,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
               <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                Games ({games.length})
+                Template Settings
               </Text>
-              <Pressable onPress={handleAddGame} style={styles.addButton}>
-                <Ionicons name="add" size={20} color={Colors[colorScheme].tint} />
-              </Pressable>
-            </View>
 
-            {games.map((game, index) => (
-              <View key={index} style={[styles.gameCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
-                <View style={styles.gameHeader}>
-                  <Text style={[styles.gameNumber, { color: Colors[colorScheme].text }]}>
-                    Game {index + 1}
-                  </Text>
-                  {games.length > 1 && (
-                    <Pressable onPress={() => handleRemoveGame(index)}>
-                      <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                    </Pressable>
-                  )}
-                </View>
+              <View style={styles.templateRow}>
+                <Text style={[styles.templateLabel, { color: Colors[colorScheme].text }]}>
+                  Use Template
+                </Text>
+                <Switch
+                  value={templateSettings.useTemplate}
+                  onValueChange={value =>
+                    setTemplateSettings(prev => ({ ...prev, useTemplate: value }))
+                  }
+                  trackColor={{ false: Colors[colorScheme].border, true: Colors[colorScheme].tint }}
+                />
+              </View>
 
-                {/* Opponent */}
-                <View style={styles.field}>
-                  <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
-                    Opponent *
-                  </Text>
-                  <Pressable 
-                    style={[styles.input, styles.selectInput, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => {
-                      if (loadingTeams) {
-                        Alert.alert('Loading', 'Please wait while teams are being loaded...');
-                        return;
-                      }
-                      setActiveDropdown({ type: 'opponent', gameIndex: index });
-                    }}
-                  >
-                    <Text style={[styles.selectText, { color: game.opponent ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
-                      {game.opponent || 'Select opponent team'}
+              {templateSettings.useTemplate && (
+                <>
+                  <View style={styles.templateRow}>
+                    <Text style={[styles.templateLabel, { color: Colors[colorScheme].text }]}>
+                      Default Time
                     </Text>
-                    {loadingTeams ? (
-                      <ActivityIndicator size="small" color={Colors[colorScheme].mutedText} />
-                    ) : (
-                      <Ionicons name="chevron-down" size={16} color={Colors[colorScheme].mutedText} />
-                    )}
-                  </Pressable>
-                  
-                  {/* Beautiful Circular Dropdown */}
-                  {activeDropdown?.type === 'opponent' && activeDropdown?.gameIndex === index && (
-                    <View style={[styles.dropdown, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-                      <ScrollView style={styles.dropdownContent} nestedScrollEnabled>
-                        <Pressable
-                          style={[styles.dropdownOption, styles.customOption]}
-                          onPress={() => {
-                            setActiveDropdown(null);
-                            Alert.prompt(
-                              'Custom Team Name',
-                              'Enter opponent team name:',
-                              [
-                                { text: 'Cancel', style: 'cancel' },
-                                { text: 'Save', onPress: (teamName: string | undefined) => {
-                                  if (teamName && teamName.trim()) {
-                                    handleGameChange(index, 'opponent', teamName.trim());
-                                  }
-                                }}
-                              ],
-                              'plain-text',
-                              game.opponent
-                            );
-                          }}
-                        >
-                          <View style={[styles.optionIcon, { backgroundColor: Colors[colorScheme].tint + '20' }]}>
-                            <Ionicons name="create-outline" size={16} color={Colors[colorScheme].tint} />
-                          </View>
-                          <Text style={[styles.optionText, { color: Colors[colorScheme].tint }]}>
-                            Custom Team Name
-                          </Text>
-                        </Pressable>
-                        
-                        {teams.map(team => (
-                          <Pressable
-                            key={team.id}
-                            style={[
-                              styles.dropdownOption,
-                              game.opponent === team.name && styles.selectedOption
-                            ]}
-                            onPress={() => {
-                              handleGameChange(index, 'opponent', team.name);
-                              setActiveDropdown(null);
-                            }}
-                          >
-                            <View style={[
-                              styles.optionIcon,
-                              { 
-                                backgroundColor: game.opponent === team.name 
-                                  ? Colors[colorScheme].tint 
-                                  : Colors[colorScheme].background 
-                              }
-                            ]}>
-                              <Text style={[
-                                styles.optionInitial,
-                                { 
-                                  color: game.opponent === team.name 
-                                    ? '#fff' 
-                                    : Colors[colorScheme].text 
-                                }
-                              ]}>
-                                {team.name.charAt(0).toUpperCase()}
-                              </Text>
-                            </View>
-                            <Text style={[
-                              styles.optionText,
-                              { 
-                                color: game.opponent === team.name 
-                                  ? Colors[colorScheme].tint 
-                                  : Colors[colorScheme].text 
-                              }
-                            ]}>
-                              {team.name}
-                            </Text>
-                            {game.opponent === team.name && (
-                              <Ionicons name="checkmark" size={16} color={Colors[colorScheme].tint} />
-                            )}
-                          </Pressable>
-                        ))}
-                        
-                        {teams.length === 0 && !loadingTeams && (
-                          <View style={styles.emptyState}>
-                            <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>
-                              No teams available
-                            </Text>
-                          </View>
-                        )}
-                      </ScrollView>
-                    </View>
-                  )}
-                </View>
+                    <Pressable
+                      style={[
+                        styles.templateSelect,
+                        {
+                          backgroundColor: Colors[colorScheme].background,
+                          borderColor: Colors[colorScheme].border,
+                        },
+                      ]}
+                      onPress={() => {
+                        Alert.alert(
+                          'Select Default Time',
+                          '',
+                          timeOptions.map(time => ({
+                            text: time,
+                            onPress: () =>
+                              setTemplateSettings(prev => ({ ...prev, defaultTime: time })),
+                          }))
+                        );
+                      }}
+                    >
+                      <Text
+                        style={[styles.templateSelectText, { color: Colors[colorScheme].text }]}
+                      >
+                        {templateSettings.defaultTime}
+                      </Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={16}
+                        color={Colors[colorScheme].mutedText}
+                      />
+                    </Pressable>
+                  </View>
 
-                {/* Date and Time */}
-                <View style={styles.row}>
-                  <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
-                    <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
-                      Date *
+                  <View style={styles.templateRow}>
+                    <Text style={[styles.templateLabel, { color: Colors[colorScheme].text }]}>
+                      Default Location
                     </Text>
                     <TextInput
-                      value={game.date}
-                      onChangeText={(value) => handleGameChange(index, 'date', value)}
-                      style={[styles.input, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
-                      placeholder="YYYY-MM-DD"
+                      value={templateSettings.defaultLocation}
+                      onChangeText={value =>
+                        setTemplateSettings(prev => ({ ...prev, defaultLocation: value }))
+                      }
+                      style={[
+                        styles.templateInput,
+                        {
+                          backgroundColor: Colors[colorScheme].background,
+                          borderColor: Colors[colorScheme].border,
+                          color: Colors[colorScheme].text,
+                        },
+                      ]}
+                      placeholder="Home Stadium"
                       placeholderTextColor={Colors[colorScheme].mutedText}
                     />
                   </View>
-                  <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
-                    <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
-                      Time *
+
+                  <View style={styles.templateRow}>
+                    <Text style={[styles.templateLabel, { color: Colors[colorScheme].text }]}>
+                      Alternate Home/Away
                     </Text>
-                    <Pressable 
-                      style={[styles.input, styles.selectInput, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
+                    <Switch
+                      value={templateSettings.alternateHomeAway}
+                      onValueChange={value =>
+                        setTemplateSettings(prev => ({ ...prev, alternateHomeAway: value }))
+                      }
+                      trackColor={{
+                        false: Colors[colorScheme].border,
+                        true: Colors[colorScheme].tint,
+                      }}
+                    />
+                  </View>
+
+                  <Pressable
+                    style={[styles.generateButton, { backgroundColor: Colors[colorScheme].tint }]}
+                    onPress={generateTemplate}
+                  >
+                    <Ionicons name="flash" size={16} color="#fff" />
+                    <Text style={styles.generateButtonText}>Generate 8-Game Template</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+
+            {/* Games List */}
+            <View
+              style={[
+                styles.section,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                  Games ({games.length})
+                </Text>
+                <Pressable onPress={handleAddGame} style={styles.addButton}>
+                  <Ionicons name="add" size={20} color={Colors[colorScheme].tint} />
+                </Pressable>
+              </View>
+
+              {games.map((game, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.gameCard,
+                    {
+                      backgroundColor: Colors[colorScheme].background,
+                      borderColor: Colors[colorScheme].border,
+                    },
+                  ]}
+                >
+                  <View style={styles.gameHeader}>
+                    <Text style={[styles.gameNumber, { color: Colors[colorScheme].text }]}>
+                      Game {index + 1}
+                    </Text>
+                    {games.length > 1 && (
+                      <Pressable onPress={() => handleRemoveGame(index)}>
+                        <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                      </Pressable>
+                    )}
+                  </View>
+
+                  {/* Opponent */}
+                  <View style={styles.field}>
+                    <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
+                      Opponent *
+                    </Text>
+                    <Pressable
+                      style={[
+                        styles.input,
+                        styles.selectInput,
+                        {
+                          backgroundColor: Colors[colorScheme].background,
+                          borderColor: Colors[colorScheme].border,
+                        },
+                      ]}
                       onPress={() => {
-                        setActiveDropdown({ type: 'time', gameIndex: index });
+                        if (loadingTeams) {
+                          Alert.alert('Loading', 'Please wait while teams are being loaded...');
+                          return;
+                        }
+                        setActiveDropdown({ type: 'opponent', gameIndex: index });
                       }}
                     >
-                      <Text style={[styles.selectText, { color: Colors[colorScheme].text }]}>
-                        {game.time}
+                      <Text
+                        style={[
+                          styles.selectText,
+                          {
+                            color: game.opponent
+                              ? Colors[colorScheme].text
+                              : Colors[colorScheme].mutedText,
+                          },
+                        ]}
+                      >
+                        {game.opponent || 'Select opponent team'}
                       </Text>
-                      <Ionicons name="chevron-down" size={16} color={Colors[colorScheme].mutedText} />
+                      {loadingTeams ? (
+                        <ActivityIndicator size="small" color={Colors[colorScheme].mutedText} />
+                      ) : (
+                        <Ionicons
+                          name="chevron-down"
+                          size={16}
+                          color={Colors[colorScheme].mutedText}
+                        />
+                      )}
                     </Pressable>
-                    
-                    {/* Beautiful Time Dropdown */}
-                    {activeDropdown?.type === 'time' && activeDropdown?.gameIndex === index && (
-                      <View style={[styles.dropdown, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+
+                    {/* Beautiful Circular Dropdown */}
+                    {activeDropdown?.type === 'opponent' && activeDropdown?.gameIndex === index && (
+                      <View
+                        style={[
+                          styles.dropdown,
+                          {
+                            backgroundColor: Colors[colorScheme].surface,
+                            borderColor: Colors[colorScheme].border,
+                          },
+                        ]}
+                      >
                         <ScrollView style={styles.dropdownContent} nestedScrollEnabled>
-                          {timeOptions.map(time => (
+                          <Pressable
+                            style={[styles.dropdownOption, styles.customOption]}
+                            onPress={() => {
+                              setActiveDropdown(null);
+                              Alert.prompt(
+                                'Custom Team Name',
+                                'Enter opponent team name:',
+                                [
+                                  { text: 'Cancel', style: 'cancel' },
+                                  {
+                                    text: 'Save',
+                                    onPress: (teamName: string | undefined) => {
+                                      if (teamName && teamName.trim()) {
+                                        handleGameChange(index, 'opponent', teamName.trim());
+                                      }
+                                    },
+                                  },
+                                ],
+                                'plain-text',
+                                game.opponent
+                              );
+                            }}
+                          >
+                            <View
+                              style={[
+                                styles.optionIcon,
+                                { backgroundColor: Colors[colorScheme].tint + '20' },
+                              ]}
+                            >
+                              <Ionicons
+                                name="create-outline"
+                                size={16}
+                                color={Colors[colorScheme].tint}
+                              />
+                            </View>
+                            <Text style={[styles.optionText, { color: Colors[colorScheme].tint }]}>
+                              Custom Team Name
+                            </Text>
+                          </Pressable>
+
+                          {teams.map(team => (
                             <Pressable
-                              key={time}
+                              key={team.id}
                               style={[
                                 styles.dropdownOption,
-                                game.time === time && styles.selectedOption
+                                game.opponent === team.name && styles.selectedOption,
                               ]}
                               onPress={() => {
-                                handleGameChange(index, 'time', time);
+                                handleGameChange(index, 'opponent', team.name);
                                 setActiveDropdown(null);
                               }}
                             >
-                              <View style={[
-                                styles.optionIcon,
-                                { 
-                                  backgroundColor: game.time === time 
-                                    ? Colors[colorScheme].tint 
-                                    : Colors[colorScheme].background 
-                                }
-                              ]}>
-                                <Ionicons 
-                                  name="time" 
-                                  size={16} 
-                                  color={game.time === time ? '#fff' : Colors[colorScheme].text} 
+                              <View
+                                style={[
+                                  styles.optionIcon,
+                                  {
+                                    backgroundColor:
+                                      game.opponent === team.name
+                                        ? Colors[colorScheme].tint
+                                        : Colors[colorScheme].background,
+                                  },
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.optionInitial,
+                                    {
+                                      color:
+                                        game.opponent === team.name
+                                          ? '#fff'
+                                          : Colors[colorScheme].text,
+                                    },
+                                  ]}
+                                >
+                                  {team.name.charAt(0).toUpperCase()}
+                                </Text>
+                              </View>
+                              <Text
+                                style={[
+                                  styles.optionText,
+                                  {
+                                    color:
+                                      game.opponent === team.name
+                                        ? Colors[colorScheme].tint
+                                        : Colors[colorScheme].text,
+                                  },
+                                ]}
+                              >
+                                {team.name}
+                              </Text>
+                              {game.opponent === team.name && (
+                                <Ionicons
+                                  name="checkmark"
+                                  size={16}
+                                  color={Colors[colorScheme].tint}
+                                />
+                              )}
+                            </Pressable>
+                          ))}
+
+                          {teams.length === 0 && !loadingTeams && (
+                            <View style={styles.emptyState}>
+                              <Text
+                                style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}
+                              >
+                                No teams available
+                              </Text>
+                            </View>
+                          )}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Date and Time */}
+                  <View style={styles.row}>
+                    <View style={[styles.field, { flex: 1, marginRight: 8 }]}>
+                      <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
+                        Date *
+                      </Text>
+                      <TextInput
+                        value={game.date}
+                        onChangeText={value => handleGameChange(index, 'date', value)}
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: Colors[colorScheme].background,
+                            borderColor: Colors[colorScheme].border,
+                            color: Colors[colorScheme].text,
+                          },
+                        ]}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor={Colors[colorScheme].mutedText}
+                      />
+                    </View>
+                    <View style={[styles.field, { flex: 1, marginLeft: 8 }]}>
+                      <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
+                        Time *
+                      </Text>
+                      <Pressable
+                        style={[
+                          styles.input,
+                          styles.selectInput,
+                          {
+                            backgroundColor: Colors[colorScheme].background,
+                            borderColor: Colors[colorScheme].border,
+                          },
+                        ]}
+                        onPress={() => {
+                          setActiveDropdown({ type: 'time', gameIndex: index });
+                        }}
+                      >
+                        <Text style={[styles.selectText, { color: Colors[colorScheme].text }]}>
+                          {game.time}
+                        </Text>
+                        <Ionicons
+                          name="chevron-down"
+                          size={16}
+                          color={Colors[colorScheme].mutedText}
+                        />
+                      </Pressable>
+
+                      {/* Beautiful Time Dropdown */}
+                      {activeDropdown?.type === 'time' && activeDropdown?.gameIndex === index && (
+                        <View
+                          style={[
+                            styles.dropdown,
+                            {
+                              backgroundColor: Colors[colorScheme].surface,
+                              borderColor: Colors[colorScheme].border,
+                            },
+                          ]}
+                        >
+                          <ScrollView style={styles.dropdownContent} nestedScrollEnabled>
+                            {timeOptions.map(time => (
+                              <Pressable
+                                key={time}
+                                style={[
+                                  styles.dropdownOption,
+                                  game.time === time && styles.selectedOption,
+                                ]}
+                                onPress={() => {
+                                  handleGameChange(index, 'time', time);
+                                  setActiveDropdown(null);
+                                }}
+                              >
+                                <View
+                                  style={[
+                                    styles.optionIcon,
+                                    {
+                                      backgroundColor:
+                                        game.time === time
+                                          ? Colors[colorScheme].tint
+                                          : Colors[colorScheme].background,
+                                    },
+                                  ]}
+                                >
+                                  <Ionicons
+                                    name="time"
+                                    size={16}
+                                    color={game.time === time ? '#fff' : Colors[colorScheme].text}
+                                  />
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.optionText,
+                                    {
+                                      color:
+                                        game.time === time
+                                          ? Colors[colorScheme].tint
+                                          : Colors[colorScheme].text,
+                                    },
+                                  ]}
+                                >
+                                  {time}
+                                </Text>
+                                {game.time === time && (
+                                  <Ionicons
+                                    name="checkmark"
+                                    size={16}
+                                    color={Colors[colorScheme].tint}
+                                  />
+                                )}
+                              </Pressable>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Location */}
+                  <View style={styles.field}>
+                    <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
+                      Location *
+                    </Text>
+                    <TextInput
+                      value={game.location}
+                      onChangeText={value => handleGameChange(index, 'location', value)}
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: Colors[colorScheme].background,
+                          borderColor: Colors[colorScheme].border,
+                          color: Colors[colorScheme].text,
+                        },
+                      ]}
+                      placeholder="Stadium or venue"
+                      placeholderTextColor={Colors[colorScheme].mutedText}
+                    />
+                  </View>
+
+                  {/* Game Type */}
+                  <View style={styles.field}>
+                    <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
+                      Game Type
+                    </Text>
+                    <Pressable
+                      style={[
+                        styles.input,
+                        styles.selectInput,
+                        {
+                          backgroundColor: Colors[colorScheme].background,
+                          borderColor: Colors[colorScheme].border,
+                        },
+                      ]}
+                      onPress={() => setActiveDropdown({ type: 'gameType', gameIndex: index })}
+                    >
+                      <Text style={[styles.selectText, { color: Colors[colorScheme].text }]}>
+                        {game.type.charAt(0).toUpperCase() + game.type.slice(1)}
+                      </Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={16}
+                        color={Colors[colorScheme].mutedText}
+                      />
+                    </Pressable>
+                    {/* Beautiful Game Type Dropdown */}
+                    {activeDropdown?.type === 'gameType' && activeDropdown?.gameIndex === index && (
+                      <View
+                        style={[
+                          styles.dropdown,
+                          {
+                            backgroundColor: Colors[colorScheme].surface,
+                            borderColor: Colors[colorScheme].border,
+                          },
+                        ]}
+                      >
+                        <ScrollView style={styles.dropdownContent} nestedScrollEnabled>
+                          {(['home', 'away', 'neutral'] as const).map(type => (
+                            <Pressable
+                              key={type}
+                              style={[
+                                styles.dropdownOption,
+                                game.type === type && styles.selectedOption,
+                              ]}
+                              onPress={() => {
+                                handleGameChange(index, 'type', type);
+                                setActiveDropdown(null);
+                              }}
+                            >
+                              <View
+                                style={[
+                                  styles.optionIcon,
+                                  {
+                                    backgroundColor:
+                                      game.type === type
+                                        ? Colors[colorScheme].tint
+                                        : Colors[colorScheme].background,
+                                  },
+                                ]}
+                              >
+                                <Ionicons
+                                  name={
+                                    type === 'home'
+                                      ? 'home'
+                                      : type === 'away'
+                                        ? 'airplane'
+                                        : 'earth'
+                                  }
+                                  size={16}
+                                  color={game.type === type ? '#fff' : Colors[colorScheme].text}
                                 />
                               </View>
-                              <Text style={[
-                                styles.optionText,
-                                { 
-                                  color: game.time === time 
-                                    ? Colors[colorScheme].tint 
-                                    : Colors[colorScheme].text 
-                                }
-                              ]}>
-                                {time}
+                              <Text
+                                style={[
+                                  styles.optionText,
+                                  {
+                                    color:
+                                      game.type === type
+                                        ? Colors[colorScheme].tint
+                                        : Colors[colorScheme].text,
+                                  },
+                                ]}
+                              >
+                                {type.charAt(0).toUpperCase() + type.slice(1)}
                               </Text>
-                              {game.time === time && (
-                                <Ionicons name="checkmark" size={16} color={Colors[colorScheme].tint} />
+                              {game.type === type && (
+                                <Ionicons
+                                  name="checkmark"
+                                  size={16}
+                                  color={Colors[colorScheme].tint}
+                                />
                               )}
                             </Pressable>
                           ))}
@@ -523,81 +807,10 @@ export default function BulkScheduleModal({
                     )}
                   </View>
                 </View>
-
-                {/* Location */}
-                <View style={styles.field}>
-                  <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
-                    Location *
-                  </Text>
-                  <TextInput
-                    value={game.location}
-                    onChangeText={(value) => handleGameChange(index, 'location', value)}
-                    style={[styles.input, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
-                    placeholder="Stadium or venue"
-                    placeholderTextColor={Colors[colorScheme].mutedText}
-                  />
-                </View>
-
-                {/* Game Type */}
-                <View style={styles.field}>
-                  <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
-                    Game Type
-                  </Text>
-                  <Pressable
-                    style={[styles.input, styles.selectInput, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => setActiveDropdown({ type: 'gameType', gameIndex: index })}
-                  >
-                    <Text style={[styles.selectText, { color: Colors[colorScheme].text }]}> 
-                      {game.type.charAt(0).toUpperCase() + game.type.slice(1)}
-                    </Text>
-                    <Ionicons name="chevron-down" size={16} color={Colors[colorScheme].mutedText} />
-                  </Pressable>
-                  {/* Beautiful Game Type Dropdown */}
-                  {activeDropdown?.type === 'gameType' && activeDropdown?.gameIndex === index && (
-                    <View style={[styles.dropdown, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}> 
-                      <ScrollView style={styles.dropdownContent} nestedScrollEnabled>
-                        {(['home', 'away', 'neutral'] as const).map(type => (
-                          <Pressable
-                            key={type}
-                            style={[
-                              styles.dropdownOption,
-                              game.type === type && styles.selectedOption
-                            ]}
-                            onPress={() => {
-                              handleGameChange(index, 'type', type);
-                              setActiveDropdown(null);
-                            }}
-                          >
-                            <View style={[
-                              styles.optionIcon,
-                              { backgroundColor: game.type === type ? Colors[colorScheme].tint : Colors[colorScheme].background }
-                            ]}>
-                              <Ionicons 
-                                name={type === 'home' ? 'home' : type === 'away' ? 'airplane' : 'earth'}
-                                size={16} 
-                                color={game.type === type ? '#fff' : Colors[colorScheme].text} 
-                              />
-                            </View>
-                            <Text style={[
-                              styles.optionText,
-                              { color: game.type === type ? Colors[colorScheme].tint : Colors[colorScheme].text }
-                            ]}>
-                              {type.charAt(0).toUpperCase() + type.slice(1)}
-                            </Text>
-                            {game.type === type && (
-                              <Ionicons name="checkmark" size={16} color={Colors[colorScheme].tint} />
-                            )}
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  )}
-                </View>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
       </View>
     </Modal>
   );

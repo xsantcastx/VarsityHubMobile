@@ -1,9 +1,9 @@
 /**
  * Geocoding Service
- * 
+ *
  * Converts location strings (addresses, place names) to latitude/longitude coordinates
  * using Google Geocoding API.
- * 
+ *
  * Features:
  * - In-memory caching to reduce API calls
  * - Fallback to database storage for persistent caching
@@ -34,14 +34,17 @@ function evictOldEntries(): void {
   if (geocodeCache.size <= MAX_CACHE_SIZE) return;
 
   const targetSize = Math.floor(MAX_CACHE_SIZE * 0.8);
-  const entries = Array.from(geocodeCache.entries())
-    .sort((a, b) => a[1].timestamp - b[1].timestamp);
+  const entries = Array.from(geocodeCache.entries()).sort(
+    (a, b) => a[1].timestamp - b[1].timestamp
+  );
 
   const toRemove = entries.slice(0, geocodeCache.size - targetSize);
   for (const [key] of toRemove) {
     geocodeCache.delete(key);
   }
-  debugLog(`[geocoding] Evicted ${toRemove.length} old cache entries, size now: ${geocodeCache.size}`);
+  debugLog(
+    `[geocoding] Evicted ${toRemove.length} old cache entries, size now: ${geocodeCache.size}`
+  );
 }
 
 /**
@@ -76,7 +79,7 @@ export interface GeocodingResult {
 
 /**
  * Geocode a location string to coordinates using Google Geocoding API
- * 
+ *
  * @param location - Location string (e.g., "Madison Square Garden, NYC" or "New York, NY")
  * @returns Coordinates or null if geocoding fails
  */
@@ -99,7 +102,9 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
     // v1.0.2: in production this is a hard config error, not a warning.
     // Without geocoding, map pins, event radius filtering, and ad targeting all silently break.
     if (process.env.NODE_ENV === 'production') {
-      console.error('[geocoding] FATAL: GOOGLE_MAPS_API_KEY missing — maps and location features DISABLED');
+      console.error(
+        '[geocoding] FATAL: GOOGLE_MAPS_API_KEY missing — maps and location features DISABLED'
+      );
     } else {
       console.warn('⚠️ GOOGLE_MAPS_API_KEY not configured. Geocoding disabled.');
     }
@@ -111,7 +116,7 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
     let query = location.trim();
     const zipPattern = /^\d{5}(-\d{4})?$/; // US ZIP: 12345 or 12345-6789
     const canadianZipPattern = /^[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d$/; // Canadian: A1A 1A1
-    
+
     if (zipPattern.test(query)) {
       // US ZIP code - try with "USA" suffix for better results
       query = `${query}, USA`;
@@ -119,7 +124,7 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
       // Canadian postal code - try with "Canada" suffix
       query = `${query}, Canada`;
     }
-    
+
     // v1.0.2 audit fix: retry with exponential backoff on OVER_QUERY_LIMIT.
     // Prevents silent degradation during traffic spikes. Max 3 attempts with 250/500ms gaps.
     const fetchGeocodeWithRetry = async (u: string) => {
@@ -130,10 +135,12 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
         const j = await r.json();
         if (j.status !== 'OVER_QUERY_LIMIT') return j;
         if (attempt < 2) {
-          await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+          await new Promise(r => setTimeout(r, 250 * (attempt + 1)));
           continue;
         }
-        console.error('[geocoding] OVER_QUERY_LIMIT after 3 retries — rate limit likely exceeded for Google Maps API key');
+        console.error(
+          '[geocoding] OVER_QUERY_LIMIT after 3 retries — rate limit likely exceeded for Google Maps API key'
+        );
         return j;
       }
       return null;
@@ -163,21 +170,29 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
       return coords;
     } else {
       // If first attempt failed and we added country, try without it
-      if (query !== location.trim() && (zipPattern.test(location.trim()) || canadianZipPattern.test(location.trim().replace(/\s/g, '')))) {
+      if (
+        query !== location.trim() &&
+        (zipPattern.test(location.trim()) ||
+          canadianZipPattern.test(location.trim().replace(/\s/g, '')))
+      ) {
         const fallbackUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(location.trim())}&key=${apiKey}`;
         const fallbackResponse = await runWithBreaker('google-maps', () => fetch(fallbackUrl), {
           timeout: 8000,
         });
         const fallbackData = await fallbackResponse.json();
-        
-        if (fallbackData.status === 'OK' && fallbackData.results && fallbackData.results.length > 0) {
+
+        if (
+          fallbackData.status === 'OK' &&
+          fallbackData.results &&
+          fallbackData.results.length > 0
+        ) {
           const result = fallbackData.results[0];
           const coords = {
             latitude: result.geometry.location.lat,
             longitude: result.geometry.location.lng,
             formatted_address: result.formatted_address,
           };
-          
+
           geocodeCache.set(normalizedLocation, {
             lat: coords.latitude,
             lng: coords.longitude,
@@ -188,10 +203,12 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
           return coords;
         }
       }
-      
+
       // v1.0.2: surface Google's specific status (ZERO_RESULTS, OVER_QUERY_LIMIT, REQUEST_DENIED)
       // so Railway logs make the root cause obvious instead of a generic "failed".
-      console.error(`[geocoding] failed for "${location}": status=${data.status} error_message=${data.error_message || 'none'}`);
+      console.error(
+        `[geocoding] failed for "${location}": status=${data.status} error_message=${data.error_message || 'none'}`
+      );
       return null;
     }
   } catch (error: any) {
@@ -202,7 +219,7 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
 
 /**
  * Bulk geocode multiple locations with rate limiting
- * 
+ *
  * @param locations - Array of location strings
  * @param delayMs - Delay between requests (default 200ms to stay under API rate limits)
  * @returns Map of location -> coordinates
@@ -212,7 +229,7 @@ export async function bulkGeocodeLocations(
   delayMs: number = 200
 ): Promise<Map<string, GeocodingResult>> {
   const results = new Map<string, GeocodingResult>();
-  
+
   for (const location of locations) {
     if (!location) continue;
 
@@ -232,7 +249,7 @@ export async function bulkGeocodeLocations(
 
 /**
  * Update a Game with geocoded coordinates
- * 
+ *
  * @param gameId - Game ID
  * @param location - Location string (optional, will use existing if not provided)
  * @returns Updated game or null if failed
@@ -284,7 +301,7 @@ export async function geocodeGame(gameId: string, location?: string) {
 
 /**
  * Update an Event with geocoded coordinates
- * 
+ *
  * @param eventId - Event ID
  * @param location - Location string (optional, will use existing if not provided)
  * @returns Updated event or null if failed
@@ -336,7 +353,7 @@ export async function geocodeEvent(eventId: string, location?: string) {
 
 /**
  * Batch geocode all games that are missing coordinates
- * 
+ *
  * @param limit - Maximum number of games to process (default 100)
  * @returns Detailed results object
  */
@@ -352,10 +369,7 @@ export async function geocodeAllGames(limit: number = 100): Promise<{
     const games = await prisma.game.findMany({
       where: {
         location: { not: null },
-        OR: [
-          { latitude: null },
-          { longitude: null },
-        ],
+        OR: [{ latitude: null }, { longitude: null }],
       },
       select: { id: true, location: true, title: true },
       take: limit,
@@ -391,7 +405,7 @@ export async function geocodeAllGames(limit: number = 100): Promise<{
     }
 
     debugLog(`✅ Successfully geocoded ${successCount}/${games.length} games`);
-    
+
     return {
       success: successCount,
       failed: failedCount,
@@ -413,7 +427,7 @@ export async function geocodeAllGames(limit: number = 100): Promise<{
 
 /**
  * Batch geocode all events that are missing coordinates
- * 
+ *
  * @param limit - Maximum number of events to process (default 100)
  * @returns Number of events geocoded
  */
@@ -423,10 +437,7 @@ export async function geocodeAllEvents(limit: number = 100): Promise<number> {
     const events = await prisma.event.findMany({
       where: {
         location: { not: null },
-        OR: [
-          { latitude: null },
-          { longitude: null },
-        ],
+        OR: [{ latitude: null }, { longitude: null }],
       },
       select: { id: true, location: true },
       take: limit,

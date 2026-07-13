@@ -29,9 +29,8 @@ jest.unstable_mockModule('../lib/sentry.js', () => ({
   captureMessage: mockCaptureMessage,
 }));
 
-const { sendParentalConsentRequestEmail, sendAdTakenDownPendingReviewEmail } = await import(
-  '../lib/email.js'
-);
+const { sendParentalConsentRequestEmail, sendAdTakenDownPendingReviewEmail } =
+  await import('../lib/email.js');
 
 process.env.NODE_ENV = savedNodeEnv;
 process.env.JEST_WORKER_ID = savedJestWorker;

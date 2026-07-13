@@ -57,7 +57,8 @@ describe('getPostAuthRouteDecision', () => {
       kind: 'server_application_rejected_waiting',
     },
     {
-      label: 'keeps submitted coach applicants in fan mode on app home even when next_step is stale',
+      label:
+        'keeps submitted coach applicants in fan mode on app home even when next_step is stale',
       user: {
         email_verified: true,
         account_state: 'coach_application_submitted',
@@ -206,43 +207,39 @@ describe('getPostAuthRouteDecision', () => {
       { pendingVerification: true }
     );
 
-      expect(decision.kind).toBe('pending_verification');
-      expect(decision.route).toBe('/verify');
-    });
+    expect(decision.kind).toBe('pending_verification');
+    expect(decision.route).toBe('/verify');
+  });
 
   it('routes approved coaches with a current agreement but incomplete onboarding to the final recovery flow', () => {
-    const decision = getPostAuthRouteDecision(
-      {
-        email_verified: true,
-        approval_status: 'APPROVED',
+    const decision = getPostAuthRouteDecision({
+      email_verified: true,
+      approval_status: 'APPROVED',
+      onboarding_completed: false,
+      organization_id: 'org_123',
+      required_coach_agreement_version: 1,
+      preferences: {
         onboarding_completed: false,
+        role: 'coach',
         organization_id: 'org_123',
-        required_coach_agreement_version: 1,
-        preferences: {
-          onboarding_completed: false,
-          role: 'coach',
-          organization_id: 'org_123',
-          coach_agreement_accepted_at: '2026-05-12T12:00:00.000Z',
-          coach_agreement_version: 1,
-        },
-      } as any
-    );
+        coach_agreement_accepted_at: '2026-05-12T12:00:00.000Z',
+        coach_agreement_version: 1,
+      },
+    } as any);
 
     expect(decision.kind).toBe('approved_coach_finish_setup');
     expect(decision.route).toBe('/onboarding/league-pending-approval');
   });
 
   it('prefers top-level onboarding completion over stale preference flags for existing users', () => {
-    const decision = getPostAuthRouteDecision(
-      {
-        email_verified: true,
-        onboarding_completed: true,
-        preferences: {
-          onboarding_completed: false,
-          role: 'fan',
-        },
-      } as any
-    );
+    const decision = getPostAuthRouteDecision({
+      email_verified: true,
+      onboarding_completed: true,
+      preferences: {
+        onboarding_completed: false,
+        role: 'fan',
+      },
+    } as any);
 
     expect(decision.kind).toBe('app_home');
     expect(decision.route).toBe('/(tabs)/feed');

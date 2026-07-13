@@ -29,11 +29,22 @@ export default function ContactScreen() {
   }, [displayName, profileEmail, name, emailField]);
 
   const onSubmit = async () => {
-    if (!subject.trim() || !message.trim()) { Alert.alert('Please fill subject and message'); return; }
-    if (!emailField.trim()) { Alert.alert('Email Required', 'Please enter your email so we can respond.'); return; }
+    if (!subject.trim() || !message.trim()) {
+      Alert.alert('Please fill subject and message');
+      return;
+    }
+    if (!emailField.trim()) {
+      Alert.alert('Email Required', 'Please enter your email so we can respond.');
+      return;
+    }
     setSending(true);
     try {
-      await Support.contact({ name: name || 'Unknown', email: emailField.trim(), subject: subject.trim(), message: message.trim() });
+      await Support.contact({
+        name: name || 'Unknown',
+        email: emailField.trim(),
+        subject: subject.trim(),
+        message: message.trim(),
+      });
       Alert.alert('Sent', 'Thanks for reaching out.');
       safeGoBack(router);
     } catch (e: any) {
@@ -50,11 +61,35 @@ export default function ContactScreen() {
       headerTitle="Contact VarsityHub Team"
       colorScheme={colorScheme}
     >
-      <Input placeholder="Your name" value={name} onChangeText={setName} style={{ marginBottom: 8 }} />
-      <Input placeholder="you@example.com" value={emailField} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 8 }} />
-      <Input placeholder="Subject" value={subject} onChangeText={setSubject} style={{ marginBottom: 8 }} />
-      <Textarea placeholder="Message" value={message} onChangeText={setMessage} style={{ marginBottom: 12, minHeight: 100 }} />
-      <Button onPress={onSubmit} disabled={sending}>{sending ? 'Sending…' : 'Send'}</Button>
+      <Input
+        placeholder="Your name"
+        value={name}
+        onChangeText={setName}
+        style={{ marginBottom: 8 }}
+      />
+      <Input
+        placeholder="you@example.com"
+        value={emailField}
+        onChangeText={setEmail}
+        autoCapitalize="none"
+        keyboardType="email-address"
+        style={{ marginBottom: 8 }}
+      />
+      <Input
+        placeholder="Subject"
+        value={subject}
+        onChangeText={setSubject}
+        style={{ marginBottom: 8 }}
+      />
+      <Textarea
+        placeholder="Message"
+        value={message}
+        onChangeText={setMessage}
+        style={{ marginBottom: 12, minHeight: 100 }}
+      />
+      <Button onPress={onSubmit} disabled={sending}>
+        {sending ? 'Sending…' : 'Send'}
+      </Button>
     </SettingsFormScreen>
   );
 }

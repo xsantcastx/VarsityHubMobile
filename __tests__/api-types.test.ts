@@ -59,7 +59,13 @@ describe('API type contracts', () => {
 
     it('CreateGamePayload accepts all event type variants', () => {
       const types: CreateGamePayload['event_type'][] = [
-        'game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'other',
+        'game',
+        'fundraiser',
+        'watch_party',
+        'team_trip',
+        'meeting',
+        'team_meal',
+        'other',
       ];
       expect(types).toHaveLength(7);
     });

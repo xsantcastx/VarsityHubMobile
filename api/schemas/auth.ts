@@ -93,11 +93,7 @@ function summarizeKeys(value: unknown): string[] {
   return Object.keys(value as Record<string, unknown>).sort();
 }
 
-function buildValidationError(
-  endpoint: string,
-  payload: unknown,
-  errorResult: z.ZodError
-) {
+function buildValidationError(endpoint: string, payload: unknown, errorResult: z.ZodError) {
   const error = new Error(`Auth response schema drift at ${endpoint}`);
   captureException(error, {
     tags: {

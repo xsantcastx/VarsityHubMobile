@@ -26,7 +26,8 @@ export function handleCoachAccessError(
   user?: CoachUserLike | null
 ): boolean {
   const code = getCoachAccessCode(error);
-  const recoveryRoute = user === undefined ? '/onboarding/pending-approval' : getCoachRecoveryRoute(user);
+  const recoveryRoute =
+    user === undefined ? '/onboarding/pending-approval' : getCoachRecoveryRoute(user);
 
   if (code === 'COACH_AGREEMENT_REQUIRED') {
     Alert.alert(
@@ -41,13 +42,12 @@ export function handleCoachAccessError(
   }
 
   if (code === 'APPROVAL_REQUIRED') {
-    const statusAction =
-      recoveryRoute
-        ? {
-            text: recoveryRoute === '/(tabs)/feed' ? 'Go Home' : 'View Status',
-            onPress: () => router.replace(recoveryRoute),
-          }
-        : null;
+    const statusAction = recoveryRoute
+      ? {
+          text: recoveryRoute === '/(tabs)/feed' ? 'Go Home' : 'View Status',
+          onPress: () => router.replace(recoveryRoute),
+        }
+      : null;
     Alert.alert(
       'Approval Required',
       'Your coach account is pending approval. You can continue once a league admin approves it.',
@@ -57,13 +57,12 @@ export function handleCoachAccessError(
   }
 
   if (code === 'APPROVAL_REJECTED') {
-    const statusAction =
-      recoveryRoute
-        ? {
-            text: recoveryRoute === '/(tabs)/feed' ? 'Go Home' : 'View Status',
-            onPress: () => router.replace(recoveryRoute),
-          }
-        : null;
+    const statusAction = recoveryRoute
+      ? {
+          text: recoveryRoute === '/(tabs)/feed' ? 'Go Home' : 'View Status',
+          onPress: () => router.replace(recoveryRoute),
+        }
+      : null;
     Alert.alert(
       'Approval Rejected',
       'Your coach application was rejected. Contact support if you need help reapplying.',
@@ -73,13 +72,12 @@ export function handleCoachAccessError(
   }
 
   if (code === 'ORG_NOT_APPROVED') {
-    const statusAction =
-      recoveryRoute
-        ? {
-            text: recoveryRoute === '/(tabs)/feed' ? 'Go Home' : 'View Status',
-            onPress: () => router.replace(recoveryRoute),
-          }
-        : null;
+    const statusAction = recoveryRoute
+      ? {
+          text: recoveryRoute === '/(tabs)/feed' ? 'Go Home' : 'View Status',
+          onPress: () => router.replace(recoveryRoute),
+        }
+      : null;
     Alert.alert(
       'Organization Approval Required',
       'Your organization must be approved before you can use this coach action.',

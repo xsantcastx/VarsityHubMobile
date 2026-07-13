@@ -1,8 +1,4 @@
-import {
-  validateEvent,
-  validateEventArray,
-  validateEventRsvpArray,
-} from '@/api/schemas/event';
+import { validateEvent, validateEventArray, validateEventRsvpArray } from '@/api/schemas/event';
 import { captureException } from '@/utils/sentry';
 
 jest.mock('@/utils/sentry', () => ({

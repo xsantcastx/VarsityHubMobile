@@ -19,9 +19,9 @@ export interface StatCardProps {
 /**
  * Reusable Stat Card Component
  * Displays statistics with optional trend indicators
- * 
+ *
  * @example
- * <StatCard 
+ * <StatCard
  *   icon="trophy-outline"
  *   label="Wins"
  *   value={12}
@@ -29,15 +29,15 @@ export interface StatCardProps {
  *   trendValue="+3"
  * />
  */
-export function StatCard({ 
+export function StatCard({
   icon,
-  label, 
-  value, 
+  label,
+  value,
   subtitle,
   trend,
   trendValue,
   variant = 'default',
-  style 
+  style,
 }: StatCardProps) {
   const colorScheme = useColorScheme() ?? 'light';
 
@@ -73,53 +73,34 @@ export function StatCard({
   const trendColor = getTrendColor();
 
   return (
-    <Card
-      variant="elevated"
-      style={style}
-    >
+    <Card variant="elevated" style={style}>
       <View style={styles.container}>
         {/* Icon */}
         {icon && (
           <View style={styles.iconContainer}>
-            <MaterialIcons 
-              name={icon} 
-              size={24} 
-              color={variantColor} 
-            />
+            <MaterialIcons name={icon} size={24} color={variantColor} />
           </View>
         )}
 
         {/* Content */}
         <View style={styles.content}>
           {/* Label */}
-          <Text 
-            style={[
-              styles.label,
-              typography.caption,
-              { color: Colors[colorScheme].mutedText }
-            ]}
+          <Text
+            style={[styles.label, typography.caption, { color: Colors[colorScheme].mutedText }]}
           >
             {label}
           </Text>
 
           {/* Value */}
-          <Text 
-            style={[
-              styles.value,
-              typography.title,
-              { color: variantColor }
-            ]}
-          >
-            {value}
-          </Text>
+          <Text style={[styles.value, typography.title, { color: variantColor }]}>{value}</Text>
 
           {/* Subtitle */}
           {subtitle && (
-            <Text 
+            <Text
               style={[
                 styles.subtitle,
                 typography.caption,
-                { color: Colors[colorScheme].mutedText }
+                { color: Colors[colorScheme].mutedText },
               ]}
             >
               {subtitle}
@@ -129,18 +110,8 @@ export function StatCard({
           {/* Trend */}
           {trend && trendValue && (
             <View style={styles.trendRow}>
-              <MaterialIcons 
-                name={getTrendIcon()} 
-                size={16} 
-                color={trendColor} 
-              />
-              <Text 
-                style={[
-                  styles.trendText,
-                  typography.caption,
-                  { color: trendColor }
-                ]}
-              >
+              <MaterialIcons name={getTrendIcon()} size={16} color={trendColor} />
+              <Text style={[styles.trendText, typography.caption, { color: trendColor }]}>
                 {trendValue}
               </Text>
             </View>

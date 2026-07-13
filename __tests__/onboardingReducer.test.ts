@@ -7,7 +7,12 @@
  *   Step 3: League (coaches only — join or create)
  */
 
-import { nextIncompleteStep, onboardingReducer, createInitialState, OnboardingReducerState } from '../context/onboardingReducer';
+import {
+  nextIncompleteStep,
+  onboardingReducer,
+  createInitialState,
+  OnboardingReducerState,
+} from '../context/onboardingReducer';
 import { OnboardingState } from '../context/OnboardingContext';
 
 describe('nextIncompleteStep', () => {

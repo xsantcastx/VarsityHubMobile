@@ -75,8 +75,7 @@ export function verifyStoredSessionFingerprint(
       enforce: true,
       currentFingerprint,
       storedFingerprintType: 'device_id',
-      reason:
-        storedFingerprint === currentFingerprint ? 'device_id_match' : 'device_id_mismatch',
+      reason: storedFingerprint === currentFingerprint ? 'device_id_match' : 'device_id_mismatch',
     };
   }
 

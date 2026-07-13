@@ -1,6 +1,6 @@
 /**
  * Centralized Email Service
- * 
+ *
  * Provides a unified interface for sending emails with:
  * - Provider abstraction
  * - Retry logic
@@ -102,18 +102,20 @@ export class EmailService {
     }
 
     // Structured audit log for every outgoing email
-    console.log(JSON.stringify({
-      _tag: 'EMAIL_AUDIT',
-      timestamp: new Date().toISOString(),
-      originalRecipient: this.redactAuditRecipient(originalRecipient, auditPrivacy),
-      actualRecipient: this.redactAuditRecipient(
-        !isProduction && overrideRecipient ? overrideRecipient : originalRecipient,
-        auditPrivacy
-      ),
-      subject: sanitizeEmailSubject(options.subject),
-      redirected: !isProduction && !!overrideRecipient,
-      environment: process.env.NODE_ENV || 'development',
-    }));
+    console.log(
+      JSON.stringify({
+        _tag: 'EMAIL_AUDIT',
+        timestamp: new Date().toISOString(),
+        originalRecipient: this.redactAuditRecipient(originalRecipient, auditPrivacy),
+        actualRecipient: this.redactAuditRecipient(
+          !isProduction && overrideRecipient ? overrideRecipient : originalRecipient,
+          auditPrivacy
+        ),
+        subject: sanitizeEmailSubject(options.subject),
+        redirected: !isProduction && !!overrideRecipient,
+        environment: process.env.NODE_ENV || 'development',
+      })
+    );
 
     // Validate inputs
     const validation = this.validateEmailOptions(options);
@@ -133,20 +135,12 @@ export class EmailService {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        this.log(
-          'info',
-          correlationId,
-          `Sending email (attempt ${attempt}/${maxAttempts})`,
-          {
-            to: this.redactAuditRecipient(
-              this.extractRecipient(options.to),
-              auditPrivacy
-            ),
-            subject: sanitizeEmailSubject(options.subject),
-            isTemplate,
-            attempt,
-          }
-        );
+        this.log('info', correlationId, `Sending email (attempt ${attempt}/${maxAttempts})`, {
+          to: this.redactAuditRecipient(this.extractRecipient(options.to), auditPrivacy),
+          subject: sanitizeEmailSubject(options.subject),
+          isTemplate,
+          attempt,
+        });
 
         const result = isTemplate
           ? await this.provider.sendTemplate(options as TemplateEmailOptions)
@@ -173,13 +167,17 @@ export class EmailService {
           // failures without per-call-site instrumentation. Provider already
           // logs the underlying API error; this just guarantees the alert
           // pipeline sees it.
-          captureMessage(`Email send failed (non-retryable): ${result.error || 'unknown'}`, 'error', {
-            context: 'email_send_non_retryable',
-            provider: this.provider.name,
-            errorCode: result.errorCode,
-            correlationId,
-            isTemplate,
-          });
+          captureMessage(
+            `Email send failed (non-retryable): ${result.error || 'unknown'}`,
+            'error',
+            {
+              context: 'email_send_non_retryable',
+              provider: this.provider.name,
+              errorCode: result.errorCode,
+              correlationId,
+              isTemplate,
+            }
+          );
           return result;
         }
 
@@ -234,12 +232,14 @@ export class EmailService {
       lastError: lastError?.error,
     });
 
-    return lastError || {
-      success: false,
-      error: 'Email send failed after all retries',
-      errorCode: EmailErrorCode.PROVIDER_ERROR,
-      provider: this.provider.name,
-    };
+    return (
+      lastError || {
+        success: false,
+        error: 'Email send failed after all retries',
+        errorCode: EmailErrorCode.PROVIDER_ERROR,
+        provider: this.provider.name,
+      }
+    );
   }
 
   /**
@@ -307,14 +307,17 @@ export class EmailService {
    * Extract recipient email for logging
    */
   private extractRecipient(
-    recipient: string | { email: string; name?: string } | Array<string | { email: string; name?: string }>
+    recipient:
+      | string
+      | { email: string; name?: string }
+      | Array<string | { email: string; name?: string }>
   ): string | string[] {
     if (typeof recipient === 'string') {
       return recipient;
     }
 
     if (Array.isArray(recipient)) {
-      return recipient.map((r) => (typeof r === 'string' ? r : r.email));
+      return recipient.map(r => (typeof r === 'string' ? r : r.email));
     }
 
     return recipient.email;
@@ -343,7 +346,12 @@ export class EmailService {
   /**
    * Structured logging
    */
-  private log(level: 'info' | 'warn' | 'error', correlationId: string, message: string, data?: any): void {
+  private log(
+    level: 'info' | 'warn' | 'error',
+    correlationId: string,
+    message: string,
+    data?: any
+  ): void {
     if (!this.config.enableLogging) return;
 
     const logData = {
@@ -381,7 +389,7 @@ export class EmailService {
    * Sleep utility for retry delays
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**

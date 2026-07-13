@@ -19,14 +19,18 @@ export default function ResetScreen() {
         legacyCode = match[1];
       }
     }
-    router.replace({ // nav-safe: deep-link trampoline → reset-password auth flow
+    router.replace({
+      // nav-safe: deep-link trampoline → reset-password auth flow
       pathname: '/reset-password',
       params: legacyCode ? { code: legacyCode } : undefined,
     });
   }, [params.code, router]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: palette.background }]}
+      edges={['top', 'bottom']}
+    >
       <Stack.Screen options={{ title: 'Reset Password', headerShown: false }} />
       <View style={styles.content}>
         <ActivityIndicator color={palette.tint} />

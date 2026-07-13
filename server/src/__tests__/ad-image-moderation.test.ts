@@ -33,9 +33,8 @@ jest.unstable_mockModule('../lib/env.js', () => ({
   },
 }));
 
-const { clearBannerModerationFields, moderateAndStoreAdBanner, moderateBannerUrl } = await import(
-  '../lib/adImageModeration.js'
-);
+const { clearBannerModerationFields, moderateAndStoreAdBanner, moderateBannerUrl } =
+  await import('../lib/adImageModeration.js');
 
 describe('adImageModeration', () => {
   beforeEach(() => {

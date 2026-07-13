@@ -79,10 +79,7 @@ function isStepComplete(stepId: number, state: OnboardingState, role?: 'fan' | '
  * Fans: step 1 → step 2 → done
  * Coaches: step 1 → step 2 → step 3 → pending screen
  */
-export function nextIncompleteStep(
-  state: OnboardingState,
-  role?: 'fan' | 'coach'
-): number {
+export function nextIncompleteStep(state: OnboardingState, role?: 'fan' | 'coach'): number {
   // Step 1: Role (always required)
   if (!isStepComplete(1, state, role)) {
     return ONBOARDING_STEPS.STEP_1_ROLE.index;
@@ -101,7 +98,9 @@ export function nextIncompleteStep(
   }
 
   // All steps complete — return last step index (will be handled by caller)
-  return role === 'coach' ? ONBOARDING_STEPS.STEP_3_LEAGUE.index : ONBOARDING_STEPS.STEP_2_BASIC.index;
+  return role === 'coach'
+    ? ONBOARDING_STEPS.STEP_3_LEAGUE.index
+    : ONBOARDING_STEPS.STEP_2_BASIC.index;
 }
 
 /**

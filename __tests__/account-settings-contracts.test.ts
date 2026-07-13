@@ -25,7 +25,9 @@ describe('account settings contracts', () => {
 
   it('account mutations resync through checkAuth only', () => {
     expect(editUsernameScreen).toContain('await checkAuth().catch(');
-    expect(editUsernameScreen).toContain("console.warn('[edit-username] Auth refresh failed:', e);");
+    expect(editUsernameScreen).toContain(
+      "console.warn('[edit-username] Auth refresh failed:', e);"
+    );
     expect(resetPasswordScreen).toContain('await checkAuth().catch(');
     expect(resetPasswordScreen).toContain(
       "console.warn('[reset-password] Auth refresh failed:', e);"

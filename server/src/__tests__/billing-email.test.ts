@@ -76,14 +76,8 @@ describe('Billing Email JSON', () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
 
     const payload = mockSend.mock.calls[0]![0] as any;
-    expect(payload.templateData.features_losing).toEqual([
-      'Unlimited teams',
-      'Priority support',
-    ]);
-    expect(payload.templateData.perks).toEqual([
-      'Unlimited teams',
-      'Priority support',
-    ]);
+    expect(payload.templateData.features_losing).toEqual(['Unlimited teams', 'Priority support']);
+    expect(payload.templateData.perks).toEqual(['Unlimited teams', 'Priority support']);
     expect(payload.templateData.manageSubscriptionLink).toBe(
       'https://varsityhub.app/settings/manage-subscription'
     );

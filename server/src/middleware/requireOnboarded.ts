@@ -22,24 +22,26 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
 
   // Reuse the DB user cached by requireVerified (when both middleware are stacked) to avoid
   // a redundant DB round-trip for the same user on the same request.
-  const u = req._dbUser ?? await prisma.user.findUnique({
-    where: { id: req.user.id },
-    select: {
-      preferences: true,
-      approval_status: true,
-      email: true,
-      // v1.0.3: include the top-level `role` + `onboarding_completed` columns so
-      // the canonical helpers can see them. Previously only `preferences` was
-      // selected, which made the onboarding-bypass fail whenever the column and
-      // the JSON had briefly diverged (updatePreferences writes both, but
-      // cache/timing races meant new coaches were blocked at step 3 with
-      // "Please complete onboarding before creating content.").
-      role: true,
-      onboarding_completed: true,
-      coach_agreement_accepted_at: true,
-      coach_agreement_version: true,
-    },
-  });
+  const u =
+    req._dbUser ??
+    (await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        preferences: true,
+        approval_status: true,
+        email: true,
+        // v1.0.3: include the top-level `role` + `onboarding_completed` columns so
+        // the canonical helpers can see them. Previously only `preferences` was
+        // selected, which made the onboarding-bypass fail whenever the column and
+        // the JSON had briefly diverged (updatePreferences writes both, but
+        // cache/timing races meant new coaches were blocked at step 3 with
+        // "Please complete onboarding before creating content.").
+        role: true,
+        onboarding_completed: true,
+        coach_agreement_accepted_at: true,
+        coach_agreement_version: true,
+      },
+    }));
   const prefs = u?.preferences as Record<string, unknown> | null;
   const role = getCanonicalUserRole(u as any);
   const onboardingComplete = isUserOnboardingComplete(u as any);
@@ -68,8 +70,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     (req.path === '/' || req.path === '/create');
 
   const onboardingFlag =
-    req.body?.onboarding === true ||
-    String(req.body?.onboarding ?? '') === 'true';
+    req.body?.onboarding === true || String(req.body?.onboarding ?? '') === 'true';
 
   // v1.0.3: use canonical role (checks both the `role` column and
   // `preferences.role`) so a coach whose prefs JSON hasn't been repopulated
@@ -168,7 +169,9 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
           max_teams: SERVER_ROOKIE_TEAM_LIMIT,
         },
       });
-      console.warn('[requireOnboarded] Lazy-downgraded user after grace period expiry', { userId: req.user.id });
+      console.warn('[requireOnboarded] Lazy-downgraded user after grace period expiry', {
+        userId: req.user.id,
+      });
       // Continue with downgraded state; coach access gates above remain authoritative.
     }
   }
