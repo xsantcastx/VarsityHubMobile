@@ -1,5 +1,16 @@
 name: Publish Production OTA Update
 
+# Auto-publishes the JS/asset bundle to EAS Update's production branch on
+# every push to main that touches client code — the mobile-app equivalent of
+# Vercel's auto-deploy for web. Requires an EXPO_TOKEN repo secret (Settings >
+# Secrets and variables > Actions); if it's missing, this workflow logs a
+# warning and skips cleanly instead of failing CI red every time.
+#
+# This does NOT touch the native binary — no eas build/submit here (see
+# CLAUDE.md: "Never run eas build or eas submit"). Users still need to
+# reopen the app twice after a publish for expo-updates to apply it
+# (fallbackToCacheTimeout: 0 — downloads on open #1, applies on open #2).
+
 on:
   workflow_dispatch:
     inputs:
@@ -7,6 +18,15 @@ on:
         description: 'Update message (shown in EAS update history)'
         required: false
         default: 'Manual OTA publish via GitHub Actions'
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'server/**'
+      - 'docs/**'
+      - '.github/**'
+      - 'ios/**'
+      - 'android/**'
+      - '**/*.md'
 
 jobs:
   publish:
@@ -21,22 +41,28 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install app dependencies
-        run: npm ci
-
-      - name: Install EAS CLI
-        run: npm install -g eas-cli
-
       - name: Check EXPO_TOKEN is configured
+        id: token_check
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "::error::EXPO_TOKEN repo secret is not set. Add it under Settings > Secrets and variables > Actions, then re-run this workflow."
-            exit 1
+            echo "::warning::EXPO_TOKEN repo secret is not set — skipping OTA publish. Add it under Settings > Secrets and variables > Actions to enable auto-publish."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Install app dependencies
+        if: steps.token_check.outputs.has_token == 'true'
+        run: npm ci
+
+      - name: Install EAS CLI
+        if: steps.token_check.outputs.has_token == 'true'
+        run: npm install -g eas-cli
+
       - name: Publish OTA update
+        if: steps.token_check.outputs.has_token == 'true'
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas update --branch production --non-interactive --message "${{ github.event.inputs.message || 'Fanatics Fest feed visibility fix + real MLB/WNBA/FIFA/Wimbledon content' }}"
+        run: eas update --branch production --non-interactive --message "${{ github.event.inputs.message || format('Auto-publish from {0}', github.sha) }}"
