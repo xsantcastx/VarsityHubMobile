@@ -42,6 +42,11 @@ import * as Location from 'expo-location';
 import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
 import { queryClient } from '@/lib/queryClient';
+import {
+  buildFeedGameQueries,
+  mergeFeedGames,
+  type FeedGameQueryPlan,
+} from '@/utils/feedGameQueries';
 import { getDeterministicGameCardGradient } from '@/utils/feedGameCard';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { prefetchGameSummary } from '@/utils/prefetch';
@@ -92,12 +97,12 @@ type FeedItem =
 
 const LIVE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours — must match GameDetailsScreen
 
-// Feed fetch window: ascending by date starting a few days back, so page one
-// always contains the NEAREST games (recent past for the Past Events section,
-// live + soonest upcoming on top). Fetching '-date' (latest first) breaks once
-// more than a page of future games exist — the nearest games never arrive.
-const FEED_RECENT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000; // 3 days back
-const feedDateFrom = () => new Date(Date.now() - FEED_RECENT_WINDOW_MS).toISOString();
+// Feed fetch plan: upcoming (live + future, ascending) and the recent-past
+// recap are SEPARATE queries with separate page budgets. A single ascending
+// query starting 3 days back breaks once the recent past holds more than a
+// page of games (seeded pro slates guarantee it): page one never reaches
+// today, so upcoming games exist on the map but never in the feed.
+// See utils/feedGameQueries.ts.
 
 const normalizeGamesPage = (gamesData: any): { games: GameItem[]; cursor: string | null } => {
   if (gamesData && typeof gamesData === 'object' && !Array.isArray(gamesData)) {
@@ -492,6 +497,10 @@ export default function FeedScreen() {
   const lastLoadTimestampRef = useRef(0);
   const loadInFlightRef = useRef(false);
   const loadRequestIdRef = useRef(0);
+  // The query plan of the latest load. _loadMore must reuse the SAME dateFrom
+  // anchor the cursor was minted against — recomputing it mid-pagination
+  // shifts the where-clause under the cursor.
+  const feedQueryPlanRef = useRef<FeedGameQueryPlan | null>(null);
   const hasFocusedOnceRef = useRef(false);
   const LOAD_COOLDOWN_MS = 30_000;
 
@@ -619,12 +628,16 @@ export default function FeedScreen() {
         // react-query cache so the games list is deduped across screens and a
         // cold remount of the feed renders instantly from cache (the 30s
         // staleTime mirrors this screen's own LOAD_COOLDOWN_MS).
-        const gamesDateFrom = feedDateFrom();
-        let gamesData: any = null;
+        // Upcoming and the past recap are separate queries with separate page
+        // budgets (see utils/feedGameQueries.ts); the upcoming query is the
+        // primary one — it owns the pagination cursor and the error state.
+        const queryPlan = buildFeedGameQueries(Date.now());
+        feedQueryPlanRef.current = queryPlan;
+        let upcomingData: any = null;
         try {
-          gamesData = await queryClient.fetchQuery({
-            queryKey: ['feed-games', gamesDateFrom],
-            queryFn: () => Game.list('date', { limit: 30, dateFrom: gamesDateFrom }),
+          upcomingData = await queryClient.fetchQuery({
+            queryKey: ['feed-games-upcoming', queryPlan.upcoming.options.dateFrom],
+            queryFn: () => Game.list(queryPlan.upcoming.sort, queryPlan.upcoming.options),
           });
         } catch (err: any) {
           if (__DEV__) console.error('[Feed] Failed to load games:', err);
@@ -636,54 +649,51 @@ export default function FeedScreen() {
           } else {
             setError('Unable to load games. Please try again.');
           }
-          gamesData = null;
+          upcomingData = null;
         }
 
-        // Curated/marquee events (no real team matchup — e.g. Fanatics Fest)
-        // are fetched separately so a flood of routine league games (MLB,
-        // WNBA, ...) can never paginate them out of the primary page. Best
-        // effort: a failure here just means no marquee events this load,
-        // never blocks or errors the main games list.
+        // Past recap + curated/marquee events (no real team matchup — e.g.
+        // Fanatics Fest) are best effort: a failure just means that section
+        // is empty this load, never blocks or errors the main games list.
+        let pastGamesData: any = null;
+        try {
+          pastGamesData = await queryClient.fetchQuery({
+            queryKey: ['feed-games-past', queryPlan.past.options.dateFrom],
+            queryFn: () => Game.list(queryPlan.past.sort, queryPlan.past.options),
+          });
+        } catch (err: any) {
+          if (__DEV__) console.warn('[Feed] Failed to load past games:', err);
+          pastGamesData = null;
+        }
         let marqueeGamesData: any = null;
         try {
           marqueeGamesData = await queryClient.fetchQuery({
-            queryKey: ['feed-games-marquee', gamesDateFrom],
-            queryFn: () =>
-              Game.list('date', { limit: 10, dateFrom: gamesDateFrom, teamless: true }),
+            queryKey: ['feed-games-marquee', queryPlan.marquee.options.dateFrom],
+            queryFn: () => Game.list(queryPlan.marquee.sort, queryPlan.marquee.options),
           });
         } catch (err: any) {
           if (__DEV__) console.warn('[Feed] Failed to load marquee games:', err);
           marqueeGamesData = null;
         }
 
-        let { games: normalizedGames, cursor } = normalizeGamesPage(gamesData);
-        const { games: marqueeGames } = normalizeGamesPage(marqueeGamesData);
-        if (marqueeGames.length > 0) {
-          const seenIds = new Set(normalizedGames.map(g => g.id));
-          const merged = [...normalizedGames];
-          for (const mg of marqueeGames) {
-            if (!seenIds.has(mg.id)) {
-              merged.push(mg);
-              seenIds.add(mg.id);
-            }
-          }
-          merged.sort((a, b) => {
-            const at = a.date ? new Date(a.date).getTime() : 0;
-            const bt = b.date ? new Date(b.date).getTime() : 0;
-            return at - bt;
-          });
-          normalizedGames = merged;
-        }
+        const upcomingPage = normalizeGamesPage(upcomingData);
+        let cursor = upcomingPage.cursor;
+        let normalizedGames = mergeFeedGames(
+          normalizeGamesPage(pastGamesData).games,
+          upcomingPage.games,
+          normalizeGamesPage(marqueeGamesData).games
+        );
 
         // If no games exist, seed sample games as real DB records (stories/polls work)
-        if ((!normalizedGames || normalizedGames.length === 0) && gamesData !== null) {
+        if ((!normalizedGames || normalizedGames.length === 0) && upcomingData !== null) {
           try {
             const { httpPost } = await import('@/api/http');
             await httpPost('/games/seed-samples', {});
             // Re-fetch games now that seeds exist
-            const seeded = await Game.list('date', { limit: 30, dateFrom: feedDateFrom() }).catch(
-              () => ({ games: [] })
-            );
+            const seeded = await Game.list(
+              queryPlan.upcoming.sort,
+              queryPlan.upcoming.options
+            ).catch(() => ({ games: [] }));
             const seededPage = normalizeGamesPage(seeded);
             if (seededPage.games.length > 0) {
               normalizedGames = seededPage.games;
@@ -842,10 +852,12 @@ export default function FeedScreen() {
 
     setLoadingMore(true);
     try {
-      const nextData = await Game.list('date', {
+      // Continue the upcoming query the cursor belongs to (fall back to a
+      // fresh plan if a hot reload cleared the ref).
+      const plan = feedQueryPlanRef.current ?? buildFeedGameQueries(Date.now());
+      const nextData = await Game.list(plan.upcoming.sort, {
+        ...plan.upcoming.options,
         cursor: gamesCursor,
-        limit: 30,
-        dateFrom: feedDateFrom(),
       });
 
       // Handle cursor-based response or legacy array
