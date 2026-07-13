@@ -1,10 +1,18 @@
 # Sentry + Snyk Integration Guide
 
+> **Status (verified 2026-07-13):** Sentry and Snyk each work correctly and independently.
+> The "Snyk → Sentry" auto-reporting pipeline described below (sections marked ❌) was
+> never actually built — `.github/workflows/snyk-security.yml` and
+> `snyk-auto-remediate.yml` contain no step that sends Snyk results to Sentry, and the
+> three GitHub secrets it would require (`SENTRY_AUTH_TOKEN`/`SENTRY_ORG`/`SENTRY_PROJECT`
+> for this purpose) are not set in this repo's secrets.
+
 ## ✅ Complete Setup
 
 ### What's Configured
 
 **1. Sentry Error Tracking (Frontend)**
+
 - ✅ Initialized in `app/_layout.tsx` before app renders
 - ✅ Plugin configured in `app.json`: `@sentry/react-native`
 - ✅ Error Boundary captures React errors
@@ -13,6 +21,7 @@
 - ✅ Auth errors captured with context
 
 **2. Sentry Error Tracking (Backend)**
+
 - ✅ Initialized in `server/src/index.ts` as first middleware
 - ✅ Error handler middleware at the end
 - ✅ Captures all unhandled exceptions
@@ -20,19 +29,21 @@
 - ✅ Database errors automatically captured
 
 **3. Snyk Security Scanning**
+
 - ✅ Runs on every push to `main` and `develop`
 - ✅ Scans both frontend AND server code
 - ✅ Scans for:
   - SAST (Static Application Security Testing) - code vulnerabilities
   - SCA (Software Composition Analysis) - dependency vulnerabilities
 - ✅ Reports to GitHub Security tab (SARIF files)
-- ✅ Sends critical/high vulnerabilities to Sentry automatically
+- ❌ Does NOT send vulnerabilities to Sentry — see status note above
 
-**4. Snyk → Sentry Integration**
-- ✅ High/Critical vulnerabilities automatically create Sentry issues
-- ✅ Separate alerts for frontend and server vulnerabilities
-- ✅ Tagged with severity, source, and branch info
-- ✅ Includes vulnerability counts and details
+**4. Snyk → Sentry Integration — NOT BUILT**
+
+- ❌ No workflow step creates Sentry issues from Snyk findings
+- ❌ No separate alerts for frontend/server vulnerabilities in Sentry
+- ❌ Nothing is tagged with severity/source/branch in Sentry
+- ❌ Vulnerability counts/details stay in Snyk/GitHub Security only
 
 ---
 
@@ -75,6 +86,7 @@
 ## 📊 How to View Results
 
 ### Sentry Dashboard
+
 1. Go to https://sentry.io
 2. Navigate to your project
 3. View issues by:
@@ -83,11 +95,13 @@
    - **Security issues** - Tagged with `source: snyk`
 
 ### Snyk Dashboard
+
 1. Go to https://app.snyk.io
 2. View your project
 3. See vulnerability reports and remediation advice
 
 ### GitHub Security Tab
+
 1. Go to your repository
 2. Click **Security** tab
 3. View Snyk scan results (SARIF format)
@@ -100,12 +114,14 @@
 
 **Frontend:**
 Add to Railway/environment:
+
 ```
 EXPO_PUBLIC_SENTRY_DSN=https://your-key@sentry.io/project-id
 ```
 
 **Backend:**
 Add to Railway/environment:
+
 ```
 SENTRY_DSN=https://your-key@sentry.io/project-id
 ```
@@ -113,6 +129,7 @@ SENTRY_DSN=https://your-key@sentry.io/project-id
 ### GitHub Secrets Needed
 
 For Snyk → Sentry integration:
+
 - `SENTRY_AUTH_TOKEN` - Sentry API token (Settings → Auth Tokens)
 - `SENTRY_ORG` - Your Sentry organization slug
 - `SENTRY_PROJECT` - Your Sentry project slug
@@ -125,17 +142,20 @@ For Snyk → Sentry integration:
 ### Sentry Alerts
 
 **Frontend:**
+
 - Component crashes (ErrorBoundary)
 - API failures (5xx errors)
 - Network issues
 - Auth failures
 
 **Backend:**
+
 - Server crashes
 - Database errors
 - API endpoint failures
 
 **Security (from Snyk):**
+
 - Critical vulnerabilities
 - High severity vulnerabilities
 - Dependency issues
@@ -147,6 +167,7 @@ For Snyk → Sentry integration:
 ### Filter Errors in Sentry
 
 Edit `utils/sentry.ts` or `server/src/lib/sentry.ts` to customize:
+
 - Which errors to capture
 - Error filtering (dev vs production)
 - Sampling rates
@@ -155,6 +176,7 @@ Edit `utils/sentry.ts` or `server/src/lib/sentry.ts` to customize:
 ### Adjust Snyk Scanning
 
 Edit `.github/workflows/snyk-security.yml` to:
+
 - Change severity threshold
 - Add/remove scan types
 - Customize Sentry reporting
@@ -164,16 +186,19 @@ Edit `.github/workflows/snyk-security.yml` to:
 ## ✅ Verification
 
 ### Test Sentry (Frontend)
+
 1. Add a test error in your code
 2. Trigger it in production build
 3. Check Sentry dashboard for the error
 
 ### Test Sentry (Backend)
+
 1. Trigger an error on an API endpoint
 2. Check Sentry dashboard
 3. Verify error context and stack trace
 
 ### Test Snyk Integration
+
 1. Push code to GitHub
 2. Check GitHub Actions for Snyk scan
 3. If vulnerabilities found, check Sentry for alerts

@@ -36,6 +36,16 @@ ignore:
         reason: 'Transitive via @base44/sdk > socket.io-client > socket.io-parser@4.2.5. Fixed in 4.2.6 but requires @base44/sdk to update socket.io-client. No direct upgrade path.'
         expires: '2026-09-30T23:59:59Z'
 
+  SNYK-JS-IMAGESIZE-17295814:
+    - '*':
+        reason: 'image-size@1.2.1 is the latest 1.x release (verified via npm view 2026-07-13) — fix requires jumping to image-size 2.x, which is transitive via react-native@0.81.5 > @react-native/community-cli-plugin > metro. Metro build-tooling only, not shipped in the app bundle. No upgrade path until react-native/metro itself moves to image-size 2.x.'
+        expires: '2026-09-30T23:59:59Z'
+
+  SNYK-JS-IMAGESIZE-17295816:
+    - '*':
+        reason: 'image-size@1.2.1 is the latest 1.x release (verified via npm view 2026-07-13) — fix requires jumping to image-size 2.x, which is transitive via react-native@0.81.5 > @react-native/community-cli-plugin > metro. Metro build-tooling only, not shipped in the app bundle. No upgrade path until react-native/metro itself moves to image-size 2.x.'
+        expires: '2026-09-30T23:59:59Z'
+
   # ─── XSS: HTML admin confirmation pages — sanitized via escapeHtml() ───
   # Snyk SAST cannot trace escapeHtml() as a sanitizer in data flow analysis.
   # All user-controlled values are escaped before interpolation into HTML.

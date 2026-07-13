@@ -119,8 +119,9 @@
     "undici": "^6.24.0",
     "postcss": "8.5.12",
     "axios": "^1.16.0",
-    "brace-expansion": "5.0.6",
+    "brace-expansion": "5.0.7",
     "qs": "6.15.2",
-    "follow-redirects": ">=1.15.12"
+    "follow-redirects": ">=1.15.12",
+    "js-yaml": "^4.3.0"
   }
 }
