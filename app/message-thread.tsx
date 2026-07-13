@@ -29,6 +29,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useConversationSocket } from '@/hooks/useConversationSocket';
 import { getAuthSnapshot } from '@/utils/authState';
 import { checkDMRestriction } from '@/utils/dmRestrictions';
+import { getThreadPollIntervalMs } from '@/utils/messagePolling';
 import { safeGoBack } from '@/utils/navigation';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { formatUserLabel } from '@/utils/userDisplay';
@@ -192,7 +193,30 @@ function MessageThreadScreen() {
     }
   }, [prefill, prefillApplied, router]);
 
-  // Poll only while focused and foregrounded to avoid background churn.
+  // Realtime: receive new messages instantly instead of waiting for the poll
+  // below. The poll stays as a fallback. Stable string id => the socket
+  // effect only re-joins when the conversation actually changes.
+  const effectiveConvId = useMemo(
+    () =>
+      conversation_id
+        ? String(conversation_id)
+        : (msgs.find(m => m.conversation_id)?.conversation_id ?? null),
+    [conversation_id, msgs]
+  );
+  const handleRealtimeMessage = useCallback(
+    (incoming: any) => {
+      if (!incoming?.id) return;
+      // Own messages are handled by the optimistic send() path; skip the echo.
+      if (me?.id && String(incoming.sender_id) === String(me.id)) return;
+      setMsgs(prev => (prev.some(m => m.id === incoming.id) ? prev : prev.concat(incoming)));
+    },
+    [me?.id]
+  );
+  const socketConnected = useConversationSocket(effectiveConvId, handleRealtimeMessage);
+
+  // Poll only while focused and foregrounded to avoid background churn. While
+  // the realtime socket is healthy this is just a safety net, so it backs off
+  // to a 5-minute cadence instead of re-reading the thread every 60s.
   useEffect(() => {
     if (!isFocused || appState !== 'active') return;
     let mounted = true;
@@ -210,34 +234,13 @@ function MessageThreadScreen() {
       } catch {
         // Silently fail - don't disrupt conversation
       }
-    }, 60000);
+    }, getThreadPollIntervalMs(socketConnected));
 
     return () => {
       mounted = false;
       clearInterval(interval);
     };
-  }, [appState, conversation_id, isFocused, withParam]);
-
-  // Realtime: receive new messages instantly instead of waiting up to 60s for
-  // the poll above. The poll stays as a fallback. Stable string id => the
-  // socket effect only re-joins when the conversation actually changes.
-  const effectiveConvId = useMemo(
-    () =>
-      conversation_id
-        ? String(conversation_id)
-        : (msgs.find(m => m.conversation_id)?.conversation_id ?? null),
-    [conversation_id, msgs]
-  );
-  const handleRealtimeMessage = useCallback(
-    (incoming: any) => {
-      if (!incoming?.id) return;
-      // Own messages are handled by the optimistic send() path; skip the echo.
-      if (me?.id && String(incoming.sender_id) === String(me.id)) return;
-      setMsgs(prev => (prev.some(m => m.id === incoming.id) ? prev : prev.concat(incoming)));
-    },
-    [me?.id]
-  );
-  useConversationSocket(effectiveConvId, handleRealtimeMessage);
+  }, [appState, conversation_id, isFocused, socketConnected, withParam]);
 
   useEffect(() => {
     // Auto-scroll to bottom when messages change

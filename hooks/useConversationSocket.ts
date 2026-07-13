@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { getApiBaseUrl, getAccessTokenForRequest } from '@/api/http';
 
@@ -40,9 +40,12 @@ async function getSocket(): Promise<Socket> {
 export function useConversationSocket(
   conversationId: string | null | undefined,
   onMessage: (message: any) => void
-): void {
+): boolean {
   const handlerRef = useRef(onMessage);
   handlerRef.current = onMessage;
+  // Connection state lets the screen's polling fallback back off while
+  // realtime delivery is healthy.
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -55,6 +58,10 @@ export function useConversationSocket(
       };
       const onConnect = () => {
         sock?.emit('conversation:join', conversationId);
+        if (active) setConnected(true);
+      };
+      const onDisconnect = () => {
+        if (active) setConnected(false);
       };
 
       getSocket()
@@ -63,7 +70,9 @@ export function useConversationSocket(
           sock = s;
           s.on('message:new', onNew);
           s.on('connect', onConnect);
+          s.on('disconnect', onDisconnect);
           s.emit('conversation:join', conversationId);
+          setConnected(s.connected);
         })
         .catch(() => {
           /* socket is optional; polling fallback covers delivery */
@@ -75,12 +84,16 @@ export function useConversationSocket(
           sock.emit('conversation:leave', conversationId);
           sock.off('message:new', onNew);
           sock.off('connect', onConnect);
+          sock.off('disconnect', onDisconnect);
         }
       };
     }
 
+    setConnected(false);
     return () => {
       active = false;
     };
   }, [conversationId]);
+
+  return connected;
 }
