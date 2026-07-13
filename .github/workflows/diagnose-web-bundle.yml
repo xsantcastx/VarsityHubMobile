@@ -15,13 +15,12 @@ jobs:
       - name: Fetch homepage and find JS bundle URLs
         run: |
           curl -sSL -w '\nHTTP_STATUS:%{http_code} FINAL_URL:%{url_effective}\n' https://varsityhub.app/ -o index.html
-          echo "--- index.html head ---"
-          head -c 3000 index.html
-          echo ""
           echo "--- script src tags ---"
           grep -oE '(src|href)="[^"]*\.(js|css)"' index.html | sort -u
+          echo "--- deploy-relevant response headers ---"
+          curl -sSI -L https://varsityhub.app/ | grep -iE 'x-vercel|age:|cache-control|date:|etag'
 
-      - name: Fetch each JS bundle and search for the fix marker
+      - name: Fetch each JS bundle and search for fix markers
         run: |
           BASE="https://www.varsityhub.app"
           for path in $(grep -oE '(src)="[^"]*\.js"' index.html | sed -E 's/^src="//; s/"$//'); do
@@ -32,6 +31,8 @@ jobs:
             esac
             echo "=== $url ==="
             curl -sS -w '\nHTTP_STATUS:%{http_code} SIZE:%{size_download}\n' "$url" -o bundle.js || echo "fetch failed"
-            echo "feed-games-upcoming marker count: $(grep -c 'feed-games-upcoming' bundle.js || true)"
-            echo "feedGameQueries marker count: $(grep -c 'buildFeedGameQueries\|FEED_LIVE_LOOKBACK' bundle.js || true)"
+            echo "NEW marker 'feed-games-upcoming' count: $(grep -c 'feed-games-upcoming' bundle.js || true)"
+            echo "OLD marker 'feed-games-marquee' count (present in both old+new): $(grep -c 'feed-games-marquee' bundle.js || true)"
+            echo "OLD-only marker: literal queryKey 'feed-games' alone (no upcoming/past/marquee suffix nearby):"
+            grep -oE "'feed-games[a-z-]*'" bundle.js | sort -u || true
           done
