@@ -50,6 +50,15 @@ jobs:
         if: steps.token_check.outputs.has_token == 'true'
         run: npm ci
 
+      - name: Link Vercel project
+        if: steps.token_check.outputs.has_token == 'true'
+        # .vercel/project.json is gitignored (deploy-web-static.sh requires it
+        # to exist), so it's synthesized here from repo vars instead of being
+        # committed to a public repo.
+        run: |
+          mkdir -p .vercel
+          echo '{"projectId":"${{ vars.VERCEL_PROJECT_ID }}","orgId":"${{ vars.VERCEL_ORG_ID }}","projectName":"varsityhub-web"}' > .vercel/project.json
+
       - name: Deploy web to Vercel production
         if: steps.token_check.outputs.has_token == 'true'
         env:
