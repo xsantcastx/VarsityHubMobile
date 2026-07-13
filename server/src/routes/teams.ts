@@ -27,6 +27,7 @@ import {
 } from '../lib/teamAuthorization.js';
 import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import {
+  buildRosterLimitError,
   buildTeamPlanLockedError,
   getTeamEntitlementState,
   getTeamEntitlementStates,
@@ -2437,8 +2438,42 @@ teamsRouter.post(
             team_id: id,
             email: { equals: inviteEmail, mode: 'insensitive' },
           } as any,
-          select: { id: true },
+          select: { id: true, status: true, role: true },
         });
+
+        // Conflict: an invite for this email is ALREADY pending with a
+        // different role. Same rule as POST /team-invites — silently
+        // overwriting the role let a second invite downgrade/change what the
+        // invitee was already emailed about. Same role = idempotent re-invite.
+        if (
+          existingInvite &&
+          existingInvite.status === 'pending' &&
+          String(existingInvite.role) !== assignedRole
+        ) {
+          throw new Error(
+            `INVITE_ROLE_CONFLICT:An invite for this email is already pending with role "${existingInvite.role}". Cancel it first or re-invite with the same role.`
+          );
+        }
+
+        // Enforce roster size limit — counts active members + all pending
+        // invites so the cap cannot be bypassed by sending invites instead of
+        // direct adds. Same rule as POST /team-invites; this endpoint was
+        // missing it (2026-07-13 audit).
+        if (entitlement.maxRoster !== null) {
+          const activeMemberCount = await tx.teamMembership.count({
+            where: { team_id: id, status: 'active' },
+          });
+          const pendingInviteCount = await tx.teamInvite.count({
+            where: {
+              team_id: id,
+              status: 'pending',
+              ...(existingInvite ? { id: { not: existingInvite.id } } : {}),
+            },
+          });
+          if (activeMemberCount + pendingInviteCount + 1 > entitlement.maxRoster) {
+            throw new Error(`ROSTER_LIMIT_REACHED:${entitlement.maxRoster}`);
+          }
+        }
 
         if (isAuthorizedTeamRole(assignedRole)) {
           const limit = entitlement.maxAuthorizedUsers;
@@ -2482,6 +2517,17 @@ teamsRouter.post(
       if (e?.message === 'TEAM_PLAN_LOCKED') {
         const entitlement = await getTeamEntitlementState(prisma, id);
         return res.status(403).json(buildTeamPlanLockedError(entitlement));
+      }
+      if (e?.message?.startsWith('INVITE_ROLE_CONFLICT:')) {
+        const [, message] = e.message.split(':');
+        return res.status(409).json({
+          error: 'INVITE_ROLE_CONFLICT',
+          message: message || 'An invite for this email is already pending with a different role.',
+        });
+      }
+      if (e?.message?.startsWith('ROSTER_LIMIT_REACHED:')) {
+        const limit = parseInt(e.message.split(':')[1], 10);
+        return res.status(403).json(buildRosterLimitError(limit));
       }
       // Handle specific limit errors
       if (e?.message?.includes('USER_LIMIT_REACHED')) {
