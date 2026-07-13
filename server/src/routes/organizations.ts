@@ -58,7 +58,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { inviteLimiter, organizationsNearbyLimiter } from '../middleware/rateLimiters.js';
-import { getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
+import { getIsAdmin, isEmailAdmin, isVerifiedAdminUser } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
@@ -850,11 +850,7 @@ organizationsRouter.get(
     // Caller must be a member of this org or a platform admin
     const callerMembership = await getOrganizationMembership(req.user!.id, id);
     if (!callerMembership) {
-      const caller = await prisma.user.findUnique({
-        where: { id: req.user!.id },
-        select: { email: true },
-      });
-      if (!isEmailAdmin(caller?.email)) {
+      if (!(await isVerifiedAdminUser(req.user!.id))) {
         return res.status(403).json({ error: 'You must be a member of this organization' });
       }
     }

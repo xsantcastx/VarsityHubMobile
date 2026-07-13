@@ -37,7 +37,7 @@ import {
   voteLimiter,
 } from '../middleware/rateLimiters.js';
 import { verifyStoryPostingPermission } from '../lib/geofencing.js';
-import { getIsAdmin, isEmailAdmin, requireAdmin } from '../middleware/requireAdmin.js';
+import { getIsAdmin, isVerifiedAdminUser, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
@@ -867,11 +867,7 @@ async function canViewGameRecord(
   if (!viewerId) return false;
   if (record.created_by_id && record.created_by_id === viewerId) return true;
 
-  const viewer = await prisma.user.findUnique({
-    where: { id: viewerId },
-    select: { email: true },
-  });
-  if (isEmailAdmin(viewer?.email)) return true;
+  if (await isVerifiedAdminUser(viewerId)) return true;
 
   const teamIds = [record.home_team_id, record.away_team_id].filter(Boolean) as string[];
   if (teamIds.length === 0) return false;
@@ -963,11 +959,7 @@ gamesRouter.get(
             .json({ error: 'Only coaches and admins can view non-approved games' });
         }
 
-        const requester = await prisma.user.findUnique({
-          where: { id: authedReq.user.id },
-          select: { email: true },
-        });
-        const isAdmin = isEmailAdmin(requester?.email);
+        const isAdmin = await isVerifiedAdminUser(authedReq.user.id);
         if (isAdmin) {
           canViewNonApproved = true;
         } else {
@@ -1031,11 +1023,7 @@ gamesRouter.get(
       // Scope non-approved games to the coach's managed teams/orgs (prevent data leak).
       // Admins see all; regular coaches only see pending games for their teams.
       if (wantsNonApproved && canViewNonApproved && authedReq.user?.id) {
-        const requester = await prisma.user.findUnique({
-          where: { id: authedReq.user.id },
-          select: { email: true },
-        });
-        const isAdmin = isEmailAdmin(requester?.email);
+        const isAdmin = await isVerifiedAdminUser(authedReq.user.id);
         if (!isAdmin) {
           // Get team IDs and org IDs the coach manages
           const [managedTeams, managedOrgs] = await Promise.all([
@@ -1396,7 +1384,7 @@ gamesRouter.post(
         where: { id: req.user.id },
         select: { email: true, display_name: true },
       });
-      const isAdmin = isEmailAdmin(currentUser?.email);
+      const isAdmin = await isVerifiedAdminUser(req.user.id);
 
       // Require team association for non-admin users
       if (!parsed.data.home_team_id && !parsed.data.away_team_id && !isAdmin) {
@@ -1715,11 +1703,7 @@ gamesRouter.post(
         .json({ error: 'Invalid bulk games payload', issues: parsed.error.issues });
     }
     const userId = req.user!.id;
-    const currentUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { email: true },
-    });
-    const isAdmin = isEmailAdmin(currentUser?.email);
+    const isAdmin = await isVerifiedAdminUser(userId);
 
     // Verify caller manages at least one of the referenced teams (mirrors single POST auth check)
     if (!isAdmin) {
@@ -2830,11 +2814,7 @@ gamesRouter.put(
 
       const isCreator = game.created_by_id === req.user.id;
 
-      const currentUser = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        select: { email: true },
-      });
-      const isAdmin = isEmailAdmin(currentUser?.email);
+      const isAdmin = await isVerifiedAdminUser(req.user.id);
 
       const gameTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
       const isCoach = await canManageAnyTeam(req.user.id, gameTeamIds);
