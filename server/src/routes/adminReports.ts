@@ -21,6 +21,20 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const adminReportsRouter = Router();
 registerIdValidation(adminReportsRouter);
+
+// SECURITY BACKSTOP (2026-07-12): mirror of the adminRouter backstop. Every route
+// here must clear `requireAdmin` before its handler runs, so a future route that
+// forgets its per-route guard fails closed. The dual-mode review routes
+// (`/:id/(resolve|dismiss)`) authenticate by a signed single-use email-review token
+// OR a verified admin session inside `handleEmailReportReview`, so they are
+// allowlisted. Anchored to the `/(resolve|dismiss)` suffix; per-route `requireAdmin`
+// guards are kept as belt-and-suspenders.
+const REPORTS_BACKSTOP_ALLOWLIST: RegExp[] = [/\/[^/]+\/(resolve|dismiss)$/];
+adminReportsRouter.use((req, res, next) => {
+  if (REPORTS_BACKSTOP_ALLOWLIST.some(re => re.test(req.path))) return next();
+  return (requireAdmin as any)(req, res, next);
+});
+
 const FINAL_REPORT_STATUSES = ['resolved', 'dismissed'] as const;
 
 // Helper to get admin email

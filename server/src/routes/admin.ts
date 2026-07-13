@@ -13,7 +13,11 @@ import {
   suspendUser,
 } from '../lib/moderation.js';
 import { prisma } from '../lib/prisma.js';
-import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
+import {
+  consumeReviewToken,
+  getReviewTokenReplayState,
+  verifyReviewToken,
+} from '../lib/reviewTokens.js';
 import {
   getAllTransactions,
   getTransactionBySession,
@@ -34,9 +38,33 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 const adminRouter = express.Router();
 registerIdValidation(adminRouter);
 adminRouter.use(adminLimiter);
-// SECURITY: All admin routes must use `requireAdminMiddleware` or `handleCoachReview`
-// (which has its own token + signed-in admin check). Never add a route to adminRouter
-// without one of these guards — the router has no global auth middleware.
+
+// SECURITY BACKSTOP (2026-07-12): the admin router is mounted with only `noStore`,
+// so historically every route had to remember its own `requireAdminMiddleware`. A
+// single forgotten guard would silently expose an admin write path. This blanket
+// middleware makes that fail closed — any route not explicitly allowlisted below
+// must clear `requireAdminMiddleware` before its handler runs.
+//
+// Allowlisted past the backstop:
+//  1. The dual-mode review routes (`/coaches/:id/(approve|reject)`) authenticate by
+//     a signed, single-use email-review token OR a verified admin session *inside*
+//     `handleCoachReview`, so they cannot sit behind the middleware.
+//  2. The `/reports` subtree belongs to a *separate* router (adminReportsRouter) that
+//     guards its own routes. Depending on mount order (testApp mounts `/admin` before
+//     `/admin/reports`) a `/admin/reports/*` request can pass through this router's
+//     stack first, so this backstop must never answer for it. Anchored to the
+//     `/reports` path segment so it never matches the real `/report-spike` route.
+// Matching is anchored so it is robust to mount-relative vs absolute `req.path`.
+// Per-route `requireAdminMiddleware` guards are intentionally kept as belt-and-
+// suspenders; the duplicate lookup is negligible on low-traffic admin routes.
+const ADMIN_BACKSTOP_ALLOWLIST: RegExp[] = [
+  /\/coaches\/[^/]+\/(approve|reject)$/,
+  /(?:^|\/)reports(?:\/|$)/,
+];
+adminRouter.use((req, res, next) => {
+  if (ADMIN_BACKSTOP_ALLOWLIST.some(re => re.test(req.path))) return next();
+  return (requireAdminMiddleware as any)(req, res, next);
+});
 
 function renderCoachReviewPage(action: 'approve' | 'reject', coachName: string, token: string) {
   return renderReviewPage({ action, entityLabel: 'Coach', entityName: coachName, token });
@@ -44,6 +72,18 @@ function renderCoachReviewPage(action: 'approve' | 'reject', coachName: string, 
 
 function renderCoachResultPage(title: string, message: string, success: boolean) {
   return renderResultPage(title, message, success);
+}
+
+// Mirror of the abuse-report handler's replay pre-check (adminReports.ts): reject a
+// coach-review email link that has already been consumed, before performing the
+// mutation, instead of relying only on the post-mutation `consumeReviewToken` +
+// the `approval_status !== 'PENDING'` state guard.
+async function isReplayTokenAlreadyUsed(
+  token: string,
+  payload: { jti?: string; exp?: number; iat?: number }
+) {
+  const replayState = await getReviewTokenReplayState(token, payload);
+  return replayState === 'already_used';
 }
 
 async function handleCoachReview(
@@ -131,6 +171,20 @@ async function handleCoachReview(
     return res.send(
       renderCoachResultPage('Already Rejected', `${coachName} was already rejected.`, true)
     );
+  }
+
+  // tokenValid implies the email-link flow (signedInAdmin is only set on the
+  // no-token branch), so a consumed token renders the HTML "already used" page.
+  if (req.method === 'POST' && tokenValid && (await isReplayTokenAlreadyUsed(token!, payload!))) {
+    return res
+      .status(409)
+      .send(
+        renderCoachResultPage(
+          'Link Already Used',
+          `This ${action} link was already used. Open the latest email if you need a fresh review link.`,
+          false
+        )
+      );
   }
 
   if (req.method === 'GET') {

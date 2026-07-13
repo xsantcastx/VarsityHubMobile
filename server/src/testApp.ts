@@ -57,6 +57,10 @@ function mountApiRoutes(parent: any) {
   parent.use(dataExportRouter);
   parent.use('/me', meProxy);
   parent.use('/ads', adsRouter);
+  // Mount the more-specific /admin/reports before /admin so a /admin/reports/*
+  // request resolves to adminReportsRouter first — matches production app.ts and
+  // keeps tests exercising the real mount order.
+  parent.use('/admin/reports', adminReportsRouter);
   parent.use('/admin', adminRouter);
   parent.use('/events', eventsRouter);
   parent.use('/feed', feedRouter);
@@ -79,7 +83,6 @@ function mountApiRoutes(parent: any) {
   parent.use('/uploads', uploadsRouter);
   parent.use('/users', usersRouter);
   parent.use('/group-chats', groupChatsRouter);
-  parent.use('/admin/reports', adminReportsRouter);
   parent.use('/search', searchRouter);
 }
 
