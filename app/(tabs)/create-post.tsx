@@ -31,6 +31,7 @@ import {
   MAX_IMAGE_SIZE_BYTES,
   MAX_VIDEO_SIZE_BYTES,
   MAX_VIDEO_SIZE_MB,
+  POST_MAX_DURATION_S,
   VIDEO_CAPTURE_PRESET,
 } from '@/constants/video';
 import { useAuth } from '@/context/AuthProvider';
@@ -108,6 +109,8 @@ function CreatePostScreen() {
     mime?: string;
     width?: number;
     height?: number;
+    /** Picked-asset duration in seconds (ImagePicker reports ms) — drives the 90s cap. */
+    durationS?: number;
   } | null>(null);
   const [mediaDimensions, setMediaDimensions] = useState<{ width: number; height: number } | null>(
     null
@@ -457,7 +460,12 @@ function CreatePostScreen() {
             }
           }
         }
-        setPicked({ uri, type: media, mime: mimeType });
+        setPicked({
+          uri,
+          type: media,
+          mime: mimeType,
+          durationS: typeof a.duration === 'number' ? a.duration / 1000 : undefined,
+        });
       }
     } catch (error: any) {
       if (__DEV__) console.error('[CreatePost] Image picker error:', error);
@@ -490,6 +498,8 @@ function CreatePostScreen() {
         quality: 0.85,
         exif: false,
         videoExportPreset: VIDEO_CAPTURE_PRESET,
+        // Stops video recording at the cap; ignored for photos.
+        videoMaxDuration: POST_MAX_DURATION_S,
         legacy: false,
       } as any);
       if (!r.canceled && r.assets && r.assets[0]) {
@@ -544,7 +554,12 @@ function CreatePostScreen() {
             }
           }
         }
-        setPicked({ uri, type: media, mime: mimeType });
+        setPicked({
+          uri,
+          type: media,
+          mime: mimeType,
+          durationS: typeof a.duration === 'number' ? a.duration / 1000 : undefined,
+        });
       }
     } catch (error: any) {
       if (__DEV__) console.error('[CreatePost] Camera error:', error);
@@ -677,6 +692,21 @@ function CreatePostScreen() {
   };
 
   const doConfirmPost = async () => {
+    // 90s highlight cap: an over-limit pick must go through the trimmer (which
+    // clamps its window to the cap) before it can post. Trimmed output is
+    // capped by construction, so only the untrimmed original needs checking.
+    if (
+      picked?.type === 'video' &&
+      !trimmedUri &&
+      typeof picked.durationS === 'number' &&
+      picked.durationS > POST_MAX_DURATION_S + 0.25
+    ) {
+      Alert.alert(
+        'Video Too Long',
+        `Highlights are limited to ${POST_MAX_DURATION_S} seconds. Use the trimmer to pick your best ${POST_MAX_DURATION_S} seconds, or choose a shorter clip.`
+      );
+      return;
+    }
     setSubmitting(true);
     setUploadProgress(0);
     setError(null);
@@ -1047,6 +1077,7 @@ function CreatePostScreen() {
                     {canTrimVideo ? (
                       <VideoTrimmer
                         uri={picked.uri}
+                        maxDurationS={POST_MAX_DURATION_S}
                         onTrimComplete={u => setTrimmedUri(u)}
                         onTrimReset={() => setTrimmedUri(null)}
                       />

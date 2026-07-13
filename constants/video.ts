@@ -13,8 +13,18 @@ export const VIDEO_CAPTURE_PRESET = ImagePicker.VideoExportPreset.MediumQuality;
 export const MAX_IMAGE_SIZE_MB = 10;
 export const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 
-/** Stories are short-form: hard cap at 30 seconds. */
-export const STORY_MAX_DURATION_S = 30;
+/**
+ * Duration caps (2026-07-13, highlights-first product decision): over-limit
+ * picks are never rejected — the surface opens VideoTrimmer with the cap as
+ * the max selectable window ("pick your best N seconds") and blocks submit
+ * until a trim is applied.
+ */
+/** Feed posts: sports highlights, hard cap at 90 seconds. */
+export const POST_MAX_DURATION_S = 90;
+/** Stories are short-form: hard cap at 20 seconds. */
+export const STORY_MAX_DURATION_S = 20;
+/** Team-chat clips: same cap as posts today, but an independent knob. */
+export const CHAT_VIDEO_MAX_DURATION_S = 90;
 
 /**
  * Upload size cap. MUST equal the server-signed Cloudinary max_bytes in

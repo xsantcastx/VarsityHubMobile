@@ -2,6 +2,7 @@ import CustomActionModal from '@/components/CustomActionModal';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import {
+  CHAT_VIDEO_MAX_DURATION_S,
   isNativeVideoTrimSupported,
   MAX_VIDEO_SIZE_BYTES,
   MAX_VIDEO_SIZE_MB,
@@ -199,6 +200,8 @@ export default function TeamChatScreen() {
     uri: string;
     name: string;
     size: number;
+    /** Picked-asset duration in seconds (ImagePicker reports ms) — drives the chat clip cap. */
+    durationS?: number;
   } | null>(null);
   const [videoTrimmedUri, setVideoTrimmedUri] = useState<string | null>(null);
   const canTrimVideo = isNativeVideoTrimSupported(Platform.OS);
@@ -1145,6 +1148,10 @@ export default function TeamChatScreen() {
                 uri: result.assets[0].uri,
                 name: `video_${Date.now()}.mp4`,
                 size: pickedSize,
+                durationS:
+                  typeof result.assets[0].duration === 'number'
+                    ? result.assets[0].duration / 1000
+                    : undefined,
               });
               setVideoTrimmedUri(null);
               return; // Upload happens via confirmVideoSend
@@ -1165,6 +1172,20 @@ export default function TeamChatScreen() {
 
   const confirmVideoSend = useCallback(async () => {
     if (!videoToTrim) return;
+    // Chat clip cap: an over-limit pick must be trimmed (the trimmer clamps
+    // its window to the cap) before it can send. Early return keeps the trim
+    // modal open — the finally below would otherwise dismiss it.
+    if (
+      !videoTrimmedUri &&
+      typeof videoToTrim.durationS === 'number' &&
+      videoToTrim.durationS > CHAT_VIDEO_MAX_DURATION_S + 0.25
+    ) {
+      showToast(
+        `Videos are limited to ${CHAT_VIDEO_MAX_DURATION_S} seconds — trim the clip before sending.`,
+        'error'
+      );
+      return;
+    }
     setIsUploadingFile(true);
     try {
       const prepared = await prepareVideoForUpload(videoTrimmedUri ?? videoToTrim.uri);
@@ -2319,6 +2340,7 @@ export default function TeamChatScreen() {
               {canTrimVideo ? (
                 <VideoTrimmer
                   uri={videoToTrim.uri}
+                  maxDurationS={CHAT_VIDEO_MAX_DURATION_S}
                   onTrimComplete={u => setVideoTrimmedUri(u)}
                   onTrimReset={() => setVideoTrimmedUri(null)}
                 />

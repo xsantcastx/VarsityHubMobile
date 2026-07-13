@@ -116,6 +116,13 @@ interface VideoTrimmerProps {
   uri: string;
   onTrimComplete: (trimmedUri: string) => void;
   onTrimReset: () => void;
+  /**
+   * Hard cap on the selectable window, in seconds. When the source clip is
+   * longer, the selection initializes to the first maxDurationS seconds, the
+   * handles refuse to open wider, and Apply Trim shows immediately — the
+   * parent is expected to block submit until a trim lands (force-trim UX).
+   */
+  maxDurationS?: number;
 }
 
 const THUMB_COUNT = 10;
@@ -130,7 +137,12 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: VideoTrimmerProps) {
+export default function VideoTrimmer({
+  uri,
+  onTrimComplete,
+  onTrimReset,
+  maxDurationS,
+}: VideoTrimmerProps) {
   const [duration, setDuration] = useState(0);
   const [thumbnails, setThumbnails] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -186,6 +198,9 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
     p.muted = true;
   });
 
+  // Clip is longer than the allowed window — trimming is mandatory, not optional.
+  const overLimit = maxDurationS != null && duration > maxDurationS + 0.25;
+
   useEventListener(player, 'statusChange', ({ status }) => {
     if (status === 'readyToPlay' && player.duration > 0) {
       // Always update duration ref when available
@@ -193,8 +208,16 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
         const dur = player.duration;
         setDuration(dur);
         durationRef.current = dur;
-        rightX.value = trackWidth;
-        setEndLabel(formatTime(dur));
+        if (maxDurationS != null && dur > maxDurationS + 0.25) {
+          // Initialize the selection to the first maxDurationS seconds and
+          // surface Apply Trim immediately — the full clip is not a valid choice.
+          rightX.value = (maxDurationS / dur) * trackWidth;
+          setEndLabel(formatTime(maxDurationS));
+          setHasMoved(true);
+        } else {
+          rightX.value = trackWidth;
+          setEndLabel(formatTime(dur));
+        }
       }
 
       // Generate thumbnails only once
@@ -238,6 +261,12 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
     return (MIN_TRIM_SECONDS / duration) * trackWidth;
   }, [duration, trackWidth]);
 
+  // Maximum gap in pixels — the duration cap expressed as handle distance.
+  const maxGapPx = useMemo(() => {
+    if (duration <= 0 || maxDurationS == null || duration <= maxDurationS) return trackWidth;
+    return (maxDurationS / duration) * trackWidth;
+  }, [duration, maxDurationS, trackWidth]);
+
   // Left handle gesture
   const leftGesture = Gesture.Pan()
     .activeOffsetX([-5, 5])
@@ -246,7 +275,8 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
     })
     .onUpdate(e => {
       const raw = leftCtx.value + e.translationX;
-      const clamped = Math.max(0, Math.min(raw, rightX.value - minGapPx));
+      // Window stays within [minGapPx, maxGapPx] of the other handle.
+      const clamped = Math.max(0, rightX.value - maxGapPx, Math.min(raw, rightX.value - minGapPx));
       leftX.value = clamped;
       runOnJS(updateLabels)(clamped, rightX.value);
       runOnJS(markMoved)();
@@ -260,7 +290,11 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
     })
     .onUpdate(e => {
       const raw = rightCtx.value + e.translationX;
-      const clamped = Math.min(trackWidth, Math.max(raw, leftX.value + minGapPx));
+      const clamped = Math.min(
+        trackWidth,
+        leftX.value + maxGapPx,
+        Math.max(raw, leftX.value + minGapPx)
+      );
       rightX.value = clamped;
       runOnJS(updateLabels)(leftX.value, clamped);
       runOnJS(markMoved)();
@@ -290,13 +324,22 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
 
   const handleReset = useCallback(() => {
     leftX.value = 0;
-    rightX.value = trackWidth;
-    setHasMoved(false);
     appliedRangeRef.current = null;
     setStartLabel('0:00');
-    setEndLabel(formatTime(durationRef.current));
+    const dur = durationRef.current;
+    if (maxDurationS != null && dur > maxDurationS + 0.25) {
+      // Over the cap there is no "full clip" to reset to — go back to the
+      // first maxDurationS window and keep Apply Trim visible.
+      rightX.value = (maxDurationS / dur) * trackWidth;
+      setEndLabel(formatTime(maxDurationS));
+      setHasMoved(true);
+    } else {
+      rightX.value = trackWidth;
+      setEndLabel(formatTime(dur));
+      setHasMoved(false);
+    }
     onTrimReset();
-  }, [leftX, rightX, trackWidth, onTrimReset]);
+  }, [leftX, rightX, trackWidth, onTrimReset, maxDurationS]);
 
   const handleTrim = useCallback(async () => {
     // Use state duration, falling back to ref (set from player) if state hasn't updated yet
@@ -439,6 +482,13 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
         )}
       </View>
 
+      {overLimit && (
+        <Text style={styles.capNotice}>
+          Clips are limited to {formatTime(maxDurationS!)} — drag the handles to pick your best
+          moment, then tap Apply Trim.
+        </Text>
+      )}
+
       {/* Filmstrip */}
       <View style={[styles.filmstripContainer, { width: trackWidth + HANDLE_WIDTH * 2 }]}>
         {/* Left handle */}
@@ -533,6 +583,11 @@ const styles = StyleSheet.create({
   resetText: {
     color: '#4A90D9',
     fontSize: 14,
+  },
+  capNotice: {
+    color: '#FFD700',
+    fontSize: 12,
+    marginBottom: 8,
   },
   filmstripContainer: {
     flexDirection: 'row',

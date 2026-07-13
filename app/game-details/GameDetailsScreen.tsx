@@ -4,6 +4,7 @@ import {
   isNativeVideoTrimSupported,
   MAX_VIDEO_SIZE_BYTES,
   MAX_VIDEO_SIZE_MB,
+  STORY_MAX_DURATION_S,
   VIDEO_CAPTURE_PRESET,
 } from '@/constants/video';
 import { queryClient } from '@/lib/queryClient';
@@ -236,6 +237,8 @@ const GameDetailsScreen = () => {
     mimeType: string;
     fileName: string;
     type: 'photo' | 'video';
+    /** Picked-asset duration in seconds (ImagePicker reports ms) — drives the story cap. */
+    durationS?: number;
   } | null>(null);
   const [storyTrimmedUri, setStoryTrimmedUri] = useState<string | null>(null);
   const canTrimStoryVideo = isNativeVideoTrimSupported(Platform.OS);
@@ -1106,6 +1109,9 @@ const GameDetailsScreen = () => {
         ...pickerAllMediaTypesProp(),
         quality: 0.8,
         videoExportPreset: VIDEO_CAPTURE_PRESET,
+        // Stops camera recording at the story cap; library picks are enforced
+        // via the trimmer + confirmStoryUpload gate below.
+        videoMaxDuration: STORY_MAX_DURATION_S,
       };
       // Demo matchups (Duke v UNC, Cavs v Warriors) let fans upload from the
       // camera roll as well — they're not physically at Chase Center or Cameron
@@ -1155,7 +1161,13 @@ const GameDetailsScreen = () => {
           );
           return;
         }
-        setStoryPreview({ uri: materializedUri, mimeType, fileName, type: 'video' });
+        setStoryPreview({
+          uri: materializedUri,
+          mimeType,
+          fileName,
+          type: 'video',
+          durationS: typeof asset.duration === 'number' ? asset.duration / 1000 : undefined,
+        });
         setStoryTrimmedUri(null);
         return; // Upload will happen via confirmStoryUpload
       }
@@ -1251,6 +1263,19 @@ const GameDetailsScreen = () => {
 
   const confirmStoryUpload = useCallback(async () => {
     if (!storyPreview || !vm?.gameId) return;
+    // Story cap: an over-limit pick must be trimmed (the trimmer clamps its
+    // window to the cap) before it can upload. Keeps the preview modal open.
+    if (
+      !storyTrimmedUri &&
+      typeof storyPreview.durationS === 'number' &&
+      storyPreview.durationS > STORY_MAX_DURATION_S + 0.25
+    ) {
+      Alert.alert(
+        'Story Too Long',
+        `Stories are limited to ${STORY_MAX_DURATION_S} seconds. Use the trimmer to pick your best ${STORY_MAX_DURATION_S} seconds.`
+      );
+      return;
+    }
     setStoryBusy(true);
     try {
       const base = getApiBaseUrl();
@@ -2857,6 +2882,7 @@ const GameDetailsScreen = () => {
               {canTrimStoryVideo ? (
                 <VideoTrimmer
                   uri={storyPreview.uri}
+                  maxDurationS={STORY_MAX_DURATION_S}
                   onTrimComplete={u => setStoryTrimmedUri(u)}
                   onTrimReset={() => setStoryTrimmedUri(null)}
                 />
