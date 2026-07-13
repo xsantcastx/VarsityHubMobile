@@ -16,6 +16,7 @@ import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { pickerMediaTypesProp } from '@/utils/picker';
 
 type Props = {
@@ -147,7 +148,11 @@ export default function EventPreviewImageField({
         ]}
       >
         {value ? (
-          <Image source={{ uri: value }} style={styles.previewImage} resizeMode="cover" />
+          <Image
+            source={{ uri: optimizeImageUrl(value, 1200) }}
+            style={styles.previewImage}
+            resizeMode="cover"
+          />
         ) : (
           <View style={styles.emptyState}>
             <MaterialIcons name="image" size={28} color={Colors[colorScheme].mutedText} />

@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { APP_ROUTES } from '@/utils/appRoutes';
 import { getAuthSnapshot } from '@/utils/authState';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -1147,7 +1148,7 @@ function CreateFanEventScreen() {
               ]}
             >
               <Image
-                source={{ uri: bannerUrl }}
+                source={{ uri: optimizeImageUrl(bannerUrl, 1200) }}
                 style={styles.customBannerImage}
                 resizeMode="cover"
               />
@@ -1457,7 +1458,12 @@ function CreateFanEventScreen() {
                   }}
                 >
                   <View style={styles.pickerItemContent}>
-                    {team.logo && <Image source={{ uri: team.logo }} style={styles.teamLogo} />}
+                    {team.logo && (
+                      <Image
+                        source={{ uri: optimizeImageUrl(team.logo, 160) }}
+                        style={styles.teamLogo}
+                      />
+                    )}
                     <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
                       {team.name}
                     </Text>
@@ -1559,7 +1565,12 @@ function CreateFanEventScreen() {
                 }}
               >
                 <View style={styles.pickerItemContent}>
-                  {team.logo && <Image source={{ uri: team.logo }} style={styles.teamLogo} />}
+                  {team.logo && (
+                    <Image
+                      source={{ uri: optimizeImageUrl(team.logo, 160) }}
+                      style={styles.teamLogo}
+                    />
+                  )}
                   <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
                     {team.name}
                   </Text>

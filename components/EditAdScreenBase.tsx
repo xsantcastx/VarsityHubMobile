@@ -32,6 +32,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAdPaymentStatusLabel } from '@/utils/adPaymentStatusLabel';
 import { sanitizeText } from '@/utils/formUtils';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
@@ -326,7 +327,7 @@ export function EditAdScreenBase({
             {bannerUrl ? (
               <View style={[styles.bannerPreview, { backgroundColor: theme.surface }]}>
                 <Image
-                  source={{ uri: bannerUrl }}
+                  source={{ uri: optimizeImageUrl(bannerUrl, 1200) }}
                   style={styles.bannerImage}
                   contentFit="contain"
                 />

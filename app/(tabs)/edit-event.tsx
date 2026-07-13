@@ -14,6 +14,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { buildEventDetailHref } from '@/utils/eventRoutes';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
@@ -415,7 +416,7 @@ export default function EditEventScreen() {
             >
               {bannerUrl ? (
                 <Image
-                  source={{ uri: bannerUrl }}
+                  source={{ uri: optimizeImageUrl(bannerUrl, 1200) }}
                   style={styles.bannerPreview}
                   resizeMode="cover"
                 />

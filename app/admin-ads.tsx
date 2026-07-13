@@ -7,6 +7,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { getCompositeAdBadge } from '@/utils/adStatusBadge';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -391,7 +392,7 @@ function AdminAdsScreen() {
 
           {item.banner_url ? (
             <Image
-              source={{ uri: item.banner_url }}
+              source={{ uri: optimizeImageUrl(item.banner_url, 600) }}
               style={styles.bannerPreview}
               contentFit="cover"
             />
@@ -874,7 +875,7 @@ function AdminAdsScreen() {
             <ScrollView style={{ paddingHorizontal: 16, paddingTop: 12 }}>
               {detailAd?.banner_url ? (
                 <Image
-                  source={{ uri: detailAd.banner_url }}
+                  source={{ uri: optimizeImageUrl(detailAd.banner_url, 1200) }}
                   style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 16 }}
                   contentFit="cover"
                 />

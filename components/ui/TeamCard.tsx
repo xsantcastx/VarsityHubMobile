@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Card } from './card';
@@ -76,7 +77,7 @@ export function TeamCard({ team, onPress, showRole = false, style }: TeamCardPro
       <View style={styles.header}>
         {/* Team Logo */}
         {team.logo_url ? (
-          <Image source={{ uri: team.logo_url }} style={styles.logo} />
+          <Image source={{ uri: optimizeImageUrl(team.logo_url, 160) }} style={styles.logo} />
         ) : (
           <View style={[styles.logoPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
             <MaterialIcons name="shield" size={24} color={Colors[colorScheme].icon} />

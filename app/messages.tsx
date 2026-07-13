@@ -28,6 +28,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAuthSnapshot } from '@/utils/authState';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 import { formatUserLabel } from '@/utils/userDisplay';
 
@@ -366,7 +367,7 @@ function MessagesScreen() {
           {/* Overlay actual image — if it fails to load, letter fallback stays visible */}
           {avatar ? (
             <Image
-              source={{ uri: avatar }}
+              source={{ uri: optimizeImageUrl(avatar, 160) }}
               style={[styles.avatar, styles.avatarOverlay]}
               contentFit="cover"
             />
@@ -428,7 +429,7 @@ function MessagesScreen() {
           </View>
           {avatar ? (
             <Image
-              source={{ uri: avatar }}
+              source={{ uri: optimizeImageUrl(avatar, 160) }}
               style={[styles.avatar, styles.avatarOverlay]}
               contentFit="cover"
             />

@@ -14,6 +14,7 @@ import { useTeamMembersQuery } from '@/hooks/useTeamMembersQuery';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import * as ImagePicker from 'expo-image-picker';
 import VideoPlayer from '@/components/VideoPlayer';
@@ -1418,7 +1419,7 @@ export default function TeamChatScreen() {
                 }}
               >
                 <Image
-                  source={{ uri: item.image.uri }}
+                  source={{ uri: optimizeImageUrl(item.image.uri, 600) }}
                   style={styles.messageImage}
                   resizeMode="cover"
                 />
@@ -2256,7 +2257,7 @@ export default function TeamChatScreen() {
           <View style={styles.imageViewerContent}>
             {selectedImage && (
               <Image
-                source={{ uri: selectedImage.uri }}
+                source={{ uri: optimizeImageUrl(selectedImage.uri, 1200) }}
                 style={styles.fullScreenImage}
                 resizeMode="contain"
               />

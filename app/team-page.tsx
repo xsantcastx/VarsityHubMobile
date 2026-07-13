@@ -3,6 +3,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { gameRowTitle } from '@/utils/eventTitle';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
@@ -584,7 +585,7 @@ function TeamScreen() {
             <View style={styles.avatarContainer}>
               {team?.logo_url ? (
                 <Image
-                  source={{ uri: String(team.logo_url) }}
+                  source={{ uri: optimizeImageUrl(String(team.logo_url), 160) }}
                   style={styles.avatarImage}
                   contentFit="cover"
                 />
@@ -1019,7 +1020,7 @@ function TeamScreen() {
                   <View style={styles.gridImageContainer}>
                     {media.displayImageUrl ? (
                       <Image
-                        source={{ uri: media.displayImageUrl }}
+                        source={{ uri: optimizeImageUrl(media.displayImageUrl, 500) }}
                         style={styles.gridImage}
                         contentFit="cover"
                       />
@@ -1120,7 +1121,7 @@ function TeamScreen() {
                   <View style={styles.gridImageContainer}>
                     {media.displayImageUrl ? (
                       <Image
-                        source={{ uri: media.displayImageUrl }}
+                        source={{ uri: optimizeImageUrl(media.displayImageUrl, 500) }}
                         style={styles.gridImage}
                         contentFit="cover"
                       />
@@ -1221,7 +1222,7 @@ function TeamScreen() {
                   <View style={styles.gridImageContainer}>
                     {media.displayImageUrl ? (
                       <Image
-                        source={{ uri: media.displayImageUrl }}
+                        source={{ uri: optimizeImageUrl(media.displayImageUrl, 500) }}
                         style={styles.gridImage}
                         contentFit="cover"
                       />

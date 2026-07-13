@@ -20,6 +20,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAuthSnapshot } from '@/utils/authState';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -194,7 +195,7 @@ function FavoritesScreen() {
           <View style={styles.media}>
             {media.displayImageUrl ? (
               <Image
-                source={{ uri: media.displayImageUrl }}
+                source={{ uri: optimizeImageUrl(media.displayImageUrl, 160) }}
                 style={styles.thumbnail}
                 contentFit="cover"
               />

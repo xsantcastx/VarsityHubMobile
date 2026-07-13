@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
@@ -320,7 +321,10 @@ export default React.memo(function MatchBanner({
             accessibilityLabel={onLeftPress ? `View ${leftName} team page` : undefined}
           >
             {leftImage ? (
-              <Image source={{ uri: leftImage }} style={styles.smallLogo as any} />
+              <Image
+                source={{ uri: optimizeImageUrl(leftImage, 160) }}
+                style={styles.smallLogo as any}
+              />
             ) : null}
             <View style={styles.sideTitleBg as any}>
               <Text
@@ -362,7 +366,10 @@ export default React.memo(function MatchBanner({
             accessibilityLabel={onRightPress ? `View ${rightName} team page` : undefined}
           >
             {rightImage ? (
-              <Image source={{ uri: rightImage }} style={styles.smallLogo as any} />
+              <Image
+                source={{ uri: optimizeImageUrl(rightImage, 160) }}
+                style={styles.smallLogo as any}
+              />
             ) : null}
             <View style={styles.sideTitleBg as any}>
               <Text

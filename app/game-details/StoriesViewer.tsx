@@ -21,6 +21,7 @@ import { Game } from '@/api/entities';
 import VideoPlayer from '@/components/VideoPlayer';
 import { useAuth } from '@/context/AuthProvider';
 import { getAuthSnapshot } from '@/utils/authState';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 
 export const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
 
@@ -293,7 +294,7 @@ export default function StoriesViewer({
               </View>
             ) : (
               <Image
-                source={{ uri: item.url }}
+                source={{ uri: optimizeImageUrl(item.url, 1200) }}
                 style={{
                   width: w,
                   aspectRatio: 9 / 16,
@@ -325,7 +326,7 @@ export default function StoriesViewer({
           if (!next || next.kind === 'video') return null;
           return (
             <Image
-              source={{ uri: next.url }}
+              source={{ uri: optimizeImageUrl(next.url, 1200) }}
               style={{
                 width: 1,
                 height: 1,

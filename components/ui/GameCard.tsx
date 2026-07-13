@@ -2,6 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { gameRowTitle } from '@/utils/eventTitle';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -124,7 +125,11 @@ export function GameCard({
     >
       {/* Preview Image — always fills top 150px; falls back to gradient */}
       {cardImage ? (
-        <Image source={{ uri: cardImage }} style={styles.cardImage} contentFit="cover" />
+        <Image
+          source={{ uri: optimizeImageUrl(cardImage, 600) }}
+          style={styles.cardImage}
+          contentFit="cover"
+        />
       ) : (
         <LinearGradient
           colors={['#1e293b', '#0f172a']}

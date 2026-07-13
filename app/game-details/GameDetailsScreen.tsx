@@ -21,6 +21,7 @@ import {
   getEventPresentationPhase,
   isEventPastEndOfDay,
 } from '@/utils/eventPresentation';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerAllMediaTypesProp } from '@/utils/picker';
@@ -1703,7 +1704,7 @@ const GameDetailsScreen = () => {
                     <View style={[styles.storyThumb, styles.storyThumbVideo]}>
                       {it.thumbnail_url ? (
                         <Image
-                          source={{ uri: it.thumbnail_url }}
+                          source={{ uri: optimizeImageUrl(it.thumbnail_url, 500) }}
                           style={styles.storyThumb}
                           contentFit="cover"
                           transition={200}
@@ -1720,7 +1721,7 @@ const GameDetailsScreen = () => {
                     </View>
                   ) : (
                     <Image
-                      source={{ uri: it.url }}
+                      source={{ uri: optimizeImageUrl(it.url, 500) }}
                       style={styles.storyThumb}
                       contentFit="cover"
                       transition={200}
@@ -1872,7 +1873,7 @@ const GameDetailsScreen = () => {
       bannerImageUrl && !isHero ? (
         <Image
           key={bannerImageKey}
-          source={{ uri: bannerImageUrl }}
+          source={{ uri: optimizeImageUrl(bannerImageUrl, 1200) }}
           style={styles.bannerImage}
           contentFit="cover"
           cachePolicy="memory-disk"
@@ -2136,7 +2137,7 @@ const GameDetailsScreen = () => {
             >
               {team.avatarUrl ? (
                 <Image
-                  source={{ uri: team.avatarUrl }}
+                  source={{ uri: optimizeImageUrl(team.avatarUrl, 160) }}
                   style={styles.teamLinkAvatar}
                   contentFit="cover"
                 />
@@ -2235,7 +2236,7 @@ const GameDetailsScreen = () => {
               >
                 {teamLogo ? (
                   <Image
-                    source={{ uri: teamLogo }}
+                    source={{ uri: optimizeImageUrl(teamLogo, 160) }}
                     style={{ width: 68, height: 68, borderRadius: 34 }}
                     contentFit="cover"
                   />
@@ -2312,7 +2313,7 @@ const GameDetailsScreen = () => {
                 <>
                   {item.thumbnail_url ? (
                     <Image
-                      source={{ uri: item.thumbnail_url }}
+                      source={{ uri: optimizeImageUrl(item.thumbnail_url, 500) }}
                       style={styles.mediaThumbContent}
                       contentFit="cover"
                     />
@@ -2325,7 +2326,7 @@ const GameDetailsScreen = () => {
                 </>
               ) : (
                 <Image
-                  source={{ uri: item.url }}
+                  source={{ uri: optimizeImageUrl(item.url, 500) }}
                   style={styles.mediaThumbContent}
                   contentFit="cover"
                 />
@@ -2593,7 +2594,7 @@ const GameDetailsScreen = () => {
                                 {thumb ? (
                                   <View style={styles.gridImageContainer}>
                                     <Image
-                                      source={{ uri: thumb }}
+                                      source={{ uri: optimizeImageUrl(thumb, 500) }}
                                       style={styles.gridImage}
                                       contentFit="cover"
                                     />
@@ -2689,7 +2690,7 @@ const GameDetailsScreen = () => {
                                 {thumb ? (
                                   <View style={styles.gridImageContainer}>
                                     <Image
-                                      source={{ uri: thumb }}
+                                      source={{ uri: optimizeImageUrl(thumb, 500) }}
                                       style={styles.gridImage}
                                       contentFit="cover"
                                     />
@@ -2819,7 +2820,7 @@ const GameDetailsScreen = () => {
                 <VideoPlayer uri={viewer.url} style={styles.viewerMedia} />
               ) : (
                 <Image
-                  source={{ uri: viewer.url }}
+                  source={{ uri: optimizeImageUrl(viewer.url, 1200) }}
                   style={styles.viewerMedia}
                   contentFit="contain"
                 />

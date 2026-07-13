@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import ViewShot from 'react-native-view-shot';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 
 interface OrgTeam {
@@ -404,7 +405,7 @@ function OrganizationDetailScreen() {
                 >
                   {team.logo_url || team.avatar_url ? (
                     <Image
-                      source={{ uri: (team.logo_url || team.avatar_url)! }}
+                      source={{ uri: optimizeImageUrl((team.logo_url || team.avatar_url)!, 160) }}
                       style={{
                         width: 40,
                         height: 40,

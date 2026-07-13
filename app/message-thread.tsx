@@ -29,6 +29,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useConversationSocket } from '@/hooks/useConversationSocket';
 import { getAuthSnapshot } from '@/utils/authState';
 import { checkDMRestriction } from '@/utils/dmRestrictions';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { getThreadPollIntervalMs } from '@/utils/messagePolling';
 import { safeGoBack } from '@/utils/navigation';
 import { getCoachAccessState } from '@/utils/roleChecks';
@@ -425,7 +426,10 @@ function MessageThreadScreen() {
             <View style={styles.avatarContainer}>
               {showAvatar ? (
                 sender?.avatar_url ? (
-                  <Image source={{ uri: sender.avatar_url }} style={styles.avatar} />
+                  <Image
+                    source={{ uri: optimizeImageUrl(sender.avatar_url, 160) }}
+                    style={styles.avatar}
+                  />
                 ) : (
                   <View
                     style={[
@@ -527,7 +531,7 @@ function MessageThreadScreen() {
               >
                 {otherParticipant?.avatar_url ? (
                   <Image
-                    source={{ uri: otherParticipant.avatar_url }}
+                    source={{ uri: optimizeImageUrl(otherParticipant.avatar_url, 160) }}
                     style={styles.headerAvatar}
                   />
                 ) : (

@@ -3,6 +3,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getCompositeAdBadge } from '@/utils/adStatusBadge';
 import { getAuthSnapshot } from '@/utils/authState';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
@@ -311,7 +312,11 @@ function MyAdsScreen() {
         {/* Banner Section */}
         <View style={styles.bannerContainer}>
           {item.banner_url ? (
-            <Image source={{ uri: item.banner_url }} style={styles.banner} contentFit="cover" />
+            <Image
+              source={{ uri: optimizeImageUrl(item.banner_url, 600) }}
+              style={styles.banner}
+              contentFit="cover"
+            />
           ) : (
             <View
               style={[

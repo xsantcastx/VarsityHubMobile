@@ -3,6 +3,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
@@ -278,7 +279,11 @@ export default function EditOrganizationScreen() {
         {uploading ? (
           <ActivityIndicator size="small" color={theme.tint} />
         ) : url ? (
-          <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <Image
+            source={{ uri: optimizeImageUrl(url, 600) }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
         ) : (
           <View style={styles.logoPlaceholder}>
             <Ionicons name="camera-outline" size={iconSize} color={theme.mutedText} />

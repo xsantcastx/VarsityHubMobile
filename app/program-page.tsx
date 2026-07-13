@@ -10,6 +10,7 @@ import {
 } from '@/constants/programs';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { gameRowTitle } from '@/utils/eventTitle';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -271,7 +272,7 @@ function ProgramScreen() {
             <View style={styles.avatarContainer}>
               {logoUrl ? (
                 <Image
-                  source={{ uri: String(logoUrl) }}
+                  source={{ uri: optimizeImageUrl(String(logoUrl), 160) }}
                   style={styles.avatarImage}
                   contentFit="cover"
                 />

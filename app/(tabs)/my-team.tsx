@@ -9,6 +9,7 @@ import { useOrgProgramsQuery } from '@/hooks/useOrgProgramsQuery';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { useTeamMembersQuery } from '@/hooks/useTeamMembersQuery';
 import { handleCoachAccessError } from '@/utils/coachAccess';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { getAssignableTeamRoles } from '@/utils/roleChecks';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -486,7 +487,10 @@ function MyTeamScreen() {
         ]}
       >
         {item.user.avatar_url ? (
-          <Image source={{ uri: item.user.avatar_url }} style={styles.avatar} />
+          <Image
+            source={{ uri: optimizeImageUrl(item.user.avatar_url, 160) }}
+            style={styles.avatar}
+          />
         ) : (
           <View
             style={[

@@ -35,6 +35,7 @@ import {
   validateYear,
   validateZipCode,
 } from '@/utils/formUtils';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
@@ -649,7 +650,11 @@ export default function EditProfileScreen() {
               <View style={styles.avatarSection}>
                 <View style={styles.avatarContainer}>
                   {avatarUrl ? (
-                    <Image source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" />
+                    <Image
+                      source={{ uri: optimizeImageUrl(avatarUrl, 160) }}
+                      style={styles.avatar}
+                      contentFit="cover"
+                    />
                   ) : (
                     <View
                       style={[
@@ -716,7 +721,7 @@ export default function EditProfileScreen() {
                       {...headerImagePanResponder.panHandlers}
                     >
                       <Image
-                        source={{ uri: headerImageUrl }}
+                        source={{ uri: optimizeImageUrl(headerImageUrl, 1200) }}
                         style={styles.bannerImage}
                         contentFit="cover"
                       />

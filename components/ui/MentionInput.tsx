@@ -1,6 +1,7 @@
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -160,7 +161,10 @@ export function MentionInput({
               >
                 <View style={styles.avatarContainer}>
                   {item.avatar_url ? (
-                    <Image source={{ uri: item.avatar_url }} style={styles.avatar} />
+                    <Image
+                      source={{ uri: optimizeImageUrl(item.avatar_url, 160) }}
+                      style={styles.avatar}
+                    />
                   ) : (
                     <View style={[styles.avatarPlaceholder, { backgroundColor: theme.surface }]}>
                       <MaterialIcons name="person" size={16} color={theme.mutedText} />

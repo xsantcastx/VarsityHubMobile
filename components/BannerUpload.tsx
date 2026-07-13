@@ -10,6 +10,7 @@ import { Colors } from '@/constants/Colors';
 import { MAX_IMAGE_SIZE_BYTES } from '@/constants/video';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ensureUploadableUri } from '@/utils/ensureUploadableUri';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { captureBreadcrumb } from '@/utils/sentry';
@@ -301,7 +302,7 @@ export function BannerUpload({
         {value ? (
           <>
             <Image
-              source={{ uri: value }}
+              source={{ uri: optimizeImageUrl(value, 1200) }}
               style={[
                 styles.previewImage,
                 fitMode === 'fill' && {

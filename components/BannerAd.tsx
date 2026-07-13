@@ -6,6 +6,7 @@
 
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { Advertisement } from '@/api/entities';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
@@ -212,7 +213,7 @@ export function BannerAd({
       android_ripple={{ color: 'rgba(0, 0, 0, 0.1)' }}
     >
       <Image
-        source={{ uri: bannerUrl }}
+        source={{ uri: optimizeImageUrl(bannerUrl, 1200) }}
         style={[
           styles.image,
           base === 'rotate' &&

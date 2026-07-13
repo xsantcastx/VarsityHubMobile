@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { formatGameTime, isPastGameDate } from '@/utils/gameFormHelpers';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -1552,7 +1553,7 @@ export default function QuickAddGameModal({
                       // Show custom uploaded banner
                       <View style={styles.customBannerContainer}>
                         <Image
-                          source={{ uri: bannerUrl }}
+                          source={{ uri: optimizeImageUrl(bannerUrl, 1200) }}
                           style={styles.customBannerImage}
                           resizeMode="cover"
                         />
@@ -1761,7 +1762,10 @@ export default function QuickAddGameModal({
                       <View style={styles.pickerItemContent}>
                         <View style={styles.teamLogoContainer}>
                           {team.logo ? (
-                            <Image source={{ uri: team.logo }} style={styles.teamLogoImage} />
+                            <Image
+                              source={{ uri: optimizeImageUrl(team.logo, 160) }}
+                              style={styles.teamLogoImage}
+                            />
                           ) : (
                             <Text style={styles.teamLogoText}>🏆</Text>
                           )}
@@ -1881,7 +1885,10 @@ export default function QuickAddGameModal({
                       <View style={styles.pickerItemContent}>
                         <View style={styles.teamLogoContainer}>
                           {team.logo ? (
-                            <Image source={{ uri: team.logo }} style={styles.teamLogoImage} />
+                            <Image
+                              source={{ uri: optimizeImageUrl(team.logo, 160) }}
+                              style={styles.teamLogoImage}
+                            />
                           ) : (
                             <Text style={styles.teamLogoText}>🏆</Text>
                           )}

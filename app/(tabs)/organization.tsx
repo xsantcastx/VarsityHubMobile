@@ -12,6 +12,7 @@ import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useOrgProgramsQuery } from '@/hooks/useOrgProgramsQuery';
 import { getCanonicalOrganizationId } from '@/utils/authState';
 import { gameRowTitle } from '@/utils/eventTitle';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -604,7 +605,7 @@ export default function OrganizationScreen() {
         >
           {organization?.background_url ? (
             <Image
-              source={{ uri: organization.background_url }}
+              source={{ uri: optimizeImageUrl(organization.background_url, 1200) }}
               style={styles.coverImage}
               contentFit="cover"
             />
@@ -629,7 +630,12 @@ export default function OrganizationScreen() {
           <View style={[styles.avatarShell, { borderColor: theme.border }]}>
             {organization?.avatar_url || organization?.logo_url ? (
               <Image
-                source={{ uri: String(organization.avatar_url || organization.logo_url) }}
+                source={{
+                  uri: optimizeImageUrl(
+                    String(organization.avatar_url || organization.logo_url),
+                    160
+                  ),
+                }}
                 style={styles.avatarImage}
                 contentFit="cover"
               />

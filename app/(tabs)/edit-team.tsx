@@ -7,6 +7,7 @@ import {
 } from '@/components/EditScreenShared';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
@@ -452,7 +453,10 @@ function EditTeamScreen() {
           >
             <Pressable style={styles.logoContainer} onPress={showImagePicker}>
               {currentLogoUri ? (
-                <Image source={{ uri: currentLogoUri }} style={styles.logoImage} />
+                <Image
+                  source={{ uri: optimizeImageUrl(currentLogoUri, 160) }}
+                  style={styles.logoImage}
+                />
               ) : (
                 <View
                   style={[styles.logoPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}

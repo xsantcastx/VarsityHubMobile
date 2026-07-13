@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 import {
   ActivityIndicator,
@@ -200,7 +201,7 @@ function NotificationsScreen() {
             />
           ) : item.actor?.avatar_url ? (
             <Image
-              source={{ uri: item.actor.avatar_url }}
+              source={{ uri: optimizeImageUrl(item.actor.avatar_url, 160) }}
               style={[S.avatar, S.avatarOverlay]}
               contentFit="cover"
               accessibilityLabel={`${actorName} avatar`}
