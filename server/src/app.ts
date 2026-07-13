@@ -1,3 +1,4 @@
+import compression from 'compression';
 import cors from 'cors';
 import 'dotenv/config';
 import express, { NextFunction, Request, Response } from 'express';
@@ -17,7 +18,11 @@ import { addBreadcrumb, addSentryErrorHandler, initSentry } from './lib/sentry.j
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
 import { requestLogging } from './middleware/logging.js';
-import { authMountLimiter, defaultApiLimiter, publicRouteLimiter } from './middleware/rateLimiters.js';
+import {
+  authMountLimiter,
+  defaultApiLimiter,
+  publicRouteLimiter,
+} from './middleware/rateLimiters.js';
 import { requireAdmin } from './middleware/requireAdmin.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { requireParentalConsent } from './middleware/requireParentalConsent.js';
@@ -126,6 +131,9 @@ app.use(
     process.env.NODE_ENV !== 'production' ? { transport: { target: 'pino-pretty' } } : {}
   )
 );
+// Mobile clients pull large JSON payloads over cellular; gzip everything above
+// the default 1KB threshold.
+app.use(compression());
 // In dev, disable CSP to allow loading media from API when app runs on a different origin.
 // In prod, enable CSP with sensible defaults for a mobile API backend.
 app.use(
