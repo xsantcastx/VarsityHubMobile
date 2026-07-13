@@ -1,6 +1,5 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { isAdminEmail } from '../lib/adminEmails.js';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { renderReviewPage, renderResultPage, renderFinalStatePage } from '../lib/reviewPage.js';
 import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
@@ -2172,11 +2171,7 @@ gamesRouter.get(
         }
         if (!canEditResult && gameData.created_by_id === req.user.id) canEditResult = true;
         if (!canEditResult) {
-          const user = await prisma.user.findUnique({
-            where: { id: req.user.id },
-            select: { email: true },
-          });
-          if (isAdminEmail(user?.email)) canEditResult = true;
+          if (await isVerifiedAdminUser(req.user.id)) canEditResult = true;
         }
       }
 
@@ -2350,11 +2345,7 @@ gamesRouter.delete(
       const isCreator = game.created_by_id === req.user.id;
 
       // Check if user is admin
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        select: { email: true },
-      });
-      const isAdmin = isAdminEmail(user?.email);
+      const isAdmin = await isVerifiedAdminUser(req.user.id);
 
       // Check if user is coach/manager of either team
       const deleteTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
@@ -2616,11 +2607,7 @@ gamesRouter.patch(
       const isCoach = await canManageAnyTeam(req.user.id, teamIds);
 
       const isCreator = game.created_by_id === req.user.id;
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        select: { email: true },
-      });
-      const isAdmin = isAdminEmail(user?.email);
+      const isAdmin = await isVerifiedAdminUser(req.user.id);
 
       if (!isCreator && !isCoach && !isAdmin) {
         return res
@@ -2701,11 +2688,7 @@ gamesRouter.patch(
       const isCreator = game.created_by_id === req.user.id;
 
       // Check if user is admin
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        select: { email: true },
-      });
-      const isAdmin = isAdminEmail(user?.email);
+      const isAdmin = await isVerifiedAdminUser(req.user.id);
 
       // Check if user is coach/manager of either team
       const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];

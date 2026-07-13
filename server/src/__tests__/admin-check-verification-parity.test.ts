@@ -26,8 +26,9 @@ describe('verified-admin helper', () => {
 });
 
 describe('games.ts admin checks require verification', () => {
-  it('no longer calls the bare isEmailAdmin()', () => {
+  it('no longer calls the bare isEmailAdmin()/isAdminEmail()', () => {
     expect(gamesSrc).not.toMatch(/\bisEmailAdmin\(/);
+    expect(gamesSrc).not.toMatch(/\bisAdminEmail\(/);
   });
   it('canViewGameRecord uses isVerifiedAdminUser', () => {
     const start = gamesSrc.indexOf('async function canViewGameRecord');
@@ -39,5 +40,14 @@ describe('games.ts admin checks require verification', () => {
 describe('organizations.ts members endpoint requires verification', () => {
   it('the non-member platform-admin fallback uses isVerifiedAdminUser', () => {
     expect(orgsSrc).toMatch(/isVerifiedAdminUser\(/);
+  });
+});
+
+describe('rsvps.ts admin check requires verification', () => {
+  it('uses isVerifiedAdminUser instead of a bare admin-email check', () => {
+    const rsvpsSrc = readFileSync(join(process.cwd(), 'src', 'routes', 'rsvps.ts'), 'utf8');
+    expect(rsvpsSrc).toMatch(/isVerifiedAdminUser\(/);
+    expect(rsvpsSrc).not.toMatch(/\bisAdminEmail\(/);
+    expect(rsvpsSrc).not.toMatch(/\bisEmailAdmin\(/);
   });
 });
