@@ -3,7 +3,7 @@ import type { OrganizationReviewSummaryArrayResponse } from '@/api/schemas/organ
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
-import { safeGoBack } from '@/utils/navigation';
+import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Stack, useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -76,7 +76,9 @@ export default function ApprovalsScreen() {
     }
 
     hasAutoForwardedRef.current = true;
-    router.replace(buildOrganizationRequestsRoute(entries[0].id));
+    // nav-safe: single-org pickers skip straight to that org's request tools;
+    // marked as a redirect so returning "back" here can't create a bounce loop.
+    replaceAsRedirect(router, buildOrganizationRequestsRoute(entries[0].id));
   }, [entries, error, loading, refreshing, router]);
 
   const onRefresh = useCallback(() => {

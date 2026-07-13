@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useContext } from 'react';
 import {
   getNavigationFallback,
+  markNextHistoryEntryAsRedirect,
   NavigationHistoryContext,
   performTrackedSafeBack,
 } from '@/context/NavigationHistoryContext';
@@ -11,11 +12,12 @@ import {
  * Standalone safe back for imperative use — pass the router from useRouter().
  * Uses NavigationHistoryContext (via global getter) to fall back to last-visited tab.
  */
-export function safeGoBack(
-  router: ReturnType<typeof useRouter>,
-  explicitFallback?: Href | string
-) {
+export function safeGoBack(router: ReturnType<typeof useRouter>, explicitFallback?: Href | string) {
   if (router.canGoBack()) {
+    // A back pop must not be recorded as a forward visit: without the mark,
+    // the screen being left lands on the history top and the next
+    // history-based back sends the user FORWARD to it (the back-loop bug).
+    markNextHistoryEntryAsRedirect();
     router.back();
     return;
   }
@@ -29,21 +31,14 @@ export function safeGoBack(
 }
 
 /**
- * Prefer the tracked prior route when a screen has an explicit back button and
- * Expo Router's native stack would otherwise pop to a less specific screen.
+ * router.replace for AUTO-redirects (canonical-page bounces, guard bounces,
+ * auto-forwards). Marks the transition so the redirecting screen is never
+ * recorded in tracked history — a recorded redirect becomes a back target
+ * that instantly bounces the user forward again.
  */
-export function goBackToTrackedRoute(
-  router: ReturnType<typeof useRouter>,
-  currentHref: string | null | undefined,
-  trackedPreviousHref: string | null | undefined,
-  explicitFallback?: Href | string
-) {
-  if (trackedPreviousHref && trackedPreviousHref !== currentHref) {
-    router.replace(trackedPreviousHref as Href);
-    return;
-  }
-
-  safeGoBack(router, explicitFallback);
+export function replaceAsRedirect(router: ReturnType<typeof useRouter>, href: Href | string) {
+  markNextHistoryEntryAsRedirect();
+  router.replace(href as Href);
 }
 
 /**
@@ -61,6 +56,7 @@ export function useSafeNavigation() {
     }
 
     if (router.canGoBack()) {
+      markNextHistoryEntryAsRedirect();
       router.back();
       return;
     }

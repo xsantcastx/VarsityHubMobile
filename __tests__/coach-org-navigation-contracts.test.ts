@@ -83,7 +83,11 @@ describe('coach/org navigation contracts', () => {
 
   it('approvals wrapper auto-forwards directly when only one managed organization exists', () => {
     expect(approvals).toContain('entries.length !== 1');
-    expect(approvals).toContain('router.replace(buildOrganizationRequestsRoute(entries[0].id))');
+    // Auto-forward is a redirect, not a visit — replaceAsRedirect keeps the
+    // approvals screen out of tracked history so back can never bounce-loop.
+    expect(approvals).toContain(
+      'replaceAsRedirect(router, buildOrganizationRequestsRoute(entries[0].id))'
+    );
   });
 
   it('organization coach-request review returns to the canonical organization requests tab and uses coach-first copy', () => {
@@ -127,7 +131,7 @@ describe('coach/org navigation contracts', () => {
     expect(mobileCommunity).toContain('Organization.reviewSummaries()');
   });
 
-  it('discover coach quick actions preserve their origin and coach screens backtrack through tracked history', () => {
+  it('discover coach quick actions preserve their origin and coach screens back out via safeGoBack', () => {
     expect(mobileCommunity).toContain("from: 'discover-quick-actions'");
     expect(mobileCommunity).toContain("pathname: '/manage-teams'");
     expect(mobileCommunity).toMatch(
@@ -138,15 +142,15 @@ describe('coach/org navigation contracts', () => {
     expect(organizationScreen).toContain(
       "params.from === 'discover-quick-actions' ? '/(tabs)/discover' : undefined"
     );
-    expect(organizationScreen).toContain(
-      'goBackToTrackedRoute(router, currentHref, navHistory?.getFallbackRoute?.(), backFallback)'
-    );
+    // goBackToTrackedRoute is retired: it preferred a peeked-but-never-popped
+    // history entry over the native stack and recorded its own back as a
+    // forward move — the org/manage-season back-button loop. safeGoBack pops
+    // the native stack first and only then falls back to tracked history.
+    expect(organizationScreen).toContain('safeGoBack(router, backFallback)');
     expect(manageTeams).toContain("params.from === 'discover-quick-actions'");
     expect(manageTeams).toContain("'/(tabs)/discover'");
     expect(manageSeason).toContain("params.from === 'discover-quick-actions'");
-    expect(manageSeason).toContain(
-      'goBackToTrackedRoute(router, currentHref, navHistory?.getFallbackRoute?.(), backFallback)'
-    );
+    expect(manageSeason).toContain('safeGoBack(router, backFallback)');
   });
 
   it('coach admin screens carry an explicit fallback contract instead of relying on stack luck', () => {

@@ -8,17 +8,16 @@ import {
   levelRank,
 } from '@/constants/programs';
 import { useAuth } from '@/context/AuthProvider';
-import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useOrgProgramsQuery } from '@/hooks/useOrgProgramsQuery';
 import { getCanonicalOrganizationId } from '@/utils/authState';
 import { gameRowTitle } from '@/utils/eventTitle';
-import { goBackToTrackedRoute } from '@/utils/navigation';
+import { safeGoBack } from '@/utils/navigation';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
-import { useCallback, useContext, useMemo, useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -106,13 +105,10 @@ export default function OrganizationScreen() {
   const theme = Colors[colorScheme];
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string; from?: string; tab?: string }>();
-  const navHistory = useContext(NavigationHistoryContext);
-  const href = useUnstableGlobalHref();
-  const currentHref = typeof href === 'string' ? href : null;
   const backFallback = params.from === 'discover-quick-actions' ? '/(tabs)/discover' : undefined;
   const handleBack = useCallback(() => {
-    goBackToTrackedRoute(router, currentHref, navHistory?.getFallbackRoute?.(), backFallback);
-  }, [backFallback, currentHref, navHistory, router]);
+    safeGoBack(router, backFallback);
+  }, [backFallback, router]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
@@ -341,6 +337,13 @@ export default function OrganizationScreen() {
   );
 
   const handleTeamPress = (team: TeamItem) => {
+    // Program teams go straight to the canonical program page. Pushing the
+    // team page would just flash it and redirect there anyway, leaving a
+    // self-redirecting entry in the back history.
+    if (team.program_id) {
+      router.push({ pathname: '/program-page', params: { id: team.program_id } });
+      return;
+    }
     router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } });
   };
 

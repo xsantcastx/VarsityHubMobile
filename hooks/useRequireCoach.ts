@@ -9,6 +9,7 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
+import { replaceAsRedirect } from '@/utils/navigation';
 import { getCoachAccessState, getCoachGuardRedirect, type CoachUserLike } from '@/utils/roleChecks';
 
 export function useRequireCoach() {
@@ -29,7 +30,9 @@ export function useRequireCoach() {
     // membership-aware useRequireTeamManagement guard can never drift.
     const redirect = getCoachGuardRedirect(coachUser);
     if (redirect) {
-      router.replace(redirect as never);
+      // Guard bounce, not a visit — marked so the guarded screen never
+      // becomes a back target that re-triggers this redirect.
+      replaceAsRedirect(router, redirect as never);
     }
   }, [coachUser, loading, router]);
 

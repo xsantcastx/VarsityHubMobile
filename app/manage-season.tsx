@@ -2,14 +2,13 @@ import CustomActionModal, { ActionModalOption } from '@/components/CustomActionM
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
-import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { handleCoachAccessError } from '@/utils/coachAccess';
-import { goBackToTrackedRoute } from '@/utils/navigation';
-import { useCallback, useContext, useEffect, useState } from 'react';
+import { safeGoBack } from '@/utils/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -98,9 +97,6 @@ function ManageSeasonScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ teamId?: string; from?: string; fallback?: string }>();
-  const navHistory = useContext(NavigationHistoryContext);
-  const href = useUnstableGlobalHref();
-  const currentHref = typeof href === 'string' ? href : null;
   const backFallback =
     typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
       ? params.fallback.trim()
@@ -108,8 +104,8 @@ function ManageSeasonScreen() {
         ? '/(tabs)/discover'
         : undefined;
   const handleBack = useCallback(() => {
-    goBackToTrackedRoute(router, currentHref, navHistory?.getFallbackRoute?.(), backFallback);
-  }, [backFallback, currentHref, navHistory, router]);
+    safeGoBack(router, backFallback);
+  }, [backFallback, router]);
 
   // Modal state for universal action modal
   const [actionModal, setActionModal] = useState<{

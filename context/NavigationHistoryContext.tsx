@@ -91,6 +91,7 @@ export function useSafeGoBack(explicitFallback?: Href | string): () => void {
     }
 
     if (router.canGoBack()) {
+      markNextHistoryEntryAsRedirect();
       router.back();
       return;
     }
@@ -153,6 +154,9 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
   const safeGoBack = useCallback(
     (explicitFallback?: Href | string) => {
       if (router.canGoBack()) {
+        // Back pops are not forward visits — don't record the screen being
+        // left, or it becomes the next history-based back's (forward) target.
+        isNavigatingBackRef.current = true;
         router.back();
         return true;
       }

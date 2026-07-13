@@ -1,13 +1,15 @@
 import {
   getNavigationFallback,
+  markNextHistoryEntryAsRedirect,
   performTrackedSafeBack,
 } from '@/context/NavigationHistoryContext';
-import { goBackToTrackedRoute, safeGoBack } from '@/utils/navigation';
+import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
 
 jest.mock('@/context/NavigationHistoryContext', () => ({
   NavigationHistoryContext: require('react').createContext(undefined),
   getNavigationFallback: jest.fn(() => '/(tabs)/feed'),
   performTrackedSafeBack: jest.fn(() => false),
+  markNextHistoryEntryAsRedirect: jest.fn(),
 }));
 
 const mockedGetNavigationFallback = getNavigationFallback as jest.MockedFunction<
@@ -15,6 +17,9 @@ const mockedGetNavigationFallback = getNavigationFallback as jest.MockedFunction
 >;
 const mockedPerformTrackedSafeBack = performTrackedSafeBack as jest.MockedFunction<
   typeof performTrackedSafeBack
+>;
+const mockedMarkRedirect = markNextHistoryEntryAsRedirect as jest.MockedFunction<
+  typeof markNextHistoryEntryAsRedirect
 >;
 
 describe('navigation helpers', () => {
@@ -96,43 +101,43 @@ describe('navigation helpers', () => {
     });
   });
 
-  describe('goBackToTrackedRoute', () => {
-    it('replaces with the tracked previous route when it differs from the current route', () => {
+  describe('safeGoBack history hygiene', () => {
+    it('marks the next history entry as a redirect BEFORE popping the native stack', () => {
+      // Without this, every native back records the screen being left as a
+      // forward navigation — the history top becomes a screen you already
+      // left, and the next history-based back sends you FORWARD to it.
+      const order: string[] = [];
       const router = {
-        back: jest.fn(),
+        back: jest.fn(() => order.push('back')),
         canGoBack: jest.fn(() => true),
         replace: jest.fn(),
       } as any;
+      mockedMarkRedirect.mockImplementation(() => order.push('mark'));
 
-      goBackToTrackedRoute(router, '/user-profile?id=user-2', '/post-detail?id=post-1');
+      safeGoBack(router);
 
-      expect(router.replace).toHaveBeenCalledWith('/post-detail?id=post-1');
-      expect(router.back).not.toHaveBeenCalled();
+      expect(order).toEqual(['mark', 'back']);
     });
+  });
 
-    it('falls back to safeGoBack when the tracked route matches the current route', () => {
+  describe('replaceAsRedirect', () => {
+    it('marks the next history entry as a redirect BEFORE replacing', () => {
+      // Auto-redirects (team-page → program-page, approvals auto-forward,
+      // coach guard bounces) must not be recorded as visited screens: a
+      // recorded redirect becomes a back target that instantly bounces the
+      // user forward again — the coach-tools navigation loop.
+      const order: string[] = [];
       const router = {
         back: jest.fn(),
         canGoBack: jest.fn(() => true),
-        replace: jest.fn(),
+        replace: jest.fn(() => order.push('replace')),
       } as any;
+      mockedMarkRedirect.mockImplementation(() => order.push('mark'));
 
-      goBackToTrackedRoute(router, '/user-profile?id=user-2', '/user-profile?id=user-2');
+      replaceAsRedirect(router, '/program-page?id=prog-1');
 
-      expect(router.back).toHaveBeenCalledTimes(1);
-      expect(router.replace).not.toHaveBeenCalled();
-    });
-
-    it('uses the explicit fallback when there is no tracked route and the router cannot go back', () => {
-      const router = {
-        back: jest.fn(),
-        canGoBack: jest.fn(() => false),
-        replace: jest.fn(),
-      } as any;
-
-      goBackToTrackedRoute(router, '/user-profile?id=user-2', null, '/(tabs)/feed');
-
-      expect(router.replace).toHaveBeenCalledWith('/(tabs)/feed');
+      expect(order).toEqual(['mark', 'replace']);
+      expect(router.replace).toHaveBeenCalledWith('/program-page?id=prog-1');
       expect(router.back).not.toHaveBeenCalled();
     });
   });

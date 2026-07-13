@@ -53,11 +53,17 @@ classify_line() {
   fi
 
   # ── nav-safe: inline suppression ─────────────────────────────────────────
-  # Add   // nav-safe: <reason>   on the router.replace line to mark it as
-  # reviewed and intentional. The script will skip it with a SAFE label.
-  if echo "$text" | grep -qE "nav-safe:"; then
+  # Add   // nav-safe: <reason>   on the router.replace line, the line above,
+  # or the first line inside the call. Prettier wraps long calls multi-line
+  # and hoists trailing comments, so all three placements must count.
+  local navsafe_context="$text"
+  if [ -f "$file" ]; then
+    navsafe_context="$navsafe_context
+$(sed -n "$((lineno > 1 ? lineno - 1 : 1)),$((lineno + 1))p" "$file")"
+  fi
+  if echo "$navsafe_context" | grep -qE "nav-safe:"; then
     local reason
-    reason="$(echo "$text" | grep -oE 'nav-safe:.*' | sed 's/nav-safe://' | tr -d '"'"'")"
+    reason="$(echo "$navsafe_context" | grep -oE 'nav-safe:.*' | head -1 | sed 's/nav-safe://' | tr -d '"'"'")"
     echo -e "${GREEN}[SAFE      ]${RESET} $file:$lineno  ← nav-safe: $reason"
     return
   fi

@@ -22,6 +22,7 @@ import {
   resolveTeamManagementAccess,
   type CoachUserLike,
 } from '@/utils/roleChecks';
+import { replaceAsRedirect } from '@/utils/navigation';
 import { captureException } from '@/utils/sentry';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -112,7 +113,9 @@ export function useRequireTeamManagement() {
   useEffect(() => {
     if (loading || probing) return;
     if (!decision.allow && decision.redirectTo) {
-      router.replace(decision.redirectTo as never);
+      // Guard bounce, not a visit — marked so the guarded screen never
+      // becomes a back target that re-triggers this redirect.
+      replaceAsRedirect(router, decision.redirectTo as never);
     }
   }, [loading, probing, decision, router]);
 
