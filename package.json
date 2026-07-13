@@ -223,10 +223,50 @@
     "qs": "6.15.2",
     "@tootallnate/once": "3.0.1",
     "node-forge": "^1.4.0",
-    "brace-expansion": "^2.0.0",
+    "brace-expansion": "^2.1.2",
     "picomatch": "^4.0.4",
     "@humanwhocodes/config-array": {
       "brace-expansion": "^2.0.0"
+    },
+    "@expo/fingerprint": {
+      "minimatch": {
+        "brace-expansion": "^5.0.7"
+      }
+    },
+    "@expo/config-plugins": {
+      "glob": {
+        "minimatch": {
+          "brace-expansion": "^5.0.7"
+        }
+      }
+    },
+    "@expo/config": {
+      "glob": {
+        "minimatch": {
+          "brace-expansion": "^5.0.7"
+        }
+      }
+    },
+    "expo-updates": {
+      "glob": {
+        "minimatch": {
+          "brace-expansion": "^5.0.7"
+        }
+      }
+    },
+    "expo": {
+      "glob": {
+        "minimatch": {
+          "brace-expansion": "^5.0.7"
+        }
+      }
+    },
+    "react-native": {
+      "glob": {
+        "minimatch": {
+          "brace-expansion": "^2.1.2"
+        }
+      }
     },
     "handlebars": "4.7.9",
     "yaml": "^2.8.3",
@@ -236,6 +276,7 @@
     "lodash": ">=4.18.0",
     "axios": "^1.16.0",
     "follow-redirects": ">=1.15.12",
-    "shell-quote": "^1.8.4"
+    "shell-quote": "^1.9.0",
+    "fast-uri": "^3.1.3"
   }
 }
