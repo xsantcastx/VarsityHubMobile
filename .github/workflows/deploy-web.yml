@@ -1,0 +1,57 @@
+name: Deploy Web to Vercel
+
+# Auto-deploys the static web export to Vercel production on every push to
+# main that touches web-relevant code. Vercel's own Git integration can't be
+# used directly here: it auto-detects the api/ directory as serverless
+# functions and fails on the server's TypeScript build (see
+# scripts/deploy-web-static.sh, which builds a clean api/-free deploy dir
+# instead). Requires a VERCEL_TOKEN repo secret (Settings > Secrets and
+# variables > Actions); if it's missing, this workflow logs a warning and
+# skips cleanly instead of failing CI red every time.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'server/**'
+      - 'docs/**'
+      - '.github/**'
+      - 'ios/**'
+      - 'android/**'
+      - '**/*.md'
+
+jobs:
+  deploy:
+    name: web:deploy:prod
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Check VERCEL_TOKEN is configured
+        id: token_check
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::warning::VERCEL_TOKEN repo secret is not set — skipping web deploy. Add it under Settings > Secrets and variables > Actions to enable auto-deploy."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        if: steps.token_check.outputs.has_token == 'true'
+        run: npm ci
+
+      - name: Deploy web to Vercel production
+        if: steps.token_check.outputs.has_token == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npm run web:deploy:prod

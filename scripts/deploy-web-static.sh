@@ -4,6 +4,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPLOY_DIR="$(mktemp -d "${TMPDIR:-/tmp}/varsityhub-web-static.XXXXXX")"
 SCOPE="${VERCEL_SCOPE:-${1:-}}"
+CUSTOM_DOMAINS=(${VERCEL_CUSTOM_DOMAINS:-"www.varsityhub.app varsityhub.app"})
+
+VERCEL_ARGS=()
+if [[ -n "${VERCEL_TOKEN:-}" ]]; then
+  VERCEL_ARGS+=(--token "$VERCEL_TOKEN")
+fi
+if [[ -n "$SCOPE" ]]; then
+  VERCEL_ARGS+=(--scope "$SCOPE")
+fi
 
 cleanup() {
   rm -rf "$DEPLOY_DIR"
@@ -124,10 +133,15 @@ EOF
 
 cd "$DEPLOY_DIR"
 
-DEPLOY_CMD=(npx vercel --prod --yes)
-if [[ -n "$SCOPE" ]]; then
-  DEPLOY_CMD+=(--scope "$SCOPE")
-fi
-
 echo "Deploying static bundle to Vercel..."
-"${DEPLOY_CMD[@]}"
+DEPLOY_URL="$(npx vercel --prod --yes "${VERCEL_ARGS[@]}")"
+echo "Deployed: $DEPLOY_URL"
+
+# `vercel --prod` creates a new deployment but does NOT move existing custom
+# domain aliases onto it — www.varsityhub.app/varsityhub.app stay pinned to
+# whatever deployment they were last aliased to until explicitly repointed.
+# Without this step, the site silently keeps serving the old build forever.
+for domain in "${CUSTOM_DOMAINS[@]}"; do
+  echo "Aliasing $domain -> $DEPLOY_URL"
+  npx vercel alias set "$DEPLOY_URL" "$domain" "${VERCEL_ARGS[@]}"
+done
