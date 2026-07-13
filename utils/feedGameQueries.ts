@@ -6,6 +6,9 @@
  * pro slates guarantee this), page one never reaches today — upcoming games
  * exist on the map but never in the feed. Splitting upcoming and past into
  * separate queries gives each section its own budget.
+ *
+ * Verified live 2026-07-13: production /games returns real upcoming games
+ * (MLB/WNBA/FIFA/Fanatics Fest) via this split-query plan.
  */
 
 /** How far back the Past Events recap looks. */
