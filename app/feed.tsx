@@ -87,7 +87,6 @@ type FeedItem =
   | { _t: 'location_prompt' }
   | { _t: 'seed_banner' }
   | { _t: 'game'; data: GameItem; idx: number }
-  | { _t: 'game_pair'; dataA: GameItem; dataB: GameItem; idx: number }
   | { _t: 'ad'; ad: any | null; idx: number }
   | { _t: 'section_header'; title: string; key: string }
   | { _t: 'followed_post'; data: any; idx: number }
@@ -604,9 +603,11 @@ export default function FeedScreen() {
   );
 
   const load = useCallback(
-    async ({ silent = false }: { silent?: boolean } = {}) => {
-      // Performance: skip silent reloads if data is fresh (< 30s old)
-      if (silent && Date.now() - lastLoadTimestampRef.current < LOAD_COOLDOWN_MS) return;
+    async ({ silent = false, force = false }: { silent?: boolean; force?: boolean } = {}) => {
+      // Performance: skip silent reloads if data is fresh (< 30s old).
+      // force=true (explicit pull-to-refresh) always refetches — a user pull
+      // must never be a no-op.
+      if (silent && !force && Date.now() - lastLoadTimestampRef.current < LOAD_COOLDOWN_MS) return;
       // Deduplicate concurrent load calls
       if (loadInFlightRef.current && silent) return;
       loadInFlightRef.current = true;
@@ -625,6 +626,28 @@ export default function FeedScreen() {
             return null;
           });
 
+        // Resolve viewer coords BEFORE the games queries so the server can
+        // select nearest-first games ("always show games closest to them").
+        // Last-known position only — never getCurrentPositionAsync here, it
+        // can block the feed for seconds. No coords is fine: the server falls
+        // back to the signed-in viewer's zip preference. Coords are rounded
+        // to 2 decimals (~1km) so cache keys stay stable across small moves.
+        let viewerCoords: { lat: number; lng: number } | null = null;
+        try {
+          const { status } = await Location.getForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const loc = await Location.getLastKnownPositionAsync().catch(() => null);
+            if (loc) {
+              viewerCoords = {
+                lat: Math.round(loc.coords.latitude * 100) / 100,
+                lng: Math.round(loc.coords.longitude * 100) / 100,
+              };
+            }
+          }
+        } catch (e) {
+          if (__DEV__) console.warn('Feed: location for game proximity failed', e);
+        }
+
         // Load games with better error handling. Route through the shared
         // react-query cache so the games list is deduped across screens and a
         // cold remount of the feed renders instantly from cache (the 30s
@@ -632,12 +655,17 @@ export default function FeedScreen() {
         // Upcoming and the past recap are separate queries with separate page
         // budgets (see utils/feedGameQueries.ts); the upcoming query is the
         // primary one — it owns the pagination cursor and the error state.
-        const queryPlan = buildFeedGameQueries(Date.now());
+        const queryPlan = buildFeedGameQueries(Date.now(), viewerCoords);
         feedQueryPlanRef.current = queryPlan;
         let upcomingData: any = null;
         try {
           upcomingData = await queryClient.fetchQuery({
-            queryKey: ['feed-games-upcoming', queryPlan.upcoming.options.dateFrom],
+            queryKey: [
+              'feed-games-upcoming',
+              queryPlan.upcoming.options.dateFrom,
+              viewerCoords?.lat ?? null,
+              viewerCoords?.lng ?? null,
+            ],
             queryFn: () => Game.list(queryPlan.upcoming.sort, queryPlan.upcoming.options),
           });
         } catch (err: any) {
@@ -659,7 +687,12 @@ export default function FeedScreen() {
         let pastGamesData: any = null;
         try {
           pastGamesData = await queryClient.fetchQuery({
-            queryKey: ['feed-games-past', queryPlan.past.options.dateFrom],
+            queryKey: [
+              'feed-games-past',
+              queryPlan.past.options.dateFrom,
+              viewerCoords?.lat ?? null,
+              viewerCoords?.lng ?? null,
+            ],
             queryFn: () => Game.list(queryPlan.past.sort, queryPlan.past.options),
           });
         } catch (err: any) {
@@ -669,7 +702,12 @@ export default function FeedScreen() {
         let marqueeGamesData: any = null;
         try {
           marqueeGamesData = await queryClient.fetchQuery({
-            queryKey: ['feed-games-marquee', queryPlan.marquee.options.dateFrom],
+            queryKey: [
+              'feed-games-marquee',
+              queryPlan.marquee.options.dateFrom,
+              viewerCoords?.lat ?? null,
+              viewerCoords?.lng ?? null,
+            ],
             queryFn: () => Game.list(queryPlan.marquee.sort, queryPlan.marquee.options),
           });
         } catch (err: any) {
@@ -985,7 +1023,9 @@ export default function FeedScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await load({ silent: true });
+      // force: an explicit pull-to-refresh must always hit the server, even
+      // inside the 30s silent-reload cooldown window.
+      await load({ silent: true, force: true });
     } finally {
       setRefreshing(false);
     }
@@ -1175,28 +1215,17 @@ export default function FeedScreen() {
       items.push({ _t: 'seed_banner' });
     }
 
-    // Add upcoming games and ads — adjacent game cards pair up two-per-row
-    // (matches the dormant masonryContainer/masonryItem styles below; ads
-    // and lone trailing games still render full width via the 'game' case).
+    // Add upcoming games and ads. Every game renders as a full-width hero
+    // card, one per row — never a 2-up grid (product decision 2026-07-14:
+    // "Feed page should always look like this", single-column hero layout).
     if (upcomingWithAds.length > 0) {
-      const sectionItems: FeedItem[] = [];
       upcomingWithAds.forEach((item, idx) => {
         if ('type' in item && item.type === 'ad') {
-          sectionItems.push({ _t: 'ad', ad: item.ad, idx });
+          items.push({ _t: 'ad', ad: item.ad, idx });
         } else {
-          sectionItems.push({ _t: 'game', data: item as GameItem, idx });
+          items.push({ _t: 'game', data: item as GameItem, idx });
         }
       });
-      for (let i = 0; i < sectionItems.length; i++) {
-        const current = sectionItems[i];
-        const next = sectionItems[i + 1];
-        if (current._t === 'game' && next?._t === 'game') {
-          items.push({ _t: 'game_pair', dataA: current.data, dataB: next.data, idx: current.idx });
-          i++;
-        } else {
-          items.push(current);
-        }
-      }
     }
 
     // Add followed posts section
@@ -1403,8 +1432,6 @@ export default function FeedScreen() {
         return 'seed_banner';
       case 'game':
         return `game-${item.data.id}`;
-      case 'game_pair':
-        return `game_pair-${item.dataA.id}-${item.dataB.id}`;
       case 'ad':
         return `ad-${item.idx}`;
       case 'section_header':
@@ -1509,24 +1536,6 @@ export default function FeedScreen() {
           return (
             <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
               {renderGameCard(item.data, isLive, 'feed')}
-            </View>
-          );
-        }
-
-        case 'game_pair': {
-          const nowMs = Date.now();
-          const isLiveFor = (g: GameItem) => {
-            const startMs = g.date ? new Date(g.date).getTime() : null;
-            return startMs != null && startMs <= nowMs && nowMs - startMs <= LIVE_WINDOW_MS;
-          };
-          return (
-            <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginBottom: 20, gap: 8 }}>
-              <View style={{ flex: 1 }}>
-                {renderGameCard(item.dataA, isLiveFor(item.dataA), 'feed')}
-              </View>
-              <View style={{ flex: 1 }}>
-                {renderGameCard(item.dataB, isLiveFor(item.dataB), 'feed')}
-              </View>
             </View>
           );
         }

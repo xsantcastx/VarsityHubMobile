@@ -26,7 +26,11 @@ type GameListOptions = {
   dateFrom: string;
   dateTo?: string;
   teamless?: boolean;
+  lat?: number;
+  lng?: number;
 };
+
+export type FeedViewerCoords = { lat: number; lng: number };
 
 export interface FeedGameQueryPlan {
   /** Live + future games, soonest first. Pagination cursor continues this query. */
@@ -37,20 +41,28 @@ export interface FeedGameQueryPlan {
   marquee: { sort: 'date'; options: GameListOptions };
 }
 
-export function buildFeedGameQueries(nowMs: number): FeedGameQueryPlan {
+export function buildFeedGameQueries(
+  nowMs: number,
+  coords?: FeedViewerCoords | null
+): FeedGameQueryPlan {
   const liveFrom = new Date(nowMs - FEED_LIVE_LOOKBACK_MS).toISOString();
   const nowIso = new Date(nowMs).toISOString();
+  // Viewer coords make the server select nearest-first instead of the N
+  // soonest games nationwide. When absent, the server falls back to the
+  // signed-in viewer's zip preference — so omitting lat/lng is still correct.
+  const near = coords ? { lat: coords.lat, lng: coords.lng } : {};
   return {
-    upcoming: { sort: 'date', options: { limit: 30, dateFrom: liveFrom } },
+    upcoming: { sort: 'date', options: { limit: 30, dateFrom: liveFrom, ...near } },
     past: {
       sort: '-date',
       options: {
         limit: 30,
         dateFrom: new Date(nowMs - FEED_PAST_WINDOW_MS).toISOString(),
         dateTo: nowIso,
+        ...near,
       },
     },
-    marquee: { sort: 'date', options: { limit: 10, dateFrom: liveFrom, teamless: true } },
+    marquee: { sort: 'date', options: { limit: 10, dateFrom: liveFrom, teamless: true, ...near } },
   };
 }
 

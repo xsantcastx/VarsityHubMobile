@@ -31,6 +31,22 @@ describe('buildFeedGameQueries', () => {
     expect(q.marquee.options.dateFrom).toBe(new Date(now - FEED_LIVE_LOOKBACK_MS).toISOString());
     expect(q.marquee.options.limit).toBe(10);
   });
+
+  it('threads viewer coords into all three queries so the server selects nearest-first', () => {
+    const q = buildFeedGameQueries(now, { lat: 40.71, lng: -74.01 });
+    expect(q.upcoming.options.lat).toBe(40.71);
+    expect(q.upcoming.options.lng).toBe(-74.01);
+    expect(q.past.options.lat).toBe(40.71);
+    expect(q.past.options.lng).toBe(-74.01);
+    expect(q.marquee.options.lat).toBe(40.71);
+    expect(q.marquee.options.lng).toBe(-74.01);
+  });
+
+  it('omits lat/lng entirely when no coords are available (server zip fallback owns it)', () => {
+    const q = buildFeedGameQueries(now);
+    expect(q.upcoming.options.lat).toBeUndefined();
+    expect(q.upcoming.options.lng).toBeUndefined();
+  });
 });
 
 describe('mergeFeedGames', () => {

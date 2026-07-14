@@ -36,6 +36,8 @@ import {
   voteLimiter,
 } from '../middleware/rateLimiters.js';
 import { verifyStoryPostingPermission } from '../lib/geofencing.js';
+import { getZipCoordinates } from '../lib/geoUtils.js';
+import { geocodeLocation } from '../lib/geocoding.js';
 import { getIsAdmin, isVerifiedAdminUser, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
@@ -918,9 +920,10 @@ gamesRouter.get(
       const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
       // Default to 20 when no limit is provided; cap at 100 to prevent unbounded fetches
       const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 20;
-      const lat = Number.parseFloat(String(req.query.lat ?? ''));
-      const lng = Number.parseFloat(String(req.query.lng ?? ''));
-      const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+      const latRaw = Number.parseFloat(String(req.query.lat ?? ''));
+      const lngRaw = Number.parseFloat(String(req.query.lng ?? ''));
+      let viewerLat: number | null = Number.isFinite(latRaw) ? latRaw : null;
+      let viewerLng: number | null = Number.isFinite(lngRaw) ? lngRaw : null;
       const dateFromRaw = req.query.from ? new Date(String(req.query.from)) : null;
       const dateToRaw = req.query.to ? new Date(String(req.query.to)) : null;
 
@@ -1135,10 +1138,52 @@ gamesRouter.get(
         whereClause.date = { ...(whereClause.date || {}), gte: now, lte: weekFromNow };
       }
 
+      // Proximity fallback: a signed-in viewer with no device coords still
+      // gets nearest-first selection from their profile zip preference
+      // (mirrors /feed/bundle's zip handling). Scoped to plain public list
+      // queries only — team schedules (team_id), approvals (non-approved),
+      // and the followed-teams calendar (following) stay strictly date-ordered.
+      if (
+        viewerLat === null &&
+        authedReq.user?.id &&
+        !teamIdFilter &&
+        !following &&
+        !wantsNonApproved
+      ) {
+        try {
+          const viewer = await prisma.user.findUnique({
+            where: { id: authedReq.user.id },
+            select: { preferences: true },
+          });
+          const zip = (viewer?.preferences as any)?.zip_code;
+          if (typeof zip === 'string' && zip.trim().length > 0) {
+            const staticCoords = getZipCoordinates(zip.trim());
+            const coords =
+              staticCoords ??
+              (await geocodeLocation(zip.trim()).then(r =>
+                r ? { lat: r.latitude, lon: r.longitude } : null
+              ));
+            if (coords) {
+              viewerLat = coords.lat;
+              viewerLng = coords.lon;
+            }
+          }
+        } catch (err) {
+          // Proximity is best-effort — fall back to plain date order.
+          console.warn('[games] zip proximity fallback failed:', err);
+        }
+      }
+      const hasCoords = viewerLat !== null && viewerLng !== null;
+
+      // With viewer coords, selection is nearest-first: widen the candidate
+      // pool (bounded) so nearby games can't be crowded out of the page by
+      // sooner-but-far ones, then keep only the `limit` nearest below.
+      const poolSize = hasCoords ? Math.min(Math.max(limit * 5, 100), 200) : limit;
+
       const games = await (prisma.game.findMany as any)({
         where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
         orderBy,
-        take: limit + 1,
+        take: poolSize + 1,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
         include: {
           events: { orderBy: { date: 'asc' }, take: 1 },
@@ -1153,8 +1198,8 @@ gamesRouter.get(
         },
       });
 
-      const hasMore = games.length > limit;
-      const results = hasMore ? games.slice(0, limit) : games;
+      const hasMore = games.length > poolSize;
+      const results = hasMore ? games.slice(0, poolSize) : games;
 
       // Get RSVP counts for all games with events
       const eventIds = results.map((g: any) => g.events[0]?.id).filter(Boolean);
@@ -1174,12 +1219,18 @@ gamesRouter.get(
         const event = game.events[0] ?? null;
         const { events, _count, created_by: createdByUser, ...rest } = game as any;
         let distance: number | null = null;
-        if (hasCoords && typeof rest.latitude === 'number' && typeof rest.longitude === 'number') {
-          const dLat = ((rest.latitude - lat) * Math.PI) / 180;
-          const dLng = ((rest.longitude - lng) * Math.PI) / 180;
+        if (
+          hasCoords &&
+          viewerLat !== null &&
+          viewerLng !== null &&
+          typeof rest.latitude === 'number' &&
+          typeof rest.longitude === 'number'
+        ) {
+          const dLat = ((rest.latitude - viewerLat) * Math.PI) / 180;
+          const dLng = ((rest.longitude - viewerLng) * Math.PI) / 180;
           const a =
             Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos((lat * Math.PI) / 180) *
+            Math.cos((viewerLat * Math.PI) / 180) *
               Math.cos((rest.latitude * Math.PI) / 180) *
               Math.sin(dLng / 2) *
               Math.sin(dLng / 2);
@@ -1205,6 +1256,12 @@ gamesRouter.get(
         };
       });
 
+      // nextCursor must continue the DATE-ordered scan the query ran, so it is
+      // taken from the last candidate in fetch order — never from the
+      // distance-sorted payload (that cursor would skip everything between).
+      const lastId = results.length > 0 ? results[results.length - 1].id : null;
+
+      let finalGames = payload;
       if (hasCoords) {
         payload.sort((a: any, b: any) => {
           if (typeof a.distance !== 'number' && typeof b.distance !== 'number') return 0;
@@ -1212,10 +1269,11 @@ gamesRouter.get(
           if (typeof b.distance !== 'number') return -1;
           return a.distance - b.distance;
         });
+        // Keep only the `limit` nearest of the widened candidate pool.
+        finalGames = payload.slice(0, limit);
       }
 
-      const lastId = payload.length > 0 ? payload[payload.length - 1].id : null;
-      const gamesResponse = { games: payload, nextCursor: hasMore ? lastId : null };
+      const gamesResponse = { games: finalGames, nextCursor: hasMore ? lastId : null };
       if (shouldUseGamesCache) {
         void cacheSet(gameCacheKey, gamesResponse, 120); // 120s TTL
       }
