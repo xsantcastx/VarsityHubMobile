@@ -14,6 +14,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -103,7 +104,7 @@ export default function ResetPasswordScreen() {
           setError('This reset code is invalid. Request a new code and try again.');
           break;
         default:
-          setError(apiError.message);
+          setError(toUserMessage(apiError, 'Could not reset your password. Please try again.'));
           break;
       }
     } finally {

@@ -3,6 +3,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { getCoachAgreementRouteDecision } from '@/utils/appRouteDecisions';
 import { getFreshAuthSnapshot } from '@/utils/authState';
 import { safeGoBack } from '@/utils/navigation';
+import { toUserMessage } from '@/utils/toUserMessage';
 import type { CoachUserLike } from '@/utils/roleChecks';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -58,8 +59,7 @@ function CoachAgreementScreen() {
         router.replace(decision.route as never);
       }
     } catch (error: unknown) {
-      const err = error as { message?: string };
-      Alert.alert('Error', err?.message || 'Failed to accept agreement. Please try again.');
+      Alert.alert('Error', toUserMessage(error, 'Failed to accept agreement. Please try again.'));
     } finally {
       setAccepting(false);
     }

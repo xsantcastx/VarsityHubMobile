@@ -19,6 +19,7 @@ import { useVHubIAP } from '@/hooks/useIAP';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { openExternalUrl } from '@/utils/openExternalUrl';
 import { usePaymentSheet } from '@/utils/stripe';
 import { useCallback, useEffect, useState } from 'react';
@@ -285,7 +286,7 @@ function SubscriptionPaywallScreen() {
             },
             'error'
           );
-          Alert.alert('Error', initError.message);
+          Alert.alert('Error', toUserMessage(initError, 'Payment setup failed. Please try again.'));
           return;
         }
         captureBreadcrumb('Subscription payment sheet presented', 'payments.subscription', {
@@ -306,7 +307,7 @@ function SubscriptionPaywallScreen() {
             error.code === 'Canceled' ? 'info' : 'error'
           );
           if (error.code !== 'Canceled')
-            Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
+            Alert.alert('Payment Failed', toUserMessage(error, 'Payment could not be completed.'));
           // Clean up: cancel the incomplete PaymentIntent so the subscription doesn't linger
           if (data.payment_intent_id) {
             Payments.cancelIntent(data.payment_intent_id).catch(() => {});

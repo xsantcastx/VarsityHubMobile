@@ -26,6 +26,7 @@ import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerAllMediaTypesProp } from '@/utils/picker';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { promptForSignIn } from '@/utils/requireSignIn';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
@@ -1238,7 +1239,7 @@ const GameDetailsScreen = () => {
         );
       } else {
         if (__DEV__) console.error('Story upload error:', err);
-        Alert.alert('Unable to add story', err?.message || 'Please try again.');
+        Alert.alert('Unable to add story', toUserMessage(err, 'Please try again.'));
       }
     } finally {
       setStoryBusy(false);
@@ -1352,7 +1353,7 @@ const GameDetailsScreen = () => {
           'You have hit the hourly upload limit. Wait a few minutes and try again.'
         );
       } else {
-        Alert.alert('Unable to add story', err?.message || 'Please try again.');
+        Alert.alert('Unable to add story', toUserMessage(err, 'Please try again.'));
       }
     } finally {
       setStoryBusy(false);
@@ -2057,7 +2058,7 @@ const GameDetailsScreen = () => {
       setEditResultAwayScore('');
     } catch (err: any) {
       if (__DEV__) console.error('Edit result failed:', err);
-      Alert.alert('Error', err?.message || 'Failed to update score. Please try again.');
+      Alert.alert('Error', toUserMessage(err, 'Failed to update score. Please try again.'));
     } finally {
       setEditResultBusy(false);
     }

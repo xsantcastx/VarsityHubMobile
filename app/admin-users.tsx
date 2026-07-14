@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import { safeGoBack } from '@/utils/navigation';
 import { isSessionExpiryError } from '@/utils/sessionExpiryError';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 function AdminUsersScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -79,7 +80,7 @@ function AdminUsersScreen() {
               await load();
             } catch (e: any) {
               if (isSessionExpiryError(e)) return;
-              Alert.alert('Error', e?.message || `Failed to ${action} user`);
+              Alert.alert('Error', toUserMessage(e, `Failed to ${action} user`));
             }
           },
         },

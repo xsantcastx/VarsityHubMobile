@@ -22,6 +22,7 @@ import {
 import { Team as TeamApi } from '@/api/entities';
 import { safeGoBack } from '@/utils/navigation';
 import { isSessionExpiryError } from '@/utils/sessionExpiryError';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 function AdminTeamsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -119,7 +120,7 @@ function AdminTeamsScreen() {
               if (isSessionExpiryError(e)) {
                 return;
               }
-              Alert.alert('Error', e?.message || 'Failed to delete teams');
+              Alert.alert('Error', toUserMessage(e, 'Failed to delete teams'));
             } finally {
               setDeleting(false);
             }

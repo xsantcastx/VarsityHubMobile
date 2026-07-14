@@ -27,6 +27,7 @@ import {
 } from 'react-native';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 type AdStatus = 'draft' | 'pending' | 'approved' | 'active' | 'paused';
 
@@ -177,7 +178,7 @@ function AdminAdsScreen() {
               if (isSessionExpiryError(e)) {
                 return;
               }
-              Alert.alert('Error', e?.message || 'Failed to approve ads');
+              Alert.alert('Error', toUserMessage(e, 'Failed to approve ads'));
             } finally {
               setUpdating(false);
             }
@@ -232,7 +233,7 @@ function AdminAdsScreen() {
               if (isSessionExpiryError(e)) {
                 return;
               }
-              Alert.alert('Error', e?.message || 'Failed to reject ads');
+              Alert.alert('Error', toUserMessage(e, 'Failed to reject ads'));
             } finally {
               setUpdating(false);
             }
@@ -280,7 +281,7 @@ function AdminAdsScreen() {
               if (isSessionExpiryError(e)) {
                 return;
               }
-              Alert.alert('Error', e?.message || 'Failed to delete ads');
+              Alert.alert('Error', toUserMessage(e, 'Failed to delete ads'));
             } finally {
               setUpdating(false);
             }
@@ -824,7 +825,7 @@ function AdminAdsScreen() {
                     if (isSessionExpiryError(e)) {
                       return;
                     }
-                    Alert.alert('Error', e?.message || `Failed to ${action}`);
+                    Alert.alert('Error', toUserMessage(e, `Failed to ${action}`));
                   } finally {
                     setReviewingAdId(null);
                   }

@@ -13,6 +13,7 @@ import {
   startQueueCleanup,
 } from './cron/overnightTasks.js';
 import { debugLog } from './lib/debugLog.js';
+import { sendError } from './lib/http/sendError.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addBreadcrumb, addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
@@ -126,9 +127,40 @@ app.set('trust proxy', 1);
 const pinoMiddleware =
   (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) ||
   pinoHttp;
+// Resolve pino-http's standard serializers through the same interop dance so we
+// can wrap the default `req` serializer instead of replacing it.
+const pinoStdSerializers =
+  (pinoHttp as any).stdSerializers || (pinoHttp as any).default?.stdSerializers;
+// Strip token/access_token values from a logged URL (value only, shape kept).
+const redactUrlTokens = (url: string): string =>
+  url.replace(
+    /(^|[?&#])(access_token|token)=[^&#\s]*/gi,
+    (_match, prefix, key) => `${prefix}${key}=[redacted]`
+  );
+// Production log hardening: never log the Authorization/Cookie request headers,
+// the Set-Cookie response header, or the `?token=` query param. Dev keeps
+// pino-pretty. method/status/responseTime logging is unaffected — only the
+// `req` serializer is wrapped and the res serializer stays the default.
+const prodPinoOptions = {
+  redact: {
+    paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+    censor: '[redacted]',
+  },
+  serializers: {
+    req(req: any) {
+      const serialized = pinoStdSerializers?.req ? pinoStdSerializers.req(req) : req;
+      if (serialized && typeof serialized.url === 'string') {
+        serialized.url = redactUrlTokens(serialized.url);
+      }
+      return serialized;
+    },
+  },
+};
 app.use(
   pinoMiddleware(
-    process.env.NODE_ENV !== 'production' ? { transport: { target: 'pino-pretty' } } : {}
+    process.env.NODE_ENV !== 'production'
+      ? { transport: { target: 'pino-pretty' } }
+      : prodPinoOptions
   )
 );
 // Mobile clients pull large JSON payloads over cellular; gzip everything above
@@ -410,6 +442,13 @@ app.use('/test-emails', requireAuth as any, requireAdmin as any, testEmailsRoute
 
 app.use(publicRouteLimiter, publicAppHandoffRouter);
 app.use(publicRouteLimiter, publicSiteRouter);
+
+// 404 catch-all for unmatched routes — must be after ALL route registrations
+// and before the error handler. Without it, Express returns its default HTML
+// "Cannot GET /route" page instead of the JSON error envelope.
+app.use((_req: Request, res: Response) => {
+  sendError(res, 404, 'Not found', { code: 'NOT_FOUND' });
+});
 
 // Add centralized error handler (must be before Sentry)
 import { errorHandler } from './middleware/errorHandler.js';

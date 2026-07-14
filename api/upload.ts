@@ -671,7 +671,15 @@ async function uploadDirectToCloudinary(
           const raw = String(xhr.responseText || '').trim();
           if (raw) detail = ` — ${raw.slice(0, 200)}`;
         }
-        reject(new Error(`Cloudinary upload failed: HTTP ${xhr.status}${detail}`));
+        // Keep the full "provider + raw upstream body" string for Sentry/logging
+        // on a NON-message field (see captureException calls in uploadFile /
+        // uploadFileWithProgress, which forward `debugDetail`). The user-facing
+        // `.message` stays generic so we never disclose the provider name or the
+        // raw upstream response body on screen.
+        const cloudinaryErr: any = new Error('Upload failed. Please try again.');
+        cloudinaryErr.debugDetail = `Cloudinary upload failed: HTTP ${xhr.status}${detail}`;
+        cloudinaryErr.isUploadError = true;
+        reject(cloudinaryErr);
       }
     };
 
@@ -767,6 +775,10 @@ export async function uploadFile(
     // be observed in production. Tag with the underlying message so signature
     // vs network vs timeout failures are distinguishable in Sentry.
     captureException(directErr instanceof Error ? directErr : videoUploadErr, {
+      // The Cloudinary error surfaces a generic `.message` to the UI; its full
+      // "HTTP <status> — <upstream body>" detail rides on `debugDetail` so it
+      // still reaches Sentry here without being disclosed to the user.
+      debugDetail: directErr?.debugDetail,
       tags: {
         context: 'video_upload',
         stage: 'direct_upload_failed',
@@ -867,6 +879,10 @@ export async function uploadFileWithProgress(
     // be observed in production. Tag with the underlying message so signature
     // vs network vs timeout failures are distinguishable in Sentry.
     captureException(directErr instanceof Error ? directErr : videoUploadErr, {
+      // The Cloudinary error surfaces a generic `.message` to the UI; its full
+      // "HTTP <status> — <upstream body>" detail rides on `debugDetail` so it
+      // still reaches Sentry here without being disclosed to the user.
+      debugDetail: directErr?.debugDetail,
       tags: {
         context: 'video_upload',
         stage: 'direct_upload_failed',

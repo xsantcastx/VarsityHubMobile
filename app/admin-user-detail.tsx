@@ -22,6 +22,7 @@ import { getApiBaseUrl, httpGet, httpPost } from '../api/http';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { isSessionExpiryError } from '@/utils/sessionExpiryError';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 type Severity = 'warning' | 'strike' | 'final_warning';
 
@@ -112,7 +113,7 @@ function AdminUserDetailScreen() {
       if (isSessionExpiryError(e)) {
         return;
       }
-      Alert.alert('Error', e?.message || 'Failed to issue warning');
+      Alert.alert('Error', toUserMessage(e, 'Failed to issue warning'));
     } finally {
       setActionLoading(false);
     }
@@ -137,7 +138,7 @@ function AdminUserDetailScreen() {
       if (isSessionExpiryError(e)) {
         return;
       }
-      Alert.alert('Error', e?.message || 'Failed to suspend user');
+      Alert.alert('Error', toUserMessage(e, 'Failed to suspend user'));
     } finally {
       setActionLoading(false);
     }
@@ -165,7 +166,7 @@ function AdminUserDetailScreen() {
       if (isSessionExpiryError(e)) {
         return;
       }
-      Alert.alert('Error', e?.message || 'Failed to ban user');
+      Alert.alert('Error', toUserMessage(e, 'Failed to ban user'));
     } finally {
       setActionLoading(false);
     }
@@ -181,7 +182,7 @@ function AdminUserDetailScreen() {
       if (isSessionExpiryError(e)) {
         return;
       }
-      Alert.alert('Error', e?.message || 'Failed to unban user');
+      Alert.alert('Error', toUserMessage(e, 'Failed to unban user'));
     }
   };
 

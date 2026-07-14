@@ -4,6 +4,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
@@ -596,7 +597,7 @@ export default function PostDetailScreen() {
       if (prevPost) {
         patchPostDetail(currentPostId, old => ({ ...old, post: prevPost }));
       }
-      Alert.alert('Error', error?.message || 'Something went wrong. Please try again.');
+      Alert.alert('Error', toUserMessage(error));
       if (__DEV__) console.error('Error toggling upvote:', error);
     } finally {
       setVoting(false);
@@ -659,7 +660,10 @@ export default function PostDetailScreen() {
       patchPostDetail(currentPostId, old => ({ ...old, comments: prevComments }));
       const err = error as any;
       if (__DEV__) console.error('Error adding comment:', err?.message || error);
-      Alert.alert('Comment Failed', err?.message || 'Failed to post comment. Please try again.');
+      Alert.alert(
+        'Comment Failed',
+        toUserMessage(err, 'Failed to post comment. Please try again.')
+      );
     } finally {
       setCommenting(false);
     }
@@ -734,7 +738,7 @@ export default function PostDetailScreen() {
     } catch (error: any) {
       if (__DEV__) console.error('[post-detail] Error toggling follow:', error);
       setFollowing(prev); // Revert on error
-      Alert.alert('Error', error?.message || 'Something went wrong. Please try again.');
+      Alert.alert('Error', toUserMessage(error));
     } finally {
       followInFlight.current = false;
     }
@@ -756,7 +760,7 @@ export default function PostDetailScreen() {
       if (__DEV__) console.error('[post-detail] Error toggling save:', error);
       // Revert optimistic update on error
       setSaved(saved);
-      Alert.alert('Error', error?.message || 'Something went wrong. Please try again.');
+      Alert.alert('Error', toUserMessage(error));
     }
   };
 
@@ -866,7 +870,7 @@ export default function PostDetailScreen() {
             }));
             Alert.alert('Success', 'Comment deleted successfully');
           } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to delete comment');
+            Alert.alert('Error', toUserMessage(error, 'Failed to delete comment'));
           }
         },
       },
@@ -890,7 +894,7 @@ export default function PostDetailScreen() {
               queryClient.removeQueries({ queryKey: ['post-detail', currentPostId] });
               handleBack();
             } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to delete post');
+              Alert.alert('Error', toUserMessage(error, 'Failed to delete post'));
             }
           },
         },
@@ -915,7 +919,7 @@ export default function PostDetailScreen() {
       setEditCommentText('');
       Alert.alert('Success', 'Comment updated successfully');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update comment');
+      Alert.alert('Error', toUserMessage(error, 'Failed to update comment'));
     } finally {
       setUpdatingComment(false);
     }

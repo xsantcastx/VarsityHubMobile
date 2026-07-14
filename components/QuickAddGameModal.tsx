@@ -11,6 +11,7 @@ import { formatGameTime, isPastGameDate } from '@/utils/gameFormHelpers';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { pickerMediaTypesProp } from '@/utils/picker';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -735,7 +736,10 @@ export default function QuickAddGameModal({
         throw new Error('Upload failed - no URL returned');
       }
     } catch (error: any) {
-      Alert.alert('Upload Failed', error?.message || 'Failed to upload banner. Please try again.');
+      Alert.alert(
+        'Upload Failed',
+        toUserMessage(error, 'Failed to upload banner. Please try again.')
+      );
     } finally {
       setUploadingCustomBanner(false);
     }

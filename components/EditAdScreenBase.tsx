@@ -36,6 +36,7 @@ import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 type AdStatus = 'draft' | 'pending' | 'approved' | 'active' | 'rejected' | 'archived';
 type PaymentStatus =
@@ -184,7 +185,7 @@ export function EditAdScreenBase({
       );
       setBannerUrl(upload?.url || upload?.path || null);
     } catch (error: any) {
-      Alert.alert('Upload failed', error?.message || 'Please try again.');
+      Alert.alert('Upload failed', toUserMessage(error, 'Please try again.'));
     } finally {
       setUploading(false);
     }
@@ -211,7 +212,10 @@ export function EditAdScreenBase({
       Alert.alert('Saved', 'Your ad was updated.');
       safeGoBack(router, '/my-ads');
     } catch (error: any) {
-      Alert.alert('Save failed', error?.message || 'Could not update the ad. Please try again.');
+      Alert.alert(
+        'Save failed',
+        toUserMessage(error, 'Could not update the ad. Please try again.')
+      );
     } finally {
       setSaving(false);
       isSubmitting.current = false;

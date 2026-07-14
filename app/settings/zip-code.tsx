@@ -7,6 +7,7 @@ import { Alert, useColorScheme } from 'react-native';
 import { User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { safeGoBack } from '@/utils/navigation';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 import { SettingsFormScreen } from '@/components/settings/SettingsFormShared';
 
@@ -54,7 +55,7 @@ export default function ZipCodeScreen() {
       safeGoBack(router);
     } catch (e: any) {
       if (__DEV__) console.error('[zip-code] Failed to save ZIP code:', e);
-      Alert.alert('Save failed', e?.message || 'Could not save');
+      Alert.alert('Save failed', toUserMessage(e, 'Could not save'));
     } finally {
       setSaving(false);
     }

@@ -25,6 +25,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { Event, Game, Organization, Team } from '@/api/entities';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -318,7 +319,7 @@ export default function EventApprovalsScreen() {
     } catch (error: unknown) {
       const e = error as ApprovalError;
       if (isSessionExpiryError(e)) return;
-      Alert.alert('Error', e?.message || 'Failed to confirm the game request.');
+      Alert.alert('Error', toUserMessage(e, 'Failed to confirm the game request.'));
     } finally {
       setProcessingGameRequestId(null);
     }
@@ -344,7 +345,7 @@ export default function EventApprovalsScreen() {
     } catch (error: unknown) {
       const e = error as ApprovalError;
       if (isSessionExpiryError(e)) return;
-      Alert.alert('Error', e?.message || 'Failed to decline the game request.');
+      Alert.alert('Error', toUserMessage(e, 'Failed to decline the game request.'));
     } finally {
       setProcessingGameRequestId(null);
     }
@@ -398,7 +399,7 @@ export default function EventApprovalsScreen() {
           },
           'error'
         );
-        Alert.alert('Error', e?.message || 'Failed to approve event.');
+        Alert.alert('Error', toUserMessage(e, 'Failed to approve event.'));
       } finally {
         setProcessingEventId(null);
       }
@@ -459,7 +460,7 @@ export default function EventApprovalsScreen() {
         },
         'error'
       );
-      Alert.alert('Error', e?.message || 'Failed to reject event.');
+      Alert.alert('Error', toUserMessage(e, 'Failed to reject event.'));
     } finally {
       setProcessingEventId(null);
     }
@@ -520,7 +521,7 @@ export default function EventApprovalsScreen() {
       setTeamInvites(prev => prev.filter(i => i.id !== inviteId));
     } catch (error: unknown) {
       const e = error as ApprovalError;
-      Alert.alert('Error', e?.message || 'Failed to accept invite.');
+      Alert.alert('Error', toUserMessage(e, 'Failed to accept invite.'));
     } finally {
       setProcessingInviteId(null);
     }
@@ -539,7 +540,7 @@ export default function EventApprovalsScreen() {
             setTeamInvites(prev => prev.filter(i => i.id !== inviteId));
           } catch (error: unknown) {
             const e = error as ApprovalError;
-            Alert.alert('Error', e?.message || 'Failed to decline invite.');
+            Alert.alert('Error', toUserMessage(e, 'Failed to decline invite.'));
           } finally {
             setProcessingInviteId(null);
           }

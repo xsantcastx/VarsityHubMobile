@@ -38,6 +38,7 @@ import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 // Field validation errors
 interface FieldErrors {
@@ -571,7 +572,7 @@ export default function EditProfileScreen() {
       }
     } catch (e: any) {
       if (__DEV__) console.error('Save error:', e);
-      Alert.alert('Error', e?.message || 'Failed to update profile');
+      Alert.alert('Error', toUserMessage(e, 'Failed to update profile'));
     } finally {
       setSaving(false);
     }

@@ -655,7 +655,11 @@ async function request(
     if (
       error.message === 'Network request failed' ||
       error.message?.includes('NetworkError') ||
-      error.message?.includes('Failed to fetch')
+      error.message?.includes('Failed to fetch') ||
+      // iOS RN response-body read race: the native blob backing the response
+      // was released before res.text() read it (typically right after a JS
+      // reload, e.g. an OTA applying on cold start). Transient — retryable.
+      error.message?.includes('Unable to resolve data for blob')
     ) {
       // Always show production server error (we never use localhost)
       const errorMessage = `Cannot connect to server at ${base}. Please check your internet connection and try again.`;

@@ -5,6 +5,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { gameRowTitle } from '@/utils/eventTitle';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQuery } from '@tanstack/react-query';
@@ -242,7 +243,7 @@ export default function TeamAdminScreen() {
               await Team.cancelInvite(selectedTeamId, invite.id);
               await refetch();
             } catch (err: unknown) {
-              const message = err instanceof Error ? err.message : 'Failed to cancel invite';
+              const message = toUserMessage(err, 'Failed to cancel invite');
               Alert.alert('Unable to cancel invite', message);
             } finally {
               setActingInviteId(null);
@@ -278,8 +279,7 @@ export default function TeamAdminScreen() {
                 await TeamMemberships.update(member.id, { status: nextStatus });
                 await refetch();
               } catch (err: unknown) {
-                const message =
-                  err instanceof Error ? err.message : `Failed to ${label.toLowerCase()} member`;
+                const message = toUserMessage(err, `Failed to ${label.toLowerCase()} member`);
                 Alert.alert(`Unable to ${label.toLowerCase()} member`, message);
               } finally {
                 setActingMemberId(null);
@@ -336,7 +336,7 @@ export default function TeamAdminScreen() {
                 setSearchResults([]);
                 await refetch();
               } catch (err: unknown) {
-                const message = err instanceof Error ? err.message : 'Failed to add staff member';
+                const message = toUserMessage(err, 'Failed to add staff member');
                 Alert.alert('Unable to add staff member', message);
               }
             },

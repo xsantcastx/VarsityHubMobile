@@ -3,6 +3,7 @@ import { getApiBaseUrl } from '@/api/http';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
+import { toAuthErrorMessage } from '@/utils/toUserMessage';
 
 type AppleAuthResult = Awaited<ReturnType<typeof User.loginViaApple>>;
 type AppleLinkResult = Awaited<ReturnType<typeof User.linkAppleProvider>>;
@@ -234,7 +235,8 @@ export function useAppleAuth() {
         }
 
         if (err?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
-          setError(message);
+          // Host fingerprint on-screen; keep the raw error for the throw.
+          setError(toAuthErrorMessage(err));
           throw err;
         }
 
@@ -247,7 +249,9 @@ export function useAppleAuth() {
           networkErr.isNetworkError = true;
           networkErr.status = err?.status ?? 0;
           networkErr.code = err?.code;
-          setError(friendlyMessage);
+          // Display the host fingerprint, not the raw origin URL; the thrown
+          // error keeps the full message for the retry contract.
+          setError(toAuthErrorMessage(networkErr));
           throw networkErr;
         }
 

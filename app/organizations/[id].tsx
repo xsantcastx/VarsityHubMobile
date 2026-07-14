@@ -22,6 +22,7 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 import ViewShot from 'react-native-view-shot';
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { safeGoBack } from '@/utils/navigation';
 
 interface OrgTeam {
@@ -99,7 +100,7 @@ function OrganizationDetailScreen() {
             setOrg(seedOrganizationToPayload(seedOrg) as Organization);
             setError(null);
           } else {
-            setError(e.message || 'Error loading organization');
+            setError(toUserMessage(e, 'Error loading organization'));
           }
         }
       } finally {

@@ -40,6 +40,7 @@ import { getOAuthExistingAccountMessage } from '@/utils/oauthErrors';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { toAuthErrorMessage } from '@/utils/toUserMessage';
 
 const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } =
   AppleAuthentication;
@@ -395,10 +396,9 @@ export default function SignUpScreen() {
         setEmail('');
         setPassword('');
       } else if (e?.isNetworkError === true || errMsg.startsWith('Cannot connect to server')) {
-        // Preserve the host-specific transport error from api/http.ts so
-        // signup exposes the failing API origin instead of collapsing it
-        // into a generic network banner.
-        errorMessage = errMsg;
+        // Host fingerprint instead of the raw origin URL (utils/toUserMessage);
+        // the condition still keys off the raw message for branch selection.
+        errorMessage = toAuthErrorMessage(e);
       } else if (e?.message?.includes('Request timeout')) {
         errorMessage =
           'Registration is taking longer than expected. Our servers might be busy. Please try again in a few minutes.';

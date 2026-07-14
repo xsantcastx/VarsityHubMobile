@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 // @ts-ignore runtime JS export
 import { Organization } from '@/api/entities';
 import { httpGet } from '@/api/http';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 type SearchMode = 'list' | 'nearby';
 
@@ -66,7 +67,7 @@ export function useOrganizationSearch<T = any>(
       setError(null);
     } catch (err: any) {
       if (__DEV__) console.error('[useOrganizationSearch] failed', err);
-      setError(err?.message || 'Unable to load organizations');
+      setError(toUserMessage(err, 'Unable to load organizations'));
       setOrganizations([]);
     } finally {
       setLoading(false);

@@ -41,6 +41,57 @@ const PROVIDER_TAG_PATTERNS: Array<{ pattern: RegExp; provider: string }> = [
   { pattern: /\bgoogle(?:[_-]|\s)?iap\b/i, provider: 'google_iap' },
 ];
 
+// Redact `token`/`access_token` query params from a query string or URL,
+// replacing only the value with [redacted] so the shape (which param was
+// present) is preserved for debugging. Anchored to a delimiter (start, ?, &,
+// #) so we never partially match unrelated params like `csrf_token`.
+const TOKEN_QUERY_PARAM_RE = /(^|[?&#])(access_token|token)=[^&#\s]*/gi;
+
+export function redactTokenQueryParams(input: string): string {
+  return input.replace(TOKEN_QUERY_PARAM_RE, (_match, prefix, key) => `${prefix}${key}=[redacted]`);
+}
+
+/**
+ * Defense-in-depth scrub of request data on a Sentry event. Even with the
+ * requestHandler configured not to attach bodies/cookies/headers, this strips
+ * anything that slips in from another capture path: cookies, Authorization /
+ * Cookie headers, the request body, and token query params in url/query_string.
+ * Mirrors the client's SENSITIVE_VALUE_RE / normalizeSentryBreadcrumbData intent
+ * (utils/sentry.ts) for the request envelope specifically.
+ */
+export function scrubSentryRequestData<T extends { request?: any }>(event: T): T {
+  const request = event?.request;
+  if (!request || typeof request !== 'object') {
+    return event;
+  }
+
+  // Never send cookies.
+  delete request.cookies;
+
+  // Strip Authorization / Cookie headers regardless of casing.
+  const headers = request.headers;
+  if (headers && typeof headers === 'object') {
+    for (const key of Object.keys(headers)) {
+      if (/authorization|cookie/i.test(key)) {
+        delete headers[key];
+      }
+    }
+  }
+
+  // Never send request bodies — /auth routes carry plaintext passwords/emails.
+  request.data = undefined;
+
+  // Redact token/access_token values from the URL and query string.
+  if (typeof request.query_string === 'string') {
+    request.query_string = redactTokenQueryParams(request.query_string);
+  }
+  if (typeof request.url === 'string') {
+    request.url = redactTokenQueryParams(request.url);
+  }
+
+  return event;
+}
+
 /**
  * Initialize Sentry error tracking
  */
@@ -95,12 +146,23 @@ export function initSentry(app: Express) {
           }
         }
       }
-      return event;
+      // Defense-in-depth: scrub any request data (bodies, cookies, auth
+      // headers, token query params) that slipped in before shipping.
+      return scrubSentryRequestData(event);
     },
   });
 
-  // Request handler - should be the first middleware
-  app.use(Sentry.Handlers.requestHandler());
+  // Request handler - should be the first middleware. Do NOT attach request
+  // bodies (plaintext passwords/emails on /auth routes), cookies, headers
+  // (Authorization: Bearer <JWT>), or the client IP. Keep only method, url,
+  // and query_string. The `include.request` array is the typed way to express
+  // this in @sentry/node 7 (the top-level cookies/data/headers booleans the
+  // task sketched are not part of AddRequestDataToEventOptions).
+  app.use(
+    Sentry.Handlers.requestHandler({
+      include: { request: ['method', 'url', 'query_string'], ip: false },
+    })
+  );
 
   // Tracing middleware
   app.use(Sentry.Handlers.tracingHandler());

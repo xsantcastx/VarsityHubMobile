@@ -28,6 +28,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useConversationSocket } from '@/hooks/useConversationSocket';
 import { getAuthSnapshot } from '@/utils/authState';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { checkDMRestriction } from '@/utils/dmRestrictions';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { getThreadPollIntervalMs } from '@/utils/messagePolling';
@@ -737,7 +738,7 @@ function MessageThreadScreen() {
                                 );
                                 safeGoBack(router, explicitFallback);
                               } catch (error: any) {
-                                Alert.alert('Error', error.message || 'Failed to block user');
+                                Alert.alert('Error', toUserMessage(error, 'Failed to block user'));
                               }
                             },
                           },

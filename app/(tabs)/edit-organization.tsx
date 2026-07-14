@@ -27,6 +27,7 @@ import { Organization } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
 import { sanitizeText } from '@/utils/formUtils';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 const ORG_TYPES = [
   { label: 'School', value: 'school' },
@@ -185,7 +186,7 @@ export default function EditOrganizationScreen() {
           const url = res?.url || res?.path;
           if (url) setUrl(url);
         } catch (e: any) {
-          Alert.alert('Upload Failed', e?.message || `Could not upload ${label}.`);
+          Alert.alert('Upload Failed', toUserMessage(e, `Could not upload ${label}.`));
         } finally {
           setUploading(false);
         }

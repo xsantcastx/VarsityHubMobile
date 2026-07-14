@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 import { httpGet } from '@/api/http';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 type DayRange = 7 | 14 | 30;
 
@@ -43,7 +44,7 @@ function AdminMetricsScreen() {
         const data = await httpGet(`/admin/metrics?days=${days}`);
         setReport(data?.report || data);
       } catch (e: any) {
-        setError(e?.message || 'Failed to load metrics');
+        setError(toUserMessage(e, 'Failed to load metrics'));
       } finally {
         setLoading(false);
         setRefreshing(false);

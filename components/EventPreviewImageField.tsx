@@ -18,6 +18,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { pickerMediaTypesProp } from '@/utils/picker';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 type Props = {
   value?: string | null;
@@ -60,7 +61,7 @@ export default function EventPreviewImageField({
         }
         onChange(nextUrl);
       } catch (error: any) {
-        Alert.alert('Upload Failed', error?.message || 'Failed to upload the preview image.');
+        Alert.alert('Upload Failed', toUserMessage(error, 'Failed to upload the preview image.'));
       } finally {
         setUploading(false);
       }

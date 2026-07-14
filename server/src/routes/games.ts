@@ -2586,7 +2586,10 @@ gamesRouter.patch(
         winner: z.enum(['home', 'away', 'tie']).optional().nullable(),
       });
       const parsed = schema.safeParse(req.body || {});
-      if (!parsed.success) return sendError(res, 400, 'Invalid payload', { details: parsed.error });
+      if (!parsed.success)
+        return sendError(res, 400, 'Invalid payload', {
+          details: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
+        });
 
       const game = await prisma.game.findUnique({
         where: { id },
@@ -2943,7 +2946,10 @@ gamesRouter.put(
       });
 
       const parsed = schema.safeParse(req.body || {});
-      if (!parsed.success) return sendError(res, 400, 'Invalid payload', { details: parsed.error });
+      if (!parsed.success)
+        return sendError(res, 400, 'Invalid payload', {
+          details: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
+        });
 
       // Get the game to check permissions
       const game = await (prisma.game.findUnique as any)({
@@ -3030,7 +3036,10 @@ gamesRouter.post(
       reason: z.string().trim().max(2000).optional(),
     });
     const parsed = schema.safeParse(req.body || {});
-    if (!parsed.success) return sendError(res, 400, 'Invalid payload', { details: parsed.error });
+    if (!parsed.success)
+      return sendError(res, 400, 'Invalid payload', {
+        details: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
+      });
 
     const game = await prisma.game.findUnique({
       where: { id },

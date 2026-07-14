@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { toAuthErrorMessage } from '@/utils/toUserMessage';
 
 type SetBoolean = (value: boolean) => void;
 type SetStringOrNull = (value: string | null) => void;
@@ -59,7 +60,8 @@ export function useExistingSessionActions({
     } catch (e: any) {
       const message = e?.message || '';
       if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
-        setError(message);
+        // Host fingerprint instead of the raw origin URL (utils/toUserMessage).
+        setError(toAuthErrorMessage(e));
         return;
       }
       if (e?.status === 401) {

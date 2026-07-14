@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 import { httpGet } from '@/api/http';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 type StatusFilter = 'all' | 'COMPLETED' | 'PENDING' | 'FAILED';
 
@@ -63,7 +64,7 @@ function AdminTransactionsScreen() {
         setHasMore(newTx.length >= limit);
         if (sumRes?.summary) setSummary(sumRes.summary);
       } catch (e: any) {
-        setError(e?.message || 'Failed to load transactions');
+        setError(toUserMessage(e, 'Failed to load transactions'));
       } finally {
         setLoading(false);
         setRefreshing(false);

@@ -23,6 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { httpPost } from '@/api/http';
 import { AD_GEOFENCE_RADIUS_KM } from '@/constants/adGeofencing';
 import { safeGoBack } from '@/utils/navigation';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { format } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -540,7 +541,7 @@ function AdCalendarScreen() {
       } else setPreview(data);
     } catch (e: any) {
       setPreview(null);
-      setPromoError(e?.message || 'Failed to apply promo');
+      setPromoError(toUserMessage(e, 'Failed to apply promo'));
     } finally {
       setPromoBusy(false);
     }
@@ -866,7 +867,7 @@ function AdCalendarScreen() {
             error.code === 'Canceled' ? 'info' : 'error'
           );
           if (error.code !== 'Canceled')
-            Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
+            Alert.alert('Payment Failed', toUserMessage(error, 'Payment could not be completed.'));
           if (data.payment_intent_id) {
             httpPost('/payments/cancel-intent', {
               payment_intent_id: data.payment_intent_id,

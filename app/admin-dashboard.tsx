@@ -23,6 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Organization } from '@/api/entities';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { isSessionExpiryError } from '@/utils/sessionExpiryError';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 interface PendingLeague {
   id: string;
@@ -125,7 +126,6 @@ function AdminDashboardScreen() {
 
   const formatAdminActionError = (err: any, fallback: string) => {
     const serverData = err?.data || err?.response?.data;
-    const serverError = serverData?.error || serverData?.message;
     const issues = serverData?.issues || serverData?.details?.issues;
 
     if (Array.isArray(issues) && issues.length > 0) {
@@ -139,19 +139,10 @@ function AdminDashboardScreen() {
       return detail || fallback;
     }
 
-    if (typeof serverError === 'string' && serverError.length < 300) {
-      return serverError;
-    }
-
-    if (
-      typeof err?.message === 'string' &&
-      err.message.length < 300 &&
-      !/^HTTP \d/.test(err.message)
-    ) {
-      return err.message;
-    }
-
-    return fallback;
+    // Route the raw server-envelope / err.message path through toUserMessage so
+    // transport/origin-URL leaks (e.g. "Cannot connect to server at <URL>") can
+    // no longer pass through; clean server strings still pass through unchanged.
+    return toUserMessage(err, fallback);
   };
 
   const handleApproveCoach = (coach: PendingCoach) => {

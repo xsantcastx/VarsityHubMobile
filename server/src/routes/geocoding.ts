@@ -76,7 +76,7 @@ geocodingRouter.post(
       if (error instanceof z.ZodError) {
         return sendError(res, 400, 'INVALID_INPUT', {
           message: 'Invalid input',
-          details: error.errors,
+          details: error.issues.map(i => ({ path: i.path, message: i.message })),
         });
       }
       // Breaker open: upstream is failing fast. Surface 503 so clients retry
@@ -181,7 +181,7 @@ geocodingRouter.get(
       if (error instanceof z.ZodError) {
         return sendError(res, 400, 'INVALID_INPUT', {
           message: 'Invalid input',
-          details: error.errors,
+          details: error.issues.map(i => ({ path: i.path, message: i.message })),
         });
       }
       if ((error as any)?.isCircuitOpen) {

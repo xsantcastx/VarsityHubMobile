@@ -30,6 +30,7 @@ import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
 import { getOAuthExistingAccountMessage } from '@/utils/oauthErrors';
+import { toAuthErrorMessage } from '@/utils/toUserMessage';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
@@ -228,11 +229,10 @@ export default function SignInScreen() {
           );
         }
       } else if (e?.isNetworkError === true || errMsg.startsWith('Cannot connect to server')) {
-        // Preserve the host-specific transport error from api/http.ts so the
-        // banner reveals which API host failed to reach. Generic "check your
-        // internet" hides the difference between "wrong baked-in host on a
-        // stale binary" and "actually offline".
-        setError(errMsg);
+        // Keep the "which host failed" diagnostic via a fingerprint (ref xxxx)
+        // instead of the raw origin URL — see utils/toUserMessage. The branch
+        // condition still keys off the raw message for retry/branch selection.
+        setError(toAuthErrorMessage(e));
       } else if (
         errMsg.includes('Network') ||
         errMsg.includes('timeout') ||
@@ -342,9 +342,8 @@ export default function SignInScreen() {
 
       // Show user-friendly error
       if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
-        // Preserve host-specific transport error so the banner names the
-        // host that failed — same fix as the email/password path in 012030df.
-        setError(message);
+        // Host fingerprint instead of the raw origin URL (utils/toUserMessage).
+        setError(toAuthErrorMessage(e));
       } else if (
         message.includes('Network') ||
         message.includes('timeout') ||
@@ -460,8 +459,8 @@ export default function SignInScreen() {
       } else if (message.includes('not available on this device')) {
         setError('Apple Sign-In is not available on this device. Try email/password instead.');
       } else if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
-        // Preserve host-specific transport error — same fix as 012030df.
-        setError(message);
+        // Host fingerprint instead of the raw origin URL (utils/toUserMessage).
+        setError(toAuthErrorMessage(e));
       } else if (
         message.includes('Network') ||
         message.includes('timeout') ||

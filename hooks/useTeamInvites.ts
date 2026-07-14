@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 // @ts-ignore runtime export
 import { Team } from '@/api/entities';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 export interface UseTeamInvitesResult<T = any> {
   invites: T[];
@@ -23,7 +24,7 @@ export function useTeamInvites<T = any>(autoLoad: boolean = true): UseTeamInvite
       setError(null);
     } catch (err: any) {
       if (__DEV__) console.error('[useTeamInvites] failed', err);
-      setError(err?.message || 'Unable to load invites');
+      setError(toUserMessage(err, 'Unable to load invites'));
       setInvites([]);
     } finally {
       setLoading(false);

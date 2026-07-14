@@ -7,6 +7,7 @@ import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { handleCoachAccessError } from '@/utils/coachAccess';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -1135,7 +1136,7 @@ function ManageSeasonScreen() {
       setActionModal({
         visible: true,
         title: 'Error',
-        message: `Failed to create bulk games: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: toUserMessage(error, 'Failed to create bulk games. Please try again.'),
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
       if (__DEV__) console.error('Error creating bulk games:', error);

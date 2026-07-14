@@ -34,6 +34,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { GUEST_HOME_ROUTE } from '@/utils/publicRoutes';
 import { getCanonicalCoachRole } from '@/utils/roleChecks';
 import { captureException } from '@/utils/sentry';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 interface UserMeResponse {
   email?: string;
@@ -458,7 +459,7 @@ export default function SettingsScreen() {
       });
     } catch (error: any) {
       if (__DEV__) console.error('[settings] Account deletion failed:', error);
-      const msg = error?.data?.message || error?.message || 'Could not delete your account.';
+      const msg = toUserMessage(error, 'Could not delete your account.');
       Alert.alert('Delete failed', msg);
       setDeletingAccount(false);
       return;
@@ -518,7 +519,7 @@ export default function SettingsScreen() {
           return;
         }
         // Only show non-auth errors to the user
-        setError(e?.message || 'Failed to load settings');
+        setError(toUserMessage(e, 'Failed to load settings'));
       } finally {
         if (!mounted) return;
         setLoading(false);
@@ -973,8 +974,7 @@ export default function SettingsScreen() {
                             Alert.alert('Account updated', 'Your account is now a fan account.');
                           } catch (e: any) {
                             const code = e?.data?.code;
-                            const msg =
-                              e?.data?.error || e?.message || 'Failed to downgrade account.';
+                            const msg = toUserMessage(e, 'Failed to downgrade account.');
                             if (code === 'SUBSCRIPTION_DOWNGRADE_REQUIRED') {
                               Alert.alert(
                                 'Downgrade subscription first',
@@ -1091,7 +1091,7 @@ export default function SettingsScreen() {
                           }
                           await routeCoachOnboarding(fresh);
                         } catch (e: any) {
-                          const msg = e?.data?.error || e?.message || '';
+                          const msg = toUserMessage(e, '');
                           const code = e?.data?.code;
                           if (
                             code === 'COACH_UPGRADE_IN_PROGRESS' ||

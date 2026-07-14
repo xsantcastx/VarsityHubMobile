@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { Organization } from '@/api/entities';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -72,7 +73,7 @@ function OrganizationInvitesScreen() {
     } catch (err) {
       setModal({
         title: 'Error',
-        message: err instanceof Error ? err.message : 'Failed to accept invite',
+        message: toUserMessage(err, 'Failed to accept invite'),
         options: [{ label: 'OK', onPress: () => {}, color: '#2563eb' }],
       });
     } finally {
@@ -89,7 +90,7 @@ function OrganizationInvitesScreen() {
     } catch (err) {
       setModal({
         title: 'Error',
-        message: err instanceof Error ? err.message : 'Failed to decline invite',
+        message: toUserMessage(err, 'Failed to decline invite'),
         options: [{ label: 'OK', onPress: () => {}, color: '#2563eb' }],
       });
     } finally {

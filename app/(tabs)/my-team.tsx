@@ -31,6 +31,7 @@ import {
 } from 'react-native';
 // @ts-ignore JS exports
 import { Team as TeamApi } from '@/api/entities';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 type MemberUser = {
   id: string;
@@ -366,7 +367,7 @@ function MyTeamScreen() {
         if (handleCoachAccessError(router, e, 'updating team roles', user)) {
           return;
         }
-        Alert.alert('Error', e?.message || 'Failed to update role.');
+        Alert.alert('Error', toUserMessage(e, 'Failed to update role.'));
       } finally {
         setMemberActionLoading(false);
       }
@@ -388,7 +389,7 @@ function MyTeamScreen() {
       if (handleCoachAccessError(router, e, 'updating team positions', user)) {
         return;
       }
-      Alert.alert('Error', e?.message || 'Failed to update position.');
+      Alert.alert('Error', toUserMessage(e, 'Failed to update position.'));
     } finally {
       setMemberActionLoading(false);
     }
@@ -415,7 +416,7 @@ function MyTeamScreen() {
       if (handleCoachAccessError(router, e, 'removing team members', user)) {
         return;
       }
-      Alert.alert('Error', e?.message || 'Failed to remove member.');
+      Alert.alert('Error', toUserMessage(e, 'Failed to remove member.'));
     } finally {
       setMemberActionLoading(false);
     }
@@ -436,7 +437,7 @@ function MyTeamScreen() {
       if (handleCoachAccessError(router, e, 'sending team invites', user)) {
         return;
       }
-      Alert.alert('Error', (e as any)?.data?.message || e?.message || 'Failed to send invitation.');
+      Alert.alert('Error', toUserMessage(e, 'Failed to send invitation.'));
     } finally {
       setInviting(false);
     }

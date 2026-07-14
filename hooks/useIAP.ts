@@ -10,6 +10,7 @@ import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { httpPost } from '@/api/http';
 import { captureBreadcrumb } from '@/utils/sentry';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 // Only import react-native-iap in standalone builds (not Expo Go)
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -154,7 +155,7 @@ export function useVHubIAP() {
         // provides a second recovery path. Finishing here would strand the user
         // as "paid but not entitled" with no automatic recovery mechanism.
         setPurchasing(false);
-        setError(err?.message || 'Receipt validation failed');
+        setError(toUserMessage(err, 'Receipt validation failed'));
         purchaseResolveRef.current?.(false);
         purchaseResolveRef.current = null;
       }
@@ -188,7 +189,7 @@ export function useVHubIAP() {
         'error'
       );
       setPurchasing(false);
-      setError(msg || 'Purchase failed');
+      setError(toUserMessage(err, 'Purchase failed'));
       purchaseResolveRef.current?.(false);
       purchaseResolveRef.current = null;
     },
@@ -218,7 +219,7 @@ export function useVHubIAP() {
         },
         'warning'
       );
-      setError(err instanceof Error ? err.message : 'Failed to load subscription products');
+      setError(toUserMessage(err, 'Failed to load subscription products'));
     });
   }, [connected, fetchProducts]);
 
@@ -358,7 +359,7 @@ export function useVHubIAP() {
           }
           if (__DEV__) console.error('[useVHubIAP] requestPurchase error:', err);
           setPurchasing(false);
-          setError(msg || 'Purchase request failed');
+          setError(toUserMessage(err, 'Purchase request failed'));
           resolve(false);
         });
       });
@@ -445,7 +446,7 @@ export function useVHubIAP() {
       return ourSubs.length > 0 ? 'failed' : 'not_found';
     } catch (err: unknown) {
       if (__DEV__) console.warn('[useVHubIAP] restorePurchases failed:', err);
-      setError(err instanceof Error ? err.message : 'Restore failed');
+      setError(toUserMessage(err, 'Restore failed'));
       setPurchasing(false);
       return 'failed';
     }

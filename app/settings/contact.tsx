@@ -8,6 +8,7 @@ import { Alert, useColorScheme } from 'react-native';
 import { Support } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { safeGoBack } from '@/utils/navigation';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { SettingsFormScreen } from '@/components/settings/SettingsFormShared';
 
 export default function ContactScreen() {
@@ -49,7 +50,7 @@ export default function ContactScreen() {
       safeGoBack(router);
     } catch (e: any) {
       if (__DEV__) console.error('[contact] Failed to send contact message:', e);
-      Alert.alert('Failed', e?.message || 'Try again later');
+      Alert.alert('Failed', toUserMessage(e, 'Try again later'));
     } finally {
       setSending(false);
     }

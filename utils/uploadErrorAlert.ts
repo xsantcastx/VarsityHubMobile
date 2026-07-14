@@ -23,7 +23,15 @@ export function showUploadErrorAlert(
   const rawMessage = String(error?.message || error || '').trim();
   const status = error?.status;
   const code = String(error?.data?.code || error?.code || '');
-  const isNetwork = /network|fetch|failed to fetch|typeerror/i.test(rawMessage);
+  // Transport-layer failures. http.ts stamps offline/DNS/dropped-connection
+  // errors with `isNetworkError === true` and `status === 0`, and its message
+  // ("Cannot connect to server at <origin URL>…") deliberately does NOT match
+  // the loose regex below — so detect the flags first, or an offline upload
+  // falls through to the raw-message fallback and prints the origin API URL.
+  const isNetwork =
+    error?.isNetworkError === true ||
+    status === 0 ||
+    /network|fetch|failed to fetch|typeerror/i.test(rawMessage);
   const isTimeout = /timeout|timed out|aborted/i.test(rawMessage);
   const isSessionExpired = error?.isSessionExpired === true;
   // v1.0.3: distinguish true session-auth 401s from upstream-provider 401s.
@@ -39,6 +47,17 @@ export function showUploadErrorAlert(
     (typeof status === 'number' && status >= 500 && !isUpstreamFailure) ||
     /HTTP 5\d\d/i.test(rawMessage);
   const isSize = /too large|size|413/i.test(rawMessage);
+
+  // Final safety net for information disclosure: a user-facing string must never
+  // contain an origin/API URL or the infra hostname. Any raw message we might
+  // echo (server body, upstream provider body) is run through this before it
+  // reaches Alert; if it carries one, it's replaced with a generic line.
+  const GENERIC_UPLOAD_FAILED = 'Upload failed. Please try again.';
+  const safeUserMessage = (msg?: string): string => {
+    const text = String(msg || '').trim();
+    if (!text) return GENERIC_UPLOAD_FAILED;
+    return /https?:\/\//i.test(text) || /railway/i.test(text) ? GENERIC_UPLOAD_FAILED : text;
+  };
 
   // Session expiry is handled centrally by AuthProvider (via sessionEvents):
   // it clears local state, shows a toast, and navigates to /sign-in. Showing
@@ -60,13 +79,23 @@ export function showUploadErrorAlert(
     return;
   }
 
-  if (isUpstreamFailure) {
+  if (isNetwork) {
+    // Transport-layer failure (offline, DNS, dropped connection). The underlying
+    // http.ts message embeds the origin API URL — surface a generic prompt with
+    // NO URL so we never leak infrastructure details to the end user.
+    Alert.alert(
+      'Connection Problem',
+      "Couldn't reach the server. Check your connection and try again."
+    );
+  } else if (isUpstreamFailure) {
     // Cloudinary or another upstream provider rejected the upload. This is
     // infrastructure — not the user's session. Show a clear retry prompt,
     // never mention signing in/out.
     Alert.alert(
       'Upload Unavailable',
-      rawMessage || 'The upload service is temporarily unavailable. Please try again in a minute.'
+      safeUserMessage(
+        rawMessage || 'The upload service is temporarily unavailable. Please try again in a minute.'
+      )
     );
   } else if (isAuth) {
     // A genuine 401 that isn't upstream — either a race where the
@@ -82,23 +111,22 @@ export function showUploadErrorAlert(
       'Upload Timed Out',
       'The upload took too long. Check your connection and try again.'
     );
-  } else if (isNetwork) {
-    Alert.alert(
-      'Network Error',
-      'Unable to reach the server. Check your connection and try again.'
-    );
   } else if (isServer) {
     Alert.alert(
       'Server Error',
-      rawMessage || 'The upload service is temporarily unavailable. Please try again in a minute.'
+      safeUserMessage(
+        rawMessage || 'The upload service is temporarily unavailable. Please try again in a minute.'
+      )
     );
   } else if (isSize) {
     Alert.alert(
       'File Too Large',
-      rawMessage || 'Files must be under the allowed size limit. Please try a smaller upload.'
+      safeUserMessage(
+        rawMessage || 'Files must be under the allowed size limit. Please try a smaller upload.'
+      )
     );
   } else if (rawMessage) {
-    Alert.alert('Upload Failed', rawMessage);
+    Alert.alert('Upload Failed', safeUserMessage(rawMessage));
   } else {
     Alert.alert(fallbackTitle, fallbackMessage);
   }

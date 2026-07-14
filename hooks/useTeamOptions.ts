@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 // @ts-ignore - api/entities exports JS at runtime
 import { Team } from '@/api/entities';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 interface UseTeamOptionsResult<T = any> {
   teams: T[];
@@ -27,7 +28,7 @@ export function useTeamOptions<T = any>(autoLoad: boolean = true): UseTeamOption
       setError(null);
     } catch (err: any) {
       if (__DEV__) console.error('[useTeamOptions] failed', err);
-      setError(err?.message || 'Unable to load teams');
+      setError(toUserMessage(err, 'Unable to load teams'));
       setTeams([]);
     } finally {
       setLoading(false);

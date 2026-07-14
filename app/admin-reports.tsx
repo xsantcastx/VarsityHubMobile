@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 import { isSessionExpiryError } from '@/utils/sessionExpiryError';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 interface AbuseReport {
   id: string;
@@ -152,7 +153,7 @@ function AdminReportsScreen() {
       if (isSessionExpiryError(e)) {
         return;
       }
-      Alert.alert('Error', e?.message || 'Failed to update report');
+      Alert.alert('Error', toUserMessage(e, 'Failed to update report'));
     }
   };
 
@@ -166,7 +167,7 @@ function AdminReportsScreen() {
       if (isSessionExpiryError(e)) {
         return;
       }
-      Alert.alert('Error', e?.message || 'Failed to take down ad');
+      Alert.alert('Error', toUserMessage(e, 'Failed to take down ad'));
     }
   };
 
@@ -190,7 +191,7 @@ function AdminReportsScreen() {
       if (isSessionExpiryError(e)) {
         return;
       }
-      Alert.alert('Error', e?.message || 'Failed to update reports');
+      Alert.alert('Error', toUserMessage(e, 'Failed to update reports'));
     }
   };
 
@@ -219,7 +220,7 @@ function AdminReportsScreen() {
             if (isSessionExpiryError(e)) {
               return;
             }
-            Alert.alert('Error', e?.message || 'Failed to delete reports');
+            Alert.alert('Error', toUserMessage(e, 'Failed to delete reports'));
           }
         },
       },

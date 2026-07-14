@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -69,7 +70,7 @@ export default function PollCard({ poll, onVote }: PollCardProps) {
       }
       setSelectedOption(optionId);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to submit vote');
+      Alert.alert('Error', toUserMessage(error, 'Failed to submit vote'));
     } finally {
       setVoting(false);
     }

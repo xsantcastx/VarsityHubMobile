@@ -28,7 +28,7 @@ See `server/src/lib/env.ts` for the full Zod schema.
 | **STRIPE_PRICE_VETERAN**    | ✅ Set         | `price_1SCd6HRuB2a0vFjp1QlboTEv`                       |
 | **STRIPE_PRICE_LEGEND**     | ✅ Set         | `price_1SCd6IRuB2a0vFjpQOSdctN4`                       |
 | **CLOUDINARY_CLOUD_NAME**   | ✅ Set         | `varsityhub`                                           |
-| **CLOUDINARY_API_KEY**      | ✅ Set         | `324968783148443`                                      |
+| **CLOUDINARY_API_KEY**      | ✅ Set         | Configured                                             |
 | **CLOUDINARY_API_SECRET**   | ✅ Set         | Configured                                             |
 | **GOOGLE_OAUTH_CLIENT_IDS** | ✅ Set         | All 3 client IDs configured                            |
 | **GOOGLE_MAPS_API_KEY**     | ✅ Set         | iOS + Android keys in app.json                         |

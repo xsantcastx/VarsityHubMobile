@@ -1,6 +1,7 @@
 import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import React from 'react';
+import { toUserMessage } from '@/utils/toUserMessage';
 import {
   ActivityIndicator,
   Pressable,
@@ -66,7 +67,7 @@ export function VideoPlayer({
     }
     if (status === 'error') {
       setIsLoading(false);
-      setErrorMessage(error?.message || 'Video unavailable');
+      setErrorMessage(toUserMessage(error, 'Video unavailable'));
     }
   });
 

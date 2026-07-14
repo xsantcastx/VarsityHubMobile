@@ -14,6 +14,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { sanitizeText } from '@/utils/formUtils';
 import { safeGoBack } from '@/utils/navigation';
 import { promptForSignIn } from '@/utils/requireSignIn';
+import { toUserMessage } from '@/utils/toUserMessage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -216,7 +217,7 @@ export function SubmitAdScreenBase({
 
       router.push({ pathname: '/ad-calendar', params: { adId } });
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to save your ad.');
+      Alert.alert('Error', toUserMessage(e, 'Failed to save your ad.'));
     } finally {
       setBusy(false);
     }

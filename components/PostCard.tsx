@@ -15,6 +15,7 @@ import { Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } 
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolveMediaType } from '@/utils/media';
 import { prefetchUserProfile } from '@/utils/prefetch';
+import { toUserMessage } from '@/utils/toUserMessage';
 import EventChip from './EventChip';
 import ExpandableText from './ExpandableText';
 import RankingBadge from './RankingBadge';
@@ -86,7 +87,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
               removeFromCache(String(post.id));
               onDeleted?.(String(post.id));
             } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to delete post');
+              Alert.alert('Error', toUserMessage(error, 'Failed to delete post'));
             }
           },
         },
@@ -111,7 +112,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
       setEditModalVisible(false);
       Alert.alert('Success', 'Post updated successfully');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update post');
+      Alert.alert('Error', toUserMessage(error, 'Failed to update post'));
     } finally {
       setUpdating(false);
     }

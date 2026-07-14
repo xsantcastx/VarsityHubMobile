@@ -1,6 +1,7 @@
 import { Post, Report } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { promptForSignIn } from '@/utils/requireSignIn';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useRef, useState } from 'react';
@@ -135,7 +136,7 @@ export function usePostInteractions({
       if (error?.status === 409) {
         Alert.alert('Already Reported', 'You have already reported this post.');
       } else {
-        Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
+        Alert.alert('Error', toUserMessage(error, 'Failed to submit report. Please try again.'));
       }
     } finally {
       setReportSubmitting(false);

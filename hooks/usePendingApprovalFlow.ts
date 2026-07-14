@@ -5,6 +5,7 @@ import { Alert, AppState } from 'react-native';
 import { Notification as NotificationApi, User } from '@/api/entities';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { GUEST_HOME_ROUTE } from '@/utils/publicRoutes';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 const COACH_REAPPLY_COOLDOWN_MS = 48 * 60 * 60 * 1000;
 
@@ -176,8 +177,7 @@ export function usePendingApprovalActions({
         ? formatProceedAsFanError(err)
         : {
             title: 'Failed',
-            message:
-              err?.data?.error || err?.message || 'Could not complete setup. Please try again.',
+            message: toUserMessage(err, 'Could not complete setup. Please try again.'),
           };
       Alert.alert(fallback.title, fallback.message);
     }

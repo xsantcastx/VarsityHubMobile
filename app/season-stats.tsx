@@ -2,6 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { formatLevelLabel } from '@/constants/programs';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
+import { toUserMessage } from '@/utils/toUserMessage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -265,7 +266,7 @@ function SeasonStatsScreen() {
         setPlayerStats(players);
       } catch (err: any) {
         if (__DEV__) console.error('[SeasonStats] Error loading data:', err);
-        setError(err?.message || 'Failed to load stats');
+        setError(toUserMessage(err, 'Failed to load stats'));
       } finally {
         setLoading(false);
         setRefreshing(false);

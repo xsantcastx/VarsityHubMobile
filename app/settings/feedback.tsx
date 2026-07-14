@@ -22,6 +22,7 @@ import { getApiBaseUrl } from '@/api/http';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { Colors } from '@/constants/Colors';
 import { safeGoBack } from '@/utils/navigation';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function FeedbackScreen() {
@@ -87,7 +88,10 @@ export default function FeedbackScreen() {
       } catch (e: any) {
         Alert.alert(
           'Upload Failed',
-          e?.message || 'Could not upload the screenshot. You can still submit feedback without it.'
+          toUserMessage(
+            e,
+            'Could not upload the screenshot. You can still submit feedback without it.'
+          )
         );
         setScreenshotUri(null);
         setScreenshotUrl(null);
@@ -120,7 +124,7 @@ export default function FeedbackScreen() {
       Alert.alert('Thanks!', 'Your feedback was sent.');
       safeGoBack(router);
     } catch (e: any) {
-      Alert.alert('Failed', e?.message || 'Try again later');
+      Alert.alert('Failed', toUserMessage(e, 'Try again later'));
     } finally {
       setSending(false);
     }

@@ -8,6 +8,7 @@ import { useVHubIAP } from '@/hooks/useIAP';
 import { getCanonicalBillingState } from '@/utils/billingState';
 import { openExternalUrl } from '@/utils/openExternalUrl';
 import { captureBreadcrumb } from '@/utils/sentry';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { usePaymentSheet } from '@/utils/stripe';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
@@ -218,7 +219,7 @@ function ManageSubscription() {
           },
           'error'
         );
-        Alert.alert('Purchase Failed', err?.message || 'Unable to complete purchase.');
+        Alert.alert('Purchase Failed', toUserMessage(err, 'Unable to complete purchase.'));
       } finally {
         setLoading(false);
       }
@@ -271,7 +272,7 @@ function ManageSubscription() {
             },
             'error'
           );
-          Alert.alert('Error', initError.message);
+          Alert.alert('Error', toUserMessage(initError, 'Payment setup failed. Please try again.'));
           return;
         }
         captureBreadcrumb('Subscription payment sheet presented', 'payments.subscription', {
@@ -292,7 +293,7 @@ function ManageSubscription() {
             error.code === 'Canceled' ? 'info' : 'error'
           );
           if (error.code !== 'Canceled')
-            Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
+            Alert.alert('Payment Failed', toUserMessage(error, 'Payment could not be completed.'));
           return;
         }
         // Payment succeeded — confirm the Stripe subscription server-side
@@ -398,7 +399,7 @@ function ManageSubscription() {
         Alert.alert('Error', res?.error || 'Unable to cancel subscription');
       }
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Cancel failed');
+      Alert.alert('Error', toUserMessage(e, 'Cancel failed'));
     } finally {
       setLoading(false);
     }
@@ -418,7 +419,7 @@ function ManageSubscription() {
               await User.skipPayment();
               await syncBillingState();
             } catch (e: any) {
-              Alert.alert('Error', e?.message || 'Unable to skip payment');
+              Alert.alert('Error', toUserMessage(e, 'Unable to skip payment'));
             } finally {
               setLoading(false);
             }

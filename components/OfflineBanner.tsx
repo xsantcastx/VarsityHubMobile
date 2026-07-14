@@ -21,7 +21,7 @@ try {
 }
 
 export function OfflineBanner() {
-  const { healthOk, healthError, checkAuth } = useAuth();
+  const { healthOk, checkAuth } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
 
   const [retrying, setRetrying] = useState(false);
@@ -59,9 +59,9 @@ export function OfflineBanner() {
   const errorColor = colorScheme === 'dark' ? '#FCA5A5' : '#DC2626';
   const errorBg = colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2';
 
-  const message = !networkConnected
-    ? 'No internet connection'
-    : healthError || 'Unable to connect to server';
+  // Fixed strings only — raw transport errors can contain internals (blob
+  // registry ids, the origin API URL) and must never reach the screen.
+  const message = !networkConnected ? 'No internet connection' : 'Unable to connect to server';
 
   return (
     <View style={[styles.banner, { backgroundColor: errorBg }]}>

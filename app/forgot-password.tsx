@@ -13,6 +13,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { toAuthErrorMessage, toUserMessage } from '@/utils/toUserMessage';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -95,7 +96,7 @@ export default function ForgotPasswordScreen() {
         });
         setSendError(
           errMsg.startsWith('Cannot connect to server')
-            ? errMsg
+            ? toAuthErrorMessage(e)
             : 'Could not reach the server to send your reset code. Please check your connection and try again.'
         );
       } else {
@@ -153,7 +154,7 @@ export default function ForgotPasswordScreen() {
       captureException(e instanceof Error ? e : new Error(String(e)), {
         tags: { context: 'password_reset_submit' },
       });
-      setResetError(e?.message || 'Invalid or expired code. Please try again.');
+      setResetError(toUserMessage(e, 'Invalid or expired code. Please try again.'));
     } finally {
       setResetLoading(false);
       resetInFlightRef.current = false;

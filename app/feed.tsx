@@ -31,6 +31,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAuthSnapshot } from '@/utils/authState';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
@@ -584,7 +585,7 @@ export default function FeedScreen() {
         Alert.alert('Sign In Required', 'You need to be signed in to report an ad.');
         return;
       }
-      Alert.alert('Unable to Report', err?.message || 'Please try again later.');
+      Alert.alert('Unable to Report', toUserMessage(err, 'Please try again later.'));
     }
   }, []);
 

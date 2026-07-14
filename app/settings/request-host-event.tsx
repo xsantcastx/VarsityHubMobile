@@ -8,6 +8,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
+import { toUserMessage } from '@/utils/toUserMessage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useRouter } from 'expo-router';
@@ -162,7 +163,7 @@ function RequestHostEventScreen() {
         ]
       );
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to submit request. Please try again.');
+      Alert.alert('Error', toUserMessage(e, 'Failed to submit request. Please try again.'));
     } finally {
       setSubmitting(false);
     }

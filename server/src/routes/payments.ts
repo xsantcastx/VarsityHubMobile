@@ -1563,11 +1563,13 @@ paymentsRouter.post(
         );
         return res.json({ url, session_id: sessionId });
       } catch (err: any) {
-        const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
+        const isOperational = typeof err?.statusCode === 'number';
+        const status = isOperational ? err.statusCode : 500;
         captureException(err, { context: 'stripe_checkout_error', plan });
-        return res
-          .status(status)
-          .json({ error: err?.message || 'Unable to start subscription checkout' });
+        return res.status(status).json({
+          // error-envelope-exempt: pre-existing raw {error:string} response (whole file uses this shape); sanitized to a generic message for non-operational errors.
+          error: isOperational ? err.message : 'Unable to start subscription checkout',
+        });
       }
     }
     if (!ad_id || !Array.isArray(dates) || dates.length === 0)
@@ -2383,7 +2385,11 @@ paymentsRouter.post(
       });
     } catch (err: any) {
       captureException(err, { context: 'create_payment_sheet_ad', ad_id });
-      return res.status(500).json({ error: err?.message || 'Unable to create payment' });
+      const isOperational = typeof err?.statusCode === 'number';
+      // error-envelope-exempt: pre-existing raw {error:string} response; sanitized to a generic message for non-operational errors.
+      return res
+        .status(500)
+        .json({ error: isOperational ? err.message : 'Unable to create payment' });
     }
   })
 );
@@ -2580,10 +2586,13 @@ paymentsRouter.post(
       const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code);
       return res.json({ url, session_id: sessionId });
     } catch (err: any) {
-      const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
-      return res
-        .status(status)
-        .json({ error: err?.message || 'Unable to start subscription checkout' });
+      const isOperational = typeof err?.statusCode === 'number';
+      const status = isOperational ? err.statusCode : 500;
+      if (!isOperational) captureException(err, { context: 'subscribe_checkout_error' });
+      return res.status(status).json({
+        // error-envelope-exempt: pre-existing raw {error:string} response; sanitized to a generic message for non-operational errors.
+        error: isOperational ? err.message : 'Unable to start subscription checkout',
+      });
     }
   })
 );
@@ -3712,9 +3721,9 @@ paymentsRouter.post(
         try {
           signedTransaction = verifyAppleSignedJws(jws);
         } catch (error: any) {
-          return res
-            .status(400)
-            .json({ error: error?.message || 'Invalid Apple transaction signature' });
+          console.error('[payments] Apple JWS verification failed (subscription):', error?.message);
+          captureException(error, { context: 'apple_jws_verify_subscription' });
+          return res.status(400).json({ error: 'Invalid Apple transaction signature' });
         }
 
         const signedProductId = String(
@@ -3922,9 +3931,9 @@ paymentsRouter.post(
           try {
             signedTransaction = verifyAppleSignedJws(jws);
           } catch (error: any) {
-            return res
-              .status(400)
-              .json({ error: error?.message || 'Invalid Apple transaction signature' });
+            console.error('[payments] Apple JWS verification failed (ad):', error?.message);
+            captureException(error, { context: 'apple_jws_verify_ad' });
+            return res.status(400).json({ error: 'Invalid Apple transaction signature' });
           }
           const signedProductId = String(
             signedTransaction.productId || signedTransaction.product_id || ''

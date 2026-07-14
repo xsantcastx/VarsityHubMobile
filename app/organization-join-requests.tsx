@@ -3,6 +3,7 @@ import { screenHeaderSharedStyles } from '@/components/ScreenHeaderShared';
 import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { getAuthSnapshot } from '@/utils/authState';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { safeGoBack } from '@/utils/navigation';
 import { getOrganizationAccess } from '@/utils/roleChecks';
 import { captureException } from '@/utils/sentry';
@@ -150,7 +151,7 @@ function OrganizationJoinRequestsScreen() {
     } catch (err: any) {
       if (__DEV__) console.error('[OrganizationJoinRequests] Error loading requests:', err);
       captureException(err, { tags: { screen: 'organization-join-requests', action: 'load' } });
-      setError(err?.message || 'Failed to load join requests');
+      setError(toUserMessage(err, 'Failed to load join requests'));
     } finally {
       setLoading(false);
     }
@@ -195,7 +196,7 @@ function OrganizationJoinRequestsScreen() {
                   captureException(err, {
                     tags: { screen: 'organization-join-requests', action: 'approve' },
                   });
-                  Alert.alert('Error', err?.message || 'Failed to approve request');
+                  Alert.alert('Error', toUserMessage(err, 'Failed to approve request'));
                 } finally {
                   setProcessingId(null);
                 }
@@ -253,7 +254,7 @@ function OrganizationJoinRequestsScreen() {
         }
         if (__DEV__) console.error('[OrganizationJoinRequests] Error rejecting request:', err);
         captureException(err, { tags: { screen: 'organization-join-requests', action: 'reject' } });
-        Alert.alert('Error', err?.message || 'Failed to reject request');
+        Alert.alert('Error', toUserMessage(err, 'Failed to reject request'));
       } finally {
         setProcessingId(null);
         setRejectModal({ visible: false, request: null, reason: '' });

@@ -2,6 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { safeGoBack } from '@/utils/navigation';
+import { toUserMessage } from '@/utils/toUserMessage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -82,7 +83,7 @@ function AdminActivityLogScreen() {
         setItems(prev => (append ? [...prev, ...fetched] : fetched));
         setHasMore(fetched.length === 50);
       } catch (e: any) {
-        setError(e?.message || 'Failed to load activity log');
+        setError(toUserMessage(e, 'Failed to load activity log'));
       } finally {
         setLoading(false);
         setLoadingMore(false);

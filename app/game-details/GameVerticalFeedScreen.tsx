@@ -46,6 +46,7 @@ import { optimizeImageUrl, optimizeVideoUrl } from '@/utils/imageUrl';
 import { AppLinks, buildNativeSharePayload } from '@/utils/links';
 import { resolveMediaType } from '@/utils/media';
 import { promptForSignIn } from '@/utils/requireSignIn';
+import { toUserMessage } from '@/utils/toUserMessage';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 const VIDEO_SHARE_CACHE_DIR = `${FileSystem.cacheDirectory || ''}shared-videos/`;
@@ -291,7 +292,7 @@ const FeedCard = memo(
         onDeletePost?.();
       } catch (error: any) {
         setShowDeleteConfirm(false);
-        Alert.alert('Error', error?.message || 'Failed to delete post. Please try again.');
+        Alert.alert('Error', toUserMessage(error, 'Failed to delete post. Please try again.'));
       }
     };
 
@@ -306,7 +307,7 @@ const FeedCard = memo(
         setShowEditModal(false);
         onEditPost?.(editCaption);
       } catch (error: any) {
-        Alert.alert('Error', error?.message || 'Failed to update post. Please try again.');
+        Alert.alert('Error', toUserMessage(error, 'Failed to update post. Please try again.'));
       }
     };
 
@@ -344,7 +345,7 @@ const FeedCard = memo(
       }
       if (status === 'error') {
         setIsVideoLoading(false);
-        setVideoError(error?.message || 'Video unavailable');
+        setVideoError(toUserMessage(error, 'Video unavailable'));
       }
     });
 
@@ -1318,7 +1319,7 @@ function GameVerticalFeedScreen({
       if (error?.status === 409) {
         Alert.alert('Already Reported', 'You have already reported this post.');
       } else {
-        Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
+        Alert.alert('Error', toUserMessage(error, 'Failed to submit report. Please try again.'));
       }
     }
   }, []);
@@ -1380,7 +1381,7 @@ function GameVerticalFeedScreen({
         setComments(items);
         setCommentsCursor(res?.nextCursor ?? null);
       } catch (error: any) {
-        setCommentsError(error?.message || 'Failed to load comments');
+        setCommentsError(toUserMessage(error, 'Failed to load comments'));
       } finally {
         setCommentsLoading(false);
       }

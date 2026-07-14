@@ -14,6 +14,7 @@ import { getCanonicalOrganizationId } from '@/utils/authState';
 import { gameRowTitle } from '@/utils/eventTitle';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -865,7 +866,7 @@ export default function OrganizationScreen() {
                           await Organization.cancelInvite(organization.id, invite.id);
                           await refreshAll();
                         } catch (err: any) {
-                          Alert.alert('Error', err?.message || 'Failed to cancel invite.');
+                          Alert.alert('Error', toUserMessage(err, 'Failed to cancel invite.'));
                         }
                       }}
                       style={[

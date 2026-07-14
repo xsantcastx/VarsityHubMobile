@@ -5,6 +5,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { calculateContrastRatio } from '@/utils/accessibility';
+import { toUserMessage } from '@/utils/toUserMessage';
 import { getAuthSnapshot } from '@/utils/authState';
 import events from '@/utils/events';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
@@ -443,11 +444,7 @@ export default function ProfileScreen() {
           } else if (e?.isNetworkError || e?.status === 0) {
             setError('Unable to connect to server. Please check your internet connection.');
           } else {
-            setError(
-              e?.message
-                ? `Unable to load profile: ${e.message}`
-                : 'Unable to load profile. Please try again.'
-            );
+            setError(toUserMessage(e, 'Unable to load profile. Please try again.'));
           }
           // Clear me on error to prevent stale data
           setMe(null);
@@ -834,7 +831,7 @@ export default function ProfileScreen() {
                         await User.block(viewingUserId);
                         Alert.alert('Blocked', 'This user has been blocked.');
                       } catch (e: any) {
-                        Alert.alert('Error', e?.message || 'Failed to block user');
+                        Alert.alert('Error', toUserMessage(e, 'Failed to block user'));
                       }
                     },
                   },

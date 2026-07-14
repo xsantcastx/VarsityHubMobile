@@ -4,9 +4,9 @@
 
 I can see from your Railway dashboard that Cloudinary **IS configured**:
 
-- ✅ `CLOUDINARY_CLOUD_NAME`: `dxb5oq4fs`
-- ✅ `CLOUDINARY_API_KEY`: `324968783148443`
-- ✅ `CLOUDINARY_API_SECRET`: `HuU1B0U0_hzCKe51Zyyy85mT1zw`
+- ✅ `CLOUDINARY_CLOUD_NAME`: `<configured in Railway>`
+- ✅ `CLOUDINARY_API_KEY`: `<configured in Railway>`
+- ✅ `CLOUDINARY_API_SECRET`: `<configured in Railway — never commit this>`
 
 ---
 

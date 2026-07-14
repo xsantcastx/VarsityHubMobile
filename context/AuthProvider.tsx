@@ -255,15 +255,19 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // Check backend health (once on startup)
   const checkHealth = useCallback(async () => {
     try {
-      // Health should answer quickly; don't let startup wait through long default retries.
-      await httpGet('/health', {}, 5000, 0);
+      // Health should answer quickly; a single retry absorbs transient
+      // client-side failures (e.g. RN's "Unable to resolve data for blob"
+      // response-read race) without wedging the whole app into offline mode.
+      await httpGet('/health', {}, 5000, 1);
       setHealthOk(true);
       setHealthError(null);
       return true;
     } catch (err: any) {
       setHealthOk(false);
-      const message = typeof err?.message === 'string' ? err.message : 'API unreachable';
-      setHealthError(message);
+      if (__DEV__) console.warn('[AuthProvider] Health check failed:', err?.message);
+      // Never store the raw transport error — it can contain internals (blob
+      // registry ids, the origin API URL) that must not reach any UI surface.
+      setHealthError('API unreachable');
       return false;
     }
   }, []);
