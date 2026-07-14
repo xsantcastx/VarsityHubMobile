@@ -6,10 +6,18 @@ import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatUserLabel } from '@/utils/userDisplay';
 import { safeGoBack } from '@/utils/navigation';
@@ -20,6 +28,9 @@ type ManageUserRow = {
   id: string;
   role?: string | null;
   status?: string | null;
+  scopeType?: 'org' | 'team';
+  scopeId?: string;
+  membershipId?: string | null;
   user?: {
     id?: string | null;
     display_name?: string | null;
@@ -35,7 +46,8 @@ type ManageUserRow = {
 function mapScopeMembers(
   members: any[],
   scope: { id: string; name: string },
-  fallbackKeyPrefix: string
+  fallbackKeyPrefix: string,
+  scopeType: 'org' | 'team'
 ): ManageUserRow[] {
   return members.map((member: any) => ({
     id: String(
@@ -46,16 +58,26 @@ function mapScopeMembers(
     ),
     role: member.role || 'member',
     status: member.status || 'active',
+    scopeType,
+    scopeId: scope.id,
+    membershipId: member.id ? String(member.id) : null,
     user: member.user || null,
     team: scope,
   }));
 }
 
-function mapScopeInvites(invites: any[], scope: { id: string; name: string }): ManageUserRow[] {
+function mapScopeInvites(
+  invites: any[],
+  scope: { id: string; name: string },
+  scopeType: 'org' | 'team'
+): ManageUserRow[] {
   return invites.map((invite: any) => ({
     id: String(invite.id || invite.email),
     role: invite.role || 'member',
     status: invite.status || 'pending',
+    scopeType,
+    scopeId: scope.id,
+    membershipId: null,
     user: {
       email: invite.email || null,
       display_name: invite.email || null,
@@ -116,8 +138,8 @@ function ManageUsersScreen() {
           name: summary.organization.name || 'Organization',
         };
         scopedRows.push(
-          ...mapScopeMembers(members, scope, scope.id),
-          ...mapScopeInvites(invites, scope)
+          ...mapScopeMembers(members, scope, scope.id, 'org'),
+          ...mapScopeInvites(invites, scope, 'org')
         );
       }
 
@@ -137,14 +159,43 @@ function ManageUsersScreen() {
           name: summary.team.name || 'Team',
         };
         scopedRows.push(
-          ...mapScopeMembers(members, scope, scope.id),
-          ...mapScopeInvites(invites, scope)
+          ...mapScopeMembers(members, scope, scope.id, 'team'),
+          ...mapScopeInvites(invites, scope, 'team')
         );
       }
 
       return dedupeRows(scopedRows);
     },
   });
+
+  const queryClient = useQueryClient();
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const handleRemoveOrgMember = (row: ManageUserRow) => {
+    if (!row.scopeId || !row.membershipId) return;
+    Alert.alert(
+      'Remove member',
+      `Remove ${formatUserLabel(row.user)} from ${row.team?.name || 'this organization'}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setRemovingId(row.id);
+              await Organization.removeMember(row.scopeId!, row.membershipId!);
+              await queryClient.invalidateQueries({ queryKey: ['manage-users'] });
+            } catch (e: any) {
+              Alert.alert('Could not remove member', e?.message || 'Please try again.');
+            } finally {
+              setRemovingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const rows = useMemo(() => data ?? [], [data]);
   const error = isError ? 'Failed to load users' : null;
@@ -253,6 +304,24 @@ function ManageUsersScreen() {
             >
               {item.status}
             </Text>
+            {item.scopeType === 'org' &&
+            item.membershipId &&
+            item.role !== 'owner' &&
+            item.user?.id !== user?.id ? (
+              <Pressable
+                accessibilityLabel="Remove member"
+                hitSlop={8}
+                disabled={removingId === item.id}
+                onPress={() => handleRemoveOrgMember(item)}
+                style={{ paddingLeft: 4 }}
+              >
+                {removingId === item.id ? (
+                  <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+                ) : (
+                  <MaterialIcons name="person-remove" size={20} color="#dc2626" />
+                )}
+              </Pressable>
+            ) : null}
           </View>
         )}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}

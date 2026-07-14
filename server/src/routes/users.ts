@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { assertCanSelfDeleteUser, softDeleteUserAccount } from '../lib/accountDeletion.js';
 import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
+import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { notifyNewFollower, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
@@ -832,6 +833,14 @@ usersRouter.delete(
             code: 'SOLE_ORG_OWNER',
             organization_id: (err as any).organization_id,
           });
+        }
+        if ((err as any)?.code === 'SOLE_TEAM_OWNER') {
+          return sendError(
+            res,
+            400,
+            'You are the sole owner of a team. Transfer ownership before deleting your account.',
+            { code: 'SOLE_TEAM_OWNER', details: { team_id: (err as any).team_id } }
+          );
         }
         throw err;
       }

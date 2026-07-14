@@ -6,6 +6,7 @@ import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityL
 import { approveOrganization, rejectOrganization } from '../lib/approvalService.js';
 import { getLatestCoachApplication } from '../lib/coachApplications.js';
 import { debugLog } from '../lib/debugLog.js';
+import { isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
 import {
   buildCoachJoinRequestReviewUrl,
   sendCoachJoinRequestEmail,
@@ -1239,10 +1240,8 @@ organizationsRouter.post(
       if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
       const { identifier, email, role } = parsed.data;
-      const resolvedIdentifier = await resolveInviteIdentifier(prisma, identifier || email || '');
-      const inviteEmail = resolvedIdentifier.email;
 
-      // Validate role against allowed org roles
+      // Validate role against allowed org roles (cheap, no lookups).
       if (role && !isValidOrganizationInviteRole(role)) {
         return res
           .status(400)
@@ -1251,12 +1250,16 @@ organizationsRouter.post(
 
       // Role-barrier model (2026-07-06): the organization owner is the ONLY
       // one who manages the organization — org managers no longer get invite
-      // power (superseding the old "managers may invite at member level"
-      // rule; managers/coaches still keep team-level roster+event approvals).
-      // Owner-only, incl. legacy league_owner_id owners (isOrganizationOwnerScoped).
+      // power. Owner-only, incl. legacy league_owner_id owners.
+      // AUTHORIZE BEFORE RESOLVING THE IDENTIFIER: resolveInviteIdentifier turns
+      // a @username into that user's private email (and its 404-vs-403 result is
+      // a username-existence oracle), so a non-owner must be rejected first.
       if (!(await isOrganizationOwnerScoped(req.user!.id, id))) {
         return sendError(res, 403, 'Only the organization owner can invite members.');
       }
+
+      const resolvedIdentifier = await resolveInviteIdentifier(prisma, identifier || email || '');
+      const inviteEmail = resolvedIdentifier.email;
       if (resolvedIdentifier.resolvedUserId) {
         const existingMembership = await prisma.organizationMembership.findFirst({
           where: {
@@ -1633,6 +1636,9 @@ organizationsRouter.get(
 
     const where: any = {
       status: 'active',
+      // Unapproved (unvetted) orgs must never surface publicly — mirrors the
+      // GET /organizations and GET /:id boundary.
+      admin_approved: true,
       OR: isZipCode
         ? [{ zip_code: query }]
         : [
@@ -2492,6 +2498,90 @@ organizationsRouter.post(
     );
 
     return res.json({ message: 'Ownership transferred successfully' });
+  })
+);
+
+// Remove an org member/manager (owner-only). An owner cannot be removed here —
+// ownership must be moved via transfer-ownership first. Closes the audit gap
+// where no removal path existed and ex-staff kept org-admin power forever.
+organizationsRouter.delete(
+  '/:id/members/:membershipId',
+  requireAuth as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const orgId = req.params.id;
+    const membershipId = req.params.membershipId;
+    if (!(await isOrganizationOwnerScoped(req.user.id, orgId))) {
+      return sendError(res, 403, 'Only the organization owner can remove members.');
+    }
+    const membership = await prisma.organizationMembership.findFirst({
+      where: { id: membershipId, organization_id: orgId },
+      select: { id: true, user_id: true, role: true },
+    });
+    if (!membership) return sendError(res, 404, 'Membership not found');
+    if (membership.role === ORGANIZATION_OWNER_ROLE) {
+      return sendError(res, 400, 'Cannot remove an owner. Transfer ownership to another member first.', {
+        code: 'CANNOT_REMOVE_OWNER',
+      });
+    }
+    if (membership.user_id === req.user.id) {
+      return sendError(res, 400, 'You cannot remove yourself.');
+    }
+    await prisma.organizationMembership.delete({ where: { id: membership.id } });
+    await logAdminActivityFromReq(
+      req,
+      'REMOVE_ORG_MEMBER',
+      'organization',
+      orgId,
+      `Removed member ${membership.user_id} from organization`,
+      { membership_id: membership.id, removed_user_id: membership.user_id }
+    );
+    return res.json({ ok: true });
+  })
+);
+
+// Change an org member's role between manager/member (owner-only). The owner
+// role is intentionally not settable here — use transfer-ownership.
+organizationsRouter.patch(
+  '/:id/members/:membershipId',
+  requireAuth as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const orgId = req.params.id;
+    const membershipId = req.params.membershipId;
+    const schema = z.object({ role: z.enum(['manager', 'member']) });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    }
+    if (!(await isOrganizationOwnerScoped(req.user.id, orgId))) {
+      return sendError(res, 403, 'Only the organization owner can change member roles.');
+    }
+    const membership = await prisma.organizationMembership.findFirst({
+      where: { id: membershipId, organization_id: orgId },
+      select: { id: true, user_id: true, role: true },
+    });
+    if (!membership) return sendError(res, 404, 'Membership not found');
+    if (membership.role === ORGANIZATION_OWNER_ROLE) {
+      return sendError(res, 400, 'Use transfer-ownership to change the owner.', {
+        code: 'CANNOT_RELABEL_OWNER',
+      });
+    }
+    await prisma.organizationMembership.update({
+      where: { id: membership.id },
+      data: { role: parsed.data.role as OrganizationRole },
+    });
+    await logAdminActivityFromReq(
+      req,
+      'UPDATE_ORG_MEMBER_ROLE',
+      'organization',
+      orgId,
+      `Set member ${membership.user_id} role to ${parsed.data.role}`,
+      { membership_id: membership.id, target_user_id: membership.user_id, role: parsed.data.role }
+    );
+    return res.json({ ok: true });
   })
 );
 
@@ -3367,6 +3457,23 @@ organizationsRouter.get(
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const orgId = String(req.params.id);
+    const viewerId = req.user?.id ?? null;
+
+    // Unapproved orgs are not public — mirror GET /organizations/:id: only a
+    // platform admin or an active member may see an unapproved org's programs.
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { admin_approved: true },
+    });
+    if (!org) return res.status(404).json({ error: 'Organization not found' });
+    if (!org.admin_approved) {
+      const isAdminUser = await isCurrentUserPlatformAdmin(req);
+      const membership = viewerId ? await getOrganizationMembership(viewerId, orgId) : null;
+      if (!isAdminUser && membership?.status !== 'active') {
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+    }
+
     const programs = await prisma.sportProgram.findMany({
       where: { organization_id: orgId },
       orderBy: [{ sport: 'asc' }],
@@ -3380,7 +3487,17 @@ organizationsRouter.get(
         },
       },
     });
-    return res.json({ programs });
+
+    // Drop private teams the viewer isn't allowed to see (mirrors programs.ts).
+    const filtered = await Promise.all(
+      programs.map(async program => {
+        const hidden = await Promise.all(
+          program.teams.map(t => isTeamHiddenFromViewer(t.id, viewerId))
+        );
+        return { ...program, teams: program.teams.filter((_, i) => !hidden[i]) };
+      })
+    );
+    return res.json({ programs: filtered });
   })
 );
 

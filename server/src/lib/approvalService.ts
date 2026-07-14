@@ -1306,21 +1306,24 @@ export async function rejectEvent(
 export async function remindPendingCoachApprovals(prisma: PrismaClient): Promise<number> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const staleCoaches = await prisma.user.findMany({
+  // Key off APPLICATION submission, not User.created_at — an established user
+  // who upgrades to coach today must not count as "pending 7 days" because
+  // their account is old.
+  const staleApplications = await prisma.coachApplication.findMany({
     where: {
-      approval_status: 'PENDING',
-      OR: [{ role: 'coach' as any }, { preferences: { path: ['role'], equals: 'coach' } }],
-      created_at: { lt: sevenDaysAgo },
+      status: 'submitted',
+      submitted_at: { lt: sevenDaysAgo },
+      user: { approval_status: 'PENDING' },
     },
-    select: { id: true, display_name: true, email: true, created_at: true },
+    select: { id: true, user_id: true },
     take: 50,
   });
 
-  if (staleCoaches.length === 0) return 0;
+  if (staleApplications.length === 0) return 0;
 
-  console.log(`[approval-reminder] ${staleCoaches.length} coach(es) pending > 7 days`);
+  console.log(`[approval-reminder] ${staleApplications.length} coach(es) pending > 7 days`);
 
-  return staleCoaches.length;
+  return staleApplications.length;
 }
 
 /**
@@ -1330,29 +1333,32 @@ export async function remindPendingCoachApprovals(prisma: PrismaClient): Promise
 export async function autoExpirePendingCoaches(prisma: PrismaClient): Promise<number> {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  const expiredCoaches = await prisma.user.findMany({
+  // Expire based on how long the APPLICATION has been awaiting review, not the
+  // age of the user account. Keying off User.created_at wrongly auto-rejected
+  // established users the moment they upgraded to coach (2026-07-14 audit).
+  const staleApplications = await prisma.coachApplication.findMany({
     where: {
-      approval_status: 'PENDING',
-      OR: [{ role: 'coach' as any }, { preferences: { path: ['role'], equals: 'coach' } }],
-      created_at: { lt: thirtyDaysAgo },
+      status: 'submitted',
+      submitted_at: { lt: thirtyDaysAgo },
+      user: { approval_status: 'PENDING' },
     },
-    select: { id: true, display_name: true, email: true },
+    select: { user_id: true },
     take: 50,
   });
 
-  for (const coach of expiredCoaches) {
-    await rejectCoach(coach.id, 'system', prisma, {
+  for (const app of staleApplications) {
+    await rejectCoach(app.user_id, 'system', prisma, {
       reason: 'Application expired after 30 days without admin review. Please re-apply.',
     }).catch(err => {
-      console.error(`[auto-expire] Failed to expire coach ${coach.id}:`, err);
+      console.error(`[auto-expire] Failed to expire coach ${app.user_id}:`, err);
     });
   }
 
-  if (expiredCoaches.length > 0) {
-    console.log(`[auto-expire] Expired ${expiredCoaches.length} coach application(s)`);
+  if (staleApplications.length > 0) {
+    console.log(`[auto-expire] Expired ${staleApplications.length} coach application(s)`);
   }
 
-  return expiredCoaches.length;
+  return staleApplications.length;
 }
 
 /**

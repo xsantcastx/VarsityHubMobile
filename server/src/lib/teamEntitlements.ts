@@ -288,15 +288,24 @@ export async function guardTeamMembershipMutation(
   const nextAuthorized = nextActive && isAuthorizedTeamRole(nextRole);
 
   if (entitlement.maxAuthorizedUsers !== null && (existingAuthorized || nextAuthorized)) {
-    const currentAuthorizedCount = await db.teamMembership.count({
-      where: {
-        team_id: teamId,
-        status: 'active',
-        role: { in: [...TEAM_AUTHORIZED_ROLES] as any },
-      },
-    });
+    // Count active authorized members AND pending invites — a pending invite
+    // reserves an authorized slot, so direct-adds must not double-spend it (all
+    // currently-assignable invite roles are authorized roles).
+    const [currentAuthorizedCount, pendingInviteCount] = await Promise.all([
+      db.teamMembership.count({
+        where: {
+          team_id: teamId,
+          status: 'active',
+          role: { in: [...TEAM_AUTHORIZED_ROLES] as any },
+        },
+      }),
+      db.teamInvite.count({ where: { team_id: teamId, status: 'pending' } }),
+    ]);
     const nextAuthorizedCount =
-      currentAuthorizedCount + (nextAuthorized ? 1 : 0) - (existingAuthorized ? 1 : 0);
+      currentAuthorizedCount +
+      pendingInviteCount +
+      (nextAuthorized ? 1 : 0) -
+      (existingAuthorized ? 1 : 0);
     if (nextAuthorizedCount > entitlement.maxAuthorizedUsers) {
       return {
         ok: false,

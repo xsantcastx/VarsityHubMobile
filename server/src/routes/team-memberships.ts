@@ -9,6 +9,10 @@ import {
   canAssignTeamRole,
 } from '../lib/teamAuthorization.js';
 import { guardTeamMembershipMutation } from '../lib/teamEntitlements.js';
+import {
+  ensureTeamGroupChatMembershipExternal,
+  removeUserFromTeamGroupChats,
+} from './teams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -148,6 +152,11 @@ teamMembershipsRouter.post(
         },
         { isolationLevel: 'Serializable' }
       );
+      // Mirror invite-accept: a directly-added member joins the team group
+      // chat too (previously only invite-accept did this).
+      await ensureTeamGroupChatMembershipExternal(teamIdStr, userIdStr).catch(err =>
+        console.error('[team-memberships] group-chat add on direct-add failed:', err)
+      );
       return res.status(201).json(m);
     } catch (err: any) {
       if (err?.status && err?.body) {
@@ -250,22 +259,41 @@ teamMembershipsRouter.patch(
       // owner"). Block the sole owner from being demoted or deactivated here.
       const demotesOwner = membership.role === 'owner' && data.role && data.role !== 'owner';
       const deactivatesOwner = membership.role === 'owner' && data.status === 'archived';
-      if (demotesOwner || deactivatesOwner) {
-        const activeOwnerCount = await prisma.teamMembership.count({
-          where: { team_id: membership.team_id, role: 'owner', status: 'active' },
-        });
-        if (activeOwnerCount <= 1) {
+
+      // Sole-owner count + update run atomically under Serializable so two
+      // concurrent demotions/archivals can't both pass the count and strand the
+      // team with no active owner.
+      let updated;
+      try {
+        updated = await prisma.$transaction(
+          async tx => {
+            if (demotesOwner || deactivatesOwner) {
+              const activeOwnerCount = await tx.teamMembership.count({
+                where: { team_id: membership.team_id, role: 'owner', status: 'active' },
+              });
+              if (activeOwnerCount <= 1) throw new Error('SOLE_OWNER_GUARD');
+            }
+            return tx.teamMembership.update({ where: { id }, data });
+          },
+          { isolationLevel: 'Serializable' }
+        );
+      } catch (guardErr: any) {
+        if (guardErr?.message === 'SOLE_OWNER_GUARD') {
           return sendError(res, 400, 'SOLE_OWNER', {
             message:
               'Cannot demote or deactivate the only owner. Transfer ownership to another member first.',
           });
         }
+        throw guardErr;
       }
 
-      const updated = await prisma.teamMembership.update({
-        where: { id },
-        data,
-      });
+      // Archiving a member removes them from the roster — also drop them from the
+      // team group chat(s) so an archived staff member can't keep reading it.
+      if (data.status === 'archived') {
+        await removeUserFromTeamGroupChats(membership.team_id, membership.user_id).catch(err =>
+          console.error('[team-memberships] group-chat cleanup on archive failed:', err)
+        );
+      }
 
       // Notify the affected member about role change
       if (data.role && membership.user_id !== req.user!.id) {
@@ -328,10 +356,12 @@ teamMembershipsRouter.delete(
         });
       }
 
-      // ORG-5: Prevent removal of the sole team owner
+      // ORG-5: Prevent removal of the sole team owner. Count only ACTIVE owners
+      // — an archived owner row is not a valid successor, so counting it would
+      // let the last active owner be removed and strand the team.
       if (membership.role === 'owner') {
         const ownerCount = await prisma.teamMembership.count({
-          where: { team_id: membership.team_id, role: 'owner' },
+          where: { team_id: membership.team_id, role: 'owner', status: 'active' },
         });
         if (ownerCount <= 1) {
           return sendError(res, 400, 'SOLE_OWNER', {
@@ -341,6 +371,12 @@ teamMembershipsRouter.delete(
       }
 
       await prisma.teamMembership.delete({ where: { id } });
+
+      // Revoke the removed member's access to the team's group chat(s) — an
+      // ex-staff member must not keep reading/writing the team chat.
+      await removeUserFromTeamGroupChats(membership.team_id, membership.user_id).catch(err =>
+        console.error('[team-memberships] group-chat cleanup on remove failed:', err)
+      );
 
       // Notify the removed member (only if removed by someone else, not self-leave)
       if (!isSelf) {

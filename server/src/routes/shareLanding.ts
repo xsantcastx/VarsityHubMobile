@@ -31,6 +31,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma.js';
+import { isAuthorHiddenFromViewer } from '../lib/privacyUtils.js';
 
 const APP_STORE_URL =
   process.env.IOS_APP_STORE_URL || 'https://apps.apple.com/us/app/varsityhub/id6758405187';
@@ -232,17 +233,27 @@ async function postLanding(req: Request, res: Response, next: NextFunction) {
       select: {
         content: true,
         media_url: true,
+        deleted_at: true,
+        author_id: true,
         author: { select: { display_name: true, username: true } },
       },
     })
     .catch(() => null);
 
-  const authorLabel = post?.author?.display_name || post?.author?.username || 'A VarsityHub member';
-  const meta: LandingMeta = post
+  // Don't leak deleted posts, or content from private accounts, through the
+  // public share door. Anonymous viewer → a private author is always hidden.
+  const authorHidden = post?.author_id
+    ? await isAuthorHiddenFromViewer(post.author_id, null).catch(() => true)
+    : false;
+  const visiblePost = post && !post.deleted_at && !authorHidden ? post : null;
+
+  const authorLabel =
+    visiblePost?.author?.display_name || visiblePost?.author?.username || 'A VarsityHub member';
+  const meta: LandingMeta = visiblePost
     ? {
         title: `${authorLabel} on VarsityHub`,
-        description: post.content?.slice(0, 200) || undefined,
-        imageUrl: post.media_url || undefined,
+        description: visiblePost.content?.slice(0, 200) || undefined,
+        imageUrl: visiblePost.media_url || undefined,
         url: fullUrl(req),
       }
     : genericLanding(req);
@@ -258,16 +269,24 @@ async function gameLanding(req: Request, res: Response, next: NextFunction) {
   if (!id) return next();
 
   const game = await prisma.game
-    .findUnique({ where: { id }, select: { title: true, location: true, date: true } })
+    .findUnique({
+      where: { id },
+      select: { title: true, location: true, date: true, approval_status: true },
+    })
     .catch(() => null);
 
-  const meta: LandingMeta = game
+  // Do not leak pending/rejected game details through this public side door —
+  // mirrors og.ts, which gates on approval_status === 'approved'.
+  const visibleGame = game && game.approval_status === 'approved' ? game : null;
+
+  const meta: LandingMeta = visibleGame
     ? {
-        title: game.title || 'VarsityHub Game',
+        title: visibleGame.title || 'VarsityHub Game',
         description:
           [
-            game.location && `at ${game.location}`,
-            game.date && new Date(game.date).toLocaleDateString(undefined, { dateStyle: 'long' }),
+            visibleGame.location && `at ${visibleGame.location}`,
+            visibleGame.date &&
+              new Date(visibleGame.date).toLocaleDateString(undefined, { dateStyle: 'long' }),
           ]
             .filter(Boolean)
             .join(' · ') || undefined,
@@ -288,15 +307,20 @@ async function teamLanding(req: Request, res: Response, next: NextFunction) {
   const team = await prisma.team
     .findUnique({
       where: { id },
-      select: { name: true, description: true, logo_url: true },
+      select: { name: true, description: true, logo_url: true, is_private: true, status: true },
     })
     .catch(() => null);
 
-  const meta: LandingMeta = team
+  // Private or archived teams must not expose their profile through the public
+  // share door (Team.is_private restricts the profile to members/followers/org
+  // admins — this anonymous surface has none of those).
+  const visibleTeam = team && !team.is_private && team.status === 'active' ? team : null;
+
+  const meta: LandingMeta = visibleTeam
     ? {
-        title: team.name || 'VarsityHub Team',
-        description: team.description || undefined,
-        imageUrl: team.logo_url || undefined,
+        title: visibleTeam.name || 'VarsityHub Team',
+        description: visibleTeam.description || undefined,
+        imageUrl: visibleTeam.logo_url || undefined,
         url: fullUrl(req),
       }
     : genericLanding(req);
@@ -395,23 +419,37 @@ async function eventLanding(req: Request, res: Response, next: NextFunction) {
   const event = await prisma.event
     .findUnique({
       where: { id },
-      select: { title: true, location: true, date: true, banner_url: true, description: true },
+      select: {
+        title: true,
+        location: true,
+        date: true,
+        banner_url: true,
+        description: true,
+        approval_status: true,
+        status: true,
+      },
     })
     .catch(() => null);
 
-  const meta: LandingMeta = event
+  // Only approved, non-cancelled events are public. Pending/rejected/cancelled
+  // event details must not leak through the share door.
+  const visibleEvent =
+    event && event.approval_status === 'approved' && event.status !== 'cancelled' ? event : null;
+
+  const meta: LandingMeta = visibleEvent
     ? {
-        title: event.title || 'VarsityHub Event',
+        title: visibleEvent.title || 'VarsityHub Event',
         description:
-          event.description?.slice(0, 200) ||
+          visibleEvent.description?.slice(0, 200) ||
           [
-            event.location && `at ${event.location}`,
-            event.date && new Date(event.date).toLocaleDateString(undefined, { dateStyle: 'long' }),
+            visibleEvent.location && `at ${visibleEvent.location}`,
+            visibleEvent.date &&
+              new Date(visibleEvent.date).toLocaleDateString(undefined, { dateStyle: 'long' }),
           ]
             .filter(Boolean)
             .join(' · ') ||
           undefined,
-        imageUrl: event.banner_url || undefined,
+        imageUrl: visibleEvent.banner_url || undefined,
         url: fullUrl(req),
       }
     : genericLanding(req);

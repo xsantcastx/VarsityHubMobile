@@ -353,6 +353,36 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       }
     },
   },
+  {
+    name: 'google-play-reconciliation',
+    // Google Play sends no renewal RTDN, so re-verify active Google subscribers
+    // to refresh expiry on renewal and downgrade on cancel/expiry. Off-clock
+    // minutes, hourly.
+    cron: '37 * * * *',
+    description:
+      'Re-verify active Google Play subscribers to refresh expiry on renewal and downgrade on lapse',
+    handler: async () => {
+      try {
+        const { reconcileGooglePlaySubscriptions } = await import(
+          '../lib/googlePlayReconciliation.js'
+        );
+        const result = await reconcileGooglePlaySubscriptions();
+        if (result.downgraded > 0 || result.errors > 0) {
+          console.error(
+            `[Scheduler] google-play-reconciliation: checked=${result.checked} refreshed=${result.refreshed} downgraded=${result.downgraded} errors=${result.errors}`
+          );
+        }
+      } catch (error) {
+        console.error('[Scheduler] google-play-reconciliation failed:', error);
+        captureException(
+          error instanceof Error ? error : new Error(String(error)),
+          withJobTags('google-play-reconciliation', {
+            context: 'google_play_reconciliation_failed',
+          })
+        );
+      }
+    },
+  },
 ];
 
 let schedulerQueue: Queue | null = null;

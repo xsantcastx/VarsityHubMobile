@@ -6,6 +6,7 @@ import { getInteractionSets, withInteractions } from '../lib/postEnrichment.js';
 import {
   getBlockedUserIds,
   getExcludedPrivateAuthorIds,
+  getExcludedPrivateTeamIds,
   getRequestBlockedCache,
 } from '../lib/privacyUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -102,13 +103,21 @@ highlightsRouter.get(
       const SINCE_DAYS = v2 ? 90 : 60; // Longer time window for more posts
       const since = new Date(Date.now() - SINCE_DAYS * 864e5);
 
-      // Privacy + blocks: exclude private-profile authors and blocked users
-      const [excludedIds, blockedIds] = await Promise.all([
+      // Privacy + blocks: exclude private-profile authors, blocked users, AND
+      // posts attached to private teams the viewer can't see.
+      const [excludedIds, blockedIds, excludedTeamIds] = await Promise.all([
         getExcludedPrivateAuthorIds(req.user?.id ?? null),
         getBlockedUserIds(req.user?.id ?? null, getRequestBlockedCache(req)),
+        getExcludedPrivateTeamIds(req.user?.id ?? null),
       ]);
       const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
-      const privacyWhere = allExcluded.length ? { author_id: { notIn: allExcluded } } : {};
+      const privacyWhere: any = {};
+      if (allExcluded.length) privacyWhere.author_id = { notIn: allExcluded };
+      if (excludedTeamIds.length) {
+        // team_id: { notIn } alone would also drop null-team posts (NOT IN is
+        // NULL for NULL) — explicitly keep non-team posts.
+        privacyWhere.OR = [{ team_id: null }, { team_id: { notIn: excludedTeamIds } }];
+      }
 
       // Per-tab sorted mode (v2 only): each mode runs its own correctly-shaped
       // query instead of deriving all tabs from one trending-shaped pool.

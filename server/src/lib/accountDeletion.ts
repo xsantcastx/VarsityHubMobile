@@ -105,6 +105,7 @@ function buildDeletedUsername(userId: string): string {
 }
 
 export async function assertCanSelfDeleteUser(userId: string): Promise<void> {
+  // Orgs owned via a membership row.
   const ownedOrgs = await prisma.organizationMembership.findMany({
     where: { user_id: userId, role: 'owner', status: 'active' },
     select: { organization_id: true },
@@ -112,10 +113,12 @@ export async function assertCanSelfDeleteUser(userId: string): Promise<void> {
   });
 
   for (const { organization_id } of ownedOrgs) {
+    // A successor must be another OWNER — a manager has no org-admin power under
+    // the role-barrier model and cannot inherit the org.
     const otherOwners = await prisma.organizationMembership.count({
       where: {
         organization_id,
-        role: { in: ['owner', 'manager'] },
+        role: 'owner',
         status: 'active',
         NOT: { user_id: userId },
       },
@@ -124,6 +127,45 @@ export async function assertCanSelfDeleteUser(userId: string): Promise<void> {
       const err = new Error('SOLE_ORG_OWNER');
       (err as any).code = 'SOLE_ORG_OWNER';
       (err as any).organization_id = organization_id;
+      throw err;
+    }
+  }
+
+  // Legacy owners recorded only via Organization.league_owner_id (no owner
+  // membership row) — deleting them would orphan the org with no recoverable
+  // owner. Block unless there is a distinct active owner membership.
+  const legacyOwnedOrgs = await prisma.organization.findMany({
+    where: { league_owner_id: userId },
+    select: { id: true },
+    take: 100,
+  });
+  for (const { id: organization_id } of legacyOwnedOrgs) {
+    const otherOwners = await prisma.organizationMembership.count({
+      where: { organization_id, role: 'owner', status: 'active', NOT: { user_id: userId } },
+    });
+    if (otherOwners === 0) {
+      const err = new Error('SOLE_ORG_OWNER');
+      (err as any).code = 'SOLE_ORG_OWNER';
+      (err as any).organization_id = organization_id;
+      throw err;
+    }
+  }
+
+  // Teams: a sole owner leaving strands the team (no owner → uncapped
+  // entitlements + bricked ownership transfer). Require another active owner.
+  const ownedTeams = await prisma.teamMembership.findMany({
+    where: { user_id: userId, role: 'owner', status: 'active' },
+    select: { team_id: true },
+    take: 200,
+  });
+  for (const { team_id } of ownedTeams) {
+    const otherOwners = await prisma.teamMembership.count({
+      where: { team_id, role: 'owner', status: 'active', NOT: { user_id: userId } },
+    });
+    if (otherOwners === 0) {
+      const err = new Error('SOLE_TEAM_OWNER');
+      (err as any).code = 'SOLE_TEAM_OWNER';
+      (err as any).team_id = team_id;
       throw err;
     }
   }

@@ -884,6 +884,8 @@ eventsRouter.post(
         capacity: true,
         max_attendees: true,
         date: true,
+        status: true,
+        approval_status: true,
         team_id: true,
         creator_id: true,
         creator: { select: { email: true } },
@@ -891,6 +893,24 @@ eventsRouter.post(
       },
     });
     if (!event) return res.status(404).json({ error: 'Not found' });
+
+    // Only a live (approved, non-cancelled) event can accept RSVPs. Previously
+    // only the date was checked, so a cancelled/pending/rejected event still
+    // took RSVPs and scheduled reminders for an event that isn't happening.
+    if (event.approval_status && event.approval_status !== 'approved') {
+      // error-envelope-exempt: matches this file's existing res.status().json() style
+      return res.status(400).json({
+        error: 'Event not available',
+        message: 'This event is not open for RSVPs.',
+      });
+    }
+    if (event.status === 'cancelled') {
+      // error-envelope-exempt: matches this file's existing res.status().json() style
+      return res.status(400).json({
+        error: 'Event cancelled',
+        message: 'This event has been cancelled.',
+      });
+    }
 
     // Validate event hasn't passed
     const eventDate = new Date(event.date);
@@ -1609,17 +1629,26 @@ eventsRouter.patch(
       data: updateData,
     });
 
-    // Update opponent on linked Game when event has game_id
+    // Keep the linked Game in sync when event has game_id. Previously only the
+    // opponent synced back, so editing an event's date/location/title left the
+    // game (shown on the schedule/feed/map) stale — the reverse direction
+    // (PUT /games/:id) already syncs to the event, so this closes the asymmetry.
     if (
       event.game_id &&
       (data.away_team_id !== undefined ||
         data.away_team_name !== undefined ||
-        data.opponent !== undefined)
+        data.opponent !== undefined ||
+        data.date !== undefined ||
+        data.location !== undefined ||
+        data.title !== undefined)
     ) {
       const gameUpdate: any = {};
       if (data.away_team_id !== undefined) gameUpdate.away_team_id = data.away_team_id || null;
       if (data.away_team_name !== undefined)
         gameUpdate.away_team_name = data.away_team_name ?? null;
+      if (data.date !== undefined) gameUpdate.date = new Date(data.date);
+      if (data.location !== undefined) gameUpdate.location = data.location ?? null;
+      if (data.title !== undefined) gameUpdate.title = data.title;
       if (Object.keys(gameUpdate).length > 0) {
         await prisma.game.update({
           where: { id: event.game_id },

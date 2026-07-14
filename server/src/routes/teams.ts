@@ -92,6 +92,36 @@ const parseManagedTeamCursor = (raw: string): ManagedTeamCursor | null => {
   }
 };
 
+/**
+ * Remove a user from every group chat belonging to a team. Called when a member
+ * is removed or archived from the roster so ex-staff lose access to the team
+ * chat (access is gated purely on GroupChatMember, so deleting these rows
+ * revokes read+write immediately). Accepts a tx client to run inside the
+ * membership-mutation transaction.
+ */
+export async function removeUserFromTeamGroupChats(
+  teamId: string,
+  userId: string,
+  client: {
+    groupChat: { findMany: (args: any) => Promise<Array<{ id: string }>> };
+    groupChatMember: { deleteMany: (args: any) => Promise<unknown> };
+  } = prisma as any
+): Promise<void> {
+  const chats = await client.groupChat.findMany({
+    where: { team_id: teamId },
+    select: { id: true },
+    take: 100,
+  });
+  if (chats.length === 0) return;
+  await client.groupChatMember.deleteMany({
+    where: { chat_id: { in: chats.map(c => c.id) }, user_id: userId },
+  });
+}
+
+export async function ensureTeamGroupChatMembershipExternal(teamId: string, userId: string) {
+  return ensureTeamGroupChatMembership(teamId, userId);
+}
+
 async function ensureTeamGroupChatMembership(teamId: string, userId: string) {
   return withDistributedLock(
     {
@@ -2268,6 +2298,9 @@ const createTeamSchema = z.object({
         assign_team: z.string().optional(),
       })
     )
+    // Hard upper bound so one request can't fan out an unbounded invite blast;
+    // the per-plan maxAuthorizedUsers cap is enforced below at invite time.
+    .max(50)
     .optional(),
   onboarding: z.boolean().optional(),
 });
@@ -2752,6 +2785,27 @@ teamsRouter.post(
             }
           }
 
+          // Backstop the authorized-user cap at accept time — invite-create
+          // reserves the slot, but a concurrent direct-add could have consumed
+          // the plan's authorized allowance since. (Roster limit above is
+          // vestigial; the authorized cap is the effective bound.)
+          if (entitlement.maxAuthorizedUsers !== null && isAuthorizedTeamRole(roleToApply)) {
+            const existingAuthorized =
+              currentMembership?.status === 'active' &&
+              isAuthorizedTeamRole(String(currentMembership?.role));
+            const currentAuthorizedCount = await tx.teamMembership.count({
+              where: {
+                team_id: invite.team_id,
+                status: 'active',
+                role: { in: [...TEAM_AUTHORIZED_ROLES] as any },
+              },
+            });
+            const nextAuthorizedCount = currentAuthorizedCount + (existingAuthorized ? 0 : 1);
+            if (nextAuthorizedCount > entitlement.maxAuthorizedUsers) {
+              throw new Error(`AUTHORIZED_LIMIT_REACHED:${entitlement.maxAuthorizedUsers}`);
+            }
+          }
+
           const transition = await tx.teamInvite.updateMany({
             where: { id: invite.id, status: 'pending' },
             data: { status: 'accepted' },
@@ -2785,6 +2839,13 @@ teamsRouter.post(
           error: 'ROSTER_LIMIT_REACHED',
           code: 'ROSTER_LIMIT_REACHED',
           message: `This team has reached its roster limit of ${limit} members. Upgrade your plan for more.`,
+        });
+      }
+      if (error?.message?.startsWith('AUTHORIZED_LIMIT_REACHED:')) {
+        const limit = Number.parseInt(error.message.split(':')[1], 10);
+        return sendError(res, 403, 'AUTHORIZED_LIMIT_REACHED', {
+          code: 'AUTHORIZED_LIMIT_REACHED',
+          message: `This team has reached its limit of ${limit} authorized users. Upgrade your plan for more.`,
         });
       }
       throw error;
@@ -2985,25 +3046,49 @@ teamsRouter.post(
       return res.status(400).json({ error: 'New owner must be an existing team member' });
     }
 
-    const existingOwnerMembership = await prisma.teamMembership.findFirst({
-      where: { team_id: teamId, role: 'owner', status: 'active' },
-      select: { user_id: true },
-    });
-    if (!existingOwnerMembership) {
-      return res.status(400).json({ error: 'Team does not have an active owner to transfer from' });
-    }
+    // Read owner + demote/promote inside one Serializable transaction, with the
+    // demotion guarded on the row still being the active owner. Without this,
+    // two concurrent transfers both read the same owner and mint TWO owners.
+    try {
+      await prisma.$transaction(
+        async tx => {
+          const existingOwnerMembership = await tx.teamMembership.findFirst({
+            where: { team_id: teamId, role: 'owner', status: 'active' },
+            select: { user_id: true },
+          });
+          if (!existingOwnerMembership) throw new Error('NO_ACTIVE_OWNER');
 
-    // Transfer: demote current owner to manager, promote new owner
-    await prisma.$transaction([
-      prisma.teamMembership.update({
-        where: { team_id_user_id: { team_id: teamId, user_id: existingOwnerMembership.user_id } },
-        data: { role: 'manager' },
-      }),
-      prisma.teamMembership.update({
-        where: { team_id_user_id: { team_id: teamId, user_id: new_owner_id } },
-        data: { role: 'owner' },
-      }),
-    ]);
+          const demoted = await tx.teamMembership.updateMany({
+            where: {
+              team_id: teamId,
+              user_id: existingOwnerMembership.user_id,
+              role: 'owner',
+              status: 'active',
+            },
+            data: { role: 'manager' },
+          });
+          if (demoted.count === 0) throw new Error('OWNER_CHANGED');
+
+          await tx.teamMembership.update({
+            where: { team_id_user_id: { team_id: teamId, user_id: new_owner_id } },
+            data: { role: 'owner' },
+          });
+        },
+        { isolationLevel: 'Serializable' }
+      );
+    } catch (e: any) {
+      if (e?.message === 'NO_ACTIVE_OWNER') {
+        return res
+          .status(400)
+          .json({ error: 'Team does not have an active owner to transfer from' });
+      }
+      if (e?.message === 'OWNER_CHANGED') {
+        return res
+          .status(409)
+          .json({ error: 'Ownership changed before this action completed. Please retry.' });
+      }
+      throw e;
+    }
 
     await logAdminActivityFromReq(
       req,

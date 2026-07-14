@@ -200,15 +200,15 @@ messagesRouter.post(
       }
     }
 
-    let convId = conversation_id;
-    if (!convId && toId) {
-      const pair = [meId, toId].sort();
-      convId = `dm:${pair[0]}__${pair[1]}`;
-    }
-
     if (!toId) {
       return sendError(res, 400, 'Could not determine recipient');
     }
+
+    // Always derive the conversation id from the actual (sender, recipient)
+    // pair — never trust a client-supplied conversation_id. A client value could
+    // target another user's DM thread and spoof its inbox preview (audit 4d).
+    const pair = [meId, toId].sort();
+    const convId = `dm:${pair[0]}__${pair[1]}`;
 
     // Prevent messaging if either user has blocked the other
     const block = await prisma.blockedUser.findFirst({

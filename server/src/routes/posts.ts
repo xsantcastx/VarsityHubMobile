@@ -14,8 +14,10 @@ import { prisma } from '../lib/prisma.js';
 import {
   getBlockedUserIds,
   getExcludedPrivateAuthorIds,
+  getExcludedPrivateTeamIds,
   getRequestBlockedCache,
   isAuthorHiddenFromViewer,
+  isTeamHiddenFromViewer,
 } from '../lib/privacyUtils.js';
 import {
   canManageAnyTeam,
@@ -325,6 +327,11 @@ postsRouter.get(
     }
     if (req.query.team_id) {
       const teamId = String(req.query.team_id);
+      // Respect team privacy — a private team's posts must not be served to a
+      // viewer who isn't a member/follower/org-admin (mirrors the ?user_id=
+      // private-author guard below and GET /teams/:id/screen-summary).
+      const teamHidden = await isTeamHiddenFromViewer(teamId, currentUserId);
+      if (teamHidden) return res.json({ items: [], nextCursor: null });
       // A team's posts are those attached to the team directly plus those
       // attached to any of its games (home or away side).
       where.AND = [
@@ -371,6 +378,16 @@ postsRouter.get(
           ...(typeof where.author_id === 'object' ? where.author_id : {}),
           notIn: excludedIds,
         };
+      // Also exclude posts attached to private teams the viewer can't see.
+      const excludedTeamIds = await getExcludedPrivateTeamIds(currentUserId);
+      if (excludedTeamIds.length) {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : []),
+          // notIn alone would drop null-team posts (NOT IN is NULL for NULL) —
+          // explicitly keep non-team posts.
+          { OR: [{ team_id: null }, { team_id: { notIn: excludedTeamIds } }] },
+        ];
+      }
     }
 
     // Block filtering: hide posts from users the viewer has blocked or been blocked by
