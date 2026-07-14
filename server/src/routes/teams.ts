@@ -2520,8 +2520,7 @@ teamsRouter.post(
       }
       if (e?.message?.startsWith('INVITE_ROLE_CONFLICT:')) {
         const [, message] = e.message.split(':');
-        return res.status(409).json({
-          error: 'INVITE_ROLE_CONFLICT',
+        return sendError(res, 409, 'INVITE_ROLE_CONFLICT', {
           message: message || 'An invite for this email is already pending with a different role.',
         });
       }
