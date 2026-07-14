@@ -89,7 +89,7 @@ module.exports = ({ config }) => {
       },
     },
     ios: {
-      buildNumber: '55',
+      buildNumber: '56',
       supportsTablet: true,
       appleTeamId: 'B5H8F69RW5',
       bundleIdentifier: 'com.varsithub.varsityhub-ios',
