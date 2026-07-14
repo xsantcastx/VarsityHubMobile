@@ -8,7 +8,9 @@ RUN apt-get update \
   && apt-get upgrade -y \
   && apt-get install -y --no-install-recommends build-essential python3 openssl \
   && rm -rf /var/lib/apt/lists/* \
-  && npm install -g npm@latest
+  && npm install -g npm@11
+# Pinned to npm@11 (not @latest): npm@12 requires Node >=22 and breaks the
+# build on this node:20 base with EBADENGINE. npm@11 supports Node ^20.17.0.
 
 COPY ./package.json ./package.json
 COPY ./package-lock.json ./package-lock.json
@@ -32,7 +34,9 @@ RUN apt-get update \
   && apt-get upgrade -y \
   && apt-get install -y --no-install-recommends build-essential python3 openssl \
   && rm -rf /var/lib/apt/lists/* \
-  && npm install -g npm@latest
+  && npm install -g npm@11
+# Pinned to npm@11 (not @latest): npm@12 requires Node >=22 and breaks the
+# build on this node:20 base with EBADENGINE. npm@11 supports Node ^20.17.0.
 
 # Copy package files and Prisma schema (needed for postinstall)
 # Force fresh copy - 2026-01-15T04:40
