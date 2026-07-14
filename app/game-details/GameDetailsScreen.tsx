@@ -1408,10 +1408,16 @@ const GameDetailsScreen = () => {
       void loadTeams();
 
       try {
-        if (gameIdValue) {
+        // buildEventDetailRoute sends a standalone event as id === eventId so it
+        // renders on this rich screen (not the bare public-event page). In that
+        // case load it as an event; a real game passes only `id` (or id != eventId
+        // when a game also carries a linked eventId), which still hits loadGameById.
+        if (gameIdValue && gameIdValue !== eventIdValue) {
           await loadGameById(gameIdValue);
         } else if (eventIdValue) {
           await loadVirtualFromEvent(eventIdValue);
+        } else if (gameIdValue) {
+          await loadGameById(gameIdValue);
         }
         // eslint-disable-next-line no-console
         if (__DEV__) console.log('[GameDetails] load() — done, vm should be set');
