@@ -146,7 +146,7 @@ function ManageUsersScreen() {
     },
   });
 
-  const rows = data ?? [];
+  const rows = useMemo(() => data ?? [], [data]);
   const error = isError ? 'Failed to load users' : null;
 
   const filtered = useMemo(() => {

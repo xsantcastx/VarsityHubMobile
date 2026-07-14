@@ -63,4 +63,16 @@ jobs:
         if: steps.token_check.outputs.has_token == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: npm run web:deploy:prod
+        # EXPO_PUBLIC_* values must be in the environment at `expo export`
+        # time to be baked into the web bundle. CI has no .env (gitignored),
+        # so without this the deployed site ships the Sentry SDK with no DSN
+        # and web errors silently go nowhere (verified live 2026-07-13).
+        # eas.json's production profile is the committed source of truth —
+        # a Sentry DSN is client-side-public by design.
+        run: |
+          EXPO_PUBLIC_SENTRY_DSN="$(node -p "require('./eas.json').build.production.env.EXPO_PUBLIC_SENTRY_DSN || ''")"
+          export EXPO_PUBLIC_SENTRY_DSN
+          if [ -z "$EXPO_PUBLIC_SENTRY_DSN" ]; then
+            echo "::warning::EXPO_PUBLIC_SENTRY_DSN missing from eas.json production env — web bundle will ship without Sentry"
+          fi
+          npm run web:deploy:prod

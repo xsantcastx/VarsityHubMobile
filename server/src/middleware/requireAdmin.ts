@@ -26,3 +26,17 @@ export async function getIsAdmin(req: AuthedRequest): Promise<boolean> {
   });
   return !!me?.email_verified && isAdminEmail(me?.email);
 }
+
+/**
+ * userId-based variant of getIsAdmin() for call sites that don't hold a req.
+ * Admin privilege ALWAYS requires a verified email — the bare isEmailAdmin()
+ * string check must never gate access on its own (2026-07-13 audit).
+ */
+export async function isVerifiedAdminUser(userId?: string | null): Promise<boolean> {
+  if (!userId) return false;
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, email_verified: true },
+  });
+  return !!me?.email_verified && isAdminEmail(me?.email);
+}

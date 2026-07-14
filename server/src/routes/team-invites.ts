@@ -106,6 +106,29 @@ teamInvitesRouter.post(
       emailLower = email!.toLowerCase();
     }
 
+    // Reject inviting someone who is already an active member of this team.
+    // Same rule as POST /teams/:id/invite; this endpoint was missing it
+    // (2026-07-13 audit).
+    const existingUserForInvite = await prisma.user.findFirst({
+      where: { email: { equals: emailLower, mode: 'insensitive' } } as any,
+      select: { id: true },
+    });
+    if (existingUserForInvite) {
+      const existingMembership = await prisma.teamMembership.findFirst({
+        where: {
+          team_id: teamId,
+          user_id: existingUserForInvite.id,
+          status: 'active',
+        },
+        select: { id: true },
+      });
+      if (existingMembership) {
+        return sendError(res, 409, 'That user is already on this team.', {
+          code: 'ALREADY_MEMBER',
+        });
+      }
+    }
+
     let invite;
     try {
       invite = await prisma.$transaction(async tx => {

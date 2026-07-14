@@ -121,6 +121,9 @@ export function calculatePasswordStrength(password: string): { score: number; fe
   return { score, feedback };
 }
 
+/** Canonical username rule — matches backend: lowercase letters, numbers, dots, underscores. */
+export const USERNAME_REGEX = /^[a-z0-9_.]+$/;
+
 /**
  * Validate username format
  */
@@ -132,7 +135,7 @@ export function validateUsername(username: string): ValidationResult {
   if (username.length > 20) {
     return { valid: false, error: 'Username must be 20 characters or less' };
   }
-  if (!/^[a-z0-9_.]+$/.test(username)) {
+  if (!USERNAME_REGEX.test(username)) {
     return {
       valid: false,
       error: 'Username can only contain lowercase letters, numbers, dots, and underscores',

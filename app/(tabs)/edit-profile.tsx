@@ -10,7 +10,6 @@ import {
   Animated,
   Linking,
   PanResponder,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,

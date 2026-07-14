@@ -16,25 +16,6 @@ type MarkerPayload = {
 const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
 const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, character => {
-    switch (character) {
-      case '&':
-        return '&amp;';
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
-      case '"':
-        return '&quot;';
-      case "'":
-        return '&#39;';
-      default:
-        return character;
-    }
-  });
-}
-
 const iframeStyle: CSSProperties = {
   width: '100%',
   height: '100%',

@@ -5,8 +5,10 @@ FROM node:20-bookworm-slim AS web-builder
 WORKDIR /web
 
 RUN apt-get update \
+  && apt-get upgrade -y \
   && apt-get install -y --no-install-recommends build-essential python3 openssl \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && npm install -g npm@latest
 
 COPY ./package.json ./package.json
 COPY ./package-lock.json ./package-lock.json
@@ -27,8 +29,10 @@ WORKDIR /app
 
 # Install build dependencies (needed for native modules and Prisma engines)
 RUN apt-get update \
+  && apt-get upgrade -y \
   && apt-get install -y --no-install-recommends build-essential python3 openssl \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && npm install -g npm@latest
 
 # Copy package files and Prisma schema (needed for postinstall)
 # Force fresh copy - 2026-01-15T04:40

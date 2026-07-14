@@ -188,7 +188,7 @@ export default function TeamAdminScreen() {
 
   const team = data?.team ?? null;
   const canAdminister = data?.canAdminister ?? false;
-  const members = data?.members ?? [];
+  const members = useMemo(() => data?.members ?? [], [data?.members]);
   const pendingInvites = data?.pendingInvites ?? [];
   const games = data?.games ?? [];
   const selectedTeamId = data?.selectedTeamId ?? routeTeamId;

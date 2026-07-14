@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
+import { validateUsername } from '@/utils/formUtils';
 import { safeGoBack } from '@/utils/navigation';
 
 export default function EditUsernameScreen() {
@@ -34,20 +35,9 @@ export default function EditUsernameScreen() {
       Alert.alert('No changes', 'Username is the same as current');
       return;
     }
-    // Validate username format (lowercase letters, numbers, dots, underscores only)
-    if (!/^[a-z0-9_.]+$/.test(v)) {
-      Alert.alert(
-        'Invalid username',
-        'Username can only contain lowercase letters, numbers, dots, and underscores'
-      );
-      return;
-    }
-    if (v.length < 3) {
-      Alert.alert('Username too short', 'Username must be at least 3 characters');
-      return;
-    }
-    if (v.length > 20) {
-      Alert.alert('Username too long', 'Username must be 20 characters or less');
+    const usernameCheck = validateUsername(v);
+    if (!usernameCheck.valid) {
+      Alert.alert('Invalid username', usernameCheck.error);
       return;
     }
     setSaving(true);

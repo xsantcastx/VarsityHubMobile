@@ -404,173 +404,41 @@ export async function setupScheduler(): Promise<boolean> {
   }
 }
 
+// Both setupScheduler() and startSchedulerWorker() route here when REDIS_URL
+// is unset — guard so the cron jobs are only registered once per process.
+let fallbackCronArmed = false;
+
 /**
- * Fallback cron using setInterval (for when Redis is not available)
+ * Fallback cron using node-cron (for when Redis is not available)
  */
-// Track last date when end-of-day transaction report was sent to prevent duplicates
-let lastTransactionReportDate: string | null = null;
-let lastFounderMetricsDate: string | null = null;
+async function setupFallbackCron(): Promise<boolean> {
+  if (fallbackCronArmed) {
+    console.log('[Scheduler] Fallback cron already armed — skipping duplicate registration');
+    return true;
+  }
+  fallbackCronArmed = true;
 
-function setupFallbackCron(): boolean {
-  console.log('[Scheduler] Setting up fallback cron with setInterval');
-
-  // Game reminders - every hour
-  setInterval(
-    async () => {
+  // No Redis/BullMQ available — schedule every job from the single
+  // SCHEDULED_JOBS list via node-cron. This function previously hand-copied
+  // each job as a timed handler and had silently dropped five newer jobs
+  // (2026-07-13 audit). Deriving from the array means a job added to
+  // SCHEDULED_JOBS can never be missing here again.
+  const { default: cron } = await import('node-cron');
+  for (const job of SCHEDULED_JOBS) {
+    cron.schedule(job.cron, async () => {
       try {
-        const { notifyUpcomingGames } = await import('../lib/notifications.js');
-        await notifyUpcomingGames(12);
-        await notifyUpcomingGames(1);
+        console.log(`[Scheduler] (fallback) Running ${job.name}: ${job.description}`);
+        await job.handler();
       } catch (error) {
-        console.error('[Scheduler] Game reminder failed:', error);
-      }
-    },
-    60 * 60 * 1000
-  ); // 1 hour
-
-  // Cleanup - once per day (check every hour, run at 3am)
-  setInterval(
-    async () => {
-      const hour = new Date().getHours();
-      if (hour === 3) {
-        try {
-          const { prisma } = await import('../lib/prisma.js');
-          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-          await prisma.notification.deleteMany({
-            where: {
-              read_at: { not: null },
-              created_at: { lt: thirtyDaysAgo },
-            },
-          });
-        } catch (error) {
-          console.error('[Scheduler] Cleanup failed:', error);
-        }
-      }
-    },
-    60 * 60 * 1000
-  ); // Check every hour
-
-  // Push receipt verification - every 15 minutes
-  setInterval(
-    async () => {
-      try {
-        const { verifyPushReceipts } = await import('../lib/notifications.js');
-        await verifyPushReceipts();
-      } catch (error) {
-        console.error('[Scheduler] Push receipt verification failed:', error);
-      }
-    },
-    15 * 60 * 1000
-  ); // 15 minutes
-
-  // End-of-day transaction report - check every minute, run at 11:59 PM
-  setInterval(async () => {
-    const now = new Date();
-    const hour = now.getHours();
-    const minute = now.getMinutes();
-
-    // Run at 11:59 PM
-    if (hour === 23 && minute === 59) {
-      // Get today's date string (YYYY-MM-DD) to prevent duplicate sends
-      const todayDate = now.toISOString().split('T')[0];
-
-      // Only send if we haven't already sent for today
-      if (lastTransactionReportDate !== todayDate) {
-        try {
-          const { getEndOfDayReport } = await import('../lib/transactionLogger.js');
-          const report = await getEndOfDayReport();
-          if (report) {
-            console.log(`[Scheduler] Fallback EOD report for ${report.date}`);
-          }
-          lastTransactionReportDate = todayDate;
-        } catch (error) {
-          console.error('[Scheduler] End-of-day transaction report failed:', error);
-        }
-      }
-    }
-  }, 60 * 1000); // Check every minute
-
-  // Coach approval reminder - daily
-  setInterval(
-    async () => {
-      try {
-        const { prisma } = await import('../lib/prisma.js');
-        const { remindPendingCoachApprovals } = await import('../lib/approvalService.js');
-        await remindPendingCoachApprovals(prisma);
-      } catch (error) {
-        console.error('[Scheduler] Coach approval reminder failed:', error);
-      }
-    },
-    24 * 60 * 60 * 1000
-  );
-
-  // Coach approval drift probe - daily
-  setInterval(
-    async () => {
-      try {
-        const { prisma } = await import('../lib/prisma.js');
-        const { findCoachApprovalDrift } = await import('../lib/coachApprovalDrift.js');
-        const drift = await findCoachApprovalDrift(prisma, 25);
-        if (drift.length > 0) {
-          console.error(`[Scheduler] Coach approval drift detected (${drift.length} rows)`);
-          captureException(new Error(`Coach approval drift detected (${drift.length} rows)`), {
-            ...withJobTags('coach-approval-drift-probe', {
-              context: 'coach_approval_drift_probe',
-            }),
-            mismatches: drift,
-          });
-        }
-      } catch (error) {
-        console.error('[Scheduler] Coach approval drift probe failed:', error);
+        console.error(`[Scheduler] (fallback) ${job.name} failed:`, error);
         captureException(
           error instanceof Error ? error : new Error(String(error)),
-          withJobTags('coach-approval-drift-probe', {
-            context: 'coach_approval_drift_probe_failed',
-          })
+          withJobTags(job.name, { context: 'scheduler_fallback_job_failed', cron: job.cron })
         );
       }
-    },
-    24 * 60 * 60 * 1000
-  );
-
-  // Coach approval auto-expire - daily
-  setInterval(
-    async () => {
-      try {
-        const { prisma } = await import('../lib/prisma.js');
-        const { autoExpirePendingCoaches } = await import('../lib/approvalService.js');
-        await autoExpirePendingCoaches(prisma);
-      } catch (error) {
-        console.error('[Scheduler] Coach approval auto-expire failed:', error);
-      }
-    },
-    24 * 60 * 60 * 1000
-  );
-
-  // Stale event auto-reject - daily
-  setInterval(
-    async () => {
-      try {
-        const { prisma } = await import('../lib/prisma.js');
-        const { autoExpireStaleEvents } = await import('../lib/approvalService.js');
-        await autoExpireStaleEvents(prisma);
-      } catch (error) {
-        console.error('[Scheduler] Stale event auto-reject failed:', error);
-      }
-    },
-    24 * 60 * 60 * 1000
-  );
-
-  // Daily founder metrics report - check every minute, run at 8:00 AM
-  setInterval(async () => {
-    const now = new Date();
-    const hour = now.getHours();
-    const minute = now.getMinutes();
-
-    // Founder metrics email removed — non-mandatory internal report email
-  }, 60 * 1000); // Check every minute
-
+    });
+  }
+  console.log(`[Scheduler] Fallback cron armed for ${SCHEDULED_JOBS.length} jobs via node-cron`);
   return true;
 }
 

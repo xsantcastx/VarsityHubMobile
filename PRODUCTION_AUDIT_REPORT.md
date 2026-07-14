@@ -44,7 +44,7 @@ The codebase is **in good shape for an Apple production build**. Recent changes 
 
 ### 2.3 Sentry and build reliability
 
-- **Sentry:** Plugin in `app.json` has `uploadSourcemaps: false`; EAS build env has `SENTRY_DISABLE_AUTO_UPLOAD: "true"` for all profiles to avoid build failures.
+- **Sentry:** `uploadSourcemaps` in `app.json` is computed dynamically from `SENTRY_DISABLE_AUTO_UPLOAD`. Verified 2026-07-13: `eas.json` only sets `SENTRY_DISABLE_AUTO_UPLOAD: "true"` for the `development` profile — `staging`/`preview`/`production` upload sourcemaps normally, and `SENTRY_AUTH_TOKEN` needed for the upload is present in EAS production env. (Previous note here was stale/incorrect — sourcemaps are NOT disabled for all profiles.)
 - **Org/project:** `lime-productions` / `varsity-hub-mobile` in both `app.json` and `eas.json`.
 
 ### 2.4 Security and compliance

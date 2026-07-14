@@ -1503,28 +1503,26 @@ eventsRouter.patch(
       return res.status(400).json({ error: 'Cannot edit cancelled event' });
     }
 
+    // Permission: creator OR any team staff (including org admin fallback)
+    // for any team linked to this event — same rule as /:id/cancel below.
+    // Previously this used an inline membership query without the org-admin
+    // fallback, so league owners couldn't edit events in their own league
+    // (2026-07-13 audit; the cancel handler had already been fixed).
     const isCreator = event.creator_id === userId;
-    let isTeamOwner = false;
-    if (event.game?.home_team_id || event.game?.away_team_id) {
-      const teamIds = [event.game.home_team_id, event.game.away_team_id].filter(
-        Boolean
-      ) as string[];
-      const ownership = await prisma.teamMembership.findFirst({
-        where: {
-          team_id: { in: teamIds },
-          user_id: userId,
-          role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-          status: 'active',
-        },
-      });
-      isTeamOwner = !!ownership;
-    }
+    const linkedTeamIds: Array<string | null | undefined> = [
+      event.game?.home_team_id ?? null,
+      event.game?.away_team_id ?? null,
+      (event as any).team_id ?? null,
+    ];
+    const canManageLinkedTeam = linkedTeamIds.some(Boolean)
+      ? await canManageAnyTeam(userId, linkedTeamIds)
+      : false;
     const isAdmin = await getIsAdmin(req as any);
 
-    if (!isCreator && !isTeamOwner && !isAdmin) {
+    if (!isCreator && !canManageLinkedTeam && !isAdmin) {
       return res.status(403).json({
         error: 'Permission denied',
-        message: 'Only the event creator, team owner, or admin can edit this event.',
+        message: 'Only the event creator, team staff, or a league admin can edit this event.',
       });
     }
 
@@ -1547,7 +1545,7 @@ eventsRouter.patch(
 
     // Coaches/team owners can only edit approved events with limited fields
     const isApproved = event.approval_status === 'approved';
-    const isCoachOrOwner = (isCreator || isTeamOwner) && !isAdmin;
+    const isCoachOrOwner = (isCreator || canManageLinkedTeam) && !isAdmin;
     if (isCoachOrOwner && isApproved) {
       const disallowed = Object.keys(data).filter(k => !COACH_EDITABLE_FIELDS.includes(k));
       if (disallowed.length > 0) {

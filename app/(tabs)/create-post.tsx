@@ -86,7 +86,7 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
 
 function CreatePostScreen() {
   const router = useRouter();
-  const { user, checkAuth, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { clear: clearPostCache } = usePostCache();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
@@ -835,7 +835,7 @@ function CreatePostScreen() {
       }
 
       if (__DEV__) console.warn('[CreatePost] Calling Post.create...');
-      const created = await Post.create(payload);
+      await Post.create(payload);
       clearPostCache();
       if (__DEV__) console.warn('[CreatePost] Post created successfully!');
       analytics.track(ANALYTICS_EVENTS.POST_CREATED, { type: picked?.type || 'text' });

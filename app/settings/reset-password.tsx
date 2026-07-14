@@ -1,7 +1,6 @@
 import auth from '@/api/auth';
 import PasswordInput from '@/components/PasswordInput';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
@@ -9,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { getLinkedProvidersSnapshot } from '@/utils/authState';
+import { validatePassword } from '@/utils/formUtils';
 
 export default function ResetPasswordScreen() {
   const colorScheme = useColorScheme();
@@ -50,8 +50,9 @@ export default function ResetPasswordScreen() {
       Alert.alert('Enter your current password.');
       return;
     }
-    if (p.length < 8) {
-      Alert.alert('Password too short', 'Use at least 8 characters.');
+    const passwordCheck = validatePassword(p, 8, true);
+    if (!passwordCheck.valid) {
+      Alert.alert('Invalid password', passwordCheck.error || 'Use at least 8 characters.');
       return;
     }
     if (p !== confirm.trim()) {

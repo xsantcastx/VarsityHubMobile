@@ -701,7 +701,7 @@ function MessageThreadScreen() {
                       setSafetyOpen(false);
                       if (otherParticipant?.id) {
                         void router.push(
-                          `/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(otherParticipant.username ? `@${otherParticipant.username}` : otherParticipant.display_name || otherParticipant.email || 'User')}`
+                          `/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(formatUserLabel(otherParticipant))}`
                         );
                       } else {
                         router.push('/report-abuse');
@@ -721,7 +721,7 @@ function MessageThreadScreen() {
 
                       Alert.alert(
                         'Block User',
-                        `Are you sure you want to block ${otherParticipant.username ? `@${otherParticipant.username}` : otherParticipant.display_name || otherParticipant.email || 'this user'}? They will no longer be able to message you.`,
+                        `Are you sure you want to block ${formatUserLabel(otherParticipant, 'this user')}? They will no longer be able to message you.`,
                         [
                           { text: 'Cancel', style: 'cancel' },
                           {
