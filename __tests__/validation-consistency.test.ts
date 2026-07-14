@@ -20,3 +20,13 @@ describe('password validation consistency', () => {
     expect(src).not.toMatch(/p\.length < 8/);
   });
 });
+
+describe('plan tier normalization consistency', () => {
+  const src = read('app/(tabs)/create-team.tsx');
+  it('create-team uses normalizePlan from constants/plans', () => {
+    expect(src).toMatch(/import\s*\{[^}]*normalizePlan[^}]*\}\s*from\s*'@\/constants\/plans'/);
+  });
+  it('no longer defines a local normalizePlanTier', () => {
+    expect(src).not.toMatch(/const normalizePlanTier\s*=/);
+  });
+});

@@ -33,7 +33,7 @@ import { Organization, Subscriptions, Team } from '@/api/entities';
 import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
-import { ROOKIE_PROGRAM_LIMIT } from '@/constants/plans';
+import { normalizePlan, ROOKIE_PROGRAM_LIMIT } from '@/constants/plans';
 import {
   GENDER_OPTIONS,
   LEVEL_OPTIONS,
@@ -149,16 +149,11 @@ export function resolveVeteranMeteringAction(opts: {
   };
 }
 
-const normalizePlanTier = (tier?: string | null) => {
-  const value = String(tier ?? 'rookie').toLowerCase();
-  if (value === 'free') return 'rookie';
-  if (['rookie', 'veteran', 'legend'].includes(value)) return value;
-  return value;
-};
-
-const formatPlanBadge = (tier?: string | null) => normalizePlanTier(tier).toUpperCase();
+// Plan labels route through the canonical normalizer so legacy tier strings
+// ('premium', 'pro') render their mapped plan, matching every other screen.
+const formatPlanBadge = (tier?: string | null) => normalizePlan(tier ?? undefined).toUpperCase();
 const formatPlanDisplay = (tier?: string | null) => {
-  const normalized = normalizePlanTier(tier);
+  const normalized = normalizePlan(tier ?? undefined);
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 };
 
