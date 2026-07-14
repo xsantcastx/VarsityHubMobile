@@ -992,12 +992,11 @@ function GameVerticalFeedScreen({
 
       const currentCursor = reset ? null : cursorRef.current;
       try {
-        const page = await Post.filterPage(
-          { game_id: gameId, type: 'highlight' },
-          currentCursor,
-          6,
-          'trending'
-        );
+        // "View All Posts" must return EVERY post type for this game (photos,
+        // text, videos) — not just type:'highlight'. The server returns all
+        // types for a game_id when `type` is omitted; the prior filter hid
+        // every non-highlight post from this viewer.
+        const page = await Post.filterPage({ game_id: gameId }, currentCursor, 6, 'trending');
         const items = Array.isArray(page?.items) ? page.items : [];
         const filtered = items.filter(p => {
           const n = normalizeUrl((p as any)?.media_url);
