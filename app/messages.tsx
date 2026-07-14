@@ -163,7 +163,7 @@ function MessagesScreen() {
       return queryClient.getQueryData<UIMsg[]>(inboxQueryKey) ?? [];
     },
   });
-  const messages = inboxData ?? [];
+  const messages = useMemo(() => inboxData ?? [], [inboxData]);
   // Guests never fetch (query disabled), so don't let isPending hold the
   // guest guard behind a spinner. Once data exists, background refetch
   // failures keep showing the cached inbox — the error card is only for

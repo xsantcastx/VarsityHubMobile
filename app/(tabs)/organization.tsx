@@ -240,7 +240,7 @@ export default function OrganizationScreen() {
   });
 
   const organization = orgPage?.organization ?? null;
-  const teams = orgPage?.teams ?? [];
+  const teams = useMemo(() => orgPage?.teams ?? [], [orgPage?.teams]);
   const games = orgPage?.games ?? [];
   const isFollowing = orgPage?.isFollowing ?? false;
 

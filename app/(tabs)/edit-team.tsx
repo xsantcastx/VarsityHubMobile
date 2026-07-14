@@ -57,7 +57,7 @@ function EditTeamScreen() {
   const { user: currentUser } = useAuth();
 
   // Transfer ownership state
-  const [isOwner, setIsOwner] = useState(false);
+  const [, setIsOwner] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [members, setMembers] = useState<any[]>([]);
   const [memberSearch, setMemberSearch] = useState('');

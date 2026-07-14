@@ -1,7 +1,6 @@
 import auth from '@/api/auth';
 import PasswordInput from '@/components/PasswordInput';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';

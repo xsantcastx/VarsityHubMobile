@@ -230,7 +230,7 @@ function CommunityDiscoverScreen() {
       setHasStaffTeams(false);
       return;
     }
-    (async () => {
+    void (async () => {
       try {
         const teams = await Team.managed();
         const arr = Array.isArray(teams)
@@ -403,7 +403,7 @@ function CommunityDiscoverScreen() {
       return normalizedGames;
     },
   });
-  const games = gamesData ?? [];
+  const games = useMemo(() => gamesData ?? [], [gamesData]);
   const zipDirectory = useMemo(() => buildZipDirectory(games), [games]);
   // Error card only when the games list never loaded — a failed background
   // refetch keeps the cached list visible.
@@ -437,7 +437,7 @@ function CommunityDiscoverScreen() {
       });
     },
   });
-  const followedGames = followedGamesData ?? [];
+  const followedGames = useMemo(() => followedGamesData ?? [], [followedGamesData]);
 
   const personalizationQueryKey = ['discover-personalization', user?.id ?? 'guest'];
   const {
@@ -1412,7 +1412,7 @@ function CommunityDiscoverScreen() {
                       try {
                         if (next) await Team.follow(t.id);
                         else await Team.unfollow(t.id);
-                        queryClient.invalidateQueries({
+                        void queryClient.invalidateQueries({
                           queryKey: ['discover-followed-games', user?.id ?? 'guest'],
                         });
                       } catch {

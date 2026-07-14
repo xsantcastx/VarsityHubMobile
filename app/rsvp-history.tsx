@@ -36,7 +36,7 @@ function RsvpHistoryScreen() {
     queryKey: ['my-rsvps'],
     queryFn: () => EventApi.myRsvps() as Promise<Item[]>,
   });
-  const items: Item[] = Array.isArray(data) ? data : [];
+  const items: Item[] = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   const loading = isPending;
   const error = isError ? 'Failed to load RSVP history. Pull down to refresh.' : null;
 

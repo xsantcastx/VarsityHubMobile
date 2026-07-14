@@ -364,7 +364,7 @@ export default function StoriesViewer({
   );
 }
 
-const createStyles = (colorScheme: 'light' | 'dark') =>
+const createStyles = (_colorScheme: 'light' | 'dark') =>
   StyleSheet.create({
     storyViewerRoot: {
       flex: 1,
