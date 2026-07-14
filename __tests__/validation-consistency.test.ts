@@ -30,3 +30,14 @@ describe('plan tier normalization consistency', () => {
     expect(src).not.toMatch(/const normalizePlanTier\s*=/);
   });
 });
+
+describe('user label consistency', () => {
+  const src = read('app/message-thread.tsx');
+  it('message-thread uses formatUserLabel', () => {
+    expect(src).toMatch(/import\s*\{[^}]*formatUserLabel[^}]*\}\s*from\s*'@\/utils\/userDisplay'/);
+    expect(src).toMatch(/formatUserLabel\(otherParticipant/);
+  });
+  it('no longer inverts precedence with a handle-first inline chain', () => {
+    expect(src).not.toMatch(/otherParticipant\.username \? `@\$\{otherParticipant\.username\}`/);
+  });
+});
