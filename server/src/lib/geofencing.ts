@@ -4,8 +4,9 @@
  * BUSINESS RULES:
  * - Story Posts: open on game day and stay open until +48h, within 3km of venue
  * - Regular Posts: open 2 days before event start, stay live through the event,
- *   then remain open-ended (no closing cutoff) only for users who already posted
- *   to that same event while it was live, within 3km of venue
+ *   then remain open for a 7-day grace window only for users who already posted
+ *   to that same event while it was live, within 3km of venue. After 7 days the
+ *   window closes for everyone.
  * - Sample events/games (IDs starting with "sample-") bypass all geofencing checks
  *
  * This maintains authenticity and prevents users from different states from trolling games.
@@ -17,6 +18,11 @@ const EARTH_RADIUS_KM = 6371;
 const EARTH_RADIUS_MILES = 3959;
 const REGULAR_POST_OPEN_BEFORE_MS = 2 * 24 * 60 * 60 * 1000;
 const REGULAR_POST_LIVE_WINDOW_MS = 2 * 60 * 60 * 1000;
+// Product rule (2026-07-14, owner decision, verbatim): "When a user posts to
+// an event while they are there, they can continue to post to the event for
+// up to a week. After that week they no longer can." Caps the previously
+// open-ended post-event grace window at 7 days after the live window closes.
+export const REGULAR_POST_GRACE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type PostingPermissionErrorCode =
   | 'EVENT_NOT_FOUND'
@@ -116,8 +122,8 @@ export function isStoryPostingWindowOpen(eventDate: Date): boolean {
 
 /**
  * Check if posting window is open for regular posts
- * Posts: opens 2 days before event start. After the live window, posting remains open-ended
- * (no closing cutoff) only for users who already posted to that event while it was live.
+ * Posts: opens 2 days before event start. After the live window, posting remains open for a
+ * 7-day grace window only for users who already posted to that event while it was live.
  */
 export function isPostPostingWindowOpen(eventDate: Date): boolean {
   const now = new Date();
@@ -144,9 +150,55 @@ export function getPostPostingWindowState(
   const { windowStart, liveCutoff } = getPostPostingWindowBounds(eventDate);
   if (now < windowStart) return 'before_open';
   if (now <= liveCutoff) return 'live';
-  // Post-event uploads stay open-ended — no closing cutoff. Access during this
-  // state is gated by the "already posted while live" check, not by a timer.
-  return 'grace';
+  // Post-event uploads stay open for a 7-day grace window, gated by the
+  // "already posted while live" check. After 7 days the window is closed
+  // for everyone, regardless of posting history.
+  if (now <= new Date(liveCutoff.getTime() + REGULAR_POST_GRACE_WINDOW_MS)) return 'grace';
+  return 'closed';
+}
+
+/**
+ * View-access counterpart to the posting grace window. A user who posted to a
+ * game/event while it was live keeps read access to that game/event's detail
+ * page for the same grace window that lets them keep posting (product rule,
+ * 2026-07-14: "up to a week" after they posted while there). This is
+ * READ-only — it never grants approval/moderation power, only visibility.
+ *
+ * Purely additive: callers should only consult this as a fallback after their
+ * existing visibility checks (creator/admin/staff) have failed.
+ */
+export async function viewerHasGracePostAccess({
+  userId,
+  gameId,
+  eventId,
+  entityDate,
+}: {
+  userId?: string | null;
+  gameId?: string | null;
+  eventId?: string | null;
+  entityDate: Date | null | undefined;
+}): Promise<boolean> {
+  if (!userId) return false;
+  if (!gameId && !eventId) return false;
+  if (!entityDate) return false;
+
+  const state = getPostPostingWindowState(new Date(entityDate));
+  if (state === 'closed') return false;
+
+  const orClauses: Array<{ game_id: string } | { event_id: string }> = [];
+  if (gameId) orClauses.push({ game_id: gameId });
+  if (eventId) orClauses.push({ event_id: eventId });
+
+  const priorPost = await prisma.post.findFirst({
+    where: {
+      author_id: userId,
+      deleted_at: null,
+      OR: orClauses,
+    },
+    select: { id: true },
+  });
+
+  return !!priorPost;
 }
 
 /**

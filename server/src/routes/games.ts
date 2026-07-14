@@ -35,7 +35,7 @@ import {
   storyCreationLimiter,
   voteLimiter,
 } from '../middleware/rateLimiters.js';
-import { verifyStoryPostingPermission } from '../lib/geofencing.js';
+import { verifyStoryPostingPermission, viewerHasGracePostAccess } from '../lib/geofencing.js';
 import { getZipCoordinates } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { getIsAdmin, isVerifiedAdminUser, requireAdmin } from '../middleware/requireAdmin.js';
@@ -847,6 +847,8 @@ const summarizeVotes = async (gameId: string, userId?: string | null) => {
 };
 
 type GameVisibilityRecord = {
+  id?: string | null;
+  date?: Date | string | null;
   approval_status?: string | null;
   opponent_approval_status?: string | null;
   created_by_id?: string | null;
@@ -871,37 +873,52 @@ async function canViewGameRecord(
   if (await isVerifiedAdminUser(viewerId)) return true;
 
   const teamIds = [record.home_team_id, record.away_team_id].filter(Boolean) as string[];
-  if (teamIds.length === 0) return false;
+  if (teamIds.length > 0) {
+    const teamMembership = await prisma.teamMembership.findFirst({
+      where: {
+        user_id: viewerId,
+        team_id: { in: teamIds },
+        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+        status: 'active',
+      },
+      select: { id: true },
+    });
+    if (teamMembership) return true;
 
-  const teamMembership = await prisma.teamMembership.findFirst({
-    where: {
-      user_id: viewerId,
-      team_id: { in: teamIds },
-      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-      status: 'active',
-    },
-    select: { id: true },
-  });
-  if (teamMembership) return true;
+    const teams = await prisma.team.findMany({
+      where: { id: { in: teamIds } },
+      select: { organization_id: true },
+      take: teamIds.length,
+    });
+    const organizationIds = teams.map(team => team.organization_id).filter(Boolean) as string[];
+    if (organizationIds.length > 0) {
+      const orgMembership = await prisma.organizationMembership.findFirst({
+        where: {
+          user_id: viewerId,
+          organization_id: { in: organizationIds },
+          role: { in: ['owner', 'manager'] },
+          status: 'active',
+        },
+        select: { id: true },
+      });
+      if (orgMembership) return true;
+    }
+  }
 
-  const teams = await prisma.team.findMany({
-    where: { id: { in: teamIds } },
-    select: { organization_id: true },
-    take: teamIds.length,
-  });
-  const organizationIds = teams.map(team => team.organization_id).filter(Boolean) as string[];
-  if (organizationIds.length === 0) return false;
+  // Additive fallback: a contributor who posted to this game while the
+  // posting window was live/open keeps read access through the same 7-day
+  // grace window that lets them keep posting (owner product rule,
+  // 2026-07-14), even if the game later loses public visibility (e.g. an
+  // opponent-consent re-flip). Read-only — grants no approval power.
+  if (record.id && record.date) {
+    return viewerHasGracePostAccess({
+      userId: viewerId,
+      gameId: record.id,
+      entityDate: record.date instanceof Date ? record.date : new Date(record.date),
+    });
+  }
 
-  const orgMembership = await prisma.organizationMembership.findFirst({
-    where: {
-      user_id: viewerId,
-      organization_id: { in: organizationIds },
-      role: { in: ['owner', 'manager'] },
-      status: 'active',
-    },
-    select: { id: true },
-  });
-  return !!orgMembership;
+  return false;
 }
 
 gamesRouter.get(
