@@ -131,31 +131,31 @@ const checks: Check[] = [
     label: 'ads click limiter',
   },
 
-  // Uploads
+  // Uploads — \(\s*' tolerates prettier's one-arg-per-line formatting.
   {
     file: 'src/routes/uploads.ts',
     pattern:
-      /uploadsRouter\.get\('\/cloudinary-signature',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
+      /uploadsRouter\.get\(\s*'\/cloudinary-signature',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
     label: 'uploads cloudinary-signature limiter',
   },
   {
     file: 'src/routes/uploads.ts',
-    pattern: /uploadsRouter\.get\('\/sign',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
+    pattern: /uploadsRouter\.get\(\s*'\/sign',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
     label: 'uploads sign limiter',
   },
   {
     file: 'src/routes/uploads.ts',
-    pattern: /uploadsRouter\.post\('\/',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
+    pattern: /uploadsRouter\.post\(\s*'\/',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
     label: 'uploads media endpoint limiter',
   },
   {
     file: 'src/routes/uploads.ts',
-    pattern: /uploadsRouter\.post\('\/files',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
+    pattern: /uploadsRouter\.post\(\s*'\/files',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
     label: 'uploads files endpoint limiter',
   },
   {
     file: 'src/routes/uploads.ts',
-    pattern: /uploadsRouter\.post\('\/avatar',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
+    pattern: /uploadsRouter\.post\(\s*'\/avatar',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
     label: 'uploads avatar limiter',
   },
 ];
