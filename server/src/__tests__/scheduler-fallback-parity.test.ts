@@ -26,4 +26,7 @@ describe('setupFallbackCron parity with SCHEDULED_JOBS', () => {
     expect(fallback).not.toMatch(/remindPendingCoachApprovals/);
     expect(fallback).not.toMatch(/setInterval/);
   });
+  it('is idempotent — registering twice is guarded', () => {
+    expect(fallback).toMatch(/if \(fallbackCronArmed\)/);
+  });
 });

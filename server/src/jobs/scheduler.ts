@@ -404,10 +404,20 @@ export async function setupScheduler(): Promise<boolean> {
   }
 }
 
+// Both setupScheduler() and startSchedulerWorker() route here when REDIS_URL
+// is unset — guard so the cron jobs are only registered once per process.
+let fallbackCronArmed = false;
+
 /**
  * Fallback cron using node-cron (for when Redis is not available)
  */
 async function setupFallbackCron(): Promise<boolean> {
+  if (fallbackCronArmed) {
+    console.log('[Scheduler] Fallback cron already armed — skipping duplicate registration');
+    return true;
+  }
+  fallbackCronArmed = true;
+
   // No Redis/BullMQ available — schedule every job from the single
   // SCHEDULED_JOBS list via node-cron. This function previously hand-copied
   // each job as a timed handler and had silently dropped five newer jobs
