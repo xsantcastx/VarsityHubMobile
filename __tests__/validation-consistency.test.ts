@@ -41,3 +41,20 @@ describe('user label consistency', () => {
     expect(src).not.toMatch(/otherParticipant\.username \? `@\$\{otherParticipant\.username\}`/);
   });
 });
+
+describe('username validation consistency', () => {
+  it('formUtils exports USERNAME_REGEX and validateUsername uses it', () => {
+    const src = read('utils/formUtils.ts');
+    expect(src).toMatch(/export const USERNAME_REGEX = \/\^\[a-z0-9_\.\]\+\$\//);
+  });
+  it('edit-username uses validateUsername instead of a hand-rolled copy', () => {
+    const src = read('app/settings/edit-username.tsx');
+    expect(src).toMatch(/validateUsername\(/);
+    expect(src).not.toMatch(/\/\^\[a-z0-9_\.\]\+\$\/\.test/);
+  });
+  it('onboarding step-2 imports USERNAME_REGEX instead of defining its own', () => {
+    const src = read('app/onboarding/step-2-basic.tsx');
+    expect(src).toMatch(/USERNAME_REGEX/);
+    expect(src).not.toMatch(/const usernameRe = \//);
+  });
+});

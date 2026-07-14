@@ -14,17 +14,13 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { BIO_MAX_LENGTH } from '@/utils/formUtils';
+import { BIO_MAX_LENGTH, USERNAME_REGEX } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import OnboardingLayout from './components/OnboardingLayout';
-
-// Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
-// Spaces are normalized to underscores BEFORE validation
-const usernameRe = /^[a-z0-9_.]+$/;
 
 const SPORT_BALLS = ['⚽', '🎾', '🏈', '🏀'];
 const DEFAULT_HEADER_IMAGE_FOCUS_Y = 0;
@@ -166,7 +162,7 @@ export default function Step2Basic() {
       return;
     }
 
-    if (normalized && usernameRe.test(normalized)) {
+    if (normalized && USERNAME_REGEX.test(normalized)) {
       void (async () => {
         try {
           const r: any = await User.usernameAvailable(normalized);
@@ -185,14 +181,15 @@ export default function Step2Basic() {
 
   useEffect(() => {
     // Normalize live input (replace spaces with underscores, convert to lowercase)
-    // This ensures validation matches backend requirements
+    // This ensures validation matches backend requirements.
+    // Spaces are normalized to underscores BEFORE validation.
     const normalized = username.trim().toLowerCase().replace(/\s+/g, '_');
     if (normalized !== username) {
       setUsername(normalized);
       return; // will re-run effect with normalized value
     }
     // Don't check if username is empty or invalid format
-    if (!username || !usernameRe.test(username)) {
+    if (!username || !USERNAME_REGEX.test(username)) {
       setAvailable(null);
       setAvailabilityError(false);
       setChecking(false);
@@ -383,7 +380,7 @@ export default function Step2Basic() {
     })();
   const usernameError =
     username.length > 0 &&
-    (!usernameRe.test(username) || username.length < 3 || username.length > 20);
+    (!USERNAME_REGEX.test(username) || username.length < 3 || username.length > 20);
 
   // Validation rules:
   // - Username: required, valid format, available
@@ -392,7 +389,7 @@ export default function Step2Basic() {
   // - Zip code: required for coaches, optional for fans
   // - Coaches must be 18+
   const canContinue =
-    usernameRe.test(username) &&
+    USERNAME_REGEX.test(username) &&
     username.length >= 3 &&
     username.length <= 20 &&
     available === true &&
@@ -637,7 +634,7 @@ export default function Step2Basic() {
         placeholder="username"
         style={{ marginBottom: 4, letterSpacing: 0 }}
         onEndEditing={async () => {
-          if (!usernameRe.test(username)) {
+          if (!USERNAME_REGEX.test(username)) {
             setAvailable(null);
             return;
           }
