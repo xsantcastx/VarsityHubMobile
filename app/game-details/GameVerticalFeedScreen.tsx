@@ -48,6 +48,10 @@ import { resolveMediaType } from '@/utils/media';
 import { promptForSignIn } from '@/utils/requireSignIn';
 import { toUserMessage } from '@/utils/toUserMessage';
 
+// Initial guess only — cards/paging use the MEASURED container size (see
+// `viewport` state). The window is wrong on web: the root layout constrains
+// content to MAX_CONTENT_WIDTH, the phone-width install banner shortens the
+// viewport, and module-level Dimensions never updates on browser resize.
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 const VIDEO_SHARE_CACHE_DIR = `${FileSystem.cacheDirectory || ''}shared-videos/`;
 
@@ -206,6 +210,7 @@ const FeedCard = memo(
     onReportPost,
     registerVideo,
     insets,
+    size,
     colorScheme,
     meInfo,
   }: {
@@ -225,6 +230,7 @@ const FeedCard = memo(
     onReportPost: () => void;
     registerVideo: (id: string, player: any | null) => void;
     insets: { top: number; bottom: number };
+    size: { width: number; height: number };
     colorScheme: 'light' | 'dark';
     meInfo?: { id?: string; display_name?: string | null; username?: string | null } | null;
   }) => {
@@ -421,7 +427,7 @@ const FeedCard = memo(
     }, [post?.collage]);
 
     return (
-      <View style={[styles.card, { height: windowHeight }]}>
+      <View style={[styles.card, { width: size.width, height: size.height }]}>
         <Pressable
           style={styles.mediaContainer}
           onPress={handleTap}
@@ -752,6 +758,17 @@ function GameVerticalFeedScreen({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
+  // Cards and paging math must use the container this screen actually renders
+  // in — not the window. Measured via onLayout on the root view; the module
+  // Dimensions capture is only the pre-measurement guess.
+  const [viewport, setViewport] = useState({ width: windowWidth, height: windowHeight });
+  const onViewportLayout = useCallback((event: any) => {
+    const { width, height } = event.nativeEvent.layout;
+    if (!width || !height) return;
+    setViewport(prev =>
+      prev.width === width && prev.height === height ? prev : { width, height }
+    );
+  }, []);
   const gameId = externalGameId ? String(externalGameId) : gameIdParam ? String(gameIdParam) : null;
   const usingInitial = useMemo(
     () => Array.isArray(initialPosts) && initialPosts.length > 0,
@@ -1124,11 +1141,11 @@ function GameVerticalFeedScreen({
     (event: any) => {
       const nextIndex = Math.max(
         0,
-        Math.min(posts.length - 1, Math.round(event.nativeEvent.contentOffset.y / windowHeight))
+        Math.min(posts.length - 1, Math.round(event.nativeEvent.contentOffset.y / viewport.height))
       );
       setActiveIndex(nextIndex);
     },
-    [posts.length]
+    [posts.length, viewport.height]
   );
 
   useEffect(() => {
@@ -1508,12 +1525,14 @@ function GameVerticalFeedScreen({
         onReportPost={() => handleReportPost(item)}
         registerVideo={registerVideo}
         insets={{ top: insets.top, bottom: insets.bottom }}
+        size={viewport}
         colorScheme={colorScheme}
         meInfo={meInfo}
       />
     ),
     [
       activeIndex,
+      viewport,
       handleCopyLink,
       handleDoubleTap,
       handleDeletePost,
@@ -1563,6 +1582,7 @@ function GameVerticalFeedScreen({
     <View
       style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
       pointerEvents="box-none"
+      onLayout={onViewportLayout}
     >
       <LinearGradient
         colors={
@@ -1597,8 +1617,8 @@ function GameVerticalFeedScreen({
             : undefined
         }
         getItemLayout={(_, index) => ({
-          length: windowHeight,
-          offset: windowHeight * index,
+          length: viewport.height,
+          offset: viewport.height * index,
           index,
         })}
         refreshControl={
@@ -1676,7 +1696,10 @@ function GameVerticalFeedScreen({
           <View
             style={[
               styles.commentSheet,
-              { maxHeight: windowHeight * 0.75, backgroundColor: Colors[colorScheme].background },
+              {
+                maxHeight: viewport.height * 0.75,
+                backgroundColor: Colors[colorScheme].background,
+              },
             ]}
             pointerEvents="box-none"
           >
@@ -1767,7 +1790,7 @@ function GameVerticalFeedScreen({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   backdrop: { ...StyleSheet.absoluteFillObject },
-  card: { width: windowWidth, backgroundColor: 'transparent' },
+  card: { backgroundColor: 'transparent' },
   mediaContainer: {
     flex: 1,
     backgroundColor: '#000', // Black background for images to show properly with contain mode

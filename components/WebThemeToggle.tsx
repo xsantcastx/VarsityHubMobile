@@ -6,9 +6,10 @@ import type { ComponentProps } from 'react';
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
-// Below this width the fixed top-right card overlaps the app header, so the
-// toggle is desktop-web only; phone browsers follow the system theme.
-const MIN_FLOATING_WIDTH = 768;
+// Below this width the fixed top-right card overlaps the centered 600px
+// content column, so the toggle is wide-desktop only; narrower browsers
+// follow the system theme. Keep in sync with WebInstallCta.
+const MIN_FLOATING_WIDTH = 1200;
 
 type ThemeOption = 'light' | 'dark';
 const DISMISS_KEY = 'vh:web-theme-toggle:dismissed';

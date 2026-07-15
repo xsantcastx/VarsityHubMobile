@@ -30,6 +30,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -43,6 +44,7 @@ import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getAuthSnapshot } from '@/utils/authState';
 import { sanitizeText } from '@/utils/formUtils';
+import { MAX_CONTENT_WIDTH } from '@/constants/layout';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -77,6 +79,12 @@ export default function PostDetailScreen() {
   const { user, checkAuth } = useAuth();
   const { edgeSwipeGesture } = useEdgeSwipeBack();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  // The root layout centers all screens in a MAX_CONTENT_WIDTH column on web
+  // and tablets. Pager pages must match that column — sizing them to the raw
+  // window makes adjacent posts bleed into view and breaks paging offsets
+  // (module-level Dimensions also never updates on browser resize).
+  const contentWidth = Math.min(windowWidth, MAX_CONTENT_WIDTH);
   const explicitFallback = params.from === 'highlights' ? '/(tabs)/highlights' : undefined;
   const handleBack = useCallback(() => {
     safeGoBack(router, explicitFallback);
@@ -1105,6 +1113,19 @@ export default function PostDetailScreen() {
     const isImage = media.mediaType === 'image';
     const isVideo = media.mediaType === 'video';
     const hasMedia = media.hasMedia;
+    // Size the hero to the media's real aspect ratio when the post carries
+    // upload metadata (media_width/height, nullable on older posts), capped so
+    // tall vertical clips never push the post body off-screen. Falls back to
+    // the legacy fixed strip when dimensions are unknown.
+    const mediaW = Number(postData.media_width) || 0;
+    const mediaH = Number(postData.media_height) || 0;
+    const heroHeight =
+      mediaW > 0 && mediaH > 0
+        ? Math.min(
+            Math.max(Math.round(contentWidth * (mediaH / mediaW)), 220),
+            Math.round(windowHeight * 0.6)
+          )
+        : 280;
     const category = getSportCategory(postData.title, postData.content);
     const localComments = Array.isArray(commentsData) ? commentsData : [];
     // While the comments fetch for this post is still in flight, localComments
@@ -1154,7 +1175,10 @@ export default function PostDetailScreen() {
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
           {hasMedia ? (
-            <Pressable style={styles.mediaContainer} onPress={() => setFullscreenMedia(true)}>
+            <Pressable
+              style={[styles.mediaContainer, { height: heroHeight }]}
+              onPress={() => setFullscreenMedia(true)}
+            >
               {isImage && (
                 <ExpoImage
                   source={{
@@ -1857,8 +1881,8 @@ export default function PostDetailScreen() {
             extraData={comments}
             initialScrollIndex={initialIndex}
             getItemLayout={(data, index) => ({
-              length: SCREEN_WIDTH,
-              offset: SCREEN_WIDTH * index,
+              length: contentWidth,
+              offset: contentWidth * index,
               index,
             })}
             onViewableItemsChanged={onViewableItemsChanged}
@@ -1869,7 +1893,7 @@ export default function PostDetailScreen() {
               const commentsData = commentsById[item];
               const commentsPending = commentsPendingById[item] ?? false;
               return (
-                <View style={{ width: SCREEN_WIDTH }}>
+                <View style={{ width: contentWidth }}>
                   {postData ? (
                     renderPostContent(postData, commentsData, true, commentsPending)
                   ) : (
@@ -2224,6 +2248,9 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 280,
     position: 'relative',
+    // Defense-in-depth on web: a mis-sized <video> must never spill its
+    // native controls over the post body below.
+    overflow: 'hidden',
   },
   heroImage: {
     width: '100%',
@@ -2232,6 +2259,8 @@ const styles = StyleSheet.create({
   videoContainer: {
     width: '100%',
     height: '100%',
+    // Letterbox bars read as intentional on black, not as a broken layout.
+    backgroundColor: '#000',
   },
   heroVideo: {
     width: '100%',

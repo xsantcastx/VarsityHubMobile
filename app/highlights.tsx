@@ -1561,6 +1561,9 @@ const styles = StyleSheet.create({
   },
   contentSection: {
     flex: 1,
+    // Web flexbox: without minWidth 0 the stats row's min-content width forces
+    // this column wider than the card, horizontally overflowing the viewport.
+    minWidth: 0,
     padding: 16,
     justifyContent: 'space-between',
   },
@@ -1624,6 +1627,7 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     alignItems: 'center',
   },

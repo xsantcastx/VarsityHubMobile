@@ -1,5 +1,5 @@
 import { useEventListener } from 'expo';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { VideoView, useVideoPlayer, type VideoContentFit } from 'expo-video';
 import React from 'react';
 import { toUserMessage } from '@/utils/toUserMessage';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +20,7 @@ interface VideoPlayerProps {
   autoPlay?: boolean;
   nativeControls?: boolean;
   paused?: boolean;
+  contentFit?: VideoContentFit;
 }
 
 export function VideoPlayer({
@@ -29,6 +30,7 @@ export function VideoPlayer({
   autoPlay,
   nativeControls = true,
   paused,
+  contentFit = 'contain',
 }: VideoPlayerProps) {
   const [retryKey, setRetryKey] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -123,9 +125,16 @@ export function VideoPlayer({
   return (
     <View style={style}>
       <VideoView
-        style={StyleSheet.absoluteFill}
+        // NOT absoluteFill: on web the RN style becomes left/right/top/bottom
+        // CSS on the <video> element, and an absolutely-positioned REPLACED
+        // element with auto width/height renders at its intrinsic video size
+        // instead of stretching — the video overflowed its box and its native
+        // controls floated over unrelated content. Explicit 100% sizes behave
+        // identically on native and correctly on web.
+        style={styles.videoSurface}
         player={player}
         nativeControls={nativeControls}
+        contentFit={contentFit}
         allowsFullscreen
         allowsPictureInPicture
       />
@@ -168,6 +177,13 @@ export function VideoPlayer({
 }
 
 const styles = StyleSheet.create({
+  videoSurface: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(15, 23, 42, 0.32)',

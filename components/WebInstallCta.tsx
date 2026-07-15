@@ -7,10 +7,12 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 const IOS_APP_STORE_URL = 'https://apps.apple.com/us/app/varsityhub/id6758405187';
 const DISMISS_KEY = 'vh:web-install-cta:dismissed';
 
-// Below this width the fixed top-right card overlaps the header and feed
-// controls, so phones get a slim in-flow banner that pushes content down
-// instead of covering it.
-const MIN_FLOATING_WIDTH = 768;
+// Below this width the fixed top-right card overlaps content, so phones and
+// tablets get a slim in-flow banner that pushes content down instead of
+// covering it. Content is centered in a 600px column (MAX_CONTENT_WIDTH), so
+// the floating card needs ~(600 + 2×300)px before the gutter can hold it —
+// at 768–1200 the "desktop" card sat on top of the column.
+const MIN_FLOATING_WIDTH = 1200;
 
 export function WebInstallCta() {
   const colorScheme = useColorScheme() ?? 'light';
