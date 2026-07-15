@@ -2308,7 +2308,10 @@ const styles = StyleSheet.create({
   // Post Content
   postContent: {
     padding: 20,
-    marginTop: -20,
+    // Was marginTop: -20 — the caption/author card overlapped the bottom of the
+    // media, blocking the image ("the product is the image", owner 2026-07-14).
+    // A positive gap keeps the media fully visible with the card cleanly below.
+    marginTop: 12,
     marginHorizontal: 16,
     borderRadius: 16,
     ...Platform.select({
