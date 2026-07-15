@@ -1,5 +1,23 @@
 import { canManageTeam } from './teamAuthorization.js';
 
+/**
+ * The team ids on the CREATOR'S side of a game — i.e. NOT the opponent whose
+ * staff must approve it. Destructive/core edits (delete, score) are restricted
+ * to this set so the OPPOSING team's staff can't unilaterally delete a shared
+ * game or overwrite the other team's reported score; the opponent uses the
+ * decline / opponent-approval flow instead. When there's no distinct opponent
+ * (intra-org or free-text), both referenced teams are on the creator side.
+ */
+export function creatorSideTeamIds(
+  homeTeamId: string | null | undefined,
+  awayTeamId: string | null | undefined,
+  opponentApprovalTeamId: string | null | undefined
+): string[] {
+  const both = [homeTeamId, awayTeamId].filter((t): t is string => Boolean(t));
+  if (!opponentApprovalTeamId) return both;
+  return both.filter(t => t !== opponentApprovalTeamId);
+}
+
 export interface GameApprovalDecision {
   /** Did the caller act as a coach/admin for this game (auto-approve)? */
   isCoach: boolean;

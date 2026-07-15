@@ -366,15 +366,22 @@ async function programLanding(req: Request, res: Response, next: NextFunction) {
         sport: true,
         name: true,
         logo_url: true,
-        organization: { select: { name: true } },
+        organization: { select: { name: true, admin_approved: true } },
+        // Only surface a program that has at least one PUBLIC team — otherwise
+        // the share door would expose a program built entirely of private teams
+        // (or one under an unapproved org). Audit 2026-07-14.
+        teams: { where: { status: 'active', is_private: false }, select: { id: true }, take: 1 },
       },
     })
     .catch(() => null);
 
-  const meta: LandingMeta = program
+  const visibleProgram =
+    program && program.organization?.admin_approved && program.teams.length > 0 ? program : null;
+
+  const meta: LandingMeta = visibleProgram
     ? {
-        title: programLandingTitle(program),
-        imageUrl: program.logo_url || undefined,
+        title: programLandingTitle(visibleProgram),
+        imageUrl: visibleProgram.logo_url || undefined,
         url: fullUrl(req),
       }
     : genericLanding(req);
@@ -392,16 +399,29 @@ async function userLanding(req: Request, res: Response, next: NextFunction) {
   const user = await prisma.user
     .findUnique({
       where: { id },
-      select: { display_name: true, username: true, bio: true, avatar_url: true },
+      select: {
+        display_name: true,
+        username: true,
+        bio: true,
+        avatar_url: true,
+        deleted_at: true,
+        preferences: true,
+      },
     })
     .catch(() => null);
 
-  const handle = user?.username ? `@${user.username}` : user?.display_name || 'A VarsityHub member';
-  const meta: LandingMeta = user
+  // Don't leak deleted/anonymized accounts at all; for a PRIVATE profile mirror
+  // the in-app non-follower projection (name + avatar, but no bio). Audit 2026-07-14.
+  const isPrivate = (user?.preferences as any)?.profile_private === true;
+  const visibleUser = user && !user.deleted_at ? user : null;
+  const handle = visibleUser?.username
+    ? `@${visibleUser.username}`
+    : visibleUser?.display_name || 'A VarsityHub member';
+  const meta: LandingMeta = visibleUser
     ? {
         title: handle,
-        description: user.bio || undefined,
-        imageUrl: user.avatar_url || undefined,
+        description: isPrivate ? undefined : visibleUser.bio || undefined,
+        imageUrl: visibleUser.avatar_url || undefined,
         url: fullUrl(req),
       }
     : genericLanding(req);

@@ -27,7 +27,7 @@ const gamesSrc =
 
 describe('game-write approval authority parity', () => {
   it('imports the deriveGameApproval authority', () => {
-    expect(gamesSrc).toMatch(/import\s*\{\s*deriveGameApproval\s*\}\s*from\s*'\.\.\/lib\/gameApproval\.js'/);
+    expect(gamesSrc).toMatch(/import\s*\{[^}]*\bderiveGameApproval\b[^}]*\}\s*from\s*'\.\.\/lib\/gameApproval\.js'/);
   });
 
   it('calls deriveGameApproval on every game-write path (single, bulk, PUT)', () => {
