@@ -948,6 +948,12 @@ async function issueAdRefund(
     orderBy: { created_at: 'desc' },
   });
   if (!tx?.stripe_payment_intent_id) {
+    // An Apple-IAP-paid ad has no Stripe payment intent — the server cannot issue
+    // an Apple refund. Signal a distinct terminal state (manual review) so reject
+    // doesn't strand it in refund_pending where the reconcile re-alarms hourly.
+    if (tx?.apple_transaction_id) {
+      return { ok: false, error: 'apple_iap_manual_review' };
+    }
     return { ok: false, error: 'no_payment_intent_found' };
   }
   const Stripe = (await import('stripe')).default;
@@ -1033,9 +1039,22 @@ export async function rejectAd(
     }
     if (refundResult.ok) {
       await prisma.ad.update({ where: { id: adId }, data: { payment_status: 'refunded' } });
+    } else if (refundResult.error === 'apple_iap_manual_review') {
+      // Apple IAP: the server can't refund. Move to a TERMINAL manual-review state
+      // so the hourly reconcile stops re-attempting/re-alarming; alert once so ops
+      // can process the Apple-side refund out of band.
+      await prisma.ad.update({
+        where: { id: adId },
+        data: { payment_status: 'manual_refund_review' },
+      });
+      captureException(new Error('Ad reject: Apple IAP refund needs manual review'), {
+        context: 'ad_reject_apple_iap_manual_review',
+        adId,
+        userId: ad.user_id,
+      });
     } else {
-      // A failed refund leaves the ad in payment_status:'refund_pending' with a
-      // real charge outstanding. This MUST be loud — alarm to Sentry so ops see
+      // A failed Stripe refund leaves the ad in payment_status:'refund_pending' with
+      // a real charge outstanding. This MUST be loud — alarm to Sentry so ops see
       // it, and the ad-refund-reconcile sweep re-attempts it hourly (idempotent).
       console.error(
         '[approvalService] CRITICAL: ad reject refund not completed — left in refund_pending',
@@ -1410,6 +1429,14 @@ export async function reconcileStuckAdRefunds(prisma: PrismaClient): Promise<num
       const res = await issueAdRefund(prisma, ad);
       if (res.ok) {
         await prisma.ad.update({ where: { id: ad.id }, data: { payment_status: 'refunded' } });
+        recovered++;
+      } else if (res.error === 'apple_iap_manual_review') {
+        // Apple IAP can't be server-refunded — drain to the terminal manual state
+        // so we stop re-alarming on it every hour. Counts as resolved.
+        await prisma.ad.update({
+          where: { id: ad.id },
+          data: { payment_status: 'manual_refund_review' },
+        });
         recovered++;
       } else {
         captureException(new Error(`Stuck ad refund unrecovered: ${res.error}`), {

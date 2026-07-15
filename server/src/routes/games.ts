@@ -3008,6 +3008,15 @@ gamesRouter.put(
         if (Object.keys(eventUpdate).length > 0) {
           await prisma.event.update({ where: { id: event.id }, data: eventUpdate });
         }
+        // Date changed → move every RSVP's 12h/1h reminders to the new time.
+        if (d.date !== undefined) {
+          void (async () => {
+            const { rescheduleGameRemindersForEvent } = await import('../lib/notifications.js');
+            await rescheduleGameRemindersForEvent(event.id);
+          })().catch(err =>
+            console.warn('[games] reminder reschedule failed:', (err as any)?.message || err)
+          );
+        }
       }
 
       const changes: string[] = [];

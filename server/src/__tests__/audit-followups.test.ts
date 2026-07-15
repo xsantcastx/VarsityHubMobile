@@ -83,6 +83,36 @@ describe('formatEventTime (behavioral)', () => {
   });
 });
 
+describe('IAP ad-refund terminal state', () => {
+  const a = read('src', 'lib', 'approvalService.ts');
+  it('detects Apple IAP and routes to manual_refund_review', () => {
+    expect(a).toMatch(/apple_iap_manual_review/);
+    expect(a).toMatch(/payment_status: 'manual_refund_review'/);
+  });
+});
+
+describe('promo redeem no longer mutates promo state', () => {
+  const p = read('src', 'routes', 'promos.ts');
+  it('redeem route uses previewPromo (validate-only), not redeemPromo', () => {
+    const idx = p.indexOf("'/redeem'");
+    const region = p.slice(idx, idx + 1600);
+    expect(region).toMatch(/await previewPromo\(/);
+    expect(region).not.toMatch(/await redeemPromo\(/);
+    // redeemPromo is no longer imported into this route at all
+    expect(p).not.toMatch(/import \{[^}]*redeemPromo/);
+  });
+});
+
+describe('reminder reschedule on date change', () => {
+  it('helper exists and both edit paths call it', () => {
+    expect(read('src', 'lib', 'notifications.ts')).toMatch(
+      /export async function rescheduleGameRemindersForEvent/
+    );
+    expect(read('src', 'routes', 'events.ts')).toMatch(/rescheduleGameRemindersForEvent/);
+    expect(read('src', 'routes', 'games.ts')).toMatch(/rescheduleGameRemindersForEvent/);
+  });
+});
+
 describe('google order_id replay migration exists', () => {
   it('a partial unique index migration is present', () => {
     const mig = read(

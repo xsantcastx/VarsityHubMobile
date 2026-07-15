@@ -55,6 +55,10 @@ enum AdPaymentStatus {
   paid
   refund_pending
   refunded
+  // Terminal state for a rejected Apple-IAP-paid ad — the server can't issue an
+  // Apple refund, so ops process it out of band; keeps the ad out of the
+  // refund_pending reconcile sweep so it stops re-alarming. Audit 2026-07-14.
+  manual_refund_review
 }
 
 enum AdBannerModerationStatus {
