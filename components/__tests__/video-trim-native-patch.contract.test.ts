@@ -54,12 +54,17 @@ const androidStorageSource = readFileSync(
   'utf8'
 );
 
-// react-native-video-trim@6.0.13 adopted these ffmpeg corrections upstream
-// (unique ms-timestamp output names, `-y` overwrite, `-t` duration instead of
-// `-to`), so the old install-time patch (scripts/patch-video-trim.js) is gone.
-// These tests now guard the real invariant: the INSTALLED native source emits
-// correct ffmpeg commands — whether from upstream or a future patch. If a
-// version bump ever regresses these, the suite fails loudly and we re-pin/patch.
+// These ffmpeg corrections (unique ms-timestamp output names, `-y` overwrite,
+// `-t` duration instead of input-side `-to`) are NOT upstream — pristine
+// 6.0.13 (and even 8.1.9) still uses `-to` before `-i` and second-resolution
+// names (verified against the npm tarballs 2026-07-15; an earlier note here
+// wrongly claimed 6.0.13 shipped them, having checked a hand-edited
+// node_modules). They are applied by patches/react-native-video-trim+*.patch
+// via patch-package in postinstall (scripts/apply-patches.js, warn-and-skip on
+// drift so a failed apply can never brick `npm ci`/EAS builds). This suite is
+// the hard gate: the INSTALLED native source must emit correct ffmpeg
+// commands. If it fails, the patch didn't apply — re-generate it against the
+// installed version.
 describe('video trim native source contract', () => {
   it('iOS trim commands overwrite and clip by duration', () => {
     expect(iosTrimSource).toContain('let timestamp = Int(Date().timeIntervalSince1970 * 1000)');

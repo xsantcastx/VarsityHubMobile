@@ -3,9 +3,9 @@
  * (fixturedownload.com/feed/json/fifa-world-cup-2026) — full group stage.
  *
  * Knockout-round fixtures are added as their teams become known (group stage
- * concluded June 27). Included so far: full Round of 16 (matches 89–96) and
- * all 4 quarterfinals (97–100). Still TBD: semifinals, bronze final, and the
- * final — add them here once their teams are decided, then run:
+ * concluded June 27). Included so far: full Round of 16 (matches 89–96),
+ * all 4 quarterfinals (97–100), and both semifinals (101–102). Still TBD:
+ * bronze final and the final — add them once their teams are decided, then run:
  *
  *   npx tsx scripts/fifa/create-fifa-events.ts --dry-run
  *
@@ -1418,5 +1418,28 @@ export const MATCHES: MatchDef[] = [
     kickoffLocalNote: 'Kickoff: 9:00 PM EDT / 8:00 PM CDT.',
     isNeutral: true,
     note: 'Argentina completed a stunning comeback to beat Egypt 3-2; Switzerland outlasted Colombia 4-3 on penalties.',
+  },
+  // ── Semifinals ─────────────────────────────────────────────────────────────
+  {
+    home: 'France',
+    away: 'Spain',
+    venue: 'att',
+    kickoffUtc: '2026-07-14T19:00:00.000Z',
+    group: 'Semifinal',
+    matchLabel: 'Match 101',
+    kickoffLocalNote: 'Kickoff: 3:00 PM EDT / 2:00 PM CDT.',
+    isNeutral: true,
+    note: 'France beat Morocco 2-0 and Spain edged Belgium 2-1 to set up a No. 1 vs No. 3 clash.',
+  },
+  {
+    home: 'England',
+    away: 'Argentina',
+    venue: 'mercedesBenz',
+    kickoffUtc: '2026-07-15T19:00:00.000Z',
+    group: 'Semifinal',
+    matchLabel: 'Match 102',
+    kickoffLocalNote: 'Kickoff: 3:00 PM EDT.',
+    isNeutral: true,
+    note: 'England beat Norway 2-1 and the reigning champions Argentina saw off Switzerland 3-1.',
   },
 ];
