@@ -519,7 +519,7 @@ async function applyGameApprovalDecision(
       // null) — the same helper the cancellation email uses. Previously the
       // approval email formatted without a timezone, so it showed the server's
       // UTC time instead of the event's local time.
-      const approvedWhen = eventDate ? formatEventTime(eventDate, updatedGame.timezone) : null;
+      const eventWhen = eventDate ? formatEventTime(eventDate, updatedGame.timezone) : null;
 
       const { sendPushNotification } = await import('../lib/notifications.js');
       if (approvalStatus === 'approved') {
@@ -543,8 +543,8 @@ async function applyGameApprovalDecision(
             to: creator.email,
             recipientName: creator.display_name || 'User',
             eventTitle: updatedGame.title,
-            eventDate: approvedWhen?.dateStr,
-            eventTime: approvedWhen?.timeStr,
+            eventDate: eventWhen?.dateStr,
+            eventTime: eventWhen?.timeStr,
             eventLocation: updatedGame.location || undefined,
             eventId: eventId || undefined,
           });
@@ -575,14 +575,7 @@ async function applyGameApprovalDecision(
             to: creator.email,
             recipientName: creator.display_name || 'User',
             eventTitle: updatedGame.title,
-            eventDate: eventDate
-              ? eventDate.toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric',
-                })
-              : undefined,
+            eventDate: eventWhen?.dateStr,
             reason: reason || undefined,
           });
         }
