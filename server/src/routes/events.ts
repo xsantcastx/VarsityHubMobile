@@ -1368,6 +1368,13 @@ eventsRouter.put(
 
     // Scope approval: must be admin, or coach/admin of the event's team/org
     if (!isAdmin) {
+      // IDOR self-action guard (parity with PUT /games/:id/approve) — a user
+      // must not approve their own submission. Audit 2026-07-14.
+      if (event.creator_id === userId) {
+        return res
+          .status(403)
+          .json({ error: 'You cannot review your own event', code: 'SELF_REVIEW_FORBIDDEN' });
+      }
       const canApprove = event.team_id ? await canManageTeamScoped(userId, event.team_id) : false;
       if (!canApprove) {
         return res
@@ -1426,6 +1433,12 @@ eventsRouter.put(
 
     // Scope rejection: must be admin, or coach/admin of the event's team/org
     if (!isAdmin) {
+      // IDOR self-action guard (parity with games) — no reviewing your own event.
+      if (event.creator_id === userId) {
+        return res
+          .status(403)
+          .json({ error: 'You cannot review your own event', code: 'SELF_REVIEW_FORBIDDEN' });
+      }
       const canReject = event.team_id ? await canManageTeamScoped(userId, event.team_id) : false;
       if (!canReject) {
         return res

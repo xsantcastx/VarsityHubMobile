@@ -18,11 +18,15 @@ import {
 import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
-import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
+import {
+  getBlockedUserIds,
+  getExcludedPrivateAuthorIds,
+  getRequestBlockedCache,
+} from '../lib/privacyUtils.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
-import { deriveGameApproval } from '../lib/gameApproval.js';
+import { creatorSideTeamIds, deriveGameApproval } from '../lib/gameApproval.js';
 import {
   canManageAnyTeam,
   canManageTeam as canManageTeamScoped,
@@ -2391,27 +2395,36 @@ gamesRouter.delete(
           created_by_id: true,
           home_team_id: true,
           away_team_id: true,
+          opponent_approval_team_id: true,
         },
       });
 
       if (!game) return sendError(res, 404, 'Game not found');
 
       // CRITICAL: Check authorization before allowing deletion
-      // Only allow: game creator, team coaches, or admins
+      // Only allow: game creator, CREATING-team coaches, or admins. The opposing
+      // team's staff must NOT be able to delete a shared game (they decline via
+      // the opponent-approval flow) — audit 2026-07-14.
       const isCreator = game.created_by_id === req.user.id;
 
       // Check if user is admin
       const isAdmin = await isVerifiedAdminUser(req.user.id);
 
-      // Check if user is coach/manager of either team
+      // Authorize on the CREATOR's side only (opponent excluded). Keep the full
+      // team set below for cancellation notifications to BOTH teams.
       const deleteTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
-      const isCoach = await canManageAnyTeam(req.user.id, deleteTeamIds);
+      const authTeamIds = creatorSideTeamIds(
+        game.home_team_id,
+        game.away_team_id,
+        game.opponent_approval_team_id
+      );
+      const isCoach = await canManageAnyTeam(req.user.id, authTeamIds);
 
       // Deny access if user is not authorized
       if (!isCreator && !isCoach && !isAdmin) {
         return res.status(403).json({
           error: 'Not authorized',
-          message: 'Only game creators, team coaches, or admins can delete games.',
+          message: 'Only the game creator, the creating team’s coaches, or admins can delete games.',
         });
       }
 
@@ -2548,8 +2561,14 @@ gamesRouter.get(
     try {
       const id = String(req.params.id);
       const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100));
-      // Privacy: exclude posts from private-profile authors the viewer doesn't follow
-      const excludedIds = await getExcludedPrivateAuthorIds(req.user?.id ?? null);
+      // Privacy: exclude posts from private-profile authors the viewer doesn't
+      // follow AND from blocked users — parity with the other content reads
+      // (this feed previously omitted the block filter). Audit 2026-07-14.
+      const [privateIds, blockedIds] = await Promise.all([
+        getExcludedPrivateAuthorIds(req.user?.id ?? null),
+        getBlockedUserIds(req.user?.id ?? null, getRequestBlockedCache(req)),
+      ]);
+      const excludedIds = [...new Set([...privateIds, ...blockedIds])];
       const posts = await prisma.post.findMany({
         where: {
           // Match posts tied to the game directly (game_id) OR via any of its
@@ -2662,6 +2681,7 @@ gamesRouter.patch(
           created_by_id: true,
           home_team_id: true,
           away_team_id: true,
+          opponent_approval_team_id: true,
           date: true,
           home_score: true,
           away_score: true,
@@ -2670,7 +2690,13 @@ gamesRouter.patch(
 
       if (!game) return sendError(res, 404, 'Game not found');
 
-      const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
+      // The reported score belongs to the CREATING team — the opponent can't
+      // overwrite it (they use opponent-approval). Audit 2026-07-14.
+      const teamIds = creatorSideTeamIds(
+        game.home_team_id,
+        game.away_team_id,
+        game.opponent_approval_team_id
+      );
       const isCoach = await canManageAnyTeam(req.user.id, teamIds);
 
       const isCreator = game.created_by_id === req.user.id;
@@ -2679,7 +2705,7 @@ gamesRouter.patch(
       if (!isCreator && !isCoach && !isAdmin) {
         return res
           .status(403)
-          .json({ error: 'Only coaches or team owners can update game results' });
+          .json({ error: 'Only the creating team’s coaches or admins can update game results' });
       }
 
       // Score edit window: once a game has been scored (either score set) and

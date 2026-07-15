@@ -6,6 +6,7 @@ import { captureException } from '../lib/sentry.js';
 import { notifyNewMessage } from '../lib/notifications.js';
 import { emitToConversation } from '../realtime/socketServer.js';
 import { prisma } from '../lib/prisma.js';
+import { getBlockedUserIds, getRequestBlockedCache } from '../lib/privacyUtils.js';
 import { isMinor, isVerifiedAdult } from '../lib/userAge.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -80,6 +81,13 @@ messagesRouter.get(
 
     const meId = req.user.id;
 
+    // Strip messages from blocked users on read — parity with the send-path
+    // block check and group-chat reads (DM history was previously unfiltered).
+    // Audit 2026-07-14.
+    const blockedIds = new Set(await getBlockedUserIds(meId, getRequestBlockedCache(req)));
+    const stripBlocked = <T extends { sender_id: string }>(msgs: T[]): T[] =>
+      blockedIds.size ? msgs.filter(m => !blockedIds.has(m.sender_id)) : msgs;
+
     if (conversation_id) {
       const accessCheck = await prisma.message.findFirst({
         where: {
@@ -100,7 +108,7 @@ messagesRouter.get(
         take: limit,
         include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
       });
-      return res.json(messages);
+      return res.json(stripBlocked(messages));
     }
 
     const otherUserId = await resolveWithToUserId(withParam);
@@ -117,7 +125,7 @@ messagesRouter.get(
         take: limit,
         include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
       });
-      return res.json(messages);
+      return res.json(stripBlocked(messages));
     }
 
     const messages = await prisma.message.findMany({
@@ -126,7 +134,7 @@ messagesRouter.get(
       take: limit,
       include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
     });
-    return res.json(messages);
+    return res.json(stripBlocked(messages));
   })
 );
 
