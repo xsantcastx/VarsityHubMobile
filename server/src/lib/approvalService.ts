@@ -271,6 +271,18 @@ export async function approveOrganization(
   if (org.admin_approved) return { already: true };
   const owner = await resolveOrganizationOwner(prisma, orgId, org.leagueOwner);
 
+  // Fail closed on an ownerless org: approving one would put it live with
+  // league_owner_id=null and no owner to administer it (or receive the approval
+  // notification). This shouldn't happen — create/transfer always write an owner
+  // — so alarm to Sentry and refuse rather than silently publish a headless org.
+  if (!owner?.id && !org.league_owner_id) {
+    captureException(new Error('approveOrganization called on an ownerless organization'), {
+      context: 'approve_organization_ownerless',
+      organization_id: orgId,
+    });
+    return { error: 'Organization has no owner and cannot be approved', status: 409 as const };
+  }
+
   // Atomic approval: org + owner approval_status
   const txOps: any[] = [
     prisma.organization.updateMany({
@@ -839,6 +851,24 @@ export async function approveAd(
   if (adminId && ad.user_id === adminId) {
     return { error: 'You cannot approve your own ad', status: 403 as const };
   }
+  // Identity-less (email-token) path hardening: without an authenticated admin
+  // the self-approval guard above can't run, so an ad OWNED BY A PLATFORM ADMIN
+  // must be actioned from the signed-in dashboard where identity is known.
+  // Non-admin-owned ads can't reach this path — moderation tokens are emailed
+  // only to admins, never to the ad owner — so this closes the sole self-approve
+  // vector (an admin clicking the email link for their own ad while logged out).
+  if (!adminId && ad.user_id) {
+    const owner = await prisma.user.findUnique({
+      where: { id: ad.user_id },
+      select: { email: true },
+    });
+    if (owner?.email && isAdminEmail(owner.email)) {
+      return {
+        error: 'Admin-owned ads must be approved from the signed-in dashboard',
+        status: 403 as const,
+      };
+    }
+  }
 
   // Banner moderation gate. A flagged banner requires an explicit override +
   // reason so a flagged image can never silently reach production. Moderation
@@ -977,6 +1007,23 @@ async function issueAdRefund(
     if (tx?.apple_transaction_id) {
       return { ok: false, error: 'apple_iap_manual_review' };
     }
+    // The refund may already have been issued on a prior partial run (the tx was
+    // flipped to REFUNDED) while the ad row failed to reach `refunded` — the money
+    // is already back with the customer. Detect that so the reconcile sweep can
+    // drain the stuck ad state instead of re-alarming hourly on a phantom
+    // "unrecovered refund" (there is no COMPLETED tx left to re-refund).
+    const alreadyRefunded = await prisma.transactionLog.findFirst({
+      where: {
+        user_id: ad.user_id,
+        order_id: ad.id,
+        transaction_type: 'AD_PURCHASE',
+        status: 'REFUNDED' as any,
+      },
+      select: { id: true },
+    });
+    if (alreadyRefunded) {
+      return { ok: false, error: 'already_refunded' };
+    }
     return { ok: false, error: 'no_payment_intent_found' };
   }
   const Stripe = (await import('stripe')).default;
@@ -1027,6 +1074,19 @@ export async function rejectAd(
   // IDOR guard: an admin must not reject an ad they personally own.
   if (adminId && ad.user_id === adminId) {
     return { error: 'You cannot reject your own ad', status: 403 as const };
+  }
+  // Identity-less (email-token) path hardening — see approveAd for the rationale.
+  if (!adminId && ad.user_id) {
+    const owner = await prisma.user.findUnique({
+      where: { id: ad.user_id },
+      select: { email: true },
+    });
+    if (owner?.email && isAdminEmail(owner.email)) {
+      return {
+        error: 'Admin-owned ads must be rejected from the signed-in dashboard',
+        status: 403 as const,
+      };
+    }
   }
 
   const guard = await prisma.$transaction(async tx => {
@@ -1478,6 +1538,14 @@ export async function reconcileStuckAdRefunds(prisma: PrismaClient): Promise<num
         await prisma.ad.update({
           where: { id: ad.id },
           data: { payment_status: 'manual_refund_review' },
+        });
+        recovered++;
+      } else if (res.error === 'already_refunded') {
+        // Refund already issued on a prior partial run — the ad row just never
+        // flipped. Drain it to `refunded` and stop the phantom hourly alarm.
+        await prisma.ad.update({
+          where: { id: ad.id },
+          data: { payment_status: 'refunded' },
         });
         recovered++;
       } else {

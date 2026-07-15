@@ -411,6 +411,20 @@ eventsRouter.get(
     const isAdminUser = (req as any).user?.id ? await getIsAdmin(req as any) : false;
     if (approvalStatus && isAdminUser) where.approval_status = approvalStatus;
     else where.approval_status = 'approved';
+    // A game-backed event inherits its game's opponent-consent gate: an upcoming
+    // fixture whose opponent is pending/declined must not surface publicly (past
+    // games stay visible). Events with no linked game are unaffected. Admins see
+    // everything. Mirrors isGamePubliclyVisible on the single-item surfaces.
+    if (!isAdminUser) {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { game_id: null },
+          { game: { is: { opponent_approval_status: { notIn: ['pending', 'declined'] } } } },
+          { game: { is: { date: { lt: new Date() } } } },
+        ],
+      });
+    }
     if (eventType) where.event_type = eventType;
     if (search) {
       where.OR = [

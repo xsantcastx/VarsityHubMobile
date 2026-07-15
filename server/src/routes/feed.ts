@@ -125,10 +125,27 @@ async function getFollowedPostsPage(
       };
     }
 
-    // Resolve game IDs where a followed team is home or away
+    // Resolve game IDs where a followed team is home or away. Restrict to
+    // publicly-visible games so posts tied to an opponent-pending/declined
+    // upcoming game don't surface (nor reveal the game's existence) via game
+    // linkage — mirrors isGamePubliclyVisible on the read surfaces.
     const followedGameRows = await prisma.game.findMany({
       where: {
-        OR: [{ home_team_id: { in: followedTeamIds } }, { away_team_id: { in: followedTeamIds } }],
+        AND: [
+          {
+            OR: [
+              { home_team_id: { in: followedTeamIds } },
+              { away_team_id: { in: followedTeamIds } },
+            ],
+          },
+          { approval_status: 'approved' },
+          {
+            OR: [
+              { opponent_approval_status: { notIn: ['pending', 'declined'] } },
+              { date: { lt: new Date() } },
+            ],
+          },
+        ],
       },
       select: { id: true },
       take: 500,

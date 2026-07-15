@@ -32,6 +32,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma.js';
 import { isAuthorHiddenFromViewer } from '../lib/privacyUtils.js';
+import { isGamePubliclyVisible } from '../lib/gameApproval.js';
 
 const APP_STORE_URL =
   process.env.IOS_APP_STORE_URL || 'https://apps.apple.com/us/app/varsityhub/id6758405187';
@@ -271,13 +272,20 @@ async function gameLanding(req: Request, res: Response, next: NextFunction) {
   const game = await prisma.game
     .findUnique({
       where: { id },
-      select: { title: true, location: true, date: true, approval_status: true },
+      select: {
+        title: true,
+        location: true,
+        date: true,
+        approval_status: true,
+        opponent_approval_status: true,
+      },
     })
     .catch(() => null);
 
-  // Do not leak pending/rejected game details through this public side door —
-  // mirrors og.ts, which gates on approval_status === 'approved'.
-  const visibleGame = game && game.approval_status === 'approved' ? game : null;
+  // Do not leak pending/rejected games — nor upcoming games whose opponent
+  // hasn't consented (or declined) — through this public side door. Mirrors
+  // og.ts / GET /games via the shared isGamePubliclyVisible rule.
+  const visibleGame = game && isGamePubliclyVisible(game) ? game : null;
 
   const meta: LandingMeta = visibleGame
     ? {
@@ -447,14 +455,25 @@ async function eventLanding(req: Request, res: Response, next: NextFunction) {
         description: true,
         approval_status: true,
         status: true,
+        game: {
+          select: {
+            approval_status: true,
+            opponent_approval_status: true,
+            date: true,
+          },
+        },
       },
     })
     .catch(() => null);
 
   // Only approved, non-cancelled events are public. Pending/rejected/cancelled
-  // event details must not leak through the share door.
-  const visibleEvent =
-    event && event.approval_status === 'approved' && event.status !== 'cancelled' ? event : null;
+  // event details must not leak through the share door. A game-backed event also
+  // inherits the game's opponent-consent gate (upcoming unconfirmed/declined
+  // fixtures stay private).
+  const eventPublic =
+    !!event && event.approval_status === 'approved' && event.status !== 'cancelled';
+  const gamePublic = !event?.game || isGamePubliclyVisible(event.game);
+  const visibleEvent = eventPublic && gamePublic ? event : null;
 
   const meta: LandingMeta = visibleEvent
     ? {

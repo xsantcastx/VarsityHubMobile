@@ -2,6 +2,7 @@ import { Router } from 'express';
 import escapeHtml from 'escape-html';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { isGamePubliclyVisible } from '../lib/gameApproval.js';
 
 /**
  * Open Graph link-preview pages for event/game share links.
@@ -104,12 +105,14 @@ ogRouter.get(
         banner_url: true,
         cover_image_url: true,
         approval_status: true,
+        opponent_approval_status: true,
       },
     });
 
-    // Only ever reveal data GET /games already treats as public — no
-    // leaking pending/rejected game details through this side door.
-    if (!game || game.approval_status !== 'approved') {
+    // Only ever reveal data GET /games already treats as public — no leaking
+    // pending/rejected games, nor upcoming games whose opponent hasn't consented
+    // (or declined), through this side door.
+    if (!game || !isGamePubliclyVisible(game)) {
       return res.send(genericOgPage(canonicalUrl));
     }
 
@@ -141,14 +144,24 @@ ogRouter.get(
         approval_status: true,
         status: true,
         game: {
-          select: { banner_url: true, cover_image_url: true },
+          select: {
+            banner_url: true,
+            cover_image_url: true,
+            approval_status: true,
+            opponent_approval_status: true,
+            date: true,
+          },
         },
       },
     });
 
-    // Same public-only boundary as GET /events — pending/rejected events
-    // never surface a title/image here.
-    if (!event || event.approval_status !== 'approved' || event.status !== 'approved') {
+    // Same public-only boundary as GET /events — pending/rejected events never
+    // surface here. A game-backed event also inherits the game's opponent-consent
+    // gate: an upcoming fixture whose opponent is pending/declined stays private.
+    const eventPublic =
+      !!event && event.approval_status === 'approved' && event.status === 'approved';
+    const gamePublic = !event?.game || isGamePubliclyVisible(event.game);
+    if (!eventPublic || !gamePublic) {
       return res.send(genericOgPage(canonicalUrl));
     }
 
