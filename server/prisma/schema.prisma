@@ -660,6 +660,14 @@ model Event {
   team_id String?
   team    Team?   @relation(fields: [team_id], references: [id], onDelete: SetNull)
 
+  // Exclusive poster (owner one-off feature, 2026-07-14): when set, ONLY this
+  // user may post to this event — every other user (even attendees who were
+  // there) is blocked. Null = normal multi-fan posting. Plain id column (no FK
+  // relation) to avoid a second User back-relation; the posting gate compares
+  // ids directly. A designation for a since-deleted user simply means nobody
+  // matches, so nobody can post (acceptable for this rare state).
+  exclusive_poster_id String?
+
   game    Game?       @relation(fields: [game_id], references: [id], onDelete: SetNull)
   creator User?       @relation(fields: [creator_id], references: [id], onDelete: SetNull)
   rsvps   EventRsvp[]
@@ -675,6 +683,7 @@ model Event {
   @@index([event_type])
   @@index([status])
   @@index([team_id])
+  @@index([exclusive_poster_id])
 }
 
 model Message {

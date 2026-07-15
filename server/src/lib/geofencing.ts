@@ -30,7 +30,8 @@ export type PostingPermissionErrorCode =
   | 'POSTING_WINDOW_CLOSED'
   | 'TOO_FAR_FROM_VENUE'
   | 'LOCATION_REQUIRED'
-  | 'LOCATION_SPOOF_SUSPECTED';
+  | 'LOCATION_SPOOF_SUSPECTED'
+  | 'EXCLUSIVE_POSTER_ONLY';
 
 export type PostingPermissionResult = {
   allowed: boolean;
@@ -49,6 +50,7 @@ const postingEventSelect = {
   longitude: true,
   location: true,
   game_id: true,
+  exclusive_poster_id: true,
 } as const;
 
 type PostingEvent = Awaited<ReturnType<typeof loadPostingEvent>>;
@@ -388,6 +390,21 @@ export async function verifyEventPostingPermission(
 
   if (!event) {
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
+  }
+
+  // Exclusive-poster lock (owner one-off feature, 2026-07-14): when an event
+  // designates a single poster, ONLY that user may post — bypassing the window
+  // and geofence for them, and blocking everyone else outright (even attendees
+  // who were there). Null = normal multi-fan posting (falls through below).
+  if (event.exclusive_poster_id) {
+    if (event.exclusive_poster_id === userId) {
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      code: 'EXCLUSIVE_POSTER_ONLY',
+      reason: 'Only the designated poster can post to this event.',
+    };
   }
 
   const { windowStart, liveCutoff } = getPostPostingWindowBounds(event.date);
