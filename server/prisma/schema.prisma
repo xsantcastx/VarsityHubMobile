@@ -440,6 +440,9 @@ model Game {
   id        String   @id @default(cuid())
   title     String   @db.VarChar(200)
   date      DateTime
+  // IANA timezone captured from the creator's device at create time, so
+  // server-rendered emails can show the correct local time (audit 2026-07-14).
+  timezone  String?  @db.VarChar(64)
   location  String?
   latitude  Float?
   longitude Float?
@@ -634,6 +637,9 @@ model Event {
   id         String      @id @default(cuid())
   title      String      @db.VarChar(200)
   date       DateTime
+  // IANA timezone from the creator's device (audit 2026-07-14) — lets emails
+  // render the correct local time instead of the server's UTC.
+  timezone   String?     @db.VarChar(64)
   location   String?     @db.VarChar(500)
   latitude   Float?
   longitude  Float?

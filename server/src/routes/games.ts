@@ -27,6 +27,7 @@ import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { creatorSideTeamIds, deriveGameApproval } from '../lib/gameApproval.js';
+import { formatEventTime } from '../lib/formatEventTime.js';
 import {
   canManageAnyTeam,
   canManageTeam as canManageTeamScoped,
@@ -1371,6 +1372,8 @@ gamesRouter.post(
       watch_location_lng: z.number().min(-180).max(180).optional(), // Watch party longitude
       watch_location_place_id: z.string().optional(), // Watch party Google Place ID
       destination: z.string().trim().max(200).optional(), // For team trips
+      // Creator's device IANA timezone (for correct email time rendering)
+      timezone: z.string().max(64).optional(),
       // Coordinate options
       latitude: z.number().min(-90).max(90).optional(),
       longitude: z.number().min(-180).max(180).optional(),
@@ -1400,6 +1403,7 @@ gamesRouter.post(
       let gameData: any = {
         title: stripHtml(parsed.data.title),
         date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+        timezone: parsed.data.timezone ?? null,
         location: stripHtml(parsed.data.location),
         description: parsed.data.description ? stripHtml(parsed.data.description) : undefined,
         banner_url: parsed.data.banner_url ?? null,
@@ -1574,6 +1578,7 @@ gamesRouter.post(
         data: {
           title: game.title,
           date: game.date,
+          timezone: game.timezone ?? null,
           location: game.location || null,
           latitude: eventLat,
           longitude: eventLng,
@@ -2432,24 +2437,14 @@ gamesRouter.delete(
       try {
         const gameForNotif = await prisma.game.findUnique({
           where: { id },
-          select: { id: true, title: true, date: true, location: true },
+          select: { id: true, title: true, date: true, location: true, timezone: true },
         });
         const gameTitle = gameForNotif?.title || 'A game';
         const gameDate = gameForNotif?.date instanceof Date ? gameForNotif.date : null;
-        const eventDate = gameDate
-          ? gameDate.toLocaleDateString(undefined, {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })
-          : undefined;
-        const eventTime = gameDate
-          ? gameDate.toLocaleTimeString(undefined, {
-              hour: 'numeric',
-              minute: '2-digit',
-            })
-          : undefined;
+        // Render in the game's captured timezone (falls back to zone-less when null).
+        const formatted = gameDate ? formatEventTime(gameDate, gameForNotif?.timezone) : null;
+        const eventDate = formatted?.dateStr;
+        const eventTime = formatted ? `${formatted.timeStr}` : undefined;
 
         // Find events linked to this game and their RSVPs
         // audit-allow unbounded: game deletion must notify every linked event RSVP

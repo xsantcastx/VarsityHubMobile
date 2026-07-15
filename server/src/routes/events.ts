@@ -1071,6 +1071,7 @@ const createEventSchema = z.object({
     }
   ),
   location: z.string().trim().min(1, 'Location is required'),
+  timezone: z.string().max(64).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().trim().max(5000).optional(),
@@ -1247,6 +1248,7 @@ eventsRouter.post(
           data: {
             title: data.title,
             date: new Date(data.date),
+            timezone: data.timezone ?? null,
             location: data.location,
             latitude: resolvedLat,
             longitude: resolvedLng,
