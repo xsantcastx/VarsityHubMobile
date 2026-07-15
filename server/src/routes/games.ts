@@ -35,7 +35,7 @@ import {
   storyCreationLimiter,
   voteLimiter,
 } from '../middleware/rateLimiters.js';
-import { verifyStoryPostingPermission, viewerHasGracePostAccess } from '../lib/geofencing.js';
+import { verifyStoryPostingPermission, viewerHasPostedOnEntity } from '../lib/geofencing.js';
 import { getZipCoordinates } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { getIsAdmin, isVerifiedAdminUser, requireAdmin } from '../middleware/requireAdmin.js';
@@ -860,13 +860,22 @@ async function canViewGameRecord(
   record: GameVisibilityRecord,
   viewerId?: string | null
 ): Promise<boolean> {
-  // Public visibility requires BOTH gates: platform-moderation approval AND
-  // (if a real VarsityHub opponent was linked) the opponent's confirmation.
-  // A game awaiting or declined opponent consent is treated the same as a
-  // moderation-pending game — visible only to the privileged viewers below.
+  // Owner rule (2026-07-14): "any user can view any past game at any time" —
+  // viewing is permanent and universal. A moderation-approved game is public
+  // once it is PAST, regardless of opponent-consent status (an opponent-consent
+  // re-flip must never make an already-played game disappear). Opponent consent
+  // still gates PUBLIC visibility of UPCOMING games (don't publicly attribute a
+  // future fixture to a team that hasn't confirmed) — those stay visible to the
+  // privileged viewers + contributors below until they're played.
   const opponentBlocksPublic =
     record.opponent_approval_status === 'pending' || record.opponent_approval_status === 'declined';
-  if (record.approval_status === 'approved' && !opponentBlocksPublic) return true;
+  const gameDate = record.date
+    ? record.date instanceof Date
+      ? record.date
+      : new Date(record.date)
+    : null;
+  const isPast = gameDate ? gameDate.getTime() < Date.now() : false;
+  if (record.approval_status === 'approved' && (!opponentBlocksPublic || isPast)) return true;
   if (!viewerId) return false;
   if (record.created_by_id && record.created_by_id === viewerId) return true;
 
@@ -905,17 +914,11 @@ async function canViewGameRecord(
     }
   }
 
-  // Additive fallback: a contributor who posted to this game while the
-  // posting window was live/open keeps read access through the same 7-day
-  // grace window that lets them keep posting (owner product rule,
-  // 2026-07-14), even if the game later loses public visibility (e.g. an
-  // opponent-consent re-flip). Read-only — grants no approval power.
-  if (record.id && record.date) {
-    return viewerHasGracePostAccess({
-      userId: viewerId,
-      gameId: record.id,
-      entityDate: record.date instanceof Date ? record.date : new Date(record.date),
-    });
+  // Additive permanent fallback: a contributor who posted to this game can
+  // always view it, even while it's an upcoming game still awaiting opponent
+  // consent (owner rule: viewing never expires). Read-only.
+  if (record.id) {
+    return viewerHasPostedOnEntity({ userId: viewerId, gameId: record.id });
   }
 
   return false;

@@ -1,19 +1,17 @@
 /**
- * GET /games/:id and GET /events/:id grace-window VIEW access — real-DB
- * integration tests (mirrors the api-events.test.ts / game-approval.test.ts
- * pattern rather than mocking, since these routes' visibility gates touch
- * several DB tables and the real wiring is what matters here).
+ * GET /games/:id and GET /events/:id VIEW access — real-DB integration.
  *
- * Product rule (2026-07-14, owner decision, verbatim): "When a user posts to
- * an event while they are there, they can continue to post to the event for
- * up to a week. After that week they no longer can." That same contributor
- * must also be able to VIEW the game/event detail page during that week —
- * previously a contributor who posted got a 404 the instant the entity lost
- * public visibility (e.g. an opponent-consent re-flip on a game, or a
- * fan-created event still pending approval). This is a real bug affecting a
- * real user who posted but is now locked out; the fix must be general
- * (keyed off "did this viewer post here while it was live/open", not any
- * hardcoded user id).
+ * Owner rule (2026-07-14, verbatim): "Any user can view any past game at any
+ * time — it will always be on the app. It'll lock posting, but any user can
+ * view any past game at any time." So:
+ *   - A moderation-approved game that is PAST is public to everyone, forever,
+ *     regardless of opponent-consent status (an opponent-consent re-flip must
+ *     never make an already-played game disappear).
+ *   - UPCOMING games still awaiting opponent consent stay gated (don't publicly
+ *     attribute a future fixture to a team that hasn't confirmed) — but a
+ *     contributor who posted there can always view it.
+ *   - Viewing NEVER expires. The 7-day cap applies only to POSTING
+ *     (geofencing-post-grace-window.test.ts).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
@@ -27,12 +25,11 @@ let signJwt: any;
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-// 3 days ago -> well inside the 7-day post-live grace window.
-const RECENT_ENTITY_DATE = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-// 20 days ago -> liveCutoff (+2h) + 7d grace is long past; window is closed.
-const STALE_ENTITY_DATE = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
+const FUTURE_DATE = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); // upcoming
+const PAST_DATE = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000); // recently played
+const OLD_PAST_DATE = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000); // long past
 
-describe('Grace-window VIEW access', () => {
+describe('VIEW access (viewing is permanent + universal for past games)', () => {
   let orgId: string;
   let homeTeamId: string;
   let awayTeamId: string;
@@ -55,7 +52,7 @@ describe('Grace-window VIEW access', () => {
 
     const org = await prisma.organization.create({
       data: {
-        name: `Grace View League ${ts}`,
+        name: `View Rules League ${ts}`,
         org_type: 'league',
         admin_approved: true,
         updated_at: new Date(),
@@ -64,8 +61,8 @@ describe('Grace-window VIEW access', () => {
     orgId = org.id;
 
     const [homeTeam, awayTeam] = await Promise.all([
-      prisma.team.create({ data: { name: `Grace Home ${ts}`, organization_id: orgId } }),
-      prisma.team.create({ data: { name: `Grace Away ${ts}`, organization_id: orgId } }),
+      prisma.team.create({ data: { name: `View Home ${ts}`, organization_id: orgId } }),
+      prisma.team.create({ data: { name: `View Away ${ts}`, organization_id: orgId } }),
     ]);
     homeTeamId = homeTeam.id;
     awayTeamId = awayTeam.id;
@@ -73,9 +70,9 @@ describe('Grace-window VIEW access', () => {
     async function makeUser(label: string) {
       const user = await prisma.user.create({
         data: {
-          email: `grace-view-${label}-${ts}@example.com`,
+          email: `view-rules-${label}-${ts}@example.com`,
           password_hash: hash,
-          display_name: `Grace ${label}`,
+          display_name: `View ${label}`,
           email_verified: true,
           role: 'fan',
           onboarding_completed: true,
@@ -86,16 +83,14 @@ describe('Grace-window VIEW access', () => {
       return { id: user.id, token: signJwt({ id: user.id }) };
     }
 
-    // Creator has no team/org staff role, so visibility for everyone else
+    // Creator holds no team/org staff role, so everyone else's visibility
     // depends purely on the gates under test, not an incidental staff grant.
     const creator = await makeUser('creator');
     creatorId = creator.id;
     creatorToken = creator.token;
-
     const contributor = await makeUser('contributor');
     contributorId = contributor.id;
     contributorToken = contributor.token;
-
     const outsider = await makeUser('outsider');
     outsiderId = outsider.id;
     outsiderToken = outsider.token;
@@ -106,7 +101,9 @@ describe('Grace-window VIEW access', () => {
       await prisma.post.deleteMany({ where: { id: { in: postIds } } }).catch(() => {});
       await prisma.event.deleteMany({ where: { id: { in: eventIds } } }).catch(() => {});
       await prisma.game.deleteMany({ where: { id: { in: gameIds } } }).catch(() => {});
-      await prisma.team.deleteMany({ where: { id: { in: [homeTeamId, awayTeamId] } } }).catch(() => {});
+      await prisma.team
+        .deleteMany({ where: { id: { in: [homeTeamId, awayTeamId] } } })
+        .catch(() => {});
       await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
       await prisma.user
         .deleteMany({ where: { id: { in: [creatorId, contributorId, outsiderId] } } })
@@ -116,50 +113,54 @@ describe('Grace-window VIEW access', () => {
     }
   });
 
-  describe('GET /games/:id', () => {
-    async function makeNonPublicGame(date: Date) {
-      // approved + opponent-pending is treated as non-public (same as a
-      // moderation-pending game) by canViewGameRecord — this is the exact
-      // "opponent-consent re-flip" shape described in the bug report.
-      const game = await prisma.game.create({
-        data: {
-          title: `Grace Game ${ts}-${Math.random()}`,
-          date,
-          home_team_id: homeTeamId,
-          away_team_id: awayTeamId,
-          approval_status: 'approved',
-          opponent_approval_status: 'pending',
-          created_by_id: creatorId,
-        },
-      });
-      gameIds.push(game.id);
-      return game;
-    }
+  // approved + opponent-pending == the "opponent-consent re-flip" shape that
+  // used to make a game non-public.
+  async function makeGame(date: Date) {
+    const game = await prisma.game.create({
+      data: {
+        title: `View Game ${ts}-${Math.random()}`,
+        date,
+        home_team_id: homeTeamId,
+        away_team_id: awayTeamId,
+        approval_status: 'approved',
+        opponent_approval_status: 'pending',
+        created_by_id: creatorId,
+      },
+    });
+    gameIds.push(game.id);
+    return game;
+  }
 
-    it('is 404 for an unrelated, unauthenticated viewer (control: gate still enforced)', async () => {
-      const game = await makeNonPublicGame(RECENT_ENTITY_DATE);
+  describe('GET /games/:id', () => {
+    it('PAST approved game is 200 for an unauthenticated outsider (any user, any past game)', async () => {
+      const game = await makeGame(PAST_DATE);
+      await request(app).get(`/games/${game.id}`).expect(200);
+    });
+
+    it('a long-past game is STILL 200 — viewing never expires', async () => {
+      const game = await makeGame(OLD_PAST_DATE);
+      await request(app).get(`/games/${game.id}`).expect(200);
+    });
+
+    it('UPCOMING opponent-pending game is 404 for an unauthenticated outsider (still gated)', async () => {
+      const game = await makeGame(FUTURE_DATE);
       await request(app).get(`/games/${game.id}`).expect(404);
     });
 
-    it('is 404 for a signed-in outsider with no post on the game (control)', async () => {
-      const game = await makeNonPublicGame(RECENT_ENTITY_DATE);
+    it('UPCOMING opponent-pending game is 404 for a signed-in outsider with no post', async () => {
+      const game = await makeGame(FUTURE_DATE);
       await request(app)
         .get(`/games/${game.id}`)
         .set('Authorization', `Bearer ${outsiderToken}`)
         .expect(404);
     });
 
-    it('is 200 for a contributor who posted to the game, within the 7-day grace window', async () => {
-      const game = await makeNonPublicGame(RECENT_ENTITY_DATE);
+    it('a contributor who posted can view an UPCOMING opponent-pending game (permanent, read-only)', async () => {
+      const game = await makeGame(FUTURE_DATE);
       const post = await prisma.post.create({
-        data: {
-          author_id: contributorId,
-          game_id: game.id,
-          content: 'On the ground recap',
-        },
+        data: { author_id: contributorId, game_id: game.id, content: 'pre-game hype' },
       });
       postIds.push(post.id);
-
       const res = await request(app)
         .get(`/games/${game.id}`)
         .set('Authorization', `Bearer ${contributorToken}`)
@@ -167,42 +168,8 @@ describe('Grace-window VIEW access', () => {
       expect(res.body.id).toBe(game.id);
     });
 
-    it('is 200 for the same contributor on GET /games/:id/summary', async () => {
-      const game = await makeNonPublicGame(RECENT_ENTITY_DATE);
-      const post = await prisma.post.create({
-        data: {
-          author_id: contributorId,
-          game_id: game.id,
-          content: 'On the ground recap',
-        },
-      });
-      postIds.push(post.id);
-
-      await request(app)
-        .get(`/games/${game.id}/summary`)
-        .set('Authorization', `Bearer ${contributorToken}`)
-        .expect(200);
-    });
-
-    it('is 404 again for a contributor once the 7-day grace window has elapsed', async () => {
-      const game = await makeNonPublicGame(STALE_ENTITY_DATE);
-      const post = await prisma.post.create({
-        data: {
-          author_id: contributorId,
-          game_id: game.id,
-          content: 'Old recap, window long closed',
-        },
-      });
-      postIds.push(post.id);
-
-      await request(app)
-        .get(`/games/${game.id}`)
-        .set('Authorization', `Bearer ${contributorToken}`)
-        .expect(404);
-    });
-
-    it('creator and staff visibility is unaffected (still 200)', async () => {
-      const game = await makeNonPublicGame(RECENT_ENTITY_DATE);
+    it('creator visibility is unaffected (200) on an upcoming game', async () => {
+      const game = await makeGame(FUTURE_DATE);
       await request(app)
         .get(`/games/${game.id}`)
         .set('Authorization', `Bearer ${creatorToken}`)
@@ -214,7 +181,7 @@ describe('Grace-window VIEW access', () => {
     async function makePendingEvent(date: Date) {
       const event = await prisma.event.create({
         data: {
-          title: `Grace Event ${ts}-${Math.random()}`,
+          title: `View Event ${ts}-${Math.random()}`,
           date,
           approval_status: 'pending',
           status: 'draft',
@@ -226,30 +193,25 @@ describe('Grace-window VIEW access', () => {
       return event;
     }
 
-    it('is 404 for an unrelated, unauthenticated viewer (control: gate still enforced)', async () => {
-      const event = await makePendingEvent(RECENT_ENTITY_DATE);
+    it('non-approved event is 404 for an unauthenticated outsider (control)', async () => {
+      const event = await makePendingEvent(PAST_DATE);
       await request(app).get(`/events/${event.id}`).expect(404);
     });
 
-    it('is 404 for a signed-in outsider with no post on the event (control)', async () => {
-      const event = await makePendingEvent(RECENT_ENTITY_DATE);
+    it('non-approved event is 404 for a signed-in outsider with no post (control)', async () => {
+      const event = await makePendingEvent(PAST_DATE);
       await request(app)
         .get(`/events/${event.id}`)
         .set('Authorization', `Bearer ${outsiderToken}`)
         .expect(404);
     });
 
-    it('is 200 for a contributor who posted to the event, within the 7-day grace window', async () => {
-      const event = await makePendingEvent(RECENT_ENTITY_DATE);
+    it('a contributor who posted can view the event (200)', async () => {
+      const event = await makePendingEvent(PAST_DATE);
       const post = await prisma.post.create({
-        data: {
-          author_id: contributorId,
-          event_id: event.id,
-          content: 'Event recap',
-        },
+        data: { author_id: contributorId, event_id: event.id, content: 'event recap' },
       });
       postIds.push(post.id);
-
       const res = await request(app)
         .get(`/events/${event.id}`)
         .set('Authorization', `Bearer ${contributorToken}`)
@@ -257,25 +219,20 @@ describe('Grace-window VIEW access', () => {
       expect(res.body.id).toBe(event.id);
     });
 
-    it('is 404 again for a contributor once the 7-day grace window has elapsed', async () => {
-      const event = await makePendingEvent(STALE_ENTITY_DATE);
+    it('a contributor STILL views a long-stale event — viewing never expires (was: 404 after 7 days)', async () => {
+      const event = await makePendingEvent(OLD_PAST_DATE);
       const post = await prisma.post.create({
-        data: {
-          author_id: contributorId,
-          event_id: event.id,
-          content: 'Old event recap, window long closed',
-        },
+        data: { author_id: contributorId, event_id: event.id, content: 'old recap' },
       });
       postIds.push(post.id);
-
       await request(app)
         .get(`/events/${event.id}`)
         .set('Authorization', `Bearer ${contributorToken}`)
-        .expect(404);
+        .expect(200);
     });
 
-    it('creator visibility is unaffected (still 200)', async () => {
-      const event = await makePendingEvent(RECENT_ENTITY_DATE);
+    it('creator visibility is unaffected (200)', async () => {
+      const event = await makePendingEvent(PAST_DATE);
       await request(app)
         .get(`/events/${event.id}`)
         .set('Authorization', `Bearer ${creatorToken}`)

@@ -167,23 +167,27 @@ export function getPostPostingWindowState(
  * Purely additive: callers should only consult this as a fallback after their
  * existing visibility checks (creator/admin/staff) have failed.
  */
-export async function viewerHasGracePostAccess({
+/**
+ * Read-access helper: has this viewer posted to this game/event? Viewing is
+ * PERMANENT and never expires (owner rule, 2026-07-14: "any user can view any
+ * past game at any time; it'll lock posting but viewing is always on"). This
+ * is the additive contributor fallback for the niche case of a not-yet-public
+ * entity (e.g. a future game still awaiting opponent consent) — a contributor
+ * who posted there can always see it. Read-only; grants no approval power.
+ * The 7-day cap applies ONLY to POSTING (getPostPostingWindowState), never to
+ * viewing.
+ */
+export async function viewerHasPostedOnEntity({
   userId,
   gameId,
   eventId,
-  entityDate,
 }: {
   userId?: string | null;
   gameId?: string | null;
   eventId?: string | null;
-  entityDate: Date | null | undefined;
 }): Promise<boolean> {
   if (!userId) return false;
   if (!gameId && !eventId) return false;
-  if (!entityDate) return false;
-
-  const state = getPostPostingWindowState(new Date(entityDate));
-  if (state === 'closed') return false;
 
   const orClauses: Array<{ game_id: string } | { event_id: string }> = [];
   if (gameId) orClauses.push({ game_id: gameId });
