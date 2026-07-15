@@ -28,7 +28,7 @@
  * dependency — no new install, no new binary, so activation ships via OTA.
  */
 import crypto from 'node:crypto';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 function env(key: string): string {
@@ -133,4 +133,32 @@ export async function createR2UploadTicket(opts: {
   const publicUrl = publicBase ? `${publicBase}/${key}` : null;
 
   return { uploadUrl, key, publicUrl, expiresIn };
+}
+
+/**
+ * Extract the R2 object key from a public URL, or null if the URL is not an R2
+ * public URL (e.g. a Cloudinary URL). Keyed off R2_PUBLIC_BASE_URL, the exact
+ * base createR2UploadTicket used to build the stored public URL.
+ */
+export function extractR2Key(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const publicBase = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');
+  if (publicBase && url.startsWith(`${publicBase}/`)) {
+    return url.slice(publicBase.length + 1) || null;
+  }
+  return null;
+}
+
+/**
+ * Delete an R2 object given its stored public URL. No-op (returns false) when
+ * R2 isn't configured or the URL isn't an R2 URL, so callers can pass any media
+ * URL and only R2-hosted ones are destroyed. This closes the post-delete gap
+ * where R2 media stayed publicly retrievable forever.
+ */
+export async function deleteR2ObjectByUrl(url: string | null | undefined): Promise<boolean> {
+  if (!isR2Configured()) return false;
+  const key = extractR2Key(url);
+  if (!key) return false;
+  await getClient().send(new DeleteObjectCommand({ Bucket: env('R2_BUCKET'), Key: key }));
+  return true;
 }
