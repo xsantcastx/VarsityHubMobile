@@ -363,7 +363,10 @@ postsRouter.get(
       where.AND = [...(Array.isArray(where.AND) ? where.AND : []), { OR: eventMatch }];
     }
     if (req.query.type) where.type = String(req.query.type);
-    if (req.query.user_id) where.author_id = String(req.query.user_id);
+    // Scope in OBJECT form ({ equals }) — a bare string scope was silently
+    // discarded by the block-filter merge below (which treats non-objects as
+    // {}), leaking the global feed + private-author posts. Audit 2026-07-14 (live).
+    if (req.query.user_id) where.author_id = { equals: String(req.query.user_id) };
 
     // Privacy: hide posts from private-profile authors the viewer doesn't follow
     if (req.query.user_id) {
@@ -651,17 +654,51 @@ const locationSchema = z
   })
   .optional();
 
+// A post media/poster URL must be an uploaded asset (Cloudinary / VarsityHub
+// CDN / R2), a data: URI, or a relative/local path processed elsewhere. An
+// absolute off-platform http(s) URL (or protocol-relative //host) is rejected —
+// otherwise a fan could point media at an arbitrary host for viewer-IP tracking
+// or to bypass the upload moderation + delete-cleanup pipeline. Audit 2026-07-14.
+const isAllowedPostMediaUrl = (value: string): boolean => {
+  const v = value.trim();
+  if (v.startsWith('data:')) return true;
+  if (v.startsWith('//')) return false; // protocol-relative → treated as network URL
+  if (!/^https?:\/\//i.test(v)) return true; // relative/local path, processed server-side
+  try {
+    const parsed = new URL(v);
+    if (parsed.protocol !== 'https:') return false;
+    const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
+    const r2base = (process.env.R2_PUBLIC_BASE_URL || '').trim();
+    if (r2base) {
+      try {
+        allowed.push(new URL(r2base).hostname);
+      } catch {
+        /* ignore malformed env */
+      }
+    }
+    return allowed.some(h => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`));
+  } catch {
+    return false;
+  }
+};
+const mediaUrlMessage = { message: 'media url must be an uploaded VarsityHub asset' };
+
 const createPostSchema = z
   .object({
     title: z.string().min(1).max(200).optional(),
     content: z.string().max(4000).optional(),
     type: z.string().max(50).optional(),
-    // Accept any non-empty string to support data URIs or local uploads handled elsewhere
-    media_url: z.string().trim().min(1).optional(),
+    media_url: z.string().trim().min(1).refine(isAllowedPostMediaUrl, mediaUrlMessage).optional(),
     // Media metadata captured client-side from the upload response. Bounded to
     // sane ranges so a malformed client can't persist absurd values. All
     // optional/additive — older clients simply omit them.
-    poster_url: z.string().trim().min(1).max(2048).optional(),
+    poster_url: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2048)
+      .refine(isAllowedPostMediaUrl, mediaUrlMessage)
+      .optional(),
     media_width: z.number().int().positive().max(100000).optional(),
     media_height: z.number().int().positive().max(100000).optional(),
     media_duration_s: z.number().nonnegative().max(86400).optional(),
@@ -965,11 +1002,21 @@ postsRouter.post(
       finalGameId = e?.game_id ?? null;
     }
 
+    // Reserved post types are privileged read-side magic values (e.g.
+    // admin_broadcast fans out to EVERY user's feed, bypassing the follow graph
+    // and block/private filters). Only a verified admin may create one — a fan
+    // supplying the type is coerced to a normal post. Audit 2026-07-14 (live).
+    const RESERVED_POST_TYPES = new Set(['admin_broadcast']);
+    const requestedType = data.type || 'post';
+    const isBroadcastAdmin = await getIsAdmin(req as any);
+    const safeType =
+      RESERVED_POST_TYPES.has(requestedType) && !isBroadcastAdmin ? 'post' : requestedType;
+
     const post = await prisma.post.create({
       data: {
         title: finalTitle ? stripHtml(finalTitle) : null,
         content: data.content ? stripHtml(data.content.trim()) : null,
-        type: data.type || 'post',
+        type: safeType,
         media_url: data.media_url,
         poster_url: data.poster_url,
         media_width: data.media_width,

@@ -6,7 +6,7 @@ import { captureException } from '../lib/sentry.js';
 import { notifyNewMessage } from '../lib/notifications.js';
 import { emitToConversation } from '../realtime/socketServer.js';
 import { prisma } from '../lib/prisma.js';
-import { getUserAge } from '../lib/userAge.js';
+import { isMinor, isVerifiedAdult } from '../lib/userAge.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { messageLimiter } from '../middleware/rateLimiters.js';
@@ -280,11 +280,15 @@ messagesRouter.post(
       }
     }
 
-    const senderAge = getUserAge(me);
-    const recipientAge = getUserAge(recipient);
+    // Use the fail-closed age helpers (isMinor: null DOB → true;
+    // isVerifiedAdult: null DOB → false) so a missing/legacy DOB can never open
+    // a child-safety gate. Audit 2026-07-14.
+    const senderIsMinor = isMinor(me);
+    const recipientIsMinor = isMinor(recipient);
+    const senderIsAdult = isVerifiedAdult(me);
 
-    // Minor (under 18) may only message accounts they follow
-    if (senderAge !== null && senderAge < 18) {
+    // Minor (or unknown-age) sender may only message accounts they follow.
+    if (senderIsMinor) {
       const follows = await prisma.follows.findFirst({
         where: { follower_id: meId, following_id: toId!, status: 'accepted' },
       });
@@ -295,10 +299,12 @@ messagesRouter.post(
       }
     }
 
-    // Adult (18+) messaging minor (under 18): adult must follow the minor
-    if (senderAge !== null && senderAge >= 18 && recipientAge !== null && recipientAge < 18) {
-      const adultFollowsMinor = await prisma.follows.findUnique({
-        where: { follower_id_following_id: { follower_id: meId, following_id: toId! } },
+    // Adult messaging a minor (or unknown-age recipient): the adult must have an
+    // ACCEPTED follow of that user — an unaccepted (pending) follow request does
+    // NOT satisfy the gate. (Was findUnique with no status filter.)
+    if (senderIsAdult && recipientIsMinor) {
+      const adultFollowsMinor = await prisma.follows.findFirst({
+        where: { follower_id: meId, following_id: toId!, status: 'accepted' },
       });
       if (!adultFollowsMinor) {
         return sendError(res, 403, 'You must follow this user to send them a message.', {
