@@ -27,11 +27,16 @@ export function OfflineBanner() {
   const [retrying, setRetrying] = useState(false);
   const [networkConnected, setNetworkConnected] = useState(true);
 
-  // Listen for real-time connectivity changes (only if native module exists)
+  // Listen for real-time connectivity changes (only if native module exists).
+  // Only `isConnected === false` (no network interface) counts as offline.
+  // `isInternetReachable` is a probe to an external endpoint that returns false
+  // on captive portals, strict firewalls, or a flaky probe even when our own
+  // API is reachable — trusting it pinned the "No internet" banner up forever.
+  // The server health check (healthOk) is the authoritative reachability signal.
   useEffect(() => {
     if (!NetInfoModule) return;
     const unsubscribe = NetInfoModule.addEventListener(state => {
-      const isConnected = state.isConnected !== false && state.isInternetReachable !== false;
+      const isConnected = state.isConnected !== false;
       setNetworkConnected(isConnected);
       // When connectivity returns, auto-retry the health check
       if (isConnected && !healthOk) {

@@ -273,6 +273,18 @@ export async function softDeleteUserAccount(userId: string): Promise<{
     await tx.organizationJoinRequest.deleteMany({ where: { user_id: userId } });
     await tx.refreshToken.deleteMany({ where: { user_id: userId } });
 
+    // Comments are onDelete:SetNull, so they survive orphaned unless we remove
+    // them here; votes are cheap to purge. Posts are soft-deleted (not hard) so
+    // they drop out of every feed immediately without breaking any in-flight
+    // references before the eventual hard-delete sweep.
+    await tx.comment.deleteMany({ where: { author_id: userId } });
+    await tx.pollVote.deleteMany({ where: { user_id: userId } });
+    await tx.gameVote.deleteMany({ where: { user_id: userId } });
+    await tx.post.updateMany({
+      where: { author_id: userId, deleted_at: null },
+      data: { deleted_at: deletedAt },
+    });
+
     // Ads, stories, and creator-owned events carry contact/location data that
     // should not survive self-serve erasure.
     await tx.ad.deleteMany({ where: { user_id: userId } });
