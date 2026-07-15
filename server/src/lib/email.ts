@@ -1276,6 +1276,7 @@ export async function sendEventUpdatedEmail(params: {
   changes: string[];
   newDate?: Date | null;
   newLocation?: string | null;
+  timezone?: string | null;
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.EVENT_UPDATED;
   if (!templateId) {
@@ -1294,6 +1295,11 @@ export async function sendEventUpdatedEmail(params: {
       event_title: params.eventTitle,
       changes: params.changes,
       new_date: params.newDate ? params.newDate.toISOString() : null,
+      // Pre-formatted, timezone-aware date so the template prints it directly
+      // instead of a raw ISO string. Null when no new date was set.
+      new_date_display: params.newDate
+        ? formatEventTime(params.newDate, params.timezone).combined
+        : null,
       new_location: params.newLocation || null,
     },
     `Event updated email sent to ${params.to}`

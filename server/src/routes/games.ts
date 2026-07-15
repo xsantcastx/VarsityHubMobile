@@ -3073,6 +3073,7 @@ gamesRouter.put(
             changes,
             newDate: updated.date,
             newLocation: updated.location,
+            timezone: updated.timezone ?? null,
           }).catch(err =>
             console.warn('[games] event update email failed:', (err as any)?.message || err)
           );
