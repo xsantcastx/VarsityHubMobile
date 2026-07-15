@@ -2,6 +2,7 @@ import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import React from 'react';
 import { toUserMessage } from '@/utils/toUserMessage';
+import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   Pressable,
@@ -32,6 +33,8 @@ export function VideoPlayer({
   const [retryKey, setRetryKey] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  // Videos autoplay muted by default (public-venue safety) — user opts into sound via the mute toggle.
+  const [isMuted, setIsMuted] = React.useState(true);
   // Callers pass mediaUrl! assertions; a missing uri must not crash the
   // player. Pass a null source (expo-video accepts it) and render the
   // error overlay below instead of skipping hooks with an early return.
@@ -39,7 +42,7 @@ export function VideoPlayer({
   const player = useVideoPlayer(source, p => {
     if (!uri) return;
     p.volume = 1.0;
-    p.muted = false;
+    p.muted = true;
     if (autoPlay && !paused) {
       try {
         p.play();
@@ -102,6 +105,20 @@ export function VideoPlayer({
     }
   }, [autoPlay, player, paused]);
 
+  React.useEffect(() => {
+    if (!player) return;
+    try {
+      player.muted = isMuted;
+    } catch (e) {
+      // Non-critical: player may not be ready
+      if (__DEV__) console.warn('[VideoPlayer] Failed to set mute state:', e);
+    }
+  }, [isMuted, player]);
+
+  const handleToggleMute = React.useCallback(() => {
+    setIsMuted(prev => !prev);
+  }, []);
+
   return (
     <View style={style}>
       <VideoView
@@ -135,6 +152,16 @@ export function VideoPlayer({
           <Text style={styles.errorCaption}>Tap to retry</Text>
         </Pressable>
       ) : null}
+      {uri ? (
+        <Pressable
+          onPress={handleToggleMute}
+          style={styles.muteButton}
+          accessibilityRole="button"
+          accessibilityLabel={isMuted ? 'Unmute video' : 'Mute video'}
+        >
+          <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={18} color="#fff" />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -157,6 +184,17 @@ const styles = StyleSheet.create({
     color: '#e2e8f0',
     fontSize: 13,
     fontWeight: '600',
+  },
+  muteButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

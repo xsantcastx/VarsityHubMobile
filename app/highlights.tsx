@@ -6,6 +6,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { getAuthSnapshot } from '@/utils/authState';
 import AppLinks, { buildNativeSharePayload } from '@/utils/links';
+import { promptForSignIn } from '@/utils/requireSignIn';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image as ExpoImage } from 'expo-image';
@@ -783,6 +784,10 @@ function HighlightsScreen() {
 
   const handleUpvote = useCallback(
     async (item: HighlightItem) => {
+      if (!user) {
+        promptForSignIn(() => router.push('/sign-in'), { message: 'Sign in to upvote.' });
+        return;
+      }
       // Optimistic update: toggle immediately for responsiveness
       const optimisticNext = !item.has_upvoted;
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
@@ -824,7 +829,7 @@ function HighlightsScreen() {
         if (__DEV__) console.warn('[Highlights] Failed to toggle upvote:', error);
       }
     },
-    [patchHighlight]
+    [patchHighlight, user, router]
   );
 
   const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
