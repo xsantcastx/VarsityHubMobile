@@ -18,6 +18,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { reportLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 
 export const reportsRouter = Router();
 
@@ -39,7 +40,15 @@ const REPORT_REASONS = [
 type ReportReason = (typeof REPORT_REASONS)[number];
 
 // Valid content types that can be reported
-const REPORTABLE_TYPES = ['post', 'user', 'comment', 'message', 'team', 'ad'] as const;
+const REPORTABLE_TYPES = [
+  'post',
+  'user',
+  'comment',
+  'message',
+  'group_chat_message',
+  'team',
+  'ad',
+] as const;
 type ReportableType = (typeof REPORTABLE_TYPES)[number];
 
 // Schema for creating a report
@@ -59,6 +68,7 @@ const createReportSchema = z.object({
 reportsRouter.post(
   '/',
   requireAuth as any,
+  requireVerified as any,
   reportLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -191,6 +201,34 @@ reportsRouter.post(
           }
           break;
         }
+        case 'group_chat_message': {
+          const gcm = await prisma.groupChatMessage.findUnique({
+            where: { id: target_id },
+            select: { id: true, chat_id: true, sender_id: true, content: true, created_at: true },
+          });
+          if (gcm) {
+            // Only a member of the chat may report a message in it.
+            const membership = await prisma.groupChatMember.findFirst({
+              where: { chat_id: gcm.chat_id, user_id: req.user.id },
+              select: { id: true },
+            });
+            if (!membership) {
+              return res
+                .status(403)
+                .json({ error: 'You can only report messages in group chats you belong to' });
+            }
+            if (gcm.sender_id === req.user.id) {
+              return res.status(400).json({ error: 'You cannot report your own messages' });
+            }
+            targetExists = true;
+            targetContext = {
+              sender_id: gcm.sender_id,
+              content_preview: gcm.content?.substring(0, 200),
+              created_at: gcm.created_at,
+            };
+          }
+          break;
+        }
         case 'team': {
           const team = await prisma.team.findUnique({
             where: { id: target_id },
@@ -202,6 +240,14 @@ reportsRouter.post(
             },
           });
           if (team) {
+            // Can't report a team you own (parity with other self-guards).
+            const ownerRow = await prisma.teamMembership.findFirst({
+              where: { team_id: target_id, user_id: req.user.id, role: 'owner', status: 'active' },
+              select: { id: true },
+            });
+            if (ownerRow) {
+              return res.status(400).json({ error: 'You cannot report your own team' });
+            }
             targetExists = true;
             targetContext = {
               team_name: team.name,

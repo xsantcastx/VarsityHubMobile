@@ -1206,51 +1206,54 @@ postsRouter.post(
       return res.status(404).json({ error: 'Poll option not found' });
     }
 
-    // Check if user has already voted
-    const existingVote = await prisma.pollVote.findFirst({
-      where: {
-        poll_option: {
-          poll_id: poll.id,
+    // Read existing vote AND mutate inside one Serializable transaction. The
+    // DB unique is on (poll_option_id, user_id), NOT (poll_id, user_id), so a
+    // plain check-then-create let two concurrent taps on DIFFERENT options both
+    // succeed → two votes in one poll. Serializable makes the concurrent txns
+    // conflict instead. Audit 2026-07-14.
+    let alreadyCast = false;
+    try {
+      await prisma.$transaction(
+        async tx => {
+          const existingVote = await tx.pollVote.findFirst({
+            where: { poll_option: { poll_id: poll.id }, user_id: userId },
+          });
+          if (existingVote) {
+            if (existingVote.poll_option_id === option_id) {
+              alreadyCast = true;
+              return;
+            }
+            // Change vote: remove the old, add the new.
+            await tx.pollVote.delete({ where: { id: existingVote.id } });
+            await tx.pollOption.update({
+              where: { id: existingVote.poll_option_id },
+              data: { votes_count: { decrement: 1 } },
+            });
+            await tx.pollVote.create({ data: { poll_option_id: option_id, user_id: userId } });
+            await tx.pollOption.update({
+              where: { id: option_id },
+              data: { votes_count: { increment: 1 } },
+            });
+          } else {
+            await tx.pollVote.create({ data: { poll_option_id: option_id, user_id: userId } });
+            await tx.pollOption.update({
+              where: { id: option_id },
+              data: { votes_count: { increment: 1 } },
+            });
+          }
         },
-        user_id: userId,
-      },
-    });
-
-    if (existingVote) {
-      // If user is voting for the same option, do nothing.
-      // If user is changing their vote, we need to remove the old vote and add a new one.
-      if (existingVote.poll_option_id === option_id) {
+        { isolationLevel: 'Serializable' }
+      );
+    } catch (e: any) {
+      // Unique collision (P2002) or serialization conflict (P2034): a concurrent
+      // vote won — the invariant (one vote per poll) holds, so report success.
+      if (e?.code === 'P2002' || e?.code === 'P2034') {
         return res.status(200).json({ message: 'Vote already cast' });
       }
-
-      await prisma.$transaction([
-        prisma.pollVote.delete({ where: { id: existingVote.id } }),
-        prisma.pollOption.update({
-          where: { id: existingVote.poll_option_id },
-          data: { votes_count: { decrement: 1 } },
-        }),
-        prisma.pollVote.create({ data: { poll_option_id: option_id, user_id: userId } }),
-        prisma.pollOption.update({
-          where: { id: option_id },
-          data: { votes_count: { increment: 1 } },
-        }),
-      ]);
-    } else {
-      try {
-        await prisma.$transaction([
-          prisma.pollVote.create({ data: { poll_option_id: option_id, user_id: userId } }),
-          prisma.pollOption.update({
-            where: { id: option_id },
-            data: { votes_count: { increment: 1 } },
-          }),
-        ]);
-      } catch (e: any) {
-        // Race condition: concurrent vote on same option — treat as already cast
-        if (e?.code === 'P2002') {
-          return res.status(200).json({ message: 'Vote already cast' });
-        }
-        throw e;
-      }
+      throw e;
+    }
+    if (alreadyCast) {
+      return res.status(200).json({ message: 'Vote already cast' });
     }
 
     const updatedPoll = await prisma.poll.findUnique({
@@ -1775,14 +1778,19 @@ postsRouter.post(
       where: { post_id_user_id: { post_id: postId, user_id: userId } },
     });
     if (existing) {
-      await prisma.postBookmark.delete({
-        where: { post_id_user_id: { post_id: postId, user_id: userId } },
-      });
+      // deleteMany is idempotent (no P2025 if a concurrent tap already removed it)
+      await prisma.postBookmark.deleteMany({ where: { post_id: postId, user_id: userId } });
       const bookmarks_count = await prisma.postBookmark.count({ where: { post_id: postId } });
       return res.json({ has_bookmarked: false, bookmarks_count, bookmarked: false });
     }
 
-    await prisma.postBookmark.create({ data: { post_id: postId, user_id: userId } });
+    try {
+      await prisma.postBookmark.create({ data: { post_id: postId, user_id: userId } });
+    } catch (e: any) {
+      // Concurrent double-tap: the unique key already exists — treat as an
+      // idempotent no-op instead of a 500. (Was an unhandled P2002.)
+      if (e?.code !== 'P2002') throw e;
+    }
     const bookmarks_count = await prisma.postBookmark.count({ where: { post_id: postId } });
     return res.json({ has_bookmarked: true, bookmarks_count, bookmarked: true });
   })

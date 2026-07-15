@@ -828,6 +828,7 @@ function ManageSeasonScreen() {
           ? `${gameData.currentTeam} vs ${gameData.opponent}`
           : gameData.currentTeam,
         date: gameDateTime.toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         description:
           gameData.description ||
           (gameData.isCompetitive
@@ -1003,6 +1004,7 @@ function ManageSeasonScreen() {
         home_team: isHome ? gameData.currentTeam : gameData.opponent,
         away_team: isHome ? gameData.opponent : gameData.currentTeam,
         date: gameDateTime.toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         location: gameData.location,
         description: `${gameData.type === 'home' ? 'Home' : gameData.type === 'away' ? 'Away' : 'Neutral'} game: ${gameData.currentTeam} vs ${gameData.opponent}`,
       };
@@ -1113,6 +1115,7 @@ function ManageSeasonScreen() {
               : { home_team_id: currentTeamId }
             : {}),
           date: gameDateTime.toISOString(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           location: gameData.location,
           description: `${gameData.type === 'home' ? 'Home' : gameData.type === 'away' ? 'Away' : 'Neutral'} game: ${teamName} vs ${gameData.opponent}`,
         };

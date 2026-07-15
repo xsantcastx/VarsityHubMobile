@@ -494,6 +494,25 @@ export async function cancelGameReminders(eventId: string, userId: string): Prom
 }
 
 /**
+ * Reschedule the 12h/1h reminders for EVERY RSVP of an event — call after the
+ * event's date changes. The per-user schedule/cancel helpers re-read the event's
+ * current date, so cancel-then-schedule moves each reminder to the new time.
+ * Without this, a rescheduled game still pushed reminders for the OLD time.
+ * Audit 2026-07-14 (4b). Best-effort; a queue hiccup never blocks the edit.
+ */
+export async function rescheduleGameRemindersForEvent(eventId: string): Promise<void> {
+  const rsvps = await prisma.eventRsvp.findMany({
+    where: { event_id: eventId },
+    select: { user_id: true },
+    take: 5000,
+  });
+  for (const { user_id } of rsvps) {
+    await cancelGameReminders(eventId, user_id).catch(() => {});
+    await scheduleGameReminders(eventId, user_id).catch(() => {});
+  }
+}
+
+/**
  * Verify push notification delivery receipts from Expo.
  * Queries recent notifications with a ticket_id in meta, checks receipts,
  * and clears stale push tokens for receipt errors that prove the token is no

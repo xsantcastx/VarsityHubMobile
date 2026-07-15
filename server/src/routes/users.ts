@@ -560,7 +560,30 @@ usersRouter.get(
       const items = rows.slice(0, limit);
       const nextCursor = rows.length > limit ? rows[limit].id : null;
 
-      const payload = items.map(mapPostForPayload);
+      // Per-viewer interaction flags — without these the profile post viewer
+      // renders every post as un-upvoted, so tapping upvote on an
+      // already-upvoted post silently toggled it OFF. Audit 2026-07-14.
+      const postIds = items.map(p => p.id);
+      const [viewerUpvotes, viewerBookmarks] =
+        currentUserId && postIds.length
+          ? await Promise.all([
+              prisma.postUpvote.findMany({
+                where: { user_id: currentUserId, post_id: { in: postIds } },
+                select: { post_id: true },
+              }),
+              prisma.postBookmark.findMany({
+                where: { user_id: currentUserId, post_id: { in: postIds } },
+                select: { post_id: true },
+              }),
+            ])
+          : [[], []];
+      const upSet = new Set(viewerUpvotes.map(u => u.post_id));
+      const bmSet = new Set(viewerBookmarks.map(b => b.post_id));
+      const payload = items.map(p => ({
+        ...mapPostForPayload(p),
+        has_upvoted: upSet.has(p.id),
+        has_bookmarked: bmSet.has(p.id),
+      }));
       const [postsCount, likesCount, commentsCount, savesCount] = await Promise.all([
         prisma.post.count({ where: { author_id: id, deleted_at: null } }),
         prisma.postUpvote.count({ where: { user_id: id } }),

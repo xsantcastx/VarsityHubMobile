@@ -18,6 +18,7 @@ import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import {
   cancelGameReminders,
+  rescheduleGameRemindersForEvent,
   scheduleGameReminders,
   sendPushNotification,
 } from '../lib/notifications.js';
@@ -1071,6 +1072,7 @@ const createEventSchema = z.object({
     }
   ),
   location: z.string().trim().min(1, 'Location is required'),
+  timezone: z.string().max(64).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().trim().max(5000).optional(),
@@ -1247,6 +1249,7 @@ eventsRouter.post(
           data: {
             title: data.title,
             date: new Date(data.date),
+            timezone: data.timezone ?? null,
             location: data.location,
             latitude: resolvedLat,
             longitude: resolvedLng,
@@ -1641,6 +1644,13 @@ eventsRouter.patch(
       where: { id: eventId },
       data: updateData,
     });
+
+    // Date changed → move every RSVP's 12h/1h reminders to the new time.
+    if (data.date !== undefined) {
+      void rescheduleGameRemindersForEvent(eventId).catch(err =>
+        console.warn('[events] reminder reschedule failed:', (err as any)?.message || err)
+      );
+    }
 
     // Keep the linked Game in sync when event has game_id. Previously only the
     // opponent synced back, so editing an event's date/location/title left the

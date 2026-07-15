@@ -2863,7 +2863,9 @@ organizationsRouter.post(
       });
 
     const isAdmin = await getIsAdmin(req as any);
-    const isOwner = org.league_owner_id === userId;
+    // Use the scoped helper (honors both league_owner_id AND an owner membership
+    // row) instead of the raw pointer — parity with every other org-owner gate.
+    const isOwner = await isOrganizationOwnerScoped(userId, orgId);
     if (!isOwner && !isAdmin)
       return res
         .status(403)
