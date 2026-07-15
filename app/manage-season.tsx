@@ -800,8 +800,12 @@ function ManageSeasonScreen() {
         throw new Error('Invalid date/time combination');
       }
 
-      // Create the timestamp in UTC so the intended date/time is preserved server-side
-      const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+      // True-instant encoding: build the Date from local parts (NOT Date.UTC) so
+      // "7:00 PM" is stored as the correct UTC instant of the coach's local time
+      // and renders back as 7:00 PM for same-region viewers. This matches the
+      // bulk-add and fan-event paths; the old Date.UTC form stored wall-clock as
+      // UTC and showed a shifted time to everyone not in UTC.
+      const gameDateTime = new Date(year, month - 1, day, hours, minutes);
 
       // Validate the date
       if (isNaN(gameDateTime.getTime())) {
@@ -975,16 +979,16 @@ function ManageSeasonScreen() {
 
   const handleSaveGame = async (gameData: GameFormData) => {
     try {
-      // Merge the separate date + time pickers into one timestamp (UTC parts,
-      // matching handleSaveQuickGame so the intended wall time is preserved).
+      // Merge the separate date + time pickers into one true-instant timestamp
+      // from LOCAL parts (not Date.UTC), matching handleSaveQuickGame and the
+      // bulk/fan paths so a "7:00 PM" game is stored as the correct instant and
+      // renders back as 7:00 PM for same-region viewers.
       const gameDateTime = new Date(
-        Date.UTC(
-          gameData.date.getFullYear(),
-          gameData.date.getMonth(),
-          gameData.date.getDate(),
-          gameData.time.getHours(),
-          gameData.time.getMinutes()
-        )
+        gameData.date.getFullYear(),
+        gameData.date.getMonth(),
+        gameData.date.getDate(),
+        gameData.time.getHours(),
+        gameData.time.getMinutes()
       );
 
       const isHome = gameData.type === 'home';
@@ -1079,6 +1083,7 @@ function ManageSeasonScreen() {
         return `${hours}:${minutes || '00'}`;
       };
       const teamName = currentTeam?.name || 'Team';
+      const currentTeamId = currentTeam?.id;
       const payloads = bulkGames.map(gameData => {
         const time24h = convertTo24Hour(gameData.time);
         const [year, month, day] = gameData.date.split('-');
@@ -1093,10 +1098,20 @@ function ManageSeasonScreen() {
         if (isNaN(gameDateTime.getTime())) {
           throw new Error(`Invalid date/time for game vs ${gameData.opponent}`);
         }
+        // Attach the managed team's id to its side of the matchup. Without this
+        // the server's /games/bulk endpoint rejects every row (it requires a
+        // home_team_id or away_team_id), so bulk scheduling always 400'd. The
+        // opponent stays a free-text name (no id) → no opponent-consent needed.
+        const isAway = gameData.type === 'away';
         return {
           title: `${teamName} vs ${gameData.opponent}`,
           home_team: gameData.type === 'home' ? teamName : gameData.opponent,
           away_team: gameData.type === 'home' ? gameData.opponent : teamName,
+          ...(currentTeamId
+            ? isAway
+              ? { away_team_id: currentTeamId }
+              : { home_team_id: currentTeamId }
+            : {}),
           date: gameDateTime.toISOString(),
           location: gameData.location,
           description: `${gameData.type === 'home' ? 'Home' : gameData.type === 'away' ? 'Away' : 'Neutral'} game: ${teamName} vs ${gameData.opponent}`,

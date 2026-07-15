@@ -1814,7 +1814,14 @@ postsRouter.delete(
     try {
       const post = await prisma.post.findFirst({
         where: { id: postId, deleted_at: null },
-        select: { id: true, author_id: true, team_id: true, game_id: true, media_url: true },
+        select: {
+          id: true,
+          author_id: true,
+          team_id: true,
+          game_id: true,
+          media_url: true,
+          poster_url: true,
+        },
       });
 
       if (!post) {
@@ -1889,29 +1896,34 @@ postsRouter.delete(
         );
       }
 
-      // Destroy the Cloudinary asset so deleted media doesn't stay publicly
-      // retrievable by URL. Fire-and-forget — we don't want a Cloudinary hiccup
-      // to block the user's delete action. The `post` row is already soft-deleted
-      // by the update above, so the DB state is consistent regardless of outcome.
-      const mediaUrl = (post as any).media_url as string | null | undefined;
-      if (mediaUrl) {
+      // Destroy the stored media so deleted content doesn't stay publicly
+      // retrievable by URL. Handles BOTH storage backends: Cloudinary assets and
+      // R2 objects (media migrated to R2 2026-07; the Cloudinary-only path used
+      // to leave R2 objects orphaned forever). Fire-and-forget — a storage
+      // hiccup must not block the user's delete; the row is already soft-deleted.
+      const mediaUrls = [
+        (post as any).media_url as string | null | undefined,
+        (post as any).poster_url as string | null | undefined,
+      ].filter((u): u is string => Boolean(u));
+      if (mediaUrls.length) {
         void (async () => {
-          try {
-            const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
-              await import('../lib/cloudinary.js');
-            const parsed = extractCloudinaryPublicId(mediaUrl);
-            if (!parsed) return;
-            const result = await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
-            if (!result.ok) {
-              console.warn(
-                '[posts] Cloudinary destroy failed for post',
-                postId,
-                parsed.publicId,
-                result.error
-              );
+          const [{ extractCloudinaryPublicId, destroyCloudinaryAsset }, { deleteR2ObjectByUrl }] =
+            await Promise.all([import('../lib/cloudinary.js'), import('../lib/r2.js')]);
+          for (const url of mediaUrls) {
+            try {
+              const parsed = extractCloudinaryPublicId(url);
+              if (parsed) {
+                const result = await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
+                if (!result.ok) {
+                  console.warn('[posts] Cloudinary destroy failed', postId, parsed.publicId, result.error);
+                }
+                continue;
+              }
+              // Not a Cloudinary URL — try R2 (no-op if not an R2 URL).
+              await deleteR2ObjectByUrl(url);
+            } catch (err) {
+              console.warn('[posts] media destroy threw for post', postId, err);
             }
-          } catch (err) {
-            console.warn('[posts] Cloudinary destroy threw for post', postId, err);
           }
         })();
       }
