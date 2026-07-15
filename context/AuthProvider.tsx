@@ -921,6 +921,21 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     };
   }, [fetchSubscription, initializing]);
 
+  // Periodic health re-check while the backend is known unhealthy. Recovery
+  // otherwise depends entirely on a NetInfo connectivity event, the
+  // OfflineBanner Retry button, or the app coming to the foreground — on a
+  // congested venue network none of those may fire for a while, leaving the
+  // "unable to connect" banner stuck long after the API is reachable again.
+  // Runs every ~20s and stops itself the moment healthOk flips true; inert
+  // (no timer at all) whenever healthOk is already true.
+  useEffect(() => {
+    if (healthOk) return;
+    const interval = setInterval(() => {
+      checkHealth().catch(() => {});
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [healthOk, checkHealth]);
+
   // Safety timeout - force initialization complete after 5 seconds
   useEffect(() => {
     const timeout = setTimeout(() => {

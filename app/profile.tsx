@@ -30,6 +30,7 @@ import {
   InteractionManager,
   Modal,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -498,6 +499,20 @@ export default function ProfileScreen() {
     activeTab === 'posts' ? postsQuery : activeTab === 'replies' ? repliesQuery : upvotesQuery;
   const refetchActiveTab = activeTabQuery.refetch;
   const activeTabHasData = activeTabQuery.data !== undefined;
+
+  // Pull-to-refresh: re-fetch the profile itself plus whichever tab list is
+  // currently active. The other two tabs are lazy (`enabled` gated) and pick
+  // up fresh data next time they're switched to.
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([loadProfile({ silent: true }), refetchActiveTab()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadProfile, refetchActiveTab]);
+
   useFocusEffect(
     useCallback(() => {
       const task = InteractionManager.runAfterInteractions(() => {
@@ -1402,6 +1417,9 @@ export default function ProfileScreen() {
           keyExtractor={item => item.id}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyPosts}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} />
+          }
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedPosts}
@@ -1527,6 +1545,9 @@ export default function ProfileScreen() {
           }}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyReplies}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} />
+          }
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedReplies}
@@ -1653,6 +1674,9 @@ export default function ProfileScreen() {
           }}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyUpvotes}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} />
+          }
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedUpvotes}
