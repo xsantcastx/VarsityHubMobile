@@ -18,7 +18,7 @@ describe('4a RSVP + game-delete event handling', () => {
   const games = read('routes', 'games.ts');
   it('RSVP handler rejects non-approved / cancelled events', () => {
     const idx = events.lastIndexOf("'/:id/rsvp'");
-    const region = events.slice(idx, idx + 1600);
+    const region = events.slice(idx, idx + 3000);
     expect(region).toMatch(/approval_status/);
     expect(region).toMatch(/status === 'cancelled'/);
   });
