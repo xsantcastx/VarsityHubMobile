@@ -34,6 +34,7 @@ export const GUEST_BROWSE_ROUTE_SEGMENTS = [
   'user-profile',
   'team-page',
   'team-profile',
+  'program-page',
   'organization',
   'organizations',
   'league',

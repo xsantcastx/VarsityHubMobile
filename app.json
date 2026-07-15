@@ -69,9 +69,20 @@
             { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/posts" },
             { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/teams" },
             { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/programs" },
+            { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/users" },
             { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/events" },
             { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/organizations" },
-            { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/share" }
+            { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/join" },
+            { "scheme": "https", "host": "varsityhub.app", "pathPrefix": "/share" },
+            { "scheme": "https", "host": "www.varsityhub.app", "pathPrefix": "/games" },
+            { "scheme": "https", "host": "www.varsityhub.app", "pathPrefix": "/posts" },
+            { "scheme": "https", "host": "www.varsityhub.app", "pathPrefix": "/teams" },
+            { "scheme": "https", "host": "www.varsityhub.app", "pathPrefix": "/programs" },
+            { "scheme": "https", "host": "www.varsityhub.app", "pathPrefix": "/users" },
+            { "scheme": "https", "host": "www.varsityhub.app", "pathPrefix": "/events" },
+            { "scheme": "https", "host": "www.varsityhub.app", "pathPrefix": "/organizations" },
+            { "scheme": "https", "host": "www.varsityhub.app", "pathPrefix": "/join" },
+            { "scheme": "https", "host": "www.varsityhub.app", "pathPrefix": "/share" }
           ]
         }
       ],

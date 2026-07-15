@@ -32,6 +32,7 @@ require_cmd() {
 }
 
 require_cmd npx
+require_cmd node
 require_cmd cp
 require_cmd mkdir
 require_cmd perl
@@ -68,72 +69,17 @@ if [[ -d "$DEPLOY_DIR/assets/node_modules" ]]; then
   done < <(find "$DEPLOY_DIR" -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.map' \) -print0)
 fi
 
-cat > "$DEPLOY_DIR/vercel.json" <<'EOF'
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "cleanUrls": true,
-  "trailingSlash": false,
-  "redirects": [
-    {
-      "source": "/((?!\\.well-known/).*)",
-      "has": [{ "type": "host", "value": "varsityhub.app" }],
-      "destination": "https://www.varsityhub.app/$1",
-      "permanent": true
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/events/:id",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
-        }
-      ],
-      "destination": "https://api-production-8ac3.up.railway.app/og/events/:id"
-    },
-    {
-      "source": "/games/:id",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
-        }
-      ],
-      "destination": "https://api-production-8ac3.up.railway.app/og/games/:id"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(self)" }
-      ]
-    },
-    {
-      "source": "/.well-known/apple-app-site-association",
-      "headers": [{ "key": "Content-Type", "value": "application/json" }]
-    },
-    {
-      "source": "/.well-known/assetlinks.json",
-      "headers": [{ "key": "Content-Type", "value": "application/json" }]
-    },
-    {
-      "source": "/_expo/static/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
-    },
-    {
-      "source": "/assets/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
-    }
-  ]
+# Derive the deployment vercel.json from the repo root vercel.json — the
+# single source of truth for redirects/rewrites/headers. Build-time keys are
+# stripped because this deploy dir is a prebuilt static bundle.
+node -e '
+const fs = require("fs");
+const cfg = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+for (const key of ["buildCommand", "outputDirectory", "installCommand", "framework", "ignoreCommand"]) {
+  delete cfg[key];
 }
-EOF
+fs.writeFileSync(process.argv[2], JSON.stringify(cfg, null, 2) + "\n");
+' "$ROOT_DIR/vercel.json" "$DEPLOY_DIR/vercel.json"
 
 cd "$DEPLOY_DIR"
 

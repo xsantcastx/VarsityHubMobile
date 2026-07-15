@@ -87,9 +87,98 @@
       "permanent": false
     },
     { "source": "/join/org", "destination": "/organization-invites", "permanent": false },
-    { "source": "/join/team", "destination": "/team-invites", "permanent": false }
+    { "source": "/join/team", "destination": "/team-invites", "permanent": false },
+    {
+      "source": "/share",
+      "has": [{ "type": "query", "key": "type", "value": "post" }],
+      "missing": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "/post-detail",
+      "permanent": false
+    },
+    {
+      "source": "/share",
+      "has": [{ "type": "query", "key": "type", "value": "game" }],
+      "missing": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "/game-detail",
+      "permanent": false
+    },
+    {
+      "source": "/share",
+      "has": [{ "type": "query", "key": "type", "value": "event" }],
+      "missing": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "/public-event",
+      "permanent": false
+    },
+    {
+      "source": "/share",
+      "has": [{ "type": "query", "key": "type", "value": "team" }],
+      "missing": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "/team-page",
+      "permanent": false
+    },
+    {
+      "source": "/share",
+      "has": [{ "type": "query", "key": "type", "value": "profile" }],
+      "missing": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "/user-profile",
+      "permanent": false
+    },
+    {
+      "source": "/share",
+      "missing": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "/",
+      "permanent": false
+    }
   ],
   "rewrites": [
+    { "source": "/organizations/:id", "destination": "/organizations/[id]" },
+    {
+      "source": "/share",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "https://api-production-8ac3.up.railway.app/share"
+    },
     {
       "source": "/events/:id",
       "has": [

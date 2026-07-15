@@ -12,6 +12,7 @@ const IOS_PATHS = [
   '/programs/*',
   '/users/*',
   '/events/*',
+  '/organizations/*',
   '/join/*',
   '/share',
   '/verify',
