@@ -23,7 +23,7 @@ function fnBody(src: string, name: string): string {
   const start = src.indexOf(`function ${name}(`);
   expect(start).toBeGreaterThan(-1);
   // crude but sufficient: grab a generous window and strip // comments
-  return src.slice(start, start + 2500).replace(/\/\/.*$/gm, '');
+  return src.slice(start, start + 3500).replace(/\/\/.*$/gm, '');
 }
 
 describe('ad reject refund is never silently stranded', () => {
