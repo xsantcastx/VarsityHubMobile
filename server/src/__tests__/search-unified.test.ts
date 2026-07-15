@@ -204,4 +204,55 @@ describe('Unified search', () => {
       posts: [],
     });
   });
+
+  it('a date query returns approved games on that date, including past dates', async () => {
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    yesterday.setUTCHours(19, 0, 0, 0);
+    const pastGame = await prisma.game.create({
+      data: {
+        title: `Date Lookup Game ${ts}`,
+        date: yesterday,
+        location: 'Date Arena',
+        approval_status: 'approved',
+        created_by_id: userId,
+        event_type: 'game',
+        home_team_id: teamId,
+      },
+    });
+    try {
+      const MONTHS = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
+      const q = `${MONTHS[yesterday.getUTCMonth()]} ${yesterday.getUTCDate()} ${yesterday.getUTCFullYear()}`;
+
+      const res = await request(app)
+        .get('/search')
+        .query({ q })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(res.body?.games?.some((row: any) => row.id === pastGame.id)).toBe(true);
+
+      // The text path keeps its future-only gate: searching the same game by
+      // title must NOT surface it once its date has passed.
+      const textRes = await request(app)
+        .get('/search')
+        .query({ q: `Date Lookup Game ${ts}` })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(textRes.body?.games?.some((row: any) => row.id === pastGame.id)).toBe(false);
+    } finally {
+      await prisma.game.delete({ where: { id: pastGame.id } });
+    }
+  });
 });
