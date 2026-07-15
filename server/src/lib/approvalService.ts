@@ -100,8 +100,11 @@ async function notifyAllAdminsOfLeagueAction(params: {
   ownerEmail?: string;
   reason?: string;
 }) {
-  const { getAllAdminEmails } = await import('./adminEmails.js');
-  const adminEmails = getAllAdminEmails();
+  // Must guarantee the super admin: the approve/reject confirmation trail has to
+  // reach customerservice@varsityhub.app even when ADMIN_NOTIFICATION_EMAILS is
+  // set without it — mirrors the request-email recipient list.
+  const { getApprovalNotificationEmails } = await import('./adminEmails.js');
+  const adminEmails = getApprovalNotificationEmails();
 
   await Promise.all(
     adminEmails.map(to =>
@@ -127,8 +130,9 @@ async function notifyAllAdminsOfAdAction(params: {
   adName: string;
   reason?: string;
 }) {
-  const { getAllAdminEmails } = await import('./adminEmails.js');
-  const adminEmails = getAllAdminEmails();
+  // Banner-ad moderation must also always reach the super admin (see leagues).
+  const { getApprovalNotificationEmails } = await import('./adminEmails.js');
+  const adminEmails = getApprovalNotificationEmails();
 
   await Promise.all(
     adminEmails.map(to =>
@@ -539,6 +543,11 @@ export async function approveCoach(
     },
   });
   if (!user) return { error: 'User not found', status: 404 };
+  // IDOR guard: an admin must never approve their own pending coach request.
+  // Parity with approveAd/approveEvent and the org-owner join-request paths.
+  if (adminId && adminId === userId) {
+    return { error: 'You cannot approve your own coach request', status: 403 as const };
+  }
   if (user.approval_status !== 'PENDING')
     return { error: 'User is not pending approval', status: 400 };
 
@@ -563,9 +572,21 @@ export async function approveCoach(
   const teamId = prefs?.team_id as string | undefined;
   const latestApplication = await getLatestCoachApplication(prisma as any, userId);
 
-  const txOps: any[] = [
-    prisma.user.update({
-      where: { id: userId },
+  // If the coach has an org with a pending join request, we approve it in the
+  // same transaction. Read it up front (read-only) so the tx body stays a pure
+  // set of writes.
+  const pendingJoinRequest = orgId
+    ? await getOrganizationJoinRequestStateForUser(orgId, userId)
+    : null;
+
+  // Guarded interactive transaction: the leading updateMany only fires while the
+  // user is still PENDING, and count===0 means a concurrent approve/reject won
+  // the race — abort the whole tx and report 409 (parity with
+  // approveOrganization/approveAd/approveJoinRequest). A plain user.update here
+  // would let two concurrent approvals both commit and double-notify the coach.
+  const raced = await prisma.$transaction(async tx => {
+    const transition = await tx.user.updateMany({
+      where: { id: userId, approval_status: 'PENDING' },
       data: {
         approval_status: 'APPROVED',
         paid_by_owner: true,
@@ -585,12 +606,11 @@ export async function approveCoach(
           payment_approved: false,
         }),
       },
-    }),
-  ];
+    });
+    if (transition.count === 0) return true;
 
-  if (latestApplication?.status === 'submitted') {
-    txOps.push(
-      prisma.coachApplication.update({
+    if (latestApplication?.status === 'submitted') {
+      await tx.coachApplication.update({
         where: { id: latestApplication.id },
         data: {
           status: 'approved',
@@ -598,45 +618,43 @@ export async function approveCoach(
           reviewed_by: adminId,
           review_note: opts?.note || null,
         },
-      })
-    );
-  }
+      });
+    }
 
-  // Create org membership if the coach has an organization
-  if (orgId) {
-    txOps.push(
-      prisma.organizationMembership.upsert({
+    // Create org membership if the coach has an organization
+    if (orgId) {
+      await tx.organizationMembership.upsert({
         where: { organization_id_user_id: { organization_id: orgId, user_id: userId } as any },
         update: { role: 'coach', status: 'active' },
         create: { organization_id: orgId, user_id: userId, role: 'coach', status: 'active' },
         select: { id: true },
-      })
-    );
+      });
 
-    // If there's a pending join request, mark it approved
-    const pendingJoinRequest = await getOrganizationJoinRequestStateForUser(orgId, userId);
-    if (pendingJoinRequest?.status === 'pending') {
-      txOps.push(
-        prisma.organizationJoinRequest.updateMany({
+      // If there's a pending join request, mark it approved
+      if (pendingJoinRequest?.status === 'pending') {
+        await tx.organizationJoinRequest.updateMany({
           where: { id: pendingJoinRequest.id, status: 'pending' },
           data: { status: 'approved', reviewed_at: new Date(), reviewed_by: adminId },
-        })
-      );
+        });
+      }
     }
-  }
 
-  // Create team membership if the coach was assigned to a specific team
-  if (teamId) {
-    txOps.push(
-      prisma.teamMembership.upsert({
+    // Create team membership if the coach was assigned to a specific team
+    if (teamId) {
+      await tx.teamMembership.upsert({
         where: { team_id_user_id: { team_id: teamId, user_id: userId } as any },
         update: { role: 'coach', status: 'active' },
         create: { team_id: teamId, user_id: userId, role: 'coach', status: 'active' },
-      })
-    );
+      });
+    }
+
+    return false;
+  });
+
+  if (raced) {
+    return { error: 'User approval status changed before this action completed', status: 409 as const };
   }
 
-  await prisma.$transaction(txOps);
   await invalidateMeCacheForUser(userId);
   addBreadcrumb('Coach approval committed', 'approval.coach', 'info', {
     action: 'approve',
@@ -873,7 +891,12 @@ export async function approveAd(
   const guard = await prisma.ad.updateMany({
     where: { id: adId, status: 'pending' },
     data: {
-      status: 'approved',
+      // A paid ad that was bounced back to `pending` (e.g. edited after going
+      // live) must return to `active` on re-approval so it re-enters the feed —
+      // `/for-feed` requires status:'active' AND payment_status:'paid', and no
+      // other path restores `active` for an already-paid ad. Approval alone
+      // never activates an UNPAID ad; that still waits for payment.
+      status: ad.payment_status === 'paid' ? 'active' : 'approved',
       payment_status: ad.payment_status === 'paid' ? 'paid' : 'unpaid',
       ...(derivedAdminNote ? { admin_note: derivedAdminNote } : {}),
     },
@@ -1365,12 +1388,31 @@ export async function autoExpirePendingCoaches(prisma: PrismaClient): Promise<nu
     take: 50,
   });
 
+  const { logAdminActivity } = await import('./adminActivityLogger.js');
+
   for (const app of staleApplications) {
-    await rejectCoach(app.user_id, 'system', prisma, {
-      reason: 'Application expired after 30 days without admin review. Please re-apply.',
-    }).catch(err => {
+    try {
+      const result = await rejectCoach(app.user_id, 'system', prisma, {
+        reason: 'Application expired after 30 days without admin review. Please re-apply.',
+      });
+      // Emit the audit-log row here: rejectCoach itself doesn't log (the trail is
+      // normally written by the route handler), so a cron-driven auto-expire —
+      // an automated, destructive state change — would otherwise leave NO
+      // AdminActivityLog entry. logAdminActivity swallows its own errors.
+      if (result && !('error' in result)) {
+        await logAdminActivity(
+          'system',
+          'system',
+          'REJECT_COACH',
+          'user',
+          app.user_id,
+          'Coach application auto-expired after 30 days without admin review',
+          { reason: 'auto_expire', threshold_days: 30 }
+        );
+      }
+    } catch (err) {
       console.error(`[auto-expire] Failed to expire coach ${app.user_id}:`, err);
-    });
+    }
   }
 
   if (staleApplications.length > 0) {

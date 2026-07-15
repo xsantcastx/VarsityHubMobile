@@ -116,11 +116,15 @@ describe('ad lifecycle structural invariants', () => {
 
   it('admin approval and rejection keep ads inside the allowed tuple set', () => {
     const approveAd = sliceFunction(approvalService, 'export async function approveAd');
-    expect(approveAd).toMatch(/status:\s*'approved'/);
+    // A PAID ad re-approved (e.g. after a post-payment content edit bounced it
+    // back to `pending`) must return to `active` so it re-enters the feed —
+    // `/for-feed` requires status:'active' AND payment_status:'paid'. An UNPAID
+    // ad approves to `approved` and still waits for payment before going live.
+    expect(approveAd).toMatch(/status:\s*ad\.payment_status === 'paid' \? 'active' : 'approved'/);
     expect(approveAd).toMatch(
       /payment_status:\s*ad\.payment_status === 'paid' \? 'paid' : 'unpaid'/
     );
-    expectAllowedTuple('approved', 'paid');
+    expectAllowedTuple('active', 'paid');
     expectAllowedTuple('approved', 'unpaid');
 
     const rejectAd = sliceFunction(approvalService, 'export async function rejectAd');

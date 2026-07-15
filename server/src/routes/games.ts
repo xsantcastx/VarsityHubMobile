@@ -465,6 +465,24 @@ async function applyGameApprovalDecision(
 ) {
   const isApproved = approvalStatus === 'approved';
   const approvalAppliedAt = isApproved ? new Date() : null;
+
+  // IDOR self-review guard, in the SHARED helper so BOTH the in-app PUT route
+  // and the email-token path (handleGameTokenReview) are covered — mirrors the
+  // guard living inside approveEvent/rejectEvent. The PUT route also guards, but
+  // the token path called this helper directly with no self-review check.
+  if (actingUserId) {
+    const existing = await prisma.game.findUnique({
+      where: { id },
+      select: { created_by_id: true },
+    });
+    if (existing?.created_by_id && existing.created_by_id === actingUserId) {
+      return {
+        error: 'You cannot approve or reject a game you created',
+        status: 403 as const,
+      };
+    }
+  }
+
   const updatedGame = await prisma.$transaction(async tx => {
     const transition = await (tx.game.updateMany as any)({
       where: { id, approval_status: 'pending' },
@@ -2772,7 +2790,13 @@ gamesRouter.patch(
       // CRITICAL: Check authorization before allowing updates
       const game = await prisma.game.findUnique({
         where: { id },
-        select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
+        select: {
+          id: true,
+          created_by_id: true,
+          home_team_id: true,
+          away_team_id: true,
+          opponent_approval_team_id: true,
+        },
       });
 
       if (!game) return sendError(res, 404, 'Game not found');
@@ -2783,8 +2807,13 @@ gamesRouter.patch(
       // Check if user is admin
       const isAdmin = await isVerifiedAdminUser(req.user.id);
 
-      // Check if user is coach/manager of either team
-      const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
+      // Creator-side only — the opposing team's staff must not overwrite the
+      // cover/appearance of a shared game (parity with DELETE / PATCH /result).
+      const teamIds = creatorSideTeamIds(
+        game.home_team_id,
+        game.away_team_id,
+        game.opponent_approval_team_id
+      );
       const isCoach = await canManageAnyTeam(req.user.id, teamIds);
 
       // Deny access if user is not authorized
@@ -2883,6 +2912,7 @@ gamesRouter.put(
           created_by_id: true,
           home_team_id: true,
           away_team_id: true,
+          opponent_approval_team_id: true,
           approval_status: true,
         },
       });
@@ -2893,7 +2923,14 @@ gamesRouter.put(
 
       const isAdmin = await isVerifiedAdminUser(req.user.id);
 
-      const gameTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
+      // Only the CREATOR side may edit a shared game — the opposing team's staff
+      // must use the opponent-approval/decline flow, never mutate a game they
+      // didn't create and haven't consented to. Mirrors DELETE and PATCH /result.
+      const gameTeamIds = creatorSideTeamIds(
+        game.home_team_id,
+        game.away_team_id,
+        game.opponent_approval_team_id
+      );
       const isCoach = await canManageAnyTeam(req.user.id, gameTeamIds);
 
       if (!isCreator && !isCoach && !isAdmin) {
@@ -3115,6 +3152,7 @@ gamesRouter.put(
         where: { id },
         select: {
           id: true,
+          title: true,
           home_team_id: true,
           away_team_id: true,
           approval_status: true,
@@ -3154,6 +3192,23 @@ gamesRouter.put(
       if ('error' in result) {
         return sendError(res, result.status!, result.error!);
       }
+
+      // Central audit trail — the in-app approve path must land in
+      // AdminActivityLog too, not just the email-token path (parity with
+      // coach/org/ad approvals).
+      const reviewerEmail =
+        (await prisma.user.findUnique({ where: { id: actingUserId }, select: { email: true } }))
+          ?.email || 'unknown';
+      await logAdminActivity(
+        actingUserId,
+        reviewerEmail,
+        parsed.data.approval_status === 'approved' ? 'APPROVE_GAME' : 'REJECT_GAME',
+        'game',
+        id,
+        `${parsed.data.approval_status === 'approved' ? 'Approved' : 'Rejected'} game: ${
+          game.title || id
+        }`
+      ).catch(err => console.error('[games] AdminActivityLog write failed:', err));
 
       return res.json(result.game);
     } catch (err) {

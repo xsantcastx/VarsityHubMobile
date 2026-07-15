@@ -4,7 +4,7 @@ import {
   approveEvent as approveEventService,
   rejectEvent as rejectEventService,
 } from '../lib/approvalService.js';
-import { logAdminActivity } from '../lib/adminActivityLogger.js';
+import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import {
   sendEventCanceledEmail,
   sendEventRsvpConfirmedEmail,
@@ -1412,6 +1412,16 @@ eventsRouter.put(
       return res.status(result.status || 400).json({ error: msg, code: result.error });
     }
 
+    // Central audit trail — the in-app approve path must land in AdminActivityLog
+    // too, not just the email-token path (parity with coach/org/ad/game).
+    await logAdminActivityFromReq(
+      req,
+      'APPROVE_EVENT',
+      'event',
+      eventId,
+      `Approved event: ${event.title || eventId}`
+    ).catch(err => console.error('[events] AdminActivityLog write failed:', err));
+
     return res.json({
       ...serializeEvent(result.event!),
       message: 'Event approved successfully!',
@@ -1478,6 +1488,15 @@ eventsRouter.put(
             : 'Can only reject pending events.';
       return res.status(result.status || 400).json({ error: msg, code: result.error });
     }
+
+    // Central audit trail (parity with the approve path + games).
+    await logAdminActivityFromReq(
+      req,
+      'REJECT_EVENT',
+      'event',
+      eventId,
+      `Rejected event: ${event.title || eventId}${reason ? ` — ${reason}` : ''}`
+    ).catch(err => console.error('[events] AdminActivityLog write failed:', err));
 
     return res.json({
       ...serializeEvent(result.event!),

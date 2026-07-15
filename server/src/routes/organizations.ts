@@ -1339,7 +1339,11 @@ organizationsRouter.post(
                 role: { in: ['owner', 'manager', 'member'] },
               },
             });
-            const totalAuthorized = inviteCount + memberCount;
+            // +1 for the invite being created right now — otherwise, at exactly
+            // `inviteCount + memberCount === limit`, the check `limit > limit` is
+            // false and this invite slips through, leaking one authorized slot
+            // over the plan cap. Matches the team invite paths.
+            const totalAuthorized = inviteCount + memberCount + 1;
             if (totalAuthorized > limit) {
               throw Object.assign(new Error('USER_LIMIT_REACHED'), {
                 status: 403,
