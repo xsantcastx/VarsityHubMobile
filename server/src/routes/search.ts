@@ -10,6 +10,7 @@ import { captureMessage } from '../lib/sentry.js';
 import { highlightPostSelect } from '../lib/highlightPostSelect.js';
 import { getInteractionSets, withInteractions } from '../lib/postEnrichment.js';
 import { DEMO_LEAGUE_NAMES } from '../lib/demoContent.js';
+import { parseDateQuery } from '../lib/searchDateQuery.js';
 
 export const searchRouter = Router();
 
@@ -115,6 +116,11 @@ searchRouter.get(
     const todayUtcStart = new Date();
     todayUtcStart.setUTCHours(0, 0, 0, 0);
 
+    // Date lookup: a query that IS a date ("July 14 2026", "7/14/26") returns
+    // every approved game/event in that day's window — including past dates,
+    // which the text path deliberately excludes. Text queries are unaffected.
+    const dateWindow = parseDateQuery(q);
+
     const [users, teams, organizations, games, events, posts] = await Promise.all([
       prisma.user.findMany({
         where: {
@@ -207,14 +213,18 @@ searchRouter.get(
           // Opponent-approval workflow: exclude games still awaiting/declined
           // opponent consent from public search results.
           opponent_approval_status: { in: ['not_required', 'approved'] },
-          date: { gte: todayUtcStart },
-          OR: [
-            { title: { contains: q, mode: 'insensitive' } },
-            { location: { contains: q, mode: 'insensitive' } },
-            { home_team: { contains: q, mode: 'insensitive' } },
-            { away_team: { contains: q, mode: 'insensitive' } },
-            { away_team_name: { contains: q, mode: 'insensitive' } },
-          ],
+          ...(dateWindow
+            ? { date: { gte: dateWindow.start, lt: dateWindow.end } }
+            : {
+                date: { gte: todayUtcStart },
+                OR: [
+                  { title: { contains: q, mode: 'insensitive' } },
+                  { location: { contains: q, mode: 'insensitive' } },
+                  { home_team: { contains: q, mode: 'insensitive' } },
+                  { away_team: { contains: q, mode: 'insensitive' } },
+                  { away_team_name: { contains: q, mode: 'insensitive' } },
+                ],
+              }),
         },
         take: limit,
         orderBy: [{ date: 'asc' }, { created_at: 'desc' }],
@@ -235,16 +245,22 @@ searchRouter.get(
         where: {
           approval_status: 'approved',
           status: 'approved',
-          date: { gte: todayUtcStart },
+          ...(dateWindow
+            ? { date: { gte: dateWindow.start, lt: dateWindow.end } }
+            : { date: { gte: todayUtcStart } }),
           AND: [
-            {
-              OR: [
-                { title: { contains: q, mode: 'insensitive' } },
-                { location: { contains: q, mode: 'insensitive' } },
-                { description: { contains: q, mode: 'insensitive' } },
-                { event_type: { contains: q, mode: 'insensitive' } },
-              ],
-            },
+            ...(dateWindow
+              ? []
+              : [
+                  {
+                    OR: [
+                      { title: { contains: q, mode: 'insensitive' as const } },
+                      { location: { contains: q, mode: 'insensitive' as const } },
+                      { description: { contains: q, mode: 'insensitive' as const } },
+                      { event_type: { contains: q, mode: 'insensitive' as const } },
+                    ],
+                  },
+                ]),
             // Game-backed events inherit the game's opponent-consent gate: an
             // upcoming fixture whose opponent is pending/declined stays private.
             {
