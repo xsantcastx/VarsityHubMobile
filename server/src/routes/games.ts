@@ -41,7 +41,7 @@ import {
   storyCreationLimiter,
   voteLimiter,
 } from '../middleware/rateLimiters.js';
-import { verifyStoryPostingPermission } from '../lib/geofencing.js';
+import { verifyStoryPostingPermission, viewerHasPostedOnEntity } from '../lib/geofencing.js';
 import { getZipCoordinates } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { getIsAdmin, isVerifiedAdminUser, requireAdmin } from '../middleware/requireAdmin.js';
@@ -886,6 +886,8 @@ const summarizeVotes = async (gameId: string, userId?: string | null) => {
 };
 
 type GameVisibilityRecord = {
+  id?: string | null;
+  date?: Date | string | null;
   approval_status?: string | null;
   opponent_approval_status?: string | null;
   created_by_id?: string | null;
@@ -897,50 +899,68 @@ async function canViewGameRecord(
   record: GameVisibilityRecord,
   viewerId?: string | null
 ): Promise<boolean> {
-  // Public visibility requires BOTH gates: platform-moderation approval AND
-  // (if a real VarsityHub opponent was linked) the opponent's confirmation.
-  // A game awaiting or declined opponent consent is treated the same as a
-  // moderation-pending game — visible only to the privileged viewers below.
+  // Owner rule (2026-07-14): "any user can view any past game at any time" —
+  // viewing is permanent and universal. A moderation-approved game is public
+  // once it is PAST, regardless of opponent-consent status (an opponent-consent
+  // re-flip must never make an already-played game disappear). Opponent consent
+  // still gates PUBLIC visibility of UPCOMING games (don't publicly attribute a
+  // future fixture to a team that hasn't confirmed) — those stay visible to the
+  // privileged viewers + contributors below until they're played.
   const opponentBlocksPublic =
     record.opponent_approval_status === 'pending' || record.opponent_approval_status === 'declined';
-  if (record.approval_status === 'approved' && !opponentBlocksPublic) return true;
+  const gameDate = record.date
+    ? record.date instanceof Date
+      ? record.date
+      : new Date(record.date)
+    : null;
+  const isPast = gameDate ? gameDate.getTime() < Date.now() : false;
+  if (record.approval_status === 'approved' && (!opponentBlocksPublic || isPast)) return true;
   if (!viewerId) return false;
   if (record.created_by_id && record.created_by_id === viewerId) return true;
 
   if (await isVerifiedAdminUser(viewerId)) return true;
 
   const teamIds = [record.home_team_id, record.away_team_id].filter(Boolean) as string[];
-  if (teamIds.length === 0) return false;
+  if (teamIds.length > 0) {
+    const teamMembership = await prisma.teamMembership.findFirst({
+      where: {
+        user_id: viewerId,
+        team_id: { in: teamIds },
+        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+        status: 'active',
+      },
+      select: { id: true },
+    });
+    if (teamMembership) return true;
 
-  const teamMembership = await prisma.teamMembership.findFirst({
-    where: {
-      user_id: viewerId,
-      team_id: { in: teamIds },
-      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-      status: 'active',
-    },
-    select: { id: true },
-  });
-  if (teamMembership) return true;
+    const teams = await prisma.team.findMany({
+      where: { id: { in: teamIds } },
+      select: { organization_id: true },
+      take: teamIds.length,
+    });
+    const organizationIds = teams.map(team => team.organization_id).filter(Boolean) as string[];
+    if (organizationIds.length > 0) {
+      const orgMembership = await prisma.organizationMembership.findFirst({
+        where: {
+          user_id: viewerId,
+          organization_id: { in: organizationIds },
+          role: { in: ['owner', 'manager'] },
+          status: 'active',
+        },
+        select: { id: true },
+      });
+      if (orgMembership) return true;
+    }
+  }
 
-  const teams = await prisma.team.findMany({
-    where: { id: { in: teamIds } },
-    select: { organization_id: true },
-    take: teamIds.length,
-  });
-  const organizationIds = teams.map(team => team.organization_id).filter(Boolean) as string[];
-  if (organizationIds.length === 0) return false;
+  // Additive permanent fallback: a contributor who posted to this game can
+  // always view it, even while it's an upcoming game still awaiting opponent
+  // consent (owner rule: viewing never expires). Read-only.
+  if (record.id) {
+    return viewerHasPostedOnEntity({ userId: viewerId, gameId: record.id });
+  }
 
-  const orgMembership = await prisma.organizationMembership.findFirst({
-    where: {
-      user_id: viewerId,
-      organization_id: { in: organizationIds },
-      role: { in: ['owner', 'manager'] },
-      status: 'active',
-    },
-    select: { id: true },
-  });
-  return !!orgMembership;
+  return false;
 }
 
 gamesRouter.get(

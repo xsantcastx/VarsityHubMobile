@@ -28,7 +28,12 @@ describe('guest create-entry contracts', () => {
   });
 
   it('keeps the composer self-guarded so direct navigation cannot bypass auth', () => {
-    expect(createPost).toContain('const { user, checkAuth, loading: authLoading } = useAuth();');
+    // Guest guard (2026-07-14): a render guard prevents the composer from EVER
+    // drawing for a signed-out user (so a guest reaching create-post directly
+    // can't flash the composer / hit a raw Unauthorized), backed by the
+    // redirect to the /create login sheet.
+    expect(createPost).toContain('const { user, loading: authLoading } = useAuth();');
+    expect(createPost).toMatch(/if \(!authLoading && !user\)/);
     expect(createPost).toContain("router.replace('/create');");
   });
 

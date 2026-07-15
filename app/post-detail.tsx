@@ -9,6 +9,7 @@ import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
 import { promptForSignIn } from '@/utils/requireSignIn';
+import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -1323,15 +1324,11 @@ export default function PostDetailScreen() {
               ]}
               onPress={() => {
                 if (postData.game_id) {
-                  void router.push({
-                    pathname: '/game/[id]',
-                    params: { id: String(postData.game_id) },
-                  });
+                  void router.push(
+                    buildEventDetailRoute(String(postData.game_id), postData.game_id)
+                  );
                 } else if (postData.event_id) {
-                  void router.push({
-                    pathname: '/public-event',
-                    params: { id: String(postData.event_id) },
-                  });
+                  void router.push(buildEventDetailRoute(String(postData.event_id)));
                 }
               }}
               accessibilityRole="button"
@@ -2308,7 +2305,10 @@ const styles = StyleSheet.create({
   // Post Content
   postContent: {
     padding: 20,
-    marginTop: -20,
+    // Was marginTop: -20 — the caption/author card overlapped the bottom of the
+    // media, blocking the image ("the product is the image", owner 2026-07-14).
+    // A positive gap keeps the media fully visible with the card cleanly below.
+    marginTop: 12,
     marginHorizontal: 16,
     borderRadius: 16,
     ...Platform.select({

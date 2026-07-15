@@ -4,8 +4,9 @@
  * BUSINESS RULES:
  * - Story Posts: open on game day and stay open until +48h, within 3km of venue
  * - Regular Posts: open 2 days before event start, stay live through the event,
- *   then remain open-ended (no closing cutoff) only for users who already posted
- *   to that same event while it was live, within 3km of venue
+ *   then remain open for a 7-day grace window only for users who already posted
+ *   to that same event while it was live, within 3km of venue. After 7 days the
+ *   window closes for everyone.
  * - Sample events/games (IDs starting with "sample-") bypass all geofencing checks
  *
  * This maintains authenticity and prevents users from different states from trolling games.
@@ -17,6 +18,11 @@ const EARTH_RADIUS_KM = 6371;
 const EARTH_RADIUS_MILES = 3959;
 const REGULAR_POST_OPEN_BEFORE_MS = 2 * 24 * 60 * 60 * 1000;
 const REGULAR_POST_LIVE_WINDOW_MS = 2 * 60 * 60 * 1000;
+// Product rule (2026-07-14, owner decision, verbatim): "When a user posts to
+// an event while they are there, they can continue to post to the event for
+// up to a week. After that week they no longer can." Caps the previously
+// open-ended post-event grace window at 7 days after the live window closes.
+export const REGULAR_POST_GRACE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type PostingPermissionErrorCode =
   | 'EVENT_NOT_FOUND'
@@ -24,7 +30,8 @@ export type PostingPermissionErrorCode =
   | 'POSTING_WINDOW_CLOSED'
   | 'TOO_FAR_FROM_VENUE'
   | 'LOCATION_REQUIRED'
-  | 'LOCATION_SPOOF_SUSPECTED';
+  | 'LOCATION_SPOOF_SUSPECTED'
+  | 'EXCLUSIVE_POSTER_ONLY';
 
 export type PostingPermissionResult = {
   allowed: boolean;
@@ -43,6 +50,7 @@ const postingEventSelect = {
   longitude: true,
   location: true,
   game_id: true,
+  exclusive_poster_id: true,
 } as const;
 
 type PostingEvent = Awaited<ReturnType<typeof loadPostingEvent>>;
@@ -116,8 +124,8 @@ export function isStoryPostingWindowOpen(eventDate: Date): boolean {
 
 /**
  * Check if posting window is open for regular posts
- * Posts: opens 2 days before event start. After the live window, posting remains open-ended
- * (no closing cutoff) only for users who already posted to that event while it was live.
+ * Posts: opens 2 days before event start. After the live window, posting remains open for a
+ * 7-day grace window only for users who already posted to that event while it was live.
  */
 export function isPostPostingWindowOpen(eventDate: Date): boolean {
   const now = new Date();
@@ -144,9 +152,59 @@ export function getPostPostingWindowState(
   const { windowStart, liveCutoff } = getPostPostingWindowBounds(eventDate);
   if (now < windowStart) return 'before_open';
   if (now <= liveCutoff) return 'live';
-  // Post-event uploads stay open-ended — no closing cutoff. Access during this
-  // state is gated by the "already posted while live" check, not by a timer.
-  return 'grace';
+  // Post-event uploads stay open for a 7-day grace window, gated by the
+  // "already posted while live" check. After 7 days the window is closed
+  // for everyone, regardless of posting history.
+  if (now <= new Date(liveCutoff.getTime() + REGULAR_POST_GRACE_WINDOW_MS)) return 'grace';
+  return 'closed';
+}
+
+/**
+ * View-access counterpart to the posting grace window. A user who posted to a
+ * game/event while it was live keeps read access to that game/event's detail
+ * page for the same grace window that lets them keep posting (product rule,
+ * 2026-07-14: "up to a week" after they posted while there). This is
+ * READ-only — it never grants approval/moderation power, only visibility.
+ *
+ * Purely additive: callers should only consult this as a fallback after their
+ * existing visibility checks (creator/admin/staff) have failed.
+ */
+/**
+ * Read-access helper: has this viewer posted to this game/event? Viewing is
+ * PERMANENT and never expires (owner rule, 2026-07-14: "any user can view any
+ * past game at any time; it'll lock posting but viewing is always on"). This
+ * is the additive contributor fallback for the niche case of a not-yet-public
+ * entity (e.g. a future game still awaiting opponent consent) — a contributor
+ * who posted there can always see it. Read-only; grants no approval power.
+ * The 7-day cap applies ONLY to POSTING (getPostPostingWindowState), never to
+ * viewing.
+ */
+export async function viewerHasPostedOnEntity({
+  userId,
+  gameId,
+  eventId,
+}: {
+  userId?: string | null;
+  gameId?: string | null;
+  eventId?: string | null;
+}): Promise<boolean> {
+  if (!userId) return false;
+  if (!gameId && !eventId) return false;
+
+  const orClauses: Array<{ game_id: string } | { event_id: string }> = [];
+  if (gameId) orClauses.push({ game_id: gameId });
+  if (eventId) orClauses.push({ event_id: eventId });
+
+  const priorPost = await prisma.post.findFirst({
+    where: {
+      author_id: userId,
+      deleted_at: null,
+      OR: orClauses,
+    },
+    select: { id: true },
+  });
+
+  return !!priorPost;
 }
 
 /**
@@ -332,6 +390,21 @@ export async function verifyEventPostingPermission(
 
   if (!event) {
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
+  }
+
+  // Exclusive-poster lock (owner one-off feature, 2026-07-14): when an event
+  // designates a single poster, ONLY that user may post — bypassing the window
+  // and geofence for them, and blocking everyone else outright (even attendees
+  // who were there). Null = normal multi-fan posting (falls through below).
+  if (event.exclusive_poster_id) {
+    if (event.exclusive_poster_id === userId) {
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      code: 'EXCLUSIVE_POSTER_ONLY',
+      reason: 'Only the designated poster can post to this event.',
+    };
   }
 
   const { windowStart, liveCutoff } = getPostPostingWindowBounds(event.date);

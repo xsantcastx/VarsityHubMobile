@@ -34,6 +34,7 @@ import { Event, Post } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { safeGoBack } from '@/utils/navigation';
 import { promptForSignIn } from '@/utils/requireSignIn';
+import { buildEventDetailRoute } from '@/utils/eventRoutes';
 
 function PublicEventScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
@@ -47,6 +48,20 @@ function PublicEventScreen() {
   const [rsvpGoing, setRsvpGoing] = useState(false);
   const [rsvpCount, setRsvpCount] = useState(0);
   const [rsvpBusy, setRsvpBusy] = useState(false);
+
+  // THERE IS NO BARE EVENT PAGE (owner, 2026-07-14: "there should never ever
+  // be a bare event page"). This route survives ONLY as the web/deep-link
+  // landing for shared event URLs; forward every visitor to the ONE canonical
+  // rich page. GameDetailsScreen (via loadVirtualFromEvent) renders the event
+  // fully and redirects on to the game page when it's game-linked. The
+  // stripped content below is unreachable and kept only as a no-id fallback.
+  const redirectId = params?.id ? String(params.id) : '';
+  useEffect(() => {
+    if (redirectId) {
+      // nav-safe: pure forwarder to the canonical rich event page — replace so it never sits in the back stack
+      router.replace(buildEventDetailRoute(redirectId));
+    }
+  }, [redirectId, router]);
   const loadEventData = useCallback(async () => {
     if (!params.id) return;
     setLoading(true);
@@ -168,6 +183,23 @@ function PublicEventScreen() {
   const rsvpLabelSuffix = `${rsvpCount > 0 ? ` · ${rsvpCount}` : ''}${
     event?.max_attendees ? ` / ${event.max_attendees}` : ''
   }`;
+
+  // Redirecting to the rich page — never paint the bare content. (Only the
+  // no-id case falls through to the fallback render below.)
+  if (redirectId) {
+    return (
+      <SafeAreaView
+        style={[
+          styles.container,
+          { backgroundColor: Colors[colorScheme].background, justifyContent: 'center' },
+        ]}
+        edges={['top', 'bottom']}
+      >
+        <Stack.Screen options={{ headerShown: false }} />
+        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView

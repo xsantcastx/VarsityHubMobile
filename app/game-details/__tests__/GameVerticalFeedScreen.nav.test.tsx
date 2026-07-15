@@ -46,8 +46,11 @@ describe('GameVerticalFeedScreen rail actions', () => {
     );
   });
 
-  it('uses the highlight-only game feed query in the viewer', () => {
-    expect(source).toContain("{ game_id: gameId, type: 'highlight' }");
+  it('fetches ALL post types for the game (View All Posts), not highlights-only', () => {
+    // 2026-07-14: the viewer must show every post type (photos/text/videos),
+    // not just type:'highlight'. Guard against the videos-only filter returning.
+    expect(source).toContain('{ game_id: gameId }');
+    expect(source).not.toContain("type: 'highlight'");
     expect(source).toContain('const navigateToLinkedContext = useCallback(');
   });
 });

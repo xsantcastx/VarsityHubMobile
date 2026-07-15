@@ -3,9 +3,9 @@
  * duplicated the real event experience and confused users (product decision
  * 2026-07-05: retired). It remains ONLY because shipped deep links,
  * notifications, and web hrefs (varsityhub://event/:id, /event-detail?id=)
- * land here. It resolves the event and forwards:
- *   - game-linked event → /game/[id]  (the rich game page)
- *   - standalone event  → /public-event?id=  (the page fans upload posts to)
+ * land here. It resolves the event and forwards to the canonical rich event
+ * page via `buildEventDetailRoute` (/game/[id]) for both game-linked and
+ * standalone events (owner: "this is not an event page", 2026-07-14).
  * It renders only a spinner and an error state — never event UI.
  */
 import { Colors } from '@/constants/Colors';
@@ -18,7 +18,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
 import { Event } from '@/api/entities';
-import { PUBLIC_EVENT_PATHNAME } from '@/utils/eventRoutes';
+import { buildEventDetailRoute } from '@/utils/eventRoutes';
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -40,11 +40,7 @@ export default function EventDetailScreen() {
         throw new Error('Event not found');
       }
       const linkedGameId = raw.game_id ?? raw.gameId;
-      if (linkedGameId) {
-        router.replace({ pathname: '/game/[id]', params: { id: String(linkedGameId) } }); // nav-safe: game-linked events render on the game page
-        return;
-      }
-      router.replace({ pathname: PUBLIC_EVENT_PATHNAME, params: { id: String(raw.id) } }); // nav-safe: standalone events render on the public event page
+      router.replace(buildEventDetailRoute(String(raw.id), linkedGameId)); // nav-safe: canonical rich event/game page
     } catch (e: any) {
       setError(e?.status === 404 ? 'Event not found.' : 'Unable to load event. Please try again.');
     }

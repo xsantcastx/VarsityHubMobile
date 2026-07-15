@@ -18,6 +18,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -35,6 +36,7 @@ export default function EventMap({
   initialRegion,
   showUserLocation = true,
   dataLoaded = true,
+  onRefresh,
 }: EventMapProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const mapRef = useRef<MapView>(null);
@@ -45,6 +47,8 @@ export default function EventMap({
   // The events sharing one map point when a cluster pin is tapped (picker list).
   const [selectedCluster, setSelectedCluster] = useState<EventMapData[] | null>(null);
   const isUserInteractionRef = useRef(false);
+  // Search box — filters the visible pins/clusters by title substring (case-insensitive).
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Use initialRegion if provided, otherwise default to USA-wide view
   const defaultRegion: Region = initialRegion || {
@@ -56,6 +60,7 @@ export default function EventMap({
 
   // Request location permissions and get user location
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
       try {
         if (showUserLocation) {
@@ -63,6 +68,7 @@ export default function EventMap({
             screen: 'EventMap',
           });
           const { status } = await Location.requestForegroundPermissionsAsync();
+          if (cancelled) return;
           if (status !== 'granted') {
             if (__DEV__) console.warn('Location permission not granted');
             captureBreadcrumb(
@@ -77,22 +83,44 @@ export default function EventMap({
             return;
           }
 
-          const location = await Location.getCurrentPositionAsync({});
-          setUserLocation(location);
+          // GPS can hang indefinitely indoors or in a crowd (e.g. a packed
+          // stadium). Race the fix against a hard timeout so the map never
+          // gets stuck on "Loading map..." — on timeout we proceed WITHOUT a
+          // user location and still render every pin.
+          const LOCATION_TIMEOUT_MS = 6000;
+          const location = await Promise.race([
+            Location.getCurrentPositionAsync({}),
+            new Promise<null>(resolve => setTimeout(() => resolve(null), LOCATION_TIMEOUT_MS)),
+          ]);
+          if (cancelled) return;
 
-          // Auto-center on user location if no specific region was requested
-          if (!initialRegion) {
-            setTimeout(() => {
-              mapRef.current?.animateToRegion(
-                {
-                  latitude: location.coords.latitude,
-                  longitude: location.coords.longitude,
-                  latitudeDelta: 0.15,
-                  longitudeDelta: 0.15,
-                },
-                800
-              );
-            }, 400);
+          if (!location) {
+            if (__DEV__) console.warn('Location lookup timed out');
+            captureBreadcrumb(
+              'Map location lookup timed out',
+              'map.location',
+              {
+                screen: 'EventMap',
+              },
+              'warning'
+            );
+          } else {
+            setUserLocation(location);
+
+            // Auto-center on user location if no specific region was requested
+            if (!initialRegion) {
+              setTimeout(() => {
+                mapRef.current?.animateToRegion(
+                  {
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                    latitudeDelta: 0.15,
+                    longitudeDelta: 0.15,
+                  },
+                  800
+                );
+              }, 400);
+            }
           }
         }
       } catch (error) {
@@ -106,10 +134,21 @@ export default function EventMap({
           'warning'
         );
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [showUserLocation, initialRegion]);
+
+  // Search filter — applied before the coordinate filter so it also thins out
+  // the cluster groups (a search match inside a cluster surfaces on its own).
+  const searchFilteredEvents = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return events;
+    return events.filter(event => (event.title || '').toLowerCase().includes(query));
+  }, [events, searchQuery]);
 
   // Filter events that have coordinates (use != null so lat/lng of 0 are accepted).
   // MUST be memoized: this array's identity drives the auto-fit effect below.
@@ -117,8 +156,8 @@ export default function EventMap({
   // re-fire the "fit all pins" zoom on every state change (tapping a cluster
   // pin zoomed the map OUT to the continental view).
   const eventsWithCoordinates = useMemo(
-    () => events.filter(event => event.latitude != null && event.longitude != null),
-    [events]
+    () => searchFilteredEvents.filter(event => event.latitude != null && event.longitude != null),
+    [searchFilteredEvents]
   );
 
   // Group markers that share (near-)identical coordinates so a multi-day event
@@ -318,6 +357,40 @@ export default function EventMap({
             <Ionicons name="navigate" size={24} color={Colors[colorScheme].tint} />
           </TouchableOpacity>
         )}
+
+        {/* Refresh Button — re-runs the parent's data load so games added mid-event show up */}
+        {onRefresh && (
+          <TouchableOpacity
+            style={[styles.controlButton, { backgroundColor: Colors[colorScheme].background }]}
+            onPress={() => {
+              captureBreadcrumb('Map refresh pressed', 'map.navigation', {});
+              onRefresh();
+            }}
+          >
+            <Ionicons name="refresh" size={24} color={Colors[colorScheme].tint} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Search Box — filters visible pins/clusters by title substring */}
+      <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background }]}>
+        <Ionicons name="search" size={18} color={Colors[colorScheme].mutedText} />
+        <TextInput
+          style={[styles.searchInput, { color: Colors[colorScheme].text }]}
+          placeholder="Search games or events..."
+          placeholderTextColor={Colors[colorScheme].mutedText}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
+            <Ionicons name="close-circle" size={18} color={Colors[colorScheme].mutedText} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Event Count */}
@@ -326,6 +399,26 @@ export default function EventMap({
           <Text style={[styles.eventCountText, { color: Colors[colorScheme].text }]}>
             {eventsWithCoordinates.length} event{eventsWithCoordinates.length !== 1 ? 's' : ''}
           </Text>
+        </View>
+      )}
+
+      {/* Pin legend — explains the marker colors ("what are these dots?"). */}
+      {eventsWithCoordinates.length > 0 && (
+        <View style={[styles.legend, { backgroundColor: Colors[colorScheme].background }]}>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: getMarkerColor('game') }]} />
+            <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>Game</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: getMarkerColor('event') }]} />
+            <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>Event</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: Colors[colorScheme].tint }]} />
+            <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>
+              Multiple — tap to zoom
+            </Text>
+          </View>
         </View>
       )}
 
@@ -489,6 +582,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
+  searchContainer: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    height: 44,
+    borderRadius: 22,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    padding: 0,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -518,7 +633,7 @@ const styles = StyleSheet.create({
   },
   eventCount: {
     position: 'absolute',
-    top: 16,
+    top: 72,
     left: 16,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -532,6 +647,34 @@ const styles = StyleSheet.create({
   eventCountText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  legend: {
+    position: 'absolute',
+    bottom: 24,
+    left: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  legendLabel: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   callout: {
     width: 200,

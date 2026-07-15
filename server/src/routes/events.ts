@@ -16,6 +16,7 @@ import { renderReviewPage, renderResultPage, renderFinalStatePage } from '../lib
 import { debugLog } from '../lib/debugLog.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
+import { viewerHasPostedOnEntity } from '../lib/geofencing.js';
 import {
   cancelGameReminders,
   rescheduleGameRemindersForEvent,
@@ -793,11 +794,22 @@ eventsRouter.get(
     });
     if (!event) return res.status(404).json({ error: 'Not found' });
 
-    // Non-approved events only visible to creator or admins
+    // Approved events are public to everyone (viewing never expires — owner
+    // rule 2026-07-14). A non-approved event is still visible to its creator,
+    // admins, or any contributor who posted to it (permanent, read-only — grants
+    // no approval power).
     if (event.approval_status !== 'approved') {
       const isCreator = req.user && event.creator_id === req.user.id;
       const isAdmin = req.user ? await getIsAdmin(req as any) : false;
-      if (!isCreator && !isAdmin) {
+      let hasGraceViewAccess = false;
+      if (!isCreator && !isAdmin && req.user) {
+        hasGraceViewAccess = await viewerHasPostedOnEntity({
+          userId: req.user.id,
+          eventId: event.id,
+          gameId: event.game_id ?? null,
+        });
+      }
+      if (!isCreator && !isAdmin && !hasGraceViewAccess) {
         return res.status(404).json({ error: 'Not found' });
       }
     }

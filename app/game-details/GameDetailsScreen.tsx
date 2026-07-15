@@ -1008,6 +1008,47 @@ const GameDetailsScreen = () => {
         .catch(error => {
           if (__DEV__) console.warn('[GameDetails] RSVP hydration failed:', error);
         });
+
+      // H1 fix (2026-07-14): the rich page must actually fetch a standalone
+      // event's posts/media. Previously loadVirtualFromEvent left posts:[]/
+      // media:[] so a fan's posts to an event were invisible here (while the
+      // deprecated bare page did fetch them). Mirror the game path: hydrate
+      // posts via Post.getByEvent and derive the media grid from them.
+      void retryWithBackoff(() => Post.getByEvent(eventIdValue), {
+        maxRetries: 2,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
+      })
+        .then((postsResult: any) => {
+          const items = Array.isArray(postsResult)
+            ? postsResult
+            : Array.isArray(postsResult?.items)
+              ? postsResult.items
+              : [];
+          if (!items.length) return;
+          const media: MediaItem[] = items
+            .filter((p: any) => p?.media_url)
+            .map((p: any) => {
+              const url = String(p.media_url);
+              const isVideo = VIDEO_EXT.test(url.toLowerCase());
+              return {
+                id: String(p.id),
+                url,
+                thumbnail_url: p.preview_url || undefined,
+                kind: isVideo ? 'video' : 'photo',
+                created_at: p.created_at,
+                caption: p.caption ?? p.content ?? null,
+                user_id: p.author?.id ?? p.author_id ?? null,
+              } as MediaItem;
+            });
+          setVm(prev => {
+            if (!prev || prev.eventId !== eventIdValue || prev.gameId) return prev;
+            return { ...prev, posts: items, media };
+          });
+        })
+        .catch(error => {
+          if (__DEV__) console.warn('[GameDetails] event posts hydration failed:', error);
+        });
     },
     [replaceToCanonicalGame]
   );
@@ -1408,10 +1449,16 @@ const GameDetailsScreen = () => {
       void loadTeams();
 
       try {
-        if (gameIdValue) {
+        // buildEventDetailRoute sends a standalone event as id === eventId so it
+        // renders on this rich screen (not the bare public-event page). In that
+        // case load it as an event; a real game passes only `id` (or id != eventId
+        // when a game also carries a linked eventId), which still hits loadGameById.
+        if (gameIdValue && gameIdValue !== eventIdValue) {
           await loadGameById(gameIdValue);
         } else if (eventIdValue) {
           await loadVirtualFromEvent(eventIdValue);
+        } else if (gameIdValue) {
+          await loadGameById(gameIdValue);
         }
         // eslint-disable-next-line no-console
         if (__DEV__) console.log('[GameDetails] load() — done, vm should be set');
@@ -1500,6 +1547,10 @@ const GameDetailsScreen = () => {
 
   const onToggleRsvp = useCallback(async () => {
     if (!vm?.eventId || rsvpBusy) return;
+    if (!authUser) {
+      promptForSignIn(() => router.push('/sign-in'), { message: 'Sign in to RSVP.' });
+      return;
+    }
     if (!canRsvpNow) {
       Alert.alert('RSVP closed', 'You can only RSVP before kickoff.');
       return;
@@ -1556,7 +1607,7 @@ const GameDetailsScreen = () => {
     } finally {
       setRsvpBusy(false);
     }
-  }, [canRsvpNow, vm, rsvpBusy]);
+  }, [canRsvpNow, vm, rsvpBusy, authUser, router]);
 
   const shareContextLines = useMemo(() => {
     if (!vm) return [];

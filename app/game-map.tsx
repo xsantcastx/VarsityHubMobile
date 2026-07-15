@@ -33,9 +33,18 @@ function GameMapScreen() {
       if (!lat || !lng) {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
-          const location = await Location.getCurrentPositionAsync({});
-          lat = location.coords.latitude;
-          lng = location.coords.longitude;
+          // GPS can hang indefinitely indoors or in a crowd — race it against
+          // a hard timeout so this fetch (and the "Loading nearby games..."
+          // overlay it drives) never gets stuck. On timeout we just fetch
+          // without a location filter instead of blocking the whole screen.
+          const location = await Promise.race([
+            Location.getCurrentPositionAsync({}),
+            new Promise<null>(resolve => setTimeout(() => resolve(null), 6000)),
+          ]);
+          if (location) {
+            lat = location.coords.latitude;
+            lng = location.coords.longitude;
+          }
         }
       }
 
@@ -195,30 +204,34 @@ function GameMapScreen() {
         }}
       />
 
-      {loading ? (
-        // Show map with loading indicator while fetching games
-        <View style={styles.container}>
-          <EventMap
-            events={[]}
-            onEventPress={handleEventPress}
-            showUserLocation={true}
-            dataLoaded={false}
-          />
+      {/*
+        The map stays mounted at the same position across loading/error/success
+        states — previously this ternary swapped between a <View> wrapper and a
+        bare <EventMap>, which are different element types at the same tree
+        position. React unmounts/remounts the whole subtree on that kind of
+        swap, so EventMap reset to loading=true and re-requested location
+        permission on every fetch (the "double-load" / re-flash bug). Now
+        EventMap is always the same element; only the overlay on top changes.
+      */}
+      <View style={styles.container}>
+        <EventMap
+          events={events}
+          onEventPress={handleEventPress}
+          showUserLocation={true}
+          dataLoaded={!loading}
+          onRefresh={!loading && !error ? loadGames : undefined}
+        />
+
+        {loading && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
             <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>
               Loading nearby games...
             </Text>
           </View>
-        </View>
-      ) : error ? (
-        <View style={styles.container}>
-          <EventMap
-            events={[]}
-            onEventPress={handleEventPress}
-            showUserLocation={true}
-            dataLoaded={false}
-          />
+        )}
+
+        {!loading && error && (
           <View style={styles.loadingOverlay}>
             <MaterialIcons name="cloud-off" size={40} color={Colors[colorScheme].mutedText} />
             <Text
@@ -245,16 +258,8 @@ function GameMapScreen() {
               <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Retry</Text>
             </Pressable>
           </View>
-        </View>
-      ) : (
-        // Always show map, whether games exist or not
-        <EventMap
-          events={events}
-          onEventPress={handleEventPress}
-          showUserLocation={true}
-          dataLoaded={true}
-        />
-      )}
+        )}
+      </View>
     </View>
   );
 }

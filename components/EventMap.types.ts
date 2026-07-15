@@ -17,4 +17,6 @@ export interface EventMapProps {
   showUserLocation?: boolean;
   /** Set to true once the parent has finished loading its data. The empty state is suppressed until then. */
   dataLoaded?: boolean;
+  /** When provided, renders a refresh control button that re-runs the parent's data load (e.g. so games added mid-event appear without leaving the map). */
+  onRefresh?: () => void;
 }

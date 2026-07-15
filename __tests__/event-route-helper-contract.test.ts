@@ -32,9 +32,11 @@ describe('event route helper contract', () => {
     for (const source of [editEvent, notificationPresentation]) {
       expect(source).toContain('buildEventDetailHref');
     }
-    // event-detail.tsx is now a legacy redirector that forwards to the canonical
-    // pages via PUBLIC_EVENT_PATHNAME — it no longer builds inline event hrefs.
-    expect(eventDetail).toContain('PUBLIC_EVENT_PATHNAME');
+    // event-detail.tsx (deep-link / notification landing) now forwards through
+    // the shared helper too, so every entry point lands on the canonical rich
+    // page — no inline /public-event route (2026-07-14, owner: one event page).
+    expect(eventDetail).toContain('buildEventDetailRoute');
+    expect(eventDetail).not.toContain("pathname: '/public-event'");
 
     expect(highlights).not.toContain("pathname: '/event-detail'");
     expect(gameMap).not.toContain('/event-detail?id=');

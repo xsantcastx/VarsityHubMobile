@@ -3,11 +3,11 @@ import * as ImagePicker from 'expo-image-picker';
 /**
  * Single source of truth for video capture/upload settings.
  *
- * Quality: MediumQuality across all capture surfaces (deliberate, consistent).
- * To move to 1080p later, change VIDEO_CAPTURE_PRESET to
- * ImagePicker.VideoExportPreset.H264_1920x1080 — nothing else.
+ * Quality: 1080p (H264_1920x1080) across all capture surfaces. MediumQuality
+ * (~540p) was the prior default and looked soft on highlight playback; the
+ * 150MB upload cap below has ample headroom for 1080p at the 90s post cap.
  */
-export const VIDEO_CAPTURE_PRESET = ImagePicker.VideoExportPreset.MediumQuality;
+export const VIDEO_CAPTURE_PRESET = ImagePicker.VideoExportPreset.H264_1920x1080;
 
 /** Image upload cap — shared by create-post and BannerUpload (was two independent 10MB literals). */
 export const MAX_IMAGE_SIZE_MB = 10;

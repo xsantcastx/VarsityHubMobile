@@ -599,7 +599,7 @@ function CreatePostScreen() {
       return `Posting opens ${openDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. You can still draft your post now.`;
     }
     if (now > liveCutoff) {
-      return 'Post-event uploads stay open, but only if you already posted to this event while it was live.';
+      return 'The event has ended. If you posted here while it was live, you can still add recaps for up to a week — from anywhere.';
     }
 
     // Check distance (3km = ~1.86 miles) if both user and venue coords are available
@@ -667,7 +667,16 @@ function CreatePostScreen() {
     const isRealGame = Boolean(selectedGameId);
     const gameHasCoords =
       typeof suggestedGame?.latitude === 'number' || typeof suggestedGame?.venue_lat === 'number';
-    if (isRealGame && gameHasCoords && !locationReady && !isDemoMatchupGame) {
+    // H3 (2026-07-14): during the POST-EVENT grace window the server lets a
+    // user who posted while live keep posting recaps from ANYWHERE with no
+    // coords (server/src/lib/geofencing.ts). Don't hard-block on location then —
+    // defer to the server, which returns a clear reason if they don't qualify.
+    // The venue geofence still gates LIVE posting (before the +2h cutoff).
+    const eventDateMs = suggestedGame?.date ? new Date(suggestedGame.date).getTime() : NaN;
+    const isPostEventGrace = Number.isFinite(eventDateMs)
+      ? Date.now() > eventDateMs + 2 * 60 * 60 * 1000
+      : false;
+    if (isRealGame && gameHasCoords && !locationReady && !isDemoMatchupGame && !isPostEventGrace) {
       if (!permissionGranted) {
         Alert.alert(
           'Location Required',
@@ -948,6 +957,20 @@ function CreatePostScreen() {
     : postType === 'highlight'
       ? 'Share Highlight'
       : 'Post';
+
+  // Hard guard: never render the composer for a signed-out user. The useEffect
+  // above redirects guests to /create, but that runs AFTER the first render —
+  // without this a guest reaching create-post directly (e.g. an event page's
+  // "Create Post" button) briefly sees the composer and can attempt a post,
+  // hitting a raw "Unauthorized". Owner ask (2026-07-14): don't even let a
+  // signed-out user reach the upload screen.
+  if (!authLoading && !user) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SwipeBackContainer>

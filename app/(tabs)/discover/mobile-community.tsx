@@ -2,6 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
+import { promptForSignIn } from '@/utils/requireSignIn';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1285,6 +1286,12 @@ function CommunityDiscoverScreen() {
                     <Pressable
                       onPress={async e => {
                         e.stopPropagation();
+                        if (!user) {
+                          promptForSignIn(() => router.push('/sign-in'), {
+                            message: 'Sign in to follow.',
+                          });
+                          return;
+                        }
                         const next = !u.is_following;
                         setUnifiedSearchResults(prev =>
                           prev
@@ -1398,6 +1405,12 @@ function CommunityDiscoverScreen() {
                   <Pressable
                     onPress={async e => {
                       e.stopPropagation();
+                      if (!user) {
+                        promptForSignIn(() => router.push('/sign-in'), {
+                          message: 'Sign in to follow.',
+                        });
+                        return;
+                      }
                       const next = !t.is_following;
                       setUnifiedSearchResults(prev =>
                         prev
@@ -1508,6 +1521,12 @@ function CommunityDiscoverScreen() {
                   <Pressable
                     onPress={async e => {
                       e.stopPropagation();
+                      if (!user) {
+                        promptForSignIn(() => router.push('/sign-in'), {
+                          message: 'Sign in to follow.',
+                        });
+                        return;
+                      }
                       const next = !o.is_following;
                       setUnifiedSearchResults(prev =>
                         prev
@@ -2299,6 +2318,12 @@ function CommunityDiscoverScreen() {
                   {authorId && me?.id !== authorId ? (
                     <Pressable
                       onPress={async () => {
+                        if (!user) {
+                          promptForSignIn(() => router.push('/sign-in'), {
+                            message: 'Sign in to follow.',
+                          });
+                          return;
+                        }
                         // Optimistic toggle
                         const nextVal = !p.is_following_author;
                         patchDiscoverPosts(posts =>
@@ -2499,6 +2524,12 @@ function CommunityDiscoverScreen() {
                     u.is_following && styles.suggestedFollowingBtn,
                   ]}
                   onPress={async () => {
+                    if (!user) {
+                      promptForSignIn(() => router.push('/sign-in'), {
+                        message: 'Sign in to follow.',
+                      });
+                      return;
+                    }
                     if (suggestedFollowLoading === u.id) return;
                     setSuggestedFollowLoading(u.id);
                     try {
