@@ -470,6 +470,25 @@ async function isProfileHiddenFromViewer(
   viewerId: string | null
 ): Promise<boolean> {
   if (viewerId === ownerId) return false;
+
+  // A block (either direction) hides the profile regardless of privacy setting.
+  // The feed already block-filters; the profile-scoped endpoints (profile GET,
+  // /posts, /interactions, /followers, /following) all route through this helper
+  // but previously only checked profile_private, so a blocked user could still
+  // read the blocker's whole profile + posts. Audit 2026-07-14.
+  if (viewerId) {
+    const block = await prisma.blockedUser.findFirst({
+      where: {
+        OR: [
+          { blocker_id: viewerId, blocked_id: ownerId },
+          { blocker_id: ownerId, blocked_id: viewerId },
+        ],
+      },
+      select: { blocker_id: true },
+    });
+    if (block) return true;
+  }
+
   const owner = await prisma.user.findUnique({
     where: { id: ownerId },
     select: { preferences: true },
@@ -1603,6 +1622,31 @@ usersRouter.get(
       });
       isFollower = Boolean(rel) && rel?.status === 'accepted';
       viewerFollowStatus = rel?.status || null;
+    }
+
+    // A block (either direction) hides the full profile — a blocked user must
+    // not be able to monitor the blocker's profile even when it's public.
+    // Audit 2026-07-14 (the feed block-filters; this route did not).
+    if (currentUserId && currentUserId !== id) {
+      const block = await prisma.blockedUser.findFirst({
+        where: {
+          OR: [
+            { blocker_id: currentUserId, blocked_id: id },
+            { blocker_id: id, blocked_id: currentUserId },
+          ],
+        },
+        select: { blocker_id: true },
+      });
+      if (block) {
+        return res.json({
+          id: user.id,
+          display_name: user.display_name,
+          avatar_url: user.avatar_url,
+          profile_private,
+          is_following: false,
+          follow_status: null,
+        });
+      }
     }
 
     // Private profile: non-followers get only basic info
