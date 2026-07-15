@@ -142,6 +142,11 @@ function buildOrganizationCreateData(
     league_owner_id: ownerId,
     admin_approved: adminApproved,
     approved_at: adminApproved ? new Date() : null,
+    // Auto-approved orgs (subsequent orgs created by an already-vetted coach —
+    // intended "workspace" behavior) carry a sentinel approver so they're
+    // distinguishable from super-admin-reviewed orgs in the audit trail rather
+    // than showing a null approver. Owner-confirmed intentional 2026-07-15.
+    approved_by: adminApproved ? 'auto:approved-coach' : null,
   };
 }
 
@@ -298,6 +303,24 @@ async function handleOrganizationCreateRequest(
       return org;
     });
     await invalidateMeCacheForUser(userId);
+
+    // Auto-approved orgs skip the super-admin review that would otherwise write
+    // the audit row, so emit one here — an org going live is a privileged state
+    // change and must be auditable even when the platform didn't gate it.
+    // Owner-confirmed intentional behavior (2026-07-15); the row makes it visible.
+    if (preserveApprovedFinalSetup) {
+      await logAdminActivity(
+        'auto:approved-coach',
+        'system',
+        'APPROVE_LEAGUE',
+        'organization',
+        organization.id,
+        `Organization auto-approved on creation by pre-vetted coach: ${organization.name}`,
+        { reason: 'auto_approve_subsequent_org', created_by: userId }
+      ).catch(err =>
+        console.error('[organizations] auto-approve AdminActivityLog write failed:', err)
+      );
+    }
 
     // Send approval request email to super admin (best effort)
     const creator = await prisma.user.findUnique({
