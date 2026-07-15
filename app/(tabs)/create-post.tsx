@@ -949,6 +949,20 @@ function CreatePostScreen() {
       ? 'Share Highlight'
       : 'Post';
 
+  // Hard guard: never render the composer for a signed-out user. The useEffect
+  // above redirects guests to /create, but that runs AFTER the first render —
+  // without this a guest reaching create-post directly (e.g. an event page's
+  // "Create Post" button) briefly sees the composer and can attempt a post,
+  // hitting a raw "Unauthorized". Owner ask (2026-07-14): don't even let a
+  // signed-out user reach the upload screen.
+  if (!authLoading && !user) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SwipeBackContainer>
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
