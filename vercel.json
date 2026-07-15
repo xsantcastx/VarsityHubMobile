@@ -13,7 +13,81 @@
       "has": [{ "type": "host", "value": "varsityhub.app" }],
       "destination": "https://www.varsityhub.app/$1",
       "permanent": true
-    }
+    },
+    {
+      "source": "/events/:id",
+      "missing": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "/public-event?id=:id",
+      "permanent": false
+    },
+    {
+      "source": "/games/:id",
+      "missing": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "/game-detail?id=:id",
+      "permanent": false
+    },
+    {
+      "source": "/posts/:id",
+      "missing": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "/post-detail?id=:id",
+      "permanent": false
+    },
+    {
+      "source": "/teams/:id",
+      "missing": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "/team-page?id=:id",
+      "permanent": false
+    },
+    {
+      "source": "/users/:id",
+      "missing": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "/user-profile?id=:id",
+      "permanent": false
+    },
+    {
+      "source": "/programs/:id",
+      "missing": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "/program-page?id=:id",
+      "permanent": false
+    },
+    { "source": "/join/org", "destination": "/organization-invites", "permanent": false },
+    { "source": "/join/team", "destination": "/team-invites", "permanent": false }
   ],
   "rewrites": [
     {
@@ -37,6 +111,50 @@
         }
       ],
       "destination": "https://api-production-8ac3.up.railway.app/og/games/:id"
+    },
+    {
+      "source": "/posts/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "https://api-production-8ac3.up.railway.app/posts/:id"
+    },
+    {
+      "source": "/teams/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "https://api-production-8ac3.up.railway.app/teams/:id"
+    },
+    {
+      "source": "/users/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "https://api-production-8ac3.up.railway.app/users/:id"
+    },
+    {
+      "source": "/programs/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|redditbot|Applebot).*"
+        }
+      ],
+      "destination": "https://api-production-8ac3.up.railway.app/programs/:id"
     }
   ],
   "headers": [
