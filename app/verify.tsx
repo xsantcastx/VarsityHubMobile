@@ -11,6 +11,29 @@ import { useVerificationScreenActions } from '@/hooks/useVerificationScreenActio
 import { extractApiError } from '@/utils/apiErrors';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { VerificationCodeScreenBase } from '@/components/VerificationCodeScreenBase';
+import type { AuthContextType } from '@/context/AuthProvider';
+
+// A correct code already means the server marked the account verified — a
+// failed refresh here is virtually always a transient network blip (e.g. a
+// congested venue network), not a real auth problem. Retry with backoff
+// before giving up so we don't strand a just-verified user on this screen.
+const REFRESH_RETRY_DELAYS_MS = [800, 1600, 2400];
+
+async function refreshUserAfterVerification(
+  checkAuth: AuthContextType['checkAuth']
+): Promise<'success' | 'failed'> {
+  for (let attempt = 0; attempt <= REFRESH_RETRY_DELAYS_MS.length; attempt++) {
+    // checkAuth only throws on a genuine 401 (or replaceSession, unused
+    // here) — that's a real auth failure, not a transient one, so it
+    // propagates immediately instead of being retried.
+    const result = await checkAuth({ forceRefresh: true });
+    if (result) return 'success';
+    if (attempt < REFRESH_RETRY_DELAYS_MS.length) {
+      await new Promise(resolve => setTimeout(resolve, REFRESH_RETRY_DELAYS_MS[attempt]));
+    }
+  }
+  return 'failed';
+}
 
 export default function VerifyScreen() {
   const router = useRouter();
@@ -127,8 +150,20 @@ export default function VerifyScreen() {
       setScreenError(null);
       setIsVerified(true);
       try {
-        await checkAuth({ forceRefresh: true });
+        const outcome = await refreshUserAfterVerification(checkAuth);
+        if (!isMountedRef.current) return;
+        if (outcome === 'failed') {
+          // The server-side verification already succeeded (that's how we
+          // got here) — don't silently stall on "success" while nothing
+          // happens. Surface a retry affordance instead of a silent loop
+          // back to this same screen.
+          setScreenInfo(null);
+          setScreenError(
+            "Your email is verified, but we couldn't finish loading your account on this network. Tap Continue to try again."
+          );
+        }
       } catch (userError) {
+        if (!isMountedRef.current) return;
         captureException(
           typeof userError === 'string' ? new Error(userError) : (userError as Error),
           { tags: { context: 'verify-email-refresh' } }
@@ -174,7 +209,26 @@ export default function VerifyScreen() {
   });
 
   const onContinue = async () => {
-    await checkAuth({ forceRefresh: true });
+    setScreenError(null);
+    try {
+      const outcome = await refreshUserAfterVerification(checkAuth);
+      if (!isMountedRef.current) return;
+      if (outcome === 'failed') {
+        setScreenError(
+          'Still having trouble loading your account. Check your connection and tap Continue to try again.'
+        );
+      }
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      captureException(typeof err === 'string' ? new Error(err) : (err as Error), {
+        tags: { context: 'verify-email-continue-refresh' },
+      });
+      setScreenError('Please sign in again to continue.');
+      redirectTimerRef.current = setTimeout(() => {
+        if (!isMountedRef.current) return;
+        router.replace('/sign-in');
+      }, 2000);
+    }
   };
 
   const wrongAccountLabel = 'Wrong account? Sign out';

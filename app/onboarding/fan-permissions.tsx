@@ -27,6 +27,10 @@ export default function FanPermissions() {
   const router = useRouter();
   const { user, registerPushToken, checkAuth } = useAuth();
   const [loading, setLoading] = useState(false);
+  // Set when server-side onboarding completion succeeded (it already did, in
+  // step-2) but we couldn't refresh the local `user` after several retries —
+  // surfaces a retry affordance instead of silently bouncing back to step-1.
+  const [stuck, setStuck] = useState(false);
   // Toggles let the user confirm which permissions to grant instead of firing
   // both system dialogs unconditionally. Default ON — this screen is opt-out.
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -67,13 +71,52 @@ export default function FanPermissions() {
   // screen for /(tabs)/feed made the gate think the fan still needs onboarding
   // and bounced them back to step-1. checkAuth() re-syncs the user first so the
   // gate sees the completed state. Mirrors the coach step-3 flow.
+  //
+  // On a congested venue network a single /me refresh can fail transiently.
+  // checkAuth() only THROWS on a genuine 401 (real, non-transient auth
+  // failure) — anything else (timeouts, transport errors) is swallowed and
+  // returns null. So: retry with backoff on a null/falsy result, and if it's
+  // still not refreshed after retries, don't push to /(tabs)/feed at all —
+  // the routing gate would immediately read the stale onboarding_completed
+  // flag and bounce the user back to step-1, recreating the loop. Surface a
+  // retry affordance instead. The server completion already succeeded, so a
+  // later retry (or the app's own foreground/health-triggered checkAuth)
+  // will carry the user through without ever weakening the real auth gate.
+  const REFRESH_RETRY_DELAYS_MS = [800, 1600, 2400];
   const finishOnboarding = async () => {
-    try {
-      await checkAuth({ forceRefresh: true });
-    } catch {
-      // Non-fatal — a transient /me refresh failure must not trap the user here.
+    setStuck(false);
+    let refreshed = false;
+    let authFailure = false;
+    for (let attempt = 0; attempt <= REFRESH_RETRY_DELAYS_MS.length; attempt++) {
+      try {
+        const result = await checkAuth({ forceRefresh: true });
+        if (result) {
+          refreshed = true;
+          break;
+        }
+      } catch {
+        // Genuine 401 — the session really is invalid. Don't retry and don't
+        // force a navigation; AuthProvider has already cleared local state
+        // and its own routing gate will send the user to sign-in.
+        authFailure = true;
+        break;
+      }
+      if (attempt < REFRESH_RETRY_DELAYS_MS.length) {
+        await new Promise(resolve => setTimeout(resolve, REFRESH_RETRY_DELAYS_MS[attempt]));
+      }
     }
+
     setLoading(false);
+
+    if (authFailure) {
+      return;
+    }
+
+    if (!refreshed) {
+      setStuck(true);
+      return;
+    }
+
     // nav-safe: onboarding completion — linear flow; going BACK from here
     // returns to the step-2 form and re-runs completeOnboarding (signup
     // loop). The stack must be cleared into the app.
@@ -113,6 +156,53 @@ export default function FanPermissions() {
     setLoading(true);
     void finishOnboarding();
   };
+
+  const retryFinish = () => {
+    setLoading(true);
+    void finishOnboarding();
+  };
+
+  if (stuck) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={[styles.inner, { alignItems: 'center' }]}>
+          <View style={styles.hero}>
+            <Ionicons
+              name="cloud-offline-outline"
+              size={48}
+              color={colors.textMuted}
+              style={{ marginBottom: 16 }}
+            />
+            <Text style={[styles.title, { color: colors.text }]}>Almost there</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+              We're finishing setting up your account. This is taking longer than usual — probably a
+              slow connection. Tap below to try again.
+            </Text>
+          </View>
+          <Pressable
+            onPress={retryFinish}
+            disabled={loading}
+            style={[
+              styles.primaryBtn,
+              {
+                backgroundColor: loading ? colors.primaryMuted : colors.primary,
+                alignSelf: 'stretch',
+              },
+            ]}
+            accessibilityLabel="Retry finishing account setup"
+            accessibilityRole="button"
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryBtnText}>Tap to retry</Text>
+            )}
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
