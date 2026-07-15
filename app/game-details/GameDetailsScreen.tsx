@@ -1547,6 +1547,10 @@ const GameDetailsScreen = () => {
 
   const onToggleRsvp = useCallback(async () => {
     if (!vm?.eventId || rsvpBusy) return;
+    if (!authUser) {
+      promptForSignIn(() => router.push('/sign-in'), { message: 'Sign in to RSVP.' });
+      return;
+    }
     if (!canRsvpNow) {
       Alert.alert('RSVP closed', 'You can only RSVP before kickoff.');
       return;
@@ -1603,7 +1607,7 @@ const GameDetailsScreen = () => {
     } finally {
       setRsvpBusy(false);
     }
-  }, [canRsvpNow, vm, rsvpBusy]);
+  }, [canRsvpNow, vm, rsvpBusy, authUser, router]);
 
   const shareContextLines = useMemo(() => {
     if (!vm) return [];

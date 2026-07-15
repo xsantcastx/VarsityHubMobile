@@ -237,6 +237,8 @@ const FeedCard = memo(
     const [isVideoLoading, setIsVideoLoading] = useState(post.media_type === 'video');
     const [videoError, setVideoError] = useState<string | null>(null);
     const [videoRetryKey, setVideoRetryKey] = useState(0);
+    // Videos autoplay muted by default (public-venue safety) — user opts into sound via the mute toggle.
+    const [isMuted, setIsMuted] = useState(true);
     const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     // Only feed the video player a source for actual videos. Passing the
     // media_url unconditionally handed every IMAGE post's URL to an AVPlayer
@@ -315,7 +317,8 @@ const FeedCard = memo(
     const player = useVideoPlayer(videoSource, p => {
       p.loop = true;
       p.volume = 1.0;
-      p.muted = false;
+      // Autoplay starts muted (public-venue safety) — see isMuted toggle below.
+      p.muted = true;
       if (isActive && post.media_type === 'video') {
         try {
           p.play();
@@ -353,6 +356,19 @@ const FeedCard = memo(
       registerVideo(post.id, player);
       return () => registerVideo(post.id, null);
     }, [post.id, player, registerVideo]);
+
+    useEffect(() => {
+      try {
+        player.muted = isMuted;
+      } catch (e) {
+        // Non-critical: player may not be ready
+        if (__DEV__) console.warn('[FeedCard] Failed to set mute state:', e);
+      }
+    }, [isMuted, player]);
+
+    const handleToggleMute = useCallback(() => {
+      setIsMuted(prev => !prev);
+    }, []);
 
     useEffect(() => {
       if (post.media_type !== 'video') return;
@@ -576,7 +592,21 @@ const FeedCard = memo(
             <Text style={styles.railLabel}>Options</Text>
           </Pressable>
 
-          {/* Mute button removed v1.0.2 — videos play muted by default */}
+          {post.media_type === 'video' && post.media_url ? (
+            <Pressable
+              onPress={handleToggleMute}
+              style={styles.railBtn}
+              accessibilityRole="button"
+              accessibilityLabel={isMuted ? 'Unmute video' : 'Mute video'}
+            >
+              <Ionicons
+                name={isMuted ? 'volume-mute-outline' : 'volume-high-outline'}
+                size={34}
+                color="#fff"
+              />
+              <Text style={styles.railLabel}>{isMuted ? 'Muted' : 'Sound'}</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Options Menu Modal */}

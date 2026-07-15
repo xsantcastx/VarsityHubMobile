@@ -9,6 +9,7 @@ import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
 import { promptForSignIn } from '@/utils/requireSignIn';
+import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -1323,15 +1324,11 @@ export default function PostDetailScreen() {
               ]}
               onPress={() => {
                 if (postData.game_id) {
-                  void router.push({
-                    pathname: '/game/[id]',
-                    params: { id: String(postData.game_id) },
-                  });
+                  void router.push(
+                    buildEventDetailRoute(String(postData.game_id), postData.game_id)
+                  );
                 } else if (postData.event_id) {
-                  void router.push({
-                    pathname: '/public-event',
-                    params: { id: String(postData.event_id) },
-                  });
+                  void router.push(buildEventDetailRoute(String(postData.event_id)));
                 }
               }}
               accessibilityRole="button"
