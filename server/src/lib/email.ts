@@ -1070,6 +1070,9 @@ export async function sendPasswordChangedEmail(email: string, userName?: string)
       user_name: displayName,
       display_name: displayName,
       changed_at: new Date().toISOString(),
+      // Pre-formatted, human-readable timestamp so the template renders a clean
+      // date instead of a raw ISO string (or a non-existent formatDate helper).
+      changed_at_display: formatEventTime(new Date()).combined,
     },
     `Password changed email sent to ${email}`,
     { metadata: await resolveMinorAuditMetadata(email) }
