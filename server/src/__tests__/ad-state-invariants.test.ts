@@ -87,6 +87,9 @@ describe('ad lifecycle structural invariants', () => {
       'paid',
       'refund_pending',
       'refunded',
+      // Terminal manual-review state for rejected Apple-IAP-paid ads (audit
+      // 2026-07-14) — the server cannot issue Apple refunds.
+      'manual_refund_review',
     ]);
   });
 

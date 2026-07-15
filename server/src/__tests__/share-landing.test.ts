@@ -133,6 +133,7 @@ describe('share-landing — OG metadata enrichment', () => {
       title: 'Westhill vs Stamford',
       location: 'Westhill HS',
       date: new Date('2026-05-15T19:00:00Z'),
+      approval_status: 'approved', // share door only enriches approved games (Phase 3a)
     } as any);
 
     const res = await request(makeApp()).get('/games/g1').set('Accept', 'text/html');
@@ -146,6 +147,8 @@ describe('share-landing — OG metadata enrichment', () => {
       name: 'Westhill Wildcats',
       description: 'Official team page for Westhill basketball.',
       logo_url: 'https://cdn.example.com/team-logo.jpg',
+      is_private: false, // share door only enriches public, active teams (Phase 3a)
+      status: 'active',
     } as any);
 
     const res = await request(makeApp()).get('/teams/team_123').set('Accept', 'text/html');

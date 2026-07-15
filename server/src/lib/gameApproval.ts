@@ -75,8 +75,7 @@ export async function deriveGameApproval(
   // other side is a REAL team they do not manage.
   let opponentApprovalTeamId: string | null = null;
   if (isCoach) {
-    const otherTeamId =
-      managedTeamId === home ? away : managedTeamId === away ? home : null;
+    const otherTeamId = managedTeamId === home ? away : managedTeamId === away ? home : null;
     if (otherTeamId && otherTeamId !== managedTeamId) {
       const opponentManaged = await canManage(userId, otherTeamId);
       if (!opponentManaged) {

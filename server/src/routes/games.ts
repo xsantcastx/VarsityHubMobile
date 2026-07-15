@@ -1796,10 +1796,7 @@ gamesRouter.post(
     const userId = req.user!.id;
     const isAdmin = await isVerifiedAdminUser(userId);
 
-    if (
-      !isAdmin &&
-      parsed.data.games.every(g => !g.home_team_id && !g.away_team_id)
-    ) {
+    if (!isAdmin && parsed.data.games.every(g => !g.home_team_id && !g.away_team_id)) {
       return sendError(res, 400, 'Each game must reference a home_team_id or away_team_id.');
     }
 
@@ -1821,7 +1818,8 @@ gamesRouter.post(
         for (let i = 0; i < parsed.data.games.length; i++) {
           const g = parsed.data.games[i];
           const decision = decisionByIndex[i];
-          const associatedTeamId = decision.managedTeamId || g.home_team_id || g.away_team_id || null;
+          const associatedTeamId =
+            decision.managedTeamId || g.home_team_id || g.away_team_id || null;
           const row = await tx.game.create({
             data: {
               title: stripHtml(g.title),
@@ -2449,7 +2447,8 @@ gamesRouter.delete(
       if (!isCreator && !isCoach && !isAdmin) {
         return res.status(403).json({
           error: 'Not authorized',
-          message: 'Only the game creator, the creating team’s coaches, or admins can delete games.',
+          message:
+            'Only the game creator, the creating team’s coaches, or admins can delete games.',
         });
       }
 

@@ -367,16 +367,16 @@ async function programLanding(req: Request, res: Response, next: NextFunction) {
         name: true,
         logo_url: true,
         organization: { select: { name: true, admin_approved: true } },
-        // Only surface a program that has at least one PUBLIC team — otherwise
-        // the share door would expose a program built entirely of private teams
-        // (or one under an unapproved org). Audit 2026-07-14.
-        teams: { where: { status: 'active', is_private: false }, select: { id: true }, take: 1 },
       },
     })
     .catch(() => null);
 
+  // The landing exposes only the program label (sport + name), org name, and
+  // logo — never any team, so an all-private-teams program leaks nothing here.
+  // The only privacy concern is surfacing an UNAPPROVED org's name; an org-less
+  // program has no org to leak and stays shareable. Audit 2026-07-14.
   const visibleProgram =
-    program && program.organization?.admin_approved && program.teams.length > 0 ? program : null;
+    program && (!program.organization || program.organization.admin_approved) ? program : null;
 
   const meta: LandingMeta = visibleProgram
     ? {

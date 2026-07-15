@@ -363,9 +363,8 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       'Re-verify active Google Play subscribers to refresh expiry on renewal and downgrade on lapse',
     handler: async () => {
       try {
-        const { reconcileGooglePlaySubscriptions } = await import(
-          '../lib/googlePlayReconciliation.js'
-        );
+        const { reconcileGooglePlaySubscriptions } =
+          await import('../lib/googlePlayReconciliation.js');
         const result = await reconcileGooglePlaySubscriptions();
         if (result.downgraded > 0 || result.errors > 0) {
           console.error(

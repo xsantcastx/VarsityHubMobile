@@ -16,7 +16,8 @@ const gamesSrc = readFileSync(join(process.cwd(), 'src', 'routes', 'games.ts'), 
 // Isolate the PUT /:id handler body (from the second put() to the next route).
 const putStart = gamesSrc.indexOf("gamesRouter.put(\n  '/:id'");
 const putEnd = gamesSrc.indexOf('gamesRouter.', putStart + 20);
-const putSrc = putStart >= 0 ? gamesSrc.slice(putStart, putEnd > putStart ? putEnd : undefined) : '';
+const putSrc =
+  putStart >= 0 ? gamesSrc.slice(putStart, putEnd > putStart ? putEnd : undefined) : '';
 
 describe('PUT /games/:id edit guards', () => {
   it('selects approval_status so it can enforce the approved-edit allowlist', () => {

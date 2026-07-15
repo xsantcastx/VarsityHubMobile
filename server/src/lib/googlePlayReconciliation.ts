@@ -70,8 +70,7 @@ export async function reconcileGooglePlaySubscriptions(): Promise<GooglePlayReco
         : {};
     const purchaseToken =
       typeof prefs.google_purchase_token === 'string' ? prefs.google_purchase_token : null;
-    const productId =
-      typeof prefs.google_product_id === 'string' ? prefs.google_product_id : null;
+    const productId = typeof prefs.google_product_id === 'string' ? prefs.google_product_id : null;
     if (!purchaseToken || !productId) {
       skipped++;
       continue;

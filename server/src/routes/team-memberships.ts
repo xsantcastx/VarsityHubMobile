@@ -9,10 +9,7 @@ import {
   canAssignTeamRole,
 } from '../lib/teamAuthorization.js';
 import { guardTeamMembershipMutation } from '../lib/teamEntitlements.js';
-import {
-  ensureTeamGroupChatMembershipExternal,
-  removeUserFromTeamGroupChats,
-} from './teams.js';
+import { ensureTeamGroupChatMembershipExternal, removeUserFromTeamGroupChats } from './teams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';

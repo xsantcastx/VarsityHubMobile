@@ -25,7 +25,7 @@ describe('payments.ts wires the guard into both webhook handlers', () => {
 });
 
 describe('shouldApplyStripeSubscriptionEvent', () => {
-  it('applies when the event is for the user\'s active Stripe subscription', () => {
+  it("applies when the event is for the user's active Stripe subscription", () => {
     expect(shouldApplyStripeSubscriptionEvent({ subscription_id: 'sub_A' }, 'sub_A')).toBe(true);
   });
 
@@ -34,7 +34,9 @@ describe('shouldApplyStripeSubscriptionEvent', () => {
   });
 
   it('SKIPS when the event is for a different (old) Stripe subscription', () => {
-    expect(shouldApplyStripeSubscriptionEvent({ subscription_id: 'sub_NEW' }, 'sub_OLD')).toBe(false);
+    expect(shouldApplyStripeSubscriptionEvent({ subscription_id: 'sub_NEW' }, 'sub_OLD')).toBe(
+      false
+    );
   });
 
   it('SKIPS when the user has migrated to Apple (apple_expires_date present)', () => {

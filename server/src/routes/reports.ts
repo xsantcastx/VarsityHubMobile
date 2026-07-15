@@ -246,7 +246,7 @@ reportsRouter.post(
               select: { id: true },
             });
             if (ownerRow) {
-              return res.status(400).json({ error: 'You cannot report your own team' });
+              return res.status(400).json({ error: 'You cannot report your own team' }); // error-envelope-exempt
             }
             targetExists = true;
             targetContext = {

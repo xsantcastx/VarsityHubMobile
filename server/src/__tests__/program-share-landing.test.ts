@@ -65,7 +65,7 @@ describe('program share-landing', () => {
       sport: 'basketball',
       name: null,
       logo_url: 'https://cdn.example.com/program-logo.jpg',
-      organization: { name: 'Stamford High' },
+      organization: { name: 'Stamford High', admin_approved: true },
     } as any);
 
     const res = await request(makeApp()).get('/programs/p1').set('Accept', 'text/html');
@@ -86,7 +86,7 @@ describe('program share-landing', () => {
       sport: 'basketball',
       name: 'Lady Knights Basketball',
       logo_url: null,
-      organization: { name: 'Stamford High' },
+      organization: { name: 'Stamford High', admin_approved: true },
     } as any);
 
     const res = await request(makeApp()).get('/programs/p2').set('Accept', 'text/html');
@@ -99,7 +99,7 @@ describe('program share-landing', () => {
       sport: 'track_field',
       name: null,
       logo_url: null,
-      organization: { name: 'Westhill' },
+      organization: { name: 'Westhill', admin_approved: true },
     } as any);
 
     const res = await request(makeApp()).get('/programs/p3').set('Accept', 'text/html');
@@ -142,7 +142,7 @@ describe('program share-landing', () => {
       sport: 'basketball',
       name: '<script>alert(1)</script>',
       logo_url: null,
-      organization: { name: 'Stamford High' },
+      organization: { name: 'Stamford High', admin_approved: true },
     } as any);
 
     const res = await request(makeApp()).get('/programs/p5').set('Accept', 'text/html');

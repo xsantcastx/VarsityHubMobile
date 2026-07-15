@@ -2521,9 +2521,14 @@ organizationsRouter.delete(
     });
     if (!membership) return sendError(res, 404, 'Membership not found');
     if (membership.role === ORGANIZATION_OWNER_ROLE) {
-      return sendError(res, 400, 'Cannot remove an owner. Transfer ownership to another member first.', {
-        code: 'CANNOT_REMOVE_OWNER',
-      });
+      return sendError(
+        res,
+        400,
+        'Cannot remove an owner. Transfer ownership to another member first.',
+        {
+          code: 'CANNOT_REMOVE_OWNER',
+        }
+      );
     }
     if (membership.user_id === req.user.id) {
       return sendError(res, 400, 'You cannot remove yourself.');

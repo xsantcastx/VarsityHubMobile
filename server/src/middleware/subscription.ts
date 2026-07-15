@@ -81,8 +81,7 @@ function resolvePlanFromUserRecord(
     // this. Only force 'free' once the grace window has elapsed (or none is set).
     const graceRaw = prefs.grace_period_expires_at;
     const graceExpiry = graceRaw ? new Date(graceRaw) : null;
-    const graceActive =
-      graceExpiry && !isNaN(graceExpiry.getTime()) && graceExpiry > new Date();
+    const graceActive = graceExpiry && !isNaN(graceExpiry.getTime()) && graceExpiry > new Date();
     if (!graceActive) return 'free';
   }
 

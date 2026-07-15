@@ -259,7 +259,7 @@ groupChatsRouter.post(
       },
     });
     if (updated.count === 0) {
-      return res.status(403).json({ error: 'You are not a member of this chat' });
+      return res.status(403).json({ error: 'You are not a member of this chat' }); // error-envelope-exempt
     }
 
     return res.json({ ok: true });

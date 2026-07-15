@@ -1970,7 +1970,12 @@ postsRouter.delete(
               if (parsed) {
                 const result = await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
                 if (!result.ok) {
-                  console.warn('[posts] Cloudinary destroy failed', postId, parsed.publicId, result.error);
+                  console.warn(
+                    '[posts] Cloudinary destroy failed',
+                    postId,
+                    parsed.publicId,
+                    result.error
+                  );
                 }
                 continue;
               }

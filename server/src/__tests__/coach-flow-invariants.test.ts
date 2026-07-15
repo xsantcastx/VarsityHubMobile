@@ -177,7 +177,7 @@ describe('coach flow structural invariants', () => {
       expect(snippet).toContain("preferences: { path: ['role'], equals: 'coach' }");
     });
 
-    it('approval-service stale/expired coach queries search both role column and legacy preferences.role', () => {
+    it('approval-service stale/expired coach queries key off CoachApplication.submitted_at, not User.created_at', () => {
       const reminderFn =
         approvalService.match(
           /export async function remindPendingCoachApprovals[\s\S]*?^\}/m
@@ -186,10 +186,16 @@ describe('coach flow structural invariants', () => {
         approvalService.match(/export async function autoExpirePendingCoaches[\s\S]*?^\}/m)?.[0] ||
         '';
 
-      expect(reminderFn).toContain("{ role: 'coach' as any }");
-      expect(reminderFn).toContain("preferences: { path: ['role'], equals: 'coach' }");
-      expect(autoExpireFn).toContain("{ role: 'coach' as any }");
-      expect(autoExpireFn).toContain("preferences: { path: ['role'], equals: 'coach' }");
+      // 2026-07-14 audit (Phase 2a): both must resolve stale coaches via their
+      // APPLICATION submission time so an established user who upgrades to coach
+      // isn't auto-rejected on account age. Keying off User.created_at was the
+      // root-cause bug; the queries now go through CoachApplication.
+      for (const fn of [reminderFn, autoExpireFn]) {
+        expect(fn).toContain('coachApplication.findMany');
+        expect(fn).toContain("status: 'submitted'");
+        expect(fn).toContain('submitted_at: { lt:');
+        expect(fn).toContain("user: { approval_status: 'PENDING' }");
+      }
     });
 
     it('teams create route uses canonical role/onboarding helpers for approval gating', () => {
