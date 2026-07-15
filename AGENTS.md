@@ -185,6 +185,23 @@ npm run verify:error-envelope
 - **Org invite creation is owner-only** — only the organization owner creates/revokes org invites; org managers have no invite power
 - **Payment-success non-auth errors surface on final retry** — no silent swallowing
 
+### Audit-derived invariants (2026-07-14 · land with stacked PRs #168 → #171; full versions with helper/test names in `CLAUDE.md`)
+
+- **Game approval is derived, never hardcoded** — all game writes use `deriveGameApproval`; batch endpoints authorize per row, never `.some()` across ids
+- **Shared two-team resources: creator side authorizes, both sides notified** — opponent staff never delete a shared game or overwrite the other team's score; team reassignment re-triggers opponent consent; coach edits are field-locked
+- **Subscription webhooks must match the subscription id** — an old-sub event never downgrades a user on a newer/other-rail sub; Google Play expiry enforcement ships together with its reconciliation job
+- **Post `type` is a server whitelist** — non-admin `admin_broadcast` is coerced to `post`
+- **Block filters merge, never clobber** — a block relationship must never widen a scoped query to global; all content reads apply block filtering
+- **Minor-protection gates fail closed** — adult↔minor DM needs an _accepted_ follow; null DOB = blocked (`isMinor`/`isVerifiedAdult`, never `getUserAge() !== null`)
+- **Post media hosts are allowlisted** — off-platform `media_url`/`poster_url` rejected
+- **Approval self-review IDOR guard covers games AND events**
+- **Coach auto-expire keys on `CoachApplication.submitted_at`**, never account age
+- **Plan caps count pending invites** (enforced at invite create and accept)
+- **No ownerless resources** — sole team/org owner cannot self-delete; membership removal syncs group-chat access
+- **Share landings mirror og.ts gates**; private profiles/programs never leak
+- **Private teams excluded from every public surface** (`isTeamHiddenFromViewer` et al., bounded `take`)
+- **Meta-rule:** almost every one of these was a sibling write path bypassing a single-path pipeline — when adding a parallel path, reuse the existing helper, never re-derive its checks
+
 ## Security & Architecture Audit Standard
 
 > Canonical full version lives in `CLAUDE.md` (`## Security & Architecture Audit Standard`), including the per-rule `Verify:` clauses. This section mirrors it for Codex; keep the two aligned when either changes.

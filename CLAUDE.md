@@ -243,6 +243,26 @@ New team/org mutation endpoints must pick the correct tier explicitly — don't 
 - **Org invite creation is owner-only** (role-barrier model, 2026-07-06): only the organization owner may create or revoke org invites — org managers have no invite power at all (superseded the older "managers may invite at member level" rule)
 - **Payment-success inner catch must surface non-auth errors on final retry** — no silent swallowing
 
+### Audit-derived invariants (2026-07-14 · lands with stacked PRs #168 → #169 → #170 → #171)
+
+Each rule below was a real, verified vulnerability (several live-confirmed against a running server). The fixes and their exploit-first regression tests live on the PR stack — until it merges to `main`, the named helpers/tests exist only on those branches. Do not reintroduce these patterns in new code, on any branch.
+
+- **Game approval is always derived, never hardcoded** — every game write path (single, bulk, PUT) computes `approval_status` via `deriveGameApproval` (`server/src/lib/gameApproval.ts`). Hardcoding `approval_status: 'approved'` is banned; batch endpoints authorize **per row**, never `.some()` across all ids. Pin: `game-write-approval-parity.test.ts`.
+- **Shared two-team resources: the creator side authorizes; both sides get notified** — game delete / result / edit gate on `creatorSideTeamIds()` (excludes the opponent). Opponent staff must never delete a shared game or overwrite the other team's reported score. Reassigning a game's team ids re-triggers opponent consent; coach edits are field-locked to `GAME_COACH_EDITABLE_FIELDS` (mirror of events). Pin: `authz-matrix-fixes.test.ts`.
+- **Subscription webhooks must match the subscription id** — `shouldApplyStripeSubscriptionEvent` (`lib/stripeSubscriptionGuard.ts`): an event for an old Stripe sub must never downgrade a user now on a newer or other-rail (Apple/Google) sub. Google Play expiry is persisted **and** refreshed by the `google-play-reconciliation` job — read-side enforcement without the refresh job wrongly downgrades renewing users; they ship together. Pin: `stripe-subscription-guard.test.ts`.
+- **Post `type` is a server-enforced whitelist** — `admin_broadcast` reaches every user's feed, so non-admin submissions are coerced to `post` server-side. Never accept feed-scope-changing types from the client. Pin: `fan-security.test.ts`.
+- **Block filters merge, never clobber** — combining `getBlockedUserIds` `notIn` with an author scope must use `{ equals }` merge semantics; a block relationship must never widen a scoped query to a global one. Every content read (posts, DM history, game posts, profiles) applies block filtering. Pin: `fan-security.test.ts`, `blocked-cache-dedup.test.ts`.
+- **Minor-protection gates fail closed** — adult↔minor DM requires an **accepted** follow (`status: 'accepted'` — a pending row grants nothing) and uses `isMinor()`/`isVerifiedAdult()` from `lib/userAge.ts` (null DOB = blocked). Never gate on `getUserAge() !== null`.
+- **Post media hosts are allowlisted** — `media_url`/`poster_url` pass `isAllowedPostMediaUrl` (platform hosts + R2 + data:/relative); off-platform URLs are rejected (moderation bypass + tracking-pixel exfil vector).
+- **Approval self-review IDOR guard covers games AND events** — the creator of a pending game/event can never approve or reject it (mirrors the coach-approval guard).
+- **Coach auto-expire is keyed on application submit time** (`CoachApplication.submitted_at`), never on `User.created_at` — account age is not application age (this was the root cause of the admin-guard rejection loop).
+- **Plan caps count pending invites** — the authorized-user cap is enforced at invite create AND accept time; a cap that only checks current members is a double-spend.
+- **No ownerless resources** — `assertCanSelfDeleteUser` blocks account self-deletion by a sole team owner or sole org authority; org member remove/demote endpoints exist and team-membership removal/archive syncs group-chat membership (`removeUserFromTeamGroupChats`) so ex-staff lose chat access.
+- **Share landings mirror the og.ts gates** — `shareLanding.ts` serves approved/non-cancelled/non-private/non-deleted resources only; private profiles never leak bio/avatar; program landings require an approved org with ≥1 public team.
+- **Private teams are excluded from every public surface** — `getExcludedPrivateTeamIds` / `isTeamHiddenFromViewer` on highlights, posts, feed-bundle, `?team_id=`, and org serialization (org team lists: `status: 'active'`, `is_private: false`, bounded `take`).
+
+The recurring failure pattern behind almost all of these: **a sibling write path bypassing a solid single-path pipeline without re-implementing its checks** (bulk vs single create, PUT vs POST, one webhook rail vs another). When adding a parallel path to anything, reuse the existing helper — never re-derive its authorization or state logic.
+
 ## PR Checklist (Run Before Each PR)
 
 The enforcement gate derived from the **Security & Architecture Audit Standard** below. A PR passes only when every box is checked; the tags map each item back to the standard. Run the automated block first, then confirm the human-judgment items in the PR description. Every command here is a real, wired npm script or a grep that runs against this tree today.
