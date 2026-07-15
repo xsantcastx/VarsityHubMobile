@@ -657,63 +657,63 @@ export default function FeedScreen() {
         // primary one — it owns the pagination cursor and the error state.
         const queryPlan = buildFeedGameQueries(Date.now(), viewerCoords);
         feedQueryPlanRef.current = queryPlan;
-        let upcomingData: any = null;
-        try {
-          upcomingData = await queryClient.fetchQuery({
-            queryKey: [
-              'feed-games-upcoming',
-              queryPlan.upcoming.options.dateFrom,
-              viewerCoords?.lat ?? null,
-              viewerCoords?.lng ?? null,
-            ],
-            queryFn: () => Game.list(queryPlan.upcoming.sort, queryPlan.upcoming.options),
-          });
-        } catch (err: any) {
-          if (__DEV__) console.error('[Feed] Failed to load games:', err);
-          // If it's a network error, show a more helpful message
-          if (err?.isNetworkError || err?.status === 0) {
-            setError('Unable to connect to server. Please check your internet connection.');
-          } else if (err?.status === 401 || err?.status === 403) {
-            setError('Unable to load games right now.');
-          } else {
-            setError('Unable to load games. Please try again.');
-          }
-          upcomingData = null;
-        }
-
-        // Past recap + curated/marquee events (no real team matchup — e.g.
-        // Fanatics Fest) are best effort: a failure just means that section
-        // is empty this load, never blocks or errors the main games list.
-        let pastGamesData: any = null;
-        try {
-          pastGamesData = await queryClient.fetchQuery({
-            queryKey: [
-              'feed-games-past',
-              queryPlan.past.options.dateFrom,
-              viewerCoords?.lat ?? null,
-              viewerCoords?.lng ?? null,
-            ],
-            queryFn: () => Game.list(queryPlan.past.sort, queryPlan.past.options),
-          });
-        } catch (err: any) {
-          if (__DEV__) console.warn('[Feed] Failed to load past games:', err);
-          pastGamesData = null;
-        }
-        let marqueeGamesData: any = null;
-        try {
-          marqueeGamesData = await queryClient.fetchQuery({
-            queryKey: [
-              'feed-games-marquee',
-              queryPlan.marquee.options.dateFrom,
-              viewerCoords?.lat ?? null,
-              viewerCoords?.lng ?? null,
-            ],
-            queryFn: () => Game.list(queryPlan.marquee.sort, queryPlan.marquee.options),
-          });
-        } catch (err: any) {
-          if (__DEV__) console.warn('[Feed] Failed to load marquee games:', err);
-          marqueeGamesData = null;
-        }
+        // The three queries are independent — run them concurrently (sequential
+        // awaits cost ~1.2s extra per load at ~600ms per request). Past recap +
+        // curated/marquee events (no real team matchup — e.g. Fanatics Fest)
+        // are best effort: a failure just means that section is empty this
+        // load, never blocks or errors the main games list.
+        const [upcomingData, pastGamesData, marqueeGamesData] = await Promise.all([
+          queryClient
+            .fetchQuery({
+              queryKey: [
+                'feed-games-upcoming',
+                queryPlan.upcoming.options.dateFrom,
+                viewerCoords?.lat ?? null,
+                viewerCoords?.lng ?? null,
+              ],
+              queryFn: () => Game.list(queryPlan.upcoming.sort, queryPlan.upcoming.options),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.error('[Feed] Failed to load games:', err);
+              // If it's a network error, show a more helpful message
+              if (err?.isNetworkError || err?.status === 0) {
+                setError('Unable to connect to server. Please check your internet connection.');
+              } else if (err?.status === 401 || err?.status === 403) {
+                setError('Unable to load games right now.');
+              } else {
+                setError('Unable to load games. Please try again.');
+              }
+              return null;
+            }),
+          queryClient
+            .fetchQuery({
+              queryKey: [
+                'feed-games-past',
+                queryPlan.past.options.dateFrom,
+                viewerCoords?.lat ?? null,
+                viewerCoords?.lng ?? null,
+              ],
+              queryFn: () => Game.list(queryPlan.past.sort, queryPlan.past.options),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load past games:', err);
+              return null;
+            }),
+          queryClient
+            .fetchQuery({
+              queryKey: [
+                'feed-games-marquee',
+                queryPlan.marquee.options.dateFrom,
+                viewerCoords?.lat ?? null,
+                viewerCoords?.lng ?? null,
+              ],
+              queryFn: () => Game.list(queryPlan.marquee.sort, queryPlan.marquee.options),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load marquee games:', err);
+              return null;
+            }),
+        ]);
 
         const upcomingPage = normalizeGamesPage(upcomingData);
         let cursor = upcomingPage.cursor;
