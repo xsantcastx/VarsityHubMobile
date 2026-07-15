@@ -16,6 +16,7 @@ import { renderReviewPage, renderResultPage, renderFinalStatePage } from '../lib
 import { debugLog } from '../lib/debugLog.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
+import { viewerHasGracePostAccess } from '../lib/geofencing.js';
 import {
   cancelGameReminders,
   scheduleGameReminders,
@@ -792,11 +793,23 @@ eventsRouter.get(
     });
     if (!event) return res.status(404).json({ error: 'Not found' });
 
-    // Non-approved events only visible to creator or admins
+    // Non-approved events only visible to creator, admins, or a contributor
+    // who posted here while the entity was live/open — same 7-day grace
+    // window that lets them keep posting (owner product rule, 2026-07-14).
+    // Read-only fallback: grants no approval power.
     if (event.approval_status !== 'approved') {
       const isCreator = req.user && event.creator_id === req.user.id;
       const isAdmin = req.user ? await getIsAdmin(req as any) : false;
-      if (!isCreator && !isAdmin) {
+      let hasGraceViewAccess = false;
+      if (!isCreator && !isAdmin && req.user) {
+        hasGraceViewAccess = await viewerHasGracePostAccess({
+          userId: req.user.id,
+          eventId: event.id,
+          gameId: event.game_id ?? null,
+          entityDate: event.date,
+        });
+      }
+      if (!isCreator && !isAdmin && !hasGraceViewAccess) {
         return res.status(404).json({ error: 'Not found' });
       }
     }

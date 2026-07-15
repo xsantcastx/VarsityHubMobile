@@ -15,9 +15,14 @@ export function buildEventDetailRoute(
   eventId: string | number,
   gameId?: string | number | null
 ): Href {
-  // Game-linked events canonically render on the rich game screen; standalone
-  // events render on the public event page (posts/media). The old RSVP stub
-  // screen is never a destination (product decision 2026-07-05).
+  // ONE canonical rich detail screen for both games and events. The rich
+  // GameDetailsScreen (/game/[id]) already renders event-only entities via
+  // loadVirtualFromEvent, so a standalone event no longer falls through to the
+  // stripped-down public-event page (owner: "this is not an event page",
+  // 2026-07-14). Game-linked events pass the gameId; standalone events pass
+  // their id in BOTH slots so GameDetailsScreen.load() dispatches to the event
+  // loader (it takes the event path when id === eventId). public-event.tsx
+  // remains ONLY as the web share/OG landing for shared event URLs.
   const normalizedGameId = gameId != null ? String(gameId).trim() : '';
   if (normalizedGameId) {
     return {
@@ -25,9 +30,10 @@ export function buildEventDetailRoute(
       params: { id: normalizedGameId },
     } as Href;
   }
+  const normalizedEventId = normalizeEventId(eventId);
   return {
-    pathname: PUBLIC_EVENT_PATHNAME,
-    params: { id: normalizeEventId(eventId) },
+    pathname: '/game/[id]',
+    params: { id: normalizedEventId, eventId: normalizedEventId },
   } as Href;
 }
 

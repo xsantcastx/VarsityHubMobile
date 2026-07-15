@@ -329,6 +329,26 @@ export default function EventMap({
         </View>
       )}
 
+      {/* Pin legend — explains the marker colors ("what are these dots?"). */}
+      {eventsWithCoordinates.length > 0 && (
+        <View style={[styles.legend, { backgroundColor: Colors[colorScheme].background }]}>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: getMarkerColor('game') }]} />
+            <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>Game</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: getMarkerColor('event') }]} />
+            <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>Event</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: Colors[colorScheme].tint }]} />
+            <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>
+              Multiple — tap to zoom
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* No Events Message — only shown once parent confirms data is loaded */}
       {eventsWithCoordinates.length === 0 && dataLoaded && showEmptyState && (
         <View style={styles.noEventsContainer}>
@@ -532,6 +552,34 @@ const styles = StyleSheet.create({
   eventCountText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  legend: {
+    position: 'absolute',
+    bottom: 24,
+    left: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  legendLabel: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   callout: {
     width: 200,
