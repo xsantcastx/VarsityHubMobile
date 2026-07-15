@@ -191,12 +191,18 @@ const RSVPBadge = ({
     }
   };
 
-  const badgeText = isEventPast ? 'RSVP closed' : isRsvped ? `${rsvpCount} going` : '+';
+  const badgeText = isEventPast
+    ? 'RSVP closed'
+    : isRsvped || rsvpCount > 0
+      ? `${rsvpCount} going`
+      : '+';
   const badgeA11yLabel = isEventPast
     ? `RSVP closed. ${rsvpCount} went`
     : isRsvped
       ? `${rsvpCount} going - Tap to remove RSVP`
-      : 'Tap to RSVP';
+      : rsvpCount > 0
+        ? `${rsvpCount} going - Tap to RSVP`
+        : 'Tap to RSVP';
 
   return (
     <Pressable

@@ -461,7 +461,15 @@ export default function PostDetailScreen() {
     : currentQuery?.isError && !post
       ? (currentQuery.error as any)?.message || 'Failed to load post'
       : null;
-  const loading = !hasRenderedOnceRef.current && !error;
+  // A still-in-flight fetch must render as loading, never fall through to the
+  // error cards. Two gaps this covers: hasRenderedOnceRef latches true after
+  // the first post ever renders, and settledPostId lags currentPostId by one
+  // effect tick (the query is disabled in that window — neither pending nor
+  // error). Without this, a slow load showed "Failed to load post" for a
+  // request that hadn't failed (or hadn't even started).
+  const currentQueryInFlight =
+    !!currentPostId && !post && (currentPostId !== settledPostId || !!currentQuery?.isPending);
+  const loading = (!hasRenderedOnceRef.current || currentQueryInFlight) && !error;
 
   const retryLoad = useCallback(() => {
     void currentQuery?.refetch();

@@ -24,7 +24,7 @@ import {
 } from '@/utils/eventPresentation';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
-import { safeGoBack } from '@/utils/navigation';
+import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
 import { pickerAllMediaTypesProp } from '@/utils/picker';
 import { toUserMessage } from '@/utils/toUserMessage';
 import { promptForSignIn } from '@/utils/requireSignIn';
@@ -573,8 +573,10 @@ const GameDetailsScreen = () => {
 
   const replaceToCanonicalGame = useCallback(
     (gameIdValue: string) => {
-      const routeBase = '/game/[id]';
-      void router.push({ pathname: routeBase, params: { id: gameIdValue } });
+      // nav-safe: canonical-page bounce — a push here leaves a dead virtual
+      // frame (vm never set) in the stack; on web, backing into it re-runs
+      // load() and pushes forward again, trapping the back button.
+      replaceAsRedirect(router, { pathname: '/game/[id]', params: { id: gameIdValue } });
     },
     [router]
   );
