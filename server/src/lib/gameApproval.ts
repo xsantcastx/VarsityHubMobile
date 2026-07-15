@@ -18,6 +18,37 @@ export function creatorSideTeamIds(
   return both.filter(t => t !== opponentApprovalTeamId);
 }
 
+/**
+ * The canonical PUBLIC-visibility rule for a game, as an anonymous viewer sees
+ * it. A game is public iff it is moderation-approved AND either the opponent
+ * isn't blocking (`not_required`/`approved`) OR the game is already past.
+ *
+ * Owner rule (2026-07-14): a played game is permanently public regardless of an
+ * opponent-consent re-flip — consent only gates PUBLIC visibility of UPCOMING
+ * fixtures (don't publicly attribute a future game to a team that hasn't
+ * confirmed / has declined). This is the single source of truth for that rule;
+ * every public surface (og, share-landing, events list/search, game media,
+ * feed game-linkage, `canViewGameRecord`) must gate through it rather than
+ * re-check `approval_status` alone.
+ */
+export function isGamePubliclyVisible(record: {
+  approval_status?: string | null;
+  opponent_approval_status?: string | null;
+  date?: Date | string | null;
+}): boolean {
+  if (record.approval_status !== 'approved') return false;
+  const opponentBlocksPublic =
+    record.opponent_approval_status === 'pending' ||
+    record.opponent_approval_status === 'declined';
+  if (!opponentBlocksPublic) return true;
+  const gameDate = record.date
+    ? record.date instanceof Date
+      ? record.date
+      : new Date(record.date)
+    : null;
+  return gameDate ? gameDate.getTime() < Date.now() : false;
+}
+
 export interface GameApprovalDecision {
   /** Did the caller act as a coach/admin for this game (auto-approve)? */
   isCoach: boolean;

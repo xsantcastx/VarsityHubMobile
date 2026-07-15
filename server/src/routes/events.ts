@@ -4,7 +4,7 @@ import {
   approveEvent as approveEventService,
   rejectEvent as rejectEventService,
 } from '../lib/approvalService.js';
-import { logAdminActivity } from '../lib/adminActivityLogger.js';
+import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import {
   sendEventCanceledEmail,
   sendEventRsvpConfirmedEmail,
@@ -411,6 +411,20 @@ eventsRouter.get(
     const isAdminUser = (req as any).user?.id ? await getIsAdmin(req as any) : false;
     if (approvalStatus && isAdminUser) where.approval_status = approvalStatus;
     else where.approval_status = 'approved';
+    // A game-backed event inherits its game's opponent-consent gate: an upcoming
+    // fixture whose opponent is pending/declined must not surface publicly (past
+    // games stay visible). Events with no linked game are unaffected. Admins see
+    // everything. Mirrors isGamePubliclyVisible on the single-item surfaces.
+    if (!isAdminUser) {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { game_id: null },
+          { game: { is: { opponent_approval_status: { notIn: ['pending', 'declined'] } } } },
+          { game: { is: { date: { lt: new Date() } } } },
+        ],
+      });
+    }
     if (eventType) where.event_type = eventType;
     if (search) {
       where.OR = [
@@ -1412,6 +1426,16 @@ eventsRouter.put(
       return res.status(result.status || 400).json({ error: msg, code: result.error });
     }
 
+    // Central audit trail — the in-app approve path must land in AdminActivityLog
+    // too, not just the email-token path (parity with coach/org/ad/game).
+    await logAdminActivityFromReq(
+      req,
+      'APPROVE_EVENT',
+      'event',
+      eventId,
+      `Approved event: ${event.title || eventId}`
+    ).catch(err => console.error('[events] AdminActivityLog write failed:', err));
+
     return res.json({
       ...serializeEvent(result.event!),
       message: 'Event approved successfully!',
@@ -1478,6 +1502,15 @@ eventsRouter.put(
             : 'Can only reject pending events.';
       return res.status(result.status || 400).json({ error: msg, code: result.error });
     }
+
+    // Central audit trail (parity with the approve path + games).
+    await logAdminActivityFromReq(
+      req,
+      'REJECT_EVENT',
+      'event',
+      eventId,
+      `Rejected event: ${event.title || eventId}${reason ? ` — ${reason}` : ''}`
+    ).catch(err => console.error('[events] AdminActivityLog write failed:', err));
 
     return res.json({
       ...serializeEvent(result.event!),
