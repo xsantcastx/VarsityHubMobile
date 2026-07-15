@@ -237,8 +237,9 @@ const FeedCard = memo(
     const [isVideoLoading, setIsVideoLoading] = useState(post.media_type === 'video');
     const [videoError, setVideoError] = useState<string | null>(null);
     const [videoRetryKey, setVideoRetryKey] = useState(0);
-    // Videos autoplay muted by default (public-venue safety) — user opts into sound via the mute toggle.
-    const [isMuted, setIsMuted] = useState(true);
+    // Videos play WITH sound by default (owner decision 2026-07-15: silent playback
+    // reads as broken media) — the toggle lets users mute in public venues.
+    const [isMuted, setIsMuted] = useState(false);
     const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     // Only feed the video player a source for actual videos. Passing the
     // media_url unconditionally handed every IMAGE post's URL to an AVPlayer
@@ -317,8 +318,8 @@ const FeedCard = memo(
     const player = useVideoPlayer(videoSource, p => {
       p.loop = true;
       p.volume = 1.0;
-      // Autoplay starts muted (public-venue safety) — see isMuted toggle below.
-      p.muted = true;
+      // Sound on by default (owner decision 2026-07-15) — see isMuted toggle below.
+      p.muted = false;
       if (isActive && post.media_type === 'video') {
         try {
           p.play();

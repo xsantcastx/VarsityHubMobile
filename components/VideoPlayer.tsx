@@ -33,8 +33,9 @@ export function VideoPlayer({
   const [retryKey, setRetryKey] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-  // Videos autoplay muted by default (public-venue safety) — user opts into sound via the mute toggle.
-  const [isMuted, setIsMuted] = React.useState(true);
+  // Videos play WITH sound by default (owner decision 2026-07-15: silent playback
+  // reads as broken media) — the toggle lets users mute in public venues.
+  const [isMuted, setIsMuted] = React.useState(false);
   // Callers pass mediaUrl! assertions; a missing uri must not crash the
   // player. Pass a null source (expo-video accepts it) and render the
   // error overlay below instead of skipping hooks with an early return.
@@ -42,7 +43,7 @@ export function VideoPlayer({
   const player = useVideoPlayer(source, p => {
     if (!uri) return;
     p.volume = 1.0;
-    p.muted = true;
+    p.muted = false;
     if (autoPlay && !paused) {
       try {
         p.play();
