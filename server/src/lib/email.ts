@@ -3,6 +3,7 @@ import type { EmailResult } from '../services/email/types.js';
 import type { EmailService } from '../services/email/EmailService.js';
 import sgMail from '@sendgrid/mail';
 import escapeHtml from 'escape-html';
+import { formatEventTime } from './formatEventTime.js';
 import { signReviewToken } from './reviewTokens.js';
 import { prisma } from './prisma.js';
 import { redactEmail, sanitizeEmailLogMessage, sanitizeEmailSubject } from './emailRedaction.js';
@@ -1202,6 +1203,7 @@ export async function sendEventRsvpConfirmedEmail(params: {
   eventTitle: string;
   eventDate: Date;
   eventLocation?: string;
+  timezone?: string | null;
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.EVENT_RSVP_CONFIRMED;
   if (!templateId) {
@@ -1219,6 +1221,10 @@ export async function sendEventRsvpConfirmedEmail(params: {
       attendee_name: params.attendeeName || 'You',
       event_title: params.eventTitle,
       event_date: params.eventDate.toISOString(),
+      // Pre-formatted, timezone-aware date so the SendGrid template renders a
+      // clean string instead of raw format tokens. Template must reference
+      // {{event_date_display}}. Audit 2026-07-14.
+      event_date_display: formatEventTime(params.eventDate, params.timezone).combined,
       event_location: params.eventLocation || '',
     },
     `RSVP confirmed email sent to ${params.to}`

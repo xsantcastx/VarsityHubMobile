@@ -897,6 +897,7 @@ eventsRouter.post(
         capacity: true,
         max_attendees: true,
         date: true,
+        timezone: true,
         status: true,
         approval_status: true,
         team_id: true,
@@ -1031,6 +1032,7 @@ eventsRouter.post(
             eventTitle: event.title || 'Event',
             eventDate,
             eventLocation: event.location || undefined,
+            timezone: event.timezone,
           }).catch(err =>
             console.warn('[events] RSVP confirmation email failed:', (err as any)?.message || err)
           );
