@@ -26,7 +26,11 @@ import {
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
-import { creatorSideTeamIds, deriveGameApproval } from '../lib/gameApproval.js';
+import {
+  creatorSideTeamIds,
+  deriveGameApproval,
+  isGamePubliclyVisible,
+} from '../lib/gameApproval.js';
 import { formatEventTime } from '../lib/formatEventTime.js';
 import {
   canManageAnyTeam,
@@ -126,13 +130,17 @@ async function canViewGameMedia(
     select: {
       id: true,
       approval_status: true,
+      opponent_approval_status: true,
+      date: true,
       created_by_id: true,
       home_team_id: true,
       away_team_id: true,
     } as any,
   });
   if (!game) return { allowed: false, exists: false };
-  if ((game as any).approval_status === 'approved') return { allowed: true, exists: true };
+  // Opponent-pending/declined UPCOMING games are not public media — fall through
+  // to the privileged-viewer checks below (creator/admin/team/org staff).
+  if (isGamePubliclyVisible(game as any)) return { allowed: true, exists: true };
 
   const viewerId = req.user?.id ?? null;
   if (!viewerId) return { allowed: false, exists: true };
@@ -903,22 +911,11 @@ async function canViewGameRecord(
   record: GameVisibilityRecord,
   viewerId?: string | null
 ): Promise<boolean> {
-  // Owner rule (2026-07-14): "any user can view any past game at any time" —
-  // viewing is permanent and universal. A moderation-approved game is public
-  // once it is PAST, regardless of opponent-consent status (an opponent-consent
-  // re-flip must never make an already-played game disappear). Opponent consent
-  // still gates PUBLIC visibility of UPCOMING games (don't publicly attribute a
-  // future fixture to a team that hasn't confirmed) — those stay visible to the
-  // privileged viewers + contributors below until they're played.
-  const opponentBlocksPublic =
-    record.opponent_approval_status === 'pending' || record.opponent_approval_status === 'declined';
-  const gameDate = record.date
-    ? record.date instanceof Date
-      ? record.date
-      : new Date(record.date)
-    : null;
-  const isPast = gameDate ? gameDate.getTime() < Date.now() : false;
-  if (record.approval_status === 'approved' && (!opponentBlocksPublic || isPast)) return true;
+  // Public-visibility rule lives in the shared isGamePubliclyVisible helper so
+  // every public surface (og, share-landing, events list/search, media, feed)
+  // gates identically. Past approved games stay public regardless of an
+  // opponent-consent re-flip; upcoming games need non-blocking opponent consent.
+  if (isGamePubliclyVisible(record)) return true;
   if (!viewerId) return false;
   if (record.created_by_id && record.created_by_id === viewerId) return true;
 

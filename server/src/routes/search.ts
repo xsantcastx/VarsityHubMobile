@@ -236,11 +236,28 @@ searchRouter.get(
           approval_status: 'approved',
           status: 'approved',
           date: { gte: todayUtcStart },
-          OR: [
-            { title: { contains: q, mode: 'insensitive' } },
-            { location: { contains: q, mode: 'insensitive' } },
-            { description: { contains: q, mode: 'insensitive' } },
-            { event_type: { contains: q, mode: 'insensitive' } },
+          AND: [
+            {
+              OR: [
+                { title: { contains: q, mode: 'insensitive' } },
+                { location: { contains: q, mode: 'insensitive' } },
+                { description: { contains: q, mode: 'insensitive' } },
+                { event_type: { contains: q, mode: 'insensitive' } },
+              ],
+            },
+            // Game-backed events inherit the game's opponent-consent gate: an
+            // upcoming fixture whose opponent is pending/declined stays private.
+            {
+              OR: [
+                { game_id: null },
+                {
+                  game: {
+                    is: { opponent_approval_status: { notIn: ['pending', 'declined'] } },
+                  },
+                },
+                { game: { is: { date: { lt: new Date() } } } },
+              ],
+            },
           ],
         },
         take: limit,
