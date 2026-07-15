@@ -1,12 +1,18 @@
 /**
  * Geofencing utilities for location-based event posting
  *
- * BUSINESS RULES:
- * - Story Posts: open on game day and stay open until +48h, within 3km of venue
- * - Regular Posts: open 2 days before event start, stay live through the event,
- *   then remain open for a 7-day grace window only for users who already posted
- *   to that same event while it was live, within 3km of venue. After 7 days the
- *   window closes for everyone.
+ * BUSINESS RULES (owner rules 2026-07-14 + Fanatics Fest punch list 2026-07-15):
+ * - The geofence is strict for a user's FIRST upload to an event page: they
+ *   must be within 3km of the venue with device-origin coordinates. That first
+ *   pass writes an EventPostingUnlock row; for the next 7 days they may keep
+ *   uploading (stories AND posts) to that same event page without re-passing
+ *   the geofence.
+ * - Story Posts: window opens on game day (UTC) and stays open until +48h.
+ * - Regular Posts: the geofenced live window opens 1 hour before event start
+ *   and closes `live_window_hours_after_start` hours after start (default 3;
+ *   the Fanatics Fest day events set 18 so fans can post geofenced all day).
+ *   After the live window, a 7-day grace window remains open only for
+ *   unlocked users (posting recaps from anywhere); then it closes for everyone.
  * - Sample events/games (IDs starting with "sample-") bypass all geofencing checks
  *
  * This maintains authenticity and prevents users from different states from trolling games.
@@ -16,13 +22,18 @@ import { prisma } from './prisma.js';
 
 const EARTH_RADIUS_KM = 6371;
 const EARTH_RADIUS_MILES = 3959;
-const REGULAR_POST_OPEN_BEFORE_MS = 2 * 24 * 60 * 60 * 1000;
-const REGULAR_POST_LIVE_WINDOW_MS = 2 * 60 * 60 * 1000;
+// Owner rule (2026-07-15): live post window is -1h → +3h around event start by
+// default. Events may lengthen the after-start bound via the
+// live_window_hours_after_start column (Fanatics Fest day events: 18h) so
+// all-day festivals keep geofenced first posts working the whole day.
+const REGULAR_POST_OPEN_BEFORE_MS = 60 * 60 * 1000;
+export const DEFAULT_LIVE_WINDOW_HOURS_AFTER_START = 3;
 // Product rule (2026-07-14, owner decision, verbatim): "When a user posts to
 // an event while they are there, they can continue to post to the event for
-// up to a week. After that week they no longer can." Caps the previously
-// open-ended post-event grace window at 7 days after the live window closes.
+// up to a week. After that week they no longer can." Applied per user via
+// EventPostingUnlock (unlocked_at + 7d) and as the outer cap on the window.
 export const REGULAR_POST_GRACE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+export const EVENT_POSTING_UNLOCK_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type PostingPermissionErrorCode =
   | 'EVENT_NOT_FOUND'
@@ -51,6 +62,7 @@ const postingEventSelect = {
   location: true,
   game_id: true,
   exclusive_poster_id: true,
+  live_window_hours_after_start: true,
 } as const;
 
 type PostingEvent = Awaited<ReturnType<typeof loadPostingEvent>>;
@@ -124,19 +136,31 @@ export function isStoryPostingWindowOpen(eventDate: Date): boolean {
 
 /**
  * Check if posting window is open for regular posts
- * Posts: opens 2 days before event start. After the live window, posting remains open for a
- * 7-day grace window only for users who already posted to that event while it was live.
+ * Posts: the live window opens 1 hour before event start and closes
+ * `liveWindowHoursAfterStart` hours after (default 3; per-event override).
+ * After that, posting remains open for a 7-day grace window only for users
+ * holding a posting unlock.
  */
-export function isPostPostingWindowOpen(eventDate: Date): boolean {
+export function isPostPostingWindowOpen(
+  eventDate: Date,
+  liveWindowHoursAfterStart?: number | null
+): boolean {
   const now = new Date();
-  const state = getPostPostingWindowState(eventDate, now);
+  const state = getPostPostingWindowState(eventDate, now, liveWindowHoursAfterStart);
   return state !== 'before_open' && state !== 'closed';
 }
 
-export function getPostPostingWindowBounds(eventDate: Date) {
+export function getPostPostingWindowBounds(
+  eventDate: Date,
+  liveWindowHoursAfterStart?: number | null
+) {
   const eventTime = new Date(eventDate);
   const windowStart = new Date(eventTime.getTime() - REGULAR_POST_OPEN_BEFORE_MS);
-  const liveCutoff = new Date(eventTime.getTime() + REGULAR_POST_LIVE_WINDOW_MS);
+  const afterStartHours =
+    typeof liveWindowHoursAfterStart === 'number' && liveWindowHoursAfterStart > 0
+      ? liveWindowHoursAfterStart
+      : DEFAULT_LIVE_WINDOW_HOURS_AFTER_START;
+  const liveCutoff = new Date(eventTime.getTime() + afterStartHours * 60 * 60 * 1000);
 
   return {
     eventTime,
@@ -147,14 +171,20 @@ export function getPostPostingWindowBounds(eventDate: Date) {
 
 export function getPostPostingWindowState(
   eventDate: Date,
-  now: Date = new Date()
+  now: Date = new Date(),
+  liveWindowHoursAfterStart?: number | null
 ): PostPostingWindowState {
-  const { windowStart, liveCutoff } = getPostPostingWindowBounds(eventDate);
+  const { windowStart, liveCutoff } = getPostPostingWindowBounds(
+    eventDate,
+    liveWindowHoursAfterStart
+  );
   if (now < windowStart) return 'before_open';
+  // 'live' = geofenced posting allowed: anyone at the venue can post (and earn
+  // their 7-day unlock); unlocked users can post from anywhere.
   if (now <= liveCutoff) return 'live';
   // Post-event uploads stay open for a 7-day grace window, gated by the
-  // "already posted while live" check. After 7 days the window is closed
-  // for everyone, regardless of posting history.
+  // per-user posting unlock. After that the window is closed for everyone,
+  // regardless of posting history.
   if (now <= new Date(liveCutoff.getTime() + REGULAR_POST_GRACE_WINDOW_MS)) return 'grace';
   return 'closed';
 }
@@ -205,6 +235,87 @@ export async function viewerHasPostedOnEntity({
   });
 
   return !!priorPost;
+}
+
+/**
+ * First-post-unlocks-7-days ledger (owner rule, 2026-07-15 Fanatics Fest punch
+ * list): a user's first geofence-passing upload to an event page grants them 7
+ * days of geofence-free uploads (stories AND posts) to that same page.
+ *
+ * The anchor lives in EventPostingUnlock, written when the strict geofence
+ * passes. For contributions made before the ledger existed we fall back to the
+ * user's earliest surviving Post/Story row on that page and persist it as the
+ * anchor — persisting matters because Story rows are deleted 24h after they
+ * expire, and a lazily-recreated anchor from a NEWER row would silently slide
+ * the 7-day window forward.
+ */
+export async function grantEventPostingUnlock(
+  userId: string,
+  eventId: string,
+  unlockedAt?: Date
+): Promise<void> {
+  try {
+    // createMany + skipDuplicates: first write wins, so the original anchor is
+    // never refreshed by later uploads (the window must not slide).
+    await prisma.eventPostingUnlock.createMany({
+      data: [
+        { user_id: userId, event_id: eventId, ...(unlockedAt ? { unlocked_at: unlockedAt } : {}) },
+      ],
+      skipDuplicates: true,
+    });
+  } catch (error) {
+    // Never block a geofence-passed upload on ledger bookkeeping.
+    console.warn('[geofencing] Failed to persist posting unlock:', error);
+  }
+}
+
+async function getEventPostingUnlockAnchor(
+  userId: string,
+  event: { id: string; game_id: string | null }
+): Promise<Date | null> {
+  const row = await prisma.eventPostingUnlock.findUnique({
+    where: { user_id_event_id: { user_id: userId, event_id: event.id } },
+    select: { unlocked_at: true },
+  });
+  if (row) return row.unlocked_at;
+
+  // Legacy fallback: uploads made before the unlock ledger shipped. Any
+  // surviving post/story on this page passed the geofence when it was created
+  // (or was an admin/demo bypass, which needs no unlock anyway).
+  const orClauses: Array<{ event_id: string } | { game_id: string }> = [{ event_id: event.id }];
+  if (event.game_id) orClauses.push({ game_id: event.game_id });
+
+  const earliestPost = await prisma.post.findFirst({
+    where: { author_id: userId, deleted_at: null, OR: orClauses },
+    orderBy: { created_at: 'asc' },
+    select: { created_at: true },
+  });
+  const earliestStory = event.game_id
+    ? await prisma.story.findFirst({
+        where: { user_id: userId, game_id: event.game_id },
+        orderBy: { created_at: 'asc' },
+        select: { created_at: true },
+      })
+    : null;
+
+  const candidates = [earliestPost?.created_at, earliestStory?.created_at].filter(
+    (d): d is Date => d instanceof Date
+  );
+  if (!candidates.length) return null;
+
+  const anchor = new Date(Math.min(...candidates.map(d => d.getTime())));
+  await grantEventPostingUnlock(userId, event.id, anchor);
+  return anchor;
+}
+
+export async function hasActiveEventPostingUnlock(
+  userId: string,
+  event: { id: string; game_id: string | null },
+  now: Date = new Date()
+): Promise<boolean> {
+  const anchor = await getEventPostingUnlockAnchor(userId, event);
+  if (!anchor) return false;
+  return now.getTime() - anchor.getTime() <= EVENT_POSTING_UNLOCK_DURATION_MS;
 }
 
 /**
@@ -326,58 +437,73 @@ export async function verifyStoryPostingPermission(
   }
 
   const { venueLat, venueLon } = await resolveVenueCoordinates(event);
+
+  // Strict first-post path: device coords within 3km of the venue, plus the
+  // IP anti-spoof cross-check. Passing it earns the 7-day posting unlock. A
+  // failure is held (not returned) so the unlock fallback below can still
+  // admit users who already proved presence.
+  let strictFailure: PostingPermissionResult;
   if (venueLat == null || venueLon == null) {
     console.warn(`Event ${eventId} and game missing coordinates - blocking story upload`);
-    return {
+    strictFailure = {
       allowed: false,
       code: 'NO_EVENT_LOCATION',
       reason:
         'This event has no venue coordinates, so story uploads are disabled until the location is configured.',
     };
-  }
-
-  // Check if user provided their location
-  if (userLat === null || userLon === null) {
-    return {
+  } else if (userLat === null || userLon === null) {
+    strictFailure = {
       allowed: false,
       code: 'LOCATION_REQUIRED',
-      reason: 'Location access required. You must be at the game venue to post a story.',
+      reason: 'Stories require current device location within 3 km of the venue.',
     };
-  }
+  } else {
+    const distance = calculateDistance(userLat, userLon, venueLat, venueLon, 'km');
+    const isWithin = isWithinGeofence(userLat, userLon, venueLat, venueLon, 3.0); // 3km for stories
 
-  // Check if user is within 3km geofence (using resolved venue coords)
-  const distance = calculateDistance(userLat, userLon, venueLat!, venueLon!, 'km');
-  const isWithin = isWithinGeofence(userLat, userLon, venueLat!, venueLon!, 3.0); // 3km for stories
-
-  if (!isWithin) {
-    return {
-      allowed: false,
-      code: 'TOO_FAR_FROM_VENUE',
-      reason: 'You must be within 3 km of the venue to post a story.',
-      distance,
-    };
-  }
-
-  // v1.0.2 pass 9: anti-spoof — IP cross-check. If client says "I'm at venue X" but their
-  // network IP is in a different region, reject. Best-effort; never blocks on API failure.
-  if (ipAddress) {
-    const ipCheck = await verifyClientCoordsVsIp(userLat, userLon, ipAddress);
-    if (!ipCheck.ok) {
-      return {
+    if (!isWithin) {
+      strictFailure = {
         allowed: false,
-        code: 'LOCATION_SPOOF_SUSPECTED',
-        reason: ipCheck.reason || 'Reported location does not match your network location.',
+        code: 'TOO_FAR_FROM_VENUE',
+        reason: 'You must be within 3 km of the venue to post a story.',
+        distance,
       };
+    } else {
+      // v1.0.2 pass 9: anti-spoof — IP cross-check. If client says "I'm at venue X" but their
+      // network IP is in a different region, reject. Best-effort; never blocks on API failure.
+      const ipCheck = ipAddress
+        ? await verifyClientCoordsVsIp(userLat, userLon, ipAddress)
+        : { ok: true as const };
+      if (!ipCheck.ok) {
+        strictFailure = {
+          allowed: false,
+          code: 'LOCATION_SPOOF_SUSPECTED',
+          reason: ipCheck.reason || 'Reported location does not match your network location.',
+        };
+      } else {
+        await grantEventPostingUnlock(userId, event.id);
+        return { allowed: true, distance };
+      }
     }
   }
 
-  return { allowed: true, distance };
+  // First-post-unlocks-7-days: a user who already passed the geofence on this
+  // event page keeps uploading stories without re-passing it (owner rule,
+  // 2026-07-15). The story window check above still bounds WHEN.
+  if (await hasActiveEventPostingUnlock(userId, event)) {
+    return { allowed: true };
+  }
+
+  return strictFailure;
 }
 
 /**
  * Verify user can post to an event based on location and time
- * Posts: open 2 days before event start, stay open through the live window, then allow
- * a +48h grace period only for users who already posted to that event while it was live.
+ * Posts: the geofenced live window runs -1h → +Nh around event start (N =
+ * live_window_hours_after_start, default 3; fest all-day events use 18). A
+ * first geofence pass earns a 7-day unlock; unlocked users post without
+ * location from anywhere, including through the post-event grace window.
+ * After the grace window: closed.
  * @returns { allowed: boolean; reason?: string; distance?: number }
  */
 export async function verifyEventPostingPermission(
@@ -407,8 +533,15 @@ export async function verifyEventPostingPermission(
     };
   }
 
-  const { windowStart, liveCutoff } = getPostPostingWindowBounds(event.date);
-  const postingWindowState = getPostPostingWindowState(event.date);
+  const { windowStart } = getPostPostingWindowBounds(
+    event.date,
+    event.live_window_hours_after_start
+  );
+  const postingWindowState = getPostPostingWindowState(
+    event.date,
+    new Date(),
+    event.live_window_hours_after_start
+  );
 
   if (postingWindowState === 'before_open' || postingWindowState === 'closed') {
     return {
@@ -419,70 +552,59 @@ export async function verifyEventPostingPermission(
   }
 
   if (postingWindowState === 'grace') {
-    // The user qualifies for the open-ended post-event window if they posted to
-    // this event while it was live — matched by a direct event_id link (event-only
-    // pages) OR via the event's game_id (legacy game-backed events). Both are
-    // checked so this works on all event pages, not just those with a game.
-    const priorLivePost = await prisma.post.findFirst({
-      where: {
-        author_id: userId,
-        deleted_at: null,
-        created_at: {
-          gte: new Date(event.date),
-          lte: liveCutoff,
-        },
-        OR: [{ event_id: eventId }, ...(event.game_id ? [{ game_id: event.game_id }] : [])],
-      },
-      select: { id: true },
-    });
-
-    if (!priorLivePost) {
-      return {
-        allowed: false,
-        code: 'POSTING_WINDOW_CLOSED',
-        reason: `Post-event uploads stay open, but only if you already posted to this event while it was live.`,
-      };
+    // Post-event grace window: only users holding an active posting unlock —
+    // they passed the geofence on this page (post OR story) within the last 7
+    // days — may keep uploading, from anywhere.
+    if (await hasActiveEventPostingUnlock(userId, event)) {
+      return { allowed: true };
     }
-
-    // The qualifying live post already proved this user was at the venue (the
-    // live window enforces the 3km geofence). During the post-event grace
-    // window they can keep posting recaps/highlights from anywhere — skip the
-    // venue geofence below. Live posting still requires it.
-    return { allowed: true };
+    return {
+      allowed: false,
+      code: 'POSTING_WINDOW_CLOSED',
+      reason: `Post-event uploads stay open for a week, but only if you already posted to this event while you were there.`,
+    };
   }
 
+  // Live window: strict geofence for a first post; a pass earns the 7-day
+  // unlock. Failures are held so the unlock fallback can still admit users
+  // who already proved presence (e.g. flaky GPS indoors, or posting later
+  // in the day from across town).
   const { venueLat, venueLon } = await resolveVenueCoordinates(event);
+  let strictFailure: PostingPermissionResult;
   if (venueLat == null || venueLon == null) {
     console.warn(`Event ${eventId} and game missing coordinates - blocking post upload`);
-    return {
+    strictFailure = {
       allowed: false,
       code: 'NO_EVENT_LOCATION',
       reason:
         'This event has no venue coordinates, so posting is disabled until the location is configured.',
     };
-  }
-
-  // Check if user provided their location
-  if (userLat === null || userLon === null) {
-    return {
+  } else if (userLat === null || userLon === null) {
+    strictFailure = {
       allowed: false,
       code: 'LOCATION_REQUIRED',
       reason: 'Live event posts require current device location within 3 km of the venue.',
     };
+  } else {
+    const distance = calculateDistance(userLat, userLon, venueLat, venueLon, 'km');
+    const isWithin = isWithinGeofence(userLat, userLon, venueLat, venueLon, 3.0); // 3km for posts
+
+    if (!isWithin) {
+      strictFailure = {
+        allowed: false,
+        code: 'TOO_FAR_FROM_VENUE',
+        reason: 'You must be within 3 km of the venue to post.',
+        distance,
+      };
+    } else {
+      await grantEventPostingUnlock(userId, event.id);
+      return { allowed: true, distance };
+    }
   }
 
-  // Check if user is within 3km geofence (using resolved venue coords)
-  const distance = calculateDistance(userLat, userLon, venueLat, venueLon, 'km');
-  const isWithin = isWithinGeofence(userLat, userLon, venueLat, venueLon, 3.0); // 3km for posts
-
-  if (!isWithin) {
-    return {
-      allowed: false,
-      code: 'TOO_FAR_FROM_VENUE',
-      reason: 'You must be within 3 km of the venue to post.',
-      distance,
-    };
+  if (await hasActiveEventPostingUnlock(userId, event)) {
+    return { allowed: true };
   }
 
-  return { allowed: true, distance };
+  return strictFailure;
 }

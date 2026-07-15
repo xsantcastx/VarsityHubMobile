@@ -305,14 +305,13 @@ const makeCreateStoryHandler = ({ prisma: p }: StoryDeps) =>
           typeof location?.lat === 'number' &&
           typeof location?.lng === 'number';
 
-        if (!hasDeviceOriginLocation) {
-          return res.status(403).json({
-            error: 'LOCATION_REQUIRED',
-            message: 'Stories require current device location within 3 km of the venue.',
-          });
-        }
-        const lat = location.lat ?? null;
-        const lng = location.lng ?? null;
+        // Only device-origin GPS may satisfy the venue geofence (anti-spoof:
+        // zip-derived coords must never count). Pass null otherwise and let
+        // verifyStoryPostingPermission decide — a first story still requires
+        // device location at the venue, but users holding a 7-day posting
+        // unlock (already posted to this event page) may post without it.
+        const lat = hasDeviceOriginLocation ? (location?.lat ?? null) : null;
+        const lng = hasDeviceOriginLocation ? (location?.lng ?? null) : null;
 
         const ipAddr =
           (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||

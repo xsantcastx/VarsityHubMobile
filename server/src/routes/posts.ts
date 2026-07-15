@@ -924,9 +924,10 @@ postsRouter.post(
       } else if (targetEventId) {
         // Only device-origin GPS may satisfy the venue geofence (anti-spoof:
         // zip-derived coords must never count). Pass null otherwise and let
-        // verifyEventPostingPermission decide: it still requires real location
-        // for LIVE posts, but allows post-event grace recaps from anywhere for
-        // users who already posted while the event was live.
+        // verifyEventPostingPermission decide: a FIRST post still requires
+        // real location at the venue, but users holding a 7-day posting
+        // unlock (already posted/storied to this event page) post from
+        // anywhere, during the event and through the post-event grace window.
         const deviceLat = hasDeviceOriginLocation ? loc.lat : null;
         const deviceLng = hasDeviceOriginLocation ? loc.lng : null;
         const verification = await verifyEventPostingPermission(

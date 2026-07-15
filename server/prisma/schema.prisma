@@ -294,6 +294,7 @@ model User {
   rsvps             EventRsvp[]
   createdEvents     Event[]
   stories           Story[]
+  postingUnlocks    EventPostingUnlock[]
   ads               Ad[]
   posts             Post[]
   categoryFollows   CategoryFollow[]
@@ -678,10 +679,18 @@ model Event {
   // matches, so nobody can post (acceptable for this rare state).
   exclusive_poster_id String?
 
-  game    Game?       @relation(fields: [game_id], references: [id], onDelete: SetNull)
-  creator User?       @relation(fields: [creator_id], references: [id], onDelete: SetNull)
-  rsvps   EventRsvp[]
-  posts   Post[]
+  // Owner rule (2026-07-15): the default geofenced live post window is -1h →
+  // +3h around event start. All-day festivals (Fanatics Fest) override the
+  // hours-after-start bound per event (18 for the fest days). Null = default
+  // (3h). Only the after-start bound is overridable; the window always opens
+  // 1 hour before start.
+  live_window_hours_after_start Int?
+
+  game           Game?                @relation(fields: [game_id], references: [id], onDelete: SetNull)
+  creator        User?                @relation(fields: [creator_id], references: [id], onDelete: SetNull)
+  rsvps          EventRsvp[]
+  posts          Post[]
+  postingUnlocks EventPostingUnlock[]
 
   @@index([date])
   @@index([game_id])
@@ -694,6 +703,25 @@ model Event {
   @@index([status])
   @@index([team_id])
   @@index([exclusive_poster_id])
+}
+
+// Durable "was there" ledger for location-based event posting (owner rule,
+// 2026-07-15 Fanatics Fest punch list): a user's FIRST geofence-passing post
+// or story to an event page writes a row here; for 7 days after unlocked_at
+// they may keep uploading to that event page without re-passing the geofence.
+// A dedicated table (not a Post/Story lookup) because Story rows expire and
+// are deleted after 24h, and users can delete their posts — the proof of
+// presence must outlive the content that earned it.
+model EventPostingUnlock {
+  user_id     String
+  event_id    String
+  unlocked_at DateTime @default(now())
+
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, event_id])
+  @@index([event_id])
 }
 
 model Message {

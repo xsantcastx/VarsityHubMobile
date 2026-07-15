@@ -39,6 +39,7 @@ import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { hasLocalEventPostingUnlock, recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
 import { prepareVideoForUpload, uploadTimeoutMsForSize } from '@/utils/compressVideo';
 import { sanitizeText } from '@/utils/formUtils';
 import { ICLOUD_ERROR_MESSAGE, ICLOUD_ERROR_TITLE, isICloudError } from '@/utils/isICloudError';
@@ -577,6 +578,24 @@ function CreatePostScreen() {
     typeof suggestedGame?.description === 'string' &&
     suggestedGame.description.includes(DEMO_MATCHUP_TAG);
 
+  // First-post-unlocks-7-days (owner rule 2026-07-15): once this user posted
+  // to the selected event page, the client preflight must not re-block them —
+  // the server admits unlocked users without location. UX-only; server is law.
+  const [hasPostingUnlock, setHasPostingUnlock] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedGameId) {
+      setHasPostingUnlock(false);
+      return;
+    }
+    hasLocalEventPostingUnlock([selectedGameId]).then(unlocked => {
+      if (!cancelled) setHasPostingUnlock(unlocked);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedGameId]);
+
   // Proactive geofence + time window check when a game is selected
   const geofenceWarning = useMemo(() => {
     if (!suggestedGame || !selectedGameId) return null;
@@ -584,22 +603,26 @@ function CreatePostScreen() {
     // warning — server's [DEMO_MATCHUP] carve-out already bypasses geofence
     // and posting-window checks for these Game rows only.
     if (isDemoMatchupGame) return null;
+    // Already posted here within the last week — the server won't re-geofence,
+    // so don't warn.
+    if (hasPostingUnlock) return null;
     const eventDate = suggestedGame.date ? new Date(suggestedGame.date) : null;
     if (!eventDate || isNaN(eventDate.getTime())) return null;
 
-    // Check posting window. Opens 2 days before event start. After the live
-    // window (event start + 2 hours), post-event uploads stay open-ended with no
-    // closing cutoff — but only for users who already posted while it was live.
-    // Matches the server rule in server/src/lib/geofencing.ts.
+    // Posting window (server rule in server/src/lib/geofencing.ts): the
+    // geofenced live window opens 1h before start and closes 3h after by
+    // default — all-day events can extend the after-start bound server-side,
+    // so past +3h we hedge rather than declare the event over. After your
+    // first post you can keep posting for a week from anywhere.
     const now = Date.now();
-    const windowStart = eventDate.getTime() - 2 * 24 * 60 * 60 * 1000;
-    const liveCutoff = eventDate.getTime() + 2 * 60 * 60 * 1000;
+    const windowStart = eventDate.getTime() - 60 * 60 * 1000;
+    const defaultLiveCutoff = eventDate.getTime() + 3 * 60 * 60 * 1000;
     if (now < windowStart) {
       const openDate = new Date(windowStart);
-      return `Posting opens ${openDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. You can still draft your post now.`;
+      return `Posting opens ${openDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (1 hour before start). You can still draft your post now.`;
     }
-    if (now > liveCutoff) {
-      return 'The event has ended. If you posted here while it was live, you can still add recaps for up to a week — from anywhere.';
+    if (now > defaultLiveCutoff) {
+      return 'This event may have ended. If you posted here during the event you can keep posting for a week from anywhere; at all-day events you can post from the venue all day.';
     }
 
     // Check distance (3km = ~1.86 miles) if both user and venue coords are available
@@ -621,7 +644,7 @@ function CreatePostScreen() {
       const distKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       if (distKm > 3) {
         const distMi = (distKm * 0.621371).toFixed(1);
-        return `You're ${distMi} mi from the venue. You need to be within 3 km to post to this event.`;
+        return `You're ${distMi} mi from the venue. Your first post to an event needs to be from within 3 km of the venue.`;
       }
     }
     return null;
@@ -629,6 +652,7 @@ function CreatePostScreen() {
     suggestedGame,
     selectedGameId,
     isDemoMatchupGame,
+    hasPostingUnlock,
     locationReady,
     location?.latitude,
     location?.longitude,
@@ -667,16 +691,24 @@ function CreatePostScreen() {
     const isRealGame = Boolean(selectedGameId);
     const gameHasCoords =
       typeof suggestedGame?.latitude === 'number' || typeof suggestedGame?.venue_lat === 'number';
-    // H3 (2026-07-14): during the POST-EVENT grace window the server lets a
-    // user who posted while live keep posting recaps from ANYWHERE with no
-    // coords (server/src/lib/geofencing.ts). Don't hard-block on location then —
-    // defer to the server, which returns a clear reason if they don't qualify.
-    // The venue geofence still gates LIVE posting (before the +2h cutoff).
+    // H3 (2026-07-14): past the DEFAULT live cutoff (+3h) the server may still
+    // allow posting — unlocked users post from anywhere, and all-day events
+    // extend the geofenced window server-side. Don't hard-block on location
+    // then — defer to the server, which returns a clear reason if they don't
+    // qualify. Same for users holding a local posting unlock (owner rule
+    // 2026-07-15: first post geofenced, then a week without re-passing).
     const eventDateMs = suggestedGame?.date ? new Date(suggestedGame.date).getTime() : NaN;
     const isPostEventGrace = Number.isFinite(eventDateMs)
-      ? Date.now() > eventDateMs + 2 * 60 * 60 * 1000
+      ? Date.now() > eventDateMs + 3 * 60 * 60 * 1000
       : false;
-    if (isRealGame && gameHasCoords && !locationReady && !isDemoMatchupGame && !isPostEventGrace) {
+    if (
+      isRealGame &&
+      gameHasCoords &&
+      !locationReady &&
+      !isDemoMatchupGame &&
+      !isPostEventGrace &&
+      !hasPostingUnlock
+    ) {
       if (!permissionGranted) {
         Alert.alert(
           'Location Required',
@@ -847,6 +879,11 @@ function CreatePostScreen() {
       await Post.create(payload);
       clearPostCache();
       if (__DEV__) console.warn('[CreatePost] Post created successfully!');
+      if (selectedGameId) {
+        // Mirror the server's posting unlock locally so preflight prompts
+        // don't re-block this user on their next upload to this event page.
+        void recordEventPostingUnlock([selectedGameId]);
+      }
       analytics.track(ANALYTICS_EVENTS.POST_CREATED, { type: picked?.type || 'text' });
       try {
         await settings.setJson(settings.SETTINGS_KEYS.POST_DRAFT, null);

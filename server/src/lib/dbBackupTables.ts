@@ -42,6 +42,8 @@ export const TABLES_IN_ORDER = [
   'CategoryAssignment',
   'CategoryFollow',
   'EventRsvp',
+  'EventPostingUnlock', // needs User + Event
+
   'AdReservation',
   'GroupChatMember',
   'GroupChatMessage',

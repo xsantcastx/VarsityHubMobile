@@ -45,8 +45,13 @@ describeDb('Game stories API geofencing', () => {
     });
     testUserToken = signJwt({ id: testUser.id });
 
-    const priorAdminEmails = process.env.ADMIN_EMAILS;
-    process.env.ADMIN_EMAILS = ['admin-story-geofence@varsityhub.app', priorAdminEmails]
+    // Admin ACCESS comes from the hardcoded PLATFORM_ADMIN_EMAILS floor plus
+    // the test-only TEST_PLATFORM_ADMIN_EMAILS widening — ADMIN_EMAILS grants
+    // nothing (notification routing only; see lib/adminEmails.ts).
+    process.env.TEST_PLATFORM_ADMIN_EMAILS = [
+      process.env.TEST_PLATFORM_ADMIN_EMAILS,
+      'admin-story-geofence@varsityhub.app',
+    ]
       .filter(Boolean)
       .join(',');
 
