@@ -139,10 +139,13 @@ function AppShell() {
     <>
       <WebThemeSync />
       <WebThemeToggle />
-      <WebInstallCta />
       <NotificationTapHandler />
       <VerificationGateHost />
       <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        {/* Inside the provider so the phone-width in-flow banner pushes the
+            router content down instead of floating over it; the desktop
+            variant is position:fixed and unaffected by tree position. */}
+        <WebInstallCta />
         <OfflineBanner />
         <ErrorToastContainer />
         <View

@@ -4,7 +4,11 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useThemePreference } from '@/hooks/useCustomColorScheme';
 import type { ComponentProps } from 'react';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+
+// Below this width the fixed top-right card overlaps the app header, so the
+// toggle is desktop-web only; phone browsers follow the system theme.
+const MIN_FLOATING_WIDTH = 768;
 
 type ThemeOption = 'light' | 'dark';
 const DISMISS_KEY = 'vh:web-theme-toggle:dismissed';
@@ -21,6 +25,7 @@ const OPTIONS: Array<{
 export function WebThemeToggle() {
   const colorScheme = useColorScheme() ?? 'light';
   const { themePreference, setThemePreference } = useThemePreference();
+  const { width } = useWindowDimensions();
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
@@ -31,7 +36,7 @@ export function WebThemeToggle() {
 
   if (Platform.OS !== 'web') return null;
 
-  if (dismissed) return null;
+  if (dismissed || width < MIN_FLOATING_WIDTH) return null;
 
   const palette = Colors[colorScheme];
   const selectedTheme = themePreference === 'system' ? colorScheme : themePreference;

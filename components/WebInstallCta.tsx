@@ -2,13 +2,19 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 const IOS_APP_STORE_URL = 'https://apps.apple.com/us/app/varsityhub/id6758405187';
 const DISMISS_KEY = 'vh:web-install-cta:dismissed';
 
+// Below this width the fixed top-right card overlaps the header and feed
+// controls, so phones get a slim in-flow banner that pushes content down
+// instead of covering it.
+const MIN_FLOATING_WIDTH = 768;
+
 export function WebInstallCta() {
   const colorScheme = useColorScheme() ?? 'light';
+  const { width } = useWindowDimensions();
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
@@ -21,6 +27,38 @@ export function WebInstallCta() {
   if (dismissed) return null;
 
   const palette = Colors[colorScheme];
+
+  if (width < MIN_FLOATING_WIDTH) {
+    return (
+      <View style={[styles.banner, { backgroundColor: palette.tint }]}>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Download VarsityHub on the App Store"
+          onPress={() => {
+            window.location.href = IOS_APP_STORE_URL;
+          }}
+          style={styles.bannerLink}
+        >
+          <MaterialIcons name="download" size={16} color="#FFFFFF" />
+          <Text style={styles.text} numberOfLines={1}>
+            Get VarsityHub on the App Store
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Hide App Store download banner"
+          onPress={() => {
+            window.localStorage.setItem(DISMISS_KEY, 'true');
+            setDismissed(true);
+          }}
+          style={styles.bannerDismiss}
+          hitSlop={8}
+        >
+          <MaterialIcons name="close" size={16} color="#FFFFFF" />
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -73,6 +111,24 @@ export function WebInstallCta() {
 }
 
 const styles = StyleSheet.create({
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  bannerLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+    paddingVertical: 8,
+  },
+  bannerDismiss: {
+    padding: 4,
+  },
   container: {
     // react-native's ViewStyle type omits 'fixed'; it is valid on web via
     // react-native-web, and this component renders only on web. Cast keeps the
