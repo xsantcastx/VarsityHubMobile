@@ -19,6 +19,7 @@ import { geocodeLocation } from '../lib/geocoding.js';
 import { viewerHasPostedOnEntity } from '../lib/geofencing.js';
 import {
   cancelGameReminders,
+  rescheduleGameRemindersForEvent,
   scheduleGameReminders,
   sendPushNotification,
 } from '../lib/notifications.js';
@@ -896,6 +897,8 @@ eventsRouter.post(
         capacity: true,
         max_attendees: true,
         date: true,
+        status: true,
+        approval_status: true,
         team_id: true,
         creator_id: true,
         creator: { select: { email: true } },
@@ -903,6 +906,24 @@ eventsRouter.post(
       },
     });
     if (!event) return res.status(404).json({ error: 'Not found' });
+
+    // Only a live (approved, non-cancelled) event can accept RSVPs. Previously
+    // only the date was checked, so a cancelled/pending/rejected event still
+    // took RSVPs and scheduled reminders for an event that isn't happening.
+    if (event.approval_status && event.approval_status !== 'approved') {
+      // error-envelope-exempt: matches this file's existing res.status().json() style
+      return res.status(400).json({
+        error: 'Event not available',
+        message: 'This event is not open for RSVPs.',
+      });
+    }
+    if (event.status === 'cancelled') {
+      // error-envelope-exempt: matches this file's existing res.status().json() style
+      return res.status(400).json({
+        error: 'Event cancelled',
+        message: 'This event has been cancelled.',
+      });
+    }
 
     // Validate event hasn't passed
     const eventDate = new Date(event.date);
@@ -1063,6 +1084,7 @@ const createEventSchema = z.object({
     }
   ),
   location: z.string().trim().min(1, 'Location is required'),
+  timezone: z.string().max(64).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().trim().max(5000).optional(),
@@ -1239,6 +1261,7 @@ eventsRouter.post(
           data: {
             title: data.title,
             date: new Date(data.date),
+            timezone: data.timezone ?? null,
             location: data.location,
             latitude: resolvedLat,
             longitude: resolvedLng,
@@ -1360,6 +1383,13 @@ eventsRouter.put(
 
     // Scope approval: must be admin, or coach/admin of the event's team/org
     if (!isAdmin) {
+      // IDOR self-action guard (parity with PUT /games/:id/approve) — a user
+      // must not approve their own submission. Audit 2026-07-14.
+      if (event.creator_id === userId) {
+        return res
+          .status(403)
+          .json({ error: 'You cannot review your own event', code: 'SELF_REVIEW_FORBIDDEN' });
+      }
       const canApprove = event.team_id ? await canManageTeamScoped(userId, event.team_id) : false;
       if (!canApprove) {
         return res
@@ -1418,6 +1448,12 @@ eventsRouter.put(
 
     // Scope rejection: must be admin, or coach/admin of the event's team/org
     if (!isAdmin) {
+      // IDOR self-action guard (parity with games) — no reviewing your own event.
+      if (event.creator_id === userId) {
+        return res
+          .status(403)
+          .json({ error: 'You cannot review your own event', code: 'SELF_REVIEW_FORBIDDEN' });
+      }
       const canReject = event.team_id ? await canManageTeamScoped(userId, event.team_id) : false;
       if (!canReject) {
         return res
@@ -1621,17 +1657,33 @@ eventsRouter.patch(
       data: updateData,
     });
 
-    // Update opponent on linked Game when event has game_id
+    // Date changed → move every RSVP's 12h/1h reminders to the new time.
+    if (data.date !== undefined) {
+      void rescheduleGameRemindersForEvent(eventId).catch(err =>
+        console.warn('[events] reminder reschedule failed:', (err as any)?.message || err)
+      );
+    }
+
+    // Keep the linked Game in sync when event has game_id. Previously only the
+    // opponent synced back, so editing an event's date/location/title left the
+    // game (shown on the schedule/feed/map) stale — the reverse direction
+    // (PUT /games/:id) already syncs to the event, so this closes the asymmetry.
     if (
       event.game_id &&
       (data.away_team_id !== undefined ||
         data.away_team_name !== undefined ||
-        data.opponent !== undefined)
+        data.opponent !== undefined ||
+        data.date !== undefined ||
+        data.location !== undefined ||
+        data.title !== undefined)
     ) {
       const gameUpdate: any = {};
       if (data.away_team_id !== undefined) gameUpdate.away_team_id = data.away_team_id || null;
       if (data.away_team_name !== undefined)
         gameUpdate.away_team_name = data.away_team_name ?? null;
+      if (data.date !== undefined) gameUpdate.date = new Date(data.date);
+      if (data.location !== undefined) gameUpdate.location = data.location ?? null;
+      if (data.title !== undefined) gameUpdate.title = data.title;
       if (Object.keys(gameUpdate).length > 0) {
         await prisma.game.update({
           where: { id: event.game_id },

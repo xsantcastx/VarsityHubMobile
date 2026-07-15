@@ -18,10 +18,16 @@ import {
 import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
-import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
+import {
+  getBlockedUserIds,
+  getExcludedPrivateAuthorIds,
+  getRequestBlockedCache,
+} from '../lib/privacyUtils.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
+import { creatorSideTeamIds, deriveGameApproval } from '../lib/gameApproval.js';
+import { formatEventTime } from '../lib/formatEventTime.js';
 import {
   canManageAnyTeam,
   canManageTeam as canManageTeamScoped,
@@ -393,6 +399,39 @@ const makeCreateStoryHandler = ({ prisma: p }: StoryDeps) =>
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
+
+// Fields a non-admin (creator or coach) may change on an ALREADY-APPROVED game.
+// Mirrors events.ts COACH_EDITABLE_FIELDS: logistics + opponent, never the
+// identity/moderation-sensitive fields (title stays admin-only once approved).
+// Team-id changes are allowed here but re-trigger opponent consent in PUT /:id.
+const GAME_COACH_EDITABLE_FIELDS: string[] = [
+  'date',
+  'location',
+  'latitude',
+  'longitude',
+  'venue_address',
+  'venue_place_id',
+  'venue_lat',
+  'venue_lng',
+  'description',
+  'banner_url',
+  'cover_image_url',
+  'appearance',
+  'home_team',
+  'away_team',
+  'home_team_id',
+  'away_team_id',
+  'away_team_name',
+  'is_neutral',
+  'expected_attendance',
+  'donation_goal',
+  'watch_location',
+  'watch_location_lat',
+  'watch_location_lng',
+  'watch_location_place_id',
+  'destination',
+  'event_type',
+];
 
 async function invalidateGamesListCache(): Promise<void> {
   await cacheDelPattern('games:*');
@@ -1353,6 +1392,8 @@ gamesRouter.post(
       watch_location_lng: z.number().min(-180).max(180).optional(), // Watch party longitude
       watch_location_place_id: z.string().optional(), // Watch party Google Place ID
       destination: z.string().trim().max(200).optional(), // For team trips
+      // Creator's device IANA timezone (for correct email time rendering)
+      timezone: z.string().max(64).optional(),
       // Coordinate options
       latitude: z.number().min(-90).max(90).optional(),
       longitude: z.number().min(-180).max(180).optional(),
@@ -1382,6 +1423,7 @@ gamesRouter.post(
       let gameData: any = {
         title: stripHtml(parsed.data.title),
         date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+        timezone: parsed.data.timezone ?? null,
         location: stripHtml(parsed.data.location),
         description: parsed.data.description ? stripHtml(parsed.data.description) : undefined,
         banner_url: parsed.data.banner_url ?? null,
@@ -1472,45 +1514,38 @@ gamesRouter.post(
         );
       }
 
-      if (!isAdmin) {
-        const [canManageHomeTeam, canManageAwayTeam] = await Promise.all([
-          parsed.data.home_team_id
-            ? canManageTeamScoped(req.user.id, parsed.data.home_team_id)
-            : Promise.resolve(false),
-          parsed.data.away_team_id && parsed.data.away_team_id !== parsed.data.home_team_id
-            ? canManageTeamScoped(req.user.id, parsed.data.away_team_id)
-            : Promise.resolve(false),
-        ]);
-        managedTeamId = canManageHomeTeam
-          ? parsed.data.home_team_id || null
-          : canManageAwayTeam
-            ? parsed.data.away_team_id || null
-            : null;
-        isCoach = !!managedTeamId;
+      // Single source of truth for approval_status + opponent-approval — see
+      // lib/gameApproval.ts. Do NOT re-derive this inline; POST /games/bulk and
+      // PUT /games/:id call the same authority (parity-pinned).
+      const approvalDecision = await deriveGameApproval(
+        req.user.id,
+        parsed.data.home_team_id,
+        parsed.data.away_team_id,
+        isAdmin,
+        canManageTeamScoped
+      );
+      isCoach = approvalDecision.isCoach;
+      managedTeamId = approvalDecision.managedTeamId;
 
-        // Verify the team's org is admin-approved (if team has an org)
-        if (isCoach) {
-          const team = await prisma.team.findUnique({
-            where: { id: managedTeamId! },
-            select: { organization_id: true },
+      // Verify the caller's managed team's org is admin-approved (coach path only)
+      if (isCoach && !isAdmin && managedTeamId) {
+        const team = await prisma.team.findUnique({
+          where: { id: managedTeamId },
+          select: { organization_id: true },
+        });
+        if (team?.organization_id) {
+          const org = await prisma.organization.findUnique({
+            where: { id: team.organization_id },
+            select: { admin_approved: true },
           });
-          if (team?.organization_id) {
-            const org = await prisma.organization.findUnique({
-              where: { id: team.organization_id },
-              select: { admin_approved: true },
+          if (org && !org.admin_approved) {
+            return res.status(403).json({
+              error: 'Your organization must be approved before creating games.',
+              code: 'ORG_NOT_APPROVED',
             });
-            if (org && !org.admin_approved) {
-              return res.status(403).json({
-                error: 'Your organization must be approved before creating games.',
-                code: 'ORG_NOT_APPROVED',
-              });
-            }
           }
         }
       } else if (isAdmin) {
-        // Admin can create events for any team
-        isCoach = true;
-        managedTeamId = parsed.data.home_team_id || parsed.data.away_team_id || null;
         debugLog(
           `✅ Admin ${currentUser?.email} creating event for team ${managedTeamId || 'N/A'}`
         );
@@ -1519,32 +1554,9 @@ gamesRouter.post(
       const associatedTeamId =
         managedTeamId || parsed.data.home_team_id || parsed.data.away_team_id || null;
 
-      // Opponent-approval workflow: if the game links a REAL VarsityHub team
-      // as opponent that the creator does not manage (and isn't a platform
-      // admin), the game only goes publicly live once that team's staff
-      // confirms it. Admin-created games and games where the creator manages
-      // both sides (intra-org scheduling) skip this — no distinct opponent to
-      // consult. Free-text opponents (away_team_name only) never trigger it.
-      let opponentApprovalTeamId: string | null = null;
-      if (!isAdmin && isCoach) {
-        const otherTeamId =
-          managedTeamId === parsed.data.home_team_id
-            ? (parsed.data.away_team_id ?? null)
-            : managedTeamId === parsed.data.away_team_id
-              ? (parsed.data.home_team_id ?? null)
-              : null;
-        if (otherTeamId && otherTeamId !== managedTeamId) {
-          const opponentManaged = await canManageTeamScoped(req.user.id, otherTeamId);
-          if (!opponentManaged) {
-            opponentApprovalTeamId = otherTeamId;
-          }
-        }
-      }
-      gameData.opponent_approval_status = opponentApprovalTeamId ? 'pending' : 'not_required';
-      gameData.opponent_approval_team_id = opponentApprovalTeamId;
-
-      // Auto-approve if coach/admin, otherwise set to pending
-      gameData.approval_status = isCoach || isAdmin ? 'approved' : 'pending';
+      gameData.opponent_approval_status = approvalDecision.opponentApprovalStatus;
+      gameData.opponent_approval_team_id = approvalDecision.opponentApprovalTeamId;
+      gameData.approval_status = approvalDecision.approvalStatus;
       gameData.created_by_id = req.user.id;
 
       // Enforce fan pending event limit (matches POST /events limit of 3)
@@ -1586,6 +1598,7 @@ gamesRouter.post(
         data: {
           title: game.title,
           date: game.date,
+          timezone: game.timezone ?? null,
           location: game.location || null,
           latitude: eventLat,
           longitude: eventLng,
@@ -1680,7 +1693,8 @@ gamesRouter.post(
         });
       }
 
-      if (opponentApprovalTeamId) {
+      if (approvalDecision.opponentApprovalTeamId) {
+        const opponentApprovalTeamId = approvalDecision.opponentApprovalTeamId;
         void (async () => {
           try {
             const recipients = await getPendingEventReviewRecipients(prisma, {
@@ -1782,56 +1796,30 @@ gamesRouter.post(
     const userId = req.user!.id;
     const isAdmin = await isVerifiedAdminUser(userId);
 
-    // Verify caller manages at least one of the referenced teams (mirrors single POST auth check)
-    if (!isAdmin) {
-      const allTeamIds = [
-        ...new Set(
-          parsed.data.games.flatMap(
-            g => [g.home_team_id, g.away_team_id].filter(Boolean) as string[]
-          )
-        ),
-      ];
-      if (allTeamIds.length === 0) {
-        return sendError(res, 400, 'Each game must reference a home_team_id or away_team_id.');
-      }
-      const checks = await Promise.all(allTeamIds.map(id => canManageTeamScoped(userId, id)));
-      if (!checks.some(Boolean)) {
-        return sendError(res, 403, 'You do not manage any of the referenced teams.');
-      }
+    if (!isAdmin && parsed.data.games.every(g => !g.home_team_id && !g.away_team_id)) {
+      return sendError(res, 400, 'Each game must reference a home_team_id or away_team_id.');
     }
 
     try {
-      // Resolve, per row, whether an opponent-approval is triggered (real
-      // VarsityHub team on the other side that the caller doesn't manage).
-      // Done outside the transaction since it only reads.
-      const opponentTeamIdByIndex: Array<string | null> = [];
-      if (!isAdmin) {
-        for (const g of parsed.data.games) {
-          const [managesHome, managesAway] = await Promise.all([
-            g.home_team_id ? canManageTeamScoped(userId, g.home_team_id) : Promise.resolve(false),
-            g.away_team_id ? canManageTeamScoped(userId, g.away_team_id) : Promise.resolve(false),
-          ]);
-          const otherTeamId = managesHome
-            ? (g.away_team_id ?? null)
-            : managesAway
-              ? (g.home_team_id ?? null)
-              : null;
-          const opponentManaged =
-            otherTeamId && (managesHome || managesAway)
-              ? await canManageTeamScoped(userId, otherTeamId)
-              : true;
-          opponentTeamIdByIndex.push(otherTeamId && !opponentManaged ? otherTeamId : null);
-        }
-      } else {
-        parsed.data.games.forEach(() => opponentTeamIdByIndex.push(null));
-      }
+      // Per-row approval decision via the single authority — a row whose teams
+      // the caller does not manage lands PENDING, exactly like POST /games. This
+      // is what stops the batch-level "manages ANY one team" auto-approve
+      // injection the 2026-07-14 audit found.
+      const decisionByIndex = await Promise.all(
+        parsed.data.games.map(g =>
+          deriveGameApproval(userId, g.home_team_id, g.away_team_id, isAdmin, canManageTeamScoped)
+        )
+      );
+      const opponentTeamIdByIndex = decisionByIndex.map(d => d.opponentApprovalTeamId);
 
       // All-or-nothing: one failure rolls back the whole batch.
       const created = await prisma.$transaction(async tx => {
         const rows: any[] = [];
         for (let i = 0; i < parsed.data.games.length; i++) {
           const g = parsed.data.games[i];
-          const opponentApprovalTeamId = opponentTeamIdByIndex[i];
+          const decision = decisionByIndex[i];
+          const associatedTeamId =
+            decision.managedTeamId || g.home_team_id || g.away_team_id || null;
           const row = await tx.game.create({
             data: {
               title: stripHtml(g.title),
@@ -1845,13 +1833,30 @@ gamesRouter.post(
               event_type: g.event_type ?? 'game',
               is_neutral: g.is_neutral ?? false,
               created_by_id: userId,
-              approval_status: 'approved' as any, // coaches creating for their own team auto-approve (mirrors single endpoint)
-              opponent_approval_status: (opponentApprovalTeamId
-                ? 'pending'
-                : 'not_required') as any,
-              opponent_approval_team_id: opponentApprovalTeamId,
+              approval_status: decision.approvalStatus as any,
+              approved_by_id: decision.isCoach ? userId : null,
+              approved_at: decision.isCoach ? new Date() : null,
+              opponent_approval_status: decision.opponentApprovalStatus as any,
+              opponent_approval_team_id: decision.opponentApprovalTeamId,
             },
             select: { id: true, title: true, date: true, location: true },
+          });
+          // Mirror single-create: every game gets a linked Event so RSVP +
+          // geofencing work. Without this, bulk games had no RSVP surface.
+          await tx.event.create({
+            data: {
+              title: row.title,
+              date: row.date,
+              location: row.location || null,
+              game_id: row.id,
+              team_id: associatedTeamId,
+              status: decision.approvalStatus,
+              approval_status: decision.approvalStatus,
+              creator_id: userId,
+              creator_role: decision.isCoach ? 'coach' : 'fan',
+              event_type: g.event_type ?? 'game',
+              capacity: null,
+            } as any,
           });
           rows.push(row);
         }
@@ -2413,27 +2418,37 @@ gamesRouter.delete(
           created_by_id: true,
           home_team_id: true,
           away_team_id: true,
+          opponent_approval_team_id: true,
         },
       });
 
       if (!game) return sendError(res, 404, 'Game not found');
 
       // CRITICAL: Check authorization before allowing deletion
-      // Only allow: game creator, team coaches, or admins
+      // Only allow: game creator, CREATING-team coaches, or admins. The opposing
+      // team's staff must NOT be able to delete a shared game (they decline via
+      // the opponent-approval flow) — audit 2026-07-14.
       const isCreator = game.created_by_id === req.user.id;
 
       // Check if user is admin
       const isAdmin = await isVerifiedAdminUser(req.user.id);
 
-      // Check if user is coach/manager of either team
+      // Authorize on the CREATOR's side only (opponent excluded). Keep the full
+      // team set below for cancellation notifications to BOTH teams.
       const deleteTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
-      const isCoach = await canManageAnyTeam(req.user.id, deleteTeamIds);
+      const authTeamIds = creatorSideTeamIds(
+        game.home_team_id,
+        game.away_team_id,
+        game.opponent_approval_team_id
+      );
+      const isCoach = await canManageAnyTeam(req.user.id, authTeamIds);
 
       // Deny access if user is not authorized
       if (!isCreator && !isCoach && !isAdmin) {
         return res.status(403).json({
           error: 'Not authorized',
-          message: 'Only game creators, team coaches, or admins can delete games.',
+          message:
+            'Only the game creator, the creating team’s coaches, or admins can delete games.',
         });
       }
 
@@ -2441,24 +2456,14 @@ gamesRouter.delete(
       try {
         const gameForNotif = await prisma.game.findUnique({
           where: { id },
-          select: { id: true, title: true, date: true, location: true },
+          select: { id: true, title: true, date: true, location: true, timezone: true },
         });
         const gameTitle = gameForNotif?.title || 'A game';
         const gameDate = gameForNotif?.date instanceof Date ? gameForNotif.date : null;
-        const eventDate = gameDate
-          ? gameDate.toLocaleDateString(undefined, {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })
-          : undefined;
-        const eventTime = gameDate
-          ? gameDate.toLocaleTimeString(undefined, {
-              hour: 'numeric',
-              minute: '2-digit',
-            })
-          : undefined;
+        // Render in the game's captured timezone (falls back to zone-less when null).
+        const formatted = gameDate ? formatEventTime(gameDate, gameForNotif?.timezone) : null;
+        const eventDate = formatted?.dateStr;
+        const eventTime = formatted ? `${formatted.timeStr}` : undefined;
 
         // Find events linked to this game and their RSVPs
         // audit-allow unbounded: game deletion must notify every linked event RSVP
@@ -2542,7 +2547,15 @@ gamesRouter.delete(
         console.error('[games] Failed to send game cancelled notifications:', notifErr);
       }
 
-      // Delete the game (cascade deletes will handle related records)
+      // The linked Event has onDelete: SetNull, so deleting the game would leave
+      // an orphaned Event that still accepts RSVPs and fires reminders. Cancel
+      // linked events first (RSVPers were already notified above) so the RSVP
+      // status guard closes them out.
+      await prisma.event.updateMany({
+        where: { game_id: id },
+        data: { status: 'cancelled' },
+      });
+      // Delete the game (remaining cascade deletes handle stories/votes)
       await prisma.game.delete({ where: { id } });
       await invalidateGamesListCache();
 
@@ -2562,8 +2575,14 @@ gamesRouter.get(
     try {
       const id = String(req.params.id);
       const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100));
-      // Privacy: exclude posts from private-profile authors the viewer doesn't follow
-      const excludedIds = await getExcludedPrivateAuthorIds(req.user?.id ?? null);
+      // Privacy: exclude posts from private-profile authors the viewer doesn't
+      // follow AND from blocked users — parity with the other content reads
+      // (this feed previously omitted the block filter). Audit 2026-07-14.
+      const [privateIds, blockedIds] = await Promise.all([
+        getExcludedPrivateAuthorIds(req.user?.id ?? null),
+        getBlockedUserIds(req.user?.id ?? null, getRequestBlockedCache(req)),
+      ]);
+      const excludedIds = [...new Set([...privateIds, ...blockedIds])];
       const posts = await prisma.post.findMany({
         where: {
           // Match posts tied to the game directly (game_id) OR via any of its
@@ -2676,6 +2695,7 @@ gamesRouter.patch(
           created_by_id: true,
           home_team_id: true,
           away_team_id: true,
+          opponent_approval_team_id: true,
           date: true,
           home_score: true,
           away_score: true,
@@ -2684,7 +2704,13 @@ gamesRouter.patch(
 
       if (!game) return sendError(res, 404, 'Game not found');
 
-      const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
+      // The reported score belongs to the CREATING team — the opponent can't
+      // overwrite it (they use opponent-approval). Audit 2026-07-14.
+      const teamIds = creatorSideTeamIds(
+        game.home_team_id,
+        game.away_team_id,
+        game.opponent_approval_team_id
+      );
       const isCoach = await canManageAnyTeam(req.user.id, teamIds);
 
       const isCreator = game.created_by_id === req.user.id;
@@ -2693,7 +2719,7 @@ gamesRouter.patch(
       if (!isCreator && !isCoach && !isAdmin) {
         return res
           .status(403)
-          .json({ error: 'Only coaches or team owners can update game results' });
+          .json({ error: 'Only the creating team’s coaches or admins can update game results' });
       }
 
       // Score edit window: once a game has been scored (either score set) and
@@ -2871,6 +2897,7 @@ gamesRouter.put(
           created_by_id: true,
           home_team_id: true,
           away_team_id: true,
+          approval_status: true,
         },
       });
 
@@ -2889,9 +2916,27 @@ gamesRouter.put(
           .json({ error: 'Only the game creator, team coaches, or admins can update this event' });
       }
 
+      const d = parsed.data;
+
+      // Approved-game edit allowlist (mirrors events.ts COACH_EDITABLE_FIELDS).
+      // Once a game is approved, a non-admin editor (creator or coach) may only
+      // change logistics/identity-neutral fields — not re-write it past
+      // moderation. Team changes ARE allowed but re-trigger opponent consent
+      // (handled below).
+      if (game.approval_status === 'approved' && !isAdmin) {
+        const disallowed = Object.keys(d).filter(k => !GAME_COACH_EDITABLE_FIELDS.includes(k));
+        if (disallowed.length > 0) {
+          return sendError(res, 403, 'Limited edit scope', {
+            code: 'LIMITED_EDIT_SCOPE',
+            message:
+              'Coaches can only edit time, location, description, photo, and opponent for an approved game. Contact an admin for other changes.',
+            details: { disallowed },
+          });
+        }
+      }
+
       // Build update payload — only include fields that were explicitly provided
       const updateData: any = {};
-      const d = parsed.data;
       if (d.title !== undefined) updateData.title = stripHtml(d.title);
       if (d.home_team !== undefined) updateData.home_team = d.home_team;
       if (d.away_team !== undefined) updateData.away_team = d.away_team;
@@ -2926,6 +2971,46 @@ gamesRouter.put(
       if (d.venue_lng !== undefined) updateData.venue_lng = d.venue_lng;
       if (d.is_neutral !== undefined) updateData.is_neutral = d.is_neutral;
 
+      // Team reassignment: if either team id changes, re-authorize against the
+      // NEW configuration and recompute opponent consent via the single
+      // authority. Without this, a coach could pin a victim team as opponent on
+      // an already-approved game, bypassing the consent workflow.
+      const teamsChanging =
+        (d.home_team_id !== undefined && d.home_team_id !== game.home_team_id) ||
+        (d.away_team_id !== undefined && d.away_team_id !== game.away_team_id);
+      if (teamsChanging) {
+        const nextHomeId = d.home_team_id !== undefined ? d.home_team_id : game.home_team_id;
+        const nextAwayId = d.away_team_id !== undefined ? d.away_team_id : game.away_team_id;
+
+        // Any newly-referenced team id must actually exist (avoid FK 500).
+        const newIds = [nextHomeId, nextAwayId].filter(
+          (tid): tid is string =>
+            Boolean(tid) && tid !== game.home_team_id && tid !== game.away_team_id
+        );
+        if (newIds.length > 0) {
+          const found = await prisma.team.count({ where: { id: { in: newIds } } });
+          if (found !== newIds.length) {
+            return sendError(res, 400, 'One or more referenced teams do not exist.');
+          }
+        }
+
+        const reDecision = await deriveGameApproval(
+          req.user.id,
+          nextHomeId,
+          nextAwayId,
+          isAdmin,
+          canManageTeamScoped
+        );
+        // A non-admin must still manage at least one side of the NEW matchup.
+        if (!isAdmin && !reDecision.isCoach) {
+          return res
+            .status(403)
+            .json({ error: 'You must manage one of the teams in the new matchup.' });
+        }
+        updateData.opponent_approval_status = reDecision.opponentApprovalStatus;
+        updateData.opponent_approval_team_id = reDecision.opponentApprovalTeamId;
+      }
+
       const updated = await (prisma.game.update as any)({
         where: { id },
         data: updateData,
@@ -2941,6 +3026,15 @@ gamesRouter.put(
         if (d.location !== undefined) eventUpdate.location = d.location;
         if (Object.keys(eventUpdate).length > 0) {
           await prisma.event.update({ where: { id: event.id }, data: eventUpdate });
+        }
+        // Date changed → move every RSVP's 12h/1h reminders to the new time.
+        if (d.date !== undefined) {
+          void (async () => {
+            const { rescheduleGameRemindersForEvent } = await import('../lib/notifications.js');
+            await rescheduleGameRemindersForEvent(event.id);
+          })().catch(err =>
+            console.warn('[games] reminder reschedule failed:', (err as any)?.message || err)
+          );
         }
       }
 

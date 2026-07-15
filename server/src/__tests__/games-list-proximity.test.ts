@@ -119,6 +119,8 @@ jest.unstable_mockModule('../middleware/rateLimiters.js', () => {
 
 jest.unstable_mockModule('../lib/privacyUtils.js', () => ({
   getExcludedPrivateAuthorIds: jest.fn(async () => []),
+  getBlockedUserIds: jest.fn(async () => []),
+  getRequestBlockedCache: jest.fn(() => new Map()),
 }));
 
 jest.unstable_mockModule('../lib/notifications.js', () => ({

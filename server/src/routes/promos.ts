@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { previewPromo, redeemPromo } from '../lib/promos.js';
+import { previewPromo } from '../lib/promos.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { apiError } from '../lib/apiResponse.js';
@@ -56,13 +56,18 @@ promosRouter.post(
       const parsed = redeemSchema.safeParse(req.body || {});
       if (!parsed.success)
         return apiError(res, 400, 'Invalid payload', 'VALIDATION_ERROR', parsed.error.issues);
-      const { code, subtotal_cents, service, order_id } = parsed.data;
-      const result = await redeemPromo({
+      const { code, subtotal_cents, service } = parsed.data;
+      // SECURITY (audit 2026-07-14): this endpoint must NOT increment promo usage.
+      // A client-supplied order_id with no proof of a real, paid, owned checkout
+      // let any user burn a campaign's capacity for free. Real redemption happens
+      // server-side inside the checkout-completion / payment webhook (which calls
+      // redeemPromo directly). Here we only VALIDATE (preview semantics) — no
+      // PromoRedemption row, no uses increment.
+      const result = await previewPromo({
         code: String(code || ''),
         subtotalCents: Number(subtotal_cents || 0),
         service: service ? String(service) : undefined,
         userId: req.user.id,
-        orderId: order_id ? String(order_id) : undefined,
       });
       if (!('ok' in result) || !result.ok)
         return apiError(res, 400, 'Promo code validation failed', 'PROMO_INVALID', result);

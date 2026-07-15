@@ -6,7 +6,8 @@ import { captureException } from '../lib/sentry.js';
 import { notifyNewMessage } from '../lib/notifications.js';
 import { emitToConversation } from '../realtime/socketServer.js';
 import { prisma } from '../lib/prisma.js';
-import { getUserAge } from '../lib/userAge.js';
+import { getBlockedUserIds, getRequestBlockedCache } from '../lib/privacyUtils.js';
+import { isMinor, isVerifiedAdult } from '../lib/userAge.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { messageLimiter } from '../middleware/rateLimiters.js';
@@ -80,6 +81,13 @@ messagesRouter.get(
 
     const meId = req.user.id;
 
+    // Strip messages from blocked users on read — parity with the send-path
+    // block check and group-chat reads (DM history was previously unfiltered).
+    // Audit 2026-07-14.
+    const blockedIds = new Set(await getBlockedUserIds(meId, getRequestBlockedCache(req)));
+    const stripBlocked = <T extends { sender_id: string }>(msgs: T[]): T[] =>
+      blockedIds.size ? msgs.filter(m => !blockedIds.has(m.sender_id)) : msgs;
+
     if (conversation_id) {
       const accessCheck = await prisma.message.findFirst({
         where: {
@@ -100,7 +108,7 @@ messagesRouter.get(
         take: limit,
         include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
       });
-      return res.json(messages);
+      return res.json(stripBlocked(messages));
     }
 
     const otherUserId = await resolveWithToUserId(withParam);
@@ -117,7 +125,7 @@ messagesRouter.get(
         take: limit,
         include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
       });
-      return res.json(messages);
+      return res.json(stripBlocked(messages));
     }
 
     const messages = await prisma.message.findMany({
@@ -126,7 +134,7 @@ messagesRouter.get(
       take: limit,
       include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
     });
-    return res.json(messages);
+    return res.json(stripBlocked(messages));
   })
 );
 
@@ -200,15 +208,15 @@ messagesRouter.post(
       }
     }
 
-    let convId = conversation_id;
-    if (!convId && toId) {
-      const pair = [meId, toId].sort();
-      convId = `dm:${pair[0]}__${pair[1]}`;
-    }
-
     if (!toId) {
       return sendError(res, 400, 'Could not determine recipient');
     }
+
+    // Always derive the conversation id from the actual (sender, recipient)
+    // pair — never trust a client-supplied conversation_id. A client value could
+    // target another user's DM thread and spoof its inbox preview (audit 4d).
+    const pair = [meId, toId].sort();
+    const convId = `dm:${pair[0]}__${pair[1]}`;
 
     // Prevent messaging if either user has blocked the other
     const block = await prisma.blockedUser.findFirst({
@@ -280,11 +288,15 @@ messagesRouter.post(
       }
     }
 
-    const senderAge = getUserAge(me);
-    const recipientAge = getUserAge(recipient);
+    // Use the fail-closed age helpers (isMinor: null DOB → true;
+    // isVerifiedAdult: null DOB → false) so a missing/legacy DOB can never open
+    // a child-safety gate. Audit 2026-07-14.
+    const senderIsMinor = isMinor(me);
+    const recipientIsMinor = isMinor(recipient);
+    const senderIsAdult = isVerifiedAdult(me);
 
-    // Minor (under 18) may only message accounts they follow
-    if (senderAge !== null && senderAge < 18) {
+    // Minor (or unknown-age) sender may only message accounts they follow.
+    if (senderIsMinor) {
       const follows = await prisma.follows.findFirst({
         where: { follower_id: meId, following_id: toId!, status: 'accepted' },
       });
@@ -295,10 +307,12 @@ messagesRouter.post(
       }
     }
 
-    // Adult (18+) messaging minor (under 18): adult must follow the minor
-    if (senderAge !== null && senderAge >= 18 && recipientAge !== null && recipientAge < 18) {
-      const adultFollowsMinor = await prisma.follows.findUnique({
-        where: { follower_id_following_id: { follower_id: meId, following_id: toId! } },
+    // Adult messaging a minor (or unknown-age recipient): the adult must have an
+    // ACCEPTED follow of that user — an unaccepted (pending) follow request does
+    // NOT satisfy the gate. (Was findUnique with no status filter.)
+    if (senderIsAdult && recipientIsMinor) {
+      const adultFollowsMinor = await prisma.follows.findFirst({
+        where: { follower_id: meId, following_id: toId!, status: 'accepted' },
       });
       if (!adultFollowsMinor) {
         return sendError(res, 403, 'You must follow this user to send them a message.', {

@@ -75,8 +75,15 @@ function resolvePlanFromUserRecord(
   const effectivePlan = getEffectiveEntitledPlan(user as any);
   if (effectivePlan === 'rookie') return 'free';
 
-  if (user.subscription_status === 'past_due' || user.subscription_status === 'unpaid')
-    return 'free';
+  if (user.subscription_status === 'past_due' || user.subscription_status === 'unpaid') {
+    // Honor a billing grace period: Apple/Stripe keep the subscription active
+    // during dunning, and payments.ts writes grace_period_expires_at for exactly
+    // this. Only force 'free' once the grace window has elapsed (or none is set).
+    const graceRaw = prefs.grace_period_expires_at;
+    const graceExpiry = graceRaw ? new Date(graceRaw) : null;
+    const graceActive = graceExpiry && !isNaN(graceExpiry.getTime()) && graceExpiry > new Date();
+    if (!graceActive) return 'free';
+  }
 
   // Check all known expiry fields, including Apple IAP's apple_expires_date.
   // apple_expires_date is written by the initial IAP verify and updated on each
@@ -84,7 +91,10 @@ function resolvePlanFromUserRecord(
   // safety-net so the user is downgraded at the next plan-check rather than
   // retaining access indefinitely.
   const expiryRaw =
-    prefs.subscription_end_date || prefs.plan_expiry_date || prefs.apple_expires_date;
+    prefs.subscription_end_date ||
+    prefs.plan_expiry_date ||
+    prefs.apple_expires_date ||
+    prefs.google_expires_date;
   if (expiryRaw) {
     const expiry = new Date(expiryRaw);
     if (!isNaN(expiry.getTime()) && expiry < new Date()) {

@@ -1291,6 +1291,14 @@ authRouter.post(
           organization_id: (err as any).organization_id,
         });
       }
+      if ((err as any)?.code === 'SOLE_TEAM_OWNER') {
+        return sendError(
+          res,
+          400,
+          'You are the sole owner of a team. Transfer ownership before deleting your account.',
+          { code: 'SOLE_TEAM_OWNER', details: { team_id: (err as any).team_id } }
+        );
+      }
       throw err;
     }
 

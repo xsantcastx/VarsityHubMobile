@@ -95,7 +95,13 @@ export function buildOrganizationSerializeSelect(
     ...(opts.includeTeams
       ? {
           teams: {
+            // Public org detail must not expose private or archived teams (the
+            // route is unauthenticated). Every other discovery surface filters
+            // these; this serializer did not. Bounded like /:id/programs.
+            // Audit 2026-07-14.
+            where: { status: 'active' as const, is_private: false },
             orderBy: { name: 'asc' as const },
+            take: 200,
             select: {
               id: true,
               name: true,

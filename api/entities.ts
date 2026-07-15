@@ -670,6 +670,15 @@ export const Organization = {
       `/organizations/${encodeURIComponent(organizationId)}/invites/${encodeURIComponent(inviteId)}/cancel`,
       {}
     ),
+  removeMember: (organizationId: string, membershipId: string) =>
+    httpDelete(
+      `/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(membershipId)}`
+    ),
+  updateMemberRole: (organizationId: string, membershipId: string, role: 'manager' | 'member') =>
+    httpPatch(
+      `/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(membershipId)}`,
+      { role }
+    ),
   myInvites: () => httpGet('/organizations/invites/me'),
   acceptInvite: (inviteId: string) =>
     httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/accept`, {}),

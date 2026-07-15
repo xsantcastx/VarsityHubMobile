@@ -10,6 +10,7 @@ import { prisma } from '../lib/prisma.js';
 import {
   getBlockedUserIds,
   getExcludedPrivateAuthorIds,
+  getExcludedPrivateTeamIds,
   getRequestBlockedCache,
 } from '../lib/privacyUtils.js';
 import { captureException } from '../lib/sentry.js';
@@ -230,12 +231,18 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
     _count: { select: { comments: true } },
   } as const;
 
-  const [excludedIds, blockedIds] = await Promise.all([
+  const [excludedIds, blockedIds, excludedTeamIds] = await Promise.all([
     getExcludedPrivateAuthorIds(req.user?.id ?? null),
     getBlockedUserIds(req.user?.id ?? null, getRequestBlockedCache(req)),
+    getExcludedPrivateTeamIds(req.user?.id ?? null),
   ]);
   const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
-  const privacyWhere = allExcluded.length ? { author_id: { notIn: allExcluded } } : {};
+  const privacyWhere: any = {};
+  if (allExcluded.length) privacyWhere.author_id = { notIn: allExcluded };
+  if (excludedTeamIds.length) {
+    // notIn alone would drop null-team posts (NOT IN is NULL for NULL).
+    privacyWhere.OR = [{ team_id: null }, { team_id: { notIn: excludedTeamIds } }];
+  }
 
   // Run nationalTop and pool concurrently — dedup in JS after both resolve.
   const [nationalTopRaw, poolRaw] = await Promise.all([

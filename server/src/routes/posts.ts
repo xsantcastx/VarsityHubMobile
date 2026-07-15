@@ -14,8 +14,10 @@ import { prisma } from '../lib/prisma.js';
 import {
   getBlockedUserIds,
   getExcludedPrivateAuthorIds,
+  getExcludedPrivateTeamIds,
   getRequestBlockedCache,
   isAuthorHiddenFromViewer,
+  isTeamHiddenFromViewer,
 } from '../lib/privacyUtils.js';
 import {
   canManageAnyTeam,
@@ -325,6 +327,11 @@ postsRouter.get(
     }
     if (req.query.team_id) {
       const teamId = String(req.query.team_id);
+      // Respect team privacy — a private team's posts must not be served to a
+      // viewer who isn't a member/follower/org-admin (mirrors the ?user_id=
+      // private-author guard below and GET /teams/:id/screen-summary).
+      const teamHidden = await isTeamHiddenFromViewer(teamId, currentUserId);
+      if (teamHidden) return res.json({ items: [], nextCursor: null });
       // A team's posts are those attached to the team directly plus those
       // attached to any of its games (home or away side).
       where.AND = [
@@ -356,7 +363,10 @@ postsRouter.get(
       where.AND = [...(Array.isArray(where.AND) ? where.AND : []), { OR: eventMatch }];
     }
     if (req.query.type) where.type = String(req.query.type);
-    if (req.query.user_id) where.author_id = String(req.query.user_id);
+    // Scope in OBJECT form ({ equals }) — a bare string scope was silently
+    // discarded by the block-filter merge below (which treats non-objects as
+    // {}), leaking the global feed + private-author posts. Audit 2026-07-14 (live).
+    if (req.query.user_id) where.author_id = { equals: String(req.query.user_id) };
 
     // Privacy: hide posts from private-profile authors the viewer doesn't follow
     if (req.query.user_id) {
@@ -371,6 +381,16 @@ postsRouter.get(
           ...(typeof where.author_id === 'object' ? where.author_id : {}),
           notIn: excludedIds,
         };
+      // Also exclude posts attached to private teams the viewer can't see.
+      const excludedTeamIds = await getExcludedPrivateTeamIds(currentUserId);
+      if (excludedTeamIds.length) {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : []),
+          // notIn alone would drop null-team posts (NOT IN is NULL for NULL) —
+          // explicitly keep non-team posts.
+          { OR: [{ team_id: null }, { team_id: { notIn: excludedTeamIds } }] },
+        ];
+      }
     }
 
     // Block filtering: hide posts from users the viewer has blocked or been blocked by
@@ -634,17 +654,51 @@ const locationSchema = z
   })
   .optional();
 
+// A post media/poster URL must be an uploaded asset (Cloudinary / VarsityHub
+// CDN / R2), a data: URI, or a relative/local path processed elsewhere. An
+// absolute off-platform http(s) URL (or protocol-relative //host) is rejected —
+// otherwise a fan could point media at an arbitrary host for viewer-IP tracking
+// or to bypass the upload moderation + delete-cleanup pipeline. Audit 2026-07-14.
+const isAllowedPostMediaUrl = (value: string): boolean => {
+  const v = value.trim();
+  if (v.startsWith('data:')) return true;
+  if (v.startsWith('//')) return false; // protocol-relative → treated as network URL
+  if (!/^https?:\/\//i.test(v)) return true; // relative/local path, processed server-side
+  try {
+    const parsed = new URL(v);
+    if (parsed.protocol !== 'https:') return false;
+    const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
+    const r2base = (process.env.R2_PUBLIC_BASE_URL || '').trim();
+    if (r2base) {
+      try {
+        allowed.push(new URL(r2base).hostname);
+      } catch {
+        /* ignore malformed env */
+      }
+    }
+    return allowed.some(h => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`));
+  } catch {
+    return false;
+  }
+};
+const mediaUrlMessage = { message: 'media url must be an uploaded VarsityHub asset' };
+
 const createPostSchema = z
   .object({
     title: z.string().min(1).max(200).optional(),
     content: z.string().max(4000).optional(),
     type: z.string().max(50).optional(),
-    // Accept any non-empty string to support data URIs or local uploads handled elsewhere
-    media_url: z.string().trim().min(1).optional(),
+    media_url: z.string().trim().min(1).refine(isAllowedPostMediaUrl, mediaUrlMessage).optional(),
     // Media metadata captured client-side from the upload response. Bounded to
     // sane ranges so a malformed client can't persist absurd values. All
     // optional/additive — older clients simply omit them.
-    poster_url: z.string().trim().min(1).max(2048).optional(),
+    poster_url: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2048)
+      .refine(isAllowedPostMediaUrl, mediaUrlMessage)
+      .optional(),
     media_width: z.number().int().positive().max(100000).optional(),
     media_height: z.number().int().positive().max(100000).optional(),
     media_duration_s: z.number().nonnegative().max(86400).optional(),
@@ -948,11 +1002,21 @@ postsRouter.post(
       finalGameId = e?.game_id ?? null;
     }
 
+    // Reserved post types are privileged read-side magic values (e.g.
+    // admin_broadcast fans out to EVERY user's feed, bypassing the follow graph
+    // and block/private filters). Only a verified admin may create one — a fan
+    // supplying the type is coerced to a normal post. Audit 2026-07-14 (live).
+    const RESERVED_POST_TYPES = new Set(['admin_broadcast']);
+    const requestedType = data.type || 'post';
+    const isBroadcastAdmin = await getIsAdmin(req as any);
+    const safeType =
+      RESERVED_POST_TYPES.has(requestedType) && !isBroadcastAdmin ? 'post' : requestedType;
+
     const post = await prisma.post.create({
       data: {
         title: finalTitle ? stripHtml(finalTitle) : null,
         content: data.content ? stripHtml(data.content.trim()) : null,
-        type: data.type || 'post',
+        type: safeType,
         media_url: data.media_url,
         poster_url: data.poster_url,
         media_width: data.media_width,
@@ -1142,51 +1206,54 @@ postsRouter.post(
       return res.status(404).json({ error: 'Poll option not found' });
     }
 
-    // Check if user has already voted
-    const existingVote = await prisma.pollVote.findFirst({
-      where: {
-        poll_option: {
-          poll_id: poll.id,
+    // Read existing vote AND mutate inside one Serializable transaction. The
+    // DB unique is on (poll_option_id, user_id), NOT (poll_id, user_id), so a
+    // plain check-then-create let two concurrent taps on DIFFERENT options both
+    // succeed → two votes in one poll. Serializable makes the concurrent txns
+    // conflict instead. Audit 2026-07-14.
+    let alreadyCast = false;
+    try {
+      await prisma.$transaction(
+        async tx => {
+          const existingVote = await tx.pollVote.findFirst({
+            where: { poll_option: { poll_id: poll.id }, user_id: userId },
+          });
+          if (existingVote) {
+            if (existingVote.poll_option_id === option_id) {
+              alreadyCast = true;
+              return;
+            }
+            // Change vote: remove the old, add the new.
+            await tx.pollVote.delete({ where: { id: existingVote.id } });
+            await tx.pollOption.update({
+              where: { id: existingVote.poll_option_id },
+              data: { votes_count: { decrement: 1 } },
+            });
+            await tx.pollVote.create({ data: { poll_option_id: option_id, user_id: userId } });
+            await tx.pollOption.update({
+              where: { id: option_id },
+              data: { votes_count: { increment: 1 } },
+            });
+          } else {
+            await tx.pollVote.create({ data: { poll_option_id: option_id, user_id: userId } });
+            await tx.pollOption.update({
+              where: { id: option_id },
+              data: { votes_count: { increment: 1 } },
+            });
+          }
         },
-        user_id: userId,
-      },
-    });
-
-    if (existingVote) {
-      // If user is voting for the same option, do nothing.
-      // If user is changing their vote, we need to remove the old vote and add a new one.
-      if (existingVote.poll_option_id === option_id) {
+        { isolationLevel: 'Serializable' }
+      );
+    } catch (e: any) {
+      // Unique collision (P2002) or serialization conflict (P2034): a concurrent
+      // vote won — the invariant (one vote per poll) holds, so report success.
+      if (e?.code === 'P2002' || e?.code === 'P2034') {
         return res.status(200).json({ message: 'Vote already cast' });
       }
-
-      await prisma.$transaction([
-        prisma.pollVote.delete({ where: { id: existingVote.id } }),
-        prisma.pollOption.update({
-          where: { id: existingVote.poll_option_id },
-          data: { votes_count: { decrement: 1 } },
-        }),
-        prisma.pollVote.create({ data: { poll_option_id: option_id, user_id: userId } }),
-        prisma.pollOption.update({
-          where: { id: option_id },
-          data: { votes_count: { increment: 1 } },
-        }),
-      ]);
-    } else {
-      try {
-        await prisma.$transaction([
-          prisma.pollVote.create({ data: { poll_option_id: option_id, user_id: userId } }),
-          prisma.pollOption.update({
-            where: { id: option_id },
-            data: { votes_count: { increment: 1 } },
-          }),
-        ]);
-      } catch (e: any) {
-        // Race condition: concurrent vote on same option — treat as already cast
-        if (e?.code === 'P2002') {
-          return res.status(200).json({ message: 'Vote already cast' });
-        }
-        throw e;
-      }
+      throw e;
+    }
+    if (alreadyCast) {
+      return res.status(200).json({ message: 'Vote already cast' });
     }
 
     const updatedPoll = await prisma.poll.findUnique({
@@ -1711,14 +1778,19 @@ postsRouter.post(
       where: { post_id_user_id: { post_id: postId, user_id: userId } },
     });
     if (existing) {
-      await prisma.postBookmark.delete({
-        where: { post_id_user_id: { post_id: postId, user_id: userId } },
-      });
+      // deleteMany is idempotent (no P2025 if a concurrent tap already removed it)
+      await prisma.postBookmark.deleteMany({ where: { post_id: postId, user_id: userId } });
       const bookmarks_count = await prisma.postBookmark.count({ where: { post_id: postId } });
       return res.json({ has_bookmarked: false, bookmarks_count, bookmarked: false });
     }
 
-    await prisma.postBookmark.create({ data: { post_id: postId, user_id: userId } });
+    try {
+      await prisma.postBookmark.create({ data: { post_id: postId, user_id: userId } });
+    } catch (e: any) {
+      // Concurrent double-tap: the unique key already exists — treat as an
+      // idempotent no-op instead of a 500. (Was an unhandled P2002.)
+      if (e?.code !== 'P2002') throw e;
+    }
     const bookmarks_count = await prisma.postBookmark.count({ where: { post_id: postId } });
     return res.json({ has_bookmarked: true, bookmarks_count, bookmarked: true });
   })
@@ -1797,7 +1869,14 @@ postsRouter.delete(
     try {
       const post = await prisma.post.findFirst({
         where: { id: postId, deleted_at: null },
-        select: { id: true, author_id: true, team_id: true, game_id: true, media_url: true },
+        select: {
+          id: true,
+          author_id: true,
+          team_id: true,
+          game_id: true,
+          media_url: true,
+          poster_url: true,
+        },
       });
 
       if (!post) {
@@ -1872,29 +1951,39 @@ postsRouter.delete(
         );
       }
 
-      // Destroy the Cloudinary asset so deleted media doesn't stay publicly
-      // retrievable by URL. Fire-and-forget — we don't want a Cloudinary hiccup
-      // to block the user's delete action. The `post` row is already soft-deleted
-      // by the update above, so the DB state is consistent regardless of outcome.
-      const mediaUrl = (post as any).media_url as string | null | undefined;
-      if (mediaUrl) {
+      // Destroy the stored media so deleted content doesn't stay publicly
+      // retrievable by URL. Handles BOTH storage backends: Cloudinary assets and
+      // R2 objects (media migrated to R2 2026-07; the Cloudinary-only path used
+      // to leave R2 objects orphaned forever). Fire-and-forget — a storage
+      // hiccup must not block the user's delete; the row is already soft-deleted.
+      const mediaUrls = [
+        (post as any).media_url as string | null | undefined,
+        (post as any).poster_url as string | null | undefined,
+      ].filter((u): u is string => Boolean(u));
+      if (mediaUrls.length) {
         void (async () => {
-          try {
-            const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
-              await import('../lib/cloudinary.js');
-            const parsed = extractCloudinaryPublicId(mediaUrl);
-            if (!parsed) return;
-            const result = await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
-            if (!result.ok) {
-              console.warn(
-                '[posts] Cloudinary destroy failed for post',
-                postId,
-                parsed.publicId,
-                result.error
-              );
+          const [{ extractCloudinaryPublicId, destroyCloudinaryAsset }, { deleteR2ObjectByUrl }] =
+            await Promise.all([import('../lib/cloudinary.js'), import('../lib/r2.js')]);
+          for (const url of mediaUrls) {
+            try {
+              const parsed = extractCloudinaryPublicId(url);
+              if (parsed) {
+                const result = await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
+                if (!result.ok) {
+                  console.warn(
+                    '[posts] Cloudinary destroy failed',
+                    postId,
+                    parsed.publicId,
+                    result.error
+                  );
+                }
+                continue;
+              }
+              // Not a Cloudinary URL — try R2 (no-op if not an R2 URL).
+              await deleteR2ObjectByUrl(url);
+            } catch (err) {
+              console.warn('[posts] media destroy threw for post', postId, err);
             }
-          } catch (err) {
-            console.warn('[posts] Cloudinary destroy threw for post', postId, err);
           }
         })();
       }

@@ -33,6 +33,7 @@ import {
   encodeAdDates,
   decodeAdDates,
 } from '../lib/paymentInternals.js';
+import { shouldApplyStripeSubscriptionEvent } from '../lib/stripeSubscriptionGuard.js';
 import {
   SERVER_LEGEND_PRICE_CENTS,
   SERVER_LEGEND_PRICE_LABEL,
@@ -358,7 +359,13 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
         const failedUser = await prisma.user.findFirst({
           where: { stripe_customer_id: String(invoice.customer) },
         });
-        if (failedUser) {
+        if (
+          failedUser &&
+          shouldApplyStripeSubscriptionEvent(
+            failedUser.preferences as any,
+            typeof invoice.subscription === 'string' ? invoice.subscription : null
+          )
+        ) {
           // cache-invalidation-exempt: invalidateMeCacheForUser called below
           await prisma.user.update({
             where: { id: failedUser.id },
@@ -369,6 +376,11 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
             userId: failedUser.id,
             invoiceId: invoice.id,
           });
+        } else if (failedUser) {
+          console.warn(
+            '[webhook] invoice.payment_failed — ignored: stale/non-active subscription for user',
+            { userId: failedUser.id, invoiceId: invoice.id, subscription: invoice.subscription }
+          );
         }
       }
       if (invoice.customer_email) {
@@ -395,6 +407,19 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
       const canceledUser = await prisma.user.findFirst({
         where: { stripe_customer_id: customerId },
       });
+      // Only the user's CURRENTLY-ACTIVE Stripe subscription may downgrade them.
+      // A deleted old sub (post-upgrade) or a migrated Apple/Google user must not
+      // lose their live entitlement. See stripeSubscriptionGuard.ts.
+      if (
+        canceledUser &&
+        !shouldApplyStripeSubscriptionEvent(canceledUser.preferences as any, subscription.id)
+      ) {
+        console.warn(
+          '[webhook] customer.subscription.deleted — ignored: stale/non-active subscription',
+          { userId: canceledUser.id, subscriptionId: subscription.id }
+        );
+        return { status: 200, body: { received: true, ignored: 'stale_subscription' } };
+      }
       if (canceledUser) {
         const prefs =
           canceledUser.preferences && typeof canceledUser.preferences === 'object'
@@ -4517,8 +4542,8 @@ paymentsRouter.post(
 // Google Play uses the same subscription SKU strings as Apple, so reuse the one
 // canonical product→plan map (imported above) rather than a second literal that
 // could silently drift.
-const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = APPLE_PRODUCT_TO_PLAN;
-const GOOGLE_ALLOWED_PACKAGES = (
+export const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = APPLE_PRODUCT_TO_PLAN;
+export const GOOGLE_ALLOWED_PACKAGES = (
   process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.xsantcastx.varsityhub'
 )
   .split(',')
@@ -4547,7 +4572,7 @@ function getGooglePurchaseOrderId(purchaseToken: string): string {
   return `google_purchase:${crypto.createHash('sha256').update(String(purchaseToken)).digest('hex')}`;
 }
 
-function hasGooglePlayVerifierConfig() {
+export function hasGooglePlayVerifierConfig() {
   return Boolean(GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL && GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY);
 }
 
@@ -4590,7 +4615,7 @@ async function getGooglePlayAccessToken(): Promise<string | null> {
   return typeof payload?.access_token === 'string' ? payload.access_token : null;
 }
 
-async function verifyGooglePurchaseWithPlayApi(params: {
+export async function verifyGooglePurchaseWithPlayApi(params: {
   packageName: string;
   productId: string;
   purchaseToken: string;
@@ -4708,6 +4733,7 @@ paymentsRouter.post(
       ).trim();
       let verifiedByStore = false;
       let verificationMode: 'google_play_api' | 'client_fallback' = 'client_fallback';
+      let googleExpiresAtIso: string | null = null;
       if (hasGooglePlayVerifierConfig()) {
         const verifyResult = await verifyGooglePurchaseWithPlayApi({
           packageName: packageForVerification,
@@ -4722,6 +4748,10 @@ paymentsRouter.post(
         }
         verifiedByStore = true;
         verificationMode = 'google_play_api';
+        // Persist the store-reported expiry so the entitlement can actually
+        // expire server-side (see subscription.ts expiry chain + the Google
+        // reconciliation job). Previously this value was computed and discarded.
+        googleExpiresAtIso = verifyResult.expiresAt ?? null;
       } else if (
         GOOGLE_PLAY_STRICT_VERIFY ||
         (process.env.NODE_ENV === 'production' && !GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK)
@@ -4751,6 +4781,7 @@ paymentsRouter.post(
           google_purchase_token: purchase_token,
           google_product_id: product_id,
           subscription_platform: 'google',
+          ...(googleExpiresAtIso ? { google_expires_date: googleExpiresAtIso } : {}),
         },
         {
           plan: plan as 'veteran' | 'legend',

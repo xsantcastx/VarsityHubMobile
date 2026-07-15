@@ -246,8 +246,10 @@ groupChatsRouter.post(
 
     const { chatId } = req.params;
 
-    // Update last_read_at for this user's membership
-    await prisma.groupChatMember.updateMany({
+    // Update last_read_at for this user's membership. updateMany returns a count
+    // — 0 means the caller isn't a member, so return 403 rather than a
+    // misleading ok:true (membership-authz parity with the other chat routes).
+    const updated = await prisma.groupChatMember.updateMany({
       where: {
         chat_id: chatId,
         user_id: req.user.id,
@@ -256,6 +258,9 @@ groupChatsRouter.post(
         last_read_at: new Date(),
       },
     });
+    if (updated.count === 0) {
+      return res.status(403).json({ error: 'You are not a member of this chat' }); // error-envelope-exempt
+    }
 
     return res.json({ ok: true });
   })
