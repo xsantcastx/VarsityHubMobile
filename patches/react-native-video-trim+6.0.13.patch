@@ -1,0 +1,134 @@
+diff --git a/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/BaseVideoTrimModule.kt b/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/BaseVideoTrimModule.kt
+index b54cac7..fd4ae77 100644
+--- a/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/BaseVideoTrimModule.kt
++++ b/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/BaseVideoTrimModule.kt
+@@ -580,11 +580,11 @@ open class BaseVideoTrimModule internal constructor(
+     val startTime = options?.getDouble("startTime") ?: 0.0
+     val endTime = options?.getDouble("endTime") ?: 1000.0
+ 
++    val durationMs = maxOf(1.0, endTime - startTime)
+     var cmds = arrayOf(
++      "-y",
+       "-ss",
+       "${startTime}ms",
+-      "-to",
+-      "${endTime}ms",
+     )
+ 
+     if (options?.getBoolean("enableRotation") == true) {
+@@ -598,6 +598,8 @@ open class BaseVideoTrimModule internal constructor(
+       url,
+       "-c",
+       "copy",
++      "-t",
++      "${durationMs}ms",
+       "-metadata",
+       "creation_time=$formattedDateTime",
+       outputFile!!
+diff --git a/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/utils/StorageUtil.java b/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/utils/StorageUtil.java
+index 1fdee67..d388881 100644
+--- a/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/utils/StorageUtil.java
++++ b/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/utils/StorageUtil.java
+@@ -22,7 +22,7 @@ import java.util.List;
+ 
+ public class StorageUtil {
+   public static String getOutputPath(Context context, String mOutputExt) {
+-    long timestamp = System.currentTimeMillis() / 1000;
++    long timestamp = System.currentTimeMillis();
+     File file = new File(context.getFilesDir(), VideoTrimmerUtil.FILE_PREFIX + "_" + timestamp + "." + mOutputExt);
+     return file.getAbsolutePath();
+   }
+diff --git a/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/utils/VideoTrimmerUtil.java b/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/utils/VideoTrimmerUtil.java
+index 65fb161..1f47640 100644
+--- a/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/utils/VideoTrimmerUtil.java
++++ b/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/utils/VideoTrimmerUtil.java
+@@ -59,10 +59,10 @@ public class VideoTrimmerUtil {
+ 
+     // create list to store commands
+     List<String> cmds = new ArrayList<>();
++    long durationMs = Math.max(1L, endMs - startMs);
++    cmds.add("-y");
+     cmds.add("-ss");
+     cmds.add(startMs + "ms");
+-    cmds.add("-to");
+-    cmds.add(endMs + "ms");
+ 
+     if (enableRotation) {
+       // add "-display_rotation" and rotation angle to the command, contact, not creating new
+@@ -74,6 +74,8 @@ public class VideoTrimmerUtil {
+     cmds.add(inputFile);
+     cmds.add("-c");
+     cmds.add("copy");
++    cmds.add("-t");
++    cmds.add(durationMs + "ms");
+     cmds.add("-metadata");
+     cmds.add("creation_time=" + formattedDateTime);
+     cmds.add(outputFile);
+diff --git a/node_modules/react-native-video-trim/ios/VideoTrim.swift b/node_modules/react-native-video-trim/ios/VideoTrim.swift
+index 8eeef32..da9415e 100644
+--- a/node_modules/react-native-video-trim/ios/VideoTrim.swift
++++ b/node_modules/react-native-video-trim/ios/VideoTrim.swift
+@@ -262,7 +262,7 @@ public class VideoTrim: RCTEventEmitter, AssetLoaderDelegate, UIDocumentPickerDe
+   private func trim(viewController: VideoTrimmerViewController, inputFile: URL, videoDuration: Double, startTime: Double, endTime: Double, isVideoType: Bool) {
+     vc?.pausePlayer()
+     
+-    let timestamp = Int(Date().timeIntervalSince1970)
++    let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+     let outputName = "\(FILE_PREFIX)_\(timestamp).\(outputExt)"
+     let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+     outputFile = documentsDirectory.appendingPathComponent(outputName)
+@@ -328,11 +328,11 @@ public class VideoTrim: RCTEventEmitter, AssetLoaderDelegate, UIDocumentPickerDe
+       root.present(progressAlert, animated: true, completion: nil)
+     }
+     
++    let durationMs = max(1, ((endTime - startTime) * 1000).rounded())
+     var cmds = [
++      "-y",
+       "-ss",
+       "\(startTime * 1000)ms",
+-      "-to",
+-      "\(endTime * 1000)ms",
+     ]
+     
+     if enableRotation {
+@@ -344,6 +344,8 @@ public class VideoTrim: RCTEventEmitter, AssetLoaderDelegate, UIDocumentPickerDe
+       inputFile.path,
+       "-c",
+       "copy",
++      "-t",
++      "\(durationMs)ms",
+       "-metadata",
+       "creation_time=\(dateTime)",
+       outputFile!.path
+@@ -476,7 +478,7 @@ public class VideoTrim: RCTEventEmitter, AssetLoaderDelegate, UIDocumentPickerDe
+       return
+     }
+     
+-    let timestamp = Int(Date().timeIntervalSince1970)
++    let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+     let outputExt = config["outputExt"] as? String ?? "mp4"
+     let outputName = "\(FILE_PREFIX)_\(timestamp).\(outputExt)"
+     let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+@@ -489,11 +491,11 @@ public class VideoTrim: RCTEventEmitter, AssetLoaderDelegate, UIDocumentPickerDe
+     
+     let startTime = config["startTime"] as? Double ?? 0
+     let endTime = config["endTime"] as? Double ?? 0
++    let durationMs = max(1, endTime - startTime)
+     var cmds = [
++      "-y",
+       "-ss",
+       "\(startTime)ms",
+-      "-to",
+-      "\(endTime)ms",
+     ]
+     
+     if let enableRotation = config["enableRotation"] as? Bool, enableRotation {
+@@ -506,6 +508,8 @@ public class VideoTrim: RCTEventEmitter, AssetLoaderDelegate, UIDocumentPickerDe
+       destPath.path,
+       "-c",
+       "copy",
++      "-t",
++      "\(durationMs)ms",
+       "-metadata",
+       "creation_time=\(dateTime)",
+       outputFile.path
