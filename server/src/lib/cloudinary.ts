@@ -270,10 +270,9 @@ export async function generateVideoPosterFromUrl(videoUrl: string): Promise<stri
     const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
     const folder = `${getCloudinaryFolder()}/video-posters`;
     const timestamp = Math.floor(Date.now() / 1000);
-    // Extract frame 0, scale to 480px wide, deliver as JPG.
-    const eager = 'so_0,w_480,c_scale,q_auto,f_jpg';
+    // Plain upload-by-URL (no eager transform to get wrong). Cloudinary fetches
+    // the remote video and returns its public_id.
     const signedParams: Record<string, string> = {
-      eager,
       folder,
       timestamp: String(timestamp),
     };
@@ -298,15 +297,17 @@ export async function generateVideoPosterFromUrl(videoUrl: string): Promise<stri
     if (!response.ok) {
       const err = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
       console.warn(
-        '[cloudinary] video poster generation failed:',
+        '[cloudinary] video poster upload failed:',
         err?.error?.message || response.status
       );
       return null;
     }
-    const data = (await response.json().catch(() => ({}))) as {
-      eager?: Array<{ secure_url?: string; url?: string }>;
-    };
-    return data?.eager?.[0]?.secure_url || data?.eager?.[0]?.url || null;
+    const data = (await response.json().catch(() => ({}))) as { public_id?: string };
+    if (!data?.public_id) return null;
+    // Deliver frame 0 as a JPG via the canonical video-thumbnail URL pattern
+    // (`.../video/upload/so_0/<public_id>.jpg`) — always available for an
+    // uploaded video, no eager/format guesswork.
+    return `https://res.cloudinary.com/${cloudName}/video/upload/so_0,w_480,q_auto/${data.public_id}.jpg`;
   } catch (err: any) {
     console.warn('[cloudinary] video poster generation error:', err?.message || err);
     return null;
