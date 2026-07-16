@@ -45,12 +45,12 @@ jobs:
       - name: Install EAS CLI
         if: steps.token_check.outputs.has_token == 'true'
         run: npm install -g eas-cli
-      - name: Set app version to 1.0.4 (runner-only, targets 1.0.4 runtime)
-        if: steps.token_check.outputs.has_token == 'true'
-        run: |
-          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p));j.expo.version='1.0.4';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('app.json version ->',j.expo.version);"
       - name: Publish OTA update to runtime 1.0.4
         if: steps.token_check.outputs.has_token == 'true'
+        # RUNTIME_VERSION_OVERRIDE is the app.config.js-supported lever for
+        # targeting an older binary's runtime (appVersion comes from
+        # package.json = 1.0.5; the override forces the update's runtime to 1.0.4).
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          RUNTIME_VERSION_OVERRIDE: '1.0.4'
         run: eas update --branch production --non-interactive --message "Deliver accumulated JS fixes to the 1.0.4 App Store binary"
