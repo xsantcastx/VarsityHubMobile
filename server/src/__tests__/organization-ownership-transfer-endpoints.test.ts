@@ -126,6 +126,20 @@ describe('Accept-based ownership transfer endpoints', () => {
     expect(res.status).toBe(400);
   });
 
+  it('GET /:id surfaces the pending transfer to both sides', async () => {
+    await request(app)
+      .post(`/organizations/${orgId}/transfer-ownership`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ new_owner_id: recipient.id });
+
+    const res = await request(app)
+      .get(`/organizations/${orgId}`)
+      .set('Authorization', `Bearer ${recipient.token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.pending_ownership_transfer?.to_user_id).toBe(recipient.id);
+    expect(res.body.pending_ownership_transfer?.from_user_id).toBe(owner.id);
+  });
+
   afterAll(async () => {
     const orgs = await prisma.organization.findMany({
       where: { name: { startsWith: `XferEp Org ${ts}` } },

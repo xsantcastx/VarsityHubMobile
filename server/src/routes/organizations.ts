@@ -3662,8 +3662,12 @@ organizationsRouter.get(
         }))
       : null;
 
-    return res.json(
-      serializeOrganization(organization, {
+    // Surface any pending ownership offer so both sides can act: the initiator
+    // sees "pending acceptance", the recipient sees "you've been offered ownership".
+    const pendingOwnershipTransfer = await getPendingTransfer(id);
+
+    return res.json({
+      ...serializeOrganization(organization, {
         includeCounts: true,
         includeTeams: true,
         includeViewerState: true,
@@ -3674,7 +3678,8 @@ organizationsRouter.get(
         canEdit: isOwner,
         canManage,
         canReviewCoaches: isOwner,
-      })
-    );
+      }),
+      pending_ownership_transfer: pendingOwnershipTransfer,
+    });
   })
 );
