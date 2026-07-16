@@ -1,0 +1,38 @@
+name: Pin Fanatics Day 1 to real time (verify 18h window)
+
+# Sets Day 1's game + event back to the REAL 1:00 PM EDT start, then replays the
+# deployed feed-marquee and map where-clauses against prod to PROVE the 18h live
+# window returns it (correct displayed time, no date-nudging). Falls back to a
+# forward-nudge if the 18h rule somehow doesn't surface it.
+#
+# Runs on workflow_dispatch, or on a push to main that changes THIS file
+# (scoped one-shot trigger). Requires the PRODUCTION_DATABASE_URL secret.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/pin-fanatics-day1.yml'
+
+jobs:
+  pin-day1:
+    name: pin-fanatics-day1
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+      - name: Pin + verify Day 1
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: npx tsx scripts/pin-fanatics-day1.ts
