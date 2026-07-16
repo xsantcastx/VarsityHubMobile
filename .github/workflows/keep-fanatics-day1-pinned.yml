@@ -1,0 +1,41 @@
+name: Keep Fanatics Day 1 pinned (18h live window)
+
+# Keeps Day 1 at the top of the feed + on the map for its full 18h window on the
+# CURRENTLY INSTALLED app (runtime 1.0.4), which buckets a game as "live" only if
+# it started within 2h. Nudges the GAME date to now+2h each run; leaves the EVENT
+# at the real 1PM start so the geofenced POST window is a true 18h. The script
+# self-terminates (no-op) after REAL_START + 18h.
+#
+# Fires on: this file changing on main (immediate first pin), manual dispatch,
+# and every 20 minutes. Needs PRODUCTION_DATABASE_URL.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/keep-fanatics-day1-pinned.yml'
+  schedule:
+    - cron: '*/20 * * * *'
+
+jobs:
+  keep-pinned:
+    name: keep-fanatics-day1-pinned
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+      - name: Keep Day 1 pinned
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: npx tsx scripts/keep-day1-pinned.ts
