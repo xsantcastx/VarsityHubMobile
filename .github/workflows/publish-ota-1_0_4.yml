@@ -1,0 +1,56 @@
+name: Publish OTA to runtime 1.0.4 (live store binary)
+
+# The live App Store binary is runtime 1.0.4 (native project MARKETING_VERSION),
+# but app.json was bumped to 1.0.5 without shipping a 1.0.5 binary — so the
+# normal publish-ota-update workflow targets runtime 1.0.5 and reaches no
+# devices. This one-shot publishes the SAME main bundle to runtime 1.0.4 so the
+# accumulated JS fixes actually reach installed apps. It patches app.json to
+# 1.0.4 only inside the runner (never committed); runtimeVersion policy
+# "appVersion" then resolves the update's runtime to 1.0.4.
+#
+# Harmless if the store is actually 1.0.5 (no 1.0.4 devices to receive it).
+# Runs on workflow_dispatch or a push to main that changes THIS file.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-ota-1_0_4.yml'
+
+jobs:
+  publish:
+    name: eas update --branch production (runtime 1.0.4)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Check EXPO_TOKEN is configured
+        id: token_check
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::warning::EXPO_TOKEN not set — skipping."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install app dependencies
+        if: steps.token_check.outputs.has_token == 'true'
+        run: npm ci
+      - name: Install EAS CLI
+        if: steps.token_check.outputs.has_token == 'true'
+        run: npm install -g eas-cli
+      - name: Set app version to 1.0.4 (runner-only, targets 1.0.4 runtime)
+        if: steps.token_check.outputs.has_token == 'true'
+        run: |
+          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p));j.expo.version='1.0.4';fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('app.json version ->',j.expo.version);"
+      - name: Publish OTA update to runtime 1.0.4
+        if: steps.token_check.outputs.has_token == 'true'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas update --branch production --non-interactive --message "Deliver accumulated JS fixes to the 1.0.4 App Store binary"
