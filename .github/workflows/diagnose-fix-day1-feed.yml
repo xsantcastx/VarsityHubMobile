@@ -1,0 +1,39 @@
+name: Diagnose + fix Fanatics Day 1 feed visibility
+
+# The feed lists GAMES filtered by game.date; earlier fixes only nudged the
+# EVENT date, so the linked GAME may still be past-dated (or carry team columns)
+# and fall out of both the upcoming (now-2h) and marquee (teamless) queries.
+# This dumps the event + linked game and sets the GAME date ~50 min ahead so it
+# is feed/map-visible now. Prints original values for revert.
+#
+# Runs on workflow_dispatch, or on a push to main that changes THIS file
+# (scoped one-shot trigger). Requires the PRODUCTION_DATABASE_URL secret.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-fix-day1-feed.yml'
+
+jobs:
+  diagnose-day1:
+    name: diagnose-fix-day1-feed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+      - name: Diagnose + fix Day 1 game date
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: npx tsx scripts/diagnose-fix-day1-feed.ts
