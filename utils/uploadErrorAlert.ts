@@ -1,4 +1,5 @@
 import { Alert } from 'react-native';
+import { router } from 'expo-router';
 import { ICLOUD_ERROR_MESSAGE, ICLOUD_ERROR_TITLE, isICloudError } from '@/utils/isICloudError';
 
 type UploadErrorAlertOptions = {
@@ -98,13 +99,19 @@ export function showUploadErrorAlert(
       )
     );
   } else if (isAuth) {
-    // A genuine 401 that isn't upstream — either a race where the
-    // session-expired event hasn't fired yet or a legitimate permission issue
-    // on this specific endpoint. Never tell the user to sign out manually —
-    // the session-expired path does that automatically if needed.
+    // A genuine 401 that isn't upstream means the request wasn't authenticated:
+    // the user is signed out, or their session lapsed just before this upload.
+    // "Try again in a moment" reads like the app is broken — instead point them
+    // at signing in. The session-expired path (handled above) already navigates
+    // automatically, so anything reaching here needs a manual nudge. Never tell
+    // the user to sign OUT manually; the sign-in prompt is the actionable fix.
     Alert.alert(
-      'Upload Failed',
-      "We couldn't authorize this upload. Please try again in a moment."
+      'Sign In to Upload',
+      'You need to be signed in to upload. Please sign in and try again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => router.push('/sign-in') },
+      ]
     );
   } else if (isTimeout) {
     Alert.alert(

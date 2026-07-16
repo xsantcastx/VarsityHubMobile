@@ -1059,6 +1059,17 @@ const GameDetailsScreen = () => {
   const handleAddStory = useCallback(async () => {
     if (!vm?.gameId || storyBusy) return;
 
+    // Signed-out fans must sign in first. Without this guard the upload runs
+    // and 401s at the requireAuth-gated Cloudinary signature endpoint, which
+    // surfaces a misleading "Upload Failed — we couldn't authorize this upload"
+    // alert (reads like the app is broken). Mirror the Posts "+" / RSVP gates.
+    if (!authUser) {
+      promptForSignIn(() => router.push('/sign-in'), {
+        message: 'Sign in to post a story to this event.',
+      });
+      return;
+    }
+
     // Proactive distance check — warn user before they capture media.
     // Seeded [DEMO_MATCHUP] games (Duke v UNC, Cavs v Warriors) bypass the
     // 3km check here because the server's story carve-out already accepts
@@ -1305,6 +1316,8 @@ const GameDetailsScreen = () => {
       setStoryBusy(false);
     }
   }, [
+    authUser,
+    router,
     hasEvent,
     isAdminUser,
     loadGameById,
