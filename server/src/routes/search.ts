@@ -213,6 +213,24 @@ searchRouter.get(
           // Opponent-approval workflow: exclude games still awaiting/declined
           // opponent consent from public search results.
           opponent_approval_status: { in: ['not_required', 'approved'] },
+          ...(privateTeamExcludeIds.length > 0
+            ? {
+                AND: [
+                  {
+                    OR: [
+                      { home_team_id: null },
+                      { home_team_id: { notIn: privateTeamExcludeIds } },
+                    ],
+                  },
+                  {
+                    OR: [
+                      { away_team_id: null },
+                      { away_team_id: { notIn: privateTeamExcludeIds } },
+                    ],
+                  },
+                ],
+              }
+            : {}),
           ...(dateWindow
             ? { date: { gte: dateWindow.start, lt: dateWindow.end } }
             : {
@@ -274,6 +292,36 @@ searchRouter.get(
                 { game: { is: { date: { lt: new Date() } } } },
               ],
             },
+            ...(privateTeamExcludeIds.length > 0
+              ? [
+                  { OR: [{ team_id: null }, { team_id: { notIn: privateTeamExcludeIds } }] },
+                  {
+                    OR: [
+                      { game_id: null },
+                      {
+                        game: {
+                          is: {
+                            AND: [
+                              {
+                                OR: [
+                                  { home_team_id: null },
+                                  { home_team_id: { notIn: privateTeamExcludeIds } },
+                                ],
+                              },
+                              {
+                                OR: [
+                                  { away_team_id: null },
+                                  { away_team_id: { notIn: privateTeamExcludeIds } },
+                                ],
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    ],
+                  },
+                ]
+              : []),
           ],
         },
         take: limit,
@@ -295,6 +343,11 @@ searchRouter.get(
           deleted_at: null,
           media_url: { not: null },
           ...(userExcludeIds.length > 0 ? { author_id: { notIn: userExcludeIds } } : {}),
+          ...(privateTeamExcludeIds.length > 0
+            ? {
+                AND: [{ OR: [{ team_id: null }, { team_id: { notIn: privateTeamExcludeIds } }] }],
+              }
+            : {}),
           OR: [
             { title: { contains: q, mode: 'insensitive' } },
             { content: { contains: q, mode: 'insensitive' } },

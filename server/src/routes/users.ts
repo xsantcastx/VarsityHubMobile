@@ -27,7 +27,11 @@ import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { invalidateBlockedIdsCache } from '../lib/privacyUtils.js';
+import {
+  getBlockedUserIds,
+  getExcludedPrivateAuthorIds,
+  invalidateBlockedIdsCache,
+} from '../lib/privacyUtils.js';
 
 export const usersRouter = Router();
 registerIdValidation(usersRouter);
@@ -1511,12 +1515,28 @@ usersRouter.get(
       return res.json({ users: [] });
     }
 
+    const [blockedIds, privateExcludeIds] = await Promise.all([
+      getBlockedUserIds(currentUserId),
+      getExcludedPrivateAuthorIds(currentUserId),
+    ]);
+    const excludedUserIds = Array.from(new Set([...blockedIds, ...privateExcludeIds])).filter(
+      id => id !== currentUserId
+    );
+    const eighteenYearsAgo = new Date();
+    eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
+
     // Search users by public profile fields only. Email matching here turns an
-    // @mention helper into a directory-enumeration surface for authenticated users.
+    // @mention helper into a directory-enumeration surface for authenticated
+    // users. Mirror unified /search privacy rules so blocked/private/minor
+    // accounts don't reappear through this narrower discovery endpoint.
     const users = await prisma.user.findMany({
       where: {
         AND: [
           { banned: false },
+          ...(excludedUserIds.length > 0 ? [{ id: { notIn: excludedUserIds } }] : []),
+          {
+            OR: [{ date_of_birth: null }, { date_of_birth: { lte: eighteenYearsAgo } }],
+          } as any,
           {
             OR: [
               // Search by username

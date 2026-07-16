@@ -47,6 +47,14 @@ export async function compressVideoSafe(uri: string): Promise<string> {
     const compressed: string = await CompressorVideo.compress(uri, {
       compressionMethod: 'auto', // picks the best available codec
       minimumFileSizeForCompress: 1, // compress any video (value is in MB)
+      // CRITICAL: react-native-compressor defaults maxSize to 640px on the
+      // longest side when omitted (see its Video/index.js), which silently
+      // downscaled every >8MB upload to ~360-640p and undid the 1080p capture
+      // preset — the "video quality is trash / is this really 1080p?" bug.
+      // 1920 preserves 1080p for both portrait (1080x1920) and landscape
+      // (1920x1080); the 150MB MAX_VIDEO_SIZE guard + post-compress size check
+      // still bound the result.
+      maxSize: 1920,
     });
     return compressed ?? uri;
   } catch (e) {
