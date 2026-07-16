@@ -1247,10 +1247,24 @@ gamesRouter.get(
       // v1.0.2: map_view=true restricts to "games this week" (today through +7 days).
       // Test note: once a game is in the past it should drop off the map. Map should only
       // reflect games the week of in real time. This filter is opt-in so list views still work as before.
-      if (req.query.map_view === 'true' || req.query.map_view === '1') {
+      const isMapView = req.query.map_view === 'true' || req.query.map_view === '1';
+      if (isMapView) {
         const now = new Date();
         const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
         whereClause.date = { ...(whereClause.date || {}), gte: now, lte: weekFromNow };
+      }
+
+      // Marquee/teamless events (festivals, watch parties) stay on the feed for
+      // their full live window — up to 18h after start — instead of dropping off
+      // after the client's short (2h) live lookback. So an all-day fest that
+      // started earlier today keeps surfacing while it's live. List views only
+      // (not the map, which is intentionally current-week only).
+      const isTeamlessQuery = req.query.teamless === 'true' || req.query.teamless === '1';
+      if (!isMapView && isTeamlessQuery && (whereClause.date as any)?.gte) {
+        const liveLookback = new Date(Date.now() - 18 * 60 * 60 * 1000);
+        if (new Date((whereClause.date as any).gte).getTime() > liveLookback.getTime()) {
+          (whereClause.date as any).gte = liveLookback;
+        }
       }
 
       // Proximity fallback: a signed-in viewer with no device coords still
