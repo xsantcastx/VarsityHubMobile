@@ -63,6 +63,7 @@ import MatchBanner from '../components/MatchBanner';
 // @ts-ignore JS exports
 import { Event, Game, Post, Team } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
+import VideoFirstFrame from '@/components/VideoFirstFrame';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import { useAuth } from '@/context/AuthProvider';
@@ -1820,7 +1821,12 @@ const GameDetailsScreen = () => {
                           contentFit="cover"
                           transition={200}
                         />
-                      ) : null}
+                      ) : (
+                        // R2-hosted story videos have no server poster URL
+                        // (getVideoPreviewUrl is Cloudinary-only) — render the
+                        // video's own first frame instead of a blank black box.
+                        <VideoFirstFrame uri={it.url} style={styles.storyThumb} />
+                      )}
                       <View
                         style={[
                           StyleSheet.absoluteFill,
