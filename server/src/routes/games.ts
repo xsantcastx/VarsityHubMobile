@@ -106,13 +106,26 @@ const storySchema = z.object({
         try {
           const parsed = new URL(url);
           if (parsed.protocol !== 'https:') return false;
+          // Mirror posts.ts isAllowedPostMediaUrl: when R2_PUBLIC_BASE_URL is
+          // configured uploads land on R2, so its host must be allowed here too.
+          // Without it a valid R2 upload 400s as "Invalid payload" BEFORE the
+          // geofence runs — posts accepted the same URL, stories didn't, which
+          // masked the real "not close enough to the venue" message.
           const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
-          return allowed.some(d => parsed.hostname.endsWith(d));
+          const r2base = (process.env.R2_PUBLIC_BASE_URL || '').trim();
+          if (r2base) {
+            try {
+              allowed.push(new URL(r2base).hostname);
+            } catch {
+              /* ignore malformed env */
+            }
+          }
+          return allowed.some(h => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`));
         } catch {
           return false;
         }
       },
-      { message: 'media_url must be an HTTPS Cloudinary or VarsityHub CDN URL' }
+      { message: 'media_url must be an HTTPS Cloudinary, R2, or VarsityHub CDN URL' }
     ),
   caption: z.string().max(500).optional(),
   location: locationSchema,
