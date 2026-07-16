@@ -1251,7 +1251,24 @@ gamesRouter.get(
       if (isMapView) {
         const now = new Date();
         const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        whereClause.date = { ...(whereClause.date || {}), gte: now, lte: weekFromNow };
+        const liveLookback = new Date(now.getTime() - 18 * 60 * 60 * 1000);
+        // Regular games are current-week only — a game drops off the map once
+        // it's in the past (by design). Marquee/teamless events (festivals) also
+        // stay pinned during their live window (started within 18h), so an
+        // all-day fest happening right now doesn't slide off the map at its
+        // start time. Matched on null team columns so it holds regardless of
+        // whether the map query flags teamless.
+        if (!whereClause.AND) whereClause.AND = [];
+        whereClause.AND.push({
+          OR: [
+            { date: { gte: now, lte: weekFromNow } },
+            {
+              home_team_id: null,
+              away_team_id: null,
+              date: { gte: liveLookback, lte: weekFromNow },
+            },
+          ],
+        });
       }
 
       // Marquee/teamless events (festivals, watch parties) stay on the feed for
