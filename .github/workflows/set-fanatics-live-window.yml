@@ -7,10 +7,16 @@ name: Set Fanatics Fest live posting window
 # verifies. Requires the PRODUCTION_DATABASE_URL secret (same one the
 # diagnose-fanatics-fest workflow uses).
 #
-# workflow_dispatch only — never runs on push.
+# Runs on workflow_dispatch, or on a push to main that changes THIS file
+# (scoped one-shot trigger — it never fires on unrelated pushes). Idempotent,
+# so an accidental re-run just re-sets the same 18h value on the same 4 rows.
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/set-fanatics-live-window.yml'
 
 jobs:
   set-window:
