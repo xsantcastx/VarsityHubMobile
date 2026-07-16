@@ -35,13 +35,18 @@ async function main() {
   console.log(`  live_window_hours_after_start: ${before.live_window_hours_after_start ?? 'null'}`);
 
   const now = new Date();
+  // Set the start ~50 min into the future: the map ("Nearby Games") only shows
+  // events with date >= now, so a live event needs a near-future start to stay
+  // pinned. Posting is already open because the window opens 1h before start
+  // (date - 1h = ~10 min ago). Discoverable on map + feed immediately.
+  const target = new Date(now.getTime() + 50 * 60 * 1000);
   const updated = await prisma.event.update({
     where: { id: DAY1_EVENT_ID },
-    data: { date: now },
+    data: { date: target },
     select: { id: true, date: true },
   });
   console.log(`[open-day1] AFTER:`);
-  console.log(`  date:  ${updated.date.toISOString()}  (window opens ~1h earlier, i.e. already open)`);
+  console.log(`  date:  ${updated.date.toISOString()}  (map-visible; posting opened ~10 min ago)`);
 
   // Verify the geofenced post window is now open.
   const windowStartMs = updated.date.getTime() - 60 * 60 * 1000;

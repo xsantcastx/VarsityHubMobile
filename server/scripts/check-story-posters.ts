@@ -39,6 +39,26 @@ async function main() {
   console.log(`[check-posters] video stories: ${videos.length}`);
   console.log(`[check-posters] video stories WITH poster_url: ${withPoster.length}`);
   console.log('');
+
+  // Day 1 feed-visibility check.
+  const DAY1 = 'cmrblzxwi0001x1lasw8q7cc0';
+  const day1 = await prisma.event.findUnique({
+    where: { id: DAY1 },
+    select: { date: true, title: true, live_window_hours_after_start: true },
+  });
+  if (day1) {
+    const nowMs = Date.now();
+    const eighteenHoursAgo = nowMs - 18 * 60 * 60 * 1000;
+    const twoHoursAgo = nowMs - 2 * 60 * 60 * 1000;
+    const d = day1.date.getTime();
+    console.log(`[day1] date=${day1.date.toISOString()}  window_hours=${day1.live_window_hours_after_start ?? 'null'}`);
+    console.log(`[day1] now=${new Date(nowMs).toISOString()}`);
+    console.log(`[day1] visible under OLD 2h feed lookback? ${d >= twoHoursAgo ? 'YES' : 'no'}`);
+    console.log(`[day1] visible under NEW 18h marquee lookback? ${d >= eighteenHoursAgo ? 'YES' : 'no'}`);
+    console.log('');
+  } else {
+    console.log('[day1] event not found');
+  }
   for (const v of videos) {
     const host = (() => {
       try {

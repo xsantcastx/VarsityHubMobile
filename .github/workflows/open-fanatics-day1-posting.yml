@@ -7,6 +7,8 @@ name: Open Fanatics Fest Day 1 posting now
 # Runs on workflow_dispatch, or on a push to main that changes THIS file
 # (scoped one-shot trigger). Requires the PRODUCTION_DATABASE_URL secret.
 
+# Re-run 2026-07-16 PM: nudge Day 1 start ~50 min ahead so it stays on the map
+# (Nearby Games shows date >= now) while live; posting stays open.
 on:
   workflow_dispatch:
   push:
