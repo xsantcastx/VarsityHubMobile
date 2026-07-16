@@ -710,14 +710,23 @@ function CreatePostScreen() {
       !hasPostingUnlock
     ) {
       if (!permissionGranted) {
-        Alert.alert(
-          'Location Required',
-          'This event requires you to be within 3 km of the venue. Enable location access to continue.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => openSettings() },
-          ]
-        );
+        // Try the in-app OS prompt first. If location was never requested
+        // (e.g. the user tapped "Skip" in onboarding), requestPermission()
+        // shows the system "Allow" dialog — one tap, no detour. If it was
+        // already denied, it resolves false immediately (the OS won't re-ask),
+        // and only then do we route to Settings. This stops first-time users
+        // from being bounced to Settings for a permission they were never asked.
+        const granted = await requestPermission();
+        if (!granted) {
+          Alert.alert(
+            'Location Required',
+            'This event requires you to be within 3 km of the venue. Enable location access to continue.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => openSettings() },
+            ]
+          );
+        }
         return;
       }
       // Permission granted but coords not yet acquired — block submit and prompt retry
