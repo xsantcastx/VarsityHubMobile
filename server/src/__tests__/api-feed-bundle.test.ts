@@ -275,7 +275,17 @@ describeDb('GET /feed/bundle', () => {
     expect(viewerRow?.id).toBe(viewerId);
   });
 
-  it('returns only highlight-typed posts in the bundled highlights section', async () => {
+  // REGRESSION GUARD: the bundled highlights section must NOT filter on `post.type`.
+  //
+  // `Post.type` is nullable with no default and no backfill, and the main
+  // create-post surface tags normal uploads `type: 'post'` (only a game's
+  // add-highlight button sends 'highlight'). A `type: 'highlight'` WHERE clause
+  // would hide every regular media post AND every legacy (type: null) post from
+  // the bundled Highlights forever — the recurring "posted but not showing:
+  // it's a filter, not a save failure" incident. Product decision in 1e23e19f:
+  // Highlights is scoped by media_url + country + recency + privacy. Not by type.
+  // Mirrors the equivalent guard in api-highlights.test.ts.
+  it('includes BOTH highlight-typed and generic media posts in the bundled highlights section (no type filter)', async () => {
     const bundleHighlightId = `feed-bundle-highlight-${ts}`;
     const bundleRegularId = `feed-bundle-regular-${ts}`;
 
@@ -297,7 +307,7 @@ describeDb('GET /feed/bundle', () => {
         id: bundleRegularId,
         author_id: userIds[2],
         title: 'Bundle regular post',
-        content: 'Should not appear in highlights bundle',
+        content: 'Generic media post — must also appear in highlights bundle',
         type: 'post',
         media_url: 'https://example.com/bundle-regular.jpg',
         country_code: 'CA',
@@ -316,7 +326,7 @@ describeDb('GET /feed/bundle', () => {
       ...(res.body?.highlights?.ranked ?? []),
     ].map((item: any) => item.id);
     expect(highlightIds).toContain(bundleHighlightId);
-    expect(highlightIds).not.toContain(bundleRegularId);
+    expect(highlightIds).toContain(bundleRegularId);
   });
 
   it('includes followed-user posts even after the viewer follows more than 1000 users', async () => {

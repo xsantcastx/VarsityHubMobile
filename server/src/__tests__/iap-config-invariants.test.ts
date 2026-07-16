@@ -8,6 +8,10 @@
 import { describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  WEEKDAY_BLOCK_PRICE_CENTS,
+  WEEKEND_BLOCK_PRICE_CENTS,
+} from '../utils/adPricing.js';
 
 const SERVER_ROOT = process.cwd();
 const REPO_ROOT = join(SERVER_ROOT, '..');
@@ -85,8 +89,10 @@ describe('IAP product configuration invariants', () => {
     expect(adPricingUtil).toMatch(/const WEEKDAY_BLOCK_PRICE = 4\.99;/);
     expect(adPricingUtil).toMatch(/const WEEKEND_BLOCK_PRICE = 7\.99;/);
     // 4.99 * 100 = 499 cents (MOND_THURS), 7.99 * 100 = 799 cents (FRI_SUN).
-    expect(paymentInternals).toMatch(/export const AD_PRODUCT_CENTS[\s\S]*MOND_THURS:\s*499/);
-    expect(paymentInternals).toMatch(/export const AD_PRODUCT_CENTS[\s\S]*FRI_SUN:\s*799/);
+    // AD_PRODUCT_CENTS derives from these canonical constants (asserted in the
+    // ad IAP hooks test above), so pinning the runtime cents pins the map too.
+    expect(WEEKDAY_BLOCK_PRICE_CENTS).toBe(499);
+    expect(WEEKEND_BLOCK_PRICE_CENTS).toBe(799);
   });
 
   it('ad booking horizon of 56 days is pinned across the client calendar and both server checks', () => {

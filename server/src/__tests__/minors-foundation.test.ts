@@ -78,6 +78,10 @@ describeDb('Minors Foundation Integration', () => {
     const adminEmail = `minors-admin-${ts}@example.com`;
     originalAdminEmails = process.env.ADMIN_EMAILS || '';
     process.env.ADMIN_EMAILS = [adminEmail, originalAdminEmails].filter(Boolean).join(',');
+    // Admin ACCESS comes from the hardcoded PLATFORM_ADMIN_EMAILS floor —
+    // ADMIN_EMAILS drives notification routing only. This is the test-only seam
+    // (honored only when NODE_ENV === 'test'); see lib/adminEmails.ts.
+    process.env.TEST_PLATFORM_ADMIN_EMAILS = adminEmail;
 
     const admin = await prisma.user.create({
       data: {
@@ -234,6 +238,7 @@ describeDb('Minors Foundation Integration', () => {
 
   afterAll(async () => {
     process.env.ADMIN_EMAILS = originalAdminEmails;
+    delete process.env.TEST_PLATFORM_ADMIN_EMAILS;
 
     try {
       await prisma.message
@@ -328,7 +333,7 @@ describeDb('Minors Foundation Integration', () => {
     expect(res.body?.code).toBe('AGE_POLICY_BLOCKED');
   });
 
-  it('soft-deletes and anonymizes the user via DELETE /users/me without deleting authored posts', async () => {
+  it('soft-deletes and anonymizes the user via DELETE /users/me without hard-deleting authored posts', async () => {
     const res = await request(app)
       .delete('/users/me')
       .set('Authorization', `Bearer ${deleteUserToken}`)
@@ -358,8 +363,15 @@ describeDb('Minors Foundation Integration', () => {
     expect(deletedUser?.password_hash).toBeNull();
     expect((deletedUser?.preferences as any)?.deleted).toBe(true);
 
-    const post = await prisma.post.findUnique({ where: { id: deleteUserPostId } });
+    // Account deletion soft-deletes authored posts (1bb32860: they leave every
+    // feed immediately) but never hard-deletes or reassigns them. The Prisma
+    // middleware scopes Post reads to deleted_at: null, so filter on deleted_at
+    // explicitly to see the surviving row.
+    const post = await prisma.post.findFirst({
+      where: { id: deleteUserPostId, deleted_at: { not: null } },
+    });
     expect(post?.author_id).toBe(deleteUserId);
+    expect(post?.deleted_at).toBeTruthy();
 
     const afterDelete = await request(app)
       .get('/users/me/export')

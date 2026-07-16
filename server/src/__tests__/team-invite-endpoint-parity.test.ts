@@ -30,8 +30,12 @@ describe('POST /teams/:id/invite parity with POST /team-invites', () => {
 
   it('rejects a role change on an existing pending invite instead of silently overwriting', () => {
     expect(inviteHandler).toMatch(/INVITE_ROLE_CONFLICT/);
-    // The 409 branch must exist in the catch block
-    expect(inviteHandler).toMatch(/status\(409\)[\s\S]{0,200}INVITE_ROLE_CONFLICT/);
+    // The 409 branch must exist in the catch block. Since ab2b397b it goes
+    // through the sendError envelope helper (sendError(res, 409, ...)), which
+    // is res.status(409).json(...) under the hood — same status + error code.
+    expect(inviteHandler).toMatch(
+      /(?:status\(409\)[\s\S]{0,200}INVITE_ROLE_CONFLICT|sendError\(\s*res,\s*409,\s*'INVITE_ROLE_CONFLICT')/
+    );
   });
 });
 

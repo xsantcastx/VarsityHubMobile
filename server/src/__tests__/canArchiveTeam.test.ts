@@ -13,12 +13,16 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 const teamMembershipFindFirst = jest.fn();
 const teamFindUnique = jest.fn();
 const orgMembershipFindFirst = jest.fn();
+const organizationFindUnique = jest.fn();
 
 jest.unstable_mockModule('../lib/prisma.js', () => ({
   prisma: {
     teamMembership: { findFirst: teamMembershipFindFirst },
     team: { findUnique: teamFindUnique },
     organizationMembership: { findFirst: orgMembershipFindFirst },
+    // isOrgOwner's legacy-owner fallback (Organization.league_owner_id, PR #142
+    // mirror) queries organization.findUnique when no owner membership row exists.
+    organization: { findUnique: organizationFindUnique },
   },
 }));
 
@@ -28,6 +32,7 @@ beforeEach(() => {
   teamMembershipFindFirst.mockReset();
   teamFindUnique.mockReset();
   orgMembershipFindFirst.mockReset();
+  organizationFindUnique.mockReset();
 });
 
 describe('canArchiveTeam', () => {
@@ -52,6 +57,8 @@ describe('canArchiveTeam', () => {
     teamMembershipFindFirst.mockResolvedValue(null); // no owner/manager row
     teamFindUnique.mockResolvedValue({ organization_id: 'org1' });
     orgMembershipFindFirst.mockResolvedValue(null); // not an org admin
+    // Legacy-owner fallback: org is owned by someone else — must not grant.
+    organizationFindUnique.mockResolvedValue({ league_owner_id: 'someone-else' });
     await expect(canArchiveTeam('coach1', 'team1')).resolves.toBe(false);
   });
 
@@ -59,6 +66,8 @@ describe('canArchiveTeam', () => {
     teamMembershipFindFirst.mockResolvedValue(null);
     teamFindUnique.mockResolvedValue({ organization_id: 'org1' });
     orgMembershipFindFirst.mockResolvedValue(null);
+    // Legacy-owner fallback: no legacy pointer at all — must fail closed.
+    organizationFindUnique.mockResolvedValue({ league_owner_id: null });
     await expect(canArchiveTeam('asst1', 'team1')).resolves.toBe(false);
   });
 

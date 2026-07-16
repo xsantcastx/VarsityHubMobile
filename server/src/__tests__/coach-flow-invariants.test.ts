@@ -56,8 +56,12 @@ describe('coach flow structural invariants', () => {
       expect(/getApprovalNotificationEmails/.test(fnBody)).toBe(true);
     });
 
-    it('coach approval/rejection admin confirmations use getAllAdminEmails', () => {
-      expect(/getAllAdminEmails/.test(approvalService)).toBe(true);
+    it('coach approval/rejection admin confirmations use getApprovalNotificationEmails', () => {
+      // Upgraded from getAllAdminEmails in 23424806 (2026-07-15 approval audit):
+      // getApprovalNotificationEmails wraps getAllAdminEmails and always unions
+      // in the super admin, so admin confirmations can't be diverted away from
+      // customer service by env config.
+      expect(/getApprovalNotificationEmails/.test(approvalService)).toBe(true);
     });
 
     it('coach application admin notification in auth.ts uses getAllAdminEmails', () => {

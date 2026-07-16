@@ -35,6 +35,11 @@ const CANONICAL = {
 describe('validation parity (frontend ↔ backend)', () => {
   describe('username', () => {
     const serverAuth = read('server/src/routes/auth.ts');
+    // Client username validation is centralized in validateUsername()
+    // (utils/formUtils.ts) — screens delegate to it rather than inlining checks,
+    // so the canonical constraints are pinned there and the screen is pinned to
+    // the delegation (parity chain: screen → formUtils ↔ server Zod).
+    const clientFormUtils = read('utils/formUtils.ts');
     const clientEdit = read('app/settings/edit-username.tsx');
 
     it('server Zod enforces min/max/regex', () => {
@@ -43,10 +48,17 @@ describe('validation parity (frontend ↔ backend)', () => {
       expect(serverAuth).toContain(CANONICAL.usernameRegex);
     });
 
-    it('client enforces the same min/max/regex', () => {
-      expect(clientEdit).toMatch(new RegExp(`length\\s*<\\s*${CANONICAL.usernameMin}`));
-      expect(clientEdit).toMatch(new RegExp(`length\\s*>\\s*${CANONICAL.usernameMax}`));
-      expect(clientEdit).toContain(CANONICAL.usernameRegex);
+    it('client validateUsername enforces the same min/max/regex', () => {
+      expect(clientFormUtils).toMatch(new RegExp(`length\\s*<\\s*${CANONICAL.usernameMin}`));
+      expect(clientFormUtils).toMatch(new RegExp(`length\\s*>\\s*${CANONICAL.usernameMax}`));
+      expect(clientFormUtils).toContain(`USERNAME_REGEX = ${CANONICAL.usernameRegex}`);
+    });
+
+    it('edit-username screen delegates to the shared validator', () => {
+      expect(clientEdit).toMatch(
+        /import\s*\{[^}]*\bvalidateUsername\b[^}]*\}\s*from\s*'@\/utils\/formUtils'/
+      );
+      expect(clientEdit).toMatch(/validateUsername\(/);
     });
   });
 

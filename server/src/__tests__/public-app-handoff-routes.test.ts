@@ -26,7 +26,11 @@ describe('Public app handoff routes', () => {
     expect(handoffRoute).toContain('publicAppHandoffRouter.post(');
     expect(handoffRoute).toContain("'/verify/resend'");
     expect(handoffRoute).toContain('Request a New Code');
-    expect(handoffRoute).toContain('If an unverified account exists for ${escapeHtml(email)}');
+    // Anti-enumeration copy: never confirm whether the account exists. The email
+    // interpolation is raw here because renderAppHandoffPage escapes the whole
+    // description centrally — pin that escaping too.
+    expect(handoffRoute).toContain('If an unverified account exists for ${email}');
+    expect(handoffRoute).toContain('const safeDescription = escapeHtml(description);');
     expect(handoffRoute).toContain('sendVerificationEmail(');
     expect(handoffRoute).toContain('publicVerifyResendLimiter');
   });

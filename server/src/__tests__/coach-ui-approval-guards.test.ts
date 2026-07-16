@@ -57,7 +57,7 @@ describe('coach approval UI guards', () => {
       /if \(loading \|\| refreshing \|\| error \|\| entries\.length !== 1 \|\| hasAutoForwardedRef\.current\)/
     );
     expect(approvalsScreen).toMatch(
-      /hasAutoForwardedRef\.current = true;[\s\S]*router\.replace\(buildOrganizationRequestsRoute\(entries\[0\]\.id\)\);/
+      /hasAutoForwardedRef\.current = true;[\s\S]*replaceAsRedirect\(router, buildOrganizationRequestsRoute\(entries\[0\]\.id\)\);/
     );
   });
 

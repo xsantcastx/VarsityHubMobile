@@ -13,6 +13,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import request from 'supertest';
 import { app } from '../testApp.js';
+import { SERVER_VETERAN_MIN_TOTAL_TEAMS } from '../lib/planDefinitions.js';
 import bcrypt from 'bcrypt';
 
 let prisma: any;
@@ -954,7 +955,9 @@ describeDb('Critical Server Flows', () => {
       const res = await request(app)
         .post('/payments/update-subscription-quantity')
         .set('Authorization', `Bearer ${ownerManagedCoachToken}`)
-        .send({ team_count: 4 });
+        // Must pass the Zod team_count floor so the request reaches the
+        // paid_by_owner guard (validation runs first and would 400 otherwise).
+        .send({ team_count: SERVER_VETERAN_MIN_TOTAL_TEAMS });
 
       expect(res.statusCode).toEqual(403);
       expect(res.body.error).toMatch(/league owner manages this subscription/i);
