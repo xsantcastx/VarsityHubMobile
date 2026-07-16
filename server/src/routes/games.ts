@@ -70,7 +70,9 @@ const serializeMedia = (story: any) => {
     id: story.id,
     url: story.media_url,
     kind: isVideo ? 'video' : 'photo',
-    thumbnail_url: isVideo ? getVideoPreviewUrl(story.media_url) : null,
+    // Prefer the generated poster (works for R2 videos); fall back to the
+    // Cloudinary-derived preview for Cloudinary-hosted videos.
+    thumbnail_url: isVideo ? (story.poster_url ?? getVideoPreviewUrl(story.media_url)) : null,
     created_at:
       story.created_at instanceof Date ? story.created_at.toISOString() : story.created_at,
     caption: story.caption ?? null,
@@ -81,6 +83,39 @@ const serializeMedia = (story: any) => {
         : (story.expires_at ?? null),
   };
 };
+
+// In-memory dedupe so concurrent fetches don't kick off duplicate poster
+// generations for the same story (per replica; good enough — once poster_url is
+// persisted, later reads skip it entirely).
+const posterGenInFlight = new Set<string>();
+
+/**
+ * Fire-and-forget: generate + persist a still poster for a video story that
+ * doesn't have one yet. Uses Cloudinary upload-by-URL (server-side, so it
+ * reaches every client regardless of app build, and backfills already-posted
+ * videos the first time the story list is viewed). Never throws.
+ */
+function ensureStoryPoster(
+  p: StoryDeps['prisma'],
+  story: { id: string; media_url?: string | null; poster_url?: string | null }
+): void {
+  if (!story?.id || story.poster_url || !isVideoUrl(story.media_url)) return;
+  if (posterGenInFlight.has(story.id)) return;
+  posterGenInFlight.add(story.id);
+  void (async () => {
+    try {
+      const { generateVideoPosterFromUrl } = await import('../lib/cloudinary.js');
+      const poster = await generateVideoPosterFromUrl(String(story.media_url));
+      if (poster) {
+        await p.story.update({ where: { id: story.id }, data: { poster_url: poster } });
+      }
+    } catch (err: any) {
+      console.warn('[stories] poster generation failed', story.id, err?.message || err);
+    } finally {
+      posterGenInFlight.delete(story.id);
+    }
+  })();
+}
 
 const isMissingStoryLocationColumnError = (error: any): boolean => {
   if (!error || error.code !== 'P2022') return false;
@@ -242,12 +277,16 @@ const makeListMediaHandler = ({ prisma: p }: StoryDeps) =>
         select: {
           id: true,
           media_url: true,
+          poster_url: true,
           created_at: true,
           caption: true,
           user_id: true,
           expires_at: true,
         },
       });
+      // Lazy poster backfill: any video story still missing a poster gets one
+      // generated in the background; it appears on the next fetch.
+      for (const s of items) ensureStoryPoster(p, s);
       return res.json(items.map(serializeMedia));
     } catch (error: any) {
       if (isMissingStoryLocationColumnError(error)) {
@@ -378,6 +417,10 @@ const makeCreateStoryHandler = ({ prisma: p }: StoryDeps) =>
         return res.status(500).json({ error: 'Failed to create story' });
       }
     }
+
+    // Kick off poster generation for video stories (fire-and-forget; the poster
+    // appears on the next story-list fetch). Never blocks or fails the create.
+    ensureStoryPoster(p, story);
 
     try {
       const game = await p.game.findUnique({
