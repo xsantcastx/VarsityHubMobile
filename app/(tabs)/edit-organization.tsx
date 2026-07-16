@@ -132,13 +132,12 @@ export default function EditOrganizationScreen() {
     (newOwnerId: string, displayName: string) => {
       if (!params.id || transferring) return;
       Alert.alert(
-        'Confirm Transfer',
-        `Transfer ownership of this organization to ${displayName}?\n\nThis cannot be undone. You will become a manager.`,
+        'Send transfer request',
+        `Send ${displayName} a request to take ownership of this organization?\n\nOwnership moves only after they accept. Until then you stay the owner.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Transfer',
-            style: 'destructive',
+            text: 'Send request',
             onPress: async () => {
               try {
                 setTransferring(true);
@@ -146,13 +145,13 @@ export default function EditOrganizationScreen() {
                 setShowTransferModal(false);
                 setMemberSearch('');
                 Alert.alert(
-                  'Ownership Transferred',
-                  `${displayName} is now the organization owner.`,
+                  'Request sent',
+                  `Waiting for ${displayName} to accept. You'll stay the owner until they do — you can cancel the request anytime.`,
                   [{ text: 'OK', onPress: () => safeGoBack(router, fallbackRoute) }]
                 );
               } catch (e: any) {
-                const msg = e?.data?.error || e?.message || 'Failed to transfer ownership';
-                Alert.alert('Unable to transfer ownership', msg);
+                const msg = e?.data?.error || e?.message || 'Failed to send transfer request';
+                Alert.alert('Unable to send transfer request', msg);
               } finally {
                 setTransferring(false);
               }

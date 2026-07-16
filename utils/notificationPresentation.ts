@@ -125,6 +125,15 @@ export function getNotificationTitle(item: NotificationItem) {
   if (type === 'GAME_OPPONENT_DECLINED') {
     return `Your opponent declined${item.meta?.title ? ` "${item.meta.title}"` : ' the game'}.${item.meta?.reason ? ` ${item.meta.reason}` : ''}`;
   }
+  if (type === 'ORG_OWNERSHIP_TRANSFER_OFFER') {
+    return `${name} offered you ownership of${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ' an organization'}. Accept to take over.`;
+  }
+  if (type === 'ORG_OWNERSHIP_TRANSFER_ACCEPTED') {
+    return `${name} accepted ownership of${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ' the organization'}.`;
+  }
+  if (type === 'ORG_OWNERSHIP_TRANSFER_DECLINED') {
+    return `${name} declined your ownership offer for${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ' the organization'}.`;
+  }
 
   // v1.0.3: previously unknown/missing types showed a bare "Notification"
   // label — useless for the user and indistinguishable from other items.
@@ -154,11 +163,11 @@ export function getNotificationSubtitle(item: NotificationItem) {
     type === 'ORG_REJECTED' ||
     type === 'JOIN_REQUEST_APPROVED' ||
     type === 'JOIN_REQUEST_DENIED' ||
-    type === 'COACH_REJECTED'
-      ? normalizePreview(
-          (meta.organization_name as string | null | undefined) ||
-            (meta.reason as string | null | undefined)
-        )
+    type === 'COACH_REJECTED' ||
+    type === 'ORG_OWNERSHIP_TRANSFER_OFFER' ||
+    type === 'ORG_OWNERSHIP_TRANSFER_ACCEPTED' ||
+    type === 'ORG_OWNERSHIP_TRANSFER_DECLINED'
+      ? normalizePreview(meta.organization_name as string | null | undefined)
       : null) ||
     (type === 'GAME_OPPONENT_APPROVAL_REQUESTED' ||
     type === 'GAME_OPPONENT_APPROVED' ||
@@ -249,6 +258,14 @@ export function getNotificationHrefForUser(
     item.meta?.game_id
   ) {
     return `/game/${encodeURIComponent(String(item.meta.game_id))}`;
+  }
+  if (
+    (type === 'ORG_OWNERSHIP_TRANSFER_OFFER' ||
+      type === 'ORG_OWNERSHIP_TRANSFER_ACCEPTED' ||
+      type === 'ORG_OWNERSHIP_TRANSFER_DECLINED') &&
+    item.meta?.organization_id
+  ) {
+    return `/organization?id=${encodeURIComponent(String(item.meta.organization_id))}`;
   }
 
   return item.actor?.id ? `/user-profile?id=${encodeURIComponent(item.actor.id)}` : null;

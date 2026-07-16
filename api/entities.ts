@@ -661,10 +661,18 @@ export const Organization = {
       email: identifier,
       role,
     }),
+  // Accept-based transfer: initiate sends a PENDING offer (ownership only moves
+  // when the recipient accepts). Returns { pending: true }.
   transferOwnership: (organizationId: string, newOwnerId: string) =>
     httpPost(`/organizations/${encodeURIComponent(organizationId)}/transfer-ownership`, {
       new_owner_id: newOwnerId,
     }),
+  acceptOwnershipTransfer: (organizationId: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/transfer-ownership/accept`, {}),
+  declineOwnershipTransfer: (organizationId: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/transfer-ownership/decline`, {}),
+  cancelOwnershipTransfer: (organizationId: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/transfer-ownership/cancel`, {}),
   cancelInvite: (organizationId: string, inviteId: string) =>
     httpPost(
       `/organizations/${encodeURIComponent(organizationId)}/invites/${encodeURIComponent(inviteId)}/cancel`,

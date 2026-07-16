@@ -316,6 +316,29 @@ export default function OrganizationScreen() {
     }
   }, [refreshAll]);
 
+  // Accept-based ownership transfer responses (recipient accept/decline, owner
+  // cancel). Server is authoritative; we just call + refetch.
+  const [transferResponding, setTransferResponding] = useState(false);
+  const respondToTransfer = useCallback(
+    async (action: 'accept' | 'decline' | 'cancel') => {
+      const orgId = (organization as any)?.id;
+      if (!orgId || transferResponding) return;
+      try {
+        setTransferResponding(true);
+        if (action === 'accept') await Organization.acceptOwnershipTransfer(orgId);
+        else if (action === 'decline') await Organization.declineOwnershipTransfer(orgId);
+        else await Organization.cancelOwnershipTransfer(orgId);
+        await refreshAll();
+        if (action === 'accept') Alert.alert('You now own this organization.');
+      } catch (e: any) {
+        Alert.alert('Action failed', e?.data?.error || e?.message || 'Please try again.');
+      } finally {
+        setTransferResponding(false);
+      }
+    },
+    [organization, transferResponding, refreshAll]
+  );
+
   // Optimistic follow-state patch: write through to the cached payload so the
   // toggle and follower count survive re-renders and background refetches.
   const patchFollowState = useCallback(
@@ -549,6 +572,88 @@ export default function OrganizationScreen() {
         <Pressable onPress={handleBack} style={[styles.backButton, { borderColor: theme.border }]}>
           <Ionicons name="arrow-back" size={22} color={theme.text} />
         </Pressable>
+
+        {/* Pending ownership transfer — recipient sees Accept/Decline, the
+            initiator sees a Cancel affordance. Server is authoritative. */}
+        {(organization as any)?.pending_ownership_transfer && (
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: theme.tint,
+              backgroundColor: theme.card,
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 12,
+              gap: 10,
+            }}
+          >
+            {(organization as any).pending_ownership_transfer.to_user_id === user?.id ? (
+              <>
+                <Text style={{ color: theme.text, fontWeight: '700' }}>
+                  You've been offered ownership of {orgName}
+                </Text>
+                <Text style={{ color: theme.mutedText }}>
+                  Accepting makes you the owner; the current owner becomes a manager.
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable
+                    disabled={transferResponding}
+                    onPress={() => void respondToTransfer('accept')}
+                    style={{
+                      flex: 1,
+                      backgroundColor: theme.tint,
+                      borderRadius: 10,
+                      paddingVertical: 10,
+                      alignItems: 'center',
+                      opacity: transferResponding ? 0.6 : 1,
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>Accept</Text>
+                  </Pressable>
+                  <Pressable
+                    disabled={transferResponding}
+                    onPress={() => void respondToTransfer('decline')}
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                      borderRadius: 10,
+                      paddingVertical: 10,
+                      alignItems: 'center',
+                      opacity: transferResponding ? 0.6 : 1,
+                    }}
+                  >
+                    <Text style={{ color: theme.text, fontWeight: '600' }}>Decline</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (organization as any).pending_ownership_transfer.from_user_id === user?.id ? (
+              <>
+                <Text style={{ color: theme.text, fontWeight: '700' }}>
+                  Ownership transfer pending
+                </Text>
+                <Text style={{ color: theme.mutedText }}>
+                  Waiting for the recipient to accept. You're still the owner until they do.
+                </Text>
+                <Pressable
+                  disabled={transferResponding}
+                  onPress={() => void respondToTransfer('cancel')}
+                  style={{
+                    alignSelf: 'flex-start',
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    borderRadius: 10,
+                    paddingVertical: 8,
+                    paddingHorizontal: 14,
+                    opacity: transferResponding ? 0.6 : 1,
+                  }}
+                >
+                  <Text style={{ color: theme.text, fontWeight: '600' }}>Cancel request</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        )}
 
         {/* Admin: View Join Requests */}
         {/* Coach Requests: any reviewer. Invite Coach: OWNER ONLY — org invite
