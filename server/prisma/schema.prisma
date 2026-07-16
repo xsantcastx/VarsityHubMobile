@@ -338,6 +338,10 @@ model User {
   // League ownership (organizations this user owns)
   ownedOrganizations Organization[] @relation("league_owner")
 
+  // Accept-based ownership transfers this user initiated / was offered
+  ownership_transfers_from OrganizationOwnershipTransfer[] @relation("OwnershipTransferFrom")
+  ownership_transfers_to   OrganizationOwnershipTransfer[] @relation("OwnershipTransferTo")
+
   // Abuse Reports
   abuseReports AbuseReport[]
 
@@ -1056,6 +1060,9 @@ enum NotificationType {
   GAME_OPPONENT_APPROVAL_REQUESTED
   GAME_OPPONENT_APPROVED
   GAME_OPPONENT_DECLINED
+  ORG_OWNERSHIP_TRANSFER_OFFER
+  ORG_OWNERSHIP_TRANSFER_ACCEPTED
+  ORG_OWNERSHIP_TRANSFER_DECLINED
 }
 
 model Notification {
@@ -1234,12 +1241,13 @@ model Organization {
   // Supporting document (file/image) URL — required for new org creation
   supporting_document_url String? @db.VarChar(2000)
 
-  teams          Team[]
-  memberships    OrganizationMembership[]
-  invites        OrganizationInvite[]
-  joinRequests   OrganizationJoinRequest[]
-  followers      OrganizationFollow[]
-  sport_programs SportProgram[]
+  teams               Team[]
+  memberships         OrganizationMembership[]
+  invites             OrganizationInvite[]
+  joinRequests        OrganizationJoinRequest[]
+  followers           OrganizationFollow[]
+  sport_programs      SportProgram[]
+  ownership_transfers OrganizationOwnershipTransfer[]
 
   @@index([name])
   @@index([zip_code])
@@ -1247,6 +1255,35 @@ model Organization {
   @@index([league_owner_id])
   @@index([admin_approved])
   @@index([status])
+}
+
+enum OwnershipTransferStatus {
+  pending
+  accepted
+  declined
+  cancelled
+}
+
+// Accept-based org ownership transfer (owner rule 2026-07-16): the current
+// owner initiates a PENDING transfer; the recipient must accept before
+// ownership actually moves. Until acceptance the initiator stays owner (and
+// stays blocked from account deletion by the sole-owner guard). Mirrors the
+// OrganizationInvite -> accept pattern.
+model OrganizationOwnershipTransfer {
+  id              String                  @id @default(cuid())
+  organization_id String
+  from_user_id    String
+  to_user_id      String
+  status          OwnershipTransferStatus @default(pending)
+  created_at      DateTime                @default(now())
+  responded_at    DateTime?
+
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  from_user    User         @relation("OwnershipTransferFrom", fields: [from_user_id], references: [id], onDelete: Cascade)
+  to_user      User         @relation("OwnershipTransferTo", fields: [to_user_id], references: [id], onDelete: Cascade)
+
+  @@index([organization_id, status])
+  @@index([to_user_id, status])
 }
 
 model OrganizationJoinRequest {
