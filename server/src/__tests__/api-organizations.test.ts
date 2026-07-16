@@ -251,12 +251,21 @@ describe('API Organization Endpoints', () => {
     });
 
     it('POST /organizations/:id/transfer-ownership updates both membership roles and league_owner_id', async () => {
+      // Accept-based transfer (2026-07-16): initiate sends a pending offer;
+      // ownership moves only after the recipient accepts.
       const transferRes = await request(app)
         .post(`/organizations/${ownedOrgId}/transfer-ownership`)
         .set('Authorization', `Bearer ${ownerToken}`)
         .send({ new_owner_id: managerId });
 
       expect(transferRes.status).toBe(200);
+      expect(transferRes.body.pending).toBe(true);
+
+      const acceptRes = await request(app)
+        .post(`/organizations/${ownedOrgId}/transfer-ownership/accept`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({});
+      expect(acceptRes.status).toBe(200);
 
       const [org, membershipRows] = await Promise.all([
         prisma.organization.findUnique({

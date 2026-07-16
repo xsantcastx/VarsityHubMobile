@@ -59,6 +59,7 @@ export const TABLES_IN_ORDER = [
   'OrganizationFollow',
   'OrganizationInvite',
   'OrganizationJoinRequest',
+  'OrganizationOwnershipTransfer',
   'CoachApplication',
   'DataExport',
   'ParentalConsentAudit',

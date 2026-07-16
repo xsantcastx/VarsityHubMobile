@@ -22,6 +22,12 @@ const orgAuthSrc = readFileSync(
   join(process.cwd(), 'src', 'lib', 'organizationAuthorization.ts'),
   'utf8'
 );
+// Accept-based transfer (2026-07-16): the active-membership guards for org
+// ownership transfer moved OUT of the route and into this lib.
+const orgTransferSrc = readFileSync(
+  join(process.cwd(), 'src', 'lib', 'organizationOwnershipTransfer.ts'),
+  'utf8'
+);
 
 describe('membership status guards', () => {
   it('requires active team membership for team update, delete, and transfer-ownership', () => {
@@ -73,15 +79,20 @@ describe('membership status guards', () => {
     expect(orgAuthSrc).toMatch(/ORGANIZATION_OWNER_ROLE = 'owner'/);
   });
 
-  it('org transfer-ownership requires active current + new owner memberships', () => {
-    // Allow whitespace between post( and the path string — the org route is
-    // declared across several lines (organizations.ts:2038), unlike the teams
-    // route which is single-line.
+  it('org transfer-ownership requires active current + new owner memberships (logic in the lib)', () => {
+    // The route now delegates to the transfer lib (accept-based flow, 2026-07-16).
     expect(orgsSrc).toMatch(
-      /organizationsRouter\.post\(\s*'\/:id\/transfer-ownership'[\s\S]{0,2000}?currentOwnership[\s\S]{0,500}?status:\s*'active'/
+      /organizationsRouter\.post\(\s*'\/:id\/transfer-ownership'[\s\S]{0,2000}?initiateOwnershipTransfer\(/
     );
-    expect(orgsSrc).toMatch(
-      /organizationsRouter\.post\(\s*'\/:id\/transfer-ownership'[\s\S]{0,2000}?newOwnerMembership[\s\S]{0,500}?status:\s*'active'/
+    // The active-membership invariant lives in the lib: initiate requires the
+    // current owner (isOrgOwner) and an ACTIVE target membership; accept
+    // re-validates the recipient is STILL an active member.
+    expect(orgTransferSrc).toMatch(/initiateOwnershipTransfer[\s\S]*?isOrgOwner\(/);
+    expect(orgTransferSrc).toMatch(
+      /initiateOwnershipTransfer[\s\S]*?user_id:\s*toUserId,\s*status:\s*'active'/
+    );
+    expect(orgTransferSrc).toMatch(
+      /acceptOwnershipTransfer[\s\S]*?user_id:\s*actingUserId,\s*status:\s*'active'/
     );
   });
 });

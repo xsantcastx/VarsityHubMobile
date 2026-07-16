@@ -151,12 +151,21 @@ describe('League review routes', () => {
         data: { admin_approved: true, status: 'active' },
       });
 
+      // Accept-based transfer (2026-07-16): initiate only creates a pending
+      // offer; ownership moves when the recipient accepts.
       const res = await request(app)
         .post(`/organizations/${orgId}/transfer-ownership`)
         .set('Authorization', `Bearer ${signJwt({ id: ownerId })}`)
         .send({ new_owner_id: secondOwnerId });
 
       expect(res.status).toBe(200);
+      expect(res.body.pending).toBe(true);
+
+      const acceptRes = await request(app)
+        .post(`/organizations/${orgId}/transfer-ownership/accept`)
+        .set('Authorization', `Bearer ${signJwt({ id: secondOwnerId })}`)
+        .send({});
+      expect(acceptRes.status).toBe(200);
 
       const orgAfter = await prisma.organization.findUnique({
         where: { id: orgId },

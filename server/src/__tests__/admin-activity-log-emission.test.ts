@@ -147,6 +147,10 @@ describe('AdminActivityLog emission', () => {
         onboarding_completed: true,
         approval_status: 'APPROVED',
         date_of_birth: new Date('1990-01-01'),
+        // Accepting an ownership transfer runs requireOnboarded; a coach
+        // recipient must hold a current coach agreement to become owner.
+        coach_agreement_accepted_at: new Date(),
+        coach_agreement_version: 1,
         preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
       },
     });
@@ -274,24 +278,43 @@ describe('AdminActivityLog emission', () => {
     expect(log.target_id).toBe(ad.id);
   });
 
-  it('org transfer-ownership writes a TRANSFER_ORG_OWNERSHIP row with actor + new owner', async () => {
+  it('org transfer-ownership writes audit rows on request + accept (actor + new owner)', async () => {
+    // Accept-based transfer (2026-07-16): the owner's INITIATE writes a
+    // REQUEST_ORG_OWNERSHIP_TRANSFER row (actor = owner, new_owner in metadata);
+    // the recipient's ACCEPT writes the TRANSFER_ORG_OWNERSHIP row (actor = new owner).
     const res = await request(app)
       .post(`/organizations/${orgId}/transfer-ownership`)
       .set('Authorization', `Bearer ${orgOwnerToken}`)
       .send({ new_owner_id: newOwnerId });
-
     expect(res.status).toBe(200);
+    expect(res.body.pending).toBe(true);
 
-    const log = await prisma.adminActivityLog.findFirst({
+    const requestLog = await prisma.adminActivityLog.findFirst({
+      where: {
+        target_type: 'organization',
+        target_id: orgId,
+        action: 'REQUEST_ORG_OWNERSHIP_TRANSFER',
+      },
+      orderBy: { timestamp: 'desc' },
+    });
+    expect(requestLog).toBeTruthy();
+    expect(requestLog.admin_id).toBe(orgOwnerId);
+    expect(requestLog.admin_email).toBe(`audit-org-owner-${ts}@example.com`);
+    expect(requestLog.metadata?.new_owner_id).toBe(newOwnerId);
+
+    const acceptRes = await request(app)
+      .post(`/organizations/${orgId}/transfer-ownership/accept`)
+      .set('Authorization', `Bearer ${signJwt({ id: newOwnerId })}`)
+      .send({});
+    expect(acceptRes.status).toBe(200);
+
+    const transferLog = await prisma.adminActivityLog.findFirst({
       where: { target_type: 'organization', target_id: orgId, action: 'TRANSFER_ORG_OWNERSHIP' },
       orderBy: { timestamp: 'desc' },
     });
-    expect(log).toBeTruthy();
-    expect(log.admin_id).toBe(orgOwnerId);
-    expect(log.admin_email).toBe(`audit-org-owner-${ts}@example.com`);
-    expect(log.target_type).toBe('organization');
-    expect(log.target_id).toBe(orgId);
-    expect(log.metadata?.new_owner_id).toBe(newOwnerId);
+    expect(transferLog).toBeTruthy();
+    expect(transferLog.admin_id).toBe(newOwnerId);
+    expect(transferLog.target_id).toBe(orgId);
   });
 
   it('team transfer-ownership writes a TRANSFER_TEAM_OWNERSHIP row with actor + new owner', async () => {
