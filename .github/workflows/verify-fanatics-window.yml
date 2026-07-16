@@ -1,0 +1,35 @@
+name: Verify Fanatics Fest posting window
+
+# READ-ONLY. Prints each fest day's start, 18h window value, computed open/close
+# bounds, and current state. No writes. Runs on workflow_dispatch or on a push
+# to main that changes THIS file (scoped one-shot). Needs PRODUCTION_DATABASE_URL.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-fanatics-window.yml'
+
+jobs:
+  verify:
+    name: verify-fanatics-window
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+      - name: Verify window
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: npx tsx scripts/verify-fanatics-window.ts
