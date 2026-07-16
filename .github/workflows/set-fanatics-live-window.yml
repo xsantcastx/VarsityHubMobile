@@ -1,0 +1,36 @@
+name: Set Fanatics Fest live posting window
+
+# Manually-triggered, idempotent prod write. Sets the 18-hour geofenced live
+# posting window on the four Fanatics Fest NYC 2026 day events so fans at the
+# Javits Center can make geofenced posts all day (owner rule 2026-07-15).
+# The script only touches those 4 event rows, prints before/after, and
+# verifies. Requires the PRODUCTION_DATABASE_URL secret (same one the
+# diagnose-fanatics-fest workflow uses).
+#
+# workflow_dispatch only — never runs on push.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  set-window:
+    name: set-fanatics-live-window
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+      - name: Set live window
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: npx tsx scripts/set-fanatics-live-window.ts
