@@ -9,6 +9,7 @@ name: Diagnose + fix Fanatics Day 1 feed visibility
 # Runs on workflow_dispatch, or on a push to main that changes THIS file
 # (scoped one-shot trigger). Requires the PRODUCTION_DATABASE_URL secret.
 # Re-run 2026-07-16 20:25Z: drop is_private from the Game select (not a Game column).
+# Re-run 2026-07-16 20:52Z: pin-to-1PM re-hid Day 1; restore known-good future-date nudge.
 on:
   workflow_dispatch:
   push:
