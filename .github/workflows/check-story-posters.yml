@@ -3,6 +3,7 @@ name: Check story posters
 # READ-ONLY. Reports poster_url status for recent stories to verify server-side
 # poster generation. Runs on workflow_dispatch or a push to main that changes
 # THIS file. Needs PRODUCTION_DATABASE_URL.
+# Re-run 2026-07-16 20:40Z: added Day 1 game-scoped poster report.
 
 on:
   workflow_dispatch:

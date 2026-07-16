@@ -59,6 +59,49 @@ async function main() {
   } else {
     console.log('[day1] event not found');
   }
+
+  // Day 1 game-scoped story posters (the exact carousel the user sees).
+  const day1EventFull = await prisma.event.findUnique({
+    where: { id: DAY1 },
+    select: { game_id: true },
+  });
+  let day1GameId = day1EventFull?.game_id ?? null;
+  if (!day1GameId) {
+    const g = await prisma.game.findFirst({
+      where: { events: { some: { id: DAY1 } } },
+      select: { id: true },
+    });
+    day1GameId = g?.id ?? null;
+  }
+  if (day1GameId) {
+    const day1Stories = await prisma.story.findMany({
+      where: { game_id: day1GameId },
+      orderBy: { created_at: 'desc' },
+      take: 20,
+      select: { id: true, media_url: true, poster_url: true, created_at: true },
+    });
+    const day1Videos = day1Stories.filter(s => isVideo(s.media_url));
+    console.log(
+      `[day1-stories] game=${day1GameId} total=${day1Stories.length} video=${day1Videos.length} withPoster=${day1Videos.filter(s => s.poster_url).length}`
+    );
+    for (const s of day1Stories) {
+      const host = (() => {
+        try {
+          return new URL(s.media_url).hostname;
+        } catch {
+          return '?';
+        }
+      })();
+      console.log(
+        `  ${s.id} video=${isVideo(s.media_url)} host=${host} poster=${s.poster_url ? 'YES' : 'no'}`
+      );
+      if (s.poster_url) console.log(`       -> ${s.poster_url}`);
+    }
+    console.log('');
+  } else {
+    console.log('[day1-stories] no Day 1 game found');
+  }
+
   for (const v of videos) {
     const host = (() => {
       try {
