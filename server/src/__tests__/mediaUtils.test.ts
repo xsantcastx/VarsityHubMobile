@@ -42,8 +42,25 @@ describe('getVideoPreviewUrl', () => {
     expect(getVideoPreviewUrl(null)).toBeNull();
   });
 
-  it('returns null for non-Cloudinary video URLs', () => {
-    expect(getVideoPreviewUrl('https://example.com/video.mp4')).toBeNull();
+  describe('non-Cloudinary (e.g. R2) video URLs', () => {
+    const ORIGINAL = process.env.CLOUDINARY_CLOUD_NAME;
+    afterEach(() => {
+      if (ORIGINAL === undefined) delete process.env.CLOUDINARY_CLOUD_NAME;
+      else process.env.CLOUDINARY_CLOUD_NAME = ORIGINAL;
+    });
+
+    it('returns null when no Cloudinary cloud is configured', () => {
+      delete process.env.CLOUDINARY_CLOUD_NAME;
+      expect(getVideoPreviewUrl('https://media.r2.example/clip.mp4')).toBeNull();
+    });
+
+    it('returns a Cloudinary remote-fetch poster when a cloud is configured', () => {
+      process.env.CLOUDINARY_CLOUD_NAME = 'testcloud';
+      const src = 'https://media.r2.example/clip.mp4';
+      expect(getVideoPreviewUrl(src)).toBe(
+        `https://res.cloudinary.com/testcloud/video/fetch/so_0,f_jpg,w_480,q_auto/${encodeURIComponent(src)}`
+      );
+    });
   });
 
   it('returns preview URL for Cloudinary video', () => {
