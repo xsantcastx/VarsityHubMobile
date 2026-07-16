@@ -418,17 +418,18 @@ async function userLanding(req: Request, res: Response, next: NextFunction) {
     })
     .catch(() => null);
 
-  // Don't leak deleted/anonymized accounts at all; for a PRIVATE profile mirror
-  // the in-app non-follower projection (name + avatar, but no bio). Audit 2026-07-14.
+  // Don't leak deleted/anonymized accounts at all, and don't expose private
+  // profiles through this anonymous/crawler surface. Private users still have
+  // in-app projections for authorized viewers; this share door has none.
   const isPrivate = (user?.preferences as any)?.profile_private === true;
-  const visibleUser = user && !user.deleted_at ? user : null;
+  const visibleUser = user && !user.deleted_at && !isPrivate ? user : null;
   const handle = visibleUser?.username
     ? `@${visibleUser.username}`
     : visibleUser?.display_name || 'A VarsityHub member';
   const meta: LandingMeta = visibleUser
     ? {
         title: handle,
-        description: isPrivate ? undefined : visibleUser.bio || undefined,
+        description: visibleUser.bio || undefined,
         imageUrl: visibleUser.avatar_url || undefined,
         url: fullUrl(req),
       }

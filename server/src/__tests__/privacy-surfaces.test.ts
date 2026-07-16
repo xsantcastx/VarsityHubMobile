@@ -28,6 +28,12 @@ describe('3a shareLanding gates', () => {
     expect(src).toMatch(/isAuthorHiddenFromViewer/);
     expect(src).toMatch(/deleted_at/);
   });
+  it('user landing excludes private profiles', () => {
+    const idx = src.indexOf('async function userLanding');
+    const region = src.slice(idx, idx + 900);
+    expect(region).toMatch(/profile_private/);
+    expect(region).toMatch(/!user\.deleted_at && !isPrivate/);
+  });
 });
 
 describe('3b nearby search excludes unapproved orgs', () => {
@@ -50,6 +56,12 @@ describe('3c private-team posts excluded from feeds', () => {
     const idx = src.indexOf('if (req.query.team_id)');
     const region = src.slice(idx, idx + 600);
     expect(region).toMatch(/isTeamHiddenFromViewer/);
+  });
+  it('unified search excludes private-team-linked games, events, and posts', () => {
+    const src = read('routes', 'search.ts');
+    expect(src).toMatch(/home_team_id:\s*\{\s*notIn:\s*privateTeamExcludeIds/);
+    expect(src).toMatch(/away_team_id:\s*\{\s*notIn:\s*privateTeamExcludeIds/);
+    expect(src).toMatch(/team_id:\s*\{\s*notIn:\s*privateTeamExcludeIds/);
   });
 });
 
@@ -74,5 +86,16 @@ describe('3e org programs gate', () => {
     const region = src.slice(idx, idx + 2600);
     expect(region).toMatch(/admin_approved/);
     expect(region).toMatch(/isTeamHiddenFromViewer/);
+  });
+});
+
+describe('3f mention search mirrors unified search privacy', () => {
+  it('filters blocked/private/minor users out of mention results', () => {
+    const src = read('routes', 'users.ts');
+    const idx = src.indexOf("'/search/mentions'");
+    const region = src.slice(idx, idx + 1800);
+    expect(region).toMatch(/getBlockedUserIds/);
+    expect(region).toMatch(/getExcludedPrivateAuthorIds/);
+    expect(region).toMatch(/date_of_birth/);
   });
 });
