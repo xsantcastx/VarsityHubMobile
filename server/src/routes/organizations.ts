@@ -38,6 +38,12 @@ import {
   listOrganizationJoinRequestsForUser,
 } from '../lib/organizationWorkflowState.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
+import {
+  initiateOwnershipTransfer,
+  acceptOwnershipTransfer,
+  respondCancelOrDecline,
+  getPendingTransfer,
+} from '../lib/organizationOwnershipTransfer.js';
 import { prisma } from '../lib/prisma.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
 import { consumeReviewToken, signReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
@@ -2458,73 +2464,136 @@ organizationsRouter.post(
     const orgId = req.params.id;
     const transferSchema = z.object({ new_owner_id: z.string().min(1) });
     const parsed = transferSchema.safeParse(req.body);
-    if (!parsed.success)
-      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    if (!parsed.success) return sendError(res, 400, 'Invalid payload', { code: 'INVALID_PAYLOAD' });
     const { new_owner_id } = parsed.data;
 
-    // Verify requester is current owner
-    const currentOwnership = await prisma.organizationMembership.findFirst({
-      where: { organization_id: orgId, user_id: req.user.id, role: 'owner', status: 'active' },
-      select: { id: true },
-    });
-    // A legacy owner (league_owner_id pointer, no membership row) is still the
-    // owner and may transfer. currentOwnership stays null for them — the
-    // demotion step below is skipped since there's no row to demote.
-    if (!currentOwnership && !(await isOrganizationOwnerScoped(req.user.id, orgId))) {
-      return res.status(403).json({ error: 'Only the current owner can transfer ownership' });
-    }
+    // Accept-based transfer (owner rule 2026-07-16): create a PENDING offer;
+    // ownership moves only when the recipient accepts. Until then the initiator
+    // stays owner and stays blocked from account deletion by the sole-owner guard.
+    const result = await initiateOwnershipTransfer(orgId, req.user.id, new_owner_id);
+    if ('error' in result) return sendError(res, 400, result.error, { code: result.code });
 
-    // ORG-10: Prevent self-transfer (no-op that could cause confusion)
-    if (new_owner_id === req.user.id) {
-      return res.status(400).json({ error: 'Cannot transfer ownership to yourself' });
-    }
-
-    // Verify new owner is a member of the organization
-    const newOwnerMembership = await prisma.organizationMembership.findFirst({
-      where: { organization_id: orgId, user_id: new_owner_id, status: 'active' },
-      select: { id: true },
-    });
-    if (!newOwnerMembership) {
-      return res.status(400).json({ error: 'New owner must be a member of the organization' });
-    }
-
-    // Transfer the canonical owner pointer AND membership roles together.
-    // Without updating `league_owner_id`, old-owner authority leaked through
-    // billing, team-management fallback checks, and org-owner-only screens.
-    await prisma.$transaction([
-      prisma.organization.update({
+    // Notify the recipient (best-effort — never fail the request on a notif error).
+    try {
+      const org = await prisma.organization.findUnique({
         where: { id: orgId },
-        data: { league_owner_id: new_owner_id },
-        select: { id: true },
-      }),
-      // Demote the old owner's membership row — skipped for a legacy owner who
-      // never had one (they simply stop being the league_owner_id pointer).
-      ...(currentOwnership
-        ? [
-            prisma.organizationMembership.update({
-              where: { id: currentOwnership.id },
-              data: { role: 'manager' },
-              select: { id: true },
-            }),
-          ]
-        : []),
-      prisma.organizationMembership.update({
-        where: { id: newOwnerMembership.id },
-        data: { role: 'owner' },
-        select: { id: true },
-      }),
-    ]);
+        select: { name: true },
+      });
+      await prisma.notification.create({
+        data: {
+          user_id: new_owner_id,
+          actor_id: req.user.id,
+          type: 'ORG_OWNERSHIP_TRANSFER_OFFER',
+          meta: { organization_id: orgId, organization_name: org?.name ?? 'an organization' },
+        },
+      });
+    } catch (e) {
+      console.warn('[org] transfer-offer notification failed:', (e as Error)?.message);
+    }
+
+    await logAdminActivityFromReq(
+      req,
+      'REQUEST_ORG_OWNERSHIP_TRANSFER',
+      'organization',
+      orgId,
+      `Requested ownership transfer to user ${new_owner_id}`,
+      { new_owner_id }
+    );
+
+    return res.json({
+      pending: true,
+      message: 'Transfer offer sent — waiting for the recipient to accept.',
+    });
+  })
+);
+
+// POST /organizations/:id/transfer-ownership/accept — recipient accepts; this
+// is where ownership actually moves (atomic pointer + role swap in the lib).
+organizationsRouter.post(
+  '/:id/transfer-ownership/accept',
+  requireAuth as any,
+  requireVerified as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const orgId = req.params.id;
+    const result = await acceptOwnershipTransfer(orgId, req.user.id);
+    if ('error' in result) return sendError(res, 400, result.error, { code: result.code });
+
+    // Notify the former owner that their offer was accepted (best-effort).
+    try {
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { name: true },
+      });
+      await prisma.notification.create({
+        data: {
+          user_id: result.fromUserId,
+          actor_id: req.user.id,
+          type: 'ORG_OWNERSHIP_TRANSFER_ACCEPTED',
+          meta: { organization_id: orgId, organization_name: org?.name ?? 'an organization' },
+        },
+      });
+    } catch (e) {
+      console.warn('[org] transfer-accepted notification failed:', (e as Error)?.message);
+    }
 
     await logAdminActivityFromReq(
       req,
       'TRANSFER_ORG_OWNERSHIP',
       'organization',
       orgId,
-      `Transferred organization ownership to user ${new_owner_id}`,
-      { new_owner_id }
+      `Accepted organization ownership transfer from user ${result.fromUserId}`,
+      { from_user_id: result.fromUserId }
     );
 
     return res.json({ message: 'Ownership transferred successfully' });
+  })
+);
+
+// POST /organizations/:id/transfer-ownership/decline — recipient declines.
+organizationsRouter.post(
+  '/:id/transfer-ownership/decline',
+  requireAuth as any,
+  requireVerified as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const orgId = req.params.id;
+    const result = await respondCancelOrDecline(orgId, req.user.id, 'decline');
+    if ('error' in result) return sendError(res, 400, result.error, { code: result.code });
+    try {
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { name: true },
+      });
+      await prisma.notification.create({
+        data: {
+          user_id: result.fromUserId,
+          actor_id: req.user.id,
+          type: 'ORG_OWNERSHIP_TRANSFER_DECLINED',
+          meta: { organization_id: orgId, organization_name: org?.name ?? 'an organization' },
+        },
+      });
+    } catch (e) {
+      console.warn('[org] transfer-declined notification failed:', (e as Error)?.message);
+    }
+    return res.json({ message: 'Transfer declined' });
+  })
+);
+
+// POST /organizations/:id/transfer-ownership/cancel — initiator cancels a
+// pending offer.
+organizationsRouter.post(
+  '/:id/transfer-ownership/cancel',
+  requireAuth as any,
+  requireVerified as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const result = await respondCancelOrDecline(req.params.id, req.user.id, 'cancel');
+    if ('error' in result) return sendError(res, 400, result.error, { code: result.code });
+    return res.json({ message: 'Transfer cancelled' });
   })
 );
 
