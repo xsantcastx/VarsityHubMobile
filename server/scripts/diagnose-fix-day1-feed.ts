@@ -33,7 +33,6 @@ async function main() {
             home_team_id: true,
             away_team_id: true,
             approval_status: true,
-            is_private: true,
           } as any,
         })
       : null;
@@ -46,7 +45,6 @@ async function main() {
         home_team_id: true,
         away_team_id: true,
         approval_status: true,
-        is_private: true,
       } as any,
     });
   }
@@ -58,7 +56,7 @@ async function main() {
 
   const g = game as any;
   console.log(
-    `[day1] GAME ${g.id}: date=${new Date(g.date).toISOString()} home_team=${g.home_team_id ?? 'null'} away_team=${g.away_team_id ?? 'null'} approval=${g.approval_status} private=${g.is_private}`
+    `[day1] GAME ${g.id}: date=${new Date(g.date).toISOString()} home_team=${g.home_team_id ?? 'null'} away_team=${g.away_team_id ?? 'null'} approval=${g.approval_status}`
   );
   const teamless = !g.home_team_id && !g.away_team_id;
   console.log(`[day1] teamless(marquee)=${teamless}`);
