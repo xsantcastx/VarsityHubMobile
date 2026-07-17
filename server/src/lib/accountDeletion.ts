@@ -371,6 +371,13 @@ export async function softDeleteUserAccount(userId: string): Promise<{
 
     await prisma.$transaction(async tx => {
       await purgeUserOwnedRows(tx, userId);
+      // cache-invalidation-exempt: updateUserAndInvalidate() runs on the
+      // top-level `prisma` client, so calling it here would drop this write out
+      // of the surrounding $transaction and break the purge's atomicity. The
+      // cache is invalidated immediately after the transaction commits, via
+      // invalidateMeCacheForUser() below — which is also the correct ordering:
+      // invalidating before the commit could repopulate the cache from a
+      // concurrent read of the pre-delete row.
       await tx.user.update({
         where: { id: userId },
         data: {
