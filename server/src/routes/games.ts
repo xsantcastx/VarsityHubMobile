@@ -17,7 +17,7 @@ import {
   notifyPendingEventReviewers,
 } from '../lib/eventReviewNotifications.js';
 import { sendError } from '../lib/http/sendError.js';
-import { detectMediaType, getVideoPreviewUrl, resolvePreviewUrl } from '../lib/mediaUtils.js';
+import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
 import {
   getBlockedUserIds,
@@ -76,8 +76,12 @@ const serializeMedia = (story: any) => {
     url: story.media_url,
     kind: isVideo ? 'video' : 'photo',
     // Prefer the generated poster (works for R2 videos); fall back to the
-    // Cloudinary-derived preview for Cloudinary-hosted videos.
-    thumbnail_url: isVideo ? (story.poster_url ?? getVideoPreviewUrl(story.media_url)) : null,
+    // Cloudinary-derived preview for Cloudinary-hosted videos. resolvePreviewUrl
+    // is the single seam every serializer must go through (lib/mediaUtils.ts):
+    // it prefers the stored poster, then falls back to the Cloudinary
+    // derivation, so preview behavior stays correct as media migrates off
+    // Cloudinary. Requires poster_url in the story select below.
+    thumbnail_url: isVideo ? resolvePreviewUrl(story) : null,
     created_at:
       story.created_at instanceof Date ? story.created_at.toISOString() : story.created_at,
     caption: story.caption ?? null,
