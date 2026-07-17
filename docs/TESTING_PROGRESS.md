@@ -56,7 +56,7 @@
 7. `api-events.test.ts` - Event API endpoints
 8. `payment-flow.test.ts` - Payment processing
 9. `payments.test.ts` - Payment calculations
-10. `adminReports.test.ts` - Admin report sanctions
+10. `moderation-strike-ladder.test.ts` - Moderation strike ladder / auto-escalation
 11. `email-queue.test.ts` - Email queue system
 12. `error-handling.test.ts` - Error handling system (NEW)
 

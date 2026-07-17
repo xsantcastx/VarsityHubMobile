@@ -187,8 +187,8 @@ Audit basis:
   - `__tests__/notification-upload-guardrails.test.ts`
   - `__tests__/event-banner-upload.regression.test.ts`
 - Report/admin-report server coverage exists:
-  - `server/src/__tests__/adminReports.test.ts`
   - `server/src/__tests__/adminReports-email-review.test.ts`
+  - `server/src/__tests__/admin-reports-race-guards.test.ts`
 - Notifications message formatting exists:
   - `server/src/__tests__/notifications-messages.test.ts`
 
