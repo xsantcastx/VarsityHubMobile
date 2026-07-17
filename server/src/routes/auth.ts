@@ -2868,23 +2868,26 @@ async function handleUpdateMe(req: AuthedRequest, res: Response) {
     })();
   }
 
-  // Fire-and-forget: destroy the old Cloudinary avatar if it was replaced.
-  // Only destroy res.cloudinary.com URLs we own — skip Google/Apple CDN avatars.
-  if (
-    priorAvatarUrl &&
-    priorAvatarUrl !== (data.avatar_url ?? null) &&
-    priorAvatarUrl.includes('res.cloudinary.com')
-  ) {
-    (async () => {
+  // Fire-and-forget: destroy the old avatar if it was replaced. Handles BOTH
+  // storage backends: Cloudinary assets and R2 objects (avatars migrated to R2
+  // 2026-07; the Cloudinary-only gate used to leave every replaced R2 avatar
+  // orphaned in the bucket). Both helpers are host-gated — extractCloudinaryPublicId
+  // requires a cloudinary.com host and extractR2Key requires the R2_PUBLIC_BASE_URL
+  // prefix — so Google/Apple CDN avatars we don't own no-op through both.
+  if (priorAvatarUrl && priorAvatarUrl !== (data.avatar_url ?? null)) {
+    void (async () => {
       try {
-        const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
-          await import('../lib/cloudinary.js');
+        const [{ extractCloudinaryPublicId, destroyCloudinaryAsset }, { deleteR2ObjectByUrl }] =
+          await Promise.all([import('../lib/cloudinary.js'), import('../lib/r2.js')]);
         const parsed = extractCloudinaryPublicId(priorAvatarUrl!);
         if (parsed) {
           await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
+          return;
         }
+        // Not a Cloudinary URL — try R2 (no-op if not an R2 URL).
+        await deleteR2ObjectByUrl(priorAvatarUrl!);
       } catch (err: any) {
-        console.warn('[auth] old avatar Cloudinary cleanup failed:', err?.message || err);
+        console.warn('[auth] old avatar cleanup failed:', err?.message || err);
       }
     })();
   }
