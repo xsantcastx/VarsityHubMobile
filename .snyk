@@ -21,6 +21,72 @@ ignore:
         reason: 'Allocation-of-resources DoS in ws (fixed 8.21.1). The high-severity path is ws@7.5.11, transitive via react-native@0.81.5 > react-devtools-core > ws — dev/debug tooling only, never in the release bundle. The server also resolves ws@8.21.0 (one patch behind the fix) transitively via socket.io; a direct bump means regenerating the root lockfile, which must stay npm@11-generated for the Railway Docker build (project constraint) — deferring that until the next lockfile refresh rather than doing it in a test/CI-only change. Time-boxed acceptance.'
         expires: '2026-09-30T23:59:59Z'
 
+  # ─── Base-image npm CLI tooling (node:20-bookworm-slim ships npm@10.8.2) ───
+  # All transitive deps of the npm CLI in the base image; build-time only,
+  # not run at container runtime. The container scan already reports the APP
+  # dependency layers clean — these are base tooling, fixed by a base-image
+  # bump (tracked separately), not app code.
+  SNYK-JS-BRACEEXPANSION-15789759:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-BRACEEXPANSION-17706650:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-CROSSSPAWN-8303230:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-GLOB-14040952:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-MINIMATCH-15309438:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-MINIMATCH-15353387:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-MINIMATCH-15353389:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-PACOTE-8225084:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-SIGSTORE-17817054:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-SIGSTOREVERIFY-17817052:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-TAR-15307072:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-TAR-15416075:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-TAR-15456201:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-TAR-17909068:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+  SNYK-JS-TAR-17909152:
+    - '*':
+        reason: 'npm@10.8.2 CLI tooling bundled in the node:20-bookworm-slim base image (build-time only; the server runs node, never npm, at container runtime). --exclude-base-image-vulns drops OS/apt packages, not the bundled npm node_modules. Real fix is a base-image digest bump (Dockerfile/Railway deploy change, tracked separately). Time-boxed acceptance.'
+        expires: '2026-09-30T23:59:59Z'
+
   SNYK-JS-SENTRYCORE-14105053:
     - '*':
         reason: 'Expo SDK 54 expects @sentry/react-native~7.2.0. Upgrading to 7.8.0+ resolves the advisory but breaks the iOS native build in this project. Keep ignored until Expo-compatible Sentry upgrade path is available.'
