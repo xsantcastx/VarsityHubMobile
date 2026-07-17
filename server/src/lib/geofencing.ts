@@ -123,15 +123,28 @@ export function isWithinGeofence(
 }
 
 /**
- * Check if posting window is open for stories.
- * Stories open on the UTC day of the event and stay open for 48 hours after
- * the event start so recaps and late uploads remain possible after the game.
+ * Check if the posting window is open for stories.
+ *
+ * Stories are LIVE-ONLY (owner rule, 2026-07-16 — Fanatics Fest):
+ *   "STORY POST HAVE TO BE STRICTLY FOR WHEN THEY ARE AT THE GEO FENCED
+ *    LOCATION", "USERS CANT UPLOAD TO STORIES AFTER THEY HAVE LEFT THE GAME",
+ *   "STORY POST, do not get the same 7 days after the fact".
+ *
+ * So a story uses exactly the same live window as a regular post — opening 1h
+ * before start and closing `liveWindowHoursAfterStart` after (per-event
+ * override; the fest day events run 18h) — and never the 'grace' state that
+ * keeps regular posting open for a week.
+ *
+ * This previously opened at UTC midnight on the event's day and ran for 48h
+ * after start, which both let people post before the event and kept stories
+ * open for two days after they had gone home.
  */
-export function isStoryPostingWindowOpen(eventDate: Date): boolean {
-  const now = new Date();
-  const eventStartDayUtc = new Date(`${eventDate.toISOString().slice(0, 10)}T00:00:00.000Z`);
-  const windowEnd = new Date(eventDate.getTime() + 48 * 60 * 60 * 1000);
-  return now >= eventStartDayUtc && now <= windowEnd;
+export function isStoryPostingWindowOpen(
+  eventDate: Date,
+  liveWindowHoursAfterStart?: number | null,
+  now: Date = new Date()
+): boolean {
+  return getPostPostingWindowState(eventDate, now, liveWindowHoursAfterStart) === 'live';
 }
 
 /**
@@ -468,18 +481,20 @@ export async function verifyStoryPostingPermission(
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
-  // Check if story posting window is open (event day through +48h)
-  if (!isStoryPostingWindowOpen(event.date)) {
-    const gameDay = new Date(event.date).toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-    });
-    const windowEnd = new Date(event.date.getTime() + 48 * 60 * 60 * 1000);
+  // Stories are live-only: the same window regular posts get, never the 7-day
+  // grace (owner rule, 2026-07-16 — see isStoryPostingWindowOpen).
+  if (!isStoryPostingWindowOpen(event.date, event.live_window_hours_after_start)) {
+    const { windowStart, liveCutoff } = getPostPostingWindowBounds(
+      event.date,
+      event.live_window_hours_after_start
+    );
+    const isBeforeOpen = new Date() < windowStart;
     return {
       allowed: false,
       code: 'POSTING_WINDOW_CLOSED',
-      reason: `Stories can be posted from game day (${gameDay}) until ${formatWindowDateTime(windowEnd)}.`,
+      reason: isBeforeOpen
+        ? `Stories open at ${formatWindowDateTime(windowStart)}, an hour before the event starts.`
+        : `Stories could be posted from the venue until ${formatWindowDateTime(liveCutoff)}. That window has closed.`,
     };
   }
 
@@ -534,13 +549,12 @@ export async function verifyStoryPostingPermission(
     }
   }
 
-  // First-post-unlocks-7-days: a user who already passed the geofence on this
-  // event page keeps uploading stories without re-passing it (owner rule,
-  // 2026-07-15). The story window check above still bounds WHEN.
-  if (await hasActiveEventPostingUnlock(userId, event)) {
-    return { allowed: true };
-  }
-
+  // NO unlock fallback for stories. A story must re-pass the geofence every
+  // time — "USERS CANT UPLOAD TO STORIES AFTER THEY HAVE LEFT THE GAME"
+  // (owner rule, 2026-07-16). The 7-day unlock still exists and still admits
+  // regular POSTS from anywhere; it just never admits a story. Passing the
+  // geofence above still GRANTS that unlock, because posting a story from the
+  // venue proves presence just as well as a regular post does.
   return strictFailure;
 }
 

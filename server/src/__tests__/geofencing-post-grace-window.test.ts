@@ -325,20 +325,41 @@ describe('first-post-unlocks-7-days posting rule', () => {
   });
 
   describe('stories', () => {
-    const STORY_TIME = new Date('2026-05-10T23:00:00.000Z');
+    // Owner rule (2026-07-16, Fanatics Fest): stories are LIVE-ONLY and always
+    // geofenced. "STORY POST HAVE TO BE STRICTLY FOR WHEN THEY ARE AT THE GEO
+    // FENCED LOCATION" / "USERS CANT UPLOAD TO STORIES AFTER THEY HAVE LEFT THE
+    // GAME" / "STORY POST, do not get the same 7 days after the fact".
+    //
+    // This block previously pinned the opposite: a window running from UTC
+    // midnight to +48h, and an unlock that let users post stories from
+    // anywhere. Both are deliberately reversed here.
+    const STORY_TIME = new Date('2026-05-10T19:00:00.000Z'); // 1h into the event
 
-    it('keeps story uploads open through +48h after the event', () => {
-      jest.setSystemTime(new Date('2026-05-10T23:00:00.000Z'));
-      expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
-
-      jest.setSystemTime(new Date('2026-05-11T12:00:00.000Z'));
-      expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
-
-      jest.setSystemTime(new Date('2026-05-12T17:59:59.000Z'));
-      expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
-
-      jest.setSystemTime(new Date('2026-05-12T18:00:01.000Z'));
+    it('opens 1h before start and closes at the live cutoff — not +48h', () => {
+      jest.setSystemTime(new Date('2026-05-10T16:59:59.000Z')); // >1h before
       expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(false);
+
+      jest.setSystemTime(new Date('2026-05-10T17:30:00.000Z')); // 30m before
+      expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
+
+      jest.setSystemTime(STORY_TIME);
+      expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
+
+      jest.setSystemTime(new Date('2026-05-10T21:00:01.000Z')); // past +3h
+      expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(false);
+
+      // The old rule kept this open for two more days.
+      jest.setSystemTime(new Date('2026-05-11T12:00:00.000Z'));
+      expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(false);
+    });
+
+    it('honors the per-event override so fest stories run all day', () => {
+      jest.setSystemTime(new Date('2026-05-11T11:00:00.000Z')); // +17h
+      expect(isStoryPostingWindowOpen(EVENT_DATE, 18)).toBe(true);
+      expect(isStoryPostingWindowOpen(EVENT_DATE, null)).toBe(false);
+
+      jest.setSystemTime(new Date('2026-05-11T12:00:01.000Z')); // +18h01m
+      expect(isStoryPostingWindowOpen(EVENT_DATE, 18)).toBe(false);
     });
 
     it('a geofenced first story is allowed and grants the unlock', async () => {
@@ -353,13 +374,15 @@ describe('first-post-unlocks-7-days posting rule', () => {
       );
 
       expect(result.allowed).toBe(true);
+      // Posting a story from the venue proves presence, so it still earns the
+      // unlock that keeps regular POSTS open for a week.
       expect(mockUnlockCreateMany).toHaveBeenCalledWith({
         data: [{ user_id: 'user-1', event_id: 'event-1' }],
         skipDuplicates: true,
       });
     });
 
-    it('still blocks a FIRST story from too far away', async () => {
+    it('blocks a story from too far away', async () => {
       jest.setSystemTime(STORY_TIME);
 
       const result = await verifyStoryPostingPermission(
@@ -374,7 +397,7 @@ describe('first-post-unlocks-7-days posting rule', () => {
       expect(result.code).toBe('TOO_FAR_FROM_VENUE');
     });
 
-    it('still requires location for a FIRST story', async () => {
+    it('requires location for a story', async () => {
       jest.setSystemTime(STORY_TIME);
 
       const result = await verifyStoryPostingPermission('event-1', 'user-1', null, null, null);
@@ -383,16 +406,17 @@ describe('first-post-unlocks-7-days posting rule', () => {
       expect(result.code).toBe('LOCATION_REQUIRED');
     });
 
-    it('allows an unlocked user to post a story with NO location (no re-geofence)', async () => {
+    it('the unlock does NOT admit a story with no location', async () => {
       jest.setSystemTime(STORY_TIME);
       mockUnlockFindUnique.mockResolvedValue({ unlocked_at: new Date(EVENT_DATE) });
 
       const result = await verifyStoryPostingPermission('event-1', 'user-1', null, null, null);
 
-      expect(result.allowed).toBe(true);
+      expect(result.allowed).toBe(false);
+      expect(result.code).toBe('LOCATION_REQUIRED');
     });
 
-    it('allows an unlocked user to post a story from far away', async () => {
+    it('the unlock does NOT admit a story from far away — they have left the game', async () => {
       jest.setSystemTime(STORY_TIME);
       mockUnlockFindUnique.mockResolvedValue({ unlocked_at: new Date(EVENT_DATE) });
 
@@ -404,10 +428,11 @@ describe('first-post-unlocks-7-days posting rule', () => {
         null
       );
 
-      expect(result.allowed).toBe(true);
+      expect(result.allowed).toBe(false);
+      expect(result.code).toBe('TOO_FAR_FROM_VENUE');
     });
 
-    it('rejects stories when client coordinates conflict with network location (no unlock)', async () => {
+    it('rejects stories when client coordinates conflict with network location', async () => {
       jest.setSystemTime(STORY_TIME);
       (global.fetch as any).mockResolvedValue({
         ok: true,
@@ -426,7 +451,7 @@ describe('first-post-unlocks-7-days posting rule', () => {
       expect(result.code).toBe('LOCATION_SPOOF_SUSPECTED');
     });
 
-    it('the unlock overrides an IP mismatch — presence was already proven', async () => {
+    it('the unlock no longer overrides an IP mismatch', async () => {
       jest.setSystemTime(STORY_TIME);
       (global.fetch as any).mockResolvedValue({
         ok: true,
@@ -442,14 +467,21 @@ describe('first-post-unlocks-7-days posting rule', () => {
         '8.8.8.8'
       );
 
-      expect(result.allowed).toBe(true);
+      expect(result.allowed).toBe(false);
+      expect(result.code).toBe('LOCATION_SPOOF_SUSPECTED');
     });
 
-    it('the story window still bounds unlocked users — no stories after +48h', async () => {
-      jest.setSystemTime(new Date('2026-05-12T18:00:01.000Z'));
+    it('no stories after the live window closes, unlock or not', async () => {
+      jest.setSystemTime(new Date('2026-05-10T21:00:01.000Z')); // past +3h
       mockUnlockFindUnique.mockResolvedValue({ unlocked_at: new Date(EVENT_DATE) });
 
-      const result = await verifyStoryPostingPermission('event-1', 'user-1', null, null, null);
+      const result = await verifyStoryPostingPermission(
+        'event-1',
+        'user-1',
+        VENUE.lat,
+        VENUE.lon,
+        null
+      );
 
       expect(result.allowed).toBe(false);
       expect(result.code).toBe('POSTING_WINDOW_CLOSED');

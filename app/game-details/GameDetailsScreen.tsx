@@ -24,6 +24,7 @@ import {
 } from '@/utils/eventPresentation';
 import { hasLocalEventPostingUnlock, recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import { isPostingWindowOpen, type LiveWindowFields } from '@/utils/liveWindow';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
 import { pickerAllMediaTypesProp } from '@/utils/picker';
@@ -150,7 +151,8 @@ const DEMO_MATCHUP_TAG = '[DEMO_MATCHUP]';
 const canAddStory = (
   eventIso?: string | null,
   gameId?: string | null,
-  description?: string | null
+  description?: string | null,
+  liveWindow?: LiveWindowFields | null
 ) => {
   // Seeded demo matchups (Duke v UNC, Cavs v Warriors) bypass the day-of gate
   // to match the server-side [DEMO_MATCHUP] carve-out in gameStories.ts.
@@ -158,18 +160,15 @@ const canAddStory = (
 
   // Without an event date, allow uploading — no window to enforce client-side
   if (!eventIso) return true;
-  const eventDate = new Date(eventIso);
-  if (Number.isNaN(eventDate.getTime())) return true;
 
-  // v1.0.3: mirror server's `isStoryPostingWindowOpen` in geofencing.ts —
-  // open from the start of the event's UTC day through +48h after event start.
-  // Previously this client check required the SAME UTC day, which blocked late
-  // uploads that the server would actually accept. User complaint: "users who
-  // are applicable can still upload up to 48 hours later."
-  const now = new Date();
-  const eventStartDayUtc = new Date(`${eventDate.toISOString().slice(0, 10)}T00:00:00.000Z`);
-  const windowEnd = new Date(eventDate.getTime() + 48 * 60 * 60 * 1000);
-  return now >= eventStartDayUtc && now <= windowEnd;
+  // Mirrors the server's `isStoryPostingWindowOpen` (geofencing.ts): stories
+  // are LIVE-ONLY (owner rule, 2026-07-16 — "USERS CANT UPLOAD TO STORIES
+  // AFTER THEY HAVE LEFT THE GAME", "do not get the same 7 days after the
+  // fact"). This used to run from the event's UTC midnight through +48h.
+  // Prefer the server-computed bounds when the payload carries them so the
+  // per-event override (fest days run 18h) is honored; otherwise fall back to
+  // the server's default window off the event date.
+  return isPostingWindowOpen({ ...(liveWindow ?? {}), date: eventIso });
 };
 
 const capCount = (count?: number | null, capacity?: number | null) => {
@@ -2506,13 +2505,17 @@ const GameDetailsScreen = () => {
                 <Pressable
                   style={[
                     styles.actionBtn,
-                    !vm?.gameId || storyBusy || !canAddStory(vm?.date, vm?.gameId, vm?.description)
+                    !vm?.gameId ||
+                    storyBusy ||
+                    !canAddStory(vm?.date, vm?.gameId, vm?.description, vm)
                       ? styles.actionBtnDisabled
                       : null,
                   ]}
                   onPress={handleAddStory}
                   disabled={
-                    !vm?.gameId || storyBusy || !canAddStory(vm?.date, vm?.gameId, vm?.description)
+                    !vm?.gameId ||
+                    storyBusy ||
+                    !canAddStory(vm?.date, vm?.gameId, vm?.description, vm)
                   }
                 >
                   <Ionicons
