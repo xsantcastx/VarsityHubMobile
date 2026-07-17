@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
+import { MEDIA_URL_MESSAGE, isAllowedMediaUrl } from '../lib/mediaHosts.js';
 import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import {
   serializePoll,
@@ -654,34 +655,8 @@ const locationSchema = z
   })
   .optional();
 
-// A post media/poster URL must be an uploaded asset (Cloudinary / VarsityHub
-// CDN / R2), a data: URI, or a relative/local path processed elsewhere. An
-// absolute off-platform http(s) URL (or protocol-relative //host) is rejected —
-// otherwise a fan could point media at an arbitrary host for viewer-IP tracking
-// or to bypass the upload moderation + delete-cleanup pipeline. Audit 2026-07-14.
-const isAllowedPostMediaUrl = (value: string): boolean => {
-  const v = value.trim();
-  if (v.startsWith('data:')) return true;
-  if (v.startsWith('//')) return false; // protocol-relative → treated as network URL
-  if (!/^https?:\/\//i.test(v)) return true; // relative/local path, processed server-side
-  try {
-    const parsed = new URL(v);
-    if (parsed.protocol !== 'https:') return false;
-    const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
-    const r2base = (process.env.R2_PUBLIC_BASE_URL || '').trim();
-    if (r2base) {
-      try {
-        allowed.push(new URL(r2base).hostname);
-      } catch {
-        /* ignore malformed env */
-      }
-    }
-    return allowed.some(h => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`));
-  } catch {
-    return false;
-  }
-};
-const mediaUrlMessage = { message: 'media url must be an uploaded VarsityHub asset' };
+const isAllowedPostMediaUrl = isAllowedMediaUrl;
+const mediaUrlMessage = MEDIA_URL_MESSAGE;
 
 const createPostSchema = z
   .object({

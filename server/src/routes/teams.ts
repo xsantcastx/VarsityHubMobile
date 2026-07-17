@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { isOrganizationApproved } from '../lib/approvalService.js';
 import { debugLog } from '../lib/debugLog.js';
+import { ASSET_URL_MESSAGE, isAllowedAssetUrl } from '../lib/mediaHosts.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
 import { sendStaffMemberJoinedEmail, sendTeamInviteEmail } from '../lib/email.js';
 import { sendError } from '../lib/http/sendError.js';
@@ -1894,19 +1895,7 @@ const logoUrlString = z.union([
 const TEAM_LOGO_URL_VALIDATOR = z
   .string()
   .url({ message: 'logo_url must be a valid URL' })
-  .refine(
-    url => {
-      try {
-        const parsed = new URL(url);
-        if (parsed.protocol !== 'https:') return false;
-        const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
-        return allowed.some(d => parsed.hostname.endsWith(d));
-      } catch {
-        return false;
-      }
-    },
-    { message: 'logo_url must be an HTTPS Cloudinary or VarsityHub CDN URL' }
-  )
+  .refine(isAllowedAssetUrl, ASSET_URL_MESSAGE)
   .optional()
   .or(z.literal(''));
 

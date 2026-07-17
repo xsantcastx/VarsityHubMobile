@@ -9,6 +9,7 @@ import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeleti
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
 import { debugLog } from '../lib/debugLog.js';
+import { AVATAR_URL_MESSAGE, isAllowedAvatarUrl } from '../lib/mediaHosts.js';
 import {
   getCoachFlowState,
   getLatestCoachApplication,
@@ -2753,29 +2754,7 @@ const updateMeSchema = z.object({
   avatar_url: z
     .string()
     .url({ message: 'Avatar URL must be a valid URL' })
-    .refine(
-      url => {
-        try {
-          const parsed = new URL(url);
-          // Only allow https
-          if (parsed.protocol !== 'https:') return false;
-          // Allow specific domains (Cloudinary, etc.)
-          const allowedDomains = [
-            'res.cloudinary.com',
-            'varsityhub.app',
-            'cdn.varsityhub.app',
-            'lh3.googleusercontent.com',
-            'platform-lookaside.fbsbx.com',
-            'graph.facebook.com',
-          ];
-          return allowedDomains.some(d => parsed.hostname.endsWith(d));
-        } catch (error) {
-          console.warn('[auth] Invalid avatar URL format:', error);
-          return false;
-        }
-      },
-      { message: 'Avatar URL must be from an allowed domain (Cloudinary or VarsityHub CDN)' }
-    )
+    .refine(isAllowedAvatarUrl, AVATAR_URL_MESSAGE)
     .optional()
     .nullable(),
   bio: z
@@ -3404,30 +3383,7 @@ const completeOnboardingSchema = z.object({
   authorized_users: z.array(z.any()).optional(),
 
   // Profile
-  avatar_url: z
-    .string()
-    .url()
-    .refine(
-      url => {
-        try {
-          const parsed = new URL(url);
-          if (parsed.protocol !== 'https:') return false;
-          const allowedDomains = [
-            'res.cloudinary.com',
-            'varsityhub.app',
-            'cdn.varsityhub.app',
-            'lh3.googleusercontent.com',
-            'platform-lookaside.fbsbx.com',
-            'graph.facebook.com',
-          ];
-          return allowedDomains.some(d => parsed.hostname.endsWith(d));
-        } catch {
-          return false;
-        }
-      },
-      { message: 'Avatar must be an HTTPS URL from an allowed domain' }
-    )
-    .optional(),
+  avatar_url: z.string().url().refine(isAllowedAvatarUrl, AVATAR_URL_MESSAGE).optional(),
   bio: z.string().max(300).optional(),
   sports_interests: z.array(z.string()).optional(),
 

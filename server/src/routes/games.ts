@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
+import { MEDIA_URL_MESSAGE, isAllowedAssetUrl } from '../lib/mediaHosts.js';
 import { renderReviewPage, renderResultPage, renderFinalStatePage } from '../lib/reviewPage.js';
 import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
 import { debugLog } from '../lib/debugLog.js';
@@ -101,19 +102,7 @@ const storySchema = z.object({
   media_url: z
     .string()
     .url({ message: 'media_url must be a valid URL' })
-    .refine(
-      url => {
-        try {
-          const parsed = new URL(url);
-          if (parsed.protocol !== 'https:') return false;
-          const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
-          return allowed.some(d => parsed.hostname.endsWith(d));
-        } catch {
-          return false;
-        }
-      },
-      { message: 'media_url must be an HTTPS Cloudinary or VarsityHub CDN URL' }
-    ),
+    .refine(isAllowedAssetUrl, MEDIA_URL_MESSAGE),
   caption: z.string().max(500).optional(),
   location: locationSchema,
 });

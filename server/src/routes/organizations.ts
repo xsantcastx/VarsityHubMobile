@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { approveOrganization, rejectOrganization } from '../lib/approvalService.js';
 import { getLatestCoachApplication } from '../lib/coachApplications.js';
+import { ASSET_URL_MESSAGE, isAllowedAssetUrl } from '../lib/mediaHosts.js';
 import { debugLog } from '../lib/debugLog.js';
 import { isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
 import {
@@ -689,57 +690,21 @@ const updateOrgSchema = z.object({
     .string()
     .url()
     .max(2000)
-    .refine(
-      url => {
-        try {
-          const h = new URL(url).hostname;
-          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d =>
-            h.endsWith(d)
-          );
-        } catch {
-          return false;
-        }
-      },
-      { message: 'Image URL must be from an allowed domain' }
-    )
+    .refine(isAllowedAssetUrl, ASSET_URL_MESSAGE)
     .optional()
     .nullable(),
   profile_picture_url: z
     .string()
     .url()
     .max(2000)
-    .refine(
-      url => {
-        try {
-          const h = new URL(url).hostname;
-          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d =>
-            h.endsWith(d)
-          );
-        } catch {
-          return false;
-        }
-      },
-      { message: 'Image URL must be from an allowed domain' }
-    )
+    .refine(isAllowedAssetUrl, ASSET_URL_MESSAGE)
     .optional()
     .nullable(),
   background_url: z
     .string()
     .url()
     .max(2000)
-    .refine(
-      url => {
-        try {
-          const h = new URL(url).hostname;
-          return ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'].some(d =>
-            h.endsWith(d)
-          );
-        } catch {
-          return false;
-        }
-      },
-      { message: 'Image URL must be from an allowed domain' }
-    )
+    .refine(isAllowedAssetUrl, ASSET_URL_MESSAGE)
     .optional()
     .nullable(),
   sport: z.string().max(100).optional().nullable(),
