@@ -446,9 +446,9 @@ const FeedCard = memo(
             </View>
           ) : post.media_type === 'video' && post.media_url ? (
             <View style={styles.videoWrap}>
-              {/* Poster sits UNDER the player and is covered as soon as the
-                  first real frame decodes — not gated on isVideoLoading, so
-                  there is no gap between the spinner clearing and playback. */}
+              {/* Poster sits UNDER the player while the file opens, and drops
+                  once expo-video reports readyToPlay (which clears
+                  isVideoLoading) — by then the first real frame is drawn. */}
               {posterSource && isVideoLoading ? (
                 <FastImage source={posterSource} style={styles.videoPoster} resizeMode="cover" />
               ) : null}
