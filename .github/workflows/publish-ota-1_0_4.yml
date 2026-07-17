@@ -10,6 +10,11 @@ name: Publish OTA to runtime 1.0.4 (live store binary)
 #
 # Harmless if the store is actually 1.0.5 (no 1.0.4 devices to receive it).
 # Runs on workflow_dispatch or a push to main that changes THIS file.
+#
+# Re-run 2026-07-17: deliver the Fanatics Fest NYC feed pin AND the
+# server-bounds-aware live/story window (fest days run 18h) to the live 1.0.4
+# binary — the auto publish-ota-update workflow only targets 1.0.5, which no
+# installed device is running, so those fixes were not reaching users at the fest.
 
 on:
   workflow_dispatch:
