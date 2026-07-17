@@ -114,10 +114,19 @@ describe('auth screen snapshot contract', () => {
   });
 
   it('limits direct User.me calls in app/hooks/context to the explicit force-refresh allowlist', () => {
-    const output = execSync("rg -l 'User\\.me\\(' app hooks context -g '*.{ts,tsx}'", {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-    }).trim();
+    // Use `git grep`, not ripgrep: the GitHub CI runner has git but NOT `rg`,
+    // so the old `rg` shell-out threw "rg: not found" and failed this suite in
+    // CI while passing on dev machines that happen to have ripgrep installed.
+    // git grep searches exactly the tracked files this invariant cares about.
+    // `|| true` keeps a zero-match result from throwing (git grep, like grep,
+    // exits 1 when nothing matches).
+    const output = execSync(
+      "git grep -l -E 'User\\.me\\(' -- 'app/*.ts' 'app/*.tsx' 'app/**/*.ts' 'app/**/*.tsx' 'hooks/**' 'context/**' || true",
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+      }
+    ).trim();
 
     const matches = output ? output.split('\n').sort() : [];
 
