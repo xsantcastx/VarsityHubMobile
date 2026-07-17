@@ -1865,7 +1865,11 @@ const GameDetailsScreen = () => {
                       {it.thumbnail_url ? (
                         <Image
                           source={{ uri: optimizeImageUrl(it.thumbnail_url, 500) }}
-                          style={styles.storyThumb}
+                          // absoluteFill, not flex: 1 — the poster must fill this
+                          // tile behind the play icon. A plain flex child collapsed
+                          // to width 0 here (the parent used to center it), which
+                          // is what rendered video stories as black tiles.
+                          style={StyleSheet.absoluteFill}
                           contentFit="cover"
                           transition={200}
                         />
@@ -1873,7 +1877,7 @@ const GameDetailsScreen = () => {
                         // R2-hosted story videos have no server poster URL
                         // (getVideoPreviewUrl is Cloudinary-only) — render the
                         // video's own first frame instead of a blank black box.
-                        <VideoFirstFrame uri={it.url} style={styles.storyThumb} />
+                        <VideoFirstFrame uri={it.url} style={StyleSheet.absoluteFill} />
                       )}
                       <View
                         style={[
@@ -4149,8 +4153,14 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
     storyFinalText: { color: '#e5e7eb', fontWeight: '800' },
     storyThumb: { flex: 1 },
     storyThumbVideo: {
-      alignItems: 'center',
-      justifyContent: 'center',
+      // NO alignItems/justifyContent here. They centered the poster instead of
+      // letting it fill: `alignItems: 'center'` stops the child stretching on
+      // the cross axis, so the <Image> (which only carries flex: 1) resolved to
+      // width 0 and was invisible — leaving this dark background + the play icon
+      // showing through. That is the "video stories are black tiles" bug, and it
+      // hit the VideoFirstFrame fallback identically, so neither path could ever
+      // draw. They were vestigial anyway: the play icon centers itself inside
+      // its own absoluteFill wrapper.
       backgroundColor: 'rgba(2,6,23,0.85)',
     },
     storySeenOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(2,6,23,0.25)' },
