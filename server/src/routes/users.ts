@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { assertCanSelfDeleteUser, softDeleteUserAccount } from '../lib/accountDeletion.js';
 import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
 import { sendError } from '../lib/http/sendError.js';
-import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
+import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import { notifyNewFollower, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import {
@@ -510,7 +510,12 @@ function mapPostForPayload(post: any) {
     id: post.id,
     media_url: post.media_url ?? null,
     media_type: detectMediaType(post.media_url),
-    preview_url: getVideoPreviewUrl(post.media_url),
+    // resolvePreviewUrl, not getVideoPreviewUrl: the latter only derives a
+    // poster from a Cloudinary URL, so every R2-hosted video (all media since
+    // the 2026-07-13 migration) serialized preview_url: null and the profile
+    // post grid rendered a black tile with a play button. Both callers use an
+    // `include:` query, so poster_url is present on the row.
+    preview_url: resolvePreviewUrl(post),
     // Event/game linkage — every post surface must be able to offer
     // "open the event page" (EventChip); mirrors serializeFeedPost.
     game_id: post.game_id ?? null,

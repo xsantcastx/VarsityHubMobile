@@ -65,6 +65,7 @@ import MatchBanner from '../components/MatchBanner';
 import { Event, Game, Post, Team } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
+import VideoThumbnail from '@/components/VideoThumbnail';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
@@ -1798,24 +1799,11 @@ const GameDetailsScreen = () => {
               >
                 <View style={styles.storyTile}>
                   {isVideo ? (
-                    <View style={[styles.storyThumb, styles.storyThumbVideo]}>
-                      {it.thumbnail_url ? (
-                        <Image
-                          source={{ uri: optimizeImageUrl(it.thumbnail_url, 500) }}
-                          style={styles.storyThumb}
-                          contentFit="cover"
-                          transition={200}
-                        />
-                      ) : null}
-                      <View
-                        style={[
-                          StyleSheet.absoluteFill,
-                          { alignItems: 'center', justifyContent: 'center' },
-                        ]}
-                      >
-                        <Ionicons name="play" size={32} color="#fff" />
-                      </View>
-                    </View>
+                    <VideoThumbnail
+                      videoUrl={it.url}
+                      posterUrl={it.thumbnail_url}
+                      style={styles.storyThumb}
+                    />
                   ) : (
                     <Image
                       source={{ uri: optimizeImageUrl(it.url, 500) }}
@@ -2407,20 +2395,12 @@ const GameDetailsScreen = () => {
               }
             >
               {isVideo ? (
-                <>
-                  {item.thumbnail_url ? (
-                    <Image
-                      source={{ uri: optimizeImageUrl(item.thumbnail_url, 500) }}
-                      style={styles.mediaThumbContent}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <View style={[styles.mediaThumbContent, { backgroundColor: '#0f172a' }]} />
-                  )}
-                  <View style={[styles.mediaThumbContent, styles.mediaVideo]}>
-                    <Ionicons name="play" size={24} color="#fff" />
-                  </View>
-                </>
+                <VideoThumbnail
+                  videoUrl={item.url}
+                  posterUrl={item.thumbnail_url}
+                  style={styles.mediaThumbContent}
+                  playIconSize={24}
+                />
               ) : (
                 <Image
                   source={{ uri: optimizeImageUrl(item.url, 500) }}

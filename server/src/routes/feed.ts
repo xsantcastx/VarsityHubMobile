@@ -3,7 +3,7 @@ import { AD_GEOFENCE_RADIUS_MILES, getAdBoundingBoxDegrees } from '../lib/adGeof
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { sendError } from '../lib/http/sendError.js';
-import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
+import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import { loadPostInteractionSets, serializeFeedPost } from '../lib/feedPostSerializer.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import { prisma } from '../lib/prisma.js';
@@ -37,7 +37,12 @@ const withMediaPreview = (post: any) => {
   return {
     ...rest,
     media_type: detectMediaType(rest.media_url),
-    preview_url: getVideoPreviewUrl(rest.media_url),
+    // resolvePreviewUrl, not getVideoPreviewUrl: the latter only derives a
+    // poster from a Cloudinary URL, so every R2-hosted video (all media since
+    // the 2026-07-13 migration) serialized preview_url: null and rendered as a
+    // black card. The select at the highlight-bundle query already carries
+    // poster_url — this was the only thing dropping it on the floor.
+    preview_url: resolvePreviewUrl(rest),
   };
 };
 

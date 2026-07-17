@@ -17,7 +17,7 @@ import {
   notifyPendingEventReviewers,
 } from '../lib/eventReviewNotifications.js';
 import { sendError } from '../lib/http/sendError.js';
-import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
+import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
 import {
   getBlockedUserIds,
@@ -75,7 +75,11 @@ const serializeMedia = (story: any) => {
     id: story.id,
     url: story.media_url,
     kind: isVideo ? 'video' : 'photo',
-    thumbnail_url: isVideo ? getVideoPreviewUrl(story.media_url) : null,
+    // Cloudinary-only derivation: null for every R2-hosted video (R2 cannot
+    // synthesize a poster). Story rows carry no poster_url column, so video
+    // stories legitimately have no server-side thumbnail — the client rail
+    // falls back to generating a frame locally (components/VideoThumbnail).
+    thumbnail_url: isVideo ? resolvePreviewUrl(story) : null,
     created_at:
       story.created_at instanceof Date ? story.created_at.toISOString() : story.created_at,
     caption: story.caption ?? null,
@@ -177,7 +181,9 @@ async function canViewGameMedia(
   return { allowed: !!orgMembership, exists: true };
 }
 
-const makeListMediaHandler = ({ prisma: p }: StoryDeps) =>
+// Exported for tests: the prisma dependency is already injected, so the story
+// list/order contract can be pinned with a stub client and no database.
+export const makeListMediaHandler = ({ prisma: p }: StoryDeps) =>
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
     try {
@@ -215,6 +221,15 @@ const makeListMediaHandler = ({ prisma: p }: StoryDeps) =>
         }
       })();
 
+      // Select the newest 50 (the window a viewer cares about), then replay
+      // them oldest-first: stories walk through the day from the beginning to
+      // the end, like every other story product. Ordering is fixed here rather
+      // than at the render layer because the stories rail and StoriesViewer
+      // consume this one array and the viewer indexes into it by position — a
+      // render-layer reverse in the rail would open the viewer on the wrong
+      // story. Keeping `desc` for the `take` (rather than ordering `asc`) means
+      // a game with >50 stories still returns the most recent 50, not the
+      // oldest 50.
       const items = await p.story.findMany({
         where: { game_id: id },
         orderBy: { created_at: 'desc' },
@@ -228,7 +243,7 @@ const makeListMediaHandler = ({ prisma: p }: StoryDeps) =>
           expires_at: true,
         },
       });
-      return res.json(items.map(serializeMedia));
+      return res.json(items.reverse().map(serializeMedia));
     } catch (error: any) {
       if (isMissingStoryLocationColumnError(error)) {
         console.warn('[stories] Story location columns missing, falling back to legacy query');
@@ -251,7 +266,8 @@ const makeListMediaHandler = ({ prisma: p }: StoryDeps) =>
             ORDER BY "created_at" DESC
             LIMIT 50
           `;
-          return res.json(items.map(serializeMedia));
+          // Same newest-50 window, replayed oldest-first (mirrors the Prisma path).
+          return res.json(items.reverse().map(serializeMedia));
         } catch (fallbackError) {
           console.error('[stories] Legacy fallback query failed:', fallbackError);
           return res.status(500).json({ error: 'Failed to load game media' });
@@ -815,7 +831,11 @@ const serializePost = ({ lat: _lat, lng: _lng, ...post }: any) => ({
   ...post,
   created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
   media_type: detectMediaType(post.media_url),
-  preview_url: getVideoPreviewUrl(post.media_url),
+  // resolvePreviewUrl, not getVideoPreviewUrl: the latter only derives a poster
+  // from a Cloudinary URL, so every R2-hosted video (all media since the
+  // 2026-07-13 migration) serialized preview_url: null and rendered as a black
+  // tile. This row comes from an `include:` query, so poster_url is present.
+  preview_url: resolvePreviewUrl(post),
   // username MUST be included so the vertical feed can tap through to @username
   // profile and caption overlays can render "@username" correctly. Omitting it
   // here meant GameVerticalFeedScreen's avatar/caption taps silently no-op'd.
