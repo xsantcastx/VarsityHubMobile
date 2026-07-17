@@ -64,6 +64,7 @@ import MatchBanner from '../components/MatchBanner';
 // @ts-ignore JS exports
 import { Event, Game, Post, Team } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
+import VideoFirstFrame from '@/components/VideoFirstFrame';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoThumbnail from '@/components/VideoThumbnail';
 import VideoTrimmer from '@/components/VideoTrimmer';
@@ -1070,6 +1071,17 @@ const GameDetailsScreen = () => {
   const handleAddStory = useCallback(async () => {
     if (!vm?.gameId || storyBusy) return;
 
+    // Signed-out fans must sign in first. Without this guard the upload runs
+    // and 401s at the requireAuth-gated Cloudinary signature endpoint, which
+    // surfaces a misleading "Upload Failed — we couldn't authorize this upload"
+    // alert (reads like the app is broken). Mirror the Posts "+" / RSVP gates.
+    if (!authUser) {
+      promptForSignIn(() => router.push('/sign-in'), {
+        message: 'Sign in to post a story to this event.',
+      });
+      return;
+    }
+
     // Proactive distance check — warn user before they capture media.
     // Seeded [DEMO_MATCHUP] games (Duke v UNC, Cavs v Warriors) bypass the
     // 3km check here because the server's story carve-out already accepts
@@ -1320,6 +1332,8 @@ const GameDetailsScreen = () => {
       setStoryBusy(false);
     }
   }, [
+    authUser,
+    router,
     hasEvent,
     isAdminUser,
     loadGameById,
@@ -1814,11 +1828,29 @@ const GameDetailsScreen = () => {
               >
                 <View style={styles.storyTile}>
                   {isVideo ? (
-                    <VideoThumbnail
-                      videoUrl={it.url}
-                      posterUrl={it.thumbnail_url}
-                      style={styles.storyThumb}
-                    />
+                    <View style={[styles.storyThumb, styles.storyThumbVideo]}>
+                      {it.thumbnail_url ? (
+                        <Image
+                          source={{ uri: optimizeImageUrl(it.thumbnail_url, 500) }}
+                          style={styles.storyThumb}
+                          contentFit="cover"
+                          transition={200}
+                        />
+                      ) : (
+                        // R2-hosted story videos have no server poster URL
+                        // (getVideoPreviewUrl is Cloudinary-only) — render the
+                        // video's own first frame instead of a blank black box.
+                        <VideoFirstFrame uri={it.url} style={styles.storyThumb} />
+                      )}
+                      <View
+                        style={[
+                          StyleSheet.absoluteFill,
+                          { alignItems: 'center', justifyContent: 'center' },
+                        ]}
+                      >
+                        <Ionicons name="play" size={32} color="#fff" />
+                      </View>
+                    </View>
                   ) : (
                     <Image
                       source={{ uri: optimizeImageUrl(it.url, 500) }}

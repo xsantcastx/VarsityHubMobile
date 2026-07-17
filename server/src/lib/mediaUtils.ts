@@ -8,7 +8,9 @@ export const detectMediaType = (url?: string | null): 'video' | 'image' => {
 
 /**
  * Derive an animated WebP preview URL from a Cloudinary video URL.
- * Returns null for non-Cloudinary URLs or non-video URLs.
+ * Returns null for non-Cloudinary URLs or non-video URLs — those (e.g.
+ * R2-hosted videos) get a still poster via Cloudinary upload-by-URL stored on
+ * the row (see generateVideoPosterFromUrl / Story.poster_url).
  */
 export const getVideoPreviewUrl = (url?: string | null): string | null => {
   if (!url || detectMediaType(url) !== 'video') return null;

@@ -42,8 +42,8 @@ describe('getVideoPreviewUrl', () => {
     expect(getVideoPreviewUrl(null)).toBeNull();
   });
 
-  it('returns null for non-Cloudinary video URLs', () => {
-    expect(getVideoPreviewUrl('https://example.com/video.mp4')).toBeNull();
+  it('returns null for non-Cloudinary video URLs (they use poster_url instead)', () => {
+    expect(getVideoPreviewUrl('https://media.r2.example/clip.mp4')).toBeNull();
   });
 
   it('returns preview URL for Cloudinary video', () => {

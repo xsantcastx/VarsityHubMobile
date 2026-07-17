@@ -1,0 +1,40 @@
+name: Open Fanatics Fest Day 1 posting now
+
+# One-shot prod write: moves Day 1's start time to now so the geofenced
+# highlight-post window opens immediately (fans are already at the venue).
+# Prints the ORIGINAL start time for easy revert. Touches only the Day 1 row.
+#
+# Runs on workflow_dispatch, or on a push to main that changes THIS file
+# (scoped one-shot trigger). Requires the PRODUCTION_DATABASE_URL secret.
+
+# Re-run 2026-07-16 PM: nudge Day 1 start ~50 min ahead so it stays on the map
+# (Nearby Games shows date >= now) while live; posting stays open.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/open-fanatics-day1-posting.yml'
+
+jobs:
+  open-day1:
+    name: open-fanatics-day1-posting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+      - name: Open Day 1 posting
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: npx tsx scripts/open-fanatics-day1-posting.ts

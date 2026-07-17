@@ -999,6 +999,9 @@ model Story {
   user_id String?
 
   media_url  String
+  // Still poster for video stories (esp. R2-hosted, which have no
+  // server-derivable thumbnail). Generated lazily via Cloudinary upload-by-URL.
+  poster_url String?
   caption    String?   @db.VarChar(500)
   created_at DateTime  @default(now())
   expires_at DateTime? // 24h after created_at; expired stories are filtered out

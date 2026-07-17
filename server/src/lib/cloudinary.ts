@@ -254,6 +254,67 @@ export async function uploadBufferToCloudinary(
 }
 
 /**
+ * Generate a still JPG poster for a remote video by uploading it to Cloudinary
+ * BY URL (Cloudinary's upload endpoint accepts an https URL as `file`) with an
+ * eager frame-extraction transformation. This is core upload — it does NOT
+ * require Cloudinary's "fetch" delivery type to be enabled — so it works for
+ * R2-hosted story/highlight videos that have no server-derivable poster.
+ *
+ * Returns the poster's delivery URL, or null on any failure. NEVER throws —
+ * callers use it fire-and-forget to backfill a poster without risking the
+ * request that triggered it.
+ */
+export async function generateVideoPosterFromUrl(videoUrl: string): Promise<string | null> {
+  if (!videoUrl || !/^https:\/\//i.test(videoUrl) || !isCloudinaryConfigured()) return null;
+  try {
+    const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
+    const folder = `${getCloudinaryFolder()}/video-posters`;
+    const timestamp = Math.floor(Date.now() / 1000);
+    // Plain upload-by-URL (no eager transform to get wrong). Cloudinary fetches
+    // the remote video and returns its public_id.
+    const signedParams: Record<string, string> = {
+      folder,
+      timestamp: String(timestamp),
+    };
+    const signature = createSignature(signedParams, apiSecret);
+    const body = new URLSearchParams({
+      ...signedParams,
+      file: videoUrl,
+      api_key: apiKey,
+      signature,
+    });
+    // Own breaker name so poster failures never trip the main upload breaker.
+    const response = await runWithBreaker(
+      'cloudinary-poster',
+      () =>
+        fetch(`https://api.cloudinary.com/v1_1/${cloudName}/video/upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
+        }),
+      { timeout: 120000 }
+    );
+    if (!response.ok) {
+      const err = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
+      console.warn(
+        '[cloudinary] video poster upload failed:',
+        err?.error?.message || response.status
+      );
+      return null;
+    }
+    const data = (await response.json().catch(() => ({}))) as { public_id?: string };
+    if (!data?.public_id) return null;
+    // Deliver frame 0 as a JPG via the canonical video-thumbnail URL pattern
+    // (`.../video/upload/so_0/<public_id>.jpg`) — always available for an
+    // uploaded video, no eager/format guesswork.
+    return `https://res.cloudinary.com/${cloudName}/video/upload/so_0,w_480,q_auto/${data.public_id}.jpg`;
+  } catch (err: any) {
+    console.warn('[cloudinary] video poster generation error:', err?.message || err);
+    return null;
+  }
+}
+
+/**
  * Parse a Cloudinary delivery URL and extract the `public_id` + resource type.
  * Handles optional transformations and version segments. Returns null if the URL
  * is not a recognizable Cloudinary asset URL.

@@ -17,7 +17,7 @@ import {
   notifyPendingEventReviewers,
 } from '../lib/eventReviewNotifications.js';
 import { sendError } from '../lib/http/sendError.js';
-import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
+import { detectMediaType, getVideoPreviewUrl, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
 import {
   getBlockedUserIds,
@@ -75,11 +75,9 @@ const serializeMedia = (story: any) => {
     id: story.id,
     url: story.media_url,
     kind: isVideo ? 'video' : 'photo',
-    // Cloudinary-only derivation: null for every R2-hosted video (R2 cannot
-    // synthesize a poster). Story rows carry no poster_url column, so video
-    // stories legitimately have no server-side thumbnail — the client rail
-    // falls back to generating a frame locally (components/VideoThumbnail).
-    thumbnail_url: isVideo ? resolvePreviewUrl(story) : null,
+    // Prefer the generated poster (works for R2 videos); fall back to the
+    // Cloudinary-derived preview for Cloudinary-hosted videos.
+    thumbnail_url: isVideo ? (story.poster_url ?? getVideoPreviewUrl(story.media_url)) : null,
     created_at:
       story.created_at instanceof Date ? story.created_at.toISOString() : story.created_at,
     caption: story.caption ?? null,
@@ -90,6 +88,39 @@ const serializeMedia = (story: any) => {
         : (story.expires_at ?? null),
   };
 };
+
+// In-memory dedupe so concurrent fetches don't kick off duplicate poster
+// generations for the same story (per replica; good enough — once poster_url is
+// persisted, later reads skip it entirely).
+const posterGenInFlight = new Set<string>();
+
+/**
+ * Fire-and-forget: generate + persist a still poster for a video story that
+ * doesn't have one yet. Uses Cloudinary upload-by-URL (server-side, so it
+ * reaches every client regardless of app build, and backfills already-posted
+ * videos the first time the story list is viewed). Never throws.
+ */
+function ensureStoryPoster(
+  p: StoryDeps['prisma'],
+  story: { id: string; media_url?: string | null; poster_url?: string | null }
+): void {
+  if (!story?.id || story.poster_url || !isVideoUrl(story.media_url)) return;
+  if (posterGenInFlight.has(story.id)) return;
+  posterGenInFlight.add(story.id);
+  void (async () => {
+    try {
+      const { generateVideoPosterFromUrl } = await import('../lib/cloudinary.js');
+      const poster = await generateVideoPosterFromUrl(String(story.media_url));
+      if (poster) {
+        await p.story.update({ where: { id: story.id }, data: { poster_url: poster } });
+      }
+    } catch (err: any) {
+      console.warn('[stories] poster generation failed', story.id, err?.message || err);
+    } finally {
+      posterGenInFlight.delete(story.id);
+    }
+  })();
+}
 
 const isMissingStoryLocationColumnError = (error: any): boolean => {
   if (!error || error.code !== 'P2022') return false;
@@ -237,12 +268,17 @@ export const makeListMediaHandler = ({ prisma: p }: StoryDeps) =>
         select: {
           id: true,
           media_url: true,
+          poster_url: true,
           created_at: true,
           caption: true,
           user_id: true,
           expires_at: true,
         },
       });
+      // Lazy poster backfill: any video story still missing a poster gets one
+      // generated in the background; it appears on the next fetch. Then replay
+      // oldest-first (owner rule 2026-07-16) — beginning of day to end.
+      for (const s of items) ensureStoryPoster(p, s);
       return res.json(items.reverse().map(serializeMedia));
     } catch (error: any) {
       if (isMissingStoryLocationColumnError(error)) {
@@ -374,6 +410,10 @@ const makeCreateStoryHandler = ({ prisma: p }: StoryDeps) =>
         return res.status(500).json({ error: 'Failed to create story' });
       }
     }
+
+    // Kick off poster generation for video stories (fire-and-forget; the poster
+    // appears on the next story-list fetch). Never blocks or fails the create.
+    ensureStoryPoster(p, story);
 
     try {
       const game = await p.game.findUnique({
@@ -1204,10 +1244,41 @@ gamesRouter.get(
       // v1.0.2: map_view=true restricts to "games this week" (today through +7 days).
       // Test note: once a game is in the past it should drop off the map. Map should only
       // reflect games the week of in real time. This filter is opt-in so list views still work as before.
-      if (req.query.map_view === 'true' || req.query.map_view === '1') {
+      const isMapView = req.query.map_view === 'true' || req.query.map_view === '1';
+      if (isMapView) {
         const now = new Date();
         const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        whereClause.date = { ...(whereClause.date || {}), gte: now, lte: weekFromNow };
+        const liveLookback = new Date(now.getTime() - 18 * 60 * 60 * 1000);
+        // Regular games are current-week only — a game drops off the map once
+        // it's in the past (by design). Marquee/teamless events (festivals) also
+        // stay pinned during their live window (started within 18h), so an
+        // all-day fest happening right now doesn't slide off the map at its
+        // start time. Matched on null team columns so it holds regardless of
+        // whether the map query flags teamless.
+        if (!whereClause.AND) whereClause.AND = [];
+        whereClause.AND.push({
+          OR: [
+            { date: { gte: now, lte: weekFromNow } },
+            {
+              home_team_id: null,
+              away_team_id: null,
+              date: { gte: liveLookback, lte: weekFromNow },
+            },
+          ],
+        });
+      }
+
+      // Marquee/teamless events (festivals, watch parties) stay on the feed for
+      // their full live window — up to 18h after start — instead of dropping off
+      // after the client's short (2h) live lookback. So an all-day fest that
+      // started earlier today keeps surfacing while it's live. List views only
+      // (not the map, which is intentionally current-week only).
+      const isTeamlessQuery = req.query.teamless === 'true' || req.query.teamless === '1';
+      if (!isMapView && isTeamlessQuery && (whereClause.date as any)?.gte) {
+        const liveLookback = new Date(Date.now() - 18 * 60 * 60 * 1000);
+        if (new Date((whereClause.date as any).gte).getTime() > liveLookback.getTime()) {
+          (whereClause.date as any).gte = liveLookback;
+        }
       }
 
       // Proximity fallback: a signed-in viewer with no device coords still

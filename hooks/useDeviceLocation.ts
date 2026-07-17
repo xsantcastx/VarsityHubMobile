@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, Platform } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 
 export interface DeviceLocation {
   latitude: number;
@@ -125,26 +125,42 @@ export function useDeviceLocation(): UseDeviceLocationResult {
     }
   }, [fetchLocation]);
 
-  // Check permissions on mount
-  useEffect(() => {
-    void (async () => {
-      try {
-        const { status } = await Location.getForegroundPermissionsAsync();
-        const granted = status === 'granted';
-        setPermissionGranted(granted);
+  // Re-read the current OS permission and sync local state. Extracted so both
+  // the mount check AND the foreground listener below can call it.
+  const syncPermission = useCallback(async () => {
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      const granted = status === 'granted';
+      setPermissionGranted(granted);
 
-        if (granted) {
-          setAccuracyMeters(null);
-          void fetchLocation();
-        } else {
-          setLoading(false);
-        }
-      } catch {
-        setError('Failed to check location permissions');
+      if (granted) {
+        setAccuracyMeters(null);
+        void fetchLocation();
+      } else {
         setLoading(false);
       }
-    })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    } catch {
+      setError('Failed to check location permissions');
+      setLoading(false);
+    }
+  }, [fetchLocation]);
+
+  // Check permissions on mount.
+  useEffect(() => {
+    void syncPermission();
+  }, [syncPermission]);
+
+  // Recover after the user enables location in the OS Settings app and returns.
+  // Without this, `permissionGranted` stayed stale `false` on foreground, so a
+  // user who tapped "Open Settings", granted access, and came back would keep
+  // hitting the same "Location Required" prompt in a loop. Re-checking on
+  // AppState 'active' picks up the newly-granted permission and fetches coords.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') void syncPermission();
+    });
+    return () => sub.remove();
+  }, [syncPermission]);
 
   const openSettings = async () => {
     if (typeof Linking.openSettings !== 'function') return;
