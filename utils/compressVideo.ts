@@ -5,6 +5,7 @@ import {
   MAX_VIDEO_SIZE_MB,
   VIDEO_COMPRESSION_THRESHOLD_BYTES,
   VIDEO_COMPRESSION_THRESHOLD_MB,
+  VIDEO_TARGET_BITRATE_BPS,
 } from '@/constants/video';
 import { captureException } from '@/utils/sentry';
 
@@ -45,15 +46,29 @@ export async function compressVideoSafe(uri: string): Promise<string> {
   }
   try {
     const compressed: string = await CompressorVideo.compress(uri, {
-      compressionMethod: 'auto', // picks the best available codec
+      // 'manual' — NOT 'auto'. This is the fix for "the video quality is still
+      // bad even though it's 1080p" (2026-07-16).
+      //
+      // 'auto' hard-caps the output bitrate at 1,669,000 bps regardless of
+      // resolution: see makeVideoBitrate() in the package's
+      // ios/Video/VideoMain.swift and android AutoVideoCompression.kt, both of
+      // which clamp to `maxBitrate = 1669000`. maxSize only ever controlled the
+      // RESOLUTION, so the earlier maxSize:1920 fix (1df5d898) worked — the
+      // owner's fest clips really did land at 1080x1920 — and yet they still
+      // looked bad, because 1.67 Mbps over 1080x1920@30fps is ~0.027 bits per
+      // pixel. On high-motion sports footage that smears and blocks.
+      //
+      // 'manual' honours maxSize the same way (it scales the long edge, portrait
+      // included) but uses the bitrate we pass instead of the auto clamp.
+      compressionMethod: 'manual',
+      bitrate: VIDEO_TARGET_BITRATE_BPS,
       minimumFileSizeForCompress: 1, // compress any video (value is in MB)
       // CRITICAL: react-native-compressor defaults maxSize to 640px on the
       // longest side when omitted (see its Video/index.js), which silently
       // downscaled every >8MB upload to ~360-640p and undid the 1080p capture
-      // preset — the "video quality is trash / is this really 1080p?" bug.
-      // 1920 preserves 1080p for both portrait (1080x1920) and landscape
-      // (1920x1080); the 150MB MAX_VIDEO_SIZE guard + post-compress size check
-      // still bound the result.
+      // preset. 1920 preserves 1080p for both portrait (1080x1920) and
+      // landscape (1920x1080); the 150MB MAX_VIDEO_SIZE guard + post-compress
+      // size check still bound the result.
       maxSize: 1920,
     });
     return compressed ?? uri;

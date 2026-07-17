@@ -35,6 +35,22 @@ export const MAX_VIDEO_SIZE_MB = 150;
 export const MAX_VIDEO_SIZE_BYTES = 150 * 1024 * 1024;
 
 /**
+ * Target H.264 bitrate for compressed uploads, in bits per second.
+ *
+ * react-native-compressor's 'auto' mode ignores this and clamps to 1,669,000
+ * bps (`maxBitrate` in its native makeVideoBitrate) no matter the resolution —
+ * which is why the owner's fest clips were a genuine 1080x1920 and still looked
+ * bad. utils/compressVideo.ts therefore runs 'manual' mode and passes this.
+ *
+ * 6 Mbps at 1080x1920@30fps is ~0.1 bits/pixel — enough for high-motion sports
+ * footage, and ~3.6x what auto allowed. Size stays well inside the 150MB cap:
+ * the 90s POST_MAX_DURATION_S worst case is ~68MB. Raising this further trades
+ * directly against upload time on congested venue wifi, so it is a knob, not a
+ * constant to bump casually.
+ */
+export const VIDEO_TARGET_BITRATE_BPS = 6_000_000;
+
+/**
  * Client-side compression threshold.
  *
  * Videos below this size are usually already small enough after the picker's

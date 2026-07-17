@@ -19,6 +19,7 @@ jest.mock('@/utils/sentry', () => ({
 import * as FileSystem from 'expo-file-system/legacy';
 import { Video } from 'react-native-compressor';
 
+import { VIDEO_TARGET_BITRATE_BPS } from '@/constants/video';
 import { captureException } from '@/utils/sentry';
 
 import {
@@ -61,10 +62,18 @@ describe('prepareVideoForUpload', () => {
 
     const result = await prepareVideoForUpload('file:///clip.mp4');
 
+    // These options are the whole quality story — see the comments in
+    // compressVideoSafe. 'auto' clamps the bitrate to 1,669,000 bps in the
+    // package's native code no matter the resolution, which is why 1080p clips
+    // still looked bad; 'manual' + an explicit bitrate is the fix, and maxSize
+    // keeps the long edge at 1920 (the package defaults it to 640).
     expect(compressMock).toHaveBeenCalledWith('file:///clip.mp4', {
-      compressionMethod: 'auto',
+      compressionMethod: 'manual',
+      bitrate: VIDEO_TARGET_BITRATE_BPS,
       minimumFileSizeForCompress: 1,
+      maxSize: 1920,
     });
+    expect(VIDEO_TARGET_BITRATE_BPS).toBeGreaterThan(1_669_000);
     expect(result).toMatchObject({
       uri: 'file:///compressed.mp4',
       wasCompressed: true,
