@@ -3,6 +3,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { getAuthSnapshot } from '@/utils/authState';
 import AppLinks, { buildNativeSharePayload } from '@/utils/links';
@@ -518,13 +519,38 @@ function HighlightsScreen() {
   const [searching, setSearching] = useState(false);
   const postCache = usePostCache();
 
+  // Trending is "posts nearby them" (owner rule) and the server selects by
+  // proximity — but only if we actually send coords. The reused
+  // `useDeviceLocation` hook resolves them out-of-band: it never prompts on
+  // mount (it only *checks* an already-granted permission) and prefers a
+  // last-known fix, so it can't spam or stall this tab. The query below fires
+  // immediately without coords and re-runs once they land — degraded-but-full
+  // (server zip → newest-first fallback) beats an empty tab while we wait.
+  const { location: deviceLocation } = useDeviceLocation();
+  // Rounded to ~1km so small movements don't churn the query key/cache —
+  // same precision feed.tsx uses for its game-proximity coords.
+  const viewerCoords = useMemo(() => {
+    if (typeof deviceLocation?.latitude !== 'number') return null;
+    if (typeof deviceLocation?.longitude !== 'number') return null;
+    const lat = Math.round(deviceLocation.latitude * 100) / 100;
+    const lng = Math.round(deviceLocation.longitude * 100) / 100;
+    // 0,0 is Null Island — a sentinel, never a real viewer.
+    if (lat === 0 && lng === 0) return null;
+    return { lat, lng };
+  }, [deviceLocation?.latitude, deviceLocation?.longitude]);
+
   const {
     data: highlightsPayload,
     isPending: loading,
     isError,
     refetch,
   } = useQuery({
-    queryKey: ['highlights', activeTab, user?.id ?? 'guest'],
+    queryKey: [
+      'highlights',
+      activeTab,
+      user?.id ?? 'guest',
+      viewerCoords ? `${viewerCoords.lat},${viewerCoords.lng}` : 'no-coords',
+    ],
     // Keep the previous tab's list on screen while the new tab loads —
     // prevents a full-screen spinner flash on every tab switch.
     placeholderData: (prev: any) => prev,
@@ -536,20 +562,12 @@ function HighlightsScreen() {
 
       const country = (me?.preferences?.country_code || 'US').toUpperCase();
 
-      // Location preference lookup: coordinates live under me.preferences
-      // Guard against undefined and ensure both lat/lng are valid numbers
-      const lat =
-        typeof me?.preferences?.lat === 'number'
-          ? me.preferences.lat
-          : typeof me?.lat === 'number'
-            ? me.lat
-            : undefined;
-      const lng =
-        typeof me?.preferences?.lng === 'number'
-          ? me.preferences.lng
-          : typeof me?.lng === 'number'
-            ? me.lng
-            : undefined;
+      // Real device coords only. `me.preferences.lat` / `me.lat` used to be
+      // read here and both were dead: `User` has no top-level lat/lng column
+      // and nothing in the app ever writes `preferences.lat`, so this always
+      // sent no coords and silently degraded Trending to newest-first.
+      const lat = viewerCoords?.lat;
+      const lng = viewerCoords?.lng;
 
       const payload = await Highlights.fetch({
         country,
