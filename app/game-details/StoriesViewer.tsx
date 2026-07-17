@@ -286,6 +286,7 @@ export default function StoriesViewer({
                 <VideoPlayer
                   key={item.id}
                   uri={item.url}
+                  poster={item.thumbnail_url}
                   autoPlay={!paused}
                   nativeControls={false}
                   paused={paused}
@@ -319,14 +320,19 @@ export default function StoriesViewer({
           ) : null}
         </View>
 
-        {/* Preload next photo to minimize flicker on advance */}
+        {/* Preload the next story's image to minimize flicker on advance. For a
+            photo that's the photo itself; for a video it's the poster, so the
+            next video shows its first frame the instant it opens rather than a
+            spinner while the player instantiates and buffers. */}
         {(() => {
           const nextIndex = current + 1;
           const next = nextIndex < items.length ? items[nextIndex] : null;
-          if (!next || next.kind === 'video') return null;
+          if (!next) return null;
+          const nextUri = next.kind === 'video' ? next.thumbnail_url : next.url;
+          if (!nextUri) return null;
           return (
             <Image
-              source={{ uri: optimizeImageUrl(next.url, 1200) }}
+              source={{ uri: optimizeImageUrl(nextUri, 1200) }}
               style={{
                 width: 1,
                 height: 1,
@@ -338,7 +344,7 @@ export default function StoriesViewer({
               contentFit="cover"
               transition={0}
               cachePolicy="memory-disk"
-              recyclingKey={next.url}
+              recyclingKey={nextUri}
             />
           );
         })()}

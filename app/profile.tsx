@@ -436,8 +436,13 @@ export default function ProfileScreen() {
         if (e?.status !== 404) {
           console.error('[Profile] Failed to load profile:', e);
         }
-        // Only show error if not silent refresh
-        if (!options?.silent) {
+        // A silent refresh that fails while data is already on screen stays
+        // silent — the user keeps the stale profile rather than losing it. But
+        // a silent load that fails with NOTHING on screen must surface, or the
+        // screen is stuck on the bare "Unable to load profile" fallback with no
+        // message, no distinction between timed-out and not-found, and no way
+        // back except Retry.
+        if (!options?.silent || !meRef.current) {
           if (e && e.status === 401) {
             setError('You need to sign in to view your profile.');
           } else if (e?.status === 404 && viewingUserId) {
@@ -482,6 +487,17 @@ export default function ProfileScreen() {
   useEffect(() => {
     const currentUsername = userFromAuth?.username;
     const previousUsername = lastUsernameRef.current;
+
+    // On mount, only record the username — the mount effect above owns the
+    // initial load. Without this guard this effect fired first (lastUsernameRef
+    // starts null, so any signed-in username "changed"), and its silent load
+    // both forced `loading` false and claimed the in-flight guard, so the real
+    // load never ran and the screen rendered the bare `!me` "Unable to load
+    // profile" state for the whole request instead of the skeleton.
+    if (isInitialMount.current) {
+      if (currentUsername) lastUsernameRef.current = currentUsername;
+      return;
+    }
 
     // Only refresh if the username actually changed from what we last saw
     if (currentUsername && currentUsername !== previousUsername) {

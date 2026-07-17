@@ -902,7 +902,7 @@ usersRouter.delete(
           await (sendEmail as any)({
             to: userEmail,
             subject: 'VarsityHub Account Deleted',
-            text: 'Your VarsityHub account has been deleted and your personal information anonymized immediately. Some content you posted may remain visible but is no longer linked to your identity, and your anonymized account is permanently removed within 30 days. If you did not request this, contact support@varsityhub.app immediately.',
+            text: 'Your VarsityHub account has been permanently deleted. Your profile and the content you created — your posts, media, comments, and messages you sent — have been removed immediately. This cannot be undone. If you did not request this, contact support@varsityhub.app immediately.',
           });
         } catch {
           /* best-effort */

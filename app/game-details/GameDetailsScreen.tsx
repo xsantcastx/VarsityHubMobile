@@ -1387,10 +1387,43 @@ const GameDetailsScreen = () => {
       const mediaUrl = uploaded?.path || uploaded?.url;
       if (!mediaUrl) throw new Error('Upload failed');
 
+      // R2 stores bytes verbatim, so the server can't derive a preview from the
+      // video URL the way it can for Cloudinary. Generate a first-frame poster
+      // on-device and upload it alongside the video, same as the post create
+      // path — otherwise the story tile renders black until the lazy
+      // server-side backfill lands on a later fetch. Best-effort: a story
+      // without a poster still uploads fine.
+      let posterUrl = '';
+      if ((uploaded as any)?.provider === 'r2') {
+        try {
+          // Dynamic require, same OTA-safety pattern as create-post.tsx — never
+          // crash a binary built before the module existed.
+          let VideoThumbnails: any = null;
+          try {
+            VideoThumbnails = require('expo-video-thumbnails');
+          } catch {
+            /* module unavailable in this binary */
+          }
+          if (VideoThumbnails?.getThumbnailAsync) {
+            const thumb = await VideoThumbnails.getThumbnailAsync(uploadUri, {
+              time: 0,
+              quality: 0.7,
+            });
+            if (thumb?.uri) {
+              const posterRes = await uploadFile(base, thumb.uri, 'poster.jpg', 'image/jpeg');
+              posterUrl = posterRes?.url || '';
+            }
+          }
+        } catch (posterErr: any) {
+          if (__DEV__) console.warn('[story] Poster generation failed:', posterErr?.message);
+        }
+      }
+
       {
         const gameId = vm.gameId;
         if (!gameId) throw new Error('Could not resolve the game for this story');
         const storyPayload: any = { media_url: mediaUrl };
+        if (posterUrl) storyPayload.poster_url = posterUrl;
         if (location?.latitude && location?.longitude) {
           storyPayload.location = {
             lat: location.latitude,

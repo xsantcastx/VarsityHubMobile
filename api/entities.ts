@@ -324,6 +324,8 @@ export const Game = {
     id: string,
     data: {
       media_url: string;
+      /** First-frame poster for an R2-hosted video (see storySchema in server/src/routes/games.ts). */
+      poster_url?: string;
       caption?: string;
       location?: { lat: number; lng: number; source?: 'device' | 'places' | 'zip' | 'derived' };
     }

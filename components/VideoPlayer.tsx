@@ -1,4 +1,5 @@
 import { useEventListener } from 'expo';
+import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer, type VideoContentFit } from 'expo-video';
 import { useFocusEffect } from '@react-navigation/native';
 import React from 'react';
@@ -45,6 +46,14 @@ interface VideoPlayerProps {
   nativeControls?: boolean;
   paused?: boolean;
   contentFit?: VideoContentFit;
+  /**
+   * Still image shown while the video buffers, so a consumption surface shows
+   * the first frame instead of a bare spinner over an empty box. Remote video
+   * on a congested network can take seconds to produce its first frame; the
+   * poster is already a cached image by then on any surface that rendered the
+   * tile. Optional — without it the spinner-only behaviour is unchanged.
+   */
+  poster?: string | null;
 }
 
 export function VideoPlayer({
@@ -55,6 +64,7 @@ export function VideoPlayer({
   nativeControls = true,
   paused,
   contentFit = 'contain',
+  poster,
 }: VideoPlayerProps) {
   const [retryKey, setRetryKey] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -191,6 +201,18 @@ export function VideoPlayer({
         allowsFullscreen
         allowsPictureInPicture
       />
+      {/* Poster sits above the video surface only while it buffers, then
+          unmounts so it can never cover playback. */}
+      {poster && uri && isLoading && !errorMessage ? (
+        <Image
+          source={{ uri: poster }}
+          style={styles.videoSurface}
+          contentFit={contentFit === 'contain' ? 'contain' : 'cover'}
+          transition={0}
+          cachePolicy="memory-disk"
+          pointerEvents="none"
+        />
+      ) : null}
       {!uri ? (
         <View style={styles.overlay}>
           <Text style={styles.errorTitle}>Video unavailable</Text>

@@ -338,8 +338,23 @@ const FeedGameCard = memo(function FeedGameCard({
   const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
   const hasBanner = typeof banner === 'string' && banner.length > 0;
   const gradient = getDeterministicGameCardGradient(gameItem.id, gameItem.title);
-  const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
-  const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
+  // Display the SERVER-AUTHORITATIVE start, not the game row's own date. The
+  // server derives starts_at from the linked Event (serializeLiveWindow in
+  // lib/geofencing.ts), and the two genuinely disagree — a game row's date can
+  // be nudged independently of its event, which is what made Fanatics Fest
+  // Day 1 render "Jul 17, 3:05 AM" for a 1:00 PM Jul 16 event. isGameLive()
+  // already reads starts_at, so reading date here made the card's own LIVE
+  // badge and its printed time disagree. Fall back to date for payloads
+  // predating the server-computed bounds.
+  const startsAtMs = getLiveBounds(gameItem)?.startsAt;
+  const displayStart =
+    typeof startsAtMs === 'number' && !Number.isNaN(startsAtMs)
+      ? new Date(startsAtMs)
+      : gameItem.date
+        ? new Date(gameItem.date)
+        : null;
+  const eventDate = displayStart ? format(displayStart, 'MMM d') : 'TBD';
+  const eventTime = displayStart ? format(displayStart, 'h:mm a') : '';
   const locationText = gameItem.location ? String(gameItem.location).split(',')[0] : 'Location TBD';
   const reviewsCount =
     typeof raw?.reviews_count === 'number'

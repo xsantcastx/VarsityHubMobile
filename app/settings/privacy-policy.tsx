@@ -59,7 +59,7 @@ export default function PrivacyPolicyScreen() {
         colorScheme={colorScheme}
         title="6. Data Retention and Deletion"
         body={
-          'We retain personal information for as long as your account is active or as needed to provide the Service and meet legal obligations. You may delete your account at any time in Settings. Upon deletion, personal data associated with your account is anonymized, and residual copies are removed from backup systems within 90 days.'
+          'We retain personal information for as long as your account is active or as needed to provide the Service and meet legal obligations. You may delete your account at any time in Settings. Deletion is immediate and permanent: your account and the content you created — including your posts, media, comments, and messages you sent — are deleted right away, not anonymized or held for a grace period. This cannot be undone. Two narrow exceptions: residual copies persist in encrypted backups and are removed within 90 days, and we retain records we are legally required to keep, such as parental-consent decisions made by platform administrators.'
         }
       />
 

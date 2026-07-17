@@ -8,6 +8,7 @@ import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
 import {
   startAdGoLiveCheck,
+  startAnonymizedUserPurge,
   startMessageCleanup,
   startOvernightMonitoring,
   startQueueCleanup,
@@ -459,15 +460,51 @@ if (!isTest) {
   addSentryErrorHandler(app);
 }
 
-// Overnight tasks — ad go-live, monitoring, and stale hold cleanup
+/**
+ * Cron starters that exist in cron/overnightTasks.ts but are deliberately NOT
+ * started yet. Every one of these has never run in production, so its first run
+ * would process the entire accumulated backlog in a single pass. Each needs to
+ * be reviewed and enabled on its own, ideally with a dry-run first — turning
+ * them all on at once is a mass-mutation event, not a bug fix:
+ *
+ *  - startParentalConsentExpiry — user.updateMany + refreshToken.deleteMany,
+ *    i.e. force-signs-out every account whose consent has lapsed. Highest risk.
+ *  - startStripeSubscriptionReconciliation — can cancel/downgrade live subs.
+ *  - startPostUpvoteReconciliation — rewrites denormalized upvote counts.
+ *  - startRefreshTokenCleanup / startNotificationCleanup — bulk deletes.
+ *  - startDataExportCleanup — reaps export jobs + their stored artifacts.
+ *
+ * Listed (not deleted) so cron-wiring.test.ts still fails for any NEW starter
+ * that is neither wired nor consciously deferred. Owner decision pending.
+ */
+export const DEFERRED_CRON_STARTERS = [
+  'startRefreshTokenCleanup',
+  'startNotificationCleanup',
+  'startStripeSubscriptionReconciliation',
+  'startPostUpvoteReconciliation',
+  'startParentalConsentExpiry',
+  'startDataExportCleanup',
+] as const;
+
+// Overnight tasks — every starter exported by cron/overnightTasks.ts must be
+// either invoked here or listed in DEFERRED_CRON_STARTERS above. Adding a
+// starter to overnightTasks.ts without doing one of the two leaves it silently
+// dead — that is exactly how the anonymized-user purge never ran in production.
+// Pinned by src/__tests__/cron-wiring.test.ts.
 // (Game reminders are handled by the scheduler service in src/jobs/scheduler.ts)
 if (!isTest) {
   startAdGoLiveCheck();
   startOvernightMonitoring();
   startQueueCleanup();
   startMessageCleanup();
+  // Finalizes right-to-be-forgotten deletions. Self-serve deletion is an
+  // immediate hard delete (see lib/accountDeletion.ts), so this is now only the
+  // backstop for rows the Restrict-FK fallback had to anonymize instead, plus
+  // the pre-2026-07-17 legacy backlog.
+  startAnonymizedUserPurge();
   debugLog(
-    '[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup, message cleanup)'
+    '[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup, message cleanup, ' +
+      'anonymized-user purge)'
   );
 }
 

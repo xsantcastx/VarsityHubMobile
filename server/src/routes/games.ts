@@ -146,6 +146,15 @@ const storySchema = z.object({
     .string()
     .url({ message: 'media_url must be a valid URL' })
     .refine(isAllowedAssetUrl, MEDIA_URL_MESSAGE),
+  // First-frame poster uploaded alongside an R2-hosted video (mirrors the post
+  // create path). R2 stores bytes verbatim, so getVideoPreviewUrl can't derive
+  // a preview from the media_url — without this the story renders as a black
+  // tile until the lazy server-side backfill lands on a later fetch.
+  poster_url: z
+    .string()
+    .url({ message: 'poster_url must be a valid URL' })
+    .refine(isAllowedAssetUrl, MEDIA_URL_MESSAGE)
+    .optional(),
   caption: z.string().max(500).optional(),
   location: locationSchema,
 });
@@ -392,6 +401,7 @@ const makeCreateStoryHandler = ({ prisma: p }: StoryDeps) =>
       game_id: id,
       user_id: req.user.id,
       media_url: parsed.data.media_url,
+      poster_url: parsed.data.poster_url ?? undefined,
       caption: parsed.data.caption ? stripHtml(parsed.data.caption) : undefined,
     };
     if (typeof lat === 'number') createData.lat = lat;

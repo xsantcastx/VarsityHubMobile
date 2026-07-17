@@ -1309,7 +1309,7 @@ authRouter.post(
       console.warn('[auth] Cache invalidation failed (non-critical):', (err as Error)?.message);
     });
 
-    console.warn(`[auth] Account soft-deleted and anonymized: ${userId}`);
+    console.warn(`[auth] Account permanently deleted: ${userId}`);
 
     return res.json({
       ok: true,
