@@ -548,66 +548,40 @@ const FeedCard = memo(
           />
         </View>
 
+        {/* 2026-07-17: the rail avatar was removed at user request — the big
+            buttons ate into the photo/video. The poster profile is still one
+            tap away via the @username in the caption overlay (same
+            onOpenAuthorProfile handler). Icons/labels were shrunk and the rail
+            was dropped toward the bottom edge for the same reason. */}
         <View
           pointerEvents="box-none"
-          style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 24, 96) }]}
+          style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}
         >
-          {/* Avatar tap opens the poster profile. The previous "+" follow
-              badge overlay (red-on-avatar) was removed in v1.0.3 at user
-              request — it cluttered the viewer and duplicated the follow
-              affordance already on the profile page. Follow from there. */}
-          {post.author?.id !== meInfo?.id ? (
-            <View style={styles.railAvatarWrap}>
-              <Pressable
-                onPress={onOpenAuthorProfile}
-                style={styles.railAvatarBtn}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  post.author?.username
-                    ? `Open @${post.author.username}'s profile`
-                    : "Open author's profile"
-                }
-              >
-                {post.author?.avatar_url ? (
-                  authorAvatarSource ? (
-                    <FastImage source={authorAvatarSource} style={styles.railAvatarImg} />
-                  ) : null
-                ) : (
-                  <View style={[styles.railAvatarImg, styles.avatarFallback]}>
-                    <Text style={styles.avatarFallbackText}>
-                      {authorLabel.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-              </Pressable>
-            </View>
-          ) : null}
-
           <Pressable onPress={onToggleUpvote} style={styles.railBtn}>
             <Ionicons
               name={post.has_upvoted ? 'arrow-up' : 'arrow-up-outline'}
-              size={36}
+              size={28}
               color="#fff"
             />
             <Text style={styles.railLabel}>{post.upvotes_count}</Text>
           </Pressable>
 
           <Pressable onPress={onOpenComments} style={styles.railBtn}>
-            <Ionicons name="chatbubble-ellipses-outline" size={36} color="#fff" />
+            <Ionicons name="chatbubble-ellipses-outline" size={28} color="#fff" />
             <Text style={styles.railLabel}>{post.comments_count}</Text>
           </Pressable>
 
           <Pressable onPress={onToggleBookmark} style={styles.railBtn}>
             <Ionicons
               name={post.has_bookmarked ? 'bookmark' : 'bookmark-outline'}
-              size={34}
+              size={26}
               color="#fff"
             />
             <Text style={styles.railLabel}>{post.bookmarks_count}</Text>
           </Pressable>
 
           <Pressable onPress={() => setShowOptionsMenu(true)} style={styles.railBtn}>
-            <Ionicons name="ellipsis-horizontal" size={34} color="#fff" />
+            <Ionicons name="ellipsis-horizontal" size={26} color="#fff" />
             <Text style={styles.railLabel}>Options</Text>
           </Pressable>
         </View>
@@ -1874,7 +1848,9 @@ const styles = StyleSheet.create({
   captionOverlay: {
     position: 'absolute',
     left: 16,
-    right: 88,
+    // Gutter reserved for the action rail; narrowed from 88 on 2026-07-17 when
+    // the rail lost its 48px avatar and its icons shrank.
+    right: 76,
     bottom: 12,
     zIndex: 20,
     elevation: 20,
@@ -1953,28 +1929,30 @@ const styles = StyleSheet.create({
   rail: {
     position: 'absolute',
     right: 16,
-    bottom: 24,
+    bottom: 12,
     alignItems: 'center',
     zIndex: 20,
     elevation: 20,
     pointerEvents: 'box-none',
   },
-  railAvatarWrap: {
-    marginBottom: 28,
+  // v1.0.3: the follow-plus badge styles were removed along with the overlay
+  // badge on the avatar. 2026-07-17: the rail avatar styles went the same way
+  // when the avatar itself was removed from the rail. All are kept out of the
+  // stylesheet so future greps don't trip over a dead style.
+  // Icon is 26–28px but the padding keeps the touch target at ~44x44.
+  railBtn: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 14,
+    minWidth: 44,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
   },
-  railAvatarBtn: {},
-  railAvatarImg: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#1f2937' },
-  // v1.0.3: `railFollowPlus` / `railFollowPlusActive` were removed along with
-  // the overlay badge on the avatar. Kept out of the stylesheet so future
-  // greps don't trip over a dead style.
-  railBtn: { alignItems: 'center', marginBottom: 24 },
   railLabel: {
     color: '#fff',
     fontWeight: '800',
     marginTop: 2,
-    fontSize: 16,
+    fontSize: 12,
     ...(Platform.OS === 'web'
       ? { textShadow: '0px 1px 3px rgba(0, 0, 0, 0.75)' }
       : {

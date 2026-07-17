@@ -333,7 +333,7 @@ describeDb('Minors Foundation Integration', () => {
     expect(res.body?.code).toBe('AGE_POLICY_BLOCKED');
   });
 
-  it('soft-deletes and anonymizes the user via DELETE /users/me without hard-deleting authored posts', async () => {
+  it('hard-deletes the user AND their authored posts via DELETE /users/me', async () => {
     const res = await request(app)
       .delete('/users/me')
       .set('Authorization', `Bearer ${deleteUserToken}`)
@@ -342,36 +342,24 @@ describeDb('Minors Foundation Integration', () => {
     expect(res.status).toBe(202);
     expect(res.body?.deleted).toBe(true);
 
+    // Owner decision 2026-07-17: "EVERYTHING IS DELETED NO 30 DAYS". This
+    // previously asserted the opposite — that an anonymized "Deleted User" row
+    // survived with `deletion_anonymized: true`. That tombstone is exactly what
+    // kept "Deleted User" posts on screen, so its absence is now the contract.
     const deletedUser = await prisma.user.findUnique({
       where: { id: deleteUserId },
-      select: {
-        id: true,
-        email: true,
-        display_name: true,
-        username: true,
-        deleted_at: true,
-        deletion_anonymized: true,
-        password_hash: true,
-        preferences: true,
-      },
+      select: { id: true },
     });
-    expect(deletedUser).toBeTruthy();
-    expect(deletedUser?.email).toMatch(/^deleted\+/);
-    expect(deletedUser?.display_name).toBe('Deleted User');
-    expect(deletedUser?.deletion_anonymized).toBe(true);
-    expect(deletedUser?.deleted_at).toBeTruthy();
-    expect(deletedUser?.password_hash).toBeNull();
-    expect((deletedUser?.preferences as any)?.deleted).toBe(true);
+    expect(deletedUser).toBeNull();
 
-    // Account deletion soft-deletes authored posts (1bb32860: they leave every
-    // feed immediately) but never hard-deletes or reassigns them. The Prisma
-    // middleware scopes Post reads to deleted_at: null, so filter on deleted_at
-    // explicitly to see the surviving row.
+    // The post goes with the account — not soft-deleted, not reassigned. Read
+    // with an explicit deleted_at filter to bypass the Prisma middleware's
+    // `deleted_at: null` scope, so a surviving soft-deleted row would still be
+    // caught here rather than hidden.
     const post = await prisma.post.findFirst({
-      where: { id: deleteUserPostId, deleted_at: { not: null } },
+      where: { id: deleteUserPostId, deleted_at: undefined },
     });
-    expect(post?.author_id).toBe(deleteUserId);
-    expect(post?.deleted_at).toBeTruthy();
+    expect(post).toBeNull();
 
     const afterDelete = await request(app)
       .get('/users/me/export')

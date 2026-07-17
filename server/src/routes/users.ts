@@ -733,12 +733,23 @@ usersRouter.get(
         .filter(Boolean)
         .map(mapPostForPayload);
 
+      // `await` inside an object literal serializes: these four independent
+      // counts each waited for the previous one, so the endpoint paid four
+      // round trips (~65ms each — the API is us-west2 while Postgres is
+      // us-east4) for work that has no ordering requirement.
+      const [postCount, likeCount, commentCount, saveCount] = await Promise.all([
+        prisma.post.count({ where: { author_id: id, deleted_at: null } }),
+        prisma.postUpvote.count({ where: { user_id: id } }),
+        prisma.comment.count({ where: { author_id: id } as any }),
+        prisma.postBookmark.count({ where: { user_id: id } }),
+      ]);
+
       const counts = {
-        posts: await prisma.post.count({ where: { author_id: id, deleted_at: null } }),
-        likes: await prisma.postUpvote.count({ where: { user_id: id } }),
-        comments: await prisma.comment.count({ where: { author_id: id } as any }),
+        posts: postCount,
+        likes: likeCount,
+        comments: commentCount,
         reposts: 0,
-        saves: await prisma.postBookmark.count({ where: { user_id: id } }),
+        saves: saveCount,
       };
 
       return res.json({ items: ordered, nextCursor, counts });
@@ -902,7 +913,7 @@ usersRouter.delete(
           await (sendEmail as any)({
             to: userEmail,
             subject: 'VarsityHub Account Deleted',
-            text: 'Your VarsityHub account has been deleted and your personal information anonymized immediately. Some content you posted may remain visible but is no longer linked to your identity, and your anonymized account is permanently removed within 30 days. If you did not request this, contact support@varsityhub.app immediately.',
+            text: 'Your VarsityHub account has been permanently deleted. Your profile and the content you created — your posts, media, comments, and messages you sent — have been removed immediately. This cannot be undone. If you did not request this, contact support@varsityhub.app immediately.',
           });
         } catch {
           /* best-effort */
@@ -1689,16 +1700,16 @@ usersRouter.get(
       });
     }
 
-    const [posts_count, followers_count, following_count, rel] = await Promise.all([
+    // The viewer's follow relationship was already read above (`rel` ->
+    // viewerFollowStatus); re-querying it here was a second identical
+    // findUnique on the same unique key. viewerFollowStatus is exactly
+    // equivalent in all three cases: viewing yourself (null, since a self-follow
+    // row never exists), viewing someone else (the same row), and signed-out
+    // (null).
+    const [posts_count, followers_count, following_count] = await Promise.all([
       prisma.post.count({ where: { author_id: id, deleted_at: null } }),
       prisma.follows.count({ where: { following_id: id, status: 'accepted' } }),
       prisma.follows.count({ where: { follower_id: id, status: 'accepted' } }),
-      currentUserId
-        ? prisma.follows.findUnique({
-            where: { follower_id_following_id: { follower_id: currentUserId, following_id: id } },
-            select: { follower_id: true, status: true },
-          })
-        : Promise.resolve(null),
     ]);
 
     return res.json({
@@ -1711,8 +1722,8 @@ usersRouter.get(
       posts_count,
       followers_count,
       following_count,
-      is_following: Boolean(rel) && rel?.status === 'accepted',
-      follow_status: rel?.status || null,
+      is_following: viewerFollowStatus === 'accepted',
+      follow_status: viewerFollowStatus,
     });
   })
 );

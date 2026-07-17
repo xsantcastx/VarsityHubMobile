@@ -109,13 +109,18 @@ async function deleteAccount(token: string, body: Record<string, unknown> = {}) 
     .send(body);
 }
 
-async function expectUserSoftDeleted(id: string) {
+/**
+ * Self-deletion is an IMMEDIATE HARD DELETE (owner decision 2026-07-17:
+ * "EVERYTHING IS DELETED NO 30 DAYS"). This previously asserted the opposite —
+ * that a `deletion_anonymized` tombstone with display_name "Deleted User"
+ * survived. The row must now be gone outright.
+ */
+async function expectUserFullyDeleted(id: string) {
   const after = await prisma.user.findUnique({
     where: { id },
-    select: { deleted_at: true, deletion_anonymized: true },
+    select: { id: true },
   });
-  expect(after?.deleted_at).toBeTruthy();
-  expect(after?.deletion_anonymized).toBe(true);
+  expect(after).toBeNull();
 }
 
 afterAll(async () => {
@@ -161,7 +166,7 @@ describe('POST /auth/account/delete', () => {
       expect(res.body?.error).toBe('INVALID_PASSWORD');
     });
 
-    it('soft-deletes + anonymizes the user with correct password and blocks subsequent login', async () => {
+    it('hard-deletes the user with correct password and blocks subsequent login', async () => {
       const { id, email, token } = await createPasswordUser();
       const res = await deleteAccount(token, { delete_confirmation: 'DELETE', password: PASSWORD });
 
@@ -169,31 +174,31 @@ describe('POST /auth/account/delete', () => {
       expect(res.body?.ok).toBe(true);
       expect(typeof res.body?.deleted_at).toBe('string');
 
-      await expectUserSoftDeleted(id);
+      await expectUserFullyDeleted(id);
 
-      // Subsequent login attempt with original credentials must NOT succeed —
-      // the email may have been anonymized or the password_hash cleared.
+      // Subsequent login with the original credentials must NOT succeed — the
+      // account row no longer exists at all.
       const reLogin = await request(app).post('/auth/login').send({ email, password: PASSWORD });
       expect(reLogin.status).not.toBe(200);
     });
 
-    it('allows an unverified password account to self-delete', async () => {
+    it('hard-deletes an unverified password account on self-delete', async () => {
       const { id, token } = await createUnverifiedPasswordUser();
       const res = await deleteAccount(token, { delete_confirmation: 'DELETE', password: PASSWORD });
 
       expect(res.status).toBe(200);
       expect(res.body?.ok).toBe(true);
-      await expectUserSoftDeleted(id);
+      await expectUserFullyDeleted(id);
     });
   });
 
   describe('OAuth-only account', () => {
-    it('soft-deletes without requiring a password (no password_hash on file)', async () => {
+    it('hard-deletes without requiring a password (no password_hash on file)', async () => {
       const { id, token } = await createOAuthOnlyUser();
       const res = await deleteAccount(token, { delete_confirmation: 'DELETE' });
       expect(res.status).toBe(200);
       expect(res.body?.ok).toBe(true);
-      await expectUserSoftDeleted(id);
+      await expectUserFullyDeleted(id);
     });
   });
 

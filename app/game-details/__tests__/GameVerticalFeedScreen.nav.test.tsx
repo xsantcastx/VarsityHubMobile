@@ -15,11 +15,20 @@ describe('GameVerticalFeedScreen rail actions', () => {
     expect(source).not.toContain('<Text style={styles.railLabel}>Share</Text>');
   });
 
-  it('keeps the action rail focused on avatar, upvote, comments, bookmark, and options', () => {
+  it('keeps the action rail focused on upvote, comments, bookmark, and options', () => {
     expect(source).toContain("name={post.has_upvoted ? 'arrow-up' : 'arrow-up-outline'}");
     expect(source).toContain('chatbubble-ellipses-outline');
     expect(source).toContain("name={post.has_bookmarked ? 'bookmark' : 'bookmark-outline'}");
     expect(source).toContain('<Text style={styles.railLabel}>Options</Text>');
+  });
+
+  it('keeps the avatar out of the action rail (2026-07-17: it covered the media)', () => {
+    // The poster profile stays reachable via the @username in the caption
+    // overlay, which shares the same onOpenAuthorProfile handler.
+    expect(source).not.toContain('railAvatarWrap');
+    expect(source).not.toContain('railAvatarBtn');
+    expect(source).not.toContain('railAvatarImg');
+    expect(source).toMatch(/onPress=\{post\.author\?\.id \? onOpenAuthorProfile : undefined\}/);
   });
 
   it('moves share into the combined options menu', () => {

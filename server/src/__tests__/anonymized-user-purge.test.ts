@@ -1,6 +1,17 @@
 /**
  * Hard-delete cron for anonymized users — integration test.
  *
+ * NOTE (owner decision 2026-07-17, "EVERYTHING IS DELETED NO 30 DAYS"):
+ * self-serve deletion now hard-deletes immediately and never anonymizes, so
+ * this cron no longer sits on the main deletion path. It is a BACKSTOP for two
+ * residual row classes: the pre-2026-07-17 anonymized backlog, and the rare
+ * admin whose hard-delete was blocked by the ConsentAuditLog.actor_admin
+ * Restrict FK. Its selector semantics are unchanged and still worth pinning.
+ *
+ * Wiring is a separate concern and a separate test — this suite calls
+ * `hardDeleteAnonymizedUsers` directly, which is exactly why nobody noticed
+ * the cron was never started from app.ts. See cron-wiring.test.ts.
+ *
  * Covers the four eligibility outcomes that matter for COPPA /
  * right-to-be-forgotten compliance:
  *

@@ -1,5 +1,5 @@
 import { prisma } from './prisma.js';
-import { captureException } from './sentry.js';
+import { captureException, captureMessage } from './sentry.js';
 import { invalidateMeCacheForUser } from './userCache.js';
 
 async function cleanupStripeBillingForDeletedUserLazy(params: {
@@ -12,10 +12,20 @@ async function cleanupStripeBillingForDeletedUserLazy(params: {
 }
 
 /**
- * Default retention for anonymized accounts before hard-delete. The soft-delete
- * / anonymize pass runs at self-serve time; the nightly cron picks up rows
- * whose `deleted_at` is older than this window. 30 days gives us a
- * dispute-reversal buffer for the primary DB. Note: the privacy policy
+ * Retention for LEGACY anonymized accounts before hard-delete.
+ *
+ * Self-serve deletion no longer anonymizes — it hard-deletes immediately
+ * (owner decision 2026-07-17: "EVERYTHING IS DELETED NO 30 DAYS"). This
+ * constant now only governs the backstop cron, which sweeps two residual
+ * classes of row:
+ *
+ *   1. The pre-2026-07-17 backlog of `deletion_anonymized = true` rows.
+ *   2. The rare admin whose immediate hard-delete was blocked by the
+ *      `ConsentAuditLog.actor_admin` Restrict FK and fell back to
+ *      anonymization (see `softDeleteUserAccount`).
+ *
+ * Class 2 will keep being skipped by the cron for as long as the FK holds —
+ * that is deliberate accountability, not a bug. Note: the privacy policy
  * separately discloses that residual backup copies are purged within 90 days —
  * that is a distinct, longer window for backup systems, not this cron.
  */
@@ -171,6 +181,76 @@ export async function assertCanSelfDeleteUser(userId: string): Promise<void> {
   }
 }
 
+/**
+ * Rows the deleted user owns that must go regardless of which final path we
+ * take (hard-delete or the FK-blocked anonymize fallback). Everything here is
+ * `deleteMany` — idempotent, so re-running after a rolled-back transaction is
+ * safe.
+ *
+ * Posts are deleted EXPLICITLY rather than left to the `Post.author` Cascade:
+ * the fallback path never deletes the User row, and the owner's rule is that a
+ * deleted account leaves no content behind on either path.
+ */
+async function purgeUserOwnedRows(tx: any, userId: string): Promise<void> {
+  await tx.postUpvote.deleteMany({ where: { user_id: userId } });
+  await tx.postBookmark.deleteMany({ where: { user_id: userId } });
+  await tx.follows.deleteMany({
+    where: {
+      OR: [{ follower_id: userId }, { following_id: userId }],
+    },
+  });
+  await tx.blockedUser.deleteMany({
+    where: {
+      OR: [{ blocker_id: userId }, { blocked_id: userId }],
+    },
+  });
+  await tx.notification.deleteMany({
+    where: {
+      OR: [{ user_id: userId }, { actor_id: userId }],
+    },
+  });
+  await tx.teamMembership.deleteMany({ where: { user_id: userId } });
+  await tx.organizationMembership.deleteMany({ where: { user_id: userId } });
+  await tx.organizationJoinRequest.deleteMany({ where: { user_id: userId } });
+  await tx.refreshToken.deleteMany({ where: { user_id: userId } });
+
+  // Comments are onDelete:SetNull, so they survive orphaned unless we remove
+  // them here; votes are cheap to purge.
+  await tx.comment.deleteMany({ where: { author_id: userId } });
+  await tx.pollVote.deleteMany({ where: { user_id: userId } });
+  await tx.gameVote.deleteMany({ where: { user_id: userId } });
+  await tx.post.deleteMany({ where: { author_id: userId } });
+
+  // Ads, stories, and creator-owned events carry contact/location data that
+  // must not survive erasure.
+  await tx.ad.deleteMany({ where: { user_id: userId } });
+  await tx.story.deleteMany({ where: { user_id: userId } });
+  await tx.event.deleteMany({ where: { creator_id: userId } });
+}
+
+/**
+ * True when Prisma refused a delete because a foreign key with
+ * `onDelete: Restrict` still points at the row. On the User model the only
+ * such FK is `ConsentAuditLog.actor_admin` — a platform admin who ever
+ * actioned a parental-consent request cannot be hard-deleted, because that
+ * would destroy the COPPA audit trail for OTHER users' consent decisions.
+ */
+function isRestrictedByForeignKey(err: unknown): boolean {
+  return (err as any)?.code === 'P2003' || (err as any)?.code === 'P2014';
+}
+
+/**
+ * Self-serve account deletion. Despite the legacy name, this is an IMMEDIATE
+ * HARD DELETE (owner decision 2026-07-17: "EVERYTHING IS DELETED NO 30 DAYS").
+ * There is no anonymization window and no "Deleted User" tombstone: the user's
+ * content is deleted and the User row itself is removed.
+ *
+ * The one exception is the `ConsentAuditLog.actor_admin` Restrict FK described
+ * on `isRestrictedByForeignKey`. When it blocks the row delete we still purge
+ * ALL of the user's content and then anonymize the bare User row, logging +
+ * alerting so it is visible rather than silent. Callers must run
+ * `assertCanSelfDeleteUser` first — this function does not re-check ownership.
+ */
 export async function softDeleteUserAccount(userId: string): Promise<{
   deletedAt: Date;
   alreadyDeleted: boolean;
@@ -208,11 +288,11 @@ export async function softDeleteUserAccount(userId: string): Promise<{
       ? String((existing.preferences as Record<string, unknown>).subscription_id)
       : null;
 
-  // Capture Cloudinary-hosted media URLs the user will lose access to. We
-  // fetch BEFORE the transaction because the transaction deletes the rows;
-  // destroying the assets happens AFTER the DB is committed so a Cloudinary
+  // Capture the stored media URLs the user will lose access to. We fetch
+  // BEFORE the transaction because the transaction deletes the rows;
+  // destroying the assets happens AFTER the DB is committed so a storage
   // hiccup cannot rollback the user's deletion.
-  const [userAdsForCleanup, userStoriesForCleanup] = await Promise.all([
+  const [userAdsForCleanup, userStoriesForCleanup, userPostsForCleanup] = await Promise.all([
     // audit-allow unbounded: account deletion must enumerate all user-owned ads for cleanup
     prisma.ad.findMany({
       where: { user_id: userId },
@@ -222,6 +302,18 @@ export async function softDeleteUserAccount(userId: string): Promise<{
     prisma.story.findMany({
       where: { user_id: userId },
       select: { id: true, media_url: true },
+    }),
+    // audit-allow unbounded: account deletion must enumerate all user-owned posts for cleanup
+    prisma.post.findMany({
+      // `deleted_at: undefined` is a no-op filter for Prisma, but naming the
+      // key opts OUT of the soft-delete scope the client middleware would
+      // otherwise inject (see applyPostSoftDeleteScope in lib/prisma.ts).
+      // Without it this read is silently scoped to `deleted_at: null` and
+      // misses posts the user already soft-deleted themselves — while the
+      // deleteMany below still removes those rows, orphaning their media in
+      // Cloudinary/R2 forever.
+      where: { author_id: userId, deleted_at: undefined },
+      select: { id: true, media_url: true, poster_url: true },
     }),
   ]);
 
@@ -250,115 +342,134 @@ export async function softDeleteUserAccount(userId: string): Promise<{
     });
   }
 
-  await prisma.$transaction(async tx => {
-    await tx.postUpvote.deleteMany({ where: { user_id: userId } });
-    await tx.postBookmark.deleteMany({ where: { user_id: userId } });
-    await tx.follows.deleteMany({
-      where: {
-        OR: [{ follower_id: userId }, { following_id: userId }],
-      },
+  try {
+    await prisma.$transaction(async tx => {
+      await purgeUserOwnedRows(tx, userId);
+      // The row itself goes. No tombstone, no anonymization window — every
+      // remaining User-owned row is `onDelete: Cascade` or `SetNull`, so this
+      // finishes the erasure in one commit.
+      await tx.user.delete({ where: { id: userId } });
     });
-    await tx.blockedUser.deleteMany({
-      where: {
-        OR: [{ blocker_id: userId }, { blocked_id: userId }],
-      },
-    });
-    await tx.notification.deleteMany({
-      where: {
-        OR: [{ user_id: userId }, { actor_id: userId }],
-      },
-    });
-    await tx.teamMembership.deleteMany({ where: { user_id: userId } });
-    await tx.organizationMembership.deleteMany({ where: { user_id: userId } });
-    await tx.organizationJoinRequest.deleteMany({ where: { user_id: userId } });
-    await tx.refreshToken.deleteMany({ where: { user_id: userId } });
+  } catch (err) {
+    if (!isRestrictedByForeignKey(err)) throw err;
 
-    // Comments are onDelete:SetNull, so they survive orphaned unless we remove
-    // them here; votes are cheap to purge. Posts are soft-deleted (not hard) so
-    // they drop out of every feed immediately without breaking any in-flight
-    // references before the eventual hard-delete sweep.
-    await tx.comment.deleteMany({ where: { author_id: userId } });
-    await tx.pollVote.deleteMany({ where: { user_id: userId } });
-    await tx.gameVote.deleteMany({ where: { user_id: userId } });
-    await tx.post.updateMany({
-      where: { author_id: userId, deleted_at: null },
-      data: { deleted_at: deletedAt },
+    // A Restrict FK (ConsentAuditLog.actor_admin) pins this User row. The
+    // transaction above rolled back, so re-run the content purge and then
+    // anonymize the bare row. All of the user's CONTENT is still gone; only
+    // the identity-stripped row remains, held by the COPPA audit trail.
+    console.error(
+      '[accountDeletion] Hard delete blocked by a Restrict FK; falling back to anonymize for user:',
+      userId
+    );
+    captureMessage('Account hard-delete blocked by Restrict FK; anonymized instead', 'warning', {
+      extra: {
+        context: 'account_deletion_hard_delete_fk_restricted',
+        userId,
+        prismaCode: (err as any)?.code,
+      },
     });
 
-    // Ads, stories, and creator-owned events carry contact/location data that
-    // should not survive self-serve erasure.
-    await tx.ad.deleteMany({ where: { user_id: userId } });
-    await tx.story.deleteMany({ where: { user_id: userId } });
-    await tx.event.deleteMany({ where: { creator_id: userId } });
-
-    await tx.user.update({
-      where: { id: userId },
-      data: {
-        email: buildDeletedEmail(userId),
-        display_name: 'Deleted User',
-        username: buildDeletedUsername(userId),
-        avatar_url: null,
-        bio: null,
-        password_hash: null,
-        google_id: null,
-        apple_id: null,
-        email_verified: false,
-        email_verification_code: null,
-        email_verification_expires: null,
-        password_reset_code: null,
-        password_reset_expires: null,
-        password_changed_at: deletedAt,
-        stripe_customer_id: null,
-        // The overwrite to `{ deleted: true }` intentionally drops all stored preferences
-        // including push_token. This is the correct behaviour — after deletion no device
-        // should receive push notifications for this account. The key is explicitly not
-        // preserved so any in-flight Expo delivery will fail silently once the token is gone.
-        preferences: { deleted: true } as any,
-        date_of_birth: null,
-        dob_set_at: null,
-        parent_email: null,
-        parental_consent_status: 'not_required',
-        parental_consent_at: null,
-        banned: true,
-        banned_until: null,
-        ban_reason: 'Account deleted by user',
-        deleted_at: deletedAt,
-        deletion_anonymized: true,
-        approval_status: 'REJECTED',
-        rejected_at: deletedAt,
-        rejection_reason: 'Account deleted by user',
-      },
+    await prisma.$transaction(async tx => {
+      await purgeUserOwnedRows(tx, userId);
+      // cache-invalidation-exempt: updateUserAndInvalidate() runs on the
+      // top-level `prisma` client, so calling it here would drop this write out
+      // of the surrounding $transaction and break the purge's atomicity. The
+      // cache is invalidated immediately after the transaction commits, via
+      // invalidateMeCacheForUser() below — which is also the correct ordering:
+      // invalidating before the commit could repopulate the cache from a
+      // concurrent read of the pre-delete row.
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          email: buildDeletedEmail(userId),
+          display_name: 'Deleted User',
+          username: buildDeletedUsername(userId),
+          avatar_url: null,
+          bio: null,
+          password_hash: null,
+          google_id: null,
+          apple_id: null,
+          email_verified: false,
+          email_verification_code: null,
+          email_verification_expires: null,
+          password_reset_code: null,
+          password_reset_expires: null,
+          password_changed_at: deletedAt,
+          stripe_customer_id: null,
+          // The overwrite to `{ deleted: true }` intentionally drops all stored preferences
+          // including push_token. This is the correct behaviour — after deletion no device
+          // should receive push notifications for this account. The key is explicitly not
+          // preserved so any in-flight Expo delivery will fail silently once the token is gone.
+          preferences: { deleted: true } as any,
+          date_of_birth: null,
+          dob_set_at: null,
+          parent_email: null,
+          parental_consent_status: 'not_required',
+          parental_consent_at: null,
+          banned: true,
+          banned_until: null,
+          ban_reason: 'Account deleted by user',
+          deleted_at: deletedAt,
+          deletion_anonymized: true,
+          approval_status: 'REJECTED',
+          rejected_at: deletedAt,
+          rejection_reason: 'Account deleted by user',
+        },
+      });
     });
-  });
+  }
 
   await invalidateMeCacheForUser(userId).catch(() => {});
 
-  // Destroy the user's Cloudinary-hosted ad banners and story media now that
-  // the DB state is committed. Fire-and-forget — if Cloudinary fails, the
-  // reconciliation cron (via generic orphan sweep, future work) or a one-off
-  // cleanup script can pick up the stragglers.
-  if (userAdsForCleanup.length > 0 || userStoriesForCleanup.length > 0) {
+  // Destroy the user's stored media now that the DB state is committed.
+  // Handles BOTH storage backends — Cloudinary assets and R2 objects (media
+  // migrated to R2 2026-07; a Cloudinary-only sweep leaves R2 objects
+  // publicly retrievable by URL forever). Mirrors the per-post teardown in
+  // routes/posts.ts. Fire-and-forget: the DB is already committed, so a
+  // storage failure must never fail or roll back the user's deletion — but it
+  // IS logged and captured so orphaned objects are visible rather than silent.
+  const mediaForCleanup: Array<{ kind: string; entityId: string; url: string | null }> = [
+    ...userAdsForCleanup.map(a => ({ kind: 'ad', entityId: a.id, url: a.banner_url })),
+    ...userStoriesForCleanup.map(s => ({ kind: 'story', entityId: s.id, url: s.media_url })),
+    ...userPostsForCleanup.flatMap(p => [
+      { kind: 'post', entityId: p.id, url: (p as any).media_url as string | null },
+      { kind: 'post_poster', entityId: p.id, url: (p as any).poster_url as string | null },
+    ]),
+  ].filter(m => Boolean(m.url));
+
+  if (mediaForCleanup.length > 0) {
     void (async () => {
       try {
-        const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
-          await import('./cloudinary.js');
-        const urls: Array<{ kind: string; entityId: string; url: string | null }> = [
-          ...userAdsForCleanup.map(a => ({ kind: 'ad', entityId: a.id, url: a.banner_url })),
-          ...userStoriesForCleanup.map(s => ({ kind: 'story', entityId: s.id, url: s.media_url })),
-        ];
-        for (const { kind, entityId, url } of urls) {
+        const [{ extractCloudinaryPublicId, destroyCloudinaryAsset }, { deleteR2ObjectByUrl }] =
+          await Promise.all([import('./cloudinary.js'), import('./r2.js')]);
+        for (const { kind, entityId, url } of mediaForCleanup) {
           if (!url) continue;
-          const parsed = extractCloudinaryPublicId(url);
-          if (!parsed) continue;
-          destroyCloudinaryAsset(parsed.publicId, parsed.resourceType).catch(err =>
+          try {
+            const parsed = extractCloudinaryPublicId(url);
+            if (parsed) {
+              const result = await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
+              if (!result.ok) {
+                console.warn(
+                  `[accountDeletion] Cloudinary destroy failed for ${kind} ${entityId}:`,
+                  result.error
+                );
+              }
+              continue;
+            }
+            // Not a Cloudinary URL — try R2 (no-op if not an R2 URL).
+            await deleteR2ObjectByUrl(url);
+          } catch (err) {
             console.warn(
-              `[accountDeletion] Cloudinary destroy failed for ${kind} ${entityId}:`,
-              err?.message || err
-            )
-          );
+              `[accountDeletion] media destroy threw for ${kind} ${entityId}:`,
+              (err as any)?.message || err
+            );
+          }
         }
       } catch (err) {
-        console.warn('[accountDeletion] Cloudinary cleanup sweep threw:', err);
+        console.error('[accountDeletion] media cleanup sweep threw:', err);
+        captureException(err instanceof Error ? err : new Error(String(err)), {
+          extra: { context: 'account_deletion_media_cleanup_failed', userId },
+        });
       }
     })();
   }

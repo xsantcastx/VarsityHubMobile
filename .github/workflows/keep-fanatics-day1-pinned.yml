@@ -1,21 +1,28 @@
-name: Keep Fanatics Day 1 pinned (18h live window)
+name: Keep Fanatics Day 1 pinned (18h live window) — RETIRED, DO NOT RE-ENABLE
 
-# Keeps Day 1 at the top of the feed + on the map for its full 18h window on the
-# CURRENTLY INSTALLED app (runtime 1.0.4), which buckets a game as "live" only if
-# it started within 2h. Nudges the GAME date to now+2h each run; leaves the EVENT
-# at the real 1PM start so the geofenced POST window is a true 18h. The script
-# self-terminates (no-op) after REAL_START + 18h.
+# RETIRED 2026-07-17. Kept only as a record of what ran; the schedule is off.
 #
-# Fires on: this file changing on main (immediate first pin), manual dispatch,
-# and every 20 minutes. Needs PRODUCTION_DATABASE_URL.
+# What it did: nudged Fanatics Fest Day 1's GAME date to now+2h every 20 minutes
+# so the then-live 1.0.4 binary, which bucketed a game "live" only within a 2h
+# client window, kept it at the top of the feed.
+#
+# Why it is off:
+#  1. It is obsolete. The client no longer uses a 2h window — isGameLive() reads
+#     the server-computed starts_at/live_until (utils/liveWindow.ts), derived
+#     from the EVENT date and its live_window_hours_after_start. Nothing needs
+#     the game date to be fake for Day 1 to read as live.
+#  2. It was actively corrupting production. Because the nudge only moved the
+#     GAME date, the feed card printed "Jul 17, 3:05 AM" for a 1:00 PM Jul 16
+#     event (feed.tsx read Game.date while the LIVE badge read starts_at), and
+#     when the script self-terminated it left the date frozen at its last nudge.
+#     server/scripts/restore-fanatics-day1-date.ts only repairs Event.date, so
+#     it could not undo this; use repair-fanatics-day1-game-date.ts.
+#
+# The general lesson, already written down in server/scripts/pin-fanatics-day1.ts:
+# do not move a real date to change presentation. If an event needs to be pinned,
+# pin it explicitly — do not lie about when it starts.
 on:
-  workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/keep-fanatics-day1-pinned.yml'
-  schedule:
-    - cron: '*/20 * * * *'
+  workflow_dispatch: # manual only; the schedule and push triggers are removed
 
 jobs:
   keep-pinned:

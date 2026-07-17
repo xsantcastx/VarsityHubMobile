@@ -16,12 +16,28 @@ describe('buildFeedGameQueries', () => {
     expect(q.upcoming.options.limit).toBe(30);
   });
 
-  it('bounds the past recap query to the last 3 days ending now, newest first', () => {
+  it('bounds the past recap query to the past window ending now, newest first', () => {
     const q = buildFeedGameQueries(now);
     expect(q.past.sort).toBe('-date');
     expect(q.past.options.dateFrom).toBe(new Date(now - FEED_PAST_WINDOW_MS).toISOString());
     expect(q.past.options.dateTo).toBe(new Date(now).toISOString());
     expect(q.past.options.limit).toBe(30);
+  });
+
+  // Asserted against a real date rather than the constant: a test that derives
+  // its expectation FROM the constant passes no matter what the constant is, so
+  // it cannot catch a regression of the thing we actually care about.
+  it('still reaches Day 1 of a four-day festival from its final day', () => {
+    // Fanatics Fest: Day 1 Thu Jul 16 1pm EDT, Day 4 Sun Jul 19. A fan opening
+    // the feed on the last day must still be able to look back at Day 1 — at a
+    // 3-day window it had already dropped out.
+    const day1Start = new Date('2026-07-16T17:00:00.000Z').getTime();
+    const day4Evening = new Date('2026-07-19T21:00:00.000Z').getTime();
+
+    const q = buildFeedGameQueries(day4Evening);
+    const reachesBackTo = new Date(q.past.options.dateFrom).getTime();
+
+    expect(reachesBackTo).toBeLessThanOrEqual(day1Start);
   });
 
   it('makes the marquee query upcoming-only so curated events cannot be crowded out by past games', () => {

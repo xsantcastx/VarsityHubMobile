@@ -11,8 +11,17 @@
  * (MLB/WNBA/FIFA/Fanatics Fest) via this split-query plan.
  */
 
-/** How far back the Past Events recap looks. */
-export const FEED_PAST_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+/**
+ * How far back the Past Events recap looks.
+ *
+ * 4 days, not 3, so a four-day event series stays referenceable from its own
+ * final day. At 3 days, Fanatics Fest Day 1 (Jul 16) dropped out of the feed on
+ * Day 4 (Jul 19) — the one day a fan is most likely to look back over the whole
+ * weekend. A multi-day festival is the longest series the product supports
+ * today; if that ever grows, this needs to become per-series rather than a
+ * global constant.
+ */
+export const FEED_PAST_WINDOW_MS = 4 * 24 * 60 * 60 * 1000;
 
 /**
  * Upcoming query look-back. Must cover the LONGEST live window any event can

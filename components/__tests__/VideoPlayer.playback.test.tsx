@@ -42,6 +42,9 @@ jest.mock('expo-video', () => ({
 }));
 jest.mock('expo', () => ({ useEventListener: jest.fn() }));
 jest.mock('@/utils/audioSession', () => ({ ensurePlaybackAudioSession: jest.fn() }));
+// VideoPlayer renders an expo-image poster while a video buffers; the real
+// module calls requireNativeModule at import time and cannot load under jest.
+jest.mock('expo-image', () => require('@/test-utils/screenMocks').expoImageMock());
 
 import { VideoPlayer } from '../VideoPlayer';
 
