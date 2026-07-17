@@ -1,8 +1,9 @@
 import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer, type VideoContentFit } from 'expo-video';
+import { useFocusEffect } from '@react-navigation/native';
 import React from 'react';
 import { toUserMessage } from '@/utils/toUserMessage';
-import { Ionicons } from '@expo/vector-icons';
+import { ensurePlaybackAudioSession } from '@/utils/audioSession';
 import {
   ActivityIndicator,
   Pressable,
@@ -27,7 +28,12 @@ export function VideoPlayer({
   uri,
   style,
   onEnd,
-  autoPlay,
+  // Videos play RIGHT AWAY, not on tap (owner decision 2026-07-16). Defaulting
+  // here rather than at each call site is deliberate: the post-detail hero was
+  // the surface the owner filmed sitting at 0:00, and it simply never passed
+  // the prop. Callers that must not autoplay gate with `paused`, not by
+  // omitting this.
+  autoPlay = true,
   nativeControls = true,
   paused,
   contentFit = 'contain',
@@ -35,9 +41,10 @@ export function VideoPlayer({
   const [retryKey, setRetryKey] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-  // Videos play WITH sound by default (owner decision 2026-07-15: silent playback
-  // reads as broken media) — the toggle lets users mute in public venues.
-  const [isMuted, setIsMuted] = React.useState(false);
+  // Videos ALWAYS play with sound (owner decision 2026-07-16). The mute toggle
+  // that used to float over the media was removed along with it. Setting
+  // `muted = false` alone is not enough on iOS — see ensurePlaybackAudioSession.
+  ensurePlaybackAudioSession();
   // Callers pass mediaUrl! assertions; a missing uri must not crash the
   // player. Pass a null source (expo-video accepts it) and render the
   // error overlay below instead of skipping hooks with an early return.
@@ -108,19 +115,21 @@ export function VideoPlayer({
     }
   }, [autoPlay, player, paused]);
 
-  React.useEffect(() => {
-    if (!player) return;
-    try {
-      player.muted = isMuted;
-    } catch (e) {
-      // Non-critical: player may not be ready
-      if (__DEV__) console.warn('[VideoPlayer] Failed to set mute state:', e);
-    }
-  }, [isMuted, player]);
-
-  const handleToggleMute = React.useCallback(() => {
-    setIsMuted(prev => !prev);
-  }, []);
+  // Now that audio is always on and routed through the `playback` category, a
+  // video left playing on a backgrounded screen keeps talking over whatever the
+  // user opened next. Pause on blur; resume only if this player was autoplaying.
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => {
+        try {
+          player?.pause();
+        } catch (e) {
+          // Non-critical: player may already be released
+          if (__DEV__) console.warn('[VideoPlayer] Pause on blur failed:', e);
+        }
+      };
+    }, [player])
+  );
 
   return (
     <View style={style}>
@@ -162,16 +171,6 @@ export function VideoPlayer({
           <Text style={styles.errorCaption}>Tap to retry</Text>
         </Pressable>
       ) : null}
-      {uri ? (
-        <Pressable
-          onPress={handleToggleMute}
-          style={styles.muteButton}
-          accessibilityRole="button"
-          accessibilityLabel={isMuted ? 'Unmute video' : 'Mute video'}
-        >
-          <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={18} color="#fff" />
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -201,17 +200,6 @@ const styles = StyleSheet.create({
     color: '#e2e8f0',
     fontSize: 13,
     fontWeight: '600',
-  },
-  muteButton: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
 

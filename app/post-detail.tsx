@@ -34,7 +34,7 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Post as PostApi, Report, User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
@@ -78,7 +78,6 @@ export default function PostDetailScreen() {
   const postCache = usePostCache();
   const { user, checkAuth } = useAuth();
   const { edgeSwipeGesture } = useEdgeSwipeBack();
-  const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   // The root layout centers all screens in a MAX_CONTENT_WIDTH column on web
   // and tablets. Pager pages must match that column — sizing them to the raw
@@ -115,11 +114,7 @@ export default function PostDetailScreen() {
 
   // FlatList ref for programmatic scrolling
   const flatListRef = useRef<FlatList>(null);
-  const activeScrollViewRef = useRef<ScrollView | null>(null);
   const isInitialLoad = useRef(true);
-  const [activeScrollOffsetY, setActiveScrollOffsetY] = useState(0);
-  const [activeScrollViewportHeight, setActiveScrollViewportHeight] = useState(0);
-  const [activeScrollContentHeight, setActiveScrollContentHeight] = useState(0);
 
   // Track previous params to avoid re-scrolling on simple re-focus
   const prevParamsRef = useRef<{ index?: string; postIds?: string }>({});
@@ -194,12 +189,6 @@ export default function PostDetailScreen() {
   const imageAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: imageScale.value }],
   }));
-  const scrollJumpThreshold = 96;
-  const maxActiveScrollY = Math.max(0, activeScrollContentHeight - activeScrollViewportHeight);
-  const hasOverflowingContent = activeScrollContentHeight > activeScrollViewportHeight + 48;
-  const canJumpToTop = hasOverflowingContent && activeScrollOffsetY > scrollJumpThreshold;
-  const canJumpToBottom =
-    hasOverflowingContent && maxActiveScrollY - activeScrollOffsetY > scrollJumpThreshold;
 
   // Skeleton loading component
   const SkeletonLoader = () => (
@@ -508,13 +497,6 @@ export default function PostDetailScreen() {
     }
     // Note: has_upvoted is read directly from the cached post for UI
   }, [post]);
-
-  useEffect(() => {
-    activeScrollViewRef.current = null;
-    setActiveScrollOffsetY(0);
-    setActiveScrollViewportHeight(0);
-    setActiveScrollContentHeight(0);
-  }, [currentPostId]);
 
   // Prefetch the immediate neighbors in the swipe pager (data + image) while
   // the user reads the current post, so swiping lands on warm content instead
@@ -1141,11 +1123,6 @@ export default function PostDetailScreen() {
 
     return (
       <ScrollView
-        ref={node => {
-          if (isActivePost) {
-            activeScrollViewRef.current = node;
-          }
-        }}
         style={[styles.content, { backgroundColor: Colors[colorScheme].background }]}
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -1155,22 +1132,6 @@ export default function PostDetailScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets
-        scrollEventThrottle={16}
-        onLayout={event => {
-          if (isActivePost) {
-            setActiveScrollViewportHeight(event.nativeEvent.layout.height);
-          }
-        }}
-        onContentSizeChange={(_width, height) => {
-          if (isActivePost) {
-            setActiveScrollContentHeight(height);
-          }
-        }}
-        onScroll={event => {
-          if (isActivePost) {
-            setActiveScrollOffsetY(event.nativeEvent.contentOffset.y);
-          }
-        }}
       >
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
@@ -1206,7 +1167,16 @@ export default function PostDetailScreen() {
               )}
               {isVideo && (
                 <View style={styles.videoContainer}>
-                  <VideoPlayer uri={media.mediaUrl!} style={styles.heroVideo} />
+                  {/* The swipe pager keeps neighbouring posts mounted, and the
+                      fullscreen modal renders a second player over this one.
+                      Now that autoplay + sound are always on, both would play
+                      audio at once — gate on the page the user is actually
+                      looking at. */}
+                  <VideoPlayer
+                    uri={media.mediaUrl!}
+                    style={styles.heroVideo}
+                    paused={!isActivePost || fullscreenMedia}
+                  />
                 </View>
               )}
 
@@ -1916,53 +1886,6 @@ export default function PostDetailScreen() {
             !!currentQuery?.isPending || !!currentQuery?.isPlaceholderData
           )
         ) : null}
-        {hasOverflowingContent && (
-          <View
-            pointerEvents="box-none"
-            style={[styles.scrollJumpOverlay, { bottom: Math.max(insets.bottom + 20, 28) }]}
-          >
-            {canJumpToTop && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Scroll to top"
-                style={[
-                  styles.scrollJumpButton,
-                  {
-                    backgroundColor: Colors[colorScheme].surface,
-                    borderColor: Colors[colorScheme].border,
-                  },
-                ]}
-                onPress={() => {
-                  activeScrollViewRef.current?.scrollTo({ y: 0, animated: true });
-                }}
-              >
-                <Text style={[styles.scrollJumpEmoji, { color: Colors[colorScheme].text }]}>
-                  ⬆️
-                </Text>
-              </Pressable>
-            )}
-            {canJumpToBottom && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Scroll to bottom"
-                style={[
-                  styles.scrollJumpButton,
-                  {
-                    backgroundColor: Colors[colorScheme].surface,
-                    borderColor: Colors[colorScheme].border,
-                  },
-                ]}
-                onPress={() => {
-                  activeScrollViewRef.current?.scrollTo({ y: maxActiveScrollY, animated: true });
-                }}
-              >
-                <Text style={[styles.scrollJumpEmoji, { color: Colors[colorScheme].text }]}>
-                  ⬇️
-                </Text>
-              </Pressable>
-            )}
-          </View>
-        )}
       </KeyboardAvoidingView>
       {/* Edit Comment Modal */}
       <Modal
@@ -2209,35 +2132,6 @@ const styles = StyleSheet.create({
   // Content
   content: {
     flex: 1,
-  },
-  scrollJumpOverlay: {
-    position: 'absolute',
-    right: 16,
-    gap: 10,
-    alignItems: 'flex-end',
-  },
-  scrollJumpButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.14,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  scrollJumpEmoji: {
-    fontSize: 18,
-    lineHeight: 20,
   },
 
   // Hero Section

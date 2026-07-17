@@ -39,6 +39,7 @@ import { Game, Highlights, Post, Report, User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { ensurePlaybackAudioSession } from '@/utils/audioSession';
 import { getAuthSnapshot } from '@/utils/authState';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import events from '@/utils/events';
@@ -243,9 +244,11 @@ const FeedCard = memo(
     const [isVideoLoading, setIsVideoLoading] = useState(post.media_type === 'video');
     const [videoError, setVideoError] = useState<string | null>(null);
     const [videoRetryKey, setVideoRetryKey] = useState(0);
-    // Videos play WITH sound by default (owner decision 2026-07-15: silent playback
-    // reads as broken media) — the toggle lets users mute in public venues.
-    const [isMuted, setIsMuted] = useState(false);
+    // Videos ALWAYS play with sound (owner decision 2026-07-16). The rail's
+    // Sound/Muted toggle was removed with it — it was the only thing that made
+    // this viewer look like a different screen on video vs photo posts.
+    // `muted = false` alone is not enough on iOS — see ensurePlaybackAudioSession.
+    ensurePlaybackAudioSession();
     const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     // Only feed the video player a source for actual videos. Passing the
     // media_url unconditionally handed every IMAGE post's URL to an AVPlayer
@@ -324,7 +327,7 @@ const FeedCard = memo(
     const player = useVideoPlayer(videoSource, p => {
       p.loop = true;
       p.volume = 1.0;
-      // Sound on by default (owner decision 2026-07-15) — see isMuted toggle below.
+      // Sound is ALWAYS on (owner decision 2026-07-16) — there is no mute toggle.
       p.muted = false;
       if (isActive && post.media_type === 'video') {
         try {
@@ -363,19 +366,6 @@ const FeedCard = memo(
       registerVideo(post.id, player);
       return () => registerVideo(post.id, null);
     }, [post.id, player, registerVideo]);
-
-    useEffect(() => {
-      try {
-        player.muted = isMuted;
-      } catch (e) {
-        // Non-critical: player may not be ready
-        if (__DEV__) console.warn('[FeedCard] Failed to set mute state:', e);
-      }
-    }, [isMuted, player]);
-
-    const handleToggleMute = useCallback(() => {
-      setIsMuted(prev => !prev);
-    }, []);
 
     useEffect(() => {
       if (post.media_type !== 'video') return;
@@ -598,22 +588,6 @@ const FeedCard = memo(
             <Ionicons name="ellipsis-horizontal" size={34} color="#fff" />
             <Text style={styles.railLabel}>Options</Text>
           </Pressable>
-
-          {post.media_type === 'video' && post.media_url ? (
-            <Pressable
-              onPress={handleToggleMute}
-              style={styles.railBtn}
-              accessibilityRole="button"
-              accessibilityLabel={isMuted ? 'Unmute video' : 'Mute video'}
-            >
-              <Ionicons
-                name={isMuted ? 'volume-mute-outline' : 'volume-high-outline'}
-                size={34}
-                color="#fff"
-              />
-              <Text style={styles.railLabel}>{isMuted ? 'Muted' : 'Sound'}</Text>
-            </Pressable>
-          ) : null}
         </View>
 
         {/* Options Menu Modal */}
