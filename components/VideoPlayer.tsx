@@ -18,7 +18,30 @@ interface VideoPlayerProps {
   uri?: string | null;
   style?: StyleProp<ViewStyle>;
   onEnd?: () => void;
-  autoPlay?: boolean;
+  /**
+   * REQUIRED — there is deliberately no default.
+   *
+   * Autoplay here always means autoplay WITH SOUND: `ensurePlaybackAudioSession`
+   * puts the process in the `playback` category (`playsInSilentMode`, `duckOthers`)
+   * permanently, and there is no mute toggle (owner decision 2026-07-16).
+   *
+   * That is the right behaviour on CONSUMPTION surfaces — feed, post detail,
+   * stories, highlights, media lightboxes — where a fan is watching content and
+   * "videos should always play right away" with sound.
+   *
+   * It is the WRONG behaviour on COMPOSER/PREVIEW surfaces — the create-post
+   * preview, the story/video trimmers, team-contacts — where the user is
+   * authoring, not watching. Blasting audio through the hardware silent switch
+   * because someone picked a clip to post is not the owner's rule; pass `false`.
+   *
+   * Both defaults were footguns in opposite directions (a default of `true`
+   * silently opted composer surfaces in; a default of `false` would silently
+   * reintroduce the "video sitting at 0:00" bug on a consumption surface), and
+   * the call sites split evenly 4/4 — so neither default is the narrow one.
+   * Making it required moves the decision to the type checker: a new surface
+   * cannot compile without stating which kind it is.
+   */
+  autoPlay: boolean;
   nativeControls?: boolean;
   paused?: boolean;
   contentFit?: VideoContentFit;
@@ -28,12 +51,7 @@ export function VideoPlayer({
   uri,
   style,
   onEnd,
-  // Videos play RIGHT AWAY, not on tap (owner decision 2026-07-16). Defaulting
-  // here rather than at each call site is deliberate: the post-detail hero was
-  // the surface the owner filmed sitting at 0:00, and it simply never passed
-  // the prop. Callers that must not autoplay gate with `paused`, not by
-  // omitting this.
-  autoPlay = true,
+  autoPlay,
   nativeControls = true,
   paused,
   contentFit = 'contain',
@@ -115,11 +133,37 @@ export function VideoPlayer({
     }
   }, [autoPlay, player, paused]);
 
+  // Read the LATEST playback intent from inside the focus effect without
+  // putting these props in its dep array — a dep change re-runs the effect,
+  // and its cleanup pauses, so `paused` churn would stutter playback.
+  const autoPlayRef = React.useRef(autoPlay);
+  autoPlayRef.current = autoPlay;
+  const pausedRef = React.useRef(paused);
+  pausedRef.current = paused;
+
   // Now that audio is always on and routed through the `playback` category, a
   // video left playing on a backgrounded screen keeps talking over whatever the
-  // user opened next. Pause on blur; resume only if this player was autoplaying.
+  // user opened next. Pause on blur, and resume on refocus — otherwise tapping
+  // into a profile and coming back leaves the clip frozen mid-play, which is
+  // the "video sitting at 0:00" complaint all over again. Neither the play
+  // effect above nor the props change on refocus, so the resume has to happen
+  // here.
   useFocusEffect(
     React.useCallback(() => {
+      // Resume ONLY if this player is still meant to be playing. `paused` is
+      // how every caller says "not my turn": the post-detail hero sets it
+      // unless it's the active pager page with the fullscreen modal closed,
+      // and stories/GVFS set it for every non-active item. Honouring it is
+      // what keeps two videos from playing at once — a worse bug than the
+      // freeze this fixes.
+      if (autoPlayRef.current && !pausedRef.current) {
+        try {
+          player?.play();
+        } catch (e) {
+          // Non-critical: player may not be ready yet
+          if (__DEV__) console.warn('[VideoPlayer] Resume on focus failed:', e);
+        }
+      }
       return () => {
         try {
           player?.pause();

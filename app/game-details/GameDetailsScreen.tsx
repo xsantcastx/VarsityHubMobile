@@ -2821,7 +2821,8 @@ const GameDetailsScreen = () => {
           <View style={styles.viewerContent}>
             {viewer?.url ? (
               viewer.kind === 'video' ? (
-                <VideoPlayer uri={viewer.url} style={styles.viewerMedia} />
+                // Media lightbox — the viewer opened this to watch it.
+                <VideoPlayer uri={viewer.url} style={styles.viewerMedia} autoPlay />
               ) : (
                 <Image
                   source={{ uri: optimizeImageUrl(viewer.url, 1200) }}
@@ -2848,6 +2849,7 @@ const GameDetailsScreen = () => {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center' }}>
           {storyPreview && (
             <View style={{ padding: 16 }}>
+              {/* Story trim preview: authoring surface, not a consumption one. */}
               <VideoPlayer
                 uri={storyTrimmedUri ?? storyPreview.uri}
                 style={{
@@ -2857,6 +2859,7 @@ const GameDetailsScreen = () => {
                   alignSelf: 'center',
                   maxHeight: 400,
                 }}
+                autoPlay={false}
               />
               {canTrimStoryVideo ? (
                 <VideoTrimmer

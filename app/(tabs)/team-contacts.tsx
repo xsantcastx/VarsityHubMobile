@@ -2330,6 +2330,7 @@ export default function TeamChatScreen() {
         >
           {videoToTrim && (
             <>
+              {/* Trim preview: authoring surface, not a consumption one. */}
               <VideoPlayer
                 uri={videoTrimmedUri ?? videoToTrim.uri}
                 style={{
@@ -2339,6 +2340,7 @@ export default function TeamChatScreen() {
                   alignSelf: 'center',
                   maxHeight: 300,
                 }}
+                autoPlay={false}
               />
               {canTrimVideo ? (
                 <VideoTrimmer

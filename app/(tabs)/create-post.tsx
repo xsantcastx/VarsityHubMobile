@@ -1226,7 +1226,14 @@ function CreatePostScreen() {
                   />
                 ) : (
                   <>
-                    <VideoPlayer uri={trimmedUri ?? picked.uri} style={styles.previewMedia} />
+                    {/* Composer preview: the user is authoring, not watching.
+                        Autoplay here means full-volume sound through the
+                        hardware silent switch the moment they pick a clip. */}
+                    <VideoPlayer
+                      uri={trimmedUri ?? picked.uri}
+                      style={styles.previewMedia}
+                      autoPlay={false}
+                    />
                     {canTrimVideo ? (
                       <VideoTrimmer
                         uri={picked.uri}
