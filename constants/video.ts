@@ -35,6 +35,32 @@ export const MAX_VIDEO_SIZE_MB = 150;
 export const MAX_VIDEO_SIZE_BYTES = 150 * 1024 * 1024;
 
 /**
+ * Pick-time sanity ceiling — NOT the upload cap.
+ *
+ * The upload cap above applies to the bytes we actually send, i.e. AFTER
+ * `prepareVideoForUpload` re-encodes at VIDEO_TARGET_BITRATE_BPS. Every pick
+ * surface used to gate the freshly-picked file against MAX_VIDEO_SIZE_BYTES,
+ * which compares PRE-compression bytes to a POST-compression limit. That is the
+ * wrong comparison at the wrong time: iOS exports a 1080p clip at roughly
+ * 14-16 Mbps, so a 90s highlight lands around 160-180MB and was rejected at the
+ * picker — even though POST_MAX_DURATION_S explicitly allows 90s and
+ * compression would have brought it to ~68MB (90s x 6 Mbps). It also fought the
+ * documented duration policy above: over-limit picks are supposed to open the
+ * trimmer, not get bounced.
+ *
+ * The real post-compression bound is duration, and duration is already enforced
+ * (trimmer + the POST_MAX_DURATION_S submit gate), and `prepareVideoForUpload`
+ * still re-validates the final asset against MAX_VIDEO_SIZE_BYTES before it is
+ * uploaded — that is the authoritative gate. So all a pick-time byte check
+ * should do is refuse a pathological pick (a multi-GB 4K movie) before we spend
+ * minutes trimming and transcoding it. 600MB clears the ~180MB worst case for a
+ * 90s 1080p export with room to spare, and still leaves headroom for a ~5 minute
+ * pick that the trimmer will cut down.
+ */
+export const MAX_PICKED_VIDEO_SIZE_MB = 600;
+export const MAX_PICKED_VIDEO_SIZE_BYTES = MAX_PICKED_VIDEO_SIZE_MB * 1024 * 1024;
+
+/**
  * Target H.264 bitrate for compressed uploads, in bits per second.
  *
  * react-native-compressor's 'auto' mode ignores this and clamps to 1,669,000

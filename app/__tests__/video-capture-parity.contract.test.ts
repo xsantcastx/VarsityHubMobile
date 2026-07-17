@@ -1,10 +1,18 @@
 /**
  * Capture-parity contract: every surface that accepts VIDEO must
  *   (a) set the shared export preset (VIDEO_CAPTURE_PRESET),
- *   (b) size-gate against MAX_VIDEO_SIZE (pick-time),
- *   (c) compress via prepareVideoForUpload (upload-time).
+ *   (b) size-gate the PICK against MAX_PICKED_VIDEO_SIZE_BYTES,
+ *   (c) compress via prepareVideoForUpload (upload-time), which is what
+ *       re-checks the real MAX_VIDEO_SIZE_BYTES upload cap.
  * And no file outside the allowlist may accept video at all — a new video
  * surface must be added here deliberately, with all three guarantees.
+ *
+ * (b) is deliberately NOT MAX_VIDEO_SIZE_BYTES. All three surfaces used to gate
+ * the freshly-picked file against the 150MB upload cap, i.e. pre-compression
+ * bytes vs a post-compression limit. A 90s 1080p export is ~160-180MB, so the
+ * picker bounced highlights that POST_MAX_DURATION_S explicitly allows and that
+ * compress to ~68MB. The cap belongs on the bytes we actually send, and
+ * prepareVideoForUpload already enforces it there.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,8 +34,12 @@ describe('video capture parity', () => {
       it('uses the shared capture preset', () => {
         expect(src).toContain('VIDEO_CAPTURE_PRESET');
       });
-      it('size-gates against the shared max', () => {
-        expect(src).toContain('MAX_VIDEO_SIZE_BYTES');
+      it('size-gates the pick against the shared pick-time ceiling', () => {
+        expect(src).toContain('MAX_PICKED_VIDEO_SIZE_BYTES');
+      });
+      it('does not gate the pick against the post-compression upload cap', () => {
+        // The regression this pins: `pickedSize > MAX_VIDEO_SIZE_BYTES`.
+        expect(src).not.toMatch(/>\s*MAX_VIDEO_SIZE_BYTES/);
       });
       it('compresses via prepareVideoForUpload', () => {
         expect(src).toContain('prepareVideoForUpload');

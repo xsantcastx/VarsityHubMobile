@@ -2,8 +2,7 @@ import { Colors } from '@/constants/Colors';
 import ExpandableText from '@/components/ExpandableText';
 import {
   isNativeVideoTrimSupported,
-  MAX_VIDEO_SIZE_BYTES,
-  MAX_VIDEO_SIZE_MB,
+  MAX_PICKED_VIDEO_SIZE_BYTES,
   STORY_MAX_DURATION_S,
   VIDEO_CAPTURE_PRESET,
 } from '@/constants/video';
@@ -1223,11 +1222,15 @@ const GameDetailsScreen = () => {
 
       // For videos, show trim preview before uploading
       if (asset.type === 'video') {
+        // Pick-time SANITY ceiling, not the 150MB upload cap: this is the
+        // pre-compression file, and prepareVideoForUpload re-checks the real
+        // MAX_VIDEO_SIZE_BYTES cap on the bytes we actually send. See the
+        // MAX_PICKED_VIDEO_SIZE_BYTES rationale in constants/video.ts.
         const pickedSize = asset.fileSize || (await getVideoFileSize(materializedUri));
-        if (pickedSize > MAX_VIDEO_SIZE_BYTES) {
+        if (pickedSize > MAX_PICKED_VIDEO_SIZE_BYTES) {
           Alert.alert(
             'File Too Large',
-            `This video is ${Math.round(pickedSize / (1024 * 1024))}MB — the limit is ${MAX_VIDEO_SIZE_MB}MB. Record a shorter clip and try again.`
+            `This video is ${Math.round(pickedSize / (1024 * 1024))}MB, which is too big to process on your phone. Record a shorter clip and try again.`
           );
           return;
         }

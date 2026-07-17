@@ -11,7 +11,9 @@ import { captureException } from '@/utils/sentry';
 
 // Module-level dynamic require (OfflineBanner pattern): resolves at bundle
 // time, never crashes binaries that predate the native module.
-let CompressorVideo: { compress: (uri: string, opts: object) => Promise<string> } | null = null;
+let CompressorVideo: {
+  compress: (uri: string, opts: object, onProgress?: (fraction: number) => void) => Promise<string>;
+} | null = null;
 try {
   CompressorVideo = require('react-native-compressor').Video;
 } catch {
@@ -21,6 +23,11 @@ try {
 // Report the missing module once per session, not per call — old binaries
 // would otherwise spam Sentry on every upload.
 let reportedModuleMissing = false;
+
+function clampFraction(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
 
 /**
  * Safe video compression wrapper.
@@ -33,8 +40,18 @@ let reportedModuleMissing = false;
  *
  * iOS also benefits from ImagePicker's videoExportPreset at the picker level,
  * so even without the compressor the file is transcoded by the OS.
+ *
+ * `onProgress` receives a 0..1 fraction. react-native-compressor has always
+ * exposed this (third arg of Video.compress, backed by the native
+ * `videoCompressProgress` event on both platforms) — we simply never passed it,
+ * which is why the longest phase of an upload rendered as a frozen 0% bar. It
+ * is never invoked when the native module is missing or when the compressor
+ * decides not to re-encode, so callers must treat "no callback" as normal.
  */
-export async function compressVideoSafe(uri: string): Promise<string> {
+export async function compressVideoSafe(
+  uri: string,
+  onProgress?: (fraction: number) => void
+): Promise<string> {
   if (!CompressorVideo) {
     if (!reportedModuleMissing) {
       reportedModuleMissing = true;
@@ -45,32 +62,51 @@ export async function compressVideoSafe(uri: string): Promise<string> {
     return uri;
   }
   try {
-    const compressed: string = await CompressorVideo.compress(uri, {
-      // 'manual' — NOT 'auto'. This is the fix for "the video quality is still
-      // bad even though it's 1080p" (2026-07-16).
-      //
-      // 'auto' hard-caps the output bitrate at 1,669,000 bps regardless of
-      // resolution: see makeVideoBitrate() in the package's
-      // ios/Video/VideoMain.swift and android AutoVideoCompression.kt, both of
-      // which clamp to `maxBitrate = 1669000`. maxSize only ever controlled the
-      // RESOLUTION, so the earlier maxSize:1920 fix (1df5d898) worked — the
-      // owner's fest clips really did land at 1080x1920 — and yet they still
-      // looked bad, because 1.67 Mbps over 1080x1920@30fps is ~0.027 bits per
-      // pixel. On high-motion sports footage that smears and blocks.
-      //
-      // 'manual' honours maxSize the same way (it scales the long edge, portrait
-      // included) but uses the bitrate we pass instead of the auto clamp.
-      compressionMethod: 'manual',
-      bitrate: VIDEO_TARGET_BITRATE_BPS,
-      minimumFileSizeForCompress: 1, // compress any video (value is in MB)
-      // CRITICAL: react-native-compressor defaults maxSize to 640px on the
-      // longest side when omitted (see its Video/index.js), which silently
-      // downscaled every >8MB upload to ~360-640p and undid the 1080p capture
-      // preset. 1920 preserves 1080p for both portrait (1080x1920) and
-      // landscape (1920x1080); the 150MB MAX_VIDEO_SIZE guard + post-compress
-      // size check still bound the result.
-      maxSize: 1920,
-    });
+    // Progress arrives many times per second on both platforms; collapse it to
+    // whole-percent transitions so the UI does at most 100 state updates per
+    // pass instead of one per encoded frame. Deliberately NOT using the
+    // package's own `progressDivider`: its native filter is
+    // `round(pct) % divider === 0`, so any percentage the encoder skips over is
+    // silently dropped and the bar can stall for good.
+    let lastReportedPct = -1;
+    const forward = onProgress
+      ? (fraction: number) => {
+          const pct = Math.round(clampFraction(fraction) * 100);
+          if (pct === lastReportedPct) return;
+          lastReportedPct = pct;
+          onProgress(pct / 100);
+        }
+      : undefined;
+    const compressed: string = await CompressorVideo.compress(
+      uri,
+      {
+        // 'manual' — NOT 'auto'. This is the fix for "the video quality is still
+        // bad even though it's 1080p" (2026-07-16).
+        //
+        // 'auto' hard-caps the output bitrate at 1,669,000 bps regardless of
+        // resolution: see makeVideoBitrate() in the package's
+        // ios/Video/VideoMain.swift and android AutoVideoCompression.kt, both of
+        // which clamp to `maxBitrate = 1669000`. maxSize only ever controlled the
+        // RESOLUTION, so the earlier maxSize:1920 fix (1df5d898) worked — the
+        // owner's fest clips really did land at 1080x1920 — and yet they still
+        // looked bad, because 1.67 Mbps over 1080x1920@30fps is ~0.027 bits per
+        // pixel. On high-motion sports footage that smears and blocks.
+        //
+        // 'manual' honours maxSize the same way (it scales the long edge, portrait
+        // included) but uses the bitrate we pass instead of the auto clamp.
+        compressionMethod: 'manual',
+        bitrate: VIDEO_TARGET_BITRATE_BPS,
+        minimumFileSizeForCompress: 1, // compress any video (value is in MB)
+        // CRITICAL: react-native-compressor defaults maxSize to 640px on the
+        // longest side when omitted (see its Video/index.js), which silently
+        // downscaled every >8MB upload to ~360-640p and undid the 1080p capture
+        // preset. 1920 preserves 1080p for both portrait (1080x1920) and
+        // landscape (1920x1080); the 150MB MAX_VIDEO_SIZE guard + post-compress
+        // size check still bound the result.
+        maxSize: 1920,
+      },
+      forward
+    );
     return compressed ?? uri;
   } catch (e) {
     // Compression failed mid-way — fall back to the original, but make the
@@ -96,6 +132,13 @@ export async function getVideoFileSize(uri: string): Promise<number> {
 
 type PrepareVideoForUploadOptions = {
   compressionThresholdBytes?: number;
+  /**
+   * 0..1 progress for the compression pass. Not called at all when the clip is
+   * under the threshold, when the native module is missing, or when the
+   * encoder finishes before emitting — treat silence as "no signal", never as
+   * "stuck at 0".
+   */
+  onCompressProgress?: (fraction: number) => void;
 };
 
 /**
@@ -127,7 +170,7 @@ export async function prepareVideoForUpload(
     };
   }
 
-  const compressedUri = await compressVideoSafe(uri);
+  const compressedUri = await compressVideoSafe(uri, options.onCompressProgress);
   let finalUri = compressedUri;
   let finalSizeBytes =
     compressedUri !== uri ? await getVideoFileSize(compressedUri) : originalSizeBytes;
@@ -144,9 +187,11 @@ export async function prepareVideoForUpload(
     finalSizeBytes = originalSizeBytes;
   }
 
-  // The pick-time 150MB gate ran on the ORIGINAL file. Re-validate the asset
-  // we are actually about to upload. "too large" in the message routes this
-  // through uploadErrorAlert's isSize branch.
+  // THIS is the authoritative upload-cap gate. Pick surfaces only apply a loose
+  // sanity ceiling (MAX_PICKED_VIDEO_SIZE_BYTES) to the pre-compression file —
+  // they cannot enforce MAX_VIDEO_SIZE_BYTES, because that limit is about the
+  // bytes we send and those don't exist until this function has run. "too large"
+  // in the message routes this through uploadErrorAlert's isSize branch.
   if (finalSizeBytes > MAX_VIDEO_SIZE_BYTES) {
     const err: any = new Error(
       `Video is too large after processing (${Math.round(finalSizeBytes / (1024 * 1024))}MB) — the limit is ${MAX_VIDEO_SIZE_MB}MB. Trim it shorter and try again.`

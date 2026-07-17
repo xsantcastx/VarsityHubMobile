@@ -2,6 +2,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Linking,
   Modal,
@@ -29,8 +30,8 @@ import { Colors } from '@/constants/Colors';
 import {
   isNativeVideoTrimSupported,
   MAX_IMAGE_SIZE_BYTES,
-  MAX_VIDEO_SIZE_BYTES,
-  MAX_VIDEO_SIZE_MB,
+  MAX_PICKED_VIDEO_SIZE_BYTES,
+  MAX_PICKED_VIDEO_SIZE_MB,
   POST_MAX_DURATION_S,
   VIDEO_CAPTURE_PRESET,
 } from '@/constants/video';
@@ -46,6 +47,12 @@ import {
 import { hasLocalEventPostingUnlock, recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
 import { getLiveBounds, isGameOver } from '@/utils/liveWindow';
 import { prepareVideoForUpload, uploadTimeoutMsForSize } from '@/utils/compressVideo';
+import {
+  COMPRESS_PROGRESS_SHARE,
+  mediaUploadLabel,
+  mediaUploadPercent,
+  type MediaUploadPhase,
+} from '@/utils/uploadProgress';
 import { sanitizeText } from '@/utils/formUtils';
 import { ICLOUD_ERROR_MESSAGE, ICLOUD_ERROR_TITLE, isICloudError } from '@/utils/isICloudError';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
@@ -134,7 +141,19 @@ function CreatePostScreen() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  // Phase + the progress of THAT phase. `mediaUploadPercent` folds the two into
+  // the single forward-only bar the user sees (utils/uploadProgress.ts).
+  const [mediaPhase, setMediaPhase] = useState<MediaUploadPhase>('uploading');
+  const [phaseProgress, setPhaseProgress] = useState(0);
+  // The picker's own video export blocks inside launchImageLibraryAsync /
+  // launchCameraAsync with no progress signal of any kind (expo-image-picker's
+  // iOS transcodeVideoAsync just awaits exportSession.export()). The picker's
+  // modal dismisses the moment the user taps Choose, so those seconds render as
+  // a frozen, silent composer. We can't measure it — but we can stop it being
+  // silent: this holds the overlay's label and is set on tap, so the overlay is
+  // already mounted behind the picker and is what the user lands on when the
+  // modal goes away. It is an honest spinner, never a fabricated percentage.
+  const [pickPreparing, setPickPreparing] = useState<string | null>(null);
   const [postSuccess, setPostSuccess] = useState(false);
   const [trimmedUri, setTrimmedUri] = useState<string | null>(null);
   const showPrecisionWarning =
@@ -409,6 +428,7 @@ function CreatePostScreen() {
 
   const pickFromLibraryRaw = async (media: 'image' | 'video') => {
     try {
+      if (media === 'video') setPickPreparing('Preparing video…');
       const r = await ImagePicker.launchImageLibraryAsync({
         ...pickerMediaTypeFor(media),
         allowsEditing: false, // Don't crop - preserve original photo
@@ -431,16 +451,21 @@ function CreatePostScreen() {
           return;
         }
 
-        // Validate file size
+        // Validate file size. Videos are gated against the pick-time SANITY
+        // ceiling, not the 150MB upload cap — the picked file is pre-compression
+        // bytes and the cap applies to post-compression bytes. Gating the pick
+        // on MAX_VIDEO_SIZE_BYTES rejected 90s highlights (a 1080p export runs
+        // ~14-16 Mbps → ~160-180MB) that compress to ~68MB and upload fine.
+        // prepareVideoForUpload re-checks the real cap on the real bytes.
         const fileSize = await getFileSizeFromUri(a.uri);
-        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE_BYTES;
-        const maxSizeMB = media === 'image' ? 10 : MAX_VIDEO_SIZE_MB;
+        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_PICKED_VIDEO_SIZE_BYTES;
+        const maxSizeMB = media === 'image' ? 10 : MAX_PICKED_VIDEO_SIZE_MB;
 
         if (fileSize > maxSize) {
           Alert.alert(
             'File Too Large',
             media === 'video'
-              ? `This video is ${Math.round(fileSize / (1024 * 1024))}MB — the limit is ${maxSizeMB}MB. Trim it shorter or record at a lower resolution and try again.`
+              ? `This video is ${Math.round(fileSize / (1024 * 1024))}MB, which is too big to process on your phone. Trim it shorter or record at a lower resolution and try again.`
               : `The selected ${media} is too large. Maximum size is ${maxSizeMB}MB.`
           );
           return;
@@ -481,6 +506,8 @@ function CreatePostScreen() {
       } else {
         Alert.alert('Error', 'Failed to select media. Please try again.');
       }
+    } finally {
+      setPickPreparing(null);
     }
   };
 
@@ -498,6 +525,10 @@ function CreatePostScreen() {
         ]);
         return;
       }
+      // The camera can return either a photo or a video and we don't know which
+      // until the promise resolves — after the export has already run. Keep the
+      // label media-neutral rather than guessing.
+      setPickPreparing('Preparing media…');
       const r = await ImagePicker.launchCameraAsync({
         ...pickerAllMediaTypesProp(),
         allowsEditing: false,
@@ -527,15 +558,16 @@ function CreatePostScreen() {
           return;
         }
 
-        // Validate file size
+        // Validate file size — videos against the pick-time sanity ceiling, not
+        // the post-compression upload cap (see pickFromLibraryRaw).
         const fileSize = await getFileSizeFromUri(a.uri);
-        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE_BYTES;
-        const maxSizeMB = media === 'image' ? 10 : MAX_VIDEO_SIZE_MB;
+        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_PICKED_VIDEO_SIZE_BYTES;
+        const maxSizeMB = media === 'image' ? 10 : MAX_PICKED_VIDEO_SIZE_MB;
 
         if (fileSize > maxSize) {
           Alert.alert(
             'File Too Large',
-            `The captured ${media} is too large. Maximum size is ${maxSizeMB}MB. Try reducing quality or duration.`
+            `The captured ${media} is too large (${Math.round(fileSize / (1024 * 1024))}MB, limit ${maxSizeMB}MB). Try reducing quality or duration.`
           );
           return;
         }
@@ -570,10 +602,17 @@ function CreatePostScreen() {
     } catch (error: any) {
       if (__DEV__) console.error('[CreatePost] Camera error:', error);
       Alert.alert('Error', 'Failed to capture media. Please try again.');
+    } finally {
+      setPickPreparing(null);
     }
   };
 
   const [error, setError] = useState<string | null>(null);
+
+  // Images have no observable compression phase of their own, so the whole bar
+  // belongs to the upload.
+  const mediaCompressShare = picked?.type === 'video' ? COMPRESS_PROGRESS_SHARE : 0;
+  const overallMediaPercent = mediaUploadPercent(mediaPhase, phaseProgress, mediaCompressShare);
 
   // Kept in sync with server/scripts/seed-demo-matchups.ts DEMO_TAG and the
   // [DEMO_MATCHUP] carve-out in server/src/routes/posts.ts — renaming this
@@ -751,7 +790,8 @@ function CreatePostScreen() {
       return;
     }
     setSubmitting(true);
-    setUploadProgress(0);
+    setMediaPhase(picked?.type === 'video' ? 'compressing' : 'uploading');
+    setPhaseProgress(0);
     setError(null);
 
     try {
@@ -770,13 +810,23 @@ function CreatePostScreen() {
         const name = picked.type === 'image' ? 'image.jpg' : 'video.mp4';
         const mime = picked.mime || (picked.type === 'image' ? 'image/jpeg' : 'video/mp4');
         const sourceUri = picked.type === 'video' && trimmedUri ? trimmedUri : picked.uri;
-        const prepared = picked.type === 'video' ? await prepareVideoForUpload(sourceUri) : null;
+        // Compression is the single longest step of a video post (~14s for a 90s
+        // 1080p clip) and used to run with the bar pinned at 0%, which read as a
+        // hang. The compressor has always emitted progress — now we forward it.
+        const prepared =
+          picked.type === 'video'
+            ? await prepareVideoForUpload(sourceUri, {
+                onCompressProgress: fraction => setPhaseProgress(fraction * 100),
+              })
+            : null;
         const uploadUri = prepared ? prepared.uri : sourceUri;
+        setMediaPhase('uploading');
+        setPhaseProgress(0);
         // Video previews are derived client-side from the Cloudinary media URL,
         // so we upload a single canonical video asset instead of a second
         // thumbnail file and extra signature/upload call.
         const mainUpload = uploadFile(base, uploadUri, name, mime, {
-          onProgress: pct => setUploadProgress(pct),
+          onProgress: pct => setPhaseProgress(pct),
           ...(prepared ? { timeoutMs: uploadTimeoutMsForSize(prepared.finalSizeBytes) } : {}),
         }).catch((uploadErr: any) => {
           const msg: string = uploadErr?.message || '';
@@ -805,6 +855,9 @@ function CreatePostScreen() {
         if (typeof res?.height === 'number') mediaMeta.media_height = res.height;
         if (typeof res?.bytes === 'number') mediaMeta.media_bytes = res.bytes;
         if (typeof res?.duration === 'number') mediaMeta.media_duration_s = res.duration;
+        // The bytes are in. The poster upload + the create call are what's left,
+        // and neither is worth its own bar segment.
+        setMediaPhase('finalizing');
         if (__DEV__) console.warn('[CreatePost] Upload complete:', finalMediaUrl);
         // R2 stores bytes verbatim — no server-side poster derivation exists
         // (Cloudinary posts get theirs derived by the serializer). Generate a
@@ -1021,7 +1074,7 @@ function CreatePostScreen() {
       }
     } finally {
       setSubmitting(false);
-      setUploadProgress(0);
+      setPhaseProgress(0);
       if (!postSuccess) setPreviewVisible(false);
     }
   };
@@ -1822,7 +1875,9 @@ function CreatePostScreen() {
                 </Pressable>
               )}
 
-              {/* Upload Progress */}
+              {/* Media progress — ONE forward-only bar across compress → upload
+                  → finalize, driven by the real signal of whichever phase is
+                  running (utils/uploadProgress.ts). */}
               {submitting && picked && (
                 <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
                   <View
@@ -1838,7 +1893,7 @@ function CreatePostScreen() {
                         height: 4,
                         backgroundColor: '#16A34A',
                         borderRadius: 2,
-                        width: `${uploadProgress}%`,
+                        width: `${overallMediaPercent ?? 0}%`,
                       }}
                     />
                   </View>
@@ -1850,9 +1905,7 @@ function CreatePostScreen() {
                       marginTop: 4,
                     }}
                   >
-                    {uploadProgress < 100
-                      ? `Uploading... ${Math.round(uploadProgress)}%`
-                      : 'Processing...'}
+                    {mediaUploadLabel(mediaPhase, phaseProgress, mediaCompressShare)}
                   </Text>
                 </View>
               )}
@@ -1921,6 +1974,47 @@ function CreatePostScreen() {
         </Modal>
 
         {/* No popup — checkmark stays on Confirm button; brief success state then navigate */}
+
+        {/* Pick-time "dead air" cover. The picker's video export runs inside the
+            native module with NO progress signal available to JS, and its modal
+            dismisses before the export finishes — so the composer sat frozen and
+            silent for seconds. This overlay is mounted the moment the pick is
+            requested (i.e. underneath the picker modal), so it is what the user
+            lands on when the modal goes away. Honest spinner, NOT a fake bar:
+            there is no percentage to show here, and inventing one would be worse.
+            Plain absolutely-positioned View rather than a <Modal> so it can never
+            collide with the native picker's own presentation on iOS. */}
+        {pickPreparing && (
+          <View
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                backgroundColor: Colors[colorScheme].background,
+                opacity: 0.96,
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 12,
+              },
+            ]}
+            accessibilityRole="progressbar"
+            accessibilityLabel={pickPreparing}
+          >
+            <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+            <Text style={{ color: Colors[colorScheme].text, fontSize: 15, fontWeight: '600' }}>
+              {pickPreparing}
+            </Text>
+            <Text
+              style={{
+                color: Colors[colorScheme].mutedText,
+                fontSize: 13,
+                textAlign: 'center',
+                paddingHorizontal: 32,
+              }}
+            >
+              Your phone is getting the clip ready. This can take a few seconds for longer videos.
+            </Text>
+          </View>
+        )}
       </SafeAreaView>
     </SwipeBackContainer>
   );

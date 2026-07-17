@@ -67,12 +67,16 @@ describe('prepareVideoForUpload', () => {
     // package's native code no matter the resolution, which is why 1080p clips
     // still looked bad; 'manual' + an explicit bitrate is the fix, and maxSize
     // keeps the long edge at 1920 (the package defaults it to 640).
-    expect(compressMock).toHaveBeenCalledWith('file:///clip.mp4', {
-      compressionMethod: 'manual',
-      bitrate: VIDEO_TARGET_BITRATE_BPS,
-      minimumFileSizeForCompress: 1,
-      maxSize: 1920,
-    });
+    expect(compressMock).toHaveBeenCalledWith(
+      'file:///clip.mp4',
+      {
+        compressionMethod: 'manual',
+        bitrate: VIDEO_TARGET_BITRATE_BPS,
+        minimumFileSizeForCompress: 1,
+        maxSize: 1920,
+      },
+      undefined
+    );
     expect(VIDEO_TARGET_BITRATE_BPS).toBeGreaterThan(1_669_000);
     expect(result).toMatchObject({
       uri: 'file:///compressed.mp4',
@@ -84,6 +88,68 @@ describe('prepareVideoForUpload', () => {
 
   it('exports the documented threshold constant', () => {
     expect(VIDEO_COMPRESSION_THRESHOLD_MB).toBe(8);
+  });
+});
+
+describe('compression progress', () => {
+  beforeEach(() => {
+    getInfoAsyncMock.mockReset();
+    compressMock.mockReset();
+  });
+
+  it('forwards native compression progress to the caller (this is the dead-air fix)', async () => {
+    getInfoAsyncMock.mockImplementation(async (uri: string) =>
+      uri === 'file:///compressed.mp4'
+        ? ({ exists: true, size: 5 * 1024 * 1024 } as any)
+        : ({ exists: true, size: 24 * 1024 * 1024 } as any)
+    );
+    compressMock.mockImplementation(async (_uri: any, _opts: any, onProgress: any) => {
+      onProgress?.(0.25);
+      onProgress?.(0.5);
+      onProgress?.(1);
+      return 'file:///compressed.mp4' as any;
+    });
+
+    const seen: number[] = [];
+    await prepareVideoForUpload('file:///clip.mp4', {
+      onCompressProgress: fraction => seen.push(fraction),
+    });
+
+    expect(seen).toEqual([0.25, 0.5, 1]);
+  });
+
+  it('collapses sub-percent noise so the encoder cannot spam a setState per frame', async () => {
+    getInfoAsyncMock.mockImplementation(async (uri: string) =>
+      uri === 'file:///compressed.mp4'
+        ? ({ exists: true, size: 5 * 1024 * 1024 } as any)
+        : ({ exists: true, size: 24 * 1024 * 1024 } as any)
+    );
+    compressMock.mockImplementation(async (_uri: any, _opts: any, onProgress: any) => {
+      // Four readings that all round to 30%, then a real move to 31%.
+      onProgress?.(0.3);
+      onProgress?.(0.3001);
+      onProgress?.(0.2998);
+      onProgress?.(0.3004);
+      onProgress?.(0.31);
+      return 'file:///compressed.mp4' as any;
+    });
+
+    const seen: number[] = [];
+    await prepareVideoForUpload('file:///clip.mp4', {
+      onCompressProgress: fraction => seen.push(fraction),
+    });
+
+    expect(seen).toEqual([0.3, 0.31]);
+  });
+
+  it('never calls back for a clip small enough to skip compression', async () => {
+    getInfoAsyncMock.mockResolvedValue({ exists: true, size: 2 * 1024 * 1024 } as any);
+    const onCompressProgress = jest.fn();
+
+    await prepareVideoForUpload('file:///small.mp4', { onCompressProgress });
+
+    expect(onCompressProgress).not.toHaveBeenCalled();
+    expect(compressMock).not.toHaveBeenCalled();
   });
 });
 

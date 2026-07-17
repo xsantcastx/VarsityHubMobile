@@ -4,8 +4,7 @@ import { Colors } from '@/constants/Colors';
 import {
   CHAT_VIDEO_MAX_DURATION_S,
   isNativeVideoTrimSupported,
-  MAX_VIDEO_SIZE_BYTES,
-  MAX_VIDEO_SIZE_MB,
+  MAX_PICKED_VIDEO_SIZE_BYTES,
   VIDEO_CAPTURE_PRESET,
 } from '@/constants/video';
 import { prepareVideoForUpload, uploadTimeoutMsForSize } from '@/utils/compressVideo';
@@ -1135,10 +1134,14 @@ export default function TeamChatScreen() {
             if (result.assets[0].type === 'image') {
               await sendImageMessage(result.assets[0]);
             } else {
+              // Pick-time SANITY ceiling, not the 150MB upload cap: this is the
+              // pre-compression file, and prepareVideoForUpload re-checks the
+              // real MAX_VIDEO_SIZE_BYTES cap on the bytes we actually send. See
+              // the MAX_PICKED_VIDEO_SIZE_BYTES rationale in constants/video.ts.
               const pickedSize = result.assets[0].fileSize || 0;
-              if (pickedSize > MAX_VIDEO_SIZE_BYTES) {
+              if (pickedSize > MAX_PICKED_VIDEO_SIZE_BYTES) {
                 showToast(
-                  `Video is too large (${Math.round(pickedSize / (1024 * 1024))}MB). The limit is ${MAX_VIDEO_SIZE_MB}MB.`,
+                  `Video is too large (${Math.round(pickedSize / (1024 * 1024))}MB) to process on your phone.`,
                   'error'
                 );
                 return;

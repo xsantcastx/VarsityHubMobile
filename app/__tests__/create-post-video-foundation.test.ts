@@ -6,7 +6,14 @@ const source = readFileSync(join(process.cwd(), 'app', '(tabs)', 'create-post.ts
 
 describe('create-post video upload foundation', () => {
   it('prepares the final video once at upload time', () => {
-    expect(source).toContain('prepareVideoForUpload(sourceUri)');
+    expect(source).toMatch(/prepareVideoForUpload\(sourceUri[,)]/);
+    // Exactly one prepare pass — the point of the helper is that we compress at
+    // the upload boundary and nowhere else.
+    expect(source.match(/prepareVideoForUpload\(/g)).toHaveLength(1);
+  });
+
+  it('reports compression progress instead of sitting on a frozen 0% bar', () => {
+    expect(source).toContain('onCompressProgress');
   });
 
   it('keeps web on the same upload path without mounting the native trimmer', () => {

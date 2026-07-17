@@ -10,6 +10,13 @@
 import fs from 'fs';
 import path from 'path';
 
+import {
+  MAX_PICKED_VIDEO_SIZE_BYTES,
+  MAX_VIDEO_SIZE_BYTES,
+  POST_MAX_DURATION_S,
+  VIDEO_TARGET_BITRATE_BPS,
+} from '@/constants/video';
+
 const ROOT = path.resolve(__dirname, '..', '..');
 
 describe('video upload size limit parity', () => {
@@ -28,6 +35,28 @@ describe('video upload size limit parity', () => {
 
   it('150MB in bytes is 157286400 (sanity)', () => {
     expect(150 * 1024 * 1024).toBe(157286400);
+  });
+
+  // The pick-time ceiling is a DIFFERENT limit from the upload cap and must stay
+  // above the worst case a 90s POST_MAX_DURATION_S highlight can reach before
+  // compression. iOS exports 1080p at roughly 14-16 Mbps, so 90s lands around
+  // 160-180MB — comfortably over the 150MB upload cap. Gating the pick on the
+  // upload cap therefore rejected clips the app explicitly allows and that
+  // compress (VIDEO_TARGET_BITRATE_BPS) to ~68MB. Regression guard: the two
+  // limits must not be collapsed back into one.
+  it('the pick-time ceiling clears the worst-case 90s 1080p export', () => {
+    const worstCase90sBytes = (POST_MAX_DURATION_S * 16_000_000) / 8; // 16 Mbps
+    expect(worstCase90sBytes).toBeGreaterThan(MAX_VIDEO_SIZE_BYTES);
+    expect(MAX_PICKED_VIDEO_SIZE_BYTES).toBeGreaterThan(worstCase90sBytes);
+  });
+
+  it('a 90s clip compresses to well under the upload cap', () => {
+    const compressed90sBytes = (POST_MAX_DURATION_S * VIDEO_TARGET_BITRATE_BPS) / 8;
+    expect(compressed90sBytes).toBeLessThan(MAX_VIDEO_SIZE_BYTES);
+  });
+
+  it('the pick-time ceiling is strictly looser than the upload cap', () => {
+    expect(MAX_PICKED_VIDEO_SIZE_BYTES).toBeGreaterThan(MAX_VIDEO_SIZE_BYTES);
   });
 
   // Regression guard for the "Invalid Signature → HTTP 401" outage: Cloudinary
