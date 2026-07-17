@@ -10,6 +10,9 @@ name: Set Fanatics Fest live posting window
 # Runs on workflow_dispatch, or on a push to main that changes THIS file
 # (scoped one-shot trigger — it never fires on unrelated pushes). Idempotent,
 # so an accidental re-run just re-sets the same 18h value on the same 4 rows.
+#
+# Re-run 2026-07-17: re-assert the 18h window during the fest so a live day's
+# "Add Story"/posting stays open all day (a 3h default would close it ~3h in).
 
 on:
   workflow_dispatch:
