@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = join(process.cwd());
-const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
+// Collapse runs of whitespace so these assertions match user-facing copy as it
+// READS, not as prettier happens to wrap it. JSX text is reflowed on format, so
+// a sentence can be split mid-phrase across two source lines while rendering
+// identically — without this, `npm run format` alone can turn CI red.
+const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8').replace(/\s+/g, ' ');
 
 const reachPreview = read('components/ReachMapPreview.tsx');
 const submitAd = read('components/SubmitAdScreenBase.tsx');

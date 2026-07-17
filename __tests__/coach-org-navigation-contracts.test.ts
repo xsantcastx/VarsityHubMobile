@@ -191,11 +191,11 @@ describe('coach/org navigation contracts', () => {
     expect(editEvent).toContain('fallback');
     expect(editEvent).toContain("import { buildEventDetailHref } from '@/utils/eventRoutes';");
     expect(editEvent).toContain('buildEventDetailHref(String(id))');
-    // event-detail.tsx is now a LEGACY REDIRECTOR (2026-07-05): the edit
-    // affordance moved to the canonical game/public-event pages. It must never
-    // dead-end — it forwards to /game/[id] or /public-event and offers a Go Back.
+    // The forward destination is centralized in buildEventDetailRoute and pinned
+    // behaviorally by utils/__tests__/eventRoutes.test.ts; what matters here is
+    // that the redirector delegates rather than hand-rolling a route.
     expect(eventDetail).toContain('LEGACY REDIRECTOR');
-    expect(eventDetail).toContain("pathname: '/game/[id]'");
+    expect(eventDetail).toContain('router.replace(buildEventDetailRoute(');
     expect(eventDetail).toContain("safeGoBack(router, '/(tabs)/feed')");
   });
 

@@ -23,10 +23,26 @@ let capturedFocusEffect: null | (() => void | (() => void)) = null;
 let authDeferred: Deferred<any>;
 let firstGameDeferred: Deferred<any>;
 let gameDeferredQueue: Deferred<any>[] = [];
+// feed.tsx loads THREE game sections per refresh — upcoming (the main list),
+// past recap, and curated/marquee events — fanned out in a single Promise.all
+// (they were serialized until the ~1.2s-per-load fix). So one feed load is
+// three Game.list calls, and this constant is what keeps the invariant these
+// tests actually protect honest: ONE load per focus, never a duplicate.
+// If a section is added or removed, update this deliberately rather than
+// letting the expected call count drift.
+const GAME_LIST_CALLS_PER_LOAD = 3;
+
+const EMPTY_GAMES_PAGE = { games: [], nextCursor: null };
+
 const mockCheckAuth = jest.fn(() => authDeferred.promise);
 const mockGameList = jest.fn(() => {
+  // The deferred queue drives the UPCOMING section (the one these tests assert
+  // renders). The past-recap and marquee sections aren't under test here, so
+  // they resolve empty — that lets the load's Promise.all settle instead of
+  // relying on them throwing. Over-calling is still caught: the call-count
+  // assertions below pin the exact number of loads.
   const next = gameDeferredQueue.shift();
-  if (!next) throw new Error('No queued Game.list response');
+  if (!next) return Promise.resolve(EMPTY_GAMES_PAGE);
   return next.promise;
 });
 
@@ -213,7 +229,8 @@ describe('Feed startup performance', () => {
 
     expect(screen.queryByTestId('feed-skeleton')).toBeNull();
     expect(mockCheckAuth).toHaveBeenCalledTimes(1);
-    expect(mockGameList).toHaveBeenCalledTimes(1);
+    // Exactly one load — its three section queries, and no duplicate load.
+    expect(mockGameList).toHaveBeenCalledTimes(GAME_LIST_CALLS_PER_LOAD);
   });
 
   it('keeps existing feed content visible during silent focus refresh', async () => {
@@ -258,7 +275,9 @@ describe('Feed startup performance', () => {
       await Promise.resolve();
     });
 
-    expect(mockGameList).toHaveBeenCalledTimes(2);
+    // The silent focus refresh is the SECOND load — two loads' worth of section
+    // queries total, confirming the refresh ran exactly once.
+    expect(mockGameList).toHaveBeenCalledTimes(2 * GAME_LIST_CALLS_PER_LOAD);
     expect(mockCheckAuth).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('feed-game-card-game-1')).toBeTruthy();
     expect(screen.queryByTestId('feed-skeleton')).toBeNull();

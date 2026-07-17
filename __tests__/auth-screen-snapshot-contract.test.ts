@@ -87,7 +87,11 @@ describe('auth screen snapshot contract', () => {
     expect(dmRestrictions).toMatch(/getAuthSnapshot\(checkAuth, user\)/);
     expect(dmRestrictions).not.toContain('await User.me()');
 
-    expect(createPost).toContain("import { getAuthSnapshot } from '@/utils/authState';");
+    // create-post reads the viewer reactively off the AuthProvider; its lone
+    // getAuthSnapshot call was removed with the retired sample-/demo-content
+    // system (984c9d12, #140). AuthProvider-backing is the surviving invariant.
+    expect(createPost).toContain("import { useAuth } from '@/context/AuthProvider';");
+    expect(createPost).toContain('const { user, loading: authLoading } = useAuth();');
     expect(createPost).not.toContain('await User.me()');
 
     expect(myAds).toContain("import { getAuthSnapshot } from '@/utils/authState';");

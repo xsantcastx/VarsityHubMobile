@@ -26,9 +26,21 @@ describe('event auth snapshot contracts', () => {
     // event id and forwards game-linked events to /game/[id] and standalone
     // events to /public-event. It renders no event UI, so it never resolves
     // viewer identity — the surviving invariant is "no ad-hoc User.me() refetch."
+    // Since 2026-07-14 BOTH game-linked and standalone events resolve to the one
+    // rich page (/game/[id]) — public-event.tsx survives only as the web
+    // share/OG landing, never an in-app destination (owner: "this is not an
+    // event page"). The destination is centralized in buildEventDetailRoute and
+    // pinned BEHAVIORALLY by utils/__tests__/eventRoutes.test.ts (a real
+    // return-value assertion, stronger than the source grep this used to do).
+    // What this screen still owes is delegation — no hand-rolled route.
     expect(eventDetailScreen).toContain('LEGACY REDIRECTOR');
-    expect(eventDetailScreen).toContain("pathname: '/game/[id]'");
-    expect(eventDetailScreen).toContain('pathname: PUBLIC_EVENT_PATHNAME');
+    expect(eventDetailScreen).toContain(
+      "import { buildEventDetailRoute } from '@/utils/eventRoutes';"
+    );
+    expect(eventDetailScreen).toContain(
+      'router.replace(buildEventDetailRoute(String(raw.id), linkedGameId))'
+    );
+    expect(eventDetailScreen).not.toContain('pathname: PUBLIC_EVENT_PATHNAME');
     expect(eventDetailScreen).not.toContain('User.me()');
   });
 });

@@ -1,7 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const read = (...parts: string[]) => fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
+// Collapse runs of whitespace so these source assertions survive prettier
+// reflow. A long ternary that prettier wraps across three lines is the same
+// code as the one-line form, and this suite is about which VALUES a surface
+// uses (theme.* vs a hardcoded hex), never about how it is formatted. Without
+// this, `npm run format` alone can turn CI red.
+const squash = (source: string) => source.replace(/\s+/g, ' ');
+
+const read = (...parts: string[]) =>
+  squash(fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8'));
 
 describe('theme surface contract', () => {
   it('keeps the flagged readability regressions on theme-driven surfaces', () => {

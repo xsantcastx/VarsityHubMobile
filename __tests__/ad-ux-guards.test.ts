@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = join(process.cwd());
-const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
+// Collapse runs of whitespace so these assertions survive prettier reflow —
+// JSX copy and long ternaries get re-wrapped on format without any behavior
+// change. Without this, `npm run format` alone can turn CI red.
+const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8').replace(/\s+/g, ' ');
 
 const adCalendar = read('app/ad-calendar.tsx');
 const myAds = read('app/my-ads.tsx');
@@ -30,7 +33,17 @@ describe('ad and coach UX guards', () => {
 
   describe('non-runnable ad states', () => {
     it('my-ads sends rejected ads to edit flow instead of scheduling flow', () => {
-      expect(myAds).toMatch(/requiresEditBeforeScheduling = item\.status === 'rejected'/);
+      // A rejected ad comes back as status:'draft' WITH an admin_note — the
+      // server deliberately never emits status:'rejected' for ads (pinned
+      // server-side by ad-state-invariants.test.ts, "no ad approval path uses
+      // status=rejected"). So `item.status === 'rejected'` would be dead code:
+      // rejection MUST be derived from the (draft + admin_note) pair.
+      expect(myAds).toMatch(
+        /const rejectionReason\s*=\s*item\.status === 'draft' && item\.admin_note/
+      );
+      expect(myAds).toMatch(/const isRejected = rejectionReason\.length > 0/);
+      expect(myAds).toMatch(/const requiresEditBeforeScheduling = isRejected/);
+      expect(myAds).not.toMatch(/requiresEditBeforeScheduling = item\.status === 'rejected'/);
       expect(myAds).toMatch(
         /router\.push\(\{ pathname: '\/edit-ad', params: \{ id: item\.id \} \}\)/
       );
@@ -38,9 +51,10 @@ describe('ad and coach UX guards', () => {
 
     it('my-ads lets archived ads be booked again without forcing edit flow', () => {
       expect(myAds).toMatch(/\? 'Run Again'/);
-      expect(myAds).not.toMatch(
-        /requiresEditBeforeScheduling = item\.status === 'rejected' \|\| item\.status === 'archived'/
-      );
+      // requiresEditBeforeScheduling tracks rejection ONLY — an archived ad has
+      // already-approved creative and must reach scheduling without a re-edit.
+      expect(myAds).toMatch(/const requiresEditBeforeScheduling = isRejected;/);
+      expect(myAds).not.toMatch(/requiresEditBeforeScheduling =[^;]*'archived'/);
     });
 
     it('ad-calendar only preselects still-bookable approved dates and blocks stale past dates before checkout', () => {

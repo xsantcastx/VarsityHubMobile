@@ -39,14 +39,16 @@ describe('remaining auth canonical state contracts', () => {
     expect(paymentSuccessScreen).toContain('const me = await getAuthSnapshot(checkAuth, user);');
     expect(paymentSuccessScreen).not.toContain('User.me({ force: true })');
 
-    expect(createPostScreen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
-    expect(createPostScreen).toContain(
-      'const { user, checkAuth, loading: authLoading } = useAuth();'
-    );
-    expect(createPostScreen).toContain(
-      'const me = await getAuthSnapshot(checkAuth, user).catch(() => null);'
-    );
-    expect(createPostScreen).not.toContain('const me = await User.me().catch(() => null);');
+    // create-post reads the viewer REACTIVELY from the AuthProvider rather than
+    // taking an imperative snapshot. Its only getAuthSnapshot call lived inside
+    // the sample-/demo-content fabricator, which was retired end-to-end in
+    // 984c9d12 (#140) — the call went with the feature, not by accident.
+    // getAuthSnapshot(checkAuth, user) exists for callbacks that need a fresh
+    // read at action time; a screen that renders off `user` does not need one.
+    // The invariant that still binds: AuthProvider-backed, never an ad-hoc /me.
+    expect(createPostScreen).toContain("import { useAuth } from '@/context/AuthProvider';");
+    expect(createPostScreen).toContain('const { user, loading: authLoading } = useAuth();');
+    expect(createPostScreen).not.toContain('User.me(');
 
     expect(discoverScreen).toContain(
       "import { getAuthSnapshot, getCanonicalOrganizationId } from '@/utils/authState';"
