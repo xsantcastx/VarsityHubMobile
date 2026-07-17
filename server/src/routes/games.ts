@@ -2284,6 +2284,9 @@ gamesRouter.get(
         ...rest,
         appearance: rest.appearance ?? null,
         event_id: event?.id ?? null,
+        // Same posting-window bounds the list + summary ship, so the event page
+        // gates story posting on the real (per-event) window, not a 3h fallback.
+        ...serializeLiveWindow(event?.date ?? rest.date, event?.live_window_hours_after_start),
       });
     } catch (err) {
       console.error('[games] get-by-id error:', err);
@@ -2420,6 +2423,12 @@ gamesRouter.get(
         reviewsCount,
         isPast,
         event: serializeEvent(event),
+        // Ship the computed posting-window bounds (starts_at/live_from/live_until)
+        // just like GET /games does — the event page reads these to gate story
+        // posting and the "Add Story" button. Without them the client falls back
+        // to date+3h, which closed Fanatics Fest days (18h window) ~3h in and
+        // wrongly reported "event has ended" while the server still accepted posts.
+        ...serializeLiveWindow(event?.date ?? gameData.date, event?.live_window_hours_after_start),
         home_score: gameData.home_score ?? null,
         away_score: gameData.away_score ?? null,
         winner: gameData.winner ?? null,

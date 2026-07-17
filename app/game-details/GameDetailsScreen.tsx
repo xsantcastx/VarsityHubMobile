@@ -118,6 +118,11 @@ type GameVM = {
   can_edit_result?: boolean;
   venueLat?: number | null;
   venueLng?: number | null;
+  // Server-computed posting-window bounds (GET /games/:id[/summary]); used to
+  // gate story posting on the real per-event window instead of a 3h fallback.
+  starts_at?: string | null;
+  live_from?: string | null;
+  live_until?: string | null;
 };
 
 const ensureIso = (value: any) => {
@@ -891,6 +896,9 @@ const GameDetailsScreen = () => {
         can_edit_result: canEditResult,
         venueLat: typeof rawLat === 'number' ? rawLat : null,
         venueLng: typeof rawLng === 'number' ? rawLng : null,
+        starts_at: (summary as any)?.starts_at ?? (gameRecord as any)?.starts_at ?? null,
+        live_from: (summary as any)?.live_from ?? (gameRecord as any)?.live_from ?? null,
+        live_until: (summary as any)?.live_until ?? (gameRecord as any)?.live_until ?? null,
       };
 
       setVm(vmPayload);

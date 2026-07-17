@@ -13,6 +13,8 @@ name: Set Fanatics Fest live posting window
 #
 # Re-run 2026-07-17: re-assert the 18h window during the fest so a live day's
 # "Add Story"/posting stays open all day (a 3h default would close it ~3h in).
+# Re-run 2 (2026-07-17): re-assert alongside the detail-endpoint window fix so
+# the server-shipped live_until reflects the real 18h window on the event page.
 
 on:
   workflow_dispatch:
