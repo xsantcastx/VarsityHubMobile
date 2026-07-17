@@ -586,6 +586,10 @@ model Post {
 
   @@index([created_at])
   @@index([author_id])
+  // Profile hot path: `where { author_id, deleted_at: null } orderBy created_at desc`.
+  // @@index([author_id]) alone can't serve the deleted_at filter or the sort, so the
+  // post list AND its count both scanned every row by this author and sorted in memory.
+  @@index([author_id, deleted_at, created_at])
   @@index([game_id, created_at])
   @@index([game_id, type])
   @@index([team_id])
@@ -844,6 +848,9 @@ model PostUpvote {
   @@id([post_id, user_id])
   @@index([post_id, created_at])
   @@index([user_id])
+  // Interactions tab reads `where { user_id } orderBy created_at desc take 200`;
+  // @@index([user_id]) can't serve the sort. (Comment already has [author_id, created_at].)
+  @@index([user_id, created_at])
 }
 
 model PostBookmark {
@@ -857,6 +864,9 @@ model PostBookmark {
   @@id([post_id, user_id])
   @@index([post_id, created_at])
   @@index([user_id])
+  // Interactions tab reads `where { user_id } orderBy created_at desc take 200`;
+  // @@index([user_id]) can't serve the sort. (Comment already has [author_id, created_at].)
+  @@index([user_id, created_at])
 }
 
 model EventRsvp {
