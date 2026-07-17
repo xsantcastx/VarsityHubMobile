@@ -301,31 +301,15 @@ reportsRouter.post(
       return res.status(404).json({ error: `${target_type} not found` });
     }
 
-    // Check for duplicate recent report (same user, same target, within 24 hours).
-    // Encoded as `[type:id] Reason: ...` in the AbuseReport.subject column —
-    // ContentReport schema doesn't exist yet (tracked debt). Use startsWith,
-    // not contains: the marker is always at index 0 of the subject, so the
-    // range scan is both more precise (no false-positive substring hits if a
-    // future subject template contains brackets elsewhere) and cheaper than
-    // a full-text contains scan.
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const dedupSubjectPrefix = `[${target_type}:${target_id}]`;
-
-    const recentReports = await prisma.abuseReport.findMany({
-      where: {
-        reporter_id: req.user.id,
-        created_at: { gte: twentyFourHoursAgo },
-        subject: { startsWith: dedupSubjectPrefix },
-      },
-      take: 1,
-    });
-
-    if (recentReports.length > 0) {
-      return res.status(409).json({
-        error: 'Duplicate report',
-        message: 'You have already reported this content recently',
-      });
-    }
+    // The author/owner of the reported content — the account a strike lands on.
+    const targetUserId: string | null =
+      target_type === 'user'
+        ? target_id
+        : ((targetContext as any)?.post_author_id ??
+          (targetContext as any)?.comment_author_id ??
+          (targetContext as any)?.sender_id ??
+          (targetContext as any)?.ad_owner_id ??
+          null);
 
     // Get reporter info
     const reporter = await prisma.user.findUnique({
@@ -333,30 +317,48 @@ reportsRouter.post(
       select: { display_name: true, email: true },
     });
 
-    // Create the report using existing AbuseReport model
-    // Subject format: [type:id] Reason: reason_text
-    // Message contains the details and context
-    const report = await prisma.abuseReport.create({
-      data: {
-        reporter_id: req.user.id,
-        reporter_name: reporter?.display_name || 'Unknown',
-        reporter_email: reporter?.email || 'unknown@email.com',
-        subject: `[${target_type}:${target_id}] ${reason.replace(/_/g, ' ')}`,
-        message: JSON.stringify(
-          {
-            target_type,
-            target_id,
-            reason,
-            details: details ? stripHtml(details) : null,
-            context: targetContext,
-            reported_at: new Date().toISOString(),
-          },
-          null,
-          2
-        ),
-        status: 'pending',
-      },
-    });
+    // De-dupe is now enforced by the DB: AbuseReport has a unique index on
+    // (reporter_id, target_type, target_id). The old guard was an app-layer
+    // read-then-write over a 24h window — two concurrent reports from the same
+    // user both passed it and both inserted, which let one account stack strikes.
+    // Catching P2002 closes that race for good; the window is also no longer
+    // 24h-scoped, because the strike ladder counts one vote per reporter for the
+    // life of the content, not per day.
+    let report;
+    try {
+      report = await prisma.abuseReport.create({
+        data: {
+          reporter_id: req.user.id,
+          reporter_name: reporter?.display_name || 'Unknown',
+          reporter_email: reporter?.email || 'unknown@email.com',
+          subject: `[${target_type}:${target_id}] ${reason.replace(/_/g, ' ')}`,
+          message: JSON.stringify(
+            {
+              target_type,
+              target_id,
+              reason,
+              details: details ? stripHtml(details) : null,
+              context: targetContext,
+              reported_at: new Date().toISOString(),
+            },
+            null,
+            2
+          ),
+          status: 'pending',
+          target_type,
+          target_id,
+          target_user_id: targetUserId,
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        return res.status(409).json({
+          error: 'Duplicate report',
+          message: 'You have already reported this content',
+        });
+      }
+      throw err;
+    }
 
     // Log report for moderation tracking
     if (process.env.NODE_ENV !== 'production') {
@@ -381,19 +383,12 @@ reportsRouter.post(
       // Don't fail the report creation if email fails
     }
 
-    // Auto-escalation: check if the reported user should receive a warning/strike/suspension
-    let escalation: { action: string } | null = null;
+    // Auto-escalation: if this content just crossed the report threshold, its
+    // author moves one rung up the strike ladder. Wrapped so a moderation
+    // failure can never fail the report the user just filed.
     try {
-      const targetUserId =
-        target_type === 'user'
-          ? target_id
-          : (targetContext as any)?.post_author_id ||
-            (targetContext as any)?.comment_author_id ||
-            (targetContext as any)?.sender_id ||
-            (targetContext as any)?.ad_owner_id ||
-            null;
       if (targetUserId) {
-        escalation = await autoEscalate(targetUserId);
+        await autoEscalate({ targetType: target_type, targetId: target_id, targetUserId });
       }
     } catch (err) {
       console.error('[Reports] Auto-escalation check failed:', err);

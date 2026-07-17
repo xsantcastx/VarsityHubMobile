@@ -1611,11 +1611,31 @@ model AbuseReport {
   resolution_note String?   @db.Text // Admin notes about resolution
   created_at      DateTime  @default(now())
 
+  // Structured report target (2026-07-16). Content reports used to encode the
+  // target only as `[type:id]` inside `subject` and as a JSON blob inside
+  // `message`, so de-duping was an app-layer read-then-write race and strike
+  // counting was a `LIKE '%...%'` full scan. These columns make both a real
+  // indexed query with a DB-enforced uniqueness guarantee.
+  //
+  // Nullable on purpose: pre-2026-07-16 rows keep NULLs and are NOT backfilled.
+  // Postgres treats NULLs as distinct in a unique index, so historical rows can
+  // never collide — and, deliberately, they do not feed the strike ladder. A
+  // brand-new auto-punishment system must not retroactively ban people the
+  // moment it deploys; the ladder starts from zero at deploy time.
+  target_type    String? // post | user | comment | message | group_chat_message | team | ad
+  target_id      String? // id of the reported entity
+  target_user_id String? // author/owner of the reported entity (the strike subject)
+
   reporter User? @relation(fields: [reporter_id], references: [id], onDelete: SetNull)
 
+  // De-dupe guard: at most ONE report per (reporter, target). Without this a
+  // single user could stack every rung of the strike ladder alone.
+  @@unique([reporter_id, target_type, target_id])
   @@index([reporter_id])
   @@index([status])
   @@index([created_at])
+  @@index([target_user_id])
+  @@index([target_type, target_id])
 }
 
 // ===========================
@@ -1633,10 +1653,26 @@ model UserWarning {
   acknowledged Boolean   @default(false)
   created_at   DateTime  @default(now())
 
+  // Strike-ladder provenance (2026-07-16). Set ONLY by the automatic ladder in
+  // lib/moderation.ts, which mints at most one strike per offending piece of
+  // content. Admin-issued warnings/bans leave these NULL.
+  //
+  // The unique index is the ladder's idempotency guard: re-processing the same
+  // report (retry, concurrent reports crossing the threshold together) can
+  // never double-strike, because the second insert loses on P2002.
+  //
+  // It is also what makes the ladder position countable without ambiguity:
+  // `count(source_type != NULL)` is the rung, unaffected by admin actions —
+  // so an admin warning can never silently push someone toward an auto-ban.
+  source_type String? // 'post' | 'comment' | 'message' | ...
+  source_id   String? // id of the content that earned the strike
+
   user   User  @relation("warned_user", fields: [user_id], references: [id], onDelete: Cascade)
   issuer User? @relation("warning_issuer", fields: [issued_by], references: [id], onDelete: SetNull)
 
+  @@unique([source_type, source_id])
   @@index([user_id])
   @@index([user_id, created_at])
   @@index([severity])
+  @@index([user_id, source_type])
 }
