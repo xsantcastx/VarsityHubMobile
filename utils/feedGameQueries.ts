@@ -15,11 +15,22 @@
 export const FEED_PAST_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
 /**
- * Upcoming query look-back. Must cover the feed's 2h "live" window
- * (LIVE_WINDOW_MS in app/feed.tsx) so an in-progress game still arrives with
- * the upcoming page rather than only in the past recap.
+ * Upcoming query look-back. Must cover the LONGEST live window any event can
+ * have, so a still-live game arrives with the upcoming page rather than only in
+ * the past recap.
+ *
+ * This was 2h, matching a since-removed 2h constant in app/feed.tsx. Events can
+ * carry a `live_window_hours_after_start` override — the Fanatics Fest day
+ * events run 18h — so a fest event stopped being fetched as upcoming two hours
+ * in and disappeared from the feed while fans at the venue were still posting
+ * to it (reported live, 2026-07-16).
+ *
+ * The look-back only decides what is FETCHED. app/feed.tsx then buckets on the
+ * server-computed live_until (utils/liveWindow.ts), so a normal 3h game still
+ * drops into the past recap on time — it is not held open for 18h.
  */
-export const FEED_LIVE_LOOKBACK_MS = 2 * 60 * 60 * 1000;
+export const MAX_LIVE_WINDOW_HOURS = 18;
+export const FEED_LIVE_LOOKBACK_MS = MAX_LIVE_WINDOW_HOURS * 60 * 60 * 1000;
 
 type GameListOptions = {
   limit: number;

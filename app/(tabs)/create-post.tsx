@@ -40,6 +40,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { hasLocalEventPostingUnlock, recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
+import { getLiveBounds, isGameOver } from '@/utils/liveWindow';
 import { prepareVideoForUpload, uploadTimeoutMsForSize } from '@/utils/compressVideo';
 import { sanitizeText } from '@/utils/formUtils';
 import { ICLOUD_ERROR_MESSAGE, ICLOUD_ERROR_TITLE, isICloudError } from '@/utils/isICloudError';
@@ -606,23 +607,22 @@ function CreatePostScreen() {
     // Already posted here within the last week — the server won't re-geofence,
     // so don't warn.
     if (hasPostingUnlock) return null;
-    const eventDate = suggestedGame.date ? new Date(suggestedGame.date) : null;
-    if (!eventDate || isNaN(eventDate.getTime())) return null;
-
     // Posting window (server rule in server/src/lib/geofencing.ts): the
-    // geofenced live window opens 1h before start and closes 3h after by
-    // default — all-day events can extend the after-start bound server-side,
-    // so past +3h we hedge rather than declare the event over. After your
-    // first post you can keep posting for a week from anywhere.
+    // geofenced live window opens 1h before start and closes
+    // `live_window_hours_after_start` after (default 3; fest day events run
+    // 18h). The server ships the computed bounds on the payload — this used to
+    // re-derive them from the game's own date with a hardcoded 3h, which both
+    // ignored the override and read a date that can disagree with the event's.
+    const bounds = getLiveBounds(suggestedGame);
+    if (!bounds) return null;
+
     const now = Date.now();
-    const windowStart = eventDate.getTime() - 60 * 60 * 1000;
-    const defaultLiveCutoff = eventDate.getTime() + 3 * 60 * 60 * 1000;
-    if (now < windowStart) {
-      const openDate = new Date(windowStart);
+    if (now < bounds.liveFrom) {
+      const openDate = new Date(bounds.liveFrom);
       return `Posting opens ${openDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (1 hour before start). You can still draft your post now.`;
     }
-    if (now > defaultLiveCutoff) {
-      return 'This event may have ended. If you posted here during the event you can keep posting for a week from anywhere; at all-day events you can post from the venue all day.';
+    if (now > bounds.liveUntil) {
+      return 'This event has ended. If you posted here while it was live you can keep posting for a week from anywhere.';
     }
 
     // Check distance (3km = ~1.86 miles) if both user and venue coords are available
@@ -691,16 +691,14 @@ function CreatePostScreen() {
     const isRealGame = Boolean(selectedGameId);
     const gameHasCoords =
       typeof suggestedGame?.latitude === 'number' || typeof suggestedGame?.venue_lat === 'number';
-    // H3 (2026-07-14): past the DEFAULT live cutoff (+3h) the server may still
-    // allow posting — unlocked users post from anywhere, and all-day events
-    // extend the geofenced window server-side. Don't hard-block on location
-    // then — defer to the server, which returns a clear reason if they don't
-    // qualify. Same for users holding a local posting unlock (owner rule
-    // 2026-07-15: first post geofenced, then a week without re-passing).
-    const eventDateMs = suggestedGame?.date ? new Date(suggestedGame.date).getTime() : NaN;
-    const isPostEventGrace = Number.isFinite(eventDateMs)
-      ? Date.now() > eventDateMs + 3 * 60 * 60 * 1000
-      : false;
+    // H3 (2026-07-14): past the live cutoff the server may still allow posting
+    // — unlocked users post from anywhere. Don't hard-block on location then —
+    // defer to the server, which returns a clear reason if they don't qualify.
+    // Same for users holding a local posting unlock (owner rule 2026-07-15:
+    // first post geofenced, then a week without re-passing). The cutoff comes
+    // from the server's computed bounds; it used to be a hardcoded +3h, which
+    // dropped the location gate 15 hours early on an 18h fest event.
+    const isPostEventGrace = isGameOver(suggestedGame);
     if (
       isRealGame &&
       gameHasCoords &&

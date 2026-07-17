@@ -46,7 +46,11 @@ import {
   storyCreationLimiter,
   voteLimiter,
 } from '../middleware/rateLimiters.js';
-import { verifyStoryPostingPermission, viewerHasPostedOnEntity } from '../lib/geofencing.js';
+import {
+  serializeLiveWindow,
+  verifyStoryPostingPermission,
+  viewerHasPostedOnEntity,
+} from '../lib/geofencing.js';
 import { getZipCoordinates } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { getIsAdmin, isVerifiedAdminUser, requireAdmin } from '../middleware/requireAdmin.js';
@@ -1285,10 +1289,20 @@ gamesRouter.get(
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
           distance = 6371 * c; // km
         }
+        // The live posting window is a server rule (geofencing.ts) and is
+        // computed from the EVENT when one is linked — a game row's own date
+        // can disagree with its event's (and does, for Fanatics Fest Day 1).
+        // Shipping the computed bounds keeps the app from re-deriving them
+        // with a hardcoded cutoff that ignores per-event overrides.
+        const liveWindow = serializeLiveWindow(
+          event?.date ?? rest.date,
+          event?.live_window_hours_after_start
+        );
         return {
           ...rest,
           appearance: rest.appearance ?? null,
           event_id: event?.id ?? null,
+          ...liveWindow,
           // Fixed: Prioritize game.banner_url over other sources
           banner_url: rest.banner_url || rest.cover_image_url || event?.banner_url || null,
           rsvpCount: event ? rsvpMap.get(event.id) || 0 : 0,

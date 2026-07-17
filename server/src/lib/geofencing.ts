@@ -190,6 +190,53 @@ export function getPostPostingWindowState(
 }
 
 /**
+ * Serialize a game/event's live posting window for the client.
+ *
+ * The client used to re-derive this from the game's own date with a hardcoded
+ * 3h cutoff (create-post.tsx) or a hardcoded 2h one (feed.tsx), so an event
+ * carrying a `live_window_hours_after_start` override — the Fanatics Fest day
+ * events run 18h — read as "ended" in the app while the server was still
+ * happily accepting posts. The window is a server rule; ship the computed
+ * bounds instead of the inputs so there is exactly one implementation.
+ *
+ * `eventDate` must be the EVENT's date when a linked event exists: that is what
+ * the posting checks in this file enforce against, and a game row's own date
+ * can disagree with it.
+ */
+export type SerializedLiveWindow = {
+  /** Authoritative event start — a linked game row's own `date` can disagree. */
+  starts_at: string | null;
+  /** Geofenced posting opens (start − 1h). */
+  live_from: string | null;
+  /** Geofenced posting closes (start + the per-event window, default 3h). */
+  live_until: string | null;
+};
+
+const EMPTY_LIVE_WINDOW: SerializedLiveWindow = {
+  starts_at: null,
+  live_from: null,
+  live_until: null,
+};
+
+export function serializeLiveWindow(
+  eventDate: Date | string | null | undefined,
+  liveWindowHoursAfterStart?: number | null
+): SerializedLiveWindow {
+  if (!eventDate) return EMPTY_LIVE_WINDOW;
+  const parsed = eventDate instanceof Date ? eventDate : new Date(eventDate);
+  if (Number.isNaN(parsed.getTime())) return EMPTY_LIVE_WINDOW;
+  const { eventTime, windowStart, liveCutoff } = getPostPostingWindowBounds(
+    parsed,
+    liveWindowHoursAfterStart
+  );
+  return {
+    starts_at: eventTime.toISOString(),
+    live_from: windowStart.toISOString(),
+    live_until: liveCutoff.toISOString(),
+  };
+}
+
+/**
  * View-access counterpart to the posting grace window. A user who posted to a
  * game/event while it was live keeps read access to that game/event's detail
  * page for the same grace window that lets them keep posting (product rule,

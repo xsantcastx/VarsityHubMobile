@@ -49,6 +49,7 @@ import {
   type FeedGameQueryPlan,
 } from '@/utils/feedGameQueries';
 import { getDeterministicGameCardGradient } from '@/utils/feedGameCard';
+import { getLiveBounds, isGameLive, isGameOver, shouldPinToFeed } from '@/utils/liveWindow';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { prefetchGameSummary } from '@/utils/prefetch';
 import {
@@ -87,6 +88,7 @@ type FeedItem =
   | { _t: 'location_prompt' }
   | { _t: 'seed_banner' }
   | { _t: 'game'; data: GameItem; idx: number }
+  | { _t: 'pinned_game'; data: GameItem; idx: number }
   | { _t: 'ad'; ad: any | null; idx: number }
   | { _t: 'section_header'; title: string; key: string }
   | { _t: 'followed_post'; data: any; idx: number }
@@ -94,8 +96,6 @@ type FeedItem =
   | { _t: 'followed_teams_post'; data: any; idx: number }
   | { _t: 'past_game'; data: GameItem; idx: number }
   | { _t: 'footer' };
-
-const LIVE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours — must match GameDetailsScreen
 
 // Feed fetch plan: upcoming (live + future, ascending) and the recent-past
 // recap are SEPARATE queries with separate page budgets. A single ascending
@@ -468,6 +468,13 @@ export default function FeedScreen() {
   const [highlightPreview, setHighlightPreview] = useState<any | null>(null);
   const [sponsoredAds, setSponsoredAds] = useState<any[]>([]);
   const [hasDeviceLocation, setHasDeviceLocation] = useState(false);
+  // Unrounded last-known position, kept only to decide whether the viewer is
+  // physically at a live event's venue (see the pinned-event rule below). The
+  // copy sent to the server stays rounded for cache-key stability.
+  const [viewerPosition, setViewerPosition] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [locationPromptDismissed, setLocationPromptDismissed] = useState(false);
   const [followedPosts, setFollowedPosts] = useState<any[]>([]);
   const [followedFeedMeta, setFollowedFeedMeta] = useState<{ following_count: number } | undefined>(
@@ -648,6 +655,12 @@ export default function FeedScreen() {
                 lat: Math.round(loc.coords.latitude * 100) / 100,
                 lng: Math.round(loc.coords.longitude * 100) / 100,
               };
+              // Unrounded — the at-venue check runs against a 3km radius, which
+              // the ~1km rounding above would blur.
+              setViewerPosition({
+                latitude: loc.coords.latitude,
+                longitude: loc.coords.longitude,
+              });
             }
           }
         } catch (e) {
@@ -1059,46 +1072,39 @@ export default function FeedScreen() {
 
   // Separate upcoming/live and past events
   // Events within the 2-hour live window stay in "upcoming" so they appear prominently
-  const { upcomingEvents, pastEvents } = useMemo(() => {
+  const { pinnedEvents, upcomingEvents, pastEvents } = useMemo(() => {
     const now = Date.now();
     const upcoming: GameItem[] = [];
     const past: GameItem[] = [];
 
     filtered.forEach(game => {
-      if (game.date) {
-        // Defensive: malformed date string (null, "invalid", undefined-after-cast)
-        // gives Invalid Date whose .getTime() returns NaN. Without the guard, all
-        // NaN comparisons with LIVE_WINDOW_MS are false, so the game silently
-        // falls into `past` regardless of when it actually is. Treat unparseable
-        // as "no date" → bucket into upcoming where dateless games already go.
-        const gameMs = new Date(game.date).getTime();
-        if (!Number.isFinite(gameMs)) {
-          upcoming.push(game);
-          return;
-        }
-        const elapsed = now - gameMs;
-        if (elapsed <= LIVE_WINDOW_MS) {
-          // Not yet started (elapsed < 0) OR started within live window
-          upcoming.push(game);
-        } else {
-          past.push(game);
-        }
-      } else {
+      // A game stays "upcoming" until its live window actually closes, which is
+      // a server rule shipped on the payload (starts_at/live_from/live_until).
+      // The old check compared the game's own date against a fixed 2h window,
+      // so an all-day event (Fanatics Fest runs 18h) dropped into `past`
+      // two hours in — vanishing from the feed while fans were still posting.
+      // Defensive: an unparseable date yields null bounds; bucket those into
+      // upcoming, where dateless games already go, rather than silently past.
+      const bounds = getLiveBounds(game);
+      if (!bounds) {
         upcoming.push(game);
+        return;
       }
+      if (isGameOver(game, now)) past.push(game);
+      else upcoming.push(game);
     });
 
     // Sort: currently-live events first, then future events by ascending start time
     upcoming.sort((a, b) => {
-      if (!a.date) return 1;
-      if (!b.date) return -1;
-      const aMs = new Date(a.date).getTime();
-      const bMs = new Date(b.date).getTime();
-      const aLive = aMs <= now && now - aMs <= LIVE_WINDOW_MS;
-      const bLive = bMs <= now && now - bMs <= LIVE_WINDOW_MS;
+      const aB = getLiveBounds(a);
+      const bB = getLiveBounds(b);
+      if (!aB) return 1;
+      if (!bB) return -1;
+      const aLive = isGameLive(a, now);
+      const bLive = isGameLive(b, now);
       if (aLive && !bLive) return -1;
       if (!aLive && bLive) return 1;
-      return aMs - bMs;
+      return aB.startsAt - bB.startsAt;
     });
 
     // Past Events: most recent first going down
@@ -1108,8 +1114,20 @@ export default function FeedScreen() {
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
-    return { upcomingEvents: upcoming, pastEvents: past };
-  }, [filtered]);
+    // Owner rule (2026-07-16): "If an event is live and the user is at the
+    // location it should basically be pinned on the feed page." Lift those out
+    // of the normal upcoming flow so they render first, above the ad slot —
+    // a fan standing at the venue should never have to scroll to find the
+    // event they are currently attending.
+    const pinned: GameItem[] = [];
+    const rest: GameItem[] = [];
+    upcoming.forEach(game => {
+      if (shouldPinToFeed(game, viewerPosition, now)) pinned.push(game);
+      else rest.push(game);
+    });
+
+    return { pinnedEvents: pinned, upcomingEvents: rest, pastEvents: past };
+  }, [filtered, viewerPosition]);
 
   // Ad rotation timer logic (max 2 advertisers):
   // 1 ad: Show ad for 5 minutes, then placeholder for 15 seconds, repeat
@@ -1206,6 +1224,13 @@ export default function FeedScreen() {
   const feedItems = useMemo(() => {
     const items: FeedItem[] = [];
 
+    // An event the viewer is physically at, right now, outranks everything —
+    // including the verify-email nudge. This is the "you're here, post to it"
+    // surface (owner rule, 2026-07-16).
+    pinnedEvents.forEach((game, idx) => {
+      items.push({ _t: 'pinned_game', data: game, idx });
+    });
+
     // Add email reminder if needed
     if (me && !emailVerified) {
       items.push({ _t: 'email_reminder' });
@@ -1285,6 +1310,7 @@ export default function FeedScreen() {
     hasDeviceLocation,
     sponsoredAds.length,
     showSeedBanner,
+    pinnedEvents,
     upcomingWithAds,
     followedPosts,
     followedTeamsPosts,
@@ -1438,6 +1464,8 @@ export default function FeedScreen() {
         return 'seed_banner';
       case 'game':
         return `game-${item.data.id}`;
+      case 'pinned_game':
+        return `pinned_game-${item.data.id}`;
       case 'ad':
         return `ad-${item.idx}`;
       case 'section_header':
@@ -1535,13 +1563,45 @@ export default function FeedScreen() {
           );
 
         case 'game': {
-          const gameStartMs = item.data.date ? new Date(item.data.date).getTime() : null;
-          const nowMs = Date.now();
-          const isLive =
-            gameStartMs != null && gameStartMs <= nowMs && nowMs - gameStartMs <= LIVE_WINDOW_MS;
           return (
             <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
-              {renderGameCard(item.data, isLive, 'feed')}
+              {renderGameCard(item.data, isGameLive(item.data), 'feed')}
+            </View>
+          );
+        }
+
+        case 'pinned_game': {
+          // Always live by construction (shouldPinToFeed gates on it), so the
+          // card renders with the LIVE treatment and carries a header telling
+          // the viewer why it is at the top.
+          return (
+            <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginBottom: 8,
+                }}
+              >
+                <MaterialIcons
+                  name="location-on"
+                  size={16}
+                  color={Colors[colorScheme].tint}
+                  accessibilityElementsHidden
+                />
+                <Text
+                  style={{
+                    color: Colors[colorScheme].tint,
+                    fontSize: 13,
+                    fontWeight: '700',
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  You&apos;re here — post to this event
+                </Text>
+              </View>
+              {renderGameCard(item.data, true, 'feed-pinned')}
             </View>
           );
         }
