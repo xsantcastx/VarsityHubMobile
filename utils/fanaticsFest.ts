@@ -24,9 +24,7 @@ import { distanceKm } from './liveWindow';
  */
 const FEST_TITLE_PREFIX = 'fanatics fest';
 
-export function isFanaticsFestGame(
-  game: { title?: string | null } | null | undefined
-): boolean {
+export function isFanaticsFestGame(game: { title?: string | null } | null | undefined): boolean {
   const title = typeof game?.title === 'string' ? game.title.trim().toLowerCase() : '';
   return title.startsWith(FEST_TITLE_PREFIX);
 }
@@ -82,11 +80,7 @@ export function isNycViewer(
   zip?: string | null
 ): boolean {
   if (isNycZip(zip)) return true;
-  if (
-    viewer &&
-    typeof viewer.latitude === 'number' &&
-    typeof viewer.longitude === 'number'
-  ) {
+  if (viewer && typeof viewer.latitude === 'number' && typeof viewer.longitude === 'number') {
     return (
       distanceKm(viewer.latitude, viewer.longitude, NYC_CENTER.latitude, NYC_CENTER.longitude) <=
       NYC_METRO_RADIUS_KM

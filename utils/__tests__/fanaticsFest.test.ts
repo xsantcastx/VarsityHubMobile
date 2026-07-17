@@ -5,12 +5,7 @@
  * -74.001762) already pinned by __tests__/live-window.test.ts.
  */
 
-import {
-  NYC_METRO_RADIUS_KM,
-  isFanaticsFestGame,
-  isNycViewer,
-  isNycZip,
-} from '../fanaticsFest';
+import { NYC_METRO_RADIUS_KM, isFanaticsFestGame, isNycViewer, isNycZip } from '../fanaticsFest';
 
 describe('isFanaticsFestGame', () => {
   it('matches all four day titles regardless of casing/whitespace', () => {
