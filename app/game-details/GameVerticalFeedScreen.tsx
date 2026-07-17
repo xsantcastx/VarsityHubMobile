@@ -282,6 +282,22 @@ const FeedCard = memo(
           : null,
       [post.author?.avatar_url]
     );
+    // Every video post the API serves carries a preview_url, but the viewer
+    // mapped it and then never drew it — a loading video was a black box with a
+    // spinner. Showing the poster underneath means the first frame is on screen
+    // immediately while the file is still opening, which is most of what "plays
+    // right away" actually means to the eye.
+    const posterSource = useMemo(
+      () =>
+        post.media_type === 'video' && post.preview_url
+          ? {
+              uri:
+                optimizeImageUrl(post.preview_url, Math.max(900, Math.round(windowWidth * 1.5))) ||
+                post.preview_url,
+            }
+          : null,
+      [post.media_type, post.preview_url]
+    );
 
     useEffect(() => {
       const deleteTimer = deleteTimerRef.current;
@@ -430,6 +446,12 @@ const FeedCard = memo(
             </View>
           ) : post.media_type === 'video' && post.media_url ? (
             <View style={styles.videoWrap}>
+              {/* Poster sits UNDER the player and is covered as soon as the
+                  first real frame decodes — not gated on isVideoLoading, so
+                  there is no gap between the spinner clearing and playback. */}
+              {posterSource && isVideoLoading ? (
+                <FastImage source={posterSource} style={styles.videoPoster} resizeMode="cover" />
+              ) : null}
               <VideoView
                 player={player}
                 style={styles.media}
@@ -1904,6 +1926,11 @@ const styles = StyleSheet.create({
   videoWrap: {
     width: '100%',
     height: '100%',
+  },
+  // Absolute so it fills videoWrap *behind* the VideoView rather than stacking
+  // above it in flow (styles.media is 100%-height, not absolute).
+  videoPoster: {
+    ...StyleSheet.absoluteFillObject,
   },
   videoOverlay: {
     ...StyleSheet.absoluteFillObject,

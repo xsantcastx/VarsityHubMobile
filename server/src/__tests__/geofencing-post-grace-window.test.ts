@@ -28,8 +28,12 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
   },
 }));
 
-const { isStoryPostingWindowOpen, verifyEventPostingPermission, verifyStoryPostingPermission } =
-  await import('../lib/geofencing.js');
+const {
+  EVENT_ENDED_NOT_PRESENT_REASON,
+  isStoryPostingWindowOpen,
+  verifyEventPostingPermission,
+  verifyStoryPostingPermission,
+} = await import('../lib/geofencing.js');
 
 const EVENT_DATE = new Date('2026-05-10T18:00:00.000Z');
 // Default live window: -1h → +3h around event start (owner rule 2026-07-15).
@@ -227,7 +231,9 @@ describe('first-post-unlocks-7-days posting rule', () => {
 
       expect(result.allowed).toBe(false);
       expect(result.code).toBe('POSTING_WINDOW_CLOSED');
-      expect(result.reason).toContain('only if you already posted to this event');
+      // Owner wording (2026-07-16): tell them presence was the price of entry,
+      // not that they should come back later.
+      expect(result.reason).toBe(EVENT_ENDED_NOT_PRESENT_REASON);
     });
 
     it('falls back to a prior surviving post (pre-ledger uploads) and persists the anchor', async () => {
@@ -321,6 +327,31 @@ describe('first-post-unlocks-7-days posting rule', () => {
       expect(result.allowed).toBe(false);
       expect(result.code).toBe('POSTING_WINDOW_CLOSED');
       expect(mockUnlockFindUnique).not.toHaveBeenCalled();
+    });
+
+    it('tells a user on a long-finished event they missed it — not "posting opens <past date>"', async () => {
+      // Regression: `closed` shared the `before_open` branch, so opening an
+      // event page a week after the fact answered "Posting opens
+      // May 10, 5:00 PM" — a date already in the past. Same rejection,
+      // opposite meaning.
+      jest.setSystemTime(new Date(GRACE_END.getTime() + 24 * 60 * 60 * 1000));
+
+      const result = await verifyEventPostingPermission('event-1', 'user-1', VENUE.lat, VENUE.lon);
+
+      expect(result.allowed).toBe(false);
+      expect(result.code).toBe('POSTING_WINDOW_CLOSED');
+      expect(result.reason).toBe(EVENT_ENDED_NOT_PRESENT_REASON);
+      expect(result.reason).not.toContain('Posting opens');
+    });
+
+    it('still tells a user BEFORE the window opens when it opens', async () => {
+      jest.setSystemTime(new Date(EVENT_DATE.getTime() - 6 * 60 * 60 * 1000));
+
+      const result = await verifyEventPostingPermission('event-1', 'user-1', VENUE.lat, VENUE.lon);
+
+      expect(result.allowed).toBe(false);
+      expect(result.code).toBe('POSTING_WINDOW_CLOSED');
+      expect(result.reason).toContain('Posting opens');
     });
   });
 

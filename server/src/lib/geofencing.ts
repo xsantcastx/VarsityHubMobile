@@ -44,6 +44,17 @@ export type PostingPermissionErrorCode =
   | 'LOCATION_SPOOF_SUSPECTED'
   | 'EXCLUSIVE_POSTER_ONLY';
 
+/**
+ * Rejection shown to a user who opens a finished event page having never posted
+ * from the venue while it was live. Owner wording, 2026-07-16: "sorry. You
+ * didn't post while there so do not have access to post afterwards."
+ *
+ * Shared by the `closed` and unlock-less `grace` branches — one string, because
+ * they are the same rejection to the user and drifted apart once already.
+ */
+export const EVENT_ENDED_NOT_PRESENT_REASON =
+  "Sorry — you didn't post to this event while you were there, so you don't have access to post to it afterwards.";
+
 export type PostingPermissionResult = {
   allowed: boolean;
   code?: PostingPermissionErrorCode;
@@ -604,11 +615,27 @@ export async function verifyEventPostingPermission(
     event.live_window_hours_after_start
   );
 
-  if (postingWindowState === 'before_open' || postingWindowState === 'closed') {
+  if (postingWindowState === 'before_open') {
     return {
       allowed: false,
       code: 'POSTING_WINDOW_CLOSED',
       reason: `Posting opens ${formatWindowDateTime(windowStart)}.`,
+    };
+  }
+
+  // The event is over and this user never posted from the venue while it was
+  // live, so they never earned an unlock. Owner wording (2026-07-16): they get
+  // told plainly that presence at the event was the price of admission — not a
+  // "come back later", because there is no later.
+  //
+  // `closed` used to share the `before_open` branch, which told someone opening
+  // a week-old event page "Posting opens <a date in the past>". Same rejection,
+  // opposite meaning.
+  if (postingWindowState === 'closed') {
+    return {
+      allowed: false,
+      code: 'POSTING_WINDOW_CLOSED',
+      reason: EVENT_ENDED_NOT_PRESENT_REASON,
     };
   }
 
@@ -622,7 +649,7 @@ export async function verifyEventPostingPermission(
     return {
       allowed: false,
       code: 'POSTING_WINDOW_CLOSED',
-      reason: `Post-event uploads stay open for a week, but only if you already posted to this event while you were there.`,
+      reason: EVENT_ENDED_NOT_PRESENT_REASON,
     };
   }
 

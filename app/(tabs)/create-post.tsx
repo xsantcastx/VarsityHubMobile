@@ -39,6 +39,10 @@ import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import {
+  markEventPostingNoticeSeen,
+  shouldShowEventPostingNotice,
+} from '@/utils/eventPostingNotice';
 import { hasLocalEventPostingUnlock, recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
 import { getLiveBounds, isGameOver } from '@/utils/liveWindow';
 import { prepareVideoForUpload, uploadTimeoutMsForSize } from '@/utils/compressVideo';
@@ -893,14 +897,36 @@ function CreatePostScreen() {
       setPreviewVisible(false);
       setPostSuccess(true);
 
-      // Keep checkmark state briefly, then navigate — no full-screen popup
-      setTimeout(() => {
+      const finish = () => {
         setPostSuccess(false);
         setContent('');
         setPicked(null);
         setError(null);
         safeGoBack(router, '/(tabs)/feed');
-      }, 800);
+      };
+
+      // Owner rule (2026-07-16): remind attendees to keep event posts on-topic,
+      // but only on their FIRST post to a given event page. The server already
+      // proved they were there — it accepted the post — so this is a reminder,
+      // not a gate. Seen-state is per (user, event); a fan posting thirteen
+      // times reads it once.
+      const showNotice =
+        !!selectedGameId &&
+        (await shouldShowEventPostingNotice(user?.id, [selectedGameId, suggestedGame?.event_id]));
+
+      if (showNotice) {
+        void markEventPostingNoticeSeen(user?.id, [selectedGameId, suggestedGame?.event_id]);
+        Alert.alert(
+          '🏟️ Keep it to the game',
+          'Please only post photos and videos from the game. Anything unrelated may result in your post being taken down.',
+          [{ text: 'Got it', onPress: finish }],
+          { onDismiss: finish }
+        );
+        return;
+      }
+
+      // Keep checkmark state briefly, then navigate — no full-screen popup
+      setTimeout(finish, 800);
     } catch (e: any) {
       if (__DEV__)
         console.error('[CreatePost] Error creating post:', {
@@ -934,8 +960,15 @@ function CreatePostScreen() {
               { text: 'Verify Now', onPress: () => router.push('/verify' as any) },
             ]);
           } else if (code === 'POSTING_WINDOW_CLOSED') {
-            const msg = e?.data?.message || 'Posting is not open for this event yet.';
-            Alert.alert('Not Yet', msg);
+            // One code, two meanings: the event hasn't opened yet, or it's over
+            // and this user never posted from the venue (owner rule 2026-07-16
+            // — "you didn't post while there so do not have access to post
+            // afterwards"). The server writes the right sentence for each; the
+            // rule stays server-side, so just show it. Title is deliberately
+            // neutral — the old 'Not Yet' read as "come back later" on a
+            // finished event, where there is no later.
+            const msg = e?.data?.message || 'Posting is not open for this event.';
+            Alert.alert('Posting Closed', msg);
             setError(msg);
           } else if (code === 'TOO_FAR_FROM_VENUE') {
             const dist = e?.data?.distance;
@@ -963,11 +996,20 @@ function CreatePostScreen() {
             );
             setError('Posting is disabled until this event has venue coordinates.');
           } else {
-            setError(
-              e?.data?.error ||
-                e?.data?.message ||
-                'You do not have permission to post to this event.'
-            );
+            // Every other server-side posting rule (EXCLUSIVE_POSTER_ONLY,
+            // EVENT_NOT_FOUND, …). The server ships a written reason for each;
+            // surface it rather than re-deriving the rule here. Prefer
+            // `message` over `error`: on this envelope `error` is the CODE, so
+            // the old order showed users raw strings like
+            // "EXCLUSIVE_POSTER_ONLY" whenever a code had no branch above.
+            const msg =
+              e?.data?.message ||
+              (typeof e?.data?.error === 'string' && !/^[A-Z][A-Z0-9_]{2,}$/.test(e.data.error)
+                ? e.data.error
+                : null) ||
+              'You do not have permission to post to this event.';
+            Alert.alert('Cannot Post', msg);
+            setError(msg);
           }
         } else {
           setError(
