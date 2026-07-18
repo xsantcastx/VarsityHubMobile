@@ -26,10 +26,26 @@ const JAVITS = { lat: 40.75687, lng: -74.001762 };
 
 // (event id, expected real start UTC, human day)
 const FEST_DAYS = [
-  { id: 'cmrblzxwi0001x1lasw8q7cc0', start: '2026-07-16T17:00:00.000Z', label: 'Day 1 (Thu Jul 16, 1:00 PM EDT)' },
-  { id: 'cmrblzxxn0003x1lanq5vn4bs', start: '2026-07-17T14:00:00.000Z', label: 'Day 2 (Fri Jul 17, 10:00 AM EDT)' },
-  { id: 'cmrblzxyc0005x1la8stvo3e0', start: '2026-07-18T14:00:00.000Z', label: 'Day 3 (Sat Jul 18, 10:00 AM EDT)' },
-  { id: 'cmrblzy070007x1lajr3u9bmi', start: '2026-07-19T14:00:00.000Z', label: 'Day 4 (Sun Jul 19, 10:00 AM EDT)' },
+  {
+    id: 'cmrblzxwi0001x1lasw8q7cc0',
+    start: '2026-07-16T17:00:00.000Z',
+    label: 'Day 1 (Thu Jul 16, 1:00 PM EDT)',
+  },
+  {
+    id: 'cmrblzxxn0003x1lanq5vn4bs',
+    start: '2026-07-17T14:00:00.000Z',
+    label: 'Day 2 (Fri Jul 17, 10:00 AM EDT)',
+  },
+  {
+    id: 'cmrblzxyc0005x1la8stvo3e0',
+    start: '2026-07-18T14:00:00.000Z',
+    label: 'Day 3 (Sat Jul 18, 10:00 AM EDT)',
+  },
+  {
+    id: 'cmrblzy070007x1lajr3u9bmi',
+    start: '2026-07-19T14:00:00.000Z',
+    label: 'Day 4 (Sun Jul 19, 10:00 AM EDT)',
+  },
 ];
 
 function windowState(date: Date, hours: number | null, now: Date) {
@@ -62,8 +78,14 @@ async function main() {
     const event = await prisma.event.findUnique({
       where: { id: day.id },
       select: {
-        id: true, title: true, date: true, latitude: true, longitude: true,
-        game_id: true, approval_status: true, status: true,
+        id: true,
+        title: true,
+        date: true,
+        latitude: true,
+        longitude: true,
+        game_id: true,
+        approval_status: true,
+        status: true,
         live_window_hours_after_start: true,
       },
     });
@@ -75,12 +97,15 @@ async function main() {
     }
 
     // Event checks
-    if (event.approval_status !== 'approved') warn(`event.approval_status=${event.approval_status} (expected approved)`);
+    if (event.approval_status !== 'approved')
+      warn(`event.approval_status=${event.approval_status} (expected approved)`);
     if (event.status !== 'approved') warn(`event.status=${event.status} (expected approved)`);
     if (event.date.toISOString() !== day.start)
       warn(`event.date ${event.date.toISOString()} != expected real start ${day.start} (nudged?)`);
     if (event.live_window_hours_after_start !== 18)
-      warn(`event.live_window_hours_after_start=${event.live_window_hours_after_start ?? 'null'} (expected 18)`);
+      warn(
+        `event.live_window_hours_after_start=${event.live_window_hours_after_start ?? 'null'} (expected 18)`
+      );
     if (!near(event.latitude, JAVITS.lat) || !near(event.longitude, JAVITS.lng))
       warn(`event coords (${event.latitude},${event.longitude}) not at Javits — geofence may fail`);
     if (!event.game_id) warn('event has no linked game_id — will not appear in the feed');
@@ -90,28 +115,40 @@ async function main() {
       ? await prisma.game.findUnique({
           where: { id: event.game_id },
           select: {
-            id: true, date: true, approval_status: true, opponent_approval_status: true,
-            home_team_id: true, away_team_id: true, latitude: true, longitude: true,
+            id: true,
+            date: true,
+            approval_status: true,
+            opponent_approval_status: true,
+            home_team_id: true,
+            away_team_id: true,
+            latitude: true,
+            longitude: true,
           },
         })
       : null;
     if (event.game_id && !game) warn(`linked game ${event.game_id} NOT FOUND`);
     if (game) {
-      if (game.approval_status !== 'approved') warn(`game.approval_status=${game.approval_status} (feed hides non-approved)`);
+      if (game.approval_status !== 'approved')
+        warn(`game.approval_status=${game.approval_status} (feed hides non-approved)`);
       if (!['not_required', 'approved'].includes(game.opponent_approval_status))
         warn(`game.opponent_approval_status=${game.opponent_approval_status} (blocks feed)`);
       if (game.home_team_id || game.away_team_id)
-        warn(`game is not teamless (home=${game.home_team_id} away=${game.away_team_id}) — marquee expects teamless`);
+        warn(
+          `game is not teamless (home=${game.home_team_id} away=${game.away_team_id}) — marquee expects teamless`
+        );
       if (!near(game.latitude, JAVITS.lat) || !near(game.longitude, JAVITS.lng))
         warn(`game coords (${game.latitude},${game.longitude}) not at Javits`);
       // The game date can legitimately differ (feed reads server bounds), but a
       // wild drift is worth surfacing.
       const driftH = Math.abs(game.date.getTime() - event.date.getTime()) / 3_600_000;
-      if (driftH > 24) warn(`game.date drifts ${driftH.toFixed(1)}h from event.date (was it left nudged?)`);
+      if (driftH > 24)
+        warn(`game.date drifts ${driftH.toFixed(1)}h from event.date (was it left nudged?)`);
     }
 
     const { windowStart, liveCutoff, afterHours, state } = windowState(
-      event.date, event.live_window_hours_after_start, now
+      event.date,
+      event.live_window_hours_after_start,
+      now
     );
     console.log(`   start:  ${event.date.toISOString()}  (window ${afterHours}h)`);
     console.log(`   posts/stories open:  ${windowStart.toISOString()}`);
