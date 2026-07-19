@@ -9,11 +9,13 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 
 const mockEventFindUnique = jest.fn();
 const mockGameFindUnique = jest.fn();
+const mockDesignatedFindUnique = jest.fn();
 
 jest.unstable_mockModule('../lib/prisma.js', () => ({
   prisma: {
     event: { findUnique: mockEventFindUnique },
     game: { findUnique: mockGameFindUnique },
+    eventDesignatedPoster: { findUnique: mockDesignatedFindUnique },
   },
 }));
 
@@ -35,6 +37,8 @@ describe('verifyEventPostingPermission — exclusive poster lock', () => {
   beforeEach(() => {
     mockEventFindUnique.mockReset();
     mockGameFindUnique.mockReset();
+    mockDesignatedFindUnique.mockReset();
+    mockDesignatedFindUnique.mockResolvedValue(null); // no additive grant by default
   });
   afterEach(() => jest.restoreAllMocks());
 

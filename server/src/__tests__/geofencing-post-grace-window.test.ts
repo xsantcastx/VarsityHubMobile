@@ -6,6 +6,7 @@ const mockPostFindFirst = jest.fn();
 const mockStoryFindFirst = jest.fn();
 const mockUnlockFindUnique = jest.fn();
 const mockUnlockCreateMany = jest.fn();
+const mockDesignatedFindUnique = jest.fn();
 
 jest.unstable_mockModule('../lib/prisma.js', () => ({
   prisma: {
@@ -24,6 +25,9 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
     eventPostingUnlock: {
       findUnique: mockUnlockFindUnique,
       createMany: mockUnlockCreateMany,
+    },
+    eventDesignatedPoster: {
+      findUnique: mockDesignatedFindUnique,
     },
   },
 }));
@@ -66,6 +70,7 @@ describe('first-post-unlocks-7-days posting rule', () => {
     mockStoryFindFirst.mockReset();
     mockUnlockFindUnique.mockReset();
     mockUnlockCreateMany.mockReset();
+    mockDesignatedFindUnique.mockReset();
     global.fetch = jest.fn() as any;
     mockEventFindUnique.mockResolvedValue(BASE_EVENT);
     mockGameFindUnique.mockResolvedValue(null);
@@ -73,6 +78,7 @@ describe('first-post-unlocks-7-days posting rule', () => {
     mockStoryFindFirst.mockResolvedValue(null);
     mockUnlockFindUnique.mockResolvedValue(null);
     mockUnlockCreateMany.mockResolvedValue({ count: 1 });
+    mockDesignatedFindUnique.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -513,6 +519,61 @@ describe('first-post-unlocks-7-days posting rule', () => {
         VENUE.lon,
         null
       );
+
+      expect(result.allowed).toBe(false);
+      expect(result.code).toBe('POSTING_WINDOW_CLOSED');
+    });
+  });
+
+  // Additive designated-poster grant (owner rule, 2026-07-19 Fanatics Fest):
+  // a user allowlisted for an event may post AND upload stories at any time,
+  // from anywhere — bypassing the live window and the venue geofence — WITHOUT
+  // affecting any other user. This is the post-event "give a specific person
+  // continued access for marketing/continuity" grant. Contrast the single-user
+  // exclusive_poster_id lock, which blocks everyone else.
+  describe('additive designated-poster grant', () => {
+    const AT_VENUE_LIVE = () => jest.setSystemTime(new Date(EVENT_DATE.getTime() + 30 * 60 * 1000));
+    const LONG_AFTER_CLOSE = () =>
+      jest.setSystemTime(new Date(GRACE_END.getTime() + 24 * 60 * 60 * 1000));
+
+    it('lets a designated poster post from anywhere after the event has fully closed', async () => {
+      LONG_AFTER_CLOSE();
+      mockDesignatedFindUnique.mockResolvedValue({ user_id: 'nicon' });
+
+      const result = await verifyEventPostingPermission('event-1', 'nicon', null, null);
+
+      expect(result.allowed).toBe(true);
+      expect(mockDesignatedFindUnique).toHaveBeenCalledWith({
+        where: { event_id_user_id: { event_id: 'event-1', user_id: 'nicon' } },
+        select: { user_id: true },
+      });
+    });
+
+    it('lets a designated poster upload a STORY from anywhere after the event has closed (closes the story gap)', async () => {
+      LONG_AFTER_CLOSE();
+      mockDesignatedFindUnique.mockResolvedValue({ user_id: 'nicon' });
+
+      const result = await verifyStoryPostingPermission('event-1', 'nicon', null, null, null);
+
+      expect(result.allowed).toBe(true);
+    });
+
+    it('does NOT block other users — a normal attendee at the venue during the live window still posts', async () => {
+      AT_VENUE_LIVE();
+      // The event has a designated poster (nicon), but this is a different user
+      // standing at the venue. Additive means they follow the normal rules.
+      mockDesignatedFindUnique.mockResolvedValue(null); // this user is not on the list
+
+      const result = await verifyEventPostingPermission('event-1', 'someone-else', VENUE.lat, VENUE.lon);
+
+      expect(result.allowed).toBe(true);
+    });
+
+    it('a non-designated user is still blocked far from a closed event', async () => {
+      LONG_AFTER_CLOSE();
+      mockDesignatedFindUnique.mockResolvedValue(null);
+
+      const result = await verifyEventPostingPermission('event-1', 'random', FAR_AWAY.lat, FAR_AWAY.lon);
 
       expect(result.allowed).toBe(false);
       expect(result.code).toBe('POSTING_WINDOW_CLOSED');
