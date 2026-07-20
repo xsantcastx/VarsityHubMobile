@@ -50,7 +50,12 @@ import {
 } from '@/utils/feedGameQueries';
 import { getDeterministicGameCardGradient } from '@/utils/feedGameCard';
 import { getLiveBounds, isGameLive, isGameOver, shouldPinToFeed } from '@/utils/liveWindow';
-import { isFanaticsFestGame, isNycViewer } from '@/utils/fanaticsFest';
+import {
+  FEST_RECAP_GAME_IDS,
+  isFanaticsFestGame,
+  isFestRecapActive,
+  isNycViewer,
+} from '@/utils/fanaticsFest';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { prefetchGameSummary } from '@/utils/prefetch';
 import {
@@ -759,6 +764,39 @@ export default function FeedScreen() {
           upcomingPage.games,
           normalizeGamesPage(marqueeGamesData).games
         );
+
+        // Post-fest recap pin (owner ask 2026-07-20): once Fanatics Fest is fully
+        // over, its four days stop appearing in the general /games feed queries
+        // (marquee/upcoming are upcoming-only; the past recap excludes these
+        // teamless one-offs), so they vanished from the feed the day after. For
+        // NYC viewers, during the recap window, fetch the four days directly by id
+        // and merge them into the pool — the existing fest-pin memo then renders
+        // all four (Day 1 included). Best-effort: a failure just means no recap
+        // pin this load, never blocks the feed. Auto-fades (utils/fanaticsFest.ts).
+        if (
+          isFestRecapActive(Date.now()) &&
+          isNycViewer(
+            viewerCoords ? { latitude: viewerCoords.lat, longitude: viewerCoords.lng } : null,
+            me?.preferences?.zip_code
+          )
+        ) {
+          try {
+            const recapRaw = await Promise.all(
+              FEST_RECAP_GAME_IDS.map(id =>
+                queryClient
+                  .fetchQuery({ queryKey: ['feed-fest-recap', id], queryFn: () => Game.get(id) })
+                  .catch(() => null)
+              )
+            );
+            const seen = new Set((normalizedGames ?? []).map(g => String(g.id)));
+            const recapGames = recapRaw
+              .map((raw: any) => (raw && typeof raw === 'object' ? (raw.game ?? raw) : null))
+              .filter((g: any): g is GameItem => !!g && g.id != null && !seen.has(String(g.id)));
+            if (recapGames.length) normalizedGames = [...(normalizedGames ?? []), ...recapGames];
+          } catch (recapErr: any) {
+            if (__DEV__) console.warn('[feed] fest recap fetch failed:', recapErr?.message);
+          }
+        }
 
         // If no games exist, seed sample games as real DB records (stories/polls work)
         if ((!normalizedGames || normalizedGames.length === 0) && upcomingData !== null) {

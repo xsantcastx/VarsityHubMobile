@@ -88,3 +88,34 @@ export function isNycViewer(
   }
   return false;
 }
+
+/**
+ * Post-fest recap pin (owner ask, 2026-07-20).
+ *
+ * Once the festival is fully over, its day events stop appearing in the general
+ * /games feed queries — the marquee/upcoming query is upcoming-only and the
+ * past-recap query excludes these teamless one-off events — so the four days
+ * silently dropped off the feed the day after the fest. To keep the weekend
+ * referenceable, the feed fetches each day directly by its stable prod game id
+ * and hands them to the existing NYC fest-pin (which already renders all four,
+ * Day 1 included). Scoped to a bounded recap window, then it auto-fades.
+ *
+ * These are the four Fanatics Fest NYC 2026 day GAME ids (Day 1 → Day 4).
+ */
+export const FEST_RECAP_GAME_IDS = [
+  'cmrbor91s0001v6er7awo39ed', // Day 1 — Thu Jul 16
+  'cmrbor9nf0003v6erjjzlrbln', // Day 2 — Fri Jul 17
+  'cmrbor9zf0005v6erugtmw58s', // Day 3 — Sat Jul 18
+  'cmrborab30007v6ered5y33kc', // Day 4 — Sun Jul 19
+] as const;
+
+/**
+ * The recap auto-fades after this instant: end of Jul 26 ET (owner: keep it up
+ * ~7 days after the fest, matching the 7-day posting-grace window). After it,
+ * the feed neither fetches nor pins the past fest days. 04:00Z = 00:00 EDT Jul 27.
+ */
+export const FEST_RECAP_PIN_UNTIL_MS = Date.parse('2026-07-27T04:00:00.000Z');
+
+export function isFestRecapActive(nowMs: number): boolean {
+  return nowMs < FEST_RECAP_PIN_UNTIL_MS;
+}

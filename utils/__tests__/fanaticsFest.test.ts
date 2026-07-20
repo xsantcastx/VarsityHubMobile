@@ -5,7 +5,15 @@
  * -74.001762) already pinned by __tests__/live-window.test.ts.
  */
 
-import { NYC_METRO_RADIUS_KM, isFanaticsFestGame, isNycViewer, isNycZip } from '../fanaticsFest';
+import {
+  FEST_RECAP_GAME_IDS,
+  FEST_RECAP_PIN_UNTIL_MS,
+  NYC_METRO_RADIUS_KM,
+  isFanaticsFestGame,
+  isFestRecapActive,
+  isNycViewer,
+  isNycZip,
+} from '../fanaticsFest';
 
 describe('isFanaticsFestGame', () => {
   it('matches all four day titles regardless of casing/whitespace', () => {
@@ -69,5 +77,25 @@ describe('isNycViewer', () => {
 
   it('has a metro-scale radius, not a strict at-venue one', () => {
     expect(NYC_METRO_RADIUS_KM).toBeGreaterThan(30);
+  });
+});
+
+describe('post-fest recap pin (owner ask 2026-07-20)', () => {
+  it('lists the four fest day game ids to fetch by id once the fest is past', () => {
+    // Once the festival is fully over it stops appearing in the general /games
+    // feed queries (marquee/upcoming are upcoming-only), so the recap pin must
+    // fetch each day directly by its stable prod game id.
+    expect(FEST_RECAP_GAME_IDS).toHaveLength(4);
+    expect(FEST_RECAP_GAME_IDS).toContain('cmrbor91s0001v6er7awo39ed'); // Day 1
+    expect(FEST_RECAP_GAME_IDS).toContain('cmrborab30007v6ered5y33kc'); // Day 4
+    expect(new Set(FEST_RECAP_GAME_IDS).size).toBe(4); // no dupes
+  });
+
+  it('keeps the recap active until the Jul 26 cutoff, then fades', () => {
+    expect(isFestRecapActive(Date.parse('2026-07-21T12:00:00.000Z'))).toBe(true);
+    expect(isFestRecapActive(Date.parse('2026-07-26T12:00:00.000Z'))).toBe(true);
+    expect(isFestRecapActive(Date.parse('2026-07-28T12:00:00.000Z'))).toBe(false);
+    expect(isFestRecapActive(FEST_RECAP_PIN_UNTIL_MS - 1)).toBe(true);
+    expect(isFestRecapActive(FEST_RECAP_PIN_UNTIL_MS + 1)).toBe(false);
   });
 });
