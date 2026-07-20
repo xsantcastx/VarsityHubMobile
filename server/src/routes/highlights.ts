@@ -148,6 +148,39 @@ const scoreHighlightPost = (
   engagementBoost(p.upvotes_count, p._count?.comments || 0) +
   (p.media_url ? 4 : 0);
 
+/**
+ * Graded proximity boost for Trending: +8 right on top of the viewer, decaying
+ * linearly to 0 at RADIUS_KM, and 0 for posts beyond it or with no coordinates
+ * (and 0 for everyone when the viewer has no location). A boost, NOT a hard
+ * filter — a genuinely hot post just outside the radius can still surface,
+ * while local action is favored.
+ */
+function trendingProximityBoost(
+  p: any,
+  viewer: { lat: number; lng: number } | null
+): number {
+  if (!viewer || typeof p.lat !== 'number' || typeof p.lng !== 'number') return 0;
+  const d = haversineKm(viewer.lat, viewer.lng, p.lat, p.lng);
+  if (d >= RADIUS_KM) return 0;
+  return 8 * (1 - d / RADIUS_KM);
+}
+
+/**
+ * Trending score (owner rule, 2026-07-20): blend ENGAGEMENT with PROXIMITY and
+ * recency — "hot near you". Engagement (upvotes/comments/bookmarks) is the
+ * primary signal so a genuinely popular post outranks a merely-recent one;
+ * recency and the nearby boost surface local action and break ties. Weights
+ * mirror scoreHighlightPost (the v2 ranked path) plus bookmarks; there is no
+ * followed-author term because Trending is a public feed, not a for-you feed.
+ */
+const scoreTrendingPost = (p: any, viewer: { lat: number; lng: number } | null): number =>
+  (p.upvotes_count || 0) * 2 +
+  (p._count?.comments || 0) * 3 +
+  (p._count?.bookmarks || 0) * 1.5 +
+  recencyBoost(p.created_at) +
+  engagementBoost(p.upvotes_count, p._count?.comments || 0) +
+  trendingProximityBoost(p, viewer);
+
 // GET /highlights?zip=90210&country=US&lat=..&lng=..&limit=20
 highlightsRouter.get(
   '/',
@@ -253,61 +286,53 @@ highlightsRouter.get(
             .slice(0, TOP_LIMIT);
         }
         if (sort === 'trending') {
-          // Product rule (owner, 2026-07-16): "Trending should be post nearby
-          // them." Proximity IS the selection — not a +6 nudge on an
-          // engagement score, which is what it used to be (a viral post 3900km
-          // away outranked every local one).
+          // Product rule (owner, 2026-07-20): Trending blends ENGAGEMENT with
+          // PROXIMITY + recency — "hot near you", not pure nearest-first.
+          // (Superseded the 2026-07-16 pure-proximity rule, which crowned
+          // 0-engagement posts #1 and, for the ~85% of viewers with no coords,
+          // silently degraded to newest-first — indistinguishable from Recent.)
           //
           // Viewer coords come from ?lat/?lng, else their preferences.zip_code
-          // (same fallback chain as GET /games).
+          // (same fallback chain as GET /games). No coords → proximity term is
+          // 0 for everyone and Trending is a pure engagement+recency feed.
           const viewer = await resolveViewerCoords(req.user?.id, lat, lng);
 
-          if (viewer) {
-            // Bounding-box prefilter so the DB — not the API process — does the
-            // narrowing; exact Haversine then trims the box corners to a circle.
-            const kmPerDegLat = 110.574;
-            const kmPerDegLng = 111.32 * Math.cos((viewer.lat * Math.PI) / 180);
-            const dLat = RADIUS_KM / kmPerDegLat;
-            const dLng = RADIUS_KM / Math.max(Math.abs(kmPerDegLng), 1e-6);
-            const pool = await prisma.post.findMany({
-              where: {
-                ...baseWhere,
-                lat: { gte: viewer.lat - dLat, lte: viewer.lat + dLat },
-                lng: { gte: viewer.lng - dLng, lte: viewer.lng + dLng },
-              },
+          // Candidate pool: recent media posts in-country, newest-first,
+          // bounded. Proximity is a scoring boost (not a WHERE filter), so a
+          // hot post just outside RADIUS_KM can still surface — we score the
+          // whole pool rather than pre-narrowing it to a bounding box.
+          const TRENDING_WINDOW_DAYS = 14;
+          const trendingSince = new Date(Date.now() - TRENDING_WINDOW_DAYS * 864e5);
+          let pool = await prisma.post.findMany({
+            where: { ...baseWhere, created_at: { gte: trendingSince } },
+            orderBy: [{ created_at: 'desc' }],
+            take: TRENDING_POOL,
+            select: highlightPostSelect,
+          });
+
+          // Never-empty guarantee: nothing posted in the trending window falls
+          // back to the full v2 lookback so the tab still renders something.
+          if (pool.length === 0) {
+            pool = await prisma.post.findMany({
+              where: { ...baseWhere, created_at: { gte: since } },
               orderBy: [{ created_at: 'desc' }],
               take: TRENDING_POOL,
               select: highlightPostSelect,
             });
-            items = pool
-              .map((p: any) => ({
-                ...p,
-                _distance_km: haversineKm(viewer.lat, viewer.lng, p.lat, p.lng),
-              }))
-              .filter((p: any) => p._distance_km <= RADIUS_KM)
-              .sort(
-                (a: any, b: any) =>
-                  a._distance_km - b._distance_km ||
-                  // Tie-break nearest-equal posts by recency.
-                  new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-              )
-              .slice(0, limit);
           }
 
-          // Graceful degradation — the tab must never be empty:
-          //   * viewer has no coords AND no resolvable zip (today: every user —
-          //     0/46 in prod have preferences.lat), or
-          //   * nothing at all within RADIUS_KM of them.
-          // Both fall back to newest-first, which is the most defensible
-          // "what's happening" answer when "near you" is unanswerable.
-          if (items.length === 0) {
-            items = await prisma.post.findMany({
-              where: baseWhere,
-              orderBy: [{ created_at: 'desc' }],
-              take: limit,
-              select: highlightPostSelect,
-            });
-          }
+          items = pool
+            .map((p: any) => ({ post: p, score: scoreTrendingPost(p, viewer) }))
+            .sort(
+              (a, b) =>
+                b.score - a.score ||
+                // Deterministic tie-break: newest wins, then id, so equal-score
+                // posts don't shuffle between requests.
+                new Date(b.post.created_at).getTime() - new Date(a.post.created_at).getTime() ||
+                a.post.id.localeCompare(b.post.id)
+            )
+            .slice(0, limit)
+            .map(x => x.post);
         }
 
         const { upvotedIds, bookmarkedIds } = await getInteractionSets(
