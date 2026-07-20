@@ -229,8 +229,8 @@ const HighlightCard = ({
   const _ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
 
   // Show numbered ranking for Trending (top 3) and Top (1-10). The server now
-  // orders Trending by a blended engagement+proximity score, so positions 0-2
-  // are the top-ranked. Medals render only when that ranking is meaningful
+  // orders Trending by an app-wide engagement score, so positions 0-2 are the
+  // top-ranked. Medals render only when that ranking is meaningful
   // (`trendingRanked`) — a list led by a zero-engagement post gets none, so #1
   // never falsely implies popularity.
   const showNumberedRank =
@@ -863,8 +863,8 @@ function HighlightsScreen() {
 
   // The Trending medals are meaningful only when the score-ranked list is
   // actually led by an engaged post. If the top item has zero engagement,
-  // nothing is genuinely trending (order is just recency/proximity), so we
-  // suppress the medals rather than crown a #1 that earned nothing.
+  // nothing is genuinely trending (order is just recency), so we suppress the
+  // medals rather than crown a #1 that earned nothing.
   const trendingRanked = useMemo(() => {
     if (dataTab !== 'trending') return false;
     const top = getFilteredHighlights()[0];

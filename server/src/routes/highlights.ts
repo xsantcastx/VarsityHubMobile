@@ -1,6 +1,4 @@
 import { Router } from 'express';
-import { geocodeLocation } from '../lib/geocoding.js';
-import { getZipCoordinates } from '../lib/geoUtils.js';
 import { highlightPostSelect } from '../lib/highlightPostSelect.js';
 import { sendError } from '../lib/http/sendError.js';
 import { prisma } from '../lib/prisma.js';
@@ -18,8 +16,9 @@ export const highlightsRouter = Router();
 
 const RADIUS_KM = 100; // Wider radius for more posts
 
-// Trending candidate pool. Bounded per CLAUDE.md (every findMany needs a take);
-// the bounding-box WHERE already narrows this hard before the take applies.
+// Trending candidate pool. Bounded per CLAUDE.md (every findMany needs a take).
+// Trending ranks the whole app's recent posts by engagement — there is no
+// location narrowing — so this is the app-wide pool the score sorts.
 const TRENDING_POOL = 300;
 
 // "Top 10 post with the most engagement that month" — a hard product cap, not
@@ -33,56 +32,6 @@ const TOP_LIMIT = 10;
  */
 const topEngagement = (p: any): number =>
   (p.upvotes_count || 0) + (p._count?.comments || 0) * 1.5 + (p._count?.bookmarks || 0) * 1.5;
-
-/**
- * Great-circle distance in km. Mirrors the Haversine in `routes/games.ts` and
- * the client's `distanceKm` in `utils/liveWindow.ts` — same formula, same
- * earth radius, so "nearby" means the same thing on every surface.
- */
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-/**
- * Resolve the viewer's coordinates for proximity selection, mirroring the
- * `GET /games` fallback chain: explicit query coords first, then the viewer's
- * `preferences.zip_code` (static prefix table, then geocoder).
- *
- * Returns null when the viewer has no usable location at all — callers must
- * degrade gracefully rather than render an empty tab.
- */
-async function resolveViewerCoords(
-  userId: string | null | undefined,
-  queryLat?: number,
-  queryLng?: number
-): Promise<{ lat: number; lng: number } | null> {
-  if (queryLat != null && queryLng != null && !Number.isNaN(queryLat) && !Number.isNaN(queryLng)) {
-    return { lat: queryLat, lng: queryLng };
-  }
-  if (!userId) return null;
-  try {
-    const viewer = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { preferences: true },
-    });
-    const zip = (viewer?.preferences as any)?.zip_code;
-    if (typeof zip !== 'string' || zip.trim().length === 0) return null;
-    const staticCoords = getZipCoordinates(zip.trim());
-    if (staticCoords) return { lat: staticCoords.lat, lng: staticCoords.lon };
-    const geocoded = await geocodeLocation(zip.trim());
-    return geocoded ? { lat: geocoded.latitude, lng: geocoded.longitude } : null;
-  } catch (err) {
-    // Proximity is best-effort — a geocoder/DB hiccup must never fail the tab.
-    console.warn('[highlights] zip proximity fallback failed:', err);
-    return null;
-  }
-}
 
 function recencyBoost(d: Date) {
   const ageDays = (Date.now() - new Date(d).getTime()) / 864e5;
@@ -149,37 +98,19 @@ const scoreHighlightPost = (
   (p.media_url ? 4 : 0);
 
 /**
- * Graded proximity boost for Trending: +8 right on top of the viewer, decaying
- * linearly to 0 at RADIUS_KM, and 0 for posts beyond it or with no coordinates
- * (and 0 for everyone when the viewer has no location). A boost, NOT a hard
- * filter — a genuinely hot post just outside the radius can still surface,
- * while local action is favored.
+ * Trending score (owner rule, 2026-07-20): rank the WHOLE app's recent posts by
+ * ENGAGEMENT — location does not matter. Highlights covers every user in the
+ * app, so the only signals are engagement (upvotes/comments/bookmarks) with a
+ * recency lift so a genuinely popular fresh post leads. No proximity term, no
+ * followed-author term — Trending is a public, app-wide popularity feed, not a
+ * for-you or near-you feed.
  */
-function trendingProximityBoost(
-  p: any,
-  viewer: { lat: number; lng: number } | null
-): number {
-  if (!viewer || typeof p.lat !== 'number' || typeof p.lng !== 'number') return 0;
-  const d = haversineKm(viewer.lat, viewer.lng, p.lat, p.lng);
-  if (d >= RADIUS_KM) return 0;
-  return 8 * (1 - d / RADIUS_KM);
-}
-
-/**
- * Trending score (owner rule, 2026-07-20): blend ENGAGEMENT with PROXIMITY and
- * recency — "hot near you". Engagement (upvotes/comments/bookmarks) is the
- * primary signal so a genuinely popular post outranks a merely-recent one;
- * recency and the nearby boost surface local action and break ties. Weights
- * mirror scoreHighlightPost (the v2 ranked path) plus bookmarks; there is no
- * followed-author term because Trending is a public feed, not a for-you feed.
- */
-const scoreTrendingPost = (p: any, viewer: { lat: number; lng: number } | null): number =>
+const scoreTrendingPost = (p: any): number =>
   (p.upvotes_count || 0) * 2 +
   (p._count?.comments || 0) * 3 +
   (p._count?.bookmarks || 0) * 1.5 +
   recencyBoost(p.created_at) +
-  engagementBoost(p.upvotes_count, p._count?.comments || 0) +
-  trendingProximityBoost(p, viewer);
+  engagementBoost(p.upvotes_count, p._count?.comments || 0);
 
 // GET /highlights?zip=90210&country=US&lat=..&lng=..&limit=20
 highlightsRouter.get(
@@ -286,21 +217,13 @@ highlightsRouter.get(
             .slice(0, TOP_LIMIT);
         }
         if (sort === 'trending') {
-          // Product rule (owner, 2026-07-20): Trending blends ENGAGEMENT with
-          // PROXIMITY + recency — "hot near you", not pure nearest-first.
-          // (Superseded the 2026-07-16 pure-proximity rule, which crowned
-          // 0-engagement posts #1 and, for the ~85% of viewers with no coords,
-          // silently degraded to newest-first — indistinguishable from Recent.)
-          //
-          // Viewer coords come from ?lat/?lng, else their preferences.zip_code
-          // (same fallback chain as GET /games). No coords → proximity term is
-          // 0 for everyone and Trending is a pure engagement+recency feed.
-          const viewer = await resolveViewerCoords(req.user?.id, lat, lng);
-
-          // Candidate pool: recent media posts in-country, newest-first,
-          // bounded. Proximity is a scoring boost (not a WHERE filter), so a
-          // hot post just outside RADIUS_KM can still surface — we score the
-          // whole pool rather than pre-narrowing it to a bounding box.
+          // Product rule (owner, 2026-07-20): Trending ranks the WHOLE app's
+          // recent posts by ENGAGEMENT — location does not matter. Highlights
+          // covers every user in the app, so there is no proximity term and no
+          // per-viewer narrowing; the same popular posts trend for everyone.
+          // (Superseded the earlier proximity rules, which crowned nearby
+          // 0-engagement posts #1 and degraded to newest-first for viewers with
+          // no coords — indistinguishable from Recent.)
           const TRENDING_WINDOW_DAYS = 14;
           const trendingSince = new Date(Date.now() - TRENDING_WINDOW_DAYS * 864e5);
           let pool = await prisma.post.findMany({
@@ -322,7 +245,7 @@ highlightsRouter.get(
           }
 
           items = pool
-            .map((p: any) => ({ post: p, score: scoreTrendingPost(p, viewer) }))
+            .map((p: any) => ({ post: p, score: scoreTrendingPost(p) }))
             .sort(
               (a, b) =>
                 b.score - a.score ||

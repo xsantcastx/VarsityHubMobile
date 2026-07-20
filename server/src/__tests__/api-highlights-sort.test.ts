@@ -6,12 +6,12 @@
  * zero-engagement posts, Top missed comment-heavy posts, and Trending mixed
  * incompatible score scales.
  *
- * Re-pinned 2026-07-16 to the owner's definitions (Fanatics Fest punch list),
- * which the per-tab sorts still did not match:
- *   Recent   = most recent post, newest-first, no window.
- *   Trending = posts NEAR the viewer — proximity is the selection, not a
- *              tiebreak nudge on an engagement score.
- *   Top      = top 10 by engagement THIS CALENDAR MONTH.
+ * Owner's current definitions:
+ *   Recent   = most recent post, newest-first, no window (2026-07-16).
+ *   Trending = the whole app's recent posts ranked by ENGAGEMENT; location
+ *              does NOT matter (2026-07-20, superseding the 2026-07-16
+ *              proximity rule — Highlights covers every user in the app).
+ *   Top      = top 10 by engagement THIS CALENDAR MONTH (2026-07-16).
  *
  * Each describe uses a unique country code so ordering assertions are isolated
  * from other test data.
@@ -275,38 +275,32 @@ describe('GET /highlights?v2=1&sort=top — country FJ', () => {
 });
 
 /**
- * Owner rule (2026-07-20): Trending BLENDS engagement with proximity + recency
- * — "hot near you". This supersedes the 2026-07-16 pure-proximity rule, which
- * crowned zero-engagement posts #1 and, for viewers with no coords, degraded to
- * newest-first (indistinguishable from Recent). Engagement is the primary
- * signal; proximity is a graded boost (not a hard radius filter), so a hot post
- * outside the radius can still surface and equal-engagement posts sort by
- * nearness. These pin the blend.
+ * Owner rule (2026-07-20): Trending ranks the WHOLE app's recent posts by
+ * ENGAGEMENT — location does NOT matter. Highlights covers every user in the
+ * app, so there is no proximity term: the same popular posts trend for
+ * everyone, whether or not they send coords. (This supersedes the earlier
+ * proximity rules, which crowned nearby zero-engagement posts #1 and degraded
+ * to newest-first for viewers with no coords.) These pin the location-
+ * independent, engagement-only ranking.
  */
-describe('GET /highlights?v2=1&sort=trending — engagement+proximity blend (country PE)', () => {
-  // Stamford CT — the owner's real profile zip (06907) resolves near here.
+describe('GET /highlights?v2=1&sort=trending — engagement-only, app-wide (country PE)', () => {
+  // Stamford CT — a viewer location that sits on top of quietOldNearPost, so if
+  // proximity leaked back in these assertions would flip.
   const VIEWER = { lat: 41.09, lng: -73.52 };
   let authorId: string;
-  let nearQuietPost: string; // ~1km away, zero engagement
-  let nearViralPost: string; // ~1km away, 900 upvotes  -> should be #1
-  let farQuietPost: string; // Los Angeles, zero engagement
-  let farViralPost: string; // Los Angeles, 900 upvotes
+  let viralPost: string; // Los Angeles (far from VIEWER), 900 upvotes -> #1
+  let quietNewPost: string; // Los Angeles (far), 0 upvotes, newest
+  let quietOldNearPost: string; // on top of VIEWER, 0 upvotes, oldest
   const cleanup: string[] = [];
 
   beforeAll(async () => {
     const author = await createAuthor('trend');
     authorId = author.id;
-    // All same recency (1 day) so engagement + proximity are the only movers.
-    nearQuietPost = (
-      await createPost(authorId, 'PE', { upvotes: 0, lat: 41.1, lng: -73.53, createdDaysAgo: 1 })
-    ).id;
-    nearViralPost = (
-      await createPost(authorId, 'PE', { upvotes: 900, lat: 41.1, lng: -73.53, createdDaysAgo: 1 })
-    ).id;
-    farQuietPost = (
-      await createPost(authorId, 'PE', { upvotes: 0, lat: 34.05, lng: -118.24, createdDaysAgo: 1 })
-    ).id;
-    farViralPost = (
+    // viralPost is far from the viewer on purpose: engagement alone must carry
+    // it to #1. quietNewPost (far, newest) vs quietOldNearPost (near, oldest)
+    // isolates the "location is ignored" claim — with proximity gone, recency
+    // decides and the far-but-newer post wins.
+    viralPost = (
       await createPost(authorId, 'PE', {
         upvotes: 900,
         lat: 34.05,
@@ -314,7 +308,13 @@ describe('GET /highlights?v2=1&sort=trending — engagement+proximity blend (cou
         createdDaysAgo: 1,
       })
     ).id;
-    cleanup.push(nearQuietPost, nearViralPost, farQuietPost, farViralPost);
+    quietOldNearPost = (
+      await createPost(authorId, 'PE', { upvotes: 0, lat: 41.1, lng: -73.53, createdDaysAgo: 2 })
+    ).id;
+    quietNewPost = (
+      await createPost(authorId, 'PE', { upvotes: 0, lat: 34.05, lng: -118.24, createdDaysAgo: 0 })
+    ).id;
+    cleanup.push(viralPost, quietOldNearPost, quietNewPost);
   });
 
   afterAll(async () => {
@@ -322,66 +322,55 @@ describe('GET /highlights?v2=1&sort=trending — engagement+proximity blend (cou
     await prisma.user.delete({ where: { id: authorId } }).catch(() => {});
   });
 
-  it('engagement lifts a post above a zero-engagement neighbor', async () => {
+  it('a viral post leads even when it is far and the viewer sends coords', async () => {
     const res = await request(app).get(
       `/highlights?v2=1&country=PE&sort=trending&lat=${VIEWER.lat}&lng=${VIEWER.lng}`
     );
     expect(res.status).toBe(200);
     const ids = res.body.items.map((p: any) => p.id);
-    expect(ids.indexOf(nearViralPost)).toBeLessThan(ids.indexOf(nearQuietPost));
+    expect(ids[0]).toBe(viralPost);
   });
 
-  it('among equally-engaged posts, the nearer one ranks first (proximity boost)', async () => {
+  it('location is ignored — the newer far post outranks the older near post under viewer coords', async () => {
+    // Under the old proximity/blend rule the near post would get a boost and
+    // could win; with proximity removed, recency decides and the far post wins.
     const res = await request(app).get(
       `/highlights?v2=1&country=PE&sort=trending&lat=${VIEWER.lat}&lng=${VIEWER.lng}`
     );
     const ids = res.body.items.map((p: any) => p.id);
-    expect(ids.indexOf(nearQuietPost)).toBeLessThan(ids.indexOf(farQuietPost));
-    expect(ids.indexOf(nearViralPost)).toBeLessThan(ids.indexOf(farViralPost));
+    expect(ids.indexOf(quietNewPost)).toBeLessThan(ids.indexOf(quietOldNearPost));
   });
 
-  it('no zero-engagement post tops the list when an engaged post exists — the nearby viral wins', async () => {
-    const res = await request(app).get(
+  it('the order is identical with and without viewer coords (location-independent)', async () => {
+    const withCoords = await request(app).get(
       `/highlights?v2=1&country=PE&sort=trending&lat=${VIEWER.lat}&lng=${VIEWER.lng}`
     );
-    const ids = res.body.items.map((p: any) => p.id);
-    expect(ids[0]).toBe(nearViralPost);
+    const noCoords = await request(app).get('/highlights?v2=1&country=PE&sort=trending');
+    expect(withCoords.status).toBe(200);
+    expect(noCoords.status).toBe(200);
+    const idsWith = withCoords.body.items.map((p: any) => p.id);
+    const idsNo = noCoords.body.items.map((p: any) => p.id);
+    expect(idsWith).toEqual(idsNo);
   });
 
-  it('does NOT hard-filter by radius — a far post still surfaces (ranked lower)', async () => {
-    // The blend replaced the old radius WHERE filter with a graded boost, so a
-    // distant post is no longer excluded outright — it just scores lower.
-    const res = await request(app).get(
-      `/highlights?v2=1&country=PE&sort=trending&lat=${VIEWER.lat}&lng=${VIEWER.lng}`
-    );
-    const ids = res.body.items.map((p: any) => p.id);
-    expect(ids).toContain(farQuietPost);
-    expect(ids).toContain(farViralPost);
-  });
-
-  it('never an empty tab when the viewer has no location — engagement still orders it', async () => {
-    // No lat/lng, and an anonymous viewer has no preferences.zip_code. The
-    // proximity term is 0 for everyone, so Trending becomes a pure
-    // engagement+recency feed rather than blanking out.
+  it('never an empty tab when the viewer has no location — a viral post still leads', async () => {
     const res = await request(app).get('/highlights?v2=1&country=PE&sort=trending');
     expect(res.status).toBe(200);
     expect(res.body.items.length).toBeGreaterThan(0);
-    const ids = res.body.items.map((p: any) => p.id);
-    // A viral post leads; neither quiet post can top it without a proximity edge.
-    expect([nearViralPost, farViralPost]).toContain(ids[0]);
+    expect(res.body.items.map((p: any) => p.id)[0]).toBe(viralPost);
   });
 });
 
-describe('GET /highlights?v2=1&sort=trending — zip fallback (country GH)', () => {
+describe('GET /highlights?v2=1&sort=trending — a viewer zip_code does not re-introduce proximity (country GH)', () => {
   let viewerId: string;
   let viewerToken: string;
   let authorId: string;
-  let nearPost: string;
-  let farPost: string;
+  let zipNearOldPost: string;
+  let farNewPost: string;
 
   beforeAll(async () => {
-    // Manhattan zip: '100' is in the static ZIP_PREFIX_COORDS table, so this
-    // resolves without touching the geocoder.
+    // Manhattan zip: '100' is in the static ZIP_PREFIX_COORDS table. Under the
+    // old rule this would have resolved to coords and boosted the near post.
     const viewer = await createAuthor('zipv');
     viewerId = viewer.id;
     await prisma.user.update({
@@ -393,31 +382,28 @@ describe('GET /highlights?v2=1&sort=trending — zip fallback (country GH)', () 
     viewerToken = signJwt({ id: viewerId });
     const author = await createAuthor('zipa');
     authorId = author.id;
-    // Both zero-engagement so the ONLY differentiator is the zip-derived
-    // proximity boost. farPost is created last (so it is newest); without zip
-    // resolution the recency tie-break would put it first — proving the boost
-    // resolved when nearPost instead leads.
-    nearPost = (await createPost(authorId, 'GH', { upvotes: 0, lat: 40.71, lng: -74.01 })).id;
-    farPost = (await createPost(authorId, 'GH', { upvotes: 0, lat: 34.05, lng: -118.24 })).id;
+    // Both zero-engagement. zipNearOldPost sits on the viewer's zip but is
+    // created first (older); farNewPost is created last (newer). With proximity
+    // gone, recency decides and the far-but-newer post wins — proving the
+    // viewer's zip granted no location edge.
+    zipNearOldPost = (await createPost(authorId, 'GH', { upvotes: 0, lat: 40.71, lng: -74.01 })).id;
+    farNewPost = (await createPost(authorId, 'GH', { upvotes: 0, lat: 34.05, lng: -118.24 })).id;
   });
 
   afterAll(async () => {
-    await prisma.post.deleteMany({ where: { id: { in: [nearPost, farPost] } } });
+    await prisma.post.deleteMany({ where: { id: { in: [zipNearOldPost, farNewPost] } } });
     await prisma.user.deleteMany({ where: { id: { in: [viewerId, authorId] } } });
   });
 
-  it('resolves proximity from preferences.zip_code when the client sends no coords', async () => {
-    // The real-world path: the client has never had preferences.lat to send.
+  it('ranks by recency, not the zip — both surface and the newer far post leads', async () => {
     const res = await request(app)
       .get('/highlights?v2=1&country=GH&sort=trending')
       .set('Authorization', `Bearer ${viewerToken}`);
     expect(res.status).toBe(200);
     const ids = res.body.items.map((p: any) => p.id);
-    // Both surface (no hard radius filter), but the nearby one wins on the
-    // zip-derived proximity boost despite the far one being newer.
-    expect(ids).toContain(nearPost);
-    expect(ids).toContain(farPost);
-    expect(ids.indexOf(nearPost)).toBeLessThan(ids.indexOf(farPost));
+    expect(ids).toContain(zipNearOldPost);
+    expect(ids).toContain(farNewPost);
+    expect(ids.indexOf(farNewPost)).toBeLessThan(ids.indexOf(zipNearOldPost));
   });
 });
 
