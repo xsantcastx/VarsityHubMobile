@@ -7,10 +7,9 @@
 
 import {
   FEST_RECAP_GAME_IDS,
-  FEST_RECAP_PIN_UNTIL_MS,
+  FEST_RECAP_PINNED,
   NYC_METRO_RADIUS_KM,
   isFanaticsFestGame,
-  isFestRecapActive,
   isNycViewer,
   isNycZip,
 } from '../fanaticsFest';
@@ -80,22 +79,20 @@ describe('isNycViewer', () => {
   });
 });
 
-describe('post-fest recap pin (owner ask 2026-07-20)', () => {
-  it('lists the four fest day game ids to fetch by id once the fest is past', () => {
+describe('Fanatics Fest pin (owner ask 2026-07-20: keep pinned, in order)', () => {
+  it('lists the four fest day game ids in Day 1 → Day 4 order', () => {
     // Once the festival is fully over it stops appearing in the general /games
-    // feed queries (marquee/upcoming are upcoming-only), so the recap pin must
-    // fetch each day directly by its stable prod game id.
+    // feed queries (marquee/upcoming are upcoming-only), so the pin fetches each
+    // day directly by its stable prod game id — in day order, one through four.
     expect(FEST_RECAP_GAME_IDS).toHaveLength(4);
-    expect(FEST_RECAP_GAME_IDS).toContain('cmrbor91s0001v6er7awo39ed'); // Day 1
-    expect(FEST_RECAP_GAME_IDS).toContain('cmrborab30007v6ered5y33kc'); // Day 4
+    expect(FEST_RECAP_GAME_IDS[0]).toBe('cmrbor91s0001v6er7awo39ed'); // Day 1
+    expect(FEST_RECAP_GAME_IDS[1]).toBe('cmrbor9nf0003v6erjjzlrbln'); // Day 2
+    expect(FEST_RECAP_GAME_IDS[2]).toBe('cmrbor9zf0005v6erugtmw58s'); // Day 3
+    expect(FEST_RECAP_GAME_IDS[3]).toBe('cmrborab30007v6ered5y33kc'); // Day 4
     expect(new Set(FEST_RECAP_GAME_IDS).size).toBe(4); // no dupes
   });
 
-  it('keeps the recap active until the Jul 26 cutoff, then fades', () => {
-    expect(isFestRecapActive(Date.parse('2026-07-21T12:00:00.000Z'))).toBe(true);
-    expect(isFestRecapActive(Date.parse('2026-07-26T12:00:00.000Z'))).toBe(true);
-    expect(isFestRecapActive(Date.parse('2026-07-28T12:00:00.000Z'))).toBe(false);
-    expect(isFestRecapActive(FEST_RECAP_PIN_UNTIL_MS - 1)).toBe(true);
-    expect(isFestRecapActive(FEST_RECAP_PIN_UNTIL_MS + 1)).toBe(false);
+  it('keeps the four days pinned ongoing (marketing/continuity — not time-boxed)', () => {
+    expect(FEST_RECAP_PINNED).toBe(true);
   });
 });

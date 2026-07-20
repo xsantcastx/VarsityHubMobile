@@ -90,17 +90,18 @@ export function isNycViewer(
 }
 
 /**
- * Post-fest recap pin (owner ask, 2026-07-20).
+ * Fanatics Fest feed pin (owner ask, 2026-07-20, revised: keep pinned ongoing).
  *
  * Once the festival is fully over, its day events stop appearing in the general
  * /games feed queries — the marquee/upcoming query is upcoming-only and the
  * past-recap query excludes these teamless one-off events — so the four days
- * silently dropped off the feed the day after the fest. To keep the weekend
- * referenceable, the feed fetches each day directly by its stable prod game id
- * and hands them to the existing NYC fest-pin (which already renders all four,
- * Day 1 included). Scoped to a bounded recap window, then it auto-fades.
+ * silently dropped off the feed the day after the fest. To keep them pinned
+ * "just like before" (owner: marketing/continuity, good for users), the feed
+ * fetches each day directly by its stable prod game id, in day order, and hands
+ * them to the existing NYC fest-pin (which renders all four, Day 1 → Day 4).
  *
- * These are the four Fanatics Fest NYC 2026 day GAME ids (Day 1 → Day 4).
+ * These are the four Fanatics Fest NYC 2026 day GAME ids, in Day 1 → Day 4
+ * order — the array order is the render order.
  */
 export const FEST_RECAP_GAME_IDS = [
   'cmrbor91s0001v6er7awo39ed', // Day 1 — Thu Jul 16
@@ -110,12 +111,11 @@ export const FEST_RECAP_GAME_IDS = [
 ] as const;
 
 /**
- * The recap auto-fades after this instant: end of Jul 26 ET (owner: keep it up
- * ~7 days after the fest, matching the 7-day posting-grace window). After it,
- * the feed neither fetches nor pins the past fest days. 04:00Z = 00:00 EDT Jul 27.
+ * Whether the four days stay pinned. Owner revised the earlier 1-week window on
+ * 2026-07-20: keep them pinned to the NYC feed ONGOING for marketing/continuity,
+ * not time-boxed. Flip to `false` and OTA both runtimes to take the pin down.
+ * (A durable, admin-controlled pin ultimately belongs on the server — a real
+ * featured/pinned column — see the note at the top of this file; this stays the
+ * scoped switch until then.)
  */
-export const FEST_RECAP_PIN_UNTIL_MS = Date.parse('2026-07-27T04:00:00.000Z');
-
-export function isFestRecapActive(nowMs: number): boolean {
-  return nowMs < FEST_RECAP_PIN_UNTIL_MS;
-}
+export const FEST_RECAP_PINNED = true;

@@ -52,8 +52,8 @@ import { getDeterministicGameCardGradient } from '@/utils/feedGameCard';
 import { getLiveBounds, isGameLive, isGameOver, shouldPinToFeed } from '@/utils/liveWindow';
 import {
   FEST_RECAP_GAME_IDS,
+  FEST_RECAP_PINNED,
   isFanaticsFestGame,
-  isFestRecapActive,
   isNycViewer,
 } from '@/utils/fanaticsFest';
 import { optimizeImageUrl } from '@/utils/imageUrl';
@@ -774,7 +774,7 @@ export default function FeedScreen() {
         // all four (Day 1 included). Best-effort: a failure just means no recap
         // pin this load, never blocks the feed. Auto-fades (utils/fanaticsFest.ts).
         if (
-          isFestRecapActive(Date.now()) &&
+          FEST_RECAP_PINNED &&
           isNycViewer(
             viewerCoords ? { latitude: viewerCoords.lat, longitude: viewerCoords.lng } : null,
             me?.preferences?.zip_code
