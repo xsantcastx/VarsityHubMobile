@@ -63,9 +63,9 @@ else
 fi
 
 if node "$PROJECT_ROOT/scripts/verify-play-service-account.js" >/dev/null; then
-  pass "Play service account has Android Publisher access for com.xsantcastx.varsityhub"
+  pass "Play service account has Android Publisher access for com.varsityhub.varsityhub"
 else
-  fail "Play service account cannot access Android Publisher for com.xsantcastx.varsityhub"
+  fail "Play service account cannot access Android Publisher for com.varsityhub.varsityhub"
 fi
 
 if node - <<'NODE' "$PROJECT_ROOT" "$MANIFEST_PATH" "$ASSET_LINKS_PATH"
