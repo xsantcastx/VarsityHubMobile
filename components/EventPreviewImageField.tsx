@@ -14,6 +14,7 @@ import {
 
 import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { optimizeImageUrl } from '@/utils/imageUrl';
@@ -49,11 +50,14 @@ export default function EventPreviewImageField({
     async (asset: ImagePicker.ImagePickerAsset) => {
       setUploading(true);
       try {
+        // Resize + compress + iCloud-materialize through the shared pipeline —
+        // this surface previously uploaded the raw picked asset with no cap.
+        const prepared = await compressImageForUpload(asset.uri, asset.mimeType);
         const uploadResult = await uploadFile(
           getApiBaseUrl(),
-          asset.uri,
+          prepared.uri,
           asset.fileName || 'event-preview.jpg',
-          asset.mimeType || 'image/jpeg'
+          prepared.mimeType || asset.mimeType || 'image/jpeg'
         );
         const nextUrl = uploadResult?.url || uploadResult?.path || null;
         if (!nextUrl) {

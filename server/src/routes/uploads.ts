@@ -413,8 +413,19 @@ uploadsRouter.get(
     if (!contentType) {
       return res.status(400).json({ error: 'content_type is required' });
     }
+    // Size must be declared and bounded before a presigned URL is issued — a
+    // presigned PUT with no length bound is an unbounded-storage vector.
+    const contentLength = Number((req.query as any).content_length);
+    if (!Number.isInteger(contentLength) || contentLength <= 0) {
+      // Flat { error } shape matching the sibling content_type branch above,
+      // not the standard sendError envelope.
+      return res.status(400).json({
+        // error-envelope-exempt
+        error: 'content_length (positive integer bytes) is required',
+      });
+    }
     try {
-      const ticket = await createR2UploadTicket({ contentType });
+      const ticket = await createR2UploadTicket({ contentType, contentLength });
       if (!ticket) {
         return res
           .status(503)
@@ -423,8 +434,9 @@ uploadsRouter.get(
       addBreadcrumb('R2 presign issued', 'uploads.r2Presign', 'info', { key: ticket.key });
       return res.json(ticket);
     } catch (error: any) {
-      // Unsupported content type is a client error; anything else is upstream.
-      if (/Unsupported content type/i.test(String(error?.message))) {
+      // Unsupported content type / oversize / missing length are client errors;
+      // anything else is upstream.
+      if (/Unsupported content type|too large|contentLength/i.test(String(error?.message))) {
         return res.status(400).json({ error: error.message });
       }
       console.error('[uploads] Failed to presign R2 upload:', error);

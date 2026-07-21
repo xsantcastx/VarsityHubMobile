@@ -41,7 +41,7 @@ echo ""
 echo "🔍 Current configuration:"
 echo "  App: VarsityHub"
 echo "  Version: $(grep '"version"' app.json | head -1 | cut -d'"' -f4)"
-echo "  Bundle ID: com.xsantcastx.varsityhub"
+echo "  Bundle ID: com.varsityhub.varsityhub"
 echo ""
 
 # Ask which platform to build

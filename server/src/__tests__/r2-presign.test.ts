@@ -26,7 +26,9 @@ describe('R2 presign', () => {
 
   it('is dormant with no env — isR2Configured false and ticket is null', async () => {
     expect(isR2Configured()).toBe(false);
-    expect(await createR2UploadTicket({ contentType: 'image/jpeg' })).toBeNull();
+    expect(
+      await createR2UploadTicket({ contentType: 'image/jpeg', contentLength: 1024 })
+    ).toBeNull();
   });
 
   it('is dormant when only some vars are set', async () => {
@@ -34,7 +36,9 @@ describe('R2 presign', () => {
     process.env.R2_ACCESS_KEY_ID = 'key';
     // secret + bucket missing
     expect(isR2Configured()).toBe(false);
-    expect(await createR2UploadTicket({ contentType: 'image/jpeg' })).toBeNull();
+    expect(
+      await createR2UploadTicket({ contentType: 'image/jpeg', contentLength: 1024 })
+    ).toBeNull();
   });
 
   it('presigns a scoped, prefixed key with a public URL when fully configured', async () => {
@@ -46,7 +50,10 @@ describe('R2 presign', () => {
     process.env.R2_PUBLIC_BASE_URL = 'https://media.varsityhub.app';
 
     expect(isR2Configured()).toBe(true);
-    const ticket = await createR2UploadTicket({ contentType: 'video/mp4' });
+    const ticket = await createR2UploadTicket({
+      contentType: 'video/mp4',
+      contentLength: 5 * 1024 * 1024,
+    });
     expect(ticket).not.toBeNull();
     expect(ticket!.key.startsWith(`${getR2KeyPrefix()}/`)).toBe(true);
     expect(ticket!.key.endsWith('.mp4')).toBe(true);
@@ -61,8 +68,53 @@ describe('R2 presign', () => {
     process.env.R2_ACCESS_KEY_ID = 'b';
     process.env.R2_SECRET_ACCESS_KEY = 'c';
     process.env.R2_BUCKET = 'd';
-    await expect(createR2UploadTicket({ contentType: 'application/x-msdownload' })).rejects.toThrow(
-      /Unsupported content type/
-    );
+    await expect(
+      createR2UploadTicket({ contentType: 'application/x-msdownload', contentLength: 1024 })
+    ).rejects.toThrow(/Unsupported content type/);
+  });
+
+  const configureR2 = () => {
+    process.env.NODE_ENV = 'test';
+    process.env.R2_ACCOUNT_ID = 'acct123';
+    process.env.R2_ACCESS_KEY_ID = 'AKIAEXAMPLE';
+    process.env.R2_SECRET_ACCESS_KEY = 'secretexample';
+    process.env.R2_BUCKET = 'varsityhub-media';
+    process.env.R2_PUBLIC_BASE_URL = 'https://media.varsityhub.app';
+  };
+
+  it('rejects a video over the 150MB ceiling', async () => {
+    configureR2();
+    await expect(
+      createR2UploadTicket({ contentType: 'video/mp4', contentLength: 151 * 1024 * 1024 })
+    ).rejects.toThrow(/too large/);
+  });
+
+  it('rejects an image over the 10MB ceiling', async () => {
+    configureR2();
+    await expect(
+      createR2UploadTicket({ contentType: 'image/jpeg', contentLength: 11 * 1024 * 1024 })
+    ).rejects.toThrow(/too large/);
+  });
+
+  it('rejects a missing or non-positive content length', async () => {
+    configureR2();
+    await expect(
+      createR2UploadTicket({ contentType: 'image/jpeg', contentLength: 0 })
+    ).rejects.toThrow(/contentLength/);
+    await expect(
+      createR2UploadTicket({ contentType: 'image/jpeg', contentLength: -5 })
+    ).rejects.toThrow(/contentLength/);
+  });
+
+  it('pins content-length into the signed headers', async () => {
+    configureR2();
+    const ticket = await createR2UploadTicket({
+      contentType: 'video/mp4',
+      contentLength: 5 * 1024 * 1024,
+    });
+    expect(ticket).not.toBeNull();
+    // The signed URL must carry content-length as a signed header so R2 rejects
+    // a body whose length differs from what we validated.
+    expect(ticket!.uploadUrl.toLowerCase()).toContain('content-length');
   });
 });

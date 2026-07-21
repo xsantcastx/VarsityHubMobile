@@ -40,6 +40,18 @@ jest.mock('@/hooks/useVerificationGate', () => ({
       .toLowerCase() === 'email verification required',
 }));
 
+// The R2 probe now declares the file's byte size (server signs Content-Length),
+// so getInfoAsync must return a real size or R2 is skipped entirely and the
+// probe/fallback ordering these tests assert on would not run.
+jest.mock('expo-file-system/legacy', () => ({
+  getInfoAsync: jest.fn(async () => ({ exists: true, size: 1024, uri: 'file://asset' })),
+  createUploadTask: jest.fn(() => ({
+    uploadAsync: jest.fn(async () => ({ status: 200, body: '' })),
+    cancelAsync: jest.fn(async () => undefined),
+  })),
+  FileSystemUploadType: { BINARY_CONTENT: 'BINARY_CONTENT' },
+}));
+
 class MockXHR {
   static instances: MockXHR[] = [];
   static nextStatus = 200;
@@ -307,7 +319,7 @@ describe('uploadFile routing', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
-      'https://api.test/uploads/r2-presign?content_type=image%2Fjpeg'
+      'https://api.test/uploads/r2-presign?content_type=image%2Fjpeg&content_length=1024'
     );
     expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
       'https://api.test/uploads/cloudinary-signature'

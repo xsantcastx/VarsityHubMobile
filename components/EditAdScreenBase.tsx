@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import * as ImageManipulator from 'expo-image-manipulator';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -33,7 +33,6 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAdPaymentStatusLabel } from '@/utils/adPaymentStatusLabel';
 import { sanitizeText } from '@/utils/formUtils';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { toUserMessage } from '@/utils/toUserMessage';
@@ -170,12 +169,10 @@ export function EditAdScreenBase({
     const asset = (result as any).assets[0];
     try {
       setUploading(true);
-      const localUri = await materializeICloudAssetIfNeeded(asset.uri);
-      const manipulated = await ImageManipulator.manipulateAsync(
-        localUri,
-        [{ resize: { width: 1200 } }],
-        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
-      );
+      const manipulated = await compressImageForUpload(asset.uri, asset.mimeType, {
+        maxDimension: 1200,
+        quality: 0.85,
+      });
       const upload = await uploadFile(
         getApiBaseUrl(),
         manipulated.uri,

@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
-import * as ImageManipulator from 'expo-image-manipulator';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -35,7 +35,6 @@ import {
   validateZipCode,
 } from '@/utils/formUtils';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { toUserMessage } from '@/utils/toUserMessage';
@@ -312,14 +311,11 @@ export default function EditProfileScreen() {
   const uploadAvatar = async (uri: string) => {
     setUploadingAvatar(true);
     try {
-      const localUri = await materializeICloudAssetIfNeeded(uri);
-
-      // Compress and resize the image
-      const manipulatedImage = await ImageManipulator.manipulateAsync(
-        localUri,
-        [{ resize: { width: 400, height: 400 } }],
-        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-      );
+      // Avatar: intentionally small (400px) — shared pipeline, per-surface knob.
+      const manipulatedImage = await compressImageForUpload(uri, 'image/jpeg', {
+        maxDimension: 400,
+        quality: 0.8,
+      });
 
       // Upload to server
       const uploadResult = await uploadFile(
@@ -386,13 +382,10 @@ export default function EditProfileScreen() {
   const uploadHeaderImage = async (uri: string) => {
     setUploadingHeaderImage(true);
     try {
-      const localUri = await materializeICloudAssetIfNeeded(uri);
-
-      const manipulatedImage = await ImageManipulator.manipulateAsync(
-        localUri,
-        [{ resize: { width: 1600 } }],
-        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-      );
+      const manipulatedImage = await compressImageForUpload(uri, 'image/jpeg', {
+        maxDimension: 1600,
+        quality: 0.8,
+      });
 
       const uploadResult = await uploadFile(
         getApiBaseUrl(),

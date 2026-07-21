@@ -291,6 +291,7 @@ export default function StoriesViewer({
                   nativeControls={false}
                   paused={paused}
                   style={{ width: '100%', height: '100%' }}
+                  surface="stories"
                 />
               </View>
             ) : (

@@ -858,10 +858,16 @@ function CreatePostScreen() {
           throw new Error('Media upload succeeded but returned no URL. Please try again.');
         }
         // Capture media dimensions/size the uploader surfaced (aspect-ratio
-        // hints + storage-migration tooling). Undefined on the server-proxy
-        // fallback path, which is fine — the columns are nullable.
+        // hints + storage-migration tooling). The R2 direct-upload path returns
+        // no dimensions (raw byte store), so fall back to the picker's intrinsic
+        // width/height — compression preserves aspect ratio, so the orientation
+        // is correct even if the resolution was scaled. Without this fallback,
+        // R2 video posts (the production path) would never carry dimensions and
+        // landscape clips could not be shown orientation-correct.
         if (typeof res?.width === 'number') mediaMeta.media_width = res.width;
+        else if (typeof picked?.width === 'number') mediaMeta.media_width = picked.width;
         if (typeof res?.height === 'number') mediaMeta.media_height = res.height;
+        else if (typeof picked?.height === 'number') mediaMeta.media_height = picked.height;
         if (typeof res?.bytes === 'number') mediaMeta.media_bytes = res.bytes;
         if (typeof res?.duration === 'number') mediaMeta.media_duration_s = res.duration;
         // The bytes are in. The poster upload + the create call are what's left,

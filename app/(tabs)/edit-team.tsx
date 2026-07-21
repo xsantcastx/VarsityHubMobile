@@ -8,7 +8,7 @@ import {
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -181,8 +181,14 @@ function EditTeamScreen() {
 
   const setLogoFromPickerResult = async (pickerResult: ImagePicker.ImagePickerResult) => {
     if (!pickerResult.canceled && pickerResult.assets[0]) {
-      const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
-      setLogoUri(localUri);
+      // Resize (max 1920px) + compress + iCloud-materialize through the shared
+      // pipeline, so this surface can't upload a raw multi-MB photo. Was a bare
+      // materialize with no resize/cap.
+      const prepared = await compressImageForUpload(
+        pickerResult.assets[0].uri,
+        pickerResult.assets[0].mimeType
+      );
+      setLogoUri(prepared.uri);
     }
   };
 

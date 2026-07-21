@@ -343,16 +343,22 @@ interface R2UploadTicket {
 
 async function getR2UploadTicket(
   baseUrl: string,
-  contentType: string
+  contentType: string,
+  contentLength: number
 ): Promise<R2UploadTicket | null> {
   if (Date.now() - _r2UnavailableAt < R2_UNAVAILABLE_TTL_MS) return null;
+  // The server pins this into the signature and refuses an unbounded/oversize
+  // PUT, so it must be a real byte count. Without it, skip R2 (→ Cloudinary).
+  if (!Number.isInteger(contentLength) || contentLength <= 0) return null;
   const token = await getAccessTokenForRequest({ allowRefresh: true });
   if (!token) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SIG_FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(
-      `${baseUrl}/uploads/r2-presign?content_type=${encodeURIComponent(contentType)}`,
+      `${baseUrl}/uploads/r2-presign?content_type=${encodeURIComponent(
+        contentType
+      )}&content_length=${contentLength}`,
       { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
     );
     if (res.status === 503) {
@@ -445,7 +451,18 @@ async function tryUploadToR2(
   mimeType: string,
   options?: UploadOptions
 ): Promise<{ url: string; type: string; mime: string; provider: 'r2' } | null> {
-  const ticket = await getR2UploadTicket(baseUrl, mimeType);
+  // The server requires a declared, bounded size (it signs Content-Length into
+  // the ticket). Stat the file; if we can't, skip R2 and fall back to Cloudinary.
+  let contentLength = 0;
+  try {
+    const info = await FileSystem.getInfoAsync(uri);
+    if (info.exists && typeof (info as { size?: number }).size === 'number') {
+      contentLength = (info as { size: number }).size;
+    }
+  } catch {
+    // No size → fall through with 0, which getR2UploadTicket rejects.
+  }
+  const ticket = await getR2UploadTicket(baseUrl, mimeType, contentLength);
   if (!ticket) return null;
   try {
     if (__DEV__) console.log('[upload] Using direct R2 upload:', ticket.key);

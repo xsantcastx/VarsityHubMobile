@@ -15,7 +15,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { BIO_MAX_LENGTH, USERNAME_REGEX } from '@/utils/formUtils';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { safeGoBack } from '@/utils/navigation';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
@@ -232,7 +232,9 @@ export default function Step2Basic() {
         quality: 0.8,
       });
       if (!result.canceled && result.assets[0]) {
-        const materialized = await materializeICloudAssetIfNeeded(result.assets[0].uri);
+        const materialized = (
+          await compressImageForUpload(result.assets[0].uri, result.assets[0].mimeType)
+        ).uri;
         setAvatarUri(materialized);
         captureBreadcrumb('Onboarding avatar selected', 'onboarding.step2', {
           role: ob.role || 'unknown',
@@ -260,7 +262,9 @@ export default function Step2Basic() {
       if (!result.canceled && result.assets[0]) {
         // iOS returns ph:// URIs for iCloud-only photos; force the bytes local
         // before we hand the URI to the upload pipeline. Matches BannerUpload.tsx:131.
-        const materialized = await materializeICloudAssetIfNeeded(result.assets[0].uri);
+        const materialized = (
+          await compressImageForUpload(result.assets[0].uri, result.assets[0].mimeType)
+        ).uri;
         setHeaderImageUri(materialized);
         captureBreadcrumb('Onboarding cover image selected', 'onboarding.step2', {
           role: ob.role || 'unknown',

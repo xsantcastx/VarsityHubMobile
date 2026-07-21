@@ -5,6 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import React from 'react';
 import { toUserMessage } from '@/utils/toUserMessage';
 import { ensurePlaybackAudioSession } from '@/utils/audioSession';
+import { useVideoPlaybackTelemetry } from '@/utils/videoTelemetry';
 import {
   ActivityIndicator,
   Pressable,
@@ -54,6 +55,12 @@ interface VideoPlayerProps {
    * tile. Optional — without it the spinner-only behaviour is unchanged.
    */
   poster?: string | null;
+  /**
+   * Label for playback telemetry (TTFF / rebuffer / error), e.g. `'post_detail'`,
+   * `'stories'`, `'media_lightbox'`. Defaults to `'video_player'`. Composer
+   * surfaces (autoPlay=false) can leave the default — their timings are noise.
+   */
+  surface?: string;
 }
 
 export function VideoPlayer({
@@ -65,7 +72,9 @@ export function VideoPlayer({
   paused,
   contentFit = 'contain',
   poster,
+  surface = 'video_player',
 }: VideoPlayerProps) {
+  const reportPlayback = useVideoPlaybackTelemetry(surface, uri);
   const [retryKey, setRetryKey] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
@@ -96,6 +105,7 @@ export function VideoPlayer({
   });
 
   useEventListener(player, 'statusChange', ({ status, error }) => {
+    reportPlayback(status, error ? toUserMessage(error, 'Video unavailable') : undefined);
     if (status === 'loading') {
       setIsLoading(true);
       setErrorMessage(null);

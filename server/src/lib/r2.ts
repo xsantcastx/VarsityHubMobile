@@ -89,6 +89,15 @@ const MIME_EXTENSION: Record<string, string> = {
 
 const ALLOWED_MIME = new Set(Object.keys(MIME_EXTENSION));
 
+// R2 direct-upload size ceilings. These MUST match the client-side caps
+// (constants/video.ts MAX_VIDEO_SIZE_BYTES / MAX_IMAGE_SIZE_BYTES) so anything
+// accepted client-side is accepted here — and anything larger is refused BEFORE
+// a URL is issued. The declared size is also pinned into the signed
+// Content-Length below, so a client cannot declare a small size to pass this
+// gate and then PUT a much larger body: R2 rejects the mismatched length.
+const R2_MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
+const R2_MAX_VIDEO_BYTES = 150 * 1024 * 1024; // 150MB
+
 export interface R2PresignResult {
   uploadUrl: string;
   key: string;
@@ -104,6 +113,7 @@ export interface R2PresignResult {
  */
 export async function createR2UploadTicket(opts: {
   contentType: string;
+  contentLength: number;
   expiresIn?: number;
 }): Promise<R2PresignResult | null> {
   if (!isR2Configured()) return null;
@@ -111,6 +121,19 @@ export async function createR2UploadTicket(opts: {
   const contentType = opts.contentType.toLowerCase();
   if (!ALLOWED_MIME.has(contentType)) {
     throw new Error(`Unsupported content type for R2 upload: ${contentType}`);
+  }
+  // A presigned PUT with no length bound lets an authenticated client store an
+  // arbitrarily large object (storage-cost abuse). Require a declared size and
+  // refuse anything over the per-type ceiling before issuing the URL.
+  const contentLength = opts.contentLength;
+  if (!Number.isInteger(contentLength) || contentLength <= 0) {
+    throw new Error('contentLength (positive integer bytes) is required for R2 upload');
+  }
+  const maxBytes = contentType.startsWith('video/') ? R2_MAX_VIDEO_BYTES : R2_MAX_IMAGE_BYTES;
+  if (contentLength > maxBytes) {
+    throw new Error(
+      `R2 upload too large: ${contentLength} bytes exceeds ${maxBytes} for ${contentType}`
+    );
   }
   const ext = MIME_EXTENSION[contentType];
   const id = crypto.randomBytes(16).toString('hex');
@@ -121,12 +144,16 @@ export async function createR2UploadTicket(opts: {
     Bucket: env('R2_BUCKET'),
     Key: key,
     ContentType: contentType,
+    // Pin the exact body size into the signature so the client cannot PUT more
+    // bytes than it declared (and we validated) above.
+    ContentLength: contentLength,
   });
-  // Force content-type into the signed headers — the presigner does not by
-  // default, which would let a client claim image/jpeg then PUT anything.
+  // Force content-type AND content-length into the signed headers — the
+  // presigner signs neither by default, which would let a client claim
+  // image/jpeg then PUT anything, or declare a small size then send a large one.
   const uploadUrl = await getSignedUrl(getClient(), command, {
     expiresIn,
-    signableHeaders: new Set(['content-type', 'host']),
+    signableHeaders: new Set(['content-type', 'content-length', 'host']),
   });
 
   const publicBase = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');

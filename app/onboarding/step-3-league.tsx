@@ -33,7 +33,7 @@ import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getFreshPostAuthState } from '@/utils/postMutationAuth';
@@ -1435,13 +1435,14 @@ function Step3League() {
                           quality: 0.9,
                         });
                         if (!result.canceled && result.assets?.[0]?.uri) {
-                          const materialized = await materializeICloudAssetIfNeeded(
-                            result.assets[0].uri
+                          const prepared = await compressImageForUpload(
+                            result.assets[0].uri,
+                            result.assets[0].mimeType
                           );
-                          setSupportingDocumentUri(materialized);
+                          setSupportingDocumentUri(prepared.uri);
                           setSupportingDocumentUrl(null);
                           setSupportingDocumentName(null);
-                          setSupportingDocumentMimeType(result.assets[0].mimeType || 'image/jpeg');
+                          setSupportingDocumentMimeType(prepared.mimeType || 'image/jpeg');
                         }
                       },
                     },

@@ -4544,7 +4544,7 @@ paymentsRouter.post(
 // could silently drift.
 export const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = APPLE_PRODUCT_TO_PLAN;
 export const GOOGLE_ALLOWED_PACKAGES = (
-  process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.xsantcastx.varsityhub'
+  process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.varsityhub.varsityhub,com.xsantcastx.varsityhub'
 )
   .split(',')
   .map(value => value.trim())

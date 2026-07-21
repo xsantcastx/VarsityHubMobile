@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 // @ts-ignore JS exports
 import { Support } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
@@ -72,7 +72,7 @@ export default function FeedbackScreen() {
       if ((result as any).canceled || !(result as any).assets?.[0]) return;
 
       const asset = (result as any).assets[0];
-      const localUri = await materializeICloudAssetIfNeeded(asset.uri);
+      const localUri = (await compressImageForUpload(asset.uri, asset.mimeType)).uri;
       setScreenshotUri(localUri);
 
       // Upload to Cloudinary

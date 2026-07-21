@@ -1177,6 +1177,7 @@ export default function PostDetailScreen() {
                     style={styles.heroVideo}
                     autoPlay
                     paused={!isActivePost || fullscreenMedia}
+                    surface="post_detail"
                   />
                 </View>
               )}
@@ -2021,6 +2022,7 @@ export default function PostDetailScreen() {
               style={styles.fullscreenVideo}
               autoPlay
               nativeControls
+              surface="post_detail_fullscreen"
             />
           )}
         </View>

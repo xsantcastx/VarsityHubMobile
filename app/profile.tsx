@@ -105,6 +105,8 @@ const toFeedPost = (item: any): FeedPost | null => {
     // card resolve from either page.
     game_id: item?.game_id ?? item?.game?.id ?? null,
     event_id: item?.event_id ?? item?.event?.id ?? null,
+    media_width: typeof item?.media_width === 'number' ? item.media_width : null,
+    media_height: typeof item?.media_height === 'number' ? item.media_height : null,
   };
 };
 

@@ -128,6 +128,8 @@ const toFeedPost = (item: any): FeedPost | null => {
     has_upvoted: Boolean(item?.has_upvoted),
     has_bookmarked: Boolean(item?.has_bookmarked),
     is_following_author: Boolean(item?.is_following_author),
+    media_width: typeof item?.media_width === 'number' ? item.media_width : null,
+    media_height: typeof item?.media_height === 'number' ? item.media_height : null,
   };
 };
 

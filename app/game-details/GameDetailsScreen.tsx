@@ -2899,7 +2899,12 @@ const GameDetailsScreen = () => {
             {viewer?.url ? (
               viewer.kind === 'video' ? (
                 // Media lightbox — the viewer opened this to watch it.
-                <VideoPlayer uri={viewer.url} style={styles.viewerMedia} autoPlay />
+                <VideoPlayer
+                  uri={viewer.url}
+                  style={styles.viewerMedia}
+                  autoPlay
+                  surface="media_lightbox"
+                />
               ) : (
                 <Image
                   source={{ uri: optimizeImageUrl(viewer.url, 1200) }}
