@@ -25,9 +25,13 @@ function levelRank(level: string | null): number {
   return i === -1 ? LEVEL_ORDER.length : i;
 }
 
+// Optional-auth (no requireAuth): program-page is a GUEST_BROWSE_ROUTE_SEGMENT
+// and the canonical public surface for a sport program, mirroring the
+// guest-accessible GET /teams/:id/screen-summary. viewerId is null for guests
+// (or a lapsed token); per-team privacy is enforced via isTeamHiddenFromViewer
+// below, so a guest sees only public level teams.
 programsRouter.get(
   '/:id/screen-summary',
-  requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const programId = String(req.params.id);
     const viewerId = req.user?.id ?? null;
