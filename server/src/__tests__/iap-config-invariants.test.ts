@@ -83,6 +83,19 @@ describe('IAP product configuration invariants', () => {
     expect(adPricing).toMatch(/WEEKEND_BLOCK_PRICE\s*=\s*7\.99/);
   });
 
+  it('client IAP hooks read the store product identifier via `id` (react-native-iap v14), not productId-only', () => {
+    // react-native-iap v14 (Nitro rewrite) exposes fetched Product objects with
+    // `id`, not `productId` (only Purchase objects keep `productId`). Reading
+    // `.productId` off products makes the available-products list always empty,
+    // which surfaces to users as "Apple ad products unavailable for this build".
+    // Guard against regressing back to a productId-only read on the product list.
+    expect(clientAdIap).toMatch(/product\?\.id \?\? product\?\.productId/);
+    expect(clientAdIap).not.toMatch(
+      /typeof product\?\.productId === 'string' \? product\.productId/
+    );
+    expect(clientIap).toMatch(/planSkus\.includes\(p\.id \?\? p\.productId \?\? ''\)/);
+  });
+
   it('client ad dollar prices, server adPricing util, and AD_PRODUCT_CENTS stay pinned together', () => {
     expect(adCalendarScreen).toMatch(/const weekdayRate = 4\.99;/);
     expect(adCalendarScreen).toMatch(/const weekendRate = 7\.99;/);

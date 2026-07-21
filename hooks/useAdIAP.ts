@@ -348,7 +348,14 @@ export function useAdIAP() {
 
   const availableProductIds = useMemo<string[]>(() => {
     const productIds: string[] = (products || [])
-      .map((product: any) => (typeof product?.productId === 'string' ? product.productId : ''))
+      // react-native-iap v14 (Nitro) exposes the product identifier as `id`;
+      // older versions used `productId`. Read `id` first, fall back for safety.
+      // Reading `productId` only makes this list always empty on v14, which
+      // surfaces as "Apple ad products unavailable for this build".
+      .map((product: any) => {
+        const id = product?.id ?? product?.productId;
+        return typeof id === 'string' ? id : '';
+      })
       .filter((productId: string) => productId.length > 0);
     return [...new Set<string>(productIds)].sort();
   }, [products]);
@@ -521,7 +528,7 @@ export function useAdIAP() {
   const getProduct = useCallback(
     (type: 'weekday' | 'weekend') => {
       const sku = type === 'weekday' ? AD_IAP_PRODUCT_IDS.weekday : AD_IAP_PRODUCT_IDS.weekend;
-      return (products || []).find((p: any) => p.productId === sku);
+      return (products || []).find((p: any) => (p?.id ?? p?.productId) === sku);
     },
     [products]
   );
