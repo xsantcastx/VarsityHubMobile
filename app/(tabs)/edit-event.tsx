@@ -15,11 +15,10 @@ import { useRequireTeamManagement } from '@/hooks/useRequireTeamManagement';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { buildEventDetailHref } from '@/utils/eventRoutes';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -121,12 +120,10 @@ export default function EditEventScreen() {
   const uploadBannerFromUri = useCallback(async (uri: string) => {
     setUploadingBanner(true);
     try {
-      const localUri = await materializeICloudAssetIfNeeded(uri);
-      const manipulatedImage = await ImageManipulator.manipulateAsync(
-        localUri,
-        [{ resize: { width: 1600 } }],
-        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG }
-      );
+      const manipulatedImage = await compressImageForUpload(uri, 'image/jpeg', {
+        maxDimension: 1600,
+        quality: 0.82,
+      });
       const uploadResult = await uploadFile(
         getApiBaseUrl(),
         manipulatedImage.uri,

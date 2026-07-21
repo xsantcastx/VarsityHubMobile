@@ -4,7 +4,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -181,7 +181,8 @@ export default function EditOrganizationScreen() {
       if (!r.canceled && r.assets?.[0]) {
         setUploading(true);
         try {
-          const localUri = await materializeICloudAssetIfNeeded(r.assets[0].uri);
+          const localUri = (await compressImageForUpload(r.assets[0].uri, r.assets[0].mimeType))
+            .uri;
           const res = await uploadFile(getApiBaseUrl(), localUri, fileName, 'image/jpeg');
           const url = res?.url || res?.path;
           if (url) setUrl(url);

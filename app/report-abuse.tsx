@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -96,7 +96,7 @@ export default function ReportAbuseScreen() {
 
         for (const asset of result.assets) {
           try {
-            const localUri = await materializeICloudAssetIfNeeded(asset.uri);
+            const localUri = (await compressImageForUpload(asset.uri, asset.mimeType)).uri;
             const filename = localUri.split('/').pop() || 'evidence.jpg';
             const response = await uploadFile(null, localUri, filename);
             if (response?.url) {

@@ -34,23 +34,35 @@ function isImageFile(mimeType?: string, uri?: string): boolean {
  */
 export async function compressImageForUpload(
   uri: string,
-  mimeType?: string
+  mimeType?: string,
+  options?: { maxDimension?: number; quality?: number }
 ): Promise<{ uri: string; mimeType?: string }> {
-  // Don't compress non-images (videos, PDFs, etc.)
-  if (!isImageFile(mimeType, uri)) {
-    return { uri, mimeType };
-  }
+  // Per-surface knobs with the shared defaults. Surfaces that want a smaller
+  // stored asset (e.g. a 400px avatar) pass maxDimension; everything else gets
+  // the 1920px / 0.8 policy. One code path, one place to change the policy.
+  const maxDimension = options?.maxDimension ?? MAX_IMAGE_DIMENSION;
+  const quality = options?.quality ?? IMAGE_COMPRESS_QUALITY;
 
-  // v1.0.2: force iCloud download before manipulation
+  // Materialize iCloud assets FIRST — before the image check — so non-image
+  // files (e.g. a PDF picked from Files/iCloud) are still downloaded to a local
+  // path. This makes the function a safe drop-in for the bare
+  // materializeICloudAssetIfNeeded calls the capture surfaces used to make, so
+  // every surface can route through one pipeline without regressing documents.
   const localUri = await materializeICloudAssetIfNeeded(uri);
+
+  // Don't compress non-images (videos, PDFs, etc.) — pass the materialized URI.
+  if (!isImageFile(mimeType, uri)) {
+    return { uri: localUri, mimeType };
+  }
 
   // Attempt 1: resize to max dimension + compress
   try {
-    if (__DEV__) console.log('[media] Compressing image for upload (max 1920px, 80% quality)...');
+    if (__DEV__)
+      console.log(`[media] Compressing image for upload (max ${maxDimension}px, q${quality})...`);
     const manip = await ImageManipulator.manipulateAsync(
       localUri,
-      [{ resize: { width: MAX_IMAGE_DIMENSION } }],
-      { compress: IMAGE_COMPRESS_QUALITY, format: ImageManipulator.SaveFormat.JPEG }
+      [{ resize: { width: maxDimension } }],
+      { compress: quality, format: ImageManipulator.SaveFormat.JPEG }
     );
     if (manip?.uri) {
       if (__DEV__) console.log('[media] Image compressed to:', manip.uri);
@@ -63,7 +75,7 @@ export async function compressImageForUpload(
   // Attempt 2: compress without resize (in case the resize dimension caused issues)
   try {
     const manip = await ImageManipulator.manipulateAsync(localUri, [], {
-      compress: IMAGE_COMPRESS_QUALITY,
+      compress: quality,
       format: ImageManipulator.SaveFormat.JPEG,
     });
     if (manip?.uri) {

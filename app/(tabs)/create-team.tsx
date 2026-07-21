@@ -3,7 +3,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useCreateTeamAccess } from '@/hooks/useCreateTeamAccess';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -436,7 +436,9 @@ function CreateTeamScreen() {
     });
 
     if (!pickerResult.canceled && pickerResult.assets[0]) {
-      const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
+      const localUri = (
+        await compressImageForUpload(pickerResult.assets[0].uri, pickerResult.assets[0].mimeType)
+      ).uri;
       setLogoUri(localUri);
     }
   };
@@ -461,7 +463,9 @@ function CreateTeamScreen() {
     });
 
     if (!pickerResult.canceled && pickerResult.assets[0]) {
-      const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
+      const localUri = (
+        await compressImageForUpload(pickerResult.assets[0].uri, pickerResult.assets[0].mimeType)
+      ).uri;
       setLogoUri(localUri);
     }
   };

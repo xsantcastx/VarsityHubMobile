@@ -44,9 +44,11 @@ import { getAuthSnapshot } from '@/utils/authState';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import events from '@/utils/events';
 import { optimizeImageUrl, optimizeVideoUrl } from '@/utils/imageUrl';
+import { resolveMediaFit } from '@/utils/mediaAspect';
 import { AppLinks, buildNativeSharePayload } from '@/utils/links';
 import { resolveMediaType } from '@/utils/media';
 import { promptForSignIn } from '@/utils/requireSignIn';
+import { useVideoPlaybackTelemetry } from '@/utils/videoTelemetry';
 import { toUserMessage } from '@/utils/toUserMessage';
 
 // Initial guess only — cards/paging use the MEASURED container size (see
@@ -121,6 +123,12 @@ export type FeedPost = {
   type?: string | null;
   collage?: CollageData | null;
   preview_url?: string | null;
+  // Intrinsic media dimensions (nullable — old rows + R2 proxy uploads have
+  // none). Drive orientation-correct display: a landscape clip is shown whole
+  // instead of cropped into the portrait frame. Keep all THREE mappers in sync
+  // per the Post-mapper Consistency Rule.
+  media_width?: number | null;
+  media_height?: number | null;
 };
 
 type CommentItem = {
@@ -167,6 +175,8 @@ export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
     is_following_author: Boolean(item?.is_following_author),
     game_id: item?.game_id ?? item?.game?.id ?? null,
     event_id: item?.event_id ?? item?.event?.id ?? null,
+    media_width: typeof item?.media_width === 'number' ? item.media_width : null,
+    media_height: typeof item?.media_height === 'number' ? item.media_height : null,
   };
 };
 
@@ -298,6 +308,13 @@ const FeedCard = memo(
           : null,
       [post.media_type, post.preview_url]
     );
+    // A landscape clip is shown whole (contentFit 'contain') instead of cropped
+    // into the portrait card; portrait/square/unknown media keeps the immersive
+    // fill. Poster and video use the same fit so there's no jump on load.
+    const mediaFit = useMemo(
+      () => resolveMediaFit(post.media_width, post.media_height),
+      [post.media_width, post.media_height]
+    );
 
     useEffect(() => {
       const deleteTimer = deleteTimerRef.current;
@@ -361,7 +378,9 @@ const FeedCard = memo(
       setVideoError(null);
     }, [post.id, post.media_type, post.media_url, videoRetryKey]);
 
+    const reportPlayback = useVideoPlaybackTelemetry('feed', videoSource?.uri ?? null);
     useEventListener(player, 'statusChange', ({ status, error }) => {
+      reportPlayback(status, error ? toUserMessage(error, 'Video unavailable') : undefined);
       if (status === 'loading') {
         setIsVideoLoading(true);
         setVideoError(null);
@@ -450,12 +469,16 @@ const FeedCard = memo(
                   once expo-video reports readyToPlay (which clears
                   isVideoLoading) — by then the first real frame is drawn. */}
               {posterSource && isVideoLoading ? (
-                <FastImage source={posterSource} style={styles.videoPoster} resizeMode="cover" />
+                <FastImage
+                  source={posterSource}
+                  style={styles.videoPoster}
+                  resizeMode={mediaFit.contentFit === 'contain' ? 'contain' : 'cover'}
+                />
               ) : null}
               <VideoView
                 player={player}
                 style={styles.media}
-                contentFit="cover"
+                contentFit={mediaFit.contentFit}
                 nativeControls={false}
                 allowsFullscreen={false}
               />

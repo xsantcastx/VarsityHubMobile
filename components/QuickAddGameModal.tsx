@@ -9,7 +9,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { formatGameTime, isPastGameDate } from '@/utils/gameFormHelpers';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { toUserMessage } from '@/utils/toUserMessage';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -684,7 +684,9 @@ export default function QuickAddGameModal({
       });
 
       if (!pickerResult.canceled && pickerResult.assets[0]) {
-        const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
+        const localUri = (
+          await compressImageForUpload(pickerResult.assets[0].uri, pickerResult.assets[0].mimeType)
+        ).uri;
         await uploadCustomBanner(localUri);
       }
     } catch {
@@ -714,7 +716,9 @@ export default function QuickAddGameModal({
       });
 
       if (!pickerResult.canceled && pickerResult.assets[0]) {
-        const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
+        const localUri = (
+          await compressImageForUpload(pickerResult.assets[0].uri, pickerResult.assets[0].mimeType)
+        ).uri;
         await uploadCustomBanner(localUri);
       }
     } catch {
