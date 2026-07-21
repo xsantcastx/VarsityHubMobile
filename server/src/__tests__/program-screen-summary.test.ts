@@ -168,6 +168,21 @@ describe('GET /programs/:id/screen-summary', () => {
     expect(res.body.counts.teams).toBe(2);
   });
 
+  it('is guest-browsable: no auth token returns the public program with its visible levels (private teams excluded)', async () => {
+    // program-page is a GUEST_BROWSE_ROUTE_SEGMENT and the documented canonical
+    // PUBLIC surface for a sport program — mirroring GET /teams/:id/screen-summary,
+    // which is also guest-accessible. A guest (or a viewer whose token lapsed)
+    // must see the program, not a hard 401 "Unauthorized" wall.
+    const res = await request(app).get(`/programs/${programId}/screen-summary`);
+    expect(res.status).toBe(200);
+    expect(res.body.program.id).toBe(programId);
+    // Public varsity + jv visible in canonical order; private freshman excluded.
+    expect(res.body.levels.map((l: any) => l.level)).toEqual(['varsity', 'jv']);
+    expect(res.body.counts.teams).toBe(2);
+    // A guest follows nothing.
+    expect(res.body.program.is_following).toBe(false);
+  });
+
   it('followers_count is the ProgramFollow count, not a union over level-team followers', async () => {
     // Dedicated fresh users so this test is self-contained and order-independent.
     const passwordHash = await bcrypt.hash('TestPassword123!', 10);
