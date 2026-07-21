@@ -26,7 +26,9 @@ describe('R2 presign', () => {
 
   it('is dormant with no env — isR2Configured false and ticket is null', async () => {
     expect(isR2Configured()).toBe(false);
-    expect(await createR2UploadTicket({ contentType: 'image/jpeg', contentLength: 1024 })).toBeNull();
+    expect(
+      await createR2UploadTicket({ contentType: 'image/jpeg', contentLength: 1024 })
+    ).toBeNull();
   });
 
   it('is dormant when only some vars are set', async () => {
@@ -34,7 +36,9 @@ describe('R2 presign', () => {
     process.env.R2_ACCESS_KEY_ID = 'key';
     // secret + bucket missing
     expect(isR2Configured()).toBe(false);
-    expect(await createR2UploadTicket({ contentType: 'image/jpeg', contentLength: 1024 })).toBeNull();
+    expect(
+      await createR2UploadTicket({ contentType: 'image/jpeg', contentLength: 1024 })
+    ).toBeNull();
   });
 
   it('presigns a scoped, prefixed key with a public URL when fully configured', async () => {
@@ -46,7 +50,10 @@ describe('R2 presign', () => {
     process.env.R2_PUBLIC_BASE_URL = 'https://media.varsityhub.app';
 
     expect(isR2Configured()).toBe(true);
-    const ticket = await createR2UploadTicket({ contentType: 'video/mp4', contentLength: 5 * 1024 * 1024 });
+    const ticket = await createR2UploadTicket({
+      contentType: 'video/mp4',
+      contentLength: 5 * 1024 * 1024,
+    });
     expect(ticket).not.toBeNull();
     expect(ticket!.key.startsWith(`${getR2KeyPrefix()}/`)).toBe(true);
     expect(ticket!.key.endsWith('.mp4')).toBe(true);

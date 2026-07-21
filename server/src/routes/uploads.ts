@@ -417,7 +417,12 @@ uploadsRouter.get(
     // presigned PUT with no length bound is an unbounded-storage vector.
     const contentLength = Number((req.query as any).content_length);
     if (!Number.isInteger(contentLength) || contentLength <= 0) {
-      return res.status(400).json({ error: 'content_length (positive integer bytes) is required' });
+      // Flat { error } shape matching the sibling content_type branch above,
+      // not the standard sendError envelope.
+      return res.status(400).json({
+        // error-envelope-exempt
+        error: 'content_length (positive integer bytes) is required',
+      });
     }
     try {
       const ticket = await createR2UploadTicket({ contentType, contentLength });
