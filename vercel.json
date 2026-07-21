@@ -14,6 +14,12 @@
       "destination": "https://www.varsityhub.app/$1",
       "permanent": true
     },
+    { "source": "/post/:id", "destination": "/posts/:id", "permanent": false },
+    { "source": "/game/:id", "destination": "/games/:id", "permanent": false },
+    { "source": "/event/:id", "destination": "/events/:id", "permanent": false },
+    { "source": "/team/:id", "destination": "/teams/:id", "permanent": false },
+    { "source": "/user/:id", "destination": "/users/:id", "permanent": false },
+    { "source": "/program/:id", "destination": "/programs/:id", "permanent": false },
     {
       "source": "/events/:id",
       "missing": [
