@@ -50,6 +50,12 @@ import {
 } from '@/utils/feedGameQueries';
 import { getDeterministicGameCardGradient } from '@/utils/feedGameCard';
 import { getLiveBounds, isGameLive, isGameOver, shouldPinToFeed } from '@/utils/liveWindow';
+import {
+  FEST_RECAP_GAME_IDS,
+  FEST_RECAP_PINNED,
+  isFanaticsFestGame,
+  isNycViewer,
+} from '@/utils/fanaticsFest';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { prefetchGameSummary } from '@/utils/prefetch';
 import {
@@ -88,6 +94,8 @@ type FeedItem =
   | { _t: 'location_prompt' }
   | { _t: 'seed_banner' }
   | { _t: 'game'; data: GameItem; idx: number }
+  | { _t: 'fest_header' }
+  | { _t: 'fest_game'; data: GameItem; idx: number }
   | { _t: 'pinned_game'; data: GameItem; idx: number }
   | { _t: 'ad'; ad: any | null; idx: number }
   | { _t: 'section_header'; title: string; key: string }
@@ -757,6 +765,39 @@ export default function FeedScreen() {
           normalizeGamesPage(marqueeGamesData).games
         );
 
+        // Post-fest recap pin (owner ask 2026-07-20): once Fanatics Fest is fully
+        // over, its four days stop appearing in the general /games feed queries
+        // (marquee/upcoming are upcoming-only; the past recap excludes these
+        // teamless one-offs), so they vanished from the feed the day after. For
+        // NYC viewers, during the recap window, fetch the four days directly by id
+        // and merge them into the pool — the existing fest-pin memo then renders
+        // all four (Day 1 included). Best-effort: a failure just means no recap
+        // pin this load, never blocks the feed. Auto-fades (utils/fanaticsFest.ts).
+        if (
+          FEST_RECAP_PINNED &&
+          isNycViewer(
+            viewerCoords ? { latitude: viewerCoords.lat, longitude: viewerCoords.lng } : null,
+            me?.preferences?.zip_code
+          )
+        ) {
+          try {
+            const recapRaw = await Promise.all(
+              FEST_RECAP_GAME_IDS.map(id =>
+                queryClient
+                  .fetchQuery({ queryKey: ['feed-fest-recap', id], queryFn: () => Game.get(id) })
+                  .catch(() => null)
+              )
+            );
+            const seen = new Set((normalizedGames ?? []).map(g => String(g.id)));
+            const recapGames = recapRaw
+              .map((raw: any) => (raw && typeof raw === 'object' ? (raw.game ?? raw) : null))
+              .filter((g: any): g is GameItem => !!g && g.id != null && !seen.has(String(g.id)));
+            if (recapGames.length) normalizedGames = [...(normalizedGames ?? []), ...recapGames];
+          } catch (recapErr: any) {
+            if (__DEV__) console.warn('[feed] fest recap fetch failed:', recapErr?.message);
+          }
+        }
+
         // If no games exist, seed sample games as real DB records (stories/polls work)
         if ((!normalizedGames || normalizedGames.length === 0) && upcomingData !== null) {
           try {
@@ -1087,12 +1128,41 @@ export default function FeedScreen() {
 
   // Separate upcoming/live and past events
   // Events within the 2-hour live window stay in "upcoming" so they appear prominently
-  const { pinnedEvents, upcomingEvents, pastEvents } = useMemo(() => {
+  const { festPinnedEvents, pinnedEvents, upcomingEvents, pastEvents } = useMemo(() => {
     const now = Date.now();
+
+    // NYC-area viewers get all four Fanatics Fest days pinned to the very top of
+    // their feed, in day order, so they can jump into today's day and reference
+    // the ones already past — including Day 1, whose posting window has closed
+    // (owner ask, 2026-07-17). Detected from device location or a saved NYC zip
+    // (utils/fanaticsFest.ts); a viewer we can't place in NYC is NOT fest-pinned
+    // and just sees the fest days in the normal upcoming/past flow below.
+    const nycViewer = isNycViewer(viewerPosition, me?.preferences?.zip_code);
+    const festStartMs = (game: GameItem) => {
+      const bounds = getLiveBounds(game);
+      if (bounds) return bounds.startsAt;
+      return game.date ? new Date(game.date).getTime() : NaN;
+    };
+
+    const fest: GameItem[] = [];
+    const rest: GameItem[] = [];
+    filtered.forEach(game => {
+      if (nycViewer && isFanaticsFestGame(game)) fest.push(game);
+      else rest.push(game);
+    });
+    // Day 1 → Day 4 by server-authoritative start; unparseable dates sink last.
+    fest.sort((a, b) => {
+      const at = festStartMs(a);
+      const bt = festStartMs(b);
+      if (!Number.isFinite(at)) return 1;
+      if (!Number.isFinite(bt)) return -1;
+      return at - bt;
+    });
+
     const upcoming: GameItem[] = [];
     const past: GameItem[] = [];
 
-    filtered.forEach(game => {
+    rest.forEach(game => {
       // A game stays "upcoming" until its live window actually closes, which is
       // a server rule shipped on the payload (starts_at/live_from/live_until).
       // The old check compared the game's own date against a fixed 2h window,
@@ -1135,14 +1205,19 @@ export default function FeedScreen() {
     // a fan standing at the venue should never have to scroll to find the
     // event they are currently attending.
     const pinned: GameItem[] = [];
-    const rest: GameItem[] = [];
+    const unpinned: GameItem[] = [];
     upcoming.forEach(game => {
       if (shouldPinToFeed(game, viewerPosition, now)) pinned.push(game);
-      else rest.push(game);
+      else unpinned.push(game);
     });
 
-    return { pinnedEvents: pinned, upcomingEvents: rest, pastEvents: past };
-  }, [filtered, viewerPosition]);
+    return {
+      festPinnedEvents: fest,
+      pinnedEvents: pinned,
+      upcomingEvents: unpinned,
+      pastEvents: past,
+    };
+  }, [filtered, viewerPosition, me?.preferences?.zip_code]);
 
   // Ad rotation timer logic (max 2 advertisers):
   // 1 ad: Show ad for 5 minutes, then placeholder for 15 seconds, repeat
@@ -1239,6 +1314,16 @@ export default function FeedScreen() {
   const feedItems = useMemo(() => {
     const items: FeedItem[] = [];
 
+    // Fanatics Fest weekend pinned to the top for NYC users — all four days in
+    // order under one header (owner ask, 2026-07-17). Sits above even the
+    // at-venue pin so the whole weekend is the first thing a NYC fan sees.
+    if (festPinnedEvents.length > 0) {
+      items.push({ _t: 'fest_header' });
+      festPinnedEvents.forEach((game, idx) => {
+        items.push({ _t: 'fest_game', data: game, idx });
+      });
+    }
+
     // An event the viewer is physically at, right now, outranks everything —
     // including the verify-email nudge. This is the "you're here, post to it"
     // surface (owner rule, 2026-07-16).
@@ -1325,6 +1410,7 @@ export default function FeedScreen() {
     hasDeviceLocation,
     sponsoredAds.length,
     showSeedBanner,
+    festPinnedEvents,
     pinnedEvents,
     upcomingWithAds,
     followedPosts,
@@ -1479,6 +1565,10 @@ export default function FeedScreen() {
         return 'seed_banner';
       case 'game':
         return `game-${item.data.id}`;
+      case 'fest_header':
+        return 'fest_header';
+      case 'fest_game':
+        return `fest_game-${item.data.id}`;
       case 'pinned_game':
         return `pinned_game-${item.data.id}`;
       case 'ad':
@@ -1581,6 +1671,51 @@ export default function FeedScreen() {
           return (
             <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
               {renderGameCard(item.data, isGameLive(item.data), 'feed')}
+            </View>
+          );
+        }
+
+        case 'fest_header':
+          return (
+            <View style={{ paddingHorizontal: 16, marginBottom: 12, marginTop: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <MaterialIcons
+                  name="stars"
+                  size={16}
+                  color={Colors[colorScheme].tint}
+                  accessibilityElementsHidden
+                />
+                <Text
+                  style={{
+                    color: Colors[colorScheme].tint,
+                    fontSize: 13,
+                    fontWeight: '700',
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  Fanatics Fest NYC 2026
+                </Text>
+              </View>
+              <Text
+                style={{
+                  color: Colors[colorScheme].mutedText,
+                  fontSize: 12,
+                  marginTop: 2,
+                }}
+              >
+                All four days at the Javits Center — tap a day to see highlights.
+              </Text>
+            </View>
+          );
+
+        case 'fest_game': {
+          // Whole weekend pinned for NYC users, in day order. Unlike the at-venue
+          // pin below, these are NOT forced live — Day 1's window has closed, so
+          // the card reflects its real state (isGameLive) and its own posting
+          // gate handles that a closed day can be viewed but not posted to.
+          return (
+            <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+              {renderGameCard(item.data, isGameLive(item.data), 'feed-fest')}
             </View>
           );
         }

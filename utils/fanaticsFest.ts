@@ -1,0 +1,121 @@
+/**
+ * Fanatics Fest NYC 2026 — feed-pinning helpers (owner ask, 2026-07-17):
+ * "For NYC users, Fanatics Fest should be pinned to their feed page — all four
+ * event pages in order."
+ *
+ * The four day events are one-off entries created from
+ * server/scripts/one-off/one-off-events.data.ts, each titled
+ * "Fanatics Fest NYC 2026 — Day N: …", at the Javits Center. There is no
+ * event-series or "featured"/"pinned" column on Game/Event and no region
+ * concept, so this weekend's pin is done client-side off the two stable facts
+ * the payload already carries: the title prefix and the viewer's location.
+ *
+ * Scoped deliberately to this fest weekend and easy to remove afterward — if a
+ * durable pin/region feature is wanted later it should be designed on the
+ * server (a real column + selection), not grown out of this file.
+ */
+
+import { distanceKm } from './liveWindow';
+
+/**
+ * Title prefix stamped on all four fest day games and events (the game inherits
+ * the event title in create-one-off-events.ts). Lower-cased, trimmed compare so
+ * casing/whitespace drift never silently un-pins the fest.
+ */
+const FEST_TITLE_PREFIX = 'fanatics fest';
+
+export function isFanaticsFestGame(game: { title?: string | null } | null | undefined): boolean {
+  const title = typeof game?.title === 'string' ? game.title.trim().toLowerCase() : '';
+  return title.startsWith(FEST_TITLE_PREFIX);
+}
+
+/**
+ * NYC center — the Javits Center itself (the fest venue), which sits at the
+ * heart of the metro, so one constant serves as both "the fest" and "NYC".
+ */
+export const NYC_CENTER = { latitude: 40.75687, longitude: -74.001762 };
+
+/**
+ * Metro radius for a GPS-located viewer. 75km from midtown reaches all five
+ * boroughs plus the near suburbs (Newark, Yonkers, western Long Island) — the
+ * people who can actually attend or would reference the fest — without pinning
+ * it for someone in another region.
+ */
+export const NYC_METRO_RADIUS_KM = 75;
+
+/**
+ * Zip fallback for viewers who never granted device location. Core NYC borough
+ * prefixes only (Manhattan/SI/Bronx 100–104, Brooklyn 112, Queens 111/113/114/116).
+ * Kept tight on purpose — the generous radius above already covers commuters
+ * whose device location we can see.
+ */
+const NYC_ZIP_PREFIXES = new Set([
+  '100', // Manhattan
+  '101', // Manhattan
+  '102', // Manhattan
+  '103', // Staten Island
+  '104', // Bronx
+  '111', // Queens (Long Island City)
+  '112', // Brooklyn
+  '113', // Queens (Flushing)
+  '114', // Queens (Jamaica)
+  '116', // Queens (Far Rockaway)
+]);
+
+export function isNycZip(zip?: string | null): boolean {
+  if (typeof zip !== 'string') return false;
+  const trimmed = zip.trim();
+  if (trimmed.length < 3) return false;
+  return NYC_ZIP_PREFIXES.has(trimmed.slice(0, 3));
+}
+
+/**
+ * Is this viewer a NYC-area user? True when their device location is inside the
+ * metro radius OR they've saved a NYC borough zip. Unknown location + non-NYC
+ * zip → false (fails closed: the fest is not pinned for people we can't place
+ * in NYC — they still see the fest days in the normal upcoming/past flow).
+ */
+export function isNycViewer(
+  viewer: { latitude?: number | null; longitude?: number | null } | null | undefined,
+  zip?: string | null
+): boolean {
+  if (isNycZip(zip)) return true;
+  if (viewer && typeof viewer.latitude === 'number' && typeof viewer.longitude === 'number') {
+    return (
+      distanceKm(viewer.latitude, viewer.longitude, NYC_CENTER.latitude, NYC_CENTER.longitude) <=
+      NYC_METRO_RADIUS_KM
+    );
+  }
+  return false;
+}
+
+/**
+ * Fanatics Fest feed pin (owner ask, 2026-07-20, revised: keep pinned ongoing).
+ *
+ * Once the festival is fully over, its day events stop appearing in the general
+ * /games feed queries — the marquee/upcoming query is upcoming-only and the
+ * past-recap query excludes these teamless one-off events — so the four days
+ * silently dropped off the feed the day after the fest. To keep them pinned
+ * "just like before" (owner: marketing/continuity, good for users), the feed
+ * fetches each day directly by its stable prod game id, in day order, and hands
+ * them to the existing NYC fest-pin (which renders all four, Day 1 → Day 4).
+ *
+ * These are the four Fanatics Fest NYC 2026 day GAME ids, in Day 1 → Day 4
+ * order — the array order is the render order.
+ */
+export const FEST_RECAP_GAME_IDS = [
+  'cmrbor91s0001v6er7awo39ed', // Day 1 — Thu Jul 16
+  'cmrbor9nf0003v6erjjzlrbln', // Day 2 — Fri Jul 17
+  'cmrbor9zf0005v6erugtmw58s', // Day 3 — Sat Jul 18
+  'cmrborab30007v6ered5y33kc', // Day 4 — Sun Jul 19
+] as const;
+
+/**
+ * Whether the four days stay pinned. Owner revised the earlier 1-week window on
+ * 2026-07-20: keep them pinned to the NYC feed ONGOING for marketing/continuity,
+ * not time-boxed. Flip to `false` and OTA both runtimes to take the pin down.
+ * (A durable, admin-controlled pin ultimately belongs on the server — a real
+ * featured/pinned column — see the note at the top of this file; this stays the
+ * scoped switch until then.)
+ */
+export const FEST_RECAP_PINNED = true;

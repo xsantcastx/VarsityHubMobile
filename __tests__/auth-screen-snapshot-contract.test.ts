@@ -87,7 +87,11 @@ describe('auth screen snapshot contract', () => {
     expect(dmRestrictions).toMatch(/getAuthSnapshot\(checkAuth, user\)/);
     expect(dmRestrictions).not.toContain('await User.me()');
 
-    expect(createPost).toContain("import { getAuthSnapshot } from '@/utils/authState';");
+    // create-post reads the viewer reactively off the AuthProvider; its lone
+    // getAuthSnapshot call was removed with the retired sample-/demo-content
+    // system (984c9d12, #140). AuthProvider-backing is the surviving invariant.
+    expect(createPost).toContain("import { useAuth } from '@/context/AuthProvider';");
+    expect(createPost).toContain('const { user, loading: authLoading } = useAuth();');
     expect(createPost).not.toContain('await User.me()');
 
     expect(myAds).toContain("import { getAuthSnapshot } from '@/utils/authState';");
@@ -110,10 +114,19 @@ describe('auth screen snapshot contract', () => {
   });
 
   it('limits direct User.me calls in app/hooks/context to the explicit force-refresh allowlist', () => {
-    const output = execSync("rg -l 'User\\.me\\(' app hooks context -g '*.{ts,tsx}'", {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-    }).trim();
+    // Use `git grep`, not ripgrep: the GitHub CI runner has git but NOT `rg`,
+    // so the old `rg` shell-out threw "rg: not found" and failed this suite in
+    // CI while passing on dev machines that happen to have ripgrep installed.
+    // git grep searches exactly the tracked files this invariant cares about.
+    // `|| true` keeps a zero-match result from throwing (git grep, like grep,
+    // exits 1 when nothing matches).
+    const output = execSync(
+      "git grep -l -E 'User\\.me\\(' -- 'app/*.ts' 'app/*.tsx' 'app/**/*.ts' 'app/**/*.tsx' 'hooks/**' 'context/**' || true",
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+      }
+    ).trim();
 
     const matches = output ? output.split('\n').sort() : [];
 

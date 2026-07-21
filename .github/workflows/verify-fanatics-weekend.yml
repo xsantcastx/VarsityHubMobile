@@ -1,0 +1,38 @@
+name: Verify Fanatics Fest weekend readiness
+
+# READ-ONLY. One report confirming the four fest days will run smoothly:
+# existence, approval, event-visibility, real start date, 18h post/story window,
+# venue coordinates, and feed-eligible linked game — plus the current window
+# state for each day. No writes. Runs on workflow_dispatch or on a push to main
+# that changes THIS file (scoped one-shot). Needs PRODUCTION_DATABASE_URL.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-fanatics-weekend.yml'
+      - 'server/scripts/verify-fanatics-weekend.ts'
+
+jobs:
+  verify:
+    name: verify-fanatics-weekend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+      - name: Verify weekend readiness
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: npx tsx scripts/verify-fanatics-weekend.ts

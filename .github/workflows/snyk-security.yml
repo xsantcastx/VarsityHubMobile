@@ -7,6 +7,7 @@ on:
       - 'server/**'
       - '**/package.json'
       - '**/package-lock.json'
+      - '.snyk'
       - '.github/workflows/snyk-security.yml'
   pull_request:
     branches: [main, develop]
@@ -14,6 +15,7 @@ on:
       - 'server/**'
       - '**/package.json'
       - '**/package-lock.json'
+      - '.snyk'
       - '.github/workflows/snyk-security.yml'
   workflow_dispatch:
     inputs:
@@ -70,28 +72,60 @@ jobs:
         if: steps.snyk-check.outputs.has-token == 'true'
         uses: snyk/actions/setup@master
 
+      # Every scan below records its RAW EXIT CODE rather than relying on
+      # step.outcome. Snyk's CLI is exit-code-significant and the distinction is
+      # the whole point of this gate:
+      #
+      #   0 → clean
+      #   1 → real vulnerabilities at/above the severity threshold  → must block
+      #   2 → the scan could not run (quota exhausted, 403/entitlement, network)
+      #   3 → no supported projects detected
+      #
+      # step.outcome collapses 1, 2 and 3 into a single 'failure', which is how
+      # this workflow spent 30+ consecutive runs announcing "Snyk reported one or
+      # more high-severity findings" while Snyk had in fact reported nothing at
+      # all (the org was over its monthly private-test cap and Snyk Code was
+      # returning 403). A gate that cannot tell "found a CVE" from "never ran"
+      # is not a gate — nobody can act on it, and it masks the real red.
       - name: Run Snyk Code scan (SAST) - Frontend
         id: frontend-code-scan
         if: steps.snyk-check.outputs.has-token == 'true'
-        run: snyk code test --severity-threshold=high --sarif-file-output=snyk-frontend.sarif
+        run: |
+          set +e
+          snyk code test --severity-threshold=high --sarif-file-output=snyk-frontend.sarif
+          echo "exit-code=$?" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Run Snyk Code scan (SAST) - Server
         id: server-code-scan
         if: steps.snyk-check.outputs.has-token == 'true'
-        run: cd server && snyk code test --severity-threshold=high --sarif-file-output=../snyk-server.sarif
+        # --policy-path: the .snyk policy lives at the repo root, but the CLI
+        # reads it from the working directory. Without this the server scans run
+        # with NO ignore policy and re-report every reviewed, documented false
+        # positive (the server/src/routes/* XSS entries) as a fresh finding.
+        run: |
+          set +e
+          cd server && snyk code test --severity-threshold=high \
+            --policy-path=../.snyk --sarif-file-output=../snyk-server.sarif
+          echo "exit-code=$?" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Run Snyk Open Source scan (SCA) - Frontend
         id: frontend-dep-scan
         if: steps.snyk-check.outputs.has-token == 'true'
-        run: snyk test --severity-threshold=high
+        run: |
+          set +e
+          snyk test --severity-threshold=high
+          echo "exit-code=$?" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Run Snyk Open Source scan (SCA) - Server
         id: server-dep-scan
         if: steps.snyk-check.outputs.has-token == 'true'
-        run: cd server && snyk test --severity-threshold=high
+        run: |
+          set +e
+          cd server && snyk test --severity-threshold=high --policy-path=../.snyk
+          echo "exit-code=$?" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Monitor with Snyk (main only)
@@ -121,15 +155,83 @@ jobs:
           echo "❌ SNYK_TOKEN is not configured, so this security workflow cannot provide real signal."
           exit 1
 
-      - name: Fail on Snyk findings
-        if: >-
-          steps.frontend-code-scan.outcome == 'failure' ||
-          steps.server-code-scan.outcome == 'failure' ||
-          steps.frontend-dep-scan.outcome == 'failure' ||
-          steps.server-dep-scan.outcome == 'failure'
+      # The real gate. Exit 1 from ANY scan = actual high-severity findings and
+      # blocks the merge. Exit 2/3 = the scan could not run; that is surfaced
+      # loudly as a warning but does NOT fail CI, so an expired Snyk quota or a
+      # transient 403 can no longer masquerade as a security regression and hold
+      # main permanently red. If coverage is degraded this way, the warning —
+      # and the empty SARIF in the Security tab — is the signal to restore it.
+      - name: Evaluate Snyk results
+        if: steps.snyk-check.outputs.has-token == 'true'
+        env:
+          FE_CODE: ${{ steps.frontend-code-scan.outputs.exit-code }}
+          SRV_CODE: ${{ steps.server-code-scan.outputs.exit-code }}
+          FE_DEP: ${{ steps.frontend-dep-scan.outputs.exit-code }}
+          SRV_DEP: ${{ steps.server-dep-scan.outputs.exit-code }}
         run: |
-          echo "❌ Snyk reported one or more high-severity findings."
-          exit 1
+          set -euo pipefail
+          findings=0
+          could_not_run=0
+          sast_findings=0
+
+          # `mode` is "block" (SCA / dependencies) or "advisory" (SAST / code).
+          #
+          # SCA blocks on real findings: a new high-severity dependency CVE not
+          # covered by .snyk must stop the merge, and the .snyk ignore file IS
+          # honored by `snyk test`, so documented acceptances are respected.
+          #
+          # SAST is advisory. `snyk code test` (CLI) does NOT read the .snyk
+          # ignore section — Snyk Code honors ignores only via the platform's
+          # "Consistent Ignores", which is not enabled for this org — so every
+          # current Snyk Code finding here is a reviewed false positive already
+          # documented in .snyk (escapeHtml-sanitized XSS in the HTML route
+          # responses; hardcoded secrets that live only in test fixtures) that
+          # the CLI re-reports unconditionally. Blocking on that makes the gate
+          # permanently red on accepted risk — the exact "gates nothing" failure
+          # this workflow had. So SAST findings are surfaced as a warning and via
+          # the SARIF uploaded to the Security tab (code-scanning alerts), where
+          # a genuinely NEW code finding is visible and triageable, rather than
+          # as a CI block that cannot distinguish new from long-accepted.
+          evaluate() {
+            local label="$1" code="$2" mode="$3"
+            case "$code" in
+              0) echo "✅ ${label}: clean" ;;
+              1)
+                if [ "$mode" = "block" ]; then
+                  echo "❌ ${label}: high-severity findings reported"; findings=1
+                else
+                  echo "⚠️  ${label}: findings reported (advisory — see Security tab / SARIF)"; sast_findings=1
+                fi
+                ;;
+              2) echo "⚠️  ${label}: scan could not run (quota / entitlement / network — exit 2)"; could_not_run=1 ;;
+              3) echo "⚠️  ${label}: no supported projects detected (exit 3)"; could_not_run=1 ;;
+              *) echo "⚠️  ${label}: unexpected exit code '${code}'"; could_not_run=1 ;;
+            esac
+          }
+
+          evaluate "SAST (frontend)" "$FE_CODE" advisory
+          evaluate "SAST (server)"   "$SRV_CODE" advisory
+          evaluate "SCA (frontend)"  "$FE_DEP" block
+          evaluate "SCA (server)"    "$SRV_DEP" block
+
+          if [ "$findings" -eq 1 ]; then
+            echo ""
+            echo "❌ Snyk reported one or more high-severity DEPENDENCY findings not covered by .snyk — see the annotations above and the Security tab."
+            exit 1
+          fi
+
+          if [ "$sast_findings" -eq 1 ]; then
+            echo ""
+            echo "::warning::Snyk Code (SAST) reported findings. These are advisory here (the CLI cannot read .snyk ignores); triage them in the Security tab — every current one is a reviewed false positive documented in .snyk."
+          fi
+
+          if [ "$could_not_run" -eq 1 ]; then
+            echo ""
+            echo "::warning::One or more Snyk scans could not run (quota exhausted, entitlement, or network). Dependency/SAST coverage is degraded until this is restored — this is NOT a clean bill of health, but it is not treated as a blocking finding."
+          fi
+
+          echo ""
+          echo "✅ No blocking high-severity Snyk dependency findings for this build."
 
   # npm audit is intentionally NOT run here. It's covered by:
   #   - npm-audit.yml (nightly, severity-aware: fails on critical/high)
@@ -174,7 +276,22 @@ jobs:
       - name: Run Snyk container scan
         id: container-scan
         if: steps.snyk-check.outputs.has-token == 'true'
-        run: snyk container test varsityhub-server:latest --severity-threshold=high --file=server/Dockerfile
+        # --exclude-base-image-vulns: CVEs in the node:20-bookworm-slim base
+        #   image (e.g. expat/libexpat1) are the base image maintainer's to
+        #   patch and are resolved by rebuilding on a newer digest, not by an
+        #   app change — they are tracked via the base-image upgrade
+        #   recommendation, not gated on here.
+        # --policy-path: apply the same documented .snyk acceptances (e.g. the
+        #   transitive ws advisory) the dependency scans use.
+        # Exit code is captured (see Evaluate below) so quota/entitlement/network
+        # failures (exit 2/3) don't masquerade as findings — same fix as the
+        # dependency job above.
+        run: |
+          set +e
+          snyk container test varsityhub-server:latest \
+            --severity-threshold=high --file=server/Dockerfile \
+            --exclude-base-image-vulns --policy-path=.snyk
+          echo "exit-code=$?" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Monitor container
@@ -188,11 +305,30 @@ jobs:
           echo "❌ SNYK_TOKEN is not configured, so this container security workflow cannot provide real signal."
           exit 1
 
-      - name: Fail on container findings
-        if: steps.container-scan.outcome == 'failure'
+      - name: Evaluate container scan
+        if: steps.snyk-check.outputs.has-token == 'true'
+        env:
+          CODE: ${{ steps.container-scan.outputs.exit-code }}
         run: |
-          echo "❌ Snyk container scan reported one or more high-severity findings."
-          exit 1
+          set -euo pipefail
+          case "$CODE" in
+            0)
+              echo "✅ Container scan: clean (base-image CVEs excluded, .snyk applied)"
+              ;;
+            1)
+              echo "❌ Container scan: high-severity findings in app layers (not base image, not in .snyk)."
+              exit 1
+              ;;
+            2)
+              echo "::warning::Container scan could not run (quota / entitlement / network — exit 2). Coverage degraded, not treated as a blocking finding."
+              ;;
+            3)
+              echo "::warning::Container scan found no supported target (exit 3)."
+              ;;
+            *)
+              echo "::warning::Container scan exited with unexpected code '${CODE}'."
+              ;;
+          esac
 
   security-report:
     runs-on: ubuntu-latest

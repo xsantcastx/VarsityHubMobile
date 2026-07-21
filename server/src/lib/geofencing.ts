@@ -407,6 +407,27 @@ async function loadPostingEvent(eventId: string) {
   });
 }
 
+/**
+ * Additive designated-poster allowlist (owner rule, 2026-07-19 Fanatics Fest):
+ * a user granted here may post AND upload stories to the event page at any
+ * time, from anywhere — bypassing the live window and the venue geofence —
+ * WITHOUT blocking any other user (normal attendees keep the standard rules).
+ * This is the post-event "give a specific person continued access for
+ * marketing/continuity" grant. Contrast `exclusive_poster_id`, which is
+ * single-user and blocks everyone else. Grant/revoke via
+ * `server/scripts/set-event-designated-poster.ts`.
+ */
+export async function isDesignatedEventPoster(
+  userId: string,
+  eventId: string
+): Promise<boolean> {
+  const row = await prisma.eventDesignatedPoster.findUnique({
+    where: { event_id_user_id: { event_id: eventId, user_id: userId } },
+    select: { user_id: true },
+  });
+  return !!row;
+}
+
 async function resolveVenueCoordinates(event: PostingEvent) {
   let venueLat = typeof event?.latitude === 'number' ? event.latitude : null;
   let venueLon = typeof event?.longitude === 'number' ? event.longitude : null;
@@ -490,6 +511,14 @@ export async function verifyStoryPostingPermission(
 
   if (!event) {
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
+  }
+
+  // Additive designated-poster grant also covers stories — this closes the gap
+  // where the allowlist/exclusive mechanism only ever affected regular posts.
+  // Allowlisted users upload stories from anywhere at any time; everyone else
+  // must still re-pass the geofence on every story (owner rule, 2026-07-16).
+  if (await isDesignatedEventPoster(userId, event.id)) {
+    return { allowed: true };
   }
 
   // Stories are live-only: the same window regular posts get, never the 7-day
@@ -588,6 +617,14 @@ export async function verifyEventPostingPermission(
 
   if (!event) {
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
+  }
+
+  // Additive designated-poster grant (see isDesignatedEventPoster): allowlisted
+  // users post from anywhere at any time. Checked before the exclusive lock so
+  // a grant always admits, and before the window/geofence so it survives event
+  // close — all without affecting any other user.
+  if (await isDesignatedEventPoster(userId, event.id)) {
+    return { allowed: true };
   }
 
   // Exclusive-poster lock (owner one-off feature, 2026-07-14): when an event

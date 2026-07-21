@@ -201,6 +201,7 @@ const HighlightCard = ({
   onAuthorPress,
   colorScheme,
   onUpvote,
+  trendingRanked = false,
 }: {
   item: HighlightItem;
   index?: number;
@@ -212,6 +213,11 @@ const HighlightCard = ({
   onAuthorPress?: (authorId: string) => void;
   colorScheme: 'light' | 'dark';
   onUpvote?: (item: HighlightItem) => void;
+  // True only when the Trending list is led by a post that actually carries
+  // engagement — i.e. the score-based ranking is meaningful. Gates the medal
+  // badges so #1 always genuinely means "top-ranked", never just "first of a
+  // pile of zero-engagement posts".
+  trendingRanked?: boolean;
 }) => {
   const isVideo = resolveMediaType(item.media_url, item.media_type) === 'video';
   const category = getSportCategory(item.sport, item.title, item.content);
@@ -222,9 +228,14 @@ const HighlightCard = ({
   // Calculate ranking for this item
   const _ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
 
-  // Show numbered ranking for Trending (top 3) and Top (1-10)
+  // Show numbered ranking for Trending (top 3) and Top (1-10). The server now
+  // orders Trending by an app-wide engagement score, so positions 0-2 are the
+  // top-ranked. Medals render only when that ranking is meaningful
+  // (`trendingRanked`) — a list led by a zero-engagement post gets none, so #1
+  // never falsely implies popularity.
   const showNumberedRank =
-    (currentTab === 'trending' && index < 3) || (currentTab === 'top' && index < 10);
+    (currentTab === 'trending' && trendingRanked && index < 3) ||
+    (currentTab === 'top' && index < 10);
   const rankNumber = index + 1;
 
   return (
@@ -850,6 +861,17 @@ function HighlightsScreen() {
     [patchHighlight, user, router]
   );
 
+  // The Trending medals are meaningful only when the score-ranked list is
+  // actually led by an engaged post. If the top item has zero engagement,
+  // nothing is genuinely trending (order is just recency), so we suppress the
+  // medals rather than crown a #1 that earned nothing.
+  const trendingRanked = useMemo(() => {
+    if (dataTab !== 'trending') return false;
+    const top = getFilteredHighlights()[0];
+    if (!top) return false;
+    return (top.upvotes_count || 0) + (top._count?.comments || 0) > 0;
+  }, [dataTab, getFilteredHighlights]);
+
   const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
     <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
       <HighlightCard
@@ -863,6 +885,7 @@ function HighlightsScreen() {
         onAuthorPress={handleAuthorPress}
         colorScheme={colorScheme}
         onUpvote={handleUpvote}
+        trendingRanked={trendingRanked}
       />
     </View>
   );

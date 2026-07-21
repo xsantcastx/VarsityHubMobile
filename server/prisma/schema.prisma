@@ -690,11 +690,12 @@ model Event {
   // 1 hour before start.
   live_window_hours_after_start Int?
 
-  game           Game?                @relation(fields: [game_id], references: [id], onDelete: SetNull)
-  creator        User?                @relation(fields: [creator_id], references: [id], onDelete: SetNull)
-  rsvps          EventRsvp[]
-  posts          Post[]
-  postingUnlocks EventPostingUnlock[]
+  game             Game?                   @relation(fields: [game_id], references: [id], onDelete: SetNull)
+  creator          User?                   @relation(fields: [creator_id], references: [id], onDelete: SetNull)
+  rsvps            EventRsvp[]
+  posts            Post[]
+  postingUnlocks   EventPostingUnlock[]
+  designatedPosters EventDesignatedPoster[]
 
   @@index([date])
   @@index([game_id])
@@ -726,6 +727,28 @@ model EventPostingUnlock {
 
   @@id([user_id, event_id])
   @@index([event_id])
+}
+
+// Additive designated-poster allowlist (owner rule, 2026-07-19 Fanatics Fest):
+// a user granted a row here may post AND upload stories to the event page at
+// any time, from anywhere — bypassing the live window and venue geofence —
+// WITHOUT blocking any other user. This is the deliberate post-event "give a
+// specific person continued access for marketing/continuity" grant. Contrast
+// Event.exclusive_poster_id, which is single-user and blocks everyone else.
+// Many-to-many (an event can have several designated posters; a user can be
+// designated on several events). `user_id` is a plain column (no back-relation
+// on User, mirroring exclusive_poster_id) — a grant for a since-deleted user
+// simply never matches. Rows cascade-delete with their event.
+model EventDesignatedPoster {
+  event_id   String
+  user_id    String
+  created_at DateTime @default(now())
+  created_by String? // admin/owner who granted the access (audit trail)
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@id([event_id, user_id])
+  @@index([user_id])
 }
 
 model Message {
