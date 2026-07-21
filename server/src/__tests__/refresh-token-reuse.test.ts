@@ -1,11 +1,12 @@
 /**
  * Refresh token reuse detection tests.
  *
- * Covers the token family detection logic added in commit ba17afa7:
- * - When a P2025 occurs during token rotation (token already deleted),
- *   all sessions for the affected user must be revoked.
- * - Returns { code: 'TOKEN_REUSED' } so callers can distinguish reuse
- *   from other 401s.
+ * Rotation supersedes (marks rotated_at) instead of deleting. Reuse handling:
+ * - A re-presented, already-rotated token from the SAME device WITHIN the grace
+ *   window is served a fresh pair and does NOT revoke (a slow/aborted-refresh
+ *   retry — see refresh-token-rotation-grace.test.ts for the full matrix).
+ * - Reuse outside the grace window, or from a different device, revokes all
+ *   sessions and returns { code: 'TOKEN_REUSED' }.
  * - A legitimately expired or invalid token still returns a plain 401.
  * - v1 → v2 lazy upgrade: refreshing a legacy v1 token issues a v2 token.
  */
@@ -63,33 +64,34 @@ describeDb('Refresh token reuse detection', () => {
     await prisma.user.deleteMany({ where: { id: userId } }).catch(() => {});
   });
 
-  it('returns TOKEN_REUSED and revokes all sessions when a rotated token is replayed', async () => {
+  it('serves a fresh pair (no revoke) when the just-rotated token is replayed within grace on the same device', async () => {
     // 1. Login to get a real refresh token
     const login = await request(app).post('/auth/login').send({ email, password: PASSWORD });
     expect(login.status).toBe(200);
     const refreshToken: string = login.body.refresh_token;
     expect(refreshToken).toBeTruthy();
 
-    // 2. First refresh — succeeds, old token is deleted, new one issued
+    // 2. First refresh — succeeds, old token is superseded, new one issued
     const refresh1 = await request(app).post('/auth/refresh').send({ refresh_token: refreshToken });
     expect(refresh1.status).toBe(200);
     expect(refresh1.body.access_token).toBeTruthy();
 
-    // 3. Replay the ORIGINAL token — it was deleted during step 2.
-    // Sequential replay returns plain 401 (no TOKEN_REUSED code — that only fires
-    // via the P2025 concurrent-access path).
+    // 3. Replay the ORIGINAL token immediately, same device (no device-id header
+    // on either request → same fingerprint), within grace. This is the
+    // slow/aborted-refresh retry: it gets a fresh pair, NOT a revoke.
     const refresh2 = await request(app).post('/auth/refresh').send({ refresh_token: refreshToken });
-    expect(refresh2.status).toBe(401);
+    expect(refresh2.status).toBe(200);
+    expect(refresh2.body.refresh_token).toBeTruthy();
+    expect(refresh2.body.code).toBeUndefined();
 
-    // 4. The new token from step 2 is still valid — sessions are NOT killed for
-    // sequential replay (only concurrent replay triggers the revoke-all path).
+    // 4. The new token from step 2 is still valid — nothing was revoked.
     const newRefreshToken: string = refresh1.body.refresh_token;
     const refresh3 = await request(app)
       .post('/auth/refresh')
       .send({ refresh_token: newRefreshToken });
     expect(refresh3.status).toBe(200);
 
-    // 5. Clean up any tokens left after the valid refresh in step 4.
+    // 5. Clean up any tokens left after the valid refreshes above.
     await prisma.refreshToken.deleteMany({ where: { user_id: userId } });
   });
 
