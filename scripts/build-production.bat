@@ -24,7 +24,7 @@ if %errorlevel% neq 0 (
 echo.
 echo 🔍 Current configuration:
 echo   App: VarsityHub
-echo   Bundle ID: com.xsantcastx.varsityhub
+echo   Bundle ID: com.varsityhub.varsityhub
 echo.
 
 REM Ask which platform to build
