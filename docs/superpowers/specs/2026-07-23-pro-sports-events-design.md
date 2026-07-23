@@ -118,7 +118,7 @@ onto the Lakers.
 
 **Team + venue seed (static).** Franchise names, home venues, venue coordinates,
 and IANA timezones are stable facts, checked into
-`server/prisma/proTeams.ts` and applied by an idempotent upsert keyed on
+`server/src/lib/proTeams.ts` and applied by an idempotent upsert keyed on
 `external_ref`. Re-running is safe.
 
 **Schedule ingestion (dynamic).** A provider adapter fetches a league's schedule

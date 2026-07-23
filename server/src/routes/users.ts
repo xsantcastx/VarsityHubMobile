@@ -28,6 +28,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { invalidateBlockedIdsCache } from '../lib/privacyUtils.js';
+import { isReservedUsername } from '../lib/reservedUsernames.js';
 
 export const usersRouter = Router();
 registerIdValidation(usersRouter);
@@ -941,6 +942,12 @@ usersRouter.get(
     const username = String((req.query as any).username || '').trim();
     const valid = /^[a-z0-9_.]{3,20}$/.test(username);
     if (!valid) return res.json({ available: false, valid: false });
+
+    // Must agree with the write-side refine in auth.ts, or the UI reports a
+    // reserved handle as available and the save then fails.
+    if (isReservedUsername(username)) {
+      return res.json({ available: false, valid: true, reason: 'reserved' });
+    }
 
     // Exclude current user so their own username doesn't appear as taken
     const currentUserId = req.user?.id;

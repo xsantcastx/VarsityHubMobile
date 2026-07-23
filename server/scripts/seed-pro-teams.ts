@@ -2,7 +2,7 @@
 /**
  * seed-pro-teams.ts
  *
- * Upserts the professional franchise + venue dataset (prisma/proTeams.ts) into
+ * Upserts the professional franchise + venue dataset (src/lib/proTeams.ts) into
  * ProTeam, keyed on external_ref so the script is idempotent — re-running it
  * updates renamed venues and relocated franchises in place without creating
  * duplicates or disturbing follower rows.
@@ -19,7 +19,7 @@
  *   npx tsx scripts/seed-pro-teams.ts --apply --league=nba
  */
 import { prisma } from '../src/lib/prisma.js';
-import { PRO_TEAM_SEED, PRO_TEAM_SEED_COUNTS, type ProTeamSeed } from '../prisma/proTeams.js';
+import { PRO_TEAM_SEED, PRO_TEAM_SEED_COUNTS, type ProTeamSeed } from '../src/lib/proTeams.js';
 
 const apply = process.argv.includes('--apply');
 const leagueArg = process.argv.find((a) => a.startsWith('--league='))?.split('=')[1];
