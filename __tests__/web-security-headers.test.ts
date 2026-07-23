@@ -44,11 +44,19 @@ describe('vercel.json — web app security headers', () => {
   });
 
   describe('Content-Security-Policy', () => {
-    const csp = () =>
-      headerValue('Content-Security-Policy') ?? headerValue('Content-Security-Policy-Report-Only');
+    const csp = () => headerValue('Content-Security-Policy');
 
-    it('is present in either enforcing or report-only form', () => {
+    /**
+     * ENFORCING, not Report-Only. Verified 2026-07-23 against the real built
+     * bundle served with this exact policy applied as enforcing: the app
+     * rendered and navigated with zero violations, while `eval()` threw
+     * EvalError and an injected inline <script> did not run — i.e. the
+     * XSS -> sessionStorage token theft path is actually closed, not just
+     * reported on. Report-Only protects nobody; do not downgrade it.
+     */
+    it('is enforcing, not report-only', () => {
       expect(csp()).toBeDefined();
+      expect(headerValue('Content-Security-Policy-Report-Only')).toBeUndefined();
     });
 
     it('locks down the directives that mitigate token theft via XSS', () => {
@@ -64,8 +72,29 @@ describe('vercel.json — web app security headers', () => {
       const scriptSrc = /script-src ([^;]*)/.exec(csp()!)?.[1] ?? '';
       // The built index.html has zero inline <script> blocks, so neither
       // escape hatch is needed. Re-adding one silently defeats the policy.
+      // Verified live: eval() throws EvalError and injected inline <script>
+      // does not run under this policy.
       expect(scriptSrc).not.toContain("'unsafe-inline'");
       expect(scriptSrc).not.toContain("'unsafe-eval'");
+    });
+
+    /**
+     * vercel.json rewrites 7 paths (/share, /events/:id, /games/:id, /posts/:id,
+     * /teams/:id, /users/:id, /programs/:id) to the Express server. Vercel
+     * applies these headers to proxied responses too, so the policy must admit
+     * the server-rendered Expo Router hydration script — otherwise every OG /
+     * share-landing page breaks. A specific sha256 hash permits exactly that one
+     * known script and nothing else, so it does not weaken the policy (verified:
+     * an arbitrary injected inline script is still blocked with the hash present).
+     * Must stay identical to EXPO_ROUTER_HYDRATION_INLINE_HASH in server/src/app.ts.
+     */
+    it('admits the server-rendered hydration script by hash, for proxied share/OG pages', () => {
+      const serverApp = fs.readFileSync(path.join(ROOT, 'server/src/app.ts'), 'utf8');
+      const serverHash = /EXPO_ROUTER_HYDRATION_INLINE_HASH = "([^"]+)"/.exec(serverApp)?.[1];
+
+      expect(serverHash).toBeDefined();
+      const bare = serverHash!.replace(/^'|'$/g, '');
+      expect(/script-src ([^;]*)/.exec(csp()!)?.[1]).toContain(bare);
     });
 
     it('allows the origins the app genuinely talks to', () => {
