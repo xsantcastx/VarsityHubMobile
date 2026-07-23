@@ -360,6 +360,15 @@ model User {
   @@index([parental_consent_status])
   @@index([role])
   @@index([organization_id])
+  // Billing-state indexes — created by 20260422181500_add_user_billing_state_columns.
+  @@index([plan], map: "User_plan_idx")
+  @@index([pending_plan], map: "User_pending_plan_idx")
+  @@index([payment_pending], map: "User_payment_pending_idx")
+  // Trigram GIN indexes backing /search ILIKE '%q%' — created by
+  // 20260612210000_add_search_trigram_indexes. Declared here so `migrate diff`
+  // sees them as intentional; without these Prisma emits a DROP INDEX for each.
+  @@index([username(ops: raw("gin_trgm_ops"))], map: "User_username_trgm_idx", type: Gin)
+  @@index([display_name(ops: raw("gin_trgm_ops"))], map: "User_display_name_trgm_idx", type: Gin)
 }
 
 // GDPR / right-to-access self-serve data export.
@@ -533,6 +542,12 @@ model Game {
   @@index([approval_status, created_at])
   @@index([opponent_approval_status])
   @@index([opponent_approval_team_id, opponent_approval_status])
+  // Trigram GIN indexes — see 20260612210000_add_search_trigram_indexes.
+  @@index([title(ops: raw("gin_trgm_ops"))], map: "Game_title_trgm_idx", type: Gin)
+  @@index([location(ops: raw("gin_trgm_ops"))], map: "Game_location_trgm_idx", type: Gin)
+  @@index([home_team(ops: raw("gin_trgm_ops"))], map: "Game_home_team_trgm_idx", type: Gin)
+  @@index([away_team(ops: raw("gin_trgm_ops"))], map: "Game_away_team_trgm_idx", type: Gin)
+  @@index([away_team_name(ops: raw("gin_trgm_ops"))], map: "Game_away_team_name_trgm_idx", type: Gin)
 }
 
 model Post {
@@ -715,6 +730,11 @@ model Event {
   @@index([status])
   @@index([team_id])
   @@index([exclusive_poster_id])
+  // Trigram GIN indexes — see 20260612210000_add_search_trigram_indexes.
+  @@index([title(ops: raw("gin_trgm_ops"))], map: "Event_title_trgm_idx", type: Gin)
+  @@index([location(ops: raw("gin_trgm_ops"))], map: "Event_location_trgm_idx", type: Gin)
+  @@index([description(ops: raw("gin_trgm_ops"))], map: "Event_description_trgm_idx", type: Gin)
+  @@index([event_type(ops: raw("gin_trgm_ops"))], map: "Event_event_type_trgm_idx", type: Gin)
 }
 
 // Durable "was there" ledger for location-based event posting (owner rule,
@@ -1239,6 +1259,12 @@ model Team {
   @@index([organization_id])
   @@index([is_private])
   @@index([program_id])
+  // Trigram GIN indexes — see 20260612210000_add_search_trigram_indexes.
+  @@index([name(ops: raw("gin_trgm_ops"))], map: "Team_name_trgm_idx", type: Gin)
+  @@index([city(ops: raw("gin_trgm_ops"))], map: "Team_city_trgm_idx", type: Gin)
+  @@index([state(ops: raw("gin_trgm_ops"))], map: "Team_state_trgm_idx", type: Gin)
+  @@index([league(ops: raw("gin_trgm_ops"))], map: "Team_league_trgm_idx", type: Gin)
+  @@index([sport(ops: raw("gin_trgm_ops"))], map: "Team_sport_trgm_idx", type: Gin)
 }
 
 model Organization {
@@ -1290,6 +1316,10 @@ model Organization {
   @@index([league_owner_id])
   @@index([admin_approved])
   @@index([status])
+  // Trigram GIN indexes — see 20260612210000_add_search_trigram_indexes.
+  @@index([name(ops: raw("gin_trgm_ops"))], map: "Organization_name_trgm_idx", type: Gin)
+  @@index([description(ops: raw("gin_trgm_ops"))], map: "Organization_description_trgm_idx", type: Gin)
+  @@index([sport(ops: raw("gin_trgm_ops"))], map: "Organization_sport_trgm_idx", type: Gin)
 }
 
 model OrganizationJoinRequest {

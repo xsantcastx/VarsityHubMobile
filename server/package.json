@@ -30,6 +30,7 @@
     "verify:coach-flow": "tsx scripts/verify-coach-flow.ts",
     "verify:event-approval-flow": "tsx scripts/verify-event-approval-flow.ts",
     "verify:ad-approval-flow": "tsx scripts/verify-ad-approval-flow.ts",
+    "verify:prisma-drift": "tsx scripts/verify-prisma-drift.ts",
     "verify:ad-dashboard-review-flow": "tsx scripts/verify-ad-dashboard-review-flow.ts",
     "verify:coach-route-battery": "tsx scripts/verify-coach-route-battery.ts",
     "verify:org-manager-access": "tsx scripts/verify-org-manager-access.ts",
