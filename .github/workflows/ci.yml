@@ -215,6 +215,17 @@ jobs:
         working-directory: server
         run: npx prisma migrate deploy
 
+      # Fails if schema.prisma and the committed migrations have drifted apart.
+      # Drift is dangerous here because start.sh runs `prisma migrate deploy` on
+      # every Railway deploy: anyone running `prisma migrate dev` on a drifted
+      # tree folds the accumulated diff into their routine migration, which then
+      # auto-applies to production. That is exactly how 22 spurious DROP INDEX
+      # statements (every search trigram index) came to sit in the diff in
+      # 2026-07. See 20260723180000_reconcile_schema_migration_drift.
+      - name: Prisma schema/migration drift check
+        working-directory: server
+        run: npm run verify:prisma-drift
+
       - name: Run approval, OAuth, and session invariants
         working-directory: server
         run: npm run test:invariants
