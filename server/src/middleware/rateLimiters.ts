@@ -13,6 +13,22 @@ import rateLimit, { Options, Store } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
 import { Redis } from 'ioredis';
 import { debugLog } from '../lib/debugLog.js';
+import { logSecurityEvent } from '../lib/securityEvents.js';
+
+/**
+ * Limiters guarding the credential surface. A breach on any of these is an
+ * attack signal (credential stuffing, token brute-force, reset-link farming)
+ * rather than a chatty client, so they escalate to `critical`.
+ */
+const AUTH_SURFACE_LIMITERS = new Set([
+  'auth',
+  'auth-mount',
+  'password-reset',
+  'refresh-token',
+  'verification',
+  'verification-confirm',
+  'oauth',
+]);
 
 /**
  * Rate limiting is always active unless explicitly disabled via DISABLE_RATE_LIMITING.
@@ -133,6 +149,20 @@ function createLimiter(options: Partial<Options> & { name: string }): ReturnType
     ...(store ? { store } : {}),
     handler: (req: Request, res: Response) => {
       console.warn(`[RateLimit] ${name}: User ${getUserIdentifier(req)} exceeded limit`);
+      // Feed the security stream so a distributed burst across many limiters is
+      // visible as one alertable signal instead of scattered console lines.
+      logSecurityEvent({
+        type: 'ratelimit.exceeded',
+        // Auth-surface throttling is the credential-stuffing tell; everything
+        // else is ordinary client misbehavior and would drown the signal.
+        severity: AUTH_SURFACE_LIMITERS.has(name) ? 'critical' : 'warning',
+        userId: (req as any).user?.id ?? null,
+        ip: req.ip ?? null,
+        path: req.path,
+        method: req.method,
+        requestId: (req as any).requestId ?? null,
+        metadata: { limiter: name },
+      });
       res.status(429).json({
         error: 'Too many requests',
         message: 'Please slow down and try again later',
