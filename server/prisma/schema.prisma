@@ -156,6 +156,20 @@ enum EventApprovalStatus {
 }
 
 // ===========================
+// Pro Sports Enums
+// ===========================
+
+// Professional leagues whose schedules VarsityHub surfaces as fan-postable
+// event pages. See docs/superpowers/specs/2026-07-23-pro-sports-events-design.md.
+enum ProLeague {
+  nfl
+  nba
+  wnba
+  mlb
+  wwe
+}
+
+// ===========================
 // Game Enums
 // ===========================
 
@@ -307,6 +321,7 @@ model User {
   teamFollows         TeamFollow[]
   organizationFollows OrganizationFollow[]
   program_follows     ProgramFollow[]
+  proTeamFollows      ProTeamFollow[]
 
   // Messages
   messagesSent     Message[]      @relation("message_sender")
@@ -675,6 +690,22 @@ model Event {
   team_id String?
   team    Team?   @relation(fields: [team_id], references: [id], onDelete: SetNull)
 
+  // ── Pro sports (2026-07-23) ──────────────────────────────────────────────
+  // A professional fixture is an Event, never a Game: Game carries scores,
+  // GameVote, and the shared-game authority model, none of which we want to
+  // own for the NBA. VarsityHub stores no pro scores. Both team ids are
+  // nullable — WWE and other touring shows have a venue but no two-team
+  // matchup, so they ride this path with both left null.
+  pro_home_team_id String?
+  pro_away_team_id String?
+  proHomeTeam      ProTeam? @relation("pro_home_events", fields: [pro_home_team_id], references: [id], onDelete: SetNull)
+  proAwayTeam      ProTeam? @relation("pro_away_events", fields: [pro_away_team_id], references: [id], onDelete: SetNull)
+
+  // Stable upstream key (`{league}:{provider-game-id}`) making schedule
+  // ingestion idempotent: a re-run updates a postponed or relocated fixture in
+  // place instead of inserting a duplicate event page.
+  pro_external_ref String? @unique @db.VarChar(200)
+
   // Exclusive poster (owner one-off feature, 2026-07-14): when set, ONLY this
   // user may post to this event — every other user (even attendees who were
   // there) is blocked. Null = normal multi-fan posting. Plain id column (no FK
@@ -708,6 +739,8 @@ model Event {
   @@index([status])
   @@index([team_id])
   @@index([exclusive_poster_id])
+  @@index([pro_home_team_id, date])
+  @@index([pro_away_team_id, date])
 }
 
 // Durable "was there" ledger for location-based event posting (owner rule,
@@ -1449,6 +1482,89 @@ model ProgramFollow {
   @@id([user_id, program_id])
   @@index([user_id])
   @@index([program_id])
+}
+
+// ===========================
+// Pro Sports
+// ===========================
+
+// A professional franchise (or, for WWE, the promotion itself) that fans can
+// follow so its fixtures surface as postable event pages.
+//
+// UNJOINABLE BY CONSTRUCTION — this is the point of the model, not an
+// incidental property. There is deliberately NO membership relation, NO invite
+// relation, and NO owner column, so no code path exists by which a user can
+// attach themselves to, or claim ownership of, a pro franchise. Contrast
+// Organization, which carries `league_owner_id` ("the user who owns/pays for
+// this league page") — routing pro teams through Team/Organization would put a
+// real "become the owner of the Lakers" mechanism in the schema and leave a
+// boolean flag as the only thing preventing it.
+//
+// Rows are system-managed: written by the seed and the schedule ingester, never
+// by a user-facing endpoint. `ProTeamFollow` is the only user-writable relation.
+//
+// Trademark posture: names are stored as plain text (nominative fair use), pro
+// teams get no handle in the @username namespace, and no league or team logo is
+// stored or referenced. `primary_color` is a single accent color for UI
+// legibility — a lone color is not trade dress and is never paired with team
+// wordmark art. See the design spec for the full reasoning.
+model ProTeam {
+  id           String    @id @default(cuid())
+  league       ProLeague
+  // Full public name, e.g. "Los Angeles Lakers".
+  name         String    @db.VarChar(120)
+  // Nickname alone, e.g. "Lakers" — used where the market is redundant.
+  short_name   String    @db.VarChar(60)
+  abbreviation String?   @db.VarChar(8)
+
+  city       String? @db.VarChar(100)
+  state      String? @db.VarChar(100)
+  conference String? @db.VarChar(60)
+  division   String? @db.VarChar(60)
+
+  // Home venue. Nullable because touring promotions (WWE) have no home venue —
+  // their fixtures carry their own per-event coordinates instead.
+  venue_name    String? @db.VarChar(200)
+  venue_address String? @db.VarChar(500)
+  venue_lat     Float?
+  venue_lng     Float?
+  // IANA timezone of the home venue, so fixture times render locally the way
+  // Event.timezone already does for school events.
+  timezone      String? @db.VarChar(64)
+
+  primary_color String? @db.VarChar(20)
+
+  // Stable ingestion key (`{league}:{slug}`), letting the seed and the schedule
+  // ingester upsert idempotently and letting a relocated or renamed franchise
+  // keep its identity (and its followers) across a rename.
+  external_ref String @unique @db.VarChar(100)
+
+  active     Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
+  followers  ProTeamFollow[]
+  homeEvents Event[]         @relation("pro_home_events")
+  awayEvents Event[]         @relation("pro_away_events")
+
+  @@unique([league, name])
+  @@index([league, active])
+  @@index([name])
+}
+
+// The only relation a user may form with a pro team: a follow. No role, no
+// status, no approval — following is the whole surface.
+model ProTeamFollow {
+  user_id     String
+  pro_team_id String
+  created_at  DateTime @default(now())
+
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  proTeam ProTeam @relation(fields: [pro_team_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, pro_team_id])
+  @@index([user_id])
+  @@index([pro_team_id])
 }
 
 // ===========================
