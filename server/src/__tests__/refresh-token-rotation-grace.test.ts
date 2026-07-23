@@ -85,8 +85,7 @@ describeDb('Refresh-token rotation grace window', () => {
         hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
         user_id: userId,
         expires_at:
-          opts.expiresAt ??
-          new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+          opts.expiresAt ?? new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
         device_info: opts.deviceInfo ?? null,
         rotated_at: opts.rotatedAt ?? null,
         replaced_by_key_id: opts.rotatedAt ? 'somereplacementkey' : null,

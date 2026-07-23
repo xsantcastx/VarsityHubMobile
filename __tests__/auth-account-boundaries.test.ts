@@ -159,8 +159,14 @@ describe('account boundary invariants', () => {
       expect(authApi).toMatch(
         /httpPostLongTimeout\(\s*'\/auth\/apple',[\s\S]{0,120}omitAuthToken:\s*true[\s\S]{0,120}skipAuthRetry:\s*true/
       );
+      // /auth/refresh goes through httpPostWithOptions (not httpPost) so it can
+      // carry its own longer timeout — the rotation-grace fix. That inserts the
+      // timeout and retry args between the path and the options object, so this
+      // pattern allows a wider gap than its siblings above. The two flags being
+      // pinned are unchanged: a refresh must never send a stale Authorization
+      // header, and must never trigger the auth-retry loop it is itself serving.
       expect(authApi).toMatch(
-        /httpPost\(\s*'\/auth\/refresh',[\s\S]{0,120}omitAuthToken:\s*true[\s\S]{0,120}skipAuthRetry:\s*true/
+        /httpPostWithOptions\(\s*'\/auth\/refresh',[\s\S]{0,200}omitAuthToken:\s*true[\s\S]{0,120}skipAuthRetry:\s*true/
       );
     });
 
