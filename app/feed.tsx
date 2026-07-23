@@ -1975,7 +1975,7 @@ export default function FeedScreen() {
               >
                 {isPeople
                   ? followedFeedMeta?.following_count === 0
-                    ? 'Discover and follow athletes, coaches, and teams to build your feed.'
+                    ? 'Discover and follow coaches and teams to build your feed.'
                     : 'Check back soon — when they post, it will show up here.'
                   : followedTeamsFeedMeta?.followed_teams_count === 0
                     ? 'Discover and follow teams to see their updates and game content.'
