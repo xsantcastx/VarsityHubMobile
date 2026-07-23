@@ -427,24 +427,31 @@ model ParentalConsentAudit {
 }
 
 model RefreshToken {
-  id           String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   // v1: SHA-256 hex of the full raw token (deterministic, used for lookup).
   // v2: bcrypt of the secret half of `<keyId>.<secret>` (verification only;
   //     lookup goes through `key_id` instead).
-  token_hash   String   @unique
+  token_hash         String    @unique
   // v2 only: deterministic 16-char hex prefix used to look up the row.
   // Null for legacy v1 rows; required + unique going forward.
-  key_id       String?  @unique
+  key_id             String?   @unique
   // 1 = legacy SHA-256-of-raw, 2 = `<keyId>.<bcrypt(secret)>` scheme.
   // Default 1 covers existing rows on migration day; the write path always
   // sets 2 for new tokens.
-  hash_version Int      @default(1)
-  user_id      String
-  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  device_info  String? // User-Agent or device identifier
-  expires_at   DateTime
-  created_at   DateTime @default(now())
-  last_used_at DateTime @default(now())
+  hash_version       Int       @default(1)
+  user_id            String
+  user               User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  device_info        String? // User-Agent or device identifier
+  expires_at         DateTime
+  created_at         DateTime  @default(now())
+  last_used_at       DateTime  @default(now())
+  // Rotation supersede metadata (additive, nullable — existing rows read as
+  // "never rotated" and behave exactly as before). On rotation the old row is
+  // marked rotated instead of deleted, so a slow/aborted /auth/refresh that
+  // retries with the just-rotated token can be served from a short grace
+  // window instead of tripping the reuse/theft revoke-all path.
+  rotated_at         DateTime? // when this token was superseded by a newer one
+  replaced_by_key_id String? // key_id of the token that superseded this one
 
   @@index([user_id])
   @@index([expires_at])

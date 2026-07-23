@@ -20,6 +20,14 @@ if (!jwtSecretString || jwtSecretString === 'dev-secret-change-me' || jwtSecretS
 const DEFAULT_ACCESS_TOKEN_EXPIRY = '15m';
 export const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
+// Rotation grace / reuse leeway. When a refresh token is rotated the old row is
+// superseded (marked, not deleted). A retry that re-presents the just-rotated
+// token from the SAME device within this window is served a fresh pair instead
+// of being treated as reuse/theft — this absorbs a slow or aborted
+// /auth/refresh that never persisted the new token. The only new exposure is a
+// <= this-many-ms same-device reuse window (standard rotating-refresh leeway).
+export const REFRESH_ROTATION_GRACE_MS = 60_000;
+
 export function signJwt(
   payload: Record<string, unknown>,
   expiresIn: string = DEFAULT_ACCESS_TOKEN_EXPIRY
