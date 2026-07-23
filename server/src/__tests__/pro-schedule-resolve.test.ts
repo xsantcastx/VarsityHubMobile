@@ -1,5 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
-import { resolveFixture, type ProTeamVenue } from '../lib/proSchedule/resolveFixture.js';
+import {
+  attachTouringPromotion,
+  resolveFixture,
+  TOURING_LEAGUES,
+  type ProTeamVenue,
+} from '../lib/proSchedule/resolveFixture.js';
 import { LIVE_WINDOW_HOURS_BY_LEAGUE, type ProFixture } from '../lib/proSchedule/types.js';
 
 const lakers: ProTeamVenue = {
@@ -222,6 +227,59 @@ describe('resolveFixture', () => {
     it('stamps the league window onto the resolved event', () => {
       const r = resolveFixture(fixture(), teams);
       if (r.ok) expect(r.value.live_window_hours_after_start).toBe(3);
+    });
+  });
+
+  describe('touring promotions are pinned to their own page', () => {
+    // Without this the WWE page queries events by team id, matches nothing,
+    // and renders empty forever while the shows exist in the DB.
+    const promotionRefs = new Map([['wwe' as const, wwe.external_ref]]);
+
+    it('attaches the promotion as the home side when a show names no teams', () => {
+      const show = {
+        league: 'wwe' as const,
+        home_team_ref: null,
+        away_team_ref: null,
+      };
+      expect(attachTouringPromotion(show, promotionRefs).home_team_ref).toBe('wwe:wwe');
+    });
+
+    it('leaves a fixture that already names a team alone', () => {
+      const show = {
+        league: 'wwe' as const,
+        home_team_ref: 'wwe:some-brand',
+        away_team_ref: null,
+      };
+      expect(attachTouringPromotion(show, promotionRefs).home_team_ref).toBe('wwe:some-brand');
+    });
+
+    it('never touches a franchise league', () => {
+      const game = { league: 'nba' as const, home_team_ref: null, away_team_ref: null };
+      expect(attachTouringPromotion(game, new Map()).home_team_ref).toBeNull();
+    });
+
+    it('treats only WWE as touring', () => {
+      expect([...TOURING_LEAGUES]).toEqual(['wwe']);
+    });
+
+    it('resolves to the promotion id once attached, so the page query matches', () => {
+      const attached = attachTouringPromotion(
+        {
+          external_ref: 'wwe:raw-2026-11-16',
+          league: 'wwe' as const,
+          starts_at: new Date('2026-11-17T01:00:00.000Z'),
+          home_team_ref: null,
+          away_team_ref: null,
+          title: 'WWE Monday Night Raw',
+          venue_lat: 40.7505,
+          venue_lng: -73.9934,
+          status: 'scheduled' as const,
+        },
+        promotionRefs
+      );
+      const r = resolveFixture(attached, teams);
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.value.pro_home_team_id).toBe('pt_wwe');
     });
   });
 

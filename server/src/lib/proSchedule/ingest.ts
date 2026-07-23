@@ -1,6 +1,11 @@
 import type { ProLeague } from '@prisma/client';
 import { prisma } from '../prisma.js';
-import { resolveFixture, type ProTeamVenue } from './resolveFixture.js';
+import {
+  attachTouringPromotion,
+  resolveFixture,
+  TOURING_LEAGUES,
+  type ProTeamVenue,
+} from './resolveFixture.js';
 import type { ProFixture, ProScheduleAdapter } from './types.js';
 
 /**
@@ -76,7 +81,16 @@ export async function ingestFixtures(
     existing.flatMap((e) => (e.pro_external_ref ? [[e.pro_external_ref, e.id] as const] : []))
   );
 
-  for (const fixture of fixtures) {
+  // A touring promotion's shows name no teams, so they must be pinned to the
+  // promotion row or its page would render empty while its events existed.
+  const promotionRefs = new Map<ProLeague, string>();
+  if (TOURING_LEAGUES.has(league)) {
+    const first = [...teamsByRef.values()][0];
+    if (first) promotionRefs.set(league, first.external_ref);
+  }
+
+  for (const rawFixture of fixtures) {
+    const fixture = attachTouringPromotion(rawFixture, promotionRefs);
     const resolved = resolveFixture(fixture, teamsByRef);
 
     if (!resolved.ok) {

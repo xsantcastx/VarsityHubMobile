@@ -126,3 +126,34 @@ export function resolveFixture(
 export function liveWindowFor(league: ProLeague): number {
   return LIVE_WINDOW_HOURS_BY_LEAGUE[league];
 }
+
+/**
+ * Leagues that tour instead of fielding franchises. Their fixtures have a venue
+ * and no matchup.
+ */
+export const TOURING_LEAGUES: ReadonlySet<ProLeague> = new Set<ProLeague>(['wwe']);
+
+/**
+ * Attaches a touring promotion to its own fixtures.
+ *
+ * A WWE show has no home or away team, so without this it links to no ProTeam
+ * at all — and the WWE page, which queries events by team id, would sit
+ * permanently empty while the events existed. Pinning the promotion as the
+ * "home" side keeps one query shape for every pro page and makes "every pro
+ * event references at least one ProTeam" a real invariant.
+ *
+ * Only applies when the fixture names no teams; a feed that does supply them is
+ * left alone.
+ */
+export function attachTouringPromotion<T extends { league: ProLeague; home_team_ref: string | null; away_team_ref: string | null }>(
+  fixture: T,
+  promotionRefsByLeague: ReadonlyMap<ProLeague, string>
+): T {
+  if (!TOURING_LEAGUES.has(fixture.league)) return fixture;
+  if (fixture.home_team_ref || fixture.away_team_ref) return fixture;
+
+  const promotionRef = promotionRefsByLeague.get(fixture.league);
+  if (!promotionRef) return fixture;
+
+  return { ...fixture, home_team_ref: promotionRef };
+}
