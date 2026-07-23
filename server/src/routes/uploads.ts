@@ -12,7 +12,8 @@ import {
 } from '../lib/cloudinary.js';
 import { createR2UploadTicket, isR2Configured } from '../lib/r2.js';
 import { debugLog } from '../lib/debugLog.js';
-import { signMediaPath } from '../lib/mediaAccess.js';
+import { isSignableMediaPath, signMediaPath } from '../lib/mediaAccess.js';
+import { logSecurityEvent } from '../lib/securityEvents.js';
 import { prisma } from '../lib/prisma.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -364,10 +365,19 @@ uploadsRouter.get(
     if (!rawPath) {
       return res.status(400).json({ error: 'path is required' });
     }
-    if (!rawPath.startsWith('/uploads/')) {
-      return res.status(400).json({ error: 'path must start with /uploads/' });
-    }
-    if (rawPath.includes('..')) {
+    // Allowlist (lib/mediaAccess) rather than the previous `.includes('..')`
+    // denylist, which percent-encoded traversal walked straight through.
+    if (!isSignableMediaPath(rawPath)) {
+      logSecurityEvent({
+        type: 'input.rejected',
+        severity: 'warning',
+        userId: (req as any).user?.id ?? null,
+        ip: req.ip ?? null,
+        path: req.path,
+        method: req.method,
+        requestId: (req as any).requestId ?? null,
+        metadata: { field: 'path', reason: 'not_signable_media_path' },
+      });
       return res.status(400).json({ error: 'invalid path' });
     }
 
