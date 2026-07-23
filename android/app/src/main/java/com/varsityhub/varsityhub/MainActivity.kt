@@ -1,4 +1,4 @@
-package com.xsantcastx.varsityhub
+package com.varsityhub.varsityhub
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

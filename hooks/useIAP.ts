@@ -114,7 +114,7 @@ export function useVHubIAP() {
           await httpPost('/payments/google/verify-purchase', {
             purchase_token: purchaseToken,
             product_id: purchase.productId,
-            package_name: (purchase as any).packageNameAndroid || 'com.xsantcastx.varsityhub',
+            package_name: (purchase as any).packageNameAndroid || 'com.varsityhub.varsityhub',
           });
         }
 
@@ -262,7 +262,7 @@ export function useVHubIAP() {
             await httpPost('/payments/google/verify-purchase', {
               purchase_token: (p as any).purchaseToken,
               product_id: p.productId,
-              package_name: (p as any).packageNameAndroid || 'com.xsantcastx.varsityhub',
+              package_name: (p as any).packageNameAndroid || 'com.varsityhub.varsityhub',
             });
           }
           await finishTransaction({ purchase: p, isConsumable: false }).catch(() => {});
@@ -326,17 +326,21 @@ export function useVHubIAP() {
         return false;
       }
       // Prefer the SKU currently returned from the store, fall back to primary configured SKU.
-      const availableSku = subscriptions.find((p: { productId?: string }) =>
-        planSkus.includes(p.productId ?? '')
-      ) as { productId?: string } | undefined;
+      // react-native-iap v14 fetched products expose `id`, not `productId`
+      // (only Purchase objects keep `productId`). Read `id` first.
+      const availableSku = subscriptions.find((p: { id?: string; productId?: string }) =>
+        planSkus.includes(p.id ?? p.productId ?? '')
+      ) as { id?: string; productId?: string } | undefined;
       if (__DEV__ && !availableSku) {
         console.warn('[useVHubIAP] Plan SKU not in store response:', {
           plan,
           planSkus,
-          subscriptionIds: subscriptions.map((s: { productId?: string }) => s.productId),
+          subscriptionIds: subscriptions.map(
+            (s: { id?: string; productId?: string }) => s.id ?? s.productId
+          ),
         });
       }
-      const sku = availableSku?.productId || planSkus[0];
+      const sku = availableSku?.id ?? availableSku?.productId ?? planSkus[0];
 
       setPurchasing(true);
       setError(null);
@@ -370,8 +374,8 @@ export function useVHubIAP() {
   const getProduct = useCallback(
     (plan: 'veteran' | 'legend') => {
       const planSkus = PLAN_SKUS[plan];
-      return subscriptions.find((p: { productId?: string }) =>
-        planSkus.includes(p.productId ?? '')
+      return subscriptions.find((p: { id?: string; productId?: string }) =>
+        planSkus.includes(p.id ?? p.productId ?? '')
       );
     },
     [subscriptions]
@@ -414,7 +418,7 @@ export function useVHubIAP() {
               await httpPost('/payments/google/verify-purchase', {
                 purchase_token: token,
                 product_id: p.productId,
-                package_name: (p as any).packageNameAndroid || 'com.xsantcastx.varsityhub',
+                package_name: (p as any).packageNameAndroid || 'com.varsityhub.varsityhub',
               });
             }
           }
