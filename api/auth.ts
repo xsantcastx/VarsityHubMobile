@@ -7,8 +7,17 @@ import {
   httpGet,
   httpPost,
   httpPostLongTimeout,
+  httpPostWithOptions,
   setAuthToken,
 } from './http';
+
+// /auth/refresh can be slow in production (bcrypt verify + cross-region DB
+// latency has been measured at ~5.6s). The default 15s mutation timeout still
+// left too little headroom under load — a refresh aborted before it persisted
+// the rotated token used to force a sign-out. Give it a wide 20s ceiling; the
+// server-side rotation grace window is the real fix, this just stops the client
+// from aborting a refresh that is about to succeed.
+const REFRESH_REQUEST_TIMEOUT_MS = 20_000;
 import { validateAuthenticatedUser } from './schemas/auth';
 
 // Storage keys for authentication tokens (not secrets, just key names)
@@ -419,9 +428,11 @@ export const auth = {
 
     try {
       const response = parseAuthTokenResponse(
-        await httpPost(
+        await httpPostWithOptions(
           '/auth/refresh',
           { refresh_token: stored },
+          REFRESH_REQUEST_TIMEOUT_MS,
+          0,
           {
             omitAuthToken: true,
             skipAuthRetry: true,

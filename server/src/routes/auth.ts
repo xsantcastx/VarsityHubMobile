@@ -30,6 +30,7 @@ import {
   hashRefreshToken,
   hashRefreshTokenSecret,
   parseRefreshToken,
+  REFRESH_ROTATION_GRACE_MS,
   REFRESH_TOKEN_EXPIRY_DAYS,
   REFRESH_TOKEN_HASH_VERSION_V2,
   signAccessTokenForSession,
@@ -894,9 +895,87 @@ authRouter.post(
 );
 
 /**
+ * A refresh token whose `rotated_at` is set has already been superseded. This
+ * is reached two ways:
+ *   (a) a slow/aborted /auth/refresh that retried with the just-rotated token
+ *       (the client never persisted the new one), or a concurrent
+ *       double-refresh that lost the rotation race, OR
+ *   (b) genuine reuse/theft: a stolen, already-rotated token replayed later or
+ *       from a different device.
+ * Within the grace window AND from the same device we treat it as (a): mint a
+ * fresh pair, do NOT revoke. Outside the window or from a different device we
+ * treat it as (b): revoke every session (theft response) and return
+ * TOKEN_REUSED. The superseded row is left intact so repeated retries inside
+ * the window keep working.
+ */
+async function serveRotatedTokenOrRevoke(
+  stored: {
+    id: string;
+    user_id: string;
+    rotated_at: Date | null;
+    device_info: string | null;
+    created_at: Date;
+  },
+  req: AuthedRequest,
+  res: Response
+) {
+  const user = await prisma.user.findUnique({ where: { id: stored.user_id } });
+  if (!user || user.banned) {
+    return res.status(401).json({ error: 'Invalid refresh token' });
+  }
+
+  // A password change already revokes sessions on its own path — never reissue
+  // a token that predates it, even inside the grace window.
+  if (user.password_changed_at && stored.created_at < user.password_changed_at) {
+    return res.status(401).json({ error: 'Token invalidated by password change' });
+  }
+
+  const rotatedAtMs = stored.rotated_at ? stored.rotated_at.getTime() : 0;
+  const withinGrace = Date.now() - rotatedAtMs <= REFRESH_ROTATION_GRACE_MS;
+  const fingerprint = verifyStoredSessionFingerprint(stored.device_info, req);
+
+  if (withinGrace && fingerprint.matches) {
+    // Slow/aborted refresh (or concurrent race loser) retrying — reissue a
+    // fresh pair against the user's current epoch. No revoke.
+    const { raw: newRawRefresh, keyId: newKeyId, secret: newSecret } = generateRefreshTokenV2();
+    const newHash = await hashRefreshTokenSecret(newSecret);
+    const newExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+    await prisma.refreshToken.create({
+      data: {
+        token_hash: newHash,
+        key_id: newKeyId,
+        hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
+        user_id: user.id,
+        expires_at: newExpiry,
+        device_info: buildSessionFingerprint(req),
+      },
+    });
+    const access_token = signAccessTokenForSession(user.id, (user as any).session_epoch ?? 0);
+    return res.json({ access_token, refresh_token: newRawRefresh });
+  }
+
+  // Past grace or different device → genuine reuse/theft: revoke everything.
+  console.warn('[auth] Rotated refresh token replayed outside grace — revoking all sessions', {
+    userId: user.id,
+    refreshTokenId: stored.id,
+    withinGrace,
+    fingerprintReason: fingerprint.reason,
+    ip: req.ip,
+    path: req.path,
+  });
+  try {
+    await revokeAllSessions(user.id);
+  } catch (revokeErr) {
+    console.error('[auth] Failed to revoke sessions after token reuse', revokeErr);
+  }
+  return res.status(401).json({ error: 'Token already used', code: 'TOKEN_REUSED' });
+}
+
+/**
  * POST /auth/refresh
  * Exchange a valid refresh token for a new access token + rotated refresh token.
- * The old refresh token is invalidated (rotation prevents reuse).
+ * The old refresh token is superseded (rotation prevents reuse) but honored for
+ * a short same-device grace window so a slow/aborted refresh can retry.
  */
 const refreshSchema = z.object({ refresh_token: z.string().min(32) });
 
@@ -939,6 +1018,15 @@ authRouter.post(
         stored.hash_version
       );
       if (!matches) return res.status(401).json({ error: 'Invalid refresh token' });
+
+      // Already-rotated (superseded) token. Handle before the generic expiry
+      // check: rotation shrinks the old row's expiry to the grace window, so a
+      // past-grace replay would otherwise be swallowed as a plain expiry and
+      // skip the reuse/theft revoke path. Within grace + same device → fresh
+      // pair (slow/aborted-refresh retry); otherwise → revoke.
+      if (stored.rotated_at) {
+        return await serveRotatedTokenOrRevoke(stored, req as AuthedRequest, res);
+      }
 
       if (stored.expires_at < new Date()) {
         await mustSucceed(
@@ -1010,52 +1098,62 @@ authRouter.post(
         });
       }
 
-      // Rotate: delete old token, issue new pair. Always issue v2 going
-      // forward — that's the lazy-upgrade path for any v1 token still in
-      // circulation. Wrapped in try-catch to handle the race where two
-      // concurrent refresh requests find the same row but only one can
-      // delete it.
+      // Rotate = supersede, not delete. Always issue v2 going forward — that's
+      // the lazy-upgrade path for any v1 token still in circulation.
+      //
+      // Atomically CLAIM the old row (WHERE rotated_at IS NULL): mark it rotated
+      // and shrink its expiry to the grace window, then create the new token.
+      // Two concurrent refreshes find the same row but only one claim matches
+      // (count 1); the loser (count 0) is served from the grace window instead
+      // of being revoked. A slow/aborted refresh that never persisted the new
+      // token also retries into that same grace window (via the early
+      // rotated_at check above) — no forced sign-out.
       const { raw: newRawRefresh, keyId: newKeyId, secret: newSecret } = generateRefreshTokenV2();
       const newHash = await hashRefreshTokenSecret(newSecret);
       const newExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
-      try {
-        await prisma.$transaction([
-          prisma.refreshToken.delete({ where: { id: stored.id } }),
-          prisma.refreshToken.create({
-            data: {
-              token_hash: newHash,
-              key_id: newKeyId,
-              hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
-              user_id: user.id,
-              expires_at: newExpiry,
-              device_info: buildSessionFingerprint(req),
-            },
-          }),
-        ]);
-      } catch (txErr: any) {
-        if (txErr?.code === 'P2025') {
-          // Token was already deleted. Two causes:
-          //   (a) Concurrent legitimate refresh — lost the race, harmless.
-          //   (b) Replay attack — attacker is using a stolen + already-rotated token.
-          // We can't distinguish (a) from (b), so treat conservatively: revoke all
-          // sessions for the user. A legitimate concurrent request will be forced to
-          // re-authenticate, which is the correct response to a potential token theft.
-          console.warn('[auth] Refresh token reuse detected — revoking all sessions', {
-            userId: user.id,
-            refreshTokenId: stored.id,
-            ip: req.ip,
-            path: req.path,
-          });
-          try {
-            await revokeAllSessions(user.id);
-          } catch (revokeErr) {
-            console.error('[auth] Failed to revoke sessions after token reuse', revokeErr);
-          }
-          return res.status(401).json({ error: 'Token already used', code: 'TOKEN_REUSED' });
+      const claim = await prisma.refreshToken.updateMany({
+        where: { id: stored.id, rotated_at: null },
+        data: {
+          rotated_at: new Date(),
+          replaced_by_key_id: newKeyId,
+          expires_at: new Date(Date.now() + REFRESH_ROTATION_GRACE_MS),
+        },
+      });
+
+      if (claim.count === 0) {
+        // Lost the rotation race — a concurrent refresh already superseded this
+        // row. Serve that request from the grace window (or revoke if it's
+        // actually past grace / a different device).
+        const current = await prisma.refreshToken.findUnique({ where: { id: stored.id } });
+        if (current) {
+          return await serveRotatedTokenOrRevoke(current, req as AuthedRequest, res);
         }
-        throw txErr;
+        // Row vanished entirely (legacy delete path / cleanup) — reuse signal.
+        console.warn('[auth] Refresh token reuse detected — revoking all sessions', {
+          userId: user.id,
+          refreshTokenId: stored.id,
+          ip: req.ip,
+          path: req.path,
+        });
+        try {
+          await revokeAllSessions(user.id);
+        } catch (revokeErr) {
+          console.error('[auth] Failed to revoke sessions after token reuse', revokeErr);
+        }
+        return res.status(401).json({ error: 'Token already used', code: 'TOKEN_REUSED' });
       }
+
+      await prisma.refreshToken.create({
+        data: {
+          token_hash: newHash,
+          key_id: newKeyId,
+          hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
+          user_id: user.id,
+          expires_at: newExpiry,
+          device_info: buildSessionFingerprint(req),
+        },
+      });
 
       // Refresh rotates tokens WITHIN an existing session — it doesn't start a
       // new one — so we don't bump session_epoch here. Mint the new access
