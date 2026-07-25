@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useManagedTeamOptions } from '@/hooks/useManagedTeamOptions';
 import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { formatGameDate, formatGameTime, isPastGameDate } from '@/utils/gameFormHelpers';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -63,7 +64,10 @@ export default function AddGameModal({
 }: AddGameModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
+  // PUBLIC directory — opponent selection only.
   const { teams: rawTeams, loading: loadingTeams } = useTeamOptions(true);
+  // Teams the user can actually act for — backs "Select Your Team".
+  const { teams: rawManagedTeams } = useManagedTeamOptions(true);
 
   const [showCurrentTeamPicker, setShowCurrentTeamPicker] = useState(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState(false);
@@ -152,10 +156,27 @@ export default function AddGameModal({
     }, 300);
   }, []);
 
+  const myTeams: TeamOption[] = useMemo(() => {
+    if (!Array.isArray(rawManagedTeams) || rawManagedTeams.length === 0) {
+      return currentTeamName ? [{ id: 'my-team', name: currentTeamName }] : [];
+    }
+    return rawManagedTeams.map((team: any) => ({
+      id: String(team.id),
+      name: team.name,
+      logo: team.logo_url || team.avatar_url,
+      venue_address: team.venue_address,
+      venue_lat: team.venue_lat,
+      venue_lng: team.venue_lng,
+      venue_place_id: team.venue_place_id,
+    }));
+  }, [currentTeamName, rawManagedTeams]);
+
   const filteredCurrentTeams = useMemo(
     () =>
-      teams.filter(team => team.name.toLowerCase().includes(currentTeamSearchQuery.toLowerCase())),
-    [currentTeamSearchQuery, teams]
+      myTeams.filter(team =>
+        team.name.toLowerCase().includes(currentTeamSearchQuery.toLowerCase())
+      ),
+    [currentTeamSearchQuery, myTeams]
   );
 
   const validateForm = (): boolean => {

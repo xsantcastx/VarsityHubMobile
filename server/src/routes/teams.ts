@@ -24,6 +24,7 @@ import {
   canAdministerTeam as canAdministerTeamScoped,
   canAssignTeamRole as canAssignTeamRoleScoped,
   canArchiveTeam as canArchiveTeamScoped,
+  ORG_ADMIN_ROLES,
   TEAM_STAFF_ROLES,
 } from '../lib/teamAuthorization.js';
 import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
@@ -506,6 +507,15 @@ teamsRouter.get(
     const managementRoleSql = Prisma.join(
       managementRoles.map(role => Prisma.sql`${role}::"TeamRole"`)
     );
+    // Mirror `canManageAnyTeam`: team access is a staff TeamMembership OR being
+    // an org admin of the team's organization. This list previously implemented
+    // only the first half, so an organizer whose coaches created the teams saw
+    // none of their own org's teams — even though the gate says they may manage
+    // them. Kept in lockstep with ORG_ADMIN_ROLES so the list can never show a
+    // team the gate would then refuse (or hide one it would allow).
+    const orgAdminRoleSql = Prisma.join(
+      [...ORG_ADMIN_ROLES].map(role => Prisma.sql`${role}::"OrganizationRole"`)
+    );
 
     const select: any = {
       ...buildTeamSerializeSelect({
@@ -536,13 +546,23 @@ teamsRouter.get(
             FROM "Team" t
             INNER JOIN "Organization" o ON o."id" = t."organization_id"
             WHERE t."status" = 'active'
-              AND EXISTS (
-                SELECT 1
-                FROM "TeamMembership" tm
-                WHERE tm."team_id" = t."id"
-                  AND tm."user_id" = ${userId}
-                  AND tm."status" = 'active'
-                  AND tm."role" IN (${managementRoleSql})
+              AND (
+                EXISTS (
+                  SELECT 1
+                  FROM "TeamMembership" tm
+                  WHERE tm."team_id" = t."id"
+                    AND tm."user_id" = ${userId}
+                    AND tm."status" = 'active'
+                    AND tm."role" IN (${managementRoleSql})
+                )
+                OR EXISTS (
+                  SELECT 1
+                  FROM "OrganizationMembership" om
+                  WHERE om."organization_id" = t."organization_id"
+                    AND om."user_id" = ${userId}
+                    AND om."status" = 'active'
+                    AND om."role" IN (${orgAdminRoleSql})
+                )
               )
               ${searchClause}
               ${cursorClause}

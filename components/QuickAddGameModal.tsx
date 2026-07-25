@@ -3,6 +3,7 @@ import { uploadFile } from '@/api/upload';
 import { Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useManagedTeamOptions } from '@/hooks/useManagedTeamOptions';
 import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -265,7 +266,10 @@ export default function QuickAddGameModal({
 }: QuickAddGameModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
+  // `rawTeams` is the PUBLIC directory — it backs opponent suggestions only.
+  // The "your team" picker must use teams the user can actually act for.
   const { teams: rawTeams } = useTeamOptions(true);
+  const { teams: rawManagedTeams } = useManagedTeamOptions(true);
 
   const [showCurrentTeamPicker, setShowCurrentTeamPicker] = useState(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState(false);
@@ -426,11 +430,27 @@ export default function QuickAddGameModal({
     }));
   }, [currentTeamName, rawTeams]);
 
+  // The user's OWN teams — the only valid answers to "Select Your Team".
+  const myTeams: TeamOption[] = useMemo(() => {
+    if (!Array.isArray(rawManagedTeams) || rawManagedTeams.length === 0) {
+      return currentTeamName ? [{ id: currentTeamId || 'my-team', name: currentTeamName }] : [];
+    }
+    return rawManagedTeams.map((team: any) => ({
+      id: String(team.id),
+      name: team.name,
+      logo: team.logo_url || team.avatar_url,
+      venue_address: team.venue_address,
+      venue_lat: team.venue_lat,
+      venue_lng: team.venue_lng,
+      venue_place_id: team.venue_place_id,
+    }));
+  }, [currentTeamName, currentTeamId, rawManagedTeams]);
+
   // Set home venue when current team changes or modal opens
   useEffect(() => {
     if (currentTeam && visible) {
       // Find the team data to get venue information
-      const teamData = teams.find(t => t.name === currentTeam);
+      const teamData = myTeams.find(t => t.name === currentTeam);
 
       if (teamData?.venue_address) {
         // Use actual team venue from database
@@ -445,7 +465,7 @@ export default function QuickAddGameModal({
       }
       setHomeVenueLocked(true); // Re-lock whenever team changes
     }
-  }, [currentTeam, visible, teams]);
+  }, [currentTeam, visible, myTeams]);
 
   // Debounced search: queries the API for teams matching the typed text
   const handleOpponentSearchChange = (text: string) => {
@@ -1744,7 +1764,7 @@ export default function QuickAddGameModal({
                   <View style={{ width: 50 }} />
                 </View>
                 <ScrollView style={styles.pickerList}>
-                  {teams.map(team => (
+                  {myTeams.map(team => (
                     <Pressable
                       key={team.id}
                       style={[
