@@ -382,6 +382,36 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       }
     },
   },
+  {
+    name: 'veteran-quantity-reconciliation',
+    // Metered-Veteran Stripe item quantity ratchets up on team create but was
+    // never lowered on archive (archival is terminal — no restore path), so
+    // owners over-paid for archived sports. Re-align DOWN to the actual billable
+    // program count nightly. Down-only + idempotent — a missed fire is fine.
+    cron: '13 4 * * *', // Daily at 4:13 AM, off-clock
+    description:
+      "Re-align metered Veterans' Stripe item quantity down to their active billable-program count",
+    handler: async () => {
+      try {
+        const { runVeteranQuantityReconciliation } =
+          await import('../lib/veteranQuantityReconciliation.js');
+        const result = await runVeteranQuantityReconciliation();
+        if (result.lowered > 0 || result.flagged > 0 || result.errors > 0) {
+          console.error(
+            `[Scheduler] veteran-quantity-reconciliation: scanned=${result.scanned} lowered=${result.lowered} flagged=${result.flagged} errors=${result.errors} truncated=${result.truncated}`
+          );
+        }
+      } catch (error) {
+        console.error('[Scheduler] veteran-quantity-reconciliation failed:', error);
+        captureException(
+          error instanceof Error ? error : new Error(String(error)),
+          withJobTags('veteran-quantity-reconciliation', {
+            context: 'veteran_quantity_reconciliation_failed',
+          })
+        );
+      }
+    },
+  },
 ];
 
 let schedulerQueue: Queue | null = null;
