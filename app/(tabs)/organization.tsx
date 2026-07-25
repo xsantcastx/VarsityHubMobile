@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useOrgProgramsQuery } from '@/hooks/useOrgProgramsQuery';
 import { getCanonicalOrganizationId } from '@/utils/authState';
+import { countOrgSports } from '@/utils/countOrgSports';
 import { gameRowTitle } from '@/utils/eventTitle';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
@@ -258,6 +259,9 @@ export default function OrganizationScreen() {
   });
   const programsById = useMemo(() => new Map(orgPrograms.map(p => [p.id, p])), [orgPrograms]);
   const teamGroups = useMemo(() => groupTeamsByProgram(teams), [teams]);
+  // The org's unit is the SPORT, not the roster: several level teams inside one
+  // program are one sport. Mirrors server-side billable-program counting.
+  const sportsCount = useMemo(() => countOrgSports(teams), [teams]);
   const hasProgramGroups = teamGroups.some(g => g.programId !== null);
   const ungroupedTeams = teamGroups.find(g => g.programId === null)?.teams ?? [];
   const programGroups = teamGroups.filter(g => g.programId !== null);
@@ -650,8 +654,8 @@ export default function OrganizationScreen() {
             <Text style={[styles.profileName, { color: theme.text }]}>{orgName}</Text>
             <Text style={[styles.profileHandle, { color: theme.mutedText }]}>@{handle}</Text>
             <View style={styles.statsRow}>
-              <Text style={[styles.statNumber, { color: theme.text }]}>{teams.length}</Text>
-              <Text style={[styles.statLabel, { color: theme.mutedText }]}> Teams </Text>
+              <Text style={[styles.statNumber, { color: theme.text }]}>{sportsCount}</Text>
+              <Text style={[styles.statLabel, { color: theme.mutedText }]}> Sports </Text>
               <Text style={[styles.statNumber, { color: theme.text }]}>
                 {organization?.followers_count ?? 0}
               </Text>
@@ -950,9 +954,9 @@ export default function OrganizationScreen() {
             { backgroundColor: theme.card, borderColor: theme.border },
           ]}
         >
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Teams</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Sports</Text>
           {teams.length === 0 ? (
-            <Text style={[styles.emptyText, { color: theme.mutedText }]}>No teams yet.</Text>
+            <Text style={[styles.emptyText, { color: theme.mutedText }]}>No sports yet.</Text>
           ) : hasProgramGroups ? (
             <>
               {programGroups.map(renderProgramRow)}
