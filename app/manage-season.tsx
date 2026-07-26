@@ -30,6 +30,7 @@ import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal
 import { EmptyState, GameCard, SectionHeader } from '@/components/ui';
 import type { Game as GameCardGame } from '@/components/ui/GameCard';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
+import { partitionSeasonApprovalGames } from '@/utils/gameApprovalQueue';
 
 type GameStatus = 'upcoming' | 'completed' | 'cancelled' | 'pending' | 'live' | 'in-progress';
 
@@ -44,6 +45,9 @@ interface Game extends GameCardGame {
   type: 'home' | 'away' | 'neutral';
   status: GameStatus;
   approval_status?: 'pending' | 'approved' | 'rejected';
+  // Distinct from approval_status: 'pending' here means the OPPONENT still has
+  // to confirm, which is not this team's action to take.
+  opponent_approval_status?: string | null;
   banner_url?: string; // Add banner URL support
   cover_image_url?: string; // Add cover image URL support
   // event_type/title let non-competitive rows (fundraiser, watch party, etc.)
@@ -249,6 +253,12 @@ function ManageSeasonScreen() {
           cover_image_url: game.cover_image_url || undefined, // Include cover image URL from backend
           event_type: game.event_type ?? null,
           title: game.title ?? null,
+          // Carry BOTH raw approval fields through. The local `status` above
+          // flattens them into one 'pending', which is why the queue used to
+          // offer Approve/Reject on games that were really waiting on the
+          // opponent — see partitionSeasonApprovalGames.
+          approval_status: game.approval_status ?? undefined,
+          opponent_approval_status: game.opponent_approval_status ?? undefined,
         };
         return converted;
       });
@@ -449,9 +459,12 @@ function ManageSeasonScreen() {
     },
   ];
 
-  const pendingGames: Game[] = (games ?? []).filter(
-    g => g.approval_status === 'pending' || g.status === 'pending'
-  );
+  // Only games awaiting THIS team's review are actionable. Games already
+  // approved on our side and waiting on the opponent render read-only — the
+  // opponent decides those from the Approvals screen's "Game Requests", and
+  // the server 403s self-review, so Approve/Reject here was a dead end.
+  const { awaitingMyReview: pendingGames, awaitingOpponent: awaitingOpponentGames } =
+    partitionSeasonApprovalGames(games ?? []);
 
   // g.date is a 'YYYY-MM-DD' wall-clock calendar date (games store the intended
   // wall time as UTC). Compare it to the user's LOCAL calendar date as strings —
@@ -1632,6 +1645,43 @@ function ManageSeasonScreen() {
                       </Pressable>
                     </View>
                   </View>
+                ))}
+              </View>
+            )}
+
+            {/* Awaiting opponent — read-only. These are approved on our side;
+                the opponent confirms them from their Approvals screen. No
+                Approve/Reject here: the server refuses self-review (403). */}
+            {awaitingOpponentGames.length > 0 && (
+              <View
+                style={[
+                  styles.sectionCard,
+                  {
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+              >
+                <SectionHeader
+                  title={`Awaiting Opponent Approval (${awaitingOpponentGames.length})`}
+                />
+                <Text style={[styles.approvalSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  Sent to the opposing team. They go live once the opponent confirms.
+                </Text>
+                {awaitingOpponentGames.map(game => (
+                  <GameCard
+                    key={game.id}
+                    game={{
+                      ...game,
+                      opponent_name: game.opponent_name || game.opponent,
+                      scheduled_date: game.date,
+                      scheduled_time: game.time,
+                      game_type: game.type,
+                    }}
+                    onPress={() => handlePendingGameAction(game)}
+                    showActions={false}
+                    style={{ marginBottom: 8 }}
+                  />
                 ))}
               </View>
             )}

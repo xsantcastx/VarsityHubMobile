@@ -33,6 +33,37 @@ import type { AuthedRequest } from '../middleware/auth.js';
 
 const ALREADY_REVIEWED_ERROR = 'This request has already been reviewed';
 
+/**
+ * True when the user already owns an approved organization of their own.
+ *
+ * `approval_status`, `paid_by_owner`, and the active `organization_id` are
+ * GLOBAL User columns, but a join request is a decision about ONE org. For an
+ * established league owner those writes are cross-tenant damage: requesting to
+ * join another league demoted them to PENDING (locking them out of their own
+ * org), and that league's owner denying it flipped them to REJECTED with a
+ * 48h cooldown and no self-service recovery. Callers use this to skip the
+ * global state writes for owners; coaches with no approved org of their own
+ * still move PENDING -> APPROVED/REJECTED as before, which is the vetting funnel.
+ */
+export async function ownsApprovedOrganization(
+  userId: string,
+  excludeOrganizationId?: string | null
+): Promise<boolean> {
+  const owned = await prisma.organization.findFirst({
+    where: {
+      admin_approved: true,
+      status: 'active',
+      ...(excludeOrganizationId ? { id: { not: excludeOrganizationId } } : {}),
+      OR: [
+        { league_owner_id: userId },
+        { memberships: { some: { user_id: userId, role: 'owner', status: 'active' } } },
+      ],
+    },
+    select: { id: true },
+  });
+  return Boolean(owned);
+}
+
 export type JoinRequestDecisionResult = { ok: true } | { ok: false; status: number; error: string };
 
 /**
@@ -138,6 +169,15 @@ export async function approveJoinRequest(params: {
     };
   }
 
+  // An established league owner joining a second org gains membership there,
+  // but keeps their own global account state: they are already APPROVED, they
+  // pay for their own org (`paid_by_owner` must stay false), and their active
+  // organization must not be repointed at the org they just joined.
+  const targetOwnsApprovedOrg = await ownsApprovedOrganization(
+    joinRequest.user_id,
+    joinRequest.organization_id
+  );
+
   // ORG-8 + ORG-4: Serializable isolation with status re-check inside transaction
   try {
     await prisma.$transaction(
@@ -170,6 +210,7 @@ export async function approveJoinRequest(params: {
           },
           select: { id: true },
         });
+        if (targetOwnsApprovedOrg) return;
         await tx.user.update({
           where: { id: joinRequest.user_id },
           data: {
@@ -364,6 +405,14 @@ export async function denyJoinRequest(params: {
     return { ok: false, status: 403, error: 'Cannot reject a platform admin' };
   }
 
+  // An established league owner must not be pushed into global REJECTED by
+  // another org's owner — that would lock them out of the league they run,
+  // with no self-service recovery. Deny only the request in that case.
+  const targetOwnsApprovedOrg = await ownsApprovedOrganization(
+    user.id,
+    joinRequest.organization_id
+  );
+
   try {
     await prisma.$transaction(
       async tx => {
@@ -379,6 +428,7 @@ export async function denyJoinRequest(params: {
         if (transition.count === 0) {
           throw new Error('JOIN_REQUEST_ALREADY_REVIEWED');
         }
+        if (targetOwnsApprovedOrg) return;
         await tx.user.update({
           where: { id: user.id },
           data: {
