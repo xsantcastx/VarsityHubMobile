@@ -1,4 +1,4 @@
-import { OrganizationRole } from '@prisma/client';
+import { OrganizationRole, Prisma } from '@prisma/client';
 import escapeHtml from 'escape-html';
 import { Response, Router } from 'express';
 import { z } from 'zod';
@@ -28,6 +28,7 @@ import { isCanonicalSport } from '../lib/sportsTaxonomy.js';
 import {
   approveJoinRequest,
   denyJoinRequest,
+  ownsApprovedOrganization,
   reportApprovalNotificationFailure,
 } from '../lib/organizationJoinRequests.js';
 import {
@@ -105,6 +106,37 @@ function normalizeOrganizationName(name: string): string {
     .replace(/\bschool\b/g, '')
     .replace(/[^a-z0-9]/g, '')
     .trim();
+}
+
+/**
+ * Find an existing active organization that would collide with `name`/`zipCode`
+ * under the DB's duplicate-name constraint. Mirrors the two partial unique
+ * indexes from migration 20260429224500 EXACTLY by reusing their SQL function
+ * `normalize_org_name_for_dedupe`, so the app-level 409 can never diverge from
+ * the index (a TS-side re-implementation of the normalizer could) and is
+ * deterministic (no unordered 100-row scan):
+ *   - zip present  -> unique per (normalized_name, zip_code)
+ *   - zip absent   -> normalized_name unique among no-zip active orgs
+ * Same name in a different zip is intentionally allowed.
+ */
+async function findDuplicateActiveOrganization(
+  name: string,
+  zipCode?: string | null
+): Promise<{ id: string; name: string } | null> {
+  const rows = zipCode
+    ? await prisma.$queryRaw<Array<{ id: string; name: string }>>`
+        SELECT "id", "name" FROM "Organization"
+        WHERE "status" = 'active'::"OrganizationStatus"
+          AND "zip_code" = ${zipCode}
+          AND normalize_org_name_for_dedupe("name") = normalize_org_name_for_dedupe(${name})
+        LIMIT 1`
+    : await prisma.$queryRaw<Array<{ id: string; name: string }>>`
+        SELECT "id", "name" FROM "Organization"
+        WHERE "status" = 'active'::"OrganizationStatus"
+          AND "zip_code" IS NULL
+          AND normalize_org_name_for_dedupe("name") = normalize_org_name_for_dedupe(${name})
+        LIMIT 1`;
+  return rows[0] ?? null;
 }
 
 type OrganizationCreatePayload = {
@@ -421,6 +453,12 @@ async function handleOrganizationCreateRequest(
 
     return res.status(201).json(organization);
   } catch (err) {
+    // Race backstop: the pre-check passed but a concurrent create won the
+    // insert, tripping the DB's normalized-name unique index. Return the same
+    // structured 409 the pre-check would have, not a 500.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION' });
+    }
     console.error(`[organizations] POST ${routeTag} error:`, err);
     return sendError(res, 500, 'Internal server error');
   }
@@ -1014,20 +1052,10 @@ organizationsRouter.post(
       approvalStatus: applicant?.approval_status,
       onboarding: data.onboarding,
     });
-    // Duplicate guard: when zip_code is provided scope to that area; otherwise skip the
-    // full-table scan (no zip_code means we can't reliably detect cross-area duplicates and
-    // `zip_code: undefined` in a Prisma where clause removes the filter entirely, causing a
-    // scan of ALL organizations).
-    const nm = normalizeOrganizationName(data.name);
-    let dup: { id: string; name: string } | null = null;
-    if (data.zip_code) {
-      const sameZipOrgs = await prisma.organization.findMany({
-        where: { zip_code: data.zip_code, status: 'active' },
-        select: { id: true, name: true },
-        take: 100,
-      });
-      dup = sameZipOrgs.find(o => normalizeOrganizationName(o.name) === nm) ?? null;
-    }
+    // Duplicate guard: mirror the DB's partial unique indexes exactly (same-zip,
+    // or global among no-zip orgs) so a collision returns a structured 409 here
+    // instead of falling through to a raw P2002 → 500 at insert time.
+    const dup = await findDuplicateActiveOrganization(data.name, data.zip_code);
     if (dup) {
       return res
         .status(409)
@@ -1177,16 +1205,11 @@ organizationsRouter.post(
       approvalStatus: applicant?.approval_status,
       onboarding: data.onboarding,
     });
-    // Duplicate guard (same logic as simple create)
-    const nm = normalizeOrganizationName(data.name);
-    const duplicateWhere: any = { status: 'active' };
-    if (data.zip_code) duplicateWhere.zip_code = data.zip_code;
-    const possibleDuplicates = await prisma.organization.findMany({
-      where: duplicateWhere,
-      select: { id: true, name: true, zip_code: true },
-      take: 100,
-    });
-    const dup = possibleDuplicates.find(o => normalizeOrganizationName(o.name) === nm);
+    // Duplicate guard — identical rule to POST /organizations (mirrors the DB
+    // indexes). Previously this scanned 100 UNORDERED rows when no zip was
+    // given, so the same input could 409 or not depending on row order, and a
+    // no-zip collision it missed became a 500 at insert time.
+    const dup = await findDuplicateActiveOrganization(data.name, data.zip_code);
     if (dup) {
       return res
         .status(409)
@@ -1850,56 +1873,73 @@ organizationsRouter.post(
         },
       });
 
-      const [joinRequest] = await prisma.$transaction([
-        prisma.organizationJoinRequest.upsert({
-          where: {
-            organization_id_user_id: {
-              organization_id,
-              user_id: req.user!.id,
-            } as any,
-          },
-          create: {
+      // Merely ASKING to join another league must not demote an established
+      // league owner to PENDING — that locked them out of the org they already
+      // run until a third party acted. They get the join request; their global
+      // coach state is left alone.
+      const requesterOwnsApprovedOrg = await ownsApprovedOrganization(
+        req.user!.id,
+        organization_id
+      );
+
+      const joinRequestUpsert = prisma.organizationJoinRequest.upsert({
+        where: {
+          organization_id_user_id: {
             organization_id,
             user_id: req.user!.id,
-            message: effectiveMessage,
-            status: 'pending',
+          } as any,
+        },
+        create: {
+          organization_id,
+          user_id: req.user!.id,
+          message: effectiveMessage,
+          status: 'pending',
+        },
+        update: {
+          message: effectiveMessage,
+          status: 'pending',
+          created_at: new Date(),
+          reviewed_at: null,
+          reviewed_by: null,
+        },
+        select: {
+          id: true,
+          organization_id: true,
+          user_id: true,
+          message: true,
+          created_at: true,
+          user: {
+            select: { id: true, display_name: true, username: true, email: true },
           },
-          update: {
-            message: effectiveMessage,
-            status: 'pending',
-            created_at: new Date(),
-            reviewed_at: null,
-            reviewed_by: null,
-          },
-          select: {
-            id: true,
-            organization_id: true,
-            user_id: true,
-            message: true,
-            created_at: true,
-            user: {
-              select: { id: true, display_name: true, username: true, email: true },
+        },
+      });
+
+      const joinRequestOps: Prisma.PrismaPromise<unknown>[] = [joinRequestUpsert];
+      if (!requesterOwnsApprovedOrg) {
+        joinRequestOps.push(
+          prisma.user.update({
+            where: { id: req.user!.id },
+            data: {
+              preferences: buildPendingCoachPreferences(requesterPrefs, {
+                id: organization.id,
+                name: organization.name,
+              }),
+              ...buildAuthStateColumns({
+                role: 'coach',
+                organization_id: organization.id,
+              }),
+              approval_status: 'PENDING',
+              paid_by_owner: false,
+              rejected_at: null,
+              rejection_reason: null,
             },
-          },
-        }),
-        prisma.user.update({
-          where: { id: req.user!.id },
-          data: {
-            preferences: buildPendingCoachPreferences(requesterPrefs, {
-              id: organization.id,
-              name: organization.name,
-            }),
-            ...buildAuthStateColumns({
-              role: 'coach',
-              organization_id: organization.id,
-            }),
-            approval_status: 'PENDING',
-            paid_by_owner: false,
-            rejected_at: null,
-            rejection_reason: null,
-          },
-        }),
-      ]);
+          })
+        );
+      }
+      const [joinRequest] = (await prisma.$transaction(joinRequestOps)) as [
+        Awaited<typeof joinRequestUpsert>,
+        ...unknown[],
+      ];
       await invalidateMeCacheForUser(req.user!.id);
 
       // Send email + push + in-app notification to organization owner

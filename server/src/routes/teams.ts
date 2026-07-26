@@ -13,7 +13,7 @@ import { DEMO_LEAGUE_NAMES } from '../lib/demoContent.js';
 import { getVeteranTotalTeamAllowance, resolveOwnerBillingOrgId } from '../lib/paymentInternals.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { SERVER_ROOKIE_PROGRAM_LIMIT } from '../lib/planDefinitions.js';
-import { planSupportsExtracurricular } from '../lib/planLimits.js';
+import { getAuthorizedUsersPerTeam, planSupportsExtracurricular } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { getExcludedPrivateTeamIds, isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
@@ -24,6 +24,7 @@ import {
   canAdministerTeam as canAdministerTeamScoped,
   canAssignTeamRole as canAssignTeamRoleScoped,
   canArchiveTeam as canArchiveTeamScoped,
+  ORG_ADMIN_ROLES,
   TEAM_STAFF_ROLES,
 } from '../lib/teamAuthorization.js';
 import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
@@ -52,10 +53,40 @@ import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { requirePlan } from '../middleware/subscription.js';
+import { getUserPlan, requirePlan } from '../middleware/subscription.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const teamsRouter = Router();
+
+// 2026-07-09: player/parent/member retired — teams hold staff only. Shared by
+// the create-time `authorized_users` cap pre-check and the fan-out below, so
+// the count that is validated is exactly the set that gets written.
+const CREATE_INVITE_ROLES = new Set([
+  'manager',
+  'coach',
+  'assistant_coach',
+  'equipment',
+  'health_wellness',
+]);
+
+/**
+ * The invites a create-time `authorized_users` payload would actually write:
+ * role-whitelisted and de-duplicated by email, since `createMany` collapses
+ * duplicates on the (team_id, email) unique index.
+ */
+function resolveCreateTimeInvites(
+  authorizedUsers: TeamCreatePayload['authorized_users']
+): { email: string; role: string }[] {
+  const byEmail = new Map<string, { email: string; role: string }>();
+  for (const user of authorizedUsers || []) {
+    const email = typeof user.email === 'string' ? user.email.trim() : '';
+    const role = String(user.role || '');
+    if (!email || !CREATE_INVITE_ROLES.has(role)) continue;
+    const key = email.toLowerCase();
+    if (!byEmail.has(key)) byEmail.set(key, { email, role });
+  }
+  return [...byEmail.values()];
+}
 registerIdValidation(teamsRouter);
 const teamGroupChatLocks = new Map<string, Promise<any>>();
 
@@ -354,13 +385,78 @@ type TeamCreateBillingContext = {
   effectiveSubscriptionId?: string;
   teamCountSource: 'user' | 'org';
   orgIdForTeamCount?: string;
+  /**
+   * Whether the CALLER is the org owner whose plan is being enforced. Drives
+   * limit-error copy: a non-owner cannot upgrade the plan they were gated by,
+   * so telling them to "upgrade your plan" is a dead end — point at the owner.
+   */
+  callerIsOrgOwner: boolean;
 };
+
+const BILLING_USER_SELECT = {
+  preferences: true,
+  plan: true,
+  pending_plan: true,
+  payment_pending: true,
+  payment_approved: true,
+} as const;
+
+/**
+ * The user whose plan governs an organization: its active owner membership,
+ * falling back to the legacy `league_owner_id` column for orgs created before
+ * membership rows existed. Returns null for an ownerless org.
+ */
+async function resolveOrganizationOwnerId(organizationId: string): Promise<string | null> {
+  const ownerMembership = await prisma.organizationMembership.findFirst({
+    where: { organization_id: organizationId, role: 'owner', status: 'active' },
+    select: { user_id: true },
+  });
+  if (ownerMembership?.user_id) return ownerMembership.user_id;
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { league_owner_id: true },
+  });
+  return organization?.league_owner_id ?? null;
+}
 
 async function buildTeamCreateBillingContext(
   userId: string,
   me: any,
   targetOrganizationId?: string | null
 ): Promise<TeamCreateBillingContext> {
+  // A team is created INSIDE an organization and consumes that organization's
+  // program allowance, so the ORG OWNER's plan is the authority — regardless of
+  // who creates it or how they joined. Resolving the allowance from the CALLER
+  // instead meant every invited member arrived with a private copy of the free
+  // allowance (`paid_by_owner` is only stamped by join-request approval, never
+  // by invite-accept), so N members = N x the cap inside one org.
+  const targetOrgId = typeof targetOrganizationId === 'string' ? targetOrganizationId.trim() : '';
+  if (targetOrgId) {
+    const ownerId = await resolveOrganizationOwnerId(targetOrgId);
+    if (ownerId) {
+      const owner =
+        ownerId === userId
+          ? me
+          : await prisma.user.findUnique({
+              where: { id: ownerId },
+              select: BILLING_USER_SELECT,
+            });
+      const ownerPrefs =
+        owner?.preferences && typeof owner.preferences === 'object'
+          ? (owner.preferences as any)
+          : {};
+      return {
+        effectivePlan: getEffectiveEntitledPlan(owner as any),
+        effectiveSubscriptionId: ownerPrefs.subscription_id,
+        teamCountSource: 'org',
+        orgIdForTeamCount: targetOrgId,
+        callerIsOrgOwner: ownerId === userId,
+      };
+    }
+  }
+
+  // Ownerless org, or no resolvable target: fall back to the caller's own
+  // context so a create is never left with no allowance check at all.
   const prefs =
     me?.preferences && typeof me.preferences === 'object' ? (me.preferences as any) : {};
   let effectivePlan = getEffectiveEntitledPlan(me as any);
@@ -414,6 +510,9 @@ async function buildTeamCreateBillingContext(
     effectiveSubscriptionId,
     teamCountSource,
     orgIdForTeamCount,
+    // Personal/ownerless fallback: the caller is being gated by their own plan
+    // unless they are a coach covered by an owner's subscription.
+    callerIsOrgOwner: !me?.paid_by_owner,
   };
 }
 
@@ -506,6 +605,15 @@ teamsRouter.get(
     const managementRoleSql = Prisma.join(
       managementRoles.map(role => Prisma.sql`${role}::"TeamRole"`)
     );
+    // Mirror `canManageAnyTeam`: team access is a staff TeamMembership OR being
+    // an org admin of the team's organization. This list previously implemented
+    // only the first half, so an organizer whose coaches created the teams saw
+    // none of their own org's teams — even though the gate says they may manage
+    // them. Kept in lockstep with ORG_ADMIN_ROLES so the list can never show a
+    // team the gate would then refuse (or hide one it would allow).
+    const orgAdminRoleSql = Prisma.join(
+      [...ORG_ADMIN_ROLES].map(role => Prisma.sql`${role}::"OrganizationRole"`)
+    );
 
     const select: any = {
       ...buildTeamSerializeSelect({
@@ -536,13 +644,23 @@ teamsRouter.get(
             FROM "Team" t
             INNER JOIN "Organization" o ON o."id" = t."organization_id"
             WHERE t."status" = 'active'
-              AND EXISTS (
-                SELECT 1
-                FROM "TeamMembership" tm
-                WHERE tm."team_id" = t."id"
-                  AND tm."user_id" = ${userId}
-                  AND tm."status" = 'active'
-                  AND tm."role" IN (${managementRoleSql})
+              AND (
+                EXISTS (
+                  SELECT 1
+                  FROM "TeamMembership" tm
+                  WHERE tm."team_id" = t."id"
+                    AND tm."user_id" = ${userId}
+                    AND tm."status" = 'active'
+                    AND tm."role" IN (${managementRoleSql})
+                )
+                OR EXISTS (
+                  SELECT 1
+                  FROM "OrganizationMembership" om
+                  WHERE om."organization_id" = t."organization_id"
+                    AND om."user_id" = ${userId}
+                    AND om."status" = 'active'
+                    AND om."role" IN (${orgAdminRoleSql})
+                )
               )
               ${searchClause}
               ${cursorClause}
@@ -1383,16 +1501,61 @@ teamsRouter.get(
 );
 
 // Create team (auth required). Creator becomes owner.
-const createSchema = z.object({
+const TEAM_LOGO_URL_VALIDATOR = z
+  .string()
+  .url({ message: 'logo_url must be a valid URL' })
+  .refine(isAllowedAssetUrl, ASSET_URL_MESSAGE)
+  .optional()
+  .or(z.literal(''));
+
+// Single team-create payload contract. BOTH create routes derive from this —
+// they previously carried separate hand-maintained schemas and drifted, so
+// POST /teams silently stripped sport/club_type/venue/branding fields (Zod
+// drops unknown keys) and still answered 201, filing every team under the
+// org's `other` program.
+const teamCreateBaseSchema = z.object({
   name: z.string().trim().min(2).max(100),
   description: z.string().trim().max(1000).optional(),
-  organization_id: z.string().min(1, 'Organization is required'),
+  sport: z.string().max(100).optional(),
+  club_type: z.enum(['sport', 'extracurricular']).optional(),
+  extracurricular_category: z.string().max(100).optional(),
+  season: z.string().max(50).optional(),
+  primary_color: z.string().max(20).optional(),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
-  onboarding: z.boolean().optional(),
+  organization_id: z.string().optional(),
+  organization_name: z.string().max(255).optional(),
+  logo_url: TEAM_LOGO_URL_VALIDATOR,
+  city: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
+  league: z.string().max(100).optional(),
+  venue_place_id: z.string().optional(),
+  venue_lat: z.number().optional(),
+  venue_lng: z.number().optional(),
+  venue_address: z.string().optional(),
   level: z.enum(['varsity', 'jv', 'freshman', 'middle_school', 'unified', 'other']).optional(),
   gender: z.enum(['boys', 'girls', 'coed']).optional(),
   program_id: z.string().min(1).optional(),
+  // Hard upper bound so one request can't fan out an unbounded invite blast;
+  // the per-plan maxAuthorizedUsers cap is enforced in createTeamWithGuardrails.
+  authorized_users: z
+    .array(
+      z.object({
+        email: z.string().email().optional(),
+        user_id: z.string().optional(),
+        role: z.string().optional(),
+        assign_team: z.string().optional(),
+      })
+    )
+    .max(50)
+    .optional(),
+  onboarding: z.boolean().optional(),
+});
+
+// POST /teams keeps the stricter contract: an explicit organization_id, no
+// resolve-by-name. Everything else matches POST /teams/create exactly.
+const createSchema = teamCreateBaseSchema.extend({
+  organization_id: z.string().min(1, 'Organization is required'),
 });
 async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload) {
   const me = await prisma.user.findUnique({
@@ -1416,33 +1579,23 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
   const onboardingComplete = isUserOnboardingComplete(me as any);
   const isCoach = canonicalRole === 'coach';
 
+  // Only a coach ACCOUNT can create teams. A staff membership (org owner/
+  // manager, or a team-staff role) is not a substitute: a fan invited as an
+  // org manager or added as team staff would otherwise create teams with no
+  // coach application, agreement, or approval — contradicting "Only coach
+  // accounts can create teams" and "org managers have zero admin power at the
+  // org level". A coach in "proceed as fan" mode still has role === 'coach'
+  // (getCanonicalUserRole reads the column), so this never blocked a real
+  // coach — the old membership bypass only ever admitted genuine fan accounts.
   if (!isCoach) {
-    const hasCoachRole = await prisma.teamMembership.findFirst({
-      where: {
-        user_id: userId,
-        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-        status: 'active',
+    return {
+      status: 403,
+      body: {
+        error: 'COACH_ROLE_REQUIRED',
+        message: 'Only coach accounts can create teams.',
+        code: 'COACH_ROLE_REQUIRED',
       },
-    });
-    const hasOrgRole = await prisma.organizationMembership.findFirst({
-      where: {
-        user_id: userId,
-        role: { in: ['owner', 'manager'] },
-        status: 'active',
-      },
-      select: { id: true },
-    });
-
-    if (!hasCoachRole && !hasOrgRole) {
-      return {
-        status: 403,
-        body: {
-          error: 'COACH_ROLE_REQUIRED',
-          message: 'Only coach accounts can create teams.',
-          code: 'COACH_ROLE_REQUIRED',
-        },
-      };
-    }
+    };
   }
 
   if (isCoach && me.approval_status !== 'APPROVED') {
@@ -1462,8 +1615,58 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
     }
   }
 
-  const billingContext = await buildTeamCreateBillingContext(userId, me, data.organization_id);
+  // Resolve and authorize the target organization BEFORE any billing decision.
+  // The org owner's plan is what gates the create, so the org has to be known
+  // first — and this also covers the `organization_name` path, which previously
+  // reached the billing gate with no organization id at all.
+  const resolvedOrganization = await resolveOrganizationIdForTeamCreate(data);
+  if ('status' in resolvedOrganization) {
+    return resolvedOrganization;
+  }
+
+  const organizationAccess = await validateTeamCreateOrganizationAccess(
+    me.id,
+    resolvedOrganization.organizationId,
+    onboardingComplete
+  );
+  if ('status' in organizationAccess) {
+    return organizationAccess;
+  }
+
+  const organizationId = resolvedOrganization.organizationId;
+
+  // Validate the create-time invite list against the plan cap BEFORE anything
+  // is written. POST /teams/:id/invite and POST /team-invites both enforce
+  // maxAuthorizedUsers; this path only had a role whitelist and a hard max(50),
+  // so an over-cap payload minted invites that the accept-time backstop would
+  // later refuse — inviting people who then could not join. Resolved from the
+  // CREATOR's plan because they become the team owner, which is what
+  // getTeamEntitlementState reads once the team exists (pre/post must agree).
+  const createTimeInvites = resolveCreateTimeInvites(data.authorized_users);
+  const authorizedInviteCount = createTimeInvites.filter(invite =>
+    isAuthorizedTeamRole(invite.role)
+  ).length;
+  if (authorizedInviteCount > 0) {
+    const creatorPlan = await getUserPlan(userId);
+    const authorizedUsersLimit = getAuthorizedUsersPerTeam(creatorPlan);
+    if (authorizedUsersLimit !== null && authorizedInviteCount > authorizedUsersLimit) {
+      return {
+        status: 403,
+        body: {
+          error: 'USER_LIMIT_REACHED',
+          code: 'USER_LIMIT_REACHED',
+          message: `Plan limit reached for authorized users. This team allows ${authorizedUsersLimit} authorized user${authorizedUsersLimit === 1 ? '' : 's'}.`,
+          limit: authorizedUsersLimit,
+          current: authorizedInviteCount,
+        },
+      };
+    }
+  }
+
+  const billingContext = await buildTeamCreateBillingContext(userId, me, organizationId);
   const effectivePlan = billingContext.effectivePlan;
+  // The caller is being gated by a plan they cannot change themselves.
+  const gatedByOwnerPlan = !billingContext.callerIsOrgOwner;
   const clubType = data.club_type || 'sport';
 
   if (clubType === 'extracurricular' && !planSupportsExtracurricular(effectivePlan)) {
@@ -1489,20 +1692,17 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
       where: { program_id: targetProgramId, status: 'active' },
     });
     targetProgramAlreadyActive = activeInProgram > 0;
-  } else if (
-    (data.club_type || 'sport') === 'sport' &&
-    typeof data.organization_id === 'string' &&
-    data.organization_id.trim()
-  ) {
+  } else if ((data.club_type || 'sport') === 'sport') {
     // No explicit program_id: the create transaction groups this sport team into
     // the org's (organization_id, sport) program — creating it if absent, or
     // JOINING an existing one. Mirror that resolution here (read-only) so adding a
     // level team to an EXISTING sport isn't mis-gated as a brand-new billable
     // program, which false-blocked free level-team add-ons at the rookie limit.
+    // Keyed on the RESOLVED org id so the `organization_name` path is covered too.
     const sportSlug = normalizeSportToSlug(data.sport) ?? 'other';
     const existingProgram = await prisma.sportProgram.findUnique({
       where: {
-        organization_id_sport: { organization_id: data.organization_id.trim(), sport: sportSlug },
+        organization_id_sport: { organization_id: organizationId, sport: sportSlug },
       },
       select: { id: true },
     });
@@ -1521,7 +1721,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
         status: 403,
         body: {
           error: 'Program limit reached',
-          message: me.paid_by_owner
+          message: gatedByOwnerPlan
             ? `Your organization has reached the free limit (${SERVER_ROOKIE_PROGRAM_LIMIT} sports). The league owner needs to upgrade.`
             : `You've reached your free limit (${SERVER_ROOKIE_PROGRAM_LIMIT} sports). Upgrade to add another sport.`,
           code: 'PROGRAM_LIMIT_EXCEEDED',
@@ -1544,7 +1744,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
             status: 403,
             body: {
               error: 'Subscription not active',
-              message: me.paid_by_owner
+              message: gatedByOwnerPlan
                 ? "The league owner's Veteran subscription is not active."
                 : 'Your Veteran subscription is not active. Please update your billing settings.',
               code: 'SUBSCRIPTION_NOT_ACTIVE',
@@ -1562,7 +1762,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
             status: 403,
             body: {
               error: 'Program limit reached',
-              message: me.paid_by_owner
+              message: gatedByOwnerPlan
                 ? `The organization's subscription currently covers ${allowance.totalTeamAllowance} sports. The league owner needs to update billing before adding another sport.`
                 : `Your subscription currently covers ${allowance.totalTeamAllowance} sports. Update billing before adding another sport.`,
               code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
@@ -1584,22 +1784,6 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
       }
     }
   }
-
-  const resolvedOrganization = await resolveOrganizationIdForTeamCreate(data);
-  if ('status' in resolvedOrganization) {
-    return resolvedOrganization;
-  }
-
-  const organizationAccess = await validateTeamCreateOrganizationAccess(
-    me.id,
-    resolvedOrganization.organizationId,
-    onboardingComplete
-  );
-  if ('status' in organizationAccess) {
-    return organizationAccess;
-  }
-
-  const organizationId = resolvedOrganization.organizationId;
 
   if (data.program_id) {
     const program = await prisma.sportProgram.findUnique({
@@ -1628,7 +1812,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
               status: 403,
               body: {
                 error: 'Program limit reached',
-                message: me.paid_by_owner
+                message: gatedByOwnerPlan
                   ? `Your organization has reached the free limit (${SERVER_ROOKIE_PROGRAM_LIMIT} sports). The league owner needs to upgrade.`
                   : `You've reached your free limit (${SERVER_ROOKIE_PROGRAM_LIMIT} sports). Upgrade to add another sport.`,
                 code: 'PROGRAM_LIMIT_EXCEEDED',
@@ -1651,7 +1835,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
                   status: 403,
                   body: {
                     error: 'Subscription not active',
-                    message: me.paid_by_owner
+                    message: gatedByOwnerPlan
                       ? "The league owner's Veteran subscription is not active."
                       : 'Your Veteran subscription is not active. Please update your billing settings.',
                     code: 'SUBSCRIPTION_NOT_ACTIVE',
@@ -1668,7 +1852,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
                   status: 403,
                   body: {
                     error: 'Program limit reached',
-                    message: me.paid_by_owner
+                    message: gatedByOwnerPlan
                       ? `The organization's subscription currently covers ${allowance.totalTeamAllowance} sports. The league owner needs to update billing before adding another sport.`
                       : `Your subscription currently covers ${allowance.totalTeamAllowance} sports. Update billing before adding another sport.`,
                     code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
@@ -1771,21 +1955,11 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
       data.authorized_users.length > 0
     ) {
       try {
-        // 2026-07-09: player/parent/member retired — teams hold staff only.
-        const validInviteRoles = new Set([
-          'manager',
-          'coach',
-          'assistant_coach',
-          'equipment',
-          'health_wellness',
-        ]);
-        const invites = data.authorized_users
-          .filter(user => user.email && validInviteRoles.has(String(user.role || '')))
-          .map(user => ({
-            team_id: team.id,
-            email: user.email!,
-            role: String(user.role) as any,
-          }));
+        const invites = resolveCreateTimeInvites(data.authorized_users).map(invite => ({
+          team_id: team.id,
+          email: invite.email,
+          role: invite.role as any,
+        }));
 
         if (invites.length > 0) {
           await prisma.teamInvite.createMany({
@@ -1871,7 +2045,11 @@ teamsRouter.post(
 
     const result = await createTeamWithGuardrails(req.user!.id, {
       ...parsed.data,
-      club_type: 'sport',
+      // Honor the payload rather than force-overriding it — silently rewriting
+      // an explicit `extracurricular` back to `sport` is the same class of
+      // quiet data loss this route's schema drift already caused. The Legend
+      // tier gate for extracurricular clubs lives in createTeamWithGuardrails.
+      club_type: parsed.data.club_type ?? 'sport',
     });
     if ('status' in result) {
       return res.status(result.status).json(result.body);
@@ -1892,12 +2070,6 @@ const logoUrlString = z.union([
     .or(z.string()),
   z.literal(''),
 ]);
-const TEAM_LOGO_URL_VALIDATOR = z
-  .string()
-  .url({ message: 'logo_url must be a valid URL' })
-  .refine(isAllowedAssetUrl, ASSET_URL_MESSAGE)
-  .optional()
-  .or(z.literal(''));
 
 const updateSchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
@@ -2255,44 +2427,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Enhanced create team for onboarding
-const createTeamSchema = z.object({
-  name: z.string().min(2).max(100),
-  description: z.string().max(1000).optional(),
-  sport: z.string().max(100).optional(),
-  club_type: z.enum(['sport', 'extracurricular']).optional(),
-  extracurricular_category: z.string().max(100).optional(),
-  season: z.string().max(50).optional(),
-  primary_color: z.string().max(20).optional(),
-  season_start: z.string().optional(),
-  season_end: z.string().optional(),
-  organization_id: z.string().optional(),
-  organization_name: z.string().max(255).optional(),
-  logo_url: TEAM_LOGO_URL_VALIDATOR,
-  city: z.string().max(100).optional(),
-  state: z.string().max(100).optional(),
-  league: z.string().max(100).optional(),
-  venue_place_id: z.string().optional(),
-  venue_lat: z.number().optional(),
-  venue_lng: z.number().optional(),
-  venue_address: z.string().optional(),
-  level: z.enum(['varsity', 'jv', 'freshman', 'middle_school', 'unified', 'other']).optional(),
-  gender: z.enum(['boys', 'girls', 'coed']).optional(),
-  program_id: z.string().min(1).optional(),
-  authorized_users: z
-    .array(
-      z.object({
-        email: z.string().email().optional(),
-        user_id: z.string().optional(),
-        role: z.string().optional(),
-        assign_team: z.string().optional(),
-      })
-    )
-    // Hard upper bound so one request can't fan out an unbounded invite blast;
-    // the per-plan maxAuthorizedUsers cap is enforced below at invite time.
-    .max(50)
-    .optional(),
-  onboarding: z.boolean().optional(),
-});
+const createTeamSchema = teamCreateBaseSchema;
 
 teamsRouter.post(
   '/create',
