@@ -37,6 +37,11 @@ describe('team picker scope contract', () => {
     expect(src).toMatch(/useTeamOptions/);
   });
 
+  it.each(MODALS)('%s renders the sport -> sub-team cascade', file => {
+    const src = read(file);
+    expect(src).toMatch(/buildTeamPickerSports/);
+  });
+
   it('the managed hook calls the scoped endpoint, not the public list', () => {
     const hook = read('hooks/useManagedTeamOptions.ts');
     expect(hook).toMatch(/Team\.managed\(/);

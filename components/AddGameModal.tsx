@@ -1,11 +1,12 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { buildTeamPickerSports } from '@/utils/teamPickerCascade';
 import { useManagedTeamOptions } from '@/hooks/useManagedTeamOptions';
 import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { formatGameDate, formatGameTime, isPastGameDate } from '@/utils/gameFormHelpers';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from '@/api/entities';
 import {
   ActivityIndicator,
@@ -178,6 +179,57 @@ export default function AddGameModal({
       ),
     [currentTeamSearchQuery, myTeams]
   );
+
+  // Sport -> sub-team cascade for browsing (empty search). A non-empty search
+  // flattens across all of the user's teams instead — search wins over drill.
+  const pickerSports = useMemo(
+    () =>
+      buildTeamPickerSports(
+        Array.isArray(rawManagedTeams) && rawManagedTeams.length > 0
+          ? rawManagedTeams.map((t: any) => ({
+              id: String(t.id),
+              name: t.name,
+              sport: t.sport ?? null,
+              program_id: t.program_id ?? null,
+              level: t.level ?? null,
+              gender: t.gender ?? null,
+            }))
+          : currentTeamName
+            ? [{ id: 'my-team', name: currentTeamName, program_id: null }]
+            : []
+      ),
+    [rawManagedTeams, currentTeamName]
+  );
+  const [pickerSportKey, setPickerSportKey] = useState<string | null>(null);
+  const activePickerSport = pickerSports.find(s => s.key === pickerSportKey) ?? null;
+  const isSearchingTeams = currentTeamSearchQuery.trim().length > 0;
+  useEffect(() => {
+    if (!showCurrentTeamPicker) setPickerSportKey(null);
+  }, [showCurrentTeamPicker]);
+
+  const selectCurrentTeam = (teamId: string, teamName: string) => {
+    // Venue comes from the managed list (where myTeams originates), not the
+    // public directory.
+    const teamRaw = (rawManagedTeams as any[]).find(t => String(t.id) === teamId);
+    const homeVenue: string = formData.type === 'home' ? teamRaw?.venue_address || '' : '';
+    setFormData(prev => ({
+      ...prev,
+      currentTeam: teamName,
+      ...(homeVenue
+        ? {
+            location: homeVenue,
+            ...(teamRaw?.venue_lat != null ? { latitude: teamRaw.venue_lat } : {}),
+            ...(teamRaw?.venue_lng != null ? { longitude: teamRaw.venue_lng } : {}),
+          }
+        : {}),
+    }));
+    if (errors.currentTeam) {
+      setErrors(prev => ({ ...prev, currentTeam: '' }));
+    }
+    setShowCurrentTeamPicker(false);
+    setCurrentTeamSearchQuery('');
+    setPickerSportKey(null);
+  };
 
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
@@ -807,16 +859,22 @@ export default function AddGameModal({
             <View style={styles.pickerHeader}>
               <Pressable
                 onPress={() => {
-                  setShowCurrentTeamPicker(false);
-                  setCurrentTeamSearchQuery('');
+                  if (activePickerSport && !isSearchingTeams) {
+                    setPickerSportKey(null);
+                  } else {
+                    setShowCurrentTeamPicker(false);
+                    setCurrentTeamSearchQuery('');
+                  }
                 }}
               >
                 <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>
-                  Cancel
+                  {activePickerSport && !isSearchingTeams ? 'Back' : 'Cancel'}
                 </Text>
               </Pressable>
               <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>
-                Select Your Team
+                {activePickerSport && !isSearchingTeams
+                  ? activePickerSport.label
+                  : 'Select Your Team'}
               </Text>
               <View style={{ width: 50 }} />
             </View>
@@ -842,53 +900,94 @@ export default function AddGameModal({
             </View>
 
             <ScrollView style={styles.pickerList}>
-              {filteredCurrentTeams.map(team => (
-                <Pressable
-                  key={team.id}
-                  style={[
-                    styles.pickerItem,
-                    { borderBottomColor: Colors[colorScheme].border },
-                    formData.currentTeam === team.name && {
-                      backgroundColor: Colors[colorScheme].surface,
-                    },
-                  ]}
-                  onPress={() => {
-                    const teamRaw = (rawTeams as any[]).find(t => String(t.id) === team.id);
-                    const homeVenue: string =
-                      formData.type === 'home' ? teamRaw?.venue_address || '' : '';
-                    setFormData(prev => ({
-                      ...prev,
-                      currentTeam: team.name,
-                      ...(homeVenue
-                        ? {
-                            location: homeVenue,
-                            ...(teamRaw?.venue_lat != null ? { latitude: teamRaw.venue_lat } : {}),
-                            ...(teamRaw?.venue_lng != null ? { longitude: teamRaw.venue_lng } : {}),
-                          }
-                        : {}),
-                    }));
-                    if (errors.currentTeam) {
-                      setErrors(prev => ({ ...prev, currentTeam: '' }));
-                    }
-                    setShowCurrentTeamPicker(false);
-                    setCurrentTeamSearchQuery('');
-                  }}
-                >
-                  <View style={styles.pickerItemContent}>
-                    {team.logo && (
-                      <View style={styles.teamLogoContainer}>
-                        <Text style={styles.teamLogoText}>🏆</Text>
+              {isSearchingTeams
+                ? // Search flattens across all of the user's teams.
+                  filteredCurrentTeams.map(team => (
+                    <Pressable
+                      key={team.id}
+                      style={[
+                        styles.pickerItem,
+                        { borderBottomColor: Colors[colorScheme].border },
+                        formData.currentTeam === team.name && {
+                          backgroundColor: Colors[colorScheme].surface,
+                        },
+                      ]}
+                      onPress={() => selectCurrentTeam(team.id, team.name)}
+                    >
+                      <View style={styles.pickerItemContent}>
+                        <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
+                          {team.name}
+                        </Text>
                       </View>
-                    )}
-                    <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
-                      {team.name}
-                    </Text>
-                  </View>
-                  {formData.currentTeam === team.name && (
-                    <MaterialIcons name="check" size={20} color="#007AFF" />
-                  )}
-                </Pressable>
-              ))}
+                      {formData.currentTeam === team.name && (
+                        <MaterialIcons name="check" size={20} color="#007AFF" />
+                      )}
+                    </Pressable>
+                  ))
+                : activePickerSport
+                  ? // Level 2: sub-teams within the chosen sport.
+                    activePickerSport.teams.map(sub => (
+                      <Pressable
+                        key={sub.id}
+                        style={[
+                          styles.pickerItem,
+                          { borderBottomColor: Colors[colorScheme].border },
+                          formData.currentTeam === sub.name && {
+                            backgroundColor: Colors[colorScheme].surface,
+                          },
+                        ]}
+                        onPress={() => selectCurrentTeam(sub.id, sub.name)}
+                      >
+                        <View style={styles.pickerItemContent}>
+                          <Text
+                            style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}
+                          >
+                            {sub.label}
+                          </Text>
+                        </View>
+                        {formData.currentTeam === sub.name && (
+                          <MaterialIcons name="check" size={20} color="#007AFF" />
+                        )}
+                      </Pressable>
+                    ))
+                  : // Level 1: sports. Single-team sports select directly.
+                    pickerSports.map(sport => {
+                      const selected =
+                        sport.isSingle && formData.currentTeam === sport.teams[0]?.name;
+                      return (
+                        <Pressable
+                          key={sport.key}
+                          style={[
+                            styles.pickerItem,
+                            { borderBottomColor: Colors[colorScheme].border },
+                            selected && { backgroundColor: Colors[colorScheme].surface },
+                          ]}
+                          onPress={() =>
+                            sport.isSingle
+                              ? selectCurrentTeam(sport.teams[0].id, sport.teams[0].name)
+                              : setPickerSportKey(sport.key)
+                          }
+                        >
+                          <View style={styles.pickerItemContent}>
+                            <Text
+                              style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}
+                            >
+                              {sport.label}
+                              {sport.isSingle ? '' : `  (${sport.teams.length})`}
+                            </Text>
+                          </View>
+                          {sport.isSingle ? (
+                            selected && <MaterialIcons name="check" size={20} color="#007AFF" />
+                          ) : (
+                            <MaterialIcons
+                              name="chevron-right"
+                              size={20}
+                              color={Colors[colorScheme].mutedText}
+                            />
+                          )}
+                        </Pressable>
+                      );
+                    })}
             </ScrollView>
           </View>
         </View>
