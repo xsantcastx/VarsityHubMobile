@@ -3,6 +3,7 @@ import { uploadFile } from '@/api/upload';
 import { Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { buildTeamPickerSports } from '@/utils/teamPickerCascade';
 import { useManagedTeamOptions } from '@/hooks/useManagedTeamOptions';
 import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { Ionicons } from '@expo/vector-icons';
@@ -445,6 +446,45 @@ export default function QuickAddGameModal({
       venue_place_id: team.venue_place_id,
     }));
   }, [currentTeamName, currentTeamId, rawManagedTeams]);
+
+  // Sport -> sub-team cascade for the "Select Your Team" picker. Teams in one
+  // sport (basketball) are sibling level teams (boys/JV, girls/varsity); the
+  // picker asks for the sport first, then the level team, and skips the second
+  // step for single-team sports.
+  const pickerSports = useMemo(() => {
+    const source =
+      Array.isArray(rawManagedTeams) && rawManagedTeams.length > 0
+        ? rawManagedTeams.map((t: any) => ({
+            id: String(t.id),
+            name: t.name,
+            sport: t.sport ?? null,
+            program_id: t.program_id ?? null,
+            level: t.level ?? null,
+            gender: t.gender ?? null,
+          }))
+        : currentTeamName
+          ? [{ id: currentTeamId || 'my-team', name: currentTeamName, program_id: null }]
+          : [];
+    return buildTeamPickerSports(source);
+  }, [rawManagedTeams, currentTeamName, currentTeamId]);
+  // Which sport the picker has drilled into (null = showing the sport list).
+  const [pickerSportKey, setPickerSportKey] = useState<string | null>(null);
+  const activePickerSport = pickerSports.find(s => s.key === pickerSportKey) ?? null;
+  // Reset the drill-down whenever the picker closes so it always reopens at the
+  // sport list.
+  useEffect(() => {
+    if (!showCurrentTeamPicker) setPickerSportKey(null);
+  }, [showCurrentTeamPicker]);
+
+  const selectPickerTeam = (teamId: string, teamName: string) => {
+    setCurrentTeam(teamName);
+    setStoredCurrentTeamId(teamId);
+    if (errors.currentTeam) {
+      setErrors(prev => ({ ...prev, currentTeam: '' }));
+    }
+    setShowCurrentTeamPicker(false);
+    setPickerSportKey(null);
+  };
 
   // Set home venue when current team changes or modal opens
   useEffect(() => {
@@ -1753,56 +1793,112 @@ export default function QuickAddGameModal({
                 ]}
               >
                 <View style={styles.pickerHeader}>
-                  <Pressable onPress={() => setShowCurrentTeamPicker(false)}>
+                  <Pressable
+                    onPress={() =>
+                      activePickerSport ? setPickerSportKey(null) : setShowCurrentTeamPicker(false)
+                    }
+                  >
                     <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>
-                      Cancel
+                      {activePickerSport ? 'Back' : 'Cancel'}
                     </Text>
                   </Pressable>
                   <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>
-                    Select Your Team
+                    {activePickerSport ? activePickerSport.label : 'Select Your Team'}
                   </Text>
                   <View style={{ width: 50 }} />
                 </View>
                 <ScrollView style={styles.pickerList}>
-                  {myTeams.map(team => (
-                    <Pressable
-                      key={team.id}
-                      style={[
-                        styles.pickerItem,
-                        { borderBottomColor: Colors[colorScheme].border },
-                        currentTeam === team.name && {
-                          backgroundColor: Colors[colorScheme].surface,
-                        },
-                      ]}
-                      onPress={() => {
-                        setCurrentTeam(team.name);
-                        setStoredCurrentTeamId(team.id); // Update team ID when team changes
-                        if (errors.currentTeam) {
-                          setErrors(prev => ({ ...prev, currentTeam: '' }));
-                        }
-                        setShowCurrentTeamPicker(false);
-                      }}
-                    >
-                      <View style={styles.pickerItemContent}>
-                        <View style={styles.teamLogoContainer}>
-                          {team.logo ? (
-                            <Image
-                              source={{ uri: optimizeImageUrl(team.logo, 160) }}
-                              style={styles.teamLogoImage}
-                            />
-                          ) : (
-                            <Text style={styles.teamLogoText}>🏆</Text>
-                          )}
-                        </View>
-                        <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
-                          {team.name}
-                        </Text>
-                      </View>
-                      {currentTeam === team.name && (
-                        <Ionicons name="checkmark" size={20} color="#007AFF" />
-                      )}
-                    </Pressable>
-                  ))}
+                  {activePickerSport
+                    ? // Level 2: sub-teams within the chosen sport.
+                      activePickerSport.teams.map(sub => {
+                        const logo = myTeams.find(t => t.id === sub.id)?.logo;
+                        return (
+                          <Pressable
+                            key={sub.id}
+                            style={[
+                              styles.pickerItem,
+                              { borderBottomColor: Colors[colorScheme].border },
+                              storedCurrentTeamId === sub.id && {
+                                backgroundColor: Colors[colorScheme].surface,
+                              },
+                            ]}
+                            onPress={() => selectPickerTeam(sub.id, sub.name)}
+                          >
+                            <View style={styles.pickerItemContent}>
+                              <View style={styles.teamLogoContainer}>
+                                {logo ? (
+                                  <Image
+                                    source={{ uri: optimizeImageUrl(logo, 160) }}
+                                    style={styles.teamLogoImage}
+                                  />
+                                ) : (
+                                  <Text style={styles.teamLogoText}>🏆</Text>
+                                )}
+                              </View>
+                              <Text
+                                style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}
+                              >
+                                {sub.label}
+                              </Text>
+                            </View>
+                            {storedCurrentTeamId === sub.id && (
+                              <Ionicons name="checkmark" size={20} color="#007AFF" />
+                            )}
+                          </Pressable>
+                        );
+                      })
+                    : // Level 1: sports. Single-team sports select directly;
+                      // multi-team sports drill into their level teams.
+                      pickerSports.map(sport => {
+                        const logo = sport.isSingle
+                          ? myTeams.find(t => t.id === sport.teams[0]?.id)?.logo
+                          : undefined;
+                        const selected =
+                          sport.isSingle && storedCurrentTeamId === sport.teams[0]?.id;
+                        return (
+                          <Pressable
+                            key={sport.key}
+                            style={[
+                              styles.pickerItem,
+                              { borderBottomColor: Colors[colorScheme].border },
+                              selected && { backgroundColor: Colors[colorScheme].surface },
+                            ]}
+                            onPress={() =>
+                              sport.isSingle
+                                ? selectPickerTeam(sport.teams[0].id, sport.teams[0].name)
+                                : setPickerSportKey(sport.key)
+                            }
+                          >
+                            <View style={styles.pickerItemContent}>
+                              <View style={styles.teamLogoContainer}>
+                                {logo ? (
+                                  <Image
+                                    source={{ uri: optimizeImageUrl(logo, 160) }}
+                                    style={styles.teamLogoImage}
+                                  />
+                                ) : (
+                                  <Text style={styles.teamLogoText}>🏆</Text>
+                                )}
+                              </View>
+                              <Text
+                                style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}
+                              >
+                                {sport.label}
+                                {sport.isSingle ? '' : `  (${sport.teams.length})`}
+                              </Text>
+                            </View>
+                            {sport.isSingle ? (
+                              selected && <Ionicons name="checkmark" size={20} color="#007AFF" />
+                            ) : (
+                              <Ionicons
+                                name="chevron-forward"
+                                size={20}
+                                color={Colors[colorScheme].mutedText}
+                              />
+                            )}
+                          </Pressable>
+                        );
+                      })}
                 </ScrollView>
               </View>
             </View>
