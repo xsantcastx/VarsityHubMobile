@@ -1917,6 +1917,7 @@ organizationsRouter.post(
       const joinRequestOps: Prisma.PrismaPromise<unknown>[] = [joinRequestUpsert];
       if (!requesterOwnsApprovedOrg) {
         joinRequestOps.push(
+          // cache-invalidation-exempt — invalidateMeCacheForUser(req.user!.id) called after the $transaction below
           prisma.user.update({
             where: { id: req.user!.id },
             data: {
