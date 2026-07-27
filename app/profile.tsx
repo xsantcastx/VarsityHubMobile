@@ -1,5 +1,4 @@
 import { Organization, Team, User } from '@/api/entities';
-import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
@@ -46,7 +45,7 @@ type ProfilePreferences = {
   grade_level?: string | null;
   graduation_year?: string | number | null;
   accolades?: string | null;
-  primary_sport?: Sport | string | null;
+  primary_sport?: string | null;
   sport?: string | null;
   header_image_url?: string | null;
   header_image_focus_y?: number | null;
@@ -661,7 +660,7 @@ export default function ProfileScreen() {
   const _gradeLevel = preferences?.grade_level;
   const _graduationYear = preferences?.graduation_year;
   const _accolades = preferences?.accolades;
-  const _primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
+  const _primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as string;
   const headerBackgroundImage = preferences?.header_image_url || null;
   const headerImageFocusY = clampValue(
     typeof preferences?.header_image_focus_y === 'number' ? preferences.header_image_focus_y : 0,
