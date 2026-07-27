@@ -47,7 +47,6 @@ type TeamMember = {
   role: string;
   status: string;
   position?: string;
-  jersey_number?: string;
   user: MemberUser;
 };
 
@@ -57,7 +56,6 @@ type RawTeamMember = {
   status?: string | null;
   position?: string | null;
   custom_position?: string | null;
-  jersey_number?: string | null;
   user?: {
     id?: string | null;
     email?: string | null;
@@ -78,7 +76,6 @@ const selectRosterMembers = (list: any[]): TeamMember[] =>
     role: m.role || 'member',
     status: m.status || 'active',
     position: m.position || m.custom_position || undefined,
-    jersey_number: m.jersey_number || undefined,
     user: {
       id: String(m.user?.id || ''),
       email: m.user?.email || '',
@@ -512,11 +509,6 @@ function MyTeamScreen() {
             >
               {item.user.display_name}
             </Text>
-            {item.jersey_number ? (
-              <Text style={[styles.jerseyNumber, { color: Colors[colorScheme].mutedText }]}>
-                #{item.jersey_number}
-              </Text>
-            ) : null}
           </View>
           <View style={styles.memberMeta}>
             {item.role !== 'fan' && (
@@ -1148,10 +1140,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     flexShrink: 1,
-  },
-  jerseyNumber: {
-    fontSize: 13,
-    fontWeight: '500',
   },
   memberMeta: {
     flexDirection: 'row',

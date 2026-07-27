@@ -653,15 +653,6 @@ export default function ProfileScreen() {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || // UUID
     /^c[0-9a-z]{20,}$/.test(s); // CUID
   const displayUsername = me?.username && !isInternalId(me.username) ? `@${me.username}` : 'User';
-
-  // Athlete-specific data from preferences (currently unused but may be needed for future features)
-  const _isAthlete = Boolean(preferences?.position || preferences?.jersey_number);
-  const _jerseyNumber = preferences?.jersey_number || me?.jersey_number;
-  const _position = preferences?.position || me?.position;
-  const _gradeLevel = preferences?.grade_level;
-  const _graduationYear = preferences?.graduation_year;
-  const _accolades = preferences?.accolades;
-  const _primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
   const headerBackgroundImage = preferences?.header_image_url || null;
   const headerImageFocusY = clampValue(
     typeof preferences?.header_image_focus_y === 'number' ? preferences.header_image_focus_y : 0,
@@ -2207,10 +2198,6 @@ const styles = StyleSheet.create({
   },
   teamChipName: { flex: 1, fontSize: 15, fontWeight: '600', minWidth: 0 },
   teamChipRole: { fontSize: 12, textTransform: 'capitalize' },
-  athleteCredentialsCompact: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
   positionBadgeText: {
     fontSize: 13,
     fontWeight: '600',
