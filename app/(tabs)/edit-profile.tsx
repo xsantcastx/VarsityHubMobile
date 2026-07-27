@@ -31,7 +31,6 @@ import {
   sanitizeText,
   validateBio,
   validateDisplayName,
-  validateYear,
   validateZipCode,
 } from '@/utils/formUtils';
 import { optimizeImageUrl } from '@/utils/imageUrl';
@@ -89,21 +88,7 @@ export default function EditProfileScreen() {
   // Sports interests
   const [sportsInterests, setSportsInterests] = useState<string[]>([]);
 
-  // Team member fields
-  const [position, setPosition] = useState('');
-  const [jerseyNumber, setJerseyNumber] = useState('');
-
-  // Athlete-specific fields
-  const [gradeLevel, setGradeLevel] = useState<'Freshman' | 'Sophomore' | 'Junior' | 'Senior' | ''>(
-    ''
-  );
-  const [graduationYear, setGraduationYear] = useState('');
-  const [accolades, setAccolades] = useState(''); // Comma-separated string
-  const [primarySport, setPrimarySport] = useState('');
-
   // User info
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [hasTeamMembership, setHasTeamMembership] = useState(false);
   const [me, setMe] = useState<any>(null);
 
   const HEADER_IMAGE_DRAG_LIMIT = 120;
@@ -111,29 +96,6 @@ export default function EditProfileScreen() {
     Math.min(max, Math.max(min, value));
   const headerImagePanStart = useRef(0);
   const headerImageAnimatedOffset = useRef(new Animated.Value(0)).current;
-
-  // Inline validation handlers
-  const validateGradYearOnBlur = useCallback(() => {
-    if (!graduationYear) {
-      setFieldErrors(prev => ({ ...prev, graduationYear: undefined }));
-      return;
-    }
-    const result = validateYear(graduationYear, { min: 2020, max: 2040 });
-    setFieldErrors(prev => ({ ...prev, graduationYear: result.error }));
-  }, [graduationYear]);
-
-  const handleGradYearChange = useCallback(
-    (text: string) => {
-      // Only allow digits
-      const cleaned = text.replace(/\D/g, '').substring(0, 4);
-      setGraduationYear(cleaned);
-      // Clear error when user starts typing
-      if (fieldErrors.graduationYear) {
-        setFieldErrors(prev => ({ ...prev, graduationYear: undefined }));
-      }
-    },
-    [fieldErrors.graduationYear]
-  );
 
   const loadUserData = useCallback(async () => {
     setLoading(true);
@@ -177,53 +139,6 @@ export default function EditProfileScreen() {
       // Handle sports interests - check preferences first, then direct field, then legacy location
       const interests = prefs?.sports_interests || me?.sports_interests || [];
       setSportsInterests(Array.isArray(interests) ? interests : []);
-
-      // Team member fields from preferences
-      setPosition(prefs?.position || me?.position || '');
-      setJerseyNumber(
-        prefs?.jersey_number
-          ? String(prefs.jersey_number)
-          : me?.jersey_number
-            ? String(me.jersey_number)
-            : ''
-      );
-
-      // Athlete-specific fields from preferences
-      setGradeLevel(prefs?.grade_level || '');
-      setGraduationYear(prefs?.graduation_year ? String(prefs.graduation_year) : '');
-      setAccolades(
-        prefs?.accolades && Array.isArray(prefs.accolades) ? prefs.accolades.join(', ') : ''
-      );
-      setPrimarySport(prefs?.primary_sport || prefs?.sport || '');
-
-      const membershipArrays = [
-        prefs?.team_roles,
-        prefs?.memberships,
-        prefs?.teams,
-        me?.team_roles,
-        me?.teams,
-        me?.memberships,
-        me?.team_memberships,
-      ];
-      const membershipHints = [
-        prefs?.team_role,
-        prefs?.team_id,
-        prefs?.primary_team_id,
-        me?.team_role,
-        me?.team_id,
-        me?.primary_team_id,
-      ];
-      const detectedMembership =
-        membershipArrays.some(value => Array.isArray(value) && value.length > 0) ||
-        membershipHints.some(value => Boolean(value));
-      setHasTeamMembership(detectedMembership);
-
-      let derivedRole =
-        prefs?.role || me?.role || me?.user_role || me?.initial_role_selection || null;
-      if (detectedMembership && (!derivedRole || derivedRole === 'fan')) {
-        derivedRole = 'team_member';
-      }
-      setUserRole(derivedRole);
     } catch (e: any) {
       if (__DEV__) console.error('Error loading profile:', e);
       setError('You must sign in to edit your profile.');
@@ -480,10 +395,6 @@ export default function EditProfileScreen() {
       const zipResult = validateZipCode(zipCode);
       if (zipResult.error) errors.zipCode = zipResult.error;
     }
-    if (graduationYear) {
-      const yearResult = validateYear(graduationYear, { min: 2020, max: 2040 });
-      if (yearResult.error) errors.graduationYear = yearResult.error;
-    }
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -518,28 +429,6 @@ export default function EditProfileScreen() {
       if (headerImageTouched || headerImageOffsetTouched) {
         preferences.header_image_focus_y = headerImageOffset;
       }
-      preferences.position = position.trim() || null;
-      preferences.jersey_number = jerseyNumber.trim() || null;
-
-      // Athlete-specific fields
-      preferences.grade_level = gradeLevel || null;
-      if (graduationYear.trim()) {
-        const year = parseInt(graduationYear.trim(), 10);
-        if (!isNaN(year) && year >= 2020 && year <= 2040) {
-          preferences.graduation_year = year;
-        }
-      } else {
-        preferences.graduation_year = null;
-      }
-      const accoladesList = accolades.trim()
-        ? accolades
-            .split(',')
-            .map(a => a.trim())
-            .filter(Boolean)
-        : [];
-      preferences.accolades = accoladesList.length > 0 ? accoladesList : null;
-      preferences.primary_sport = primarySport.trim() ? primarySport.trim().toLowerCase() : null;
-
       // Save profile fields and preferences independently so one failure
       // does not block the other (e.g. avatar domain rejection vs background image)
       const errors: string[] = [];
@@ -577,12 +466,6 @@ export default function EditProfileScreen() {
       setSaving(false);
     }
   };
-
-  const isTeamMember =
-    userRole === 'team_member' ||
-    userRole === 'athlete' ||
-    (typeof userRole === 'string' && userRole.includes('team')) ||
-    hasTeamMembership;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -1015,193 +898,6 @@ export default function EditProfileScreen() {
                 saved theme_color values still render on the profile; users just
                 no longer pick a color here. */}
 
-            {/* Team Member Section */}
-            {isTeamMember && (
-              <View
-                style={[
-                  styles.section,
-                  {
-                    backgroundColor: Colors[colorScheme].card,
-                    borderColor: Colors[colorScheme].border,
-                  },
-                ]}
-              >
-                <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                  <MaterialIcons name="group" size={20} color={Colors[colorScheme].tint} /> Team
-                  Member Info
-                </Text>
-
-                <View style={styles.fieldRow}>
-                  <View style={[styles.fieldGroup, { flex: 2 }]}>
-                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
-                      Position
-                    </Text>
-                    <Input
-                      value={position}
-                      onChangeText={setPosition}
-                      placeholder="e.g., Point Guard"
-                      placeholderTextColor={Colors[colorScheme].mutedText}
-                      style={[
-                        styles.input,
-                        {
-                          borderColor: Colors[colorScheme].border,
-                          backgroundColor: Colors[colorScheme].surface,
-                          color: Colors[colorScheme].text,
-                        },
-                      ]}
-                    />
-                  </View>
-
-                  <View style={[styles.fieldGroup, { flex: 1 }]}>
-                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
-                      Jersey #
-                    </Text>
-                    <Input
-                      value={jerseyNumber}
-                      onChangeText={setJerseyNumber}
-                      placeholder="23"
-                      placeholderTextColor={Colors[colorScheme].mutedText}
-                      keyboardType="numeric"
-                      maxLength={3}
-                      style={[
-                        styles.input,
-                        {
-                          borderColor: Colors[colorScheme].border,
-                          backgroundColor: Colors[colorScheme].surface,
-                          color: Colors[colorScheme].text,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-
-                {/* Athlete-Specific Fields */}
-                <View style={styles.athleteSection}>
-                  <Text style={[styles.subsectionTitle, { color: Colors[colorScheme].mutedText }]}>
-                    Athlete Details (Optional)
-                  </Text>
-
-                  {/* Grade Level Picker */}
-                  <View style={styles.fieldGroup}>
-                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
-                      Grade Level
-                    </Text>
-                    <View style={styles.gradeOptions}>
-                      {['Freshman', 'Sophomore', 'Junior', 'Senior'].map(grade => (
-                        <Pressable
-                          key={grade}
-                          onPress={() => setGradeLevel(grade as any)}
-                          style={[
-                            styles.gradeOption,
-                            {
-                              backgroundColor:
-                                gradeLevel === grade
-                                  ? Colors[colorScheme].tint
-                                  : Colors[colorScheme].surface,
-                              borderColor:
-                                gradeLevel === grade
-                                  ? Colors[colorScheme].tint
-                                  : Colors[colorScheme].border,
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.gradeOptionText,
-                              {
-                                color: gradeLevel === grade ? '#FFFFFF' : Colors[colorScheme].text,
-                              },
-                            ]}
-                          >
-                            {grade}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-
-                  {/* Graduation Year */}
-                  <View style={styles.fieldGroup}>
-                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
-                      Graduation Year
-                    </Text>
-                    <Input
-                      value={graduationYear}
-                      onChangeText={handleGradYearChange}
-                      onBlur={validateGradYearOnBlur}
-                      placeholder="2025"
-                      placeholderTextColor={Colors[colorScheme].mutedText}
-                      keyboardType="numeric"
-                      maxLength={4}
-                      style={[
-                        styles.input,
-                        {
-                          borderColor: fieldErrors.graduationYear
-                            ? '#DC2626'
-                            : Colors[colorScheme].border,
-                          backgroundColor: Colors[colorScheme].surface,
-                          color: Colors[colorScheme].text,
-                        },
-                      ]}
-                    />
-                    {fieldErrors.graduationYear && (
-                      <Text style={[styles.fieldNote, { color: '#DC2626' }]}>
-                        {fieldErrors.graduationYear}
-                      </Text>
-                    )}
-                  </View>
-
-                  {/* Primary Sport */}
-                  <View style={styles.fieldGroup}>
-                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
-                      Primary Sport
-                    </Text>
-                    <Input
-                      value={primarySport}
-                      onChangeText={setPrimarySport}
-                      placeholder="e.g., basketball, football, soccer"
-                      placeholderTextColor={Colors[colorScheme].mutedText}
-                      style={[
-                        styles.input,
-                        {
-                          borderColor: Colors[colorScheme].border,
-                          backgroundColor: Colors[colorScheme].surface,
-                          color: Colors[colorScheme].text,
-                        },
-                      ]}
-                    />
-                  </View>
-
-                  {/* Accolades */}
-                  <View style={styles.fieldGroup}>
-                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
-                      Accolades
-                    </Text>
-                    <Input
-                      value={accolades}
-                      onChangeText={setAccolades}
-                      placeholder="e.g., All-State Guard, Team MVP (comma separated)"
-                      placeholderTextColor={Colors[colorScheme].mutedText}
-                      multiline
-                      numberOfLines={2}
-                      style={[
-                        styles.input,
-                        styles.textArea,
-                        {
-                          borderColor: Colors[colorScheme].border,
-                          backgroundColor: Colors[colorScheme].surface,
-                          color: Colors[colorScheme].text,
-                        },
-                      ]}
-                    />
-                    <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
-                      Separate multiple accolades with commas
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            )}
-
             {/* Save Button */}
             <View style={styles.saveSection}>
               <Pressable
@@ -1516,35 +1212,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(59,130,246,0.08)',
   },
 
-  // Athlete section styles
-  athleteSection: {
-    marginTop: 16,
-    gap: 12,
-  },
-  subsectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  gradeOptions: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  gradeOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    minWidth: 90,
-    alignItems: 'center',
-  },
-  gradeOptionText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
   helperText: {
     fontSize: 12,
     marginTop: 4,
