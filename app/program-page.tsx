@@ -244,6 +244,10 @@ function ProgramScreen() {
 
   const levels = (data?.levels ?? []) as ProgramLevel[];
   const counts = data?.counts ?? { levels: 0, teams: 0, games: 0 };
+  // A one-team sport reads as a plain schedule, not a multi-team "program":
+  // the PROGRAM badge only adds meaning (and the doubled "Soccer / PROGRAM"
+  // look the owner flagged) when the program actually aggregates >1 team.
+  const isSingleTeam = levels.length <= 1;
   const title = formatProgramLabel({
     id: program.id,
     sport: program.sport,
@@ -292,9 +296,11 @@ function ProgramScreen() {
               <Text style={[styles.programName, { color: theme.text }]} numberOfLines={2}>
                 {title}
               </Text>
-              <View style={[styles.programBadge]}>
-                <Text style={styles.programBadgeText}>PROGRAM</Text>
-              </View>
+              {!isSingleTeam && (
+                <View style={[styles.programBadge]}>
+                  <Text style={styles.programBadgeText}>PROGRAM</Text>
+                </View>
+              )}
             </View>
             <Pressable
               testID="program-page-follow-button"
