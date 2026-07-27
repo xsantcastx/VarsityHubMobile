@@ -64,6 +64,7 @@ import MatchBanner from '../components/MatchBanner';
 // @ts-ignore JS exports
 import { Event, Game, Post, Team } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
+import FullscreenImageViewer from '@/components/FullscreenImageViewer';
 import VideoFirstFrame from '@/components/VideoFirstFrame';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoThumbnail from '@/components/VideoThumbnail';
@@ -229,6 +230,7 @@ const GameDetailsScreen = () => {
   const sectionOffsets = useRef<{ media: number; posts: number }>({ media: 0, posts: 0 });
 
   const [vm, setVm] = useState<GameVM | null>(null);
+  const [bannerPreviewOpen, setBannerPreviewOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [teams, setTeams] = useState<TeamInfo[]>([]);
@@ -2048,13 +2050,21 @@ const GameDetailsScreen = () => {
 
     const heroBanner =
       bannerImageUrl && !isHero ? (
-        <Image
-          key={bannerImageKey}
-          source={{ uri: optimizeImageUrl(bannerImageUrl, 1200) }}
+        // Tap a real photo banner to open it fullscreen with pinch-to-zoom.
+        <Pressable
+          onPress={() => setBannerPreviewOpen(true)}
+          accessibilityRole="imagebutton"
+          accessibilityLabel="View banner image fullscreen"
           style={styles.bannerImage}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-        />
+        >
+          <Image
+            key={bannerImageKey}
+            source={{ uri: optimizeImageUrl(bannerImageUrl, 1200) }}
+            style={styles.bannerImage}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+          />
+        </Pressable>
       ) : leftLogo && rightLogo ? (
         <MatchBanner
           leftImage={leftLogo}
@@ -2088,6 +2098,11 @@ const GameDetailsScreen = () => {
     return (
       <View style={[styles.bannerWrapper, { height: bannerHeight }]}>
         {heroBanner}
+        <FullscreenImageViewer
+          visible={bannerPreviewOpen}
+          uri={bannerImageUrl}
+          onClose={() => setBannerPreviewOpen(false)}
+        />
         {/* Shade the banner less when this is a hero image so logos are visible */}
         <LinearGradient
           pointerEvents="none"

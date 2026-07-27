@@ -139,6 +139,9 @@ describe('ProgramScreen (one page per sport)', () => {
     await waitFor(() => expect(mockScreenSummary).toHaveBeenCalledWith('prog1'));
     expect(await screen.findByText('Basketball')).toBeTruthy();
 
+    // A multi-team program keeps the PROGRAM badge (it aggregates >1 team).
+    expect(screen.getByText('PROGRAM')).toBeTruthy();
+
     // Both genders exist → toggle renders, Boys selected first.
     expect(screen.getByTestId('program-gender-boys')).toBeTruthy();
     expect(screen.getByTestId('program-gender-girls')).toBeTruthy();
@@ -189,6 +192,8 @@ describe('ProgramScreen (one page per sport)', () => {
     expect(await screen.findByText('vs Vacation')).toBeTruthy();
     expect(screen.queryByTestId('program-gender-coed')).toBeNull();
     expect(screen.queryByTestId('program-level-chip-all')).toBeNull();
+    // Single team → plain schedule, so the PROGRAM badge is dropped.
+    expect(screen.queryByText('PROGRAM')).toBeNull();
     // Single level → row subtitle is just the game type, no level tag.
     expect(screen.getByText('Game')).toBeTruthy();
   });
