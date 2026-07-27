@@ -26,7 +26,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Game, Organization, Post, Search, Team, User } from '@/api/entities';
+import { Event, Game, Organization, Post, Search, Team, User } from '@/api/entities';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
@@ -439,6 +439,26 @@ function CommunityDiscoverScreen() {
     },
   });
   const followedGames = useMemo(() => followedGamesData ?? [], [followedGamesData]);
+
+  // Standalone events (practices, meetings, fundraisers) for the teams the
+  // viewer follows — the game-backed ones already arrive via followedGames, so
+  // we keep only events with no linked game to avoid duplicate calendar rows.
+  const { data: followedEventsData, isPending: followedEventsPending } = useQuery({
+    queryKey: ['discover-followed-events', user?.id ?? 'guest'],
+    enabled: interactionsDone,
+    queryFn: async (): Promise<any[]> => {
+      const raw = await Event.filter({ following: true }, 'date', 100);
+      const list = Array.isArray(raw) ? raw : [];
+      const now = new Date();
+      return list.filter((e: any) => {
+        if (e.game_id) return false;
+        if (!e.date) return false;
+        const d = new Date(e.date);
+        return !isNaN(d.getTime()) && d >= now;
+      });
+    },
+  });
+  const followedEvents = useMemo(() => followedEventsData ?? [], [followedEventsData]);
 
   const personalizationQueryKey = ['discover-personalization', user?.id ?? 'guest'];
   const {
@@ -1750,19 +1770,18 @@ function CommunityDiscoverScreen() {
           markedDates={useMemo(() => {
             const marked: Record<string, any> = {};
             const now = new Date();
-            // Mark only future dates with events
-            followedGames.forEach(game => {
-              if (game.date) {
-                const gameDate = new Date(game.date);
-                // Only mark future events
-                if (!isNaN(gameDate.getTime()) && gameDate >= now) {
-                  const dateKey = gameDate.toISOString().split('T')[0];
-                  if (!marked[dateKey]) {
-                    marked[dateKey] = { marked: true, dotColor: Colors[colorScheme].tint };
-                  }
-                }
+            // Mark only future dates with events (followed games + standalone events)
+            const markFuture = (dateVal: any) => {
+              if (!dateVal) return;
+              const d = new Date(dateVal);
+              if (isNaN(d.getTime()) || d < now) return;
+              const dateKey = d.toISOString().split('T')[0];
+              if (!marked[dateKey]) {
+                marked[dateKey] = { marked: true, dotColor: Colors[colorScheme].tint };
               }
-            });
+            };
+            followedGames.forEach(game => markFuture(game.date));
+            followedEvents.forEach(event => markFuture(event.date));
             // Highlight selected date
             if (selectedDate) {
               marked[selectedDate] = {
@@ -1772,7 +1791,7 @@ function CommunityDiscoverScreen() {
               };
             }
             return marked;
-          }, [followedGames, selectedDate, colorScheme])}
+          }, [followedGames, followedEvents, selectedDate, colorScheme])}
           style={{
             backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
           }}
@@ -1810,25 +1829,30 @@ function CommunityDiscoverScreen() {
         />
       </View>
 
-      {followedGames.length === 0 && !followedGamesPending ? (
+      {followedGames.length === 0 &&
+      followedEvents.length === 0 &&
+      !followedGamesPending &&
+      !followedEventsPending ? (
         <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>
           You&apos;re not following any teams yet — search above to find and follow teams, and their
-          games show up here.
+          games and events show up here.
         </Text>
       ) : null}
 
       {/* Games on Selected Date */}
       {selectedDate &&
         (() => {
-          const gamesOnDate = followedGames.filter(g => {
-            if (!g.date) return false;
-            const gameDate = new Date(g.date);
-            // Only show future events on selected date
-            if (isNaN(gameDate.getTime()) || gameDate < new Date()) return false;
-            return gameDate.toISOString().split('T')[0] === selectedDate;
-          });
+          const onSelectedDate = (dateVal: any) => {
+            if (!dateVal) return false;
+            const d = new Date(dateVal);
+            // Only show future items on the selected date
+            if (isNaN(d.getTime()) || d < new Date()) return false;
+            return d.toISOString().split('T')[0] === selectedDate;
+          };
+          const gamesOnDate = followedGames.filter(g => onSelectedDate(g.date));
+          const eventsOnDate = followedEvents.filter(e => onSelectedDate(e.date));
 
-          if (gamesOnDate.length === 0) return null;
+          if (gamesOnDate.length === 0 && eventsOnDate.length === 0) return null;
 
           return (
             <View
@@ -1903,6 +1927,61 @@ function CommunityDiscoverScreen() {
                           numberOfLines={1}
                         >
                           {game.location}
+                        </Text>
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+              {eventsOnDate.map(event => {
+                const time = event.date
+                  ? new Date(event.date).toLocaleTimeString('en-US', {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })
+                  : 'TBD';
+                const eventTitle = event.title || 'Event';
+                return (
+                  <Pressable
+                    key={`event-${event.id}`}
+                    style={[
+                      styles.dateGameCard,
+                      {
+                        backgroundColor: Colors[colorScheme].background,
+                        borderColor: Colors[colorScheme].border,
+                      },
+                    ]}
+                    onPress={() => void router.push(buildEventDetailRoute(event.id, event.game_id))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${eventTitle} at ${time}`}
+                  >
+                    <View style={styles.dateGameTime}>
+                      <MaterialIcons name="event" size={16} color={Colors[colorScheme].tint} />
+                      <Text style={[styles.dateGameTimeText, { color: Colors[colorScheme].tint }]}>
+                        {time}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[styles.dateGameTitle, { color: Colors[colorScheme].text }]}
+                      numberOfLines={1}
+                    >
+                      {eventTitle}
+                    </Text>
+                    {event.location && (
+                      <View style={styles.dateGameLocation}>
+                        <MaterialIcons
+                          name="location-on"
+                          size={14}
+                          color={Colors[colorScheme].mutedText}
+                        />
+                        <Text
+                          style={[
+                            styles.dateGameLocationText,
+                            { color: Colors[colorScheme].mutedText },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {event.location}
                         </Text>
                       </View>
                     )}

@@ -517,11 +517,13 @@ export const Event = {
       include_cancelled?: boolean;
       team_id?: string;
       team_ids?: string[];
+      following?: boolean;
     } = {},
     sort?: string,
     limit?: number
   ) => {
     const q: string[] = [];
+    if (where.following) q.push('following=true');
     if (where.status) q.push('status=' + encodeURIComponent(where.status));
     if (where.approval_status)
       q.push('approval_status=' + encodeURIComponent(where.approval_status));
