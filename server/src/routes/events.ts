@@ -453,6 +453,39 @@ eventsRouter.get(
       });
     }
 
+    // `following=true` scopes to teams the authenticated viewer follows — the
+    // Discover calendar surface (mirrors the same scope on GET /games). A guest,
+    // or a viewer who follows no teams, gets an empty list, never a global scan.
+    const following = String(req.query.following || '').toLowerCase() === 'true';
+    if (following) {
+      const viewerId = (req as any).user?.id as string | undefined;
+      if (!viewerId) return res.json([]);
+      // audit-allow unbounded: calendar scope needs every team the viewer follows
+      const followedRows = await prisma.teamFollow.findMany({
+        where: { user_id: viewerId },
+        select: { team_id: true },
+        take: 500,
+      });
+      const followedTeamIds = followedRows.map(r => r.team_id);
+      if (followedTeamIds.length === 0) return res.json([]);
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { team_id: { in: followedTeamIds } },
+          {
+            game: {
+              is: {
+                OR: [
+                  { home_team_id: { in: followedTeamIds } },
+                  { away_team_id: { in: followedTeamIds } },
+                ],
+              },
+            },
+          },
+        ],
+      });
+    }
+
     // v1.0.2: auto-archive window is 3 days after event date (was "hide anything past").
     // Events remain visible in listings for 72h after they happen (post-game photos, recap)
     // and drop off after. `include_past=true` still returns everything for admin/team views.
