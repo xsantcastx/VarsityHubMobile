@@ -136,7 +136,7 @@ beforeEach(() => {
 });
 
 describe('ProgramScreen (one page per sport)', () => {
-  it('renders a gender toggle + level chips and one merged boys feed by default', async () => {
+  it('renders one tappable button per sub-team and shows the first sub-team’s events by default', async () => {
     render(
       <QueryWrapper>
         <ProgramScreen />
@@ -145,30 +145,23 @@ describe('ProgramScreen (one page per sport)', () => {
 
     await waitFor(() => expect(mockScreenSummary).toHaveBeenCalledWith('prog1'));
     expect(await screen.findByText('Basketball')).toBeTruthy();
-
-    // A multi-team program keeps the PROGRAM badge (it aggregates >1 team).
     expect(screen.getByText('PROGRAM')).toBeTruthy();
 
-    // Both genders exist → toggle renders, Boys selected first.
-    expect(screen.getByTestId('program-gender-boys')).toBeTruthy();
-    expect(screen.getByTestId('program-gender-girls')).toBeTruthy();
+    // ONE page: a tappable button per sub-team (no gender toggle / level chips).
+    expect(screen.getByTestId('program-subteam-t1')).toBeTruthy(); // Boys Varsity
+    expect(screen.getByTestId('program-subteam-t2')).toBeTruthy(); // Girls Varsity
+    expect(screen.getByTestId('program-subteam-t3')).toBeTruthy(); // Boys JV
+    expect(screen.getByText('Boys Varsity')).toBeTruthy();
+    expect(screen.getByText('Girls Varsity')).toBeTruthy();
+    expect(screen.getByText('Boys JV')).toBeTruthy();
 
-    // Boys span varsity + jv → chips render.
-    expect(screen.getByTestId('program-level-chip-all')).toBeTruthy();
-    expect(screen.getByTestId('program-level-chip-varsity')).toBeTruthy();
-    expect(screen.getByTestId('program-level-chip-jv')).toBeTruthy();
-
-    // Merged boys feed: BOTH boys games visible at once, level-tagged; the
-    // girls game is not. No folders, no public team-page link.
+    // Default = first sub-team (Boys Varsity) → ONLY its events, not the others.
     expect(await screen.findByText('vs Hawks')).toBeTruthy();
-    expect(screen.getByText('vs Bears')).toBeTruthy();
+    expect(screen.queryByText('vs Bears')).toBeNull();
     expect(screen.queryByText('vs Lions')).toBeNull();
-    expect(screen.getByText('Varsity · Game')).toBeTruthy();
-    expect(screen.getByText('JV · Game')).toBeTruthy();
-    expect(screen.queryByText('Team page')).toBeNull();
   });
 
-  it('switching gender swaps the feed; a level chip narrows it', async () => {
+  it('tapping a sub-team shows just that sub-team’s upcoming events', async () => {
     render(
       <QueryWrapper>
         <ProgramScreen />
@@ -176,16 +169,14 @@ describe('ProgramScreen (one page per sport)', () => {
     );
     await screen.findByText('vs Hawks');
 
-    fireEvent.press(screen.getByTestId('program-gender-girls'));
-    expect(await screen.findByText('vs Lions')).toBeTruthy();
-    expect(screen.queryByText('vs Hawks')).toBeNull();
-    // Girls have a single level → no chips.
-    expect(screen.queryByTestId('program-level-chip-all')).toBeNull();
-
-    fireEvent.press(screen.getByTestId('program-gender-boys'));
-    fireEvent.press(screen.getByTestId('program-level-chip-jv'));
+    fireEvent.press(screen.getByTestId('program-subteam-t3')); // Boys JV
     expect(await screen.findByText('vs Bears')).toBeTruthy();
     expect(screen.queryByText('vs Hawks')).toBeNull();
+    expect(screen.queryByText('vs Lions')).toBeNull();
+
+    fireEvent.press(screen.getByTestId('program-subteam-t2')); // Girls Varsity
+    expect(await screen.findByText('vs Lions')).toBeTruthy();
+    expect(screen.queryByText('vs Bears')).toBeNull();
   });
 
   it('a single-team sport redirects to its team page (no duplicate program wrapper)', async () => {
