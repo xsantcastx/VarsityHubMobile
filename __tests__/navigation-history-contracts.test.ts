@@ -75,7 +75,13 @@ describe('navigation history contracts', () => {
     // surface. Staff/admin surfaces still open team pages deliberately, so
     // they carry from=program to bypass the canonical redirect.
     const programPage = read('app/program-page.tsx');
-    expect(programPage).not.toContain('/team-page');
+    // The program page's ONLY team-page reference is the single-team redirect
+    // (a one-team sport IS that team). It must carry from=program so team-page
+    // never bounces back here — same rule as the staff surfaces below.
+    for (const m of programPage.matchAll(/team-page/g)) {
+      const windowText = programPage.slice(m.index!, m.index! + 200);
+      expect(windowText).toMatch(/from=program|from: 'program'/);
+    }
     for (const rel of [
       'app/(tabs)/manage-teams.tsx',
       'app/(tabs)/create-team.tsx',

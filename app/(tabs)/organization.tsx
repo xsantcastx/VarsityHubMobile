@@ -531,9 +531,21 @@ export default function OrganizationScreen() {
       <Pressable
         key={group.programId}
         style={[styles.rowItem, { borderColor: theme.border }]}
-        onPress={() =>
-          router.push({ pathname: '/program-page', params: { id: group.programId as string } })
-        }
+        onPress={() => {
+          // A single-team sport IS that team — open it directly (no empty
+          // program wrapper). from=program stops team-page bouncing back.
+          // Multi-team sports open the sport/program container. The program
+          // page also redirects a resolved single-team sport as a backstop.
+          const sole = count === 1 ? group.teams[0] : null;
+          if (sole) {
+            router.push({
+              pathname: '/team-page',
+              params: { id: String(sole.id), name: sole.name ?? '', from: 'program' },
+            });
+          } else {
+            router.push({ pathname: '/program-page', params: { id: group.programId as string } });
+          }
+        }}
       >
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>

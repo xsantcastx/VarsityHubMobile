@@ -45,6 +45,13 @@ jest.mock('@/api/entities', () => ({
   },
 }));
 
+// Spy on the single-team redirect while keeping safeGoBack real.
+const mockReplaceAsRedirect = jest.fn();
+jest.mock('@/utils/navigation', () => ({
+  ...jest.requireActual('@/utils/navigation'),
+  replaceAsRedirect: (...args: any[]) => mockReplaceAsRedirect(...args),
+}));
+
 import ProgramScreen from '../program-page';
 import { QueryWrapper } from '../../test-utils/screenMocks';
 
@@ -181,21 +188,33 @@ describe('ProgramScreen (one page per sport)', () => {
     expect(screen.queryByText('vs Hawks')).toBeNull();
   });
 
-  it('a single-team program renders a plain feed with no toggle and no chips', async () => {
+  it('a single-team sport redirects to its team page (no duplicate program wrapper)', async () => {
     mockScreenSummary.mockReset().mockResolvedValue(singleTeamSummary);
+    mockReplaceAsRedirect.mockClear();
     render(
       <QueryWrapper>
         <ProgramScreen />
       </QueryWrapper>
     );
 
-    expect(await screen.findByText('vs Vacation')).toBeTruthy();
-    expect(screen.queryByTestId('program-gender-coed')).toBeNull();
-    expect(screen.queryByTestId('program-level-chip-all')).toBeNull();
-    // Single team → plain schedule, so the PROGRAM badge is dropped.
-    expect(screen.queryByText('PROGRAM')).toBeNull();
-    // Single level → row subtitle is just the game type, no level tag.
-    expect(screen.getByText('Game')).toBeTruthy();
+    await waitFor(() => expect(mockReplaceAsRedirect).toHaveBeenCalled());
+    const href = mockReplaceAsRedirect.mock.calls[0][1];
+    expect(href.pathname).toBe('/team-page');
+    // Routes to the sole team, with from=program so team-page won't bounce back.
+    expect(href.params).toMatchObject({ id: 't9', from: 'program' });
+  });
+
+  it('a multi-team sport does NOT redirect (stays on the program page)', async () => {
+    mockScreenSummary.mockReset().mockResolvedValue(twoGenderSummary);
+    mockReplaceAsRedirect.mockClear();
+    render(
+      <QueryWrapper>
+        <ProgramScreen />
+      </QueryWrapper>
+    );
+
+    expect(await screen.findByText('vs Hawks')).toBeTruthy();
+    expect(mockReplaceAsRedirect).not.toHaveBeenCalled();
   });
 
   it('renders the empty state when the program has no level teams', async () => {
