@@ -29,7 +29,7 @@ export const MLB_VENUES: Record<string, MlbVenueDef> = {
     address: '401 E Jefferson St, Phoenix, AZ 85004',
     lat: 33.4456,
     lng: -112.0667,
-    bannerUrl: 'https://images.unsplash.com/photo-LKZCPd4Fs5c?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'Atlanta Braves': {
     name: 'Truist Park',
@@ -52,14 +52,14 @@ export const MLB_VENUES: Record<string, MlbVenueDef> = {
     address: '4 Jersey St, Boston, MA 02215',
     lat: 42.3467,
     lng: -71.0972,
-    bannerUrl: 'https://images.unsplash.com/photo-eA0-9tGE13k?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'Chicago Cubs': {
     name: 'Wrigley Field',
     address: '1060 W Addison St, Chicago, IL 60613',
     lat: 41.9484,
     lng: -87.6553,
-    bannerUrl: 'https://images.unsplash.com/photo-Cisl86aU2n4?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'Chicago White Sox': {
     name: 'Rate Field',
@@ -74,35 +74,35 @@ export const MLB_VENUES: Record<string, MlbVenueDef> = {
     address: '100 Joe Nuxhall Way, Cincinnati, OH 45202',
     lat: 39.091833,
     lng: -84.504,
-    bannerUrl: 'https://images.unsplash.com/photo-DOm22_Ab0rM?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'Cleveland Guardians': {
     name: 'Progressive Field',
     address: '2401 Ontario Street, Cleveland, OH 44115',
     lat: 41.496211,
     lng: -81.685785,
-    bannerUrl: 'https://images.unsplash.com/photo-rHERhrnGSsQ?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'Colorado Rockies': {
     name: 'Coors Field',
     address: '2001 Blake St, Denver, CO 80205',
     lat: 39.756229,
     lng: -104.994865,
-    bannerUrl: 'https://images.unsplash.com/photo-6xYIVuIKsYw?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'Detroit Tigers': {
     name: 'Comerica Park',
     address: '2100 Woodward Ave, Detroit, MI 48201',
     lat: 42.338356,
     lng: -83.048134,
-    bannerUrl: 'https://images.unsplash.com/photo-Kc-V1YETn58?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'Houston Astros': {
     name: 'Daikin Park',
     address: '501 Crawford Street, Houston, TX 77002',
     lat: 29.7571,
     lng: -95.3555,
-    bannerUrl: 'https://images.unsplash.com/photo-D5POJilPPYY?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'Kansas City Royals': {
     name: 'Kauffman Stadium',
@@ -156,7 +156,7 @@ export const MLB_VENUES: Record<string, MlbVenueDef> = {
     address: '1 East 161st Street, Bronx, NY 10451',
     lat: 40.8296,
     lng: -73.9262,
-    bannerUrl: 'https://images.unsplash.com/photo-MyQRGqdq2fE?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   Athletics: {
     name: 'Sutter Health Park',
@@ -170,14 +170,14 @@ export const MLB_VENUES: Record<string, MlbVenueDef> = {
     address: '1 Tropicana Dr, St. Petersburg, FL 33705',
     lat: 27.768284,
     lng: -82.653961,
-    bannerUrl: 'https://images.unsplash.com/photo-n-WsL9yCmls?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'St. Louis Cardinals': {
     name: 'Busch Stadium',
     address: '700 Clark Ave, St. Louis, MO 63102',
     lat: 38.62278,
     lng: -90.193329,
-    bannerUrl: 'https://images.unsplash.com/photo-f4cqfNQOBkA?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'Miami Marlins': {
     name: 'loanDepot Park',
@@ -191,7 +191,7 @@ export const MLB_VENUES: Record<string, MlbVenueDef> = {
     address: '1 Citizens Bank Way, Philadelphia, PA 19148',
     lat: 39.9035,
     lng: -75.1598,
-    bannerUrl: 'https://images.unsplash.com/photo-k5BMRjswRek?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'Pittsburgh Pirates': {
     name: 'PNC Park',
@@ -207,7 +207,7 @@ export const MLB_VENUES: Record<string, MlbVenueDef> = {
     address: '100 Park Blvd, San Diego, CA 92101',
     lat: 32.7076,
     lng: -117.1575,
-    bannerUrl: 'https://images.unsplash.com/photo-p1aMnWDolBo?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'San Francisco Giants': {
     name: 'Oracle Park',
@@ -221,7 +221,7 @@ export const MLB_VENUES: Record<string, MlbVenueDef> = {
     address: '1250 1st Avenue South, Seattle, WA 98134',
     lat: 47.5914,
     lng: -122.3325,
-    bannerUrl: 'https://images.unsplash.com/photo-qDaLYkgrEJk?w=960&h=400&fit=crop&q=80',
+    // bannerUrl omitted 2026-07-28 — prior Unsplash id was invalid (HTTP 404). Blank is a safe no-op (client shows a gradient); no verified no-attribution photo yet.
   },
   'Texas Rangers': {
     name: 'Globe Life Field',
