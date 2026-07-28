@@ -107,7 +107,16 @@ export default function OrganizationScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string; from?: string; tab?: string }>();
+  const params = useLocalSearchParams<{
+    id?: string;
+    from?: string;
+    tab?: string;
+    preview?: string;
+  }>();
+  // "Preview as public": the owner opens their own org page from Edit and we
+  // render it exactly as a guest sees it (no management controls). Purely a
+  // client view toggle — the server payload is unchanged.
+  const previewAsPublic = params.preview === '1' || params.preview === 'true';
   const backFallback = params.from === 'discover-quick-actions' ? '/(tabs)/discover' : undefined;
   const handleBack = useCallback(() => {
     safeGoBack(router, backFallback);
@@ -273,11 +282,16 @@ export default function OrganizationScreen() {
     : null;
 
   // Access flags derive from the org payload (server-computed booleans).
+  // In preview-as-public mode they are forced off so the owner sees the exact
+  // guest view — the underlying server payload is untouched.
   const isOrgOwner =
-    (organization as any)?.can_edit === true || (organization as any)?.is_owner === true;
-  const isOrgAdmin = (organization as any)?.can_manage === true || isOrgOwner;
+    !previewAsPublic &&
+    ((organization as any)?.can_edit === true || (organization as any)?.is_owner === true);
+  const isOrgAdmin = !previewAsPublic && ((organization as any)?.can_manage === true || isOrgOwner);
   const canReviewCoachRequests =
-    (organization as any)?.can_review_coaches === true || (organization as any)?.is_owner === true;
+    !previewAsPublic &&
+    ((organization as any)?.can_review_coaches === true ||
+      (organization as any)?.is_owner === true);
 
   // Pending coach/invite counts load in a dependent query so the org page
   // paints without waiting on the admin summary (matches the old
@@ -516,9 +530,21 @@ export default function OrganizationScreen() {
       <Pressable
         key={group.programId}
         style={[styles.rowItem, { borderColor: theme.border }]}
-        onPress={() =>
-          router.push({ pathname: '/program-page', params: { id: group.programId as string } })
-        }
+        onPress={() => {
+          // A single-team sport IS that team — open it directly (no empty
+          // program wrapper). from=program stops team-page bouncing back.
+          // Multi-team sports open the sport/program container. The program
+          // page also redirects a resolved single-team sport as a backstop.
+          const sole = count === 1 ? group.teams[0] : null;
+          if (sole) {
+            router.push({
+              pathname: '/team-page',
+              params: { id: String(sole.id), name: sole.name ?? '', from: 'program' },
+            });
+          } else {
+            router.push({ pathname: '/program-page', params: { id: group.programId as string } });
+          }
+        }}
       >
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
@@ -536,6 +562,22 @@ export default function OrganizationScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen options={{ title: orgName, headerShown: false }} />
+
+      {previewAsPublic && (
+        <View style={[styles.previewBanner, { backgroundColor: theme.tint }]}>
+          <Ionicons name="eye-outline" size={16} color="#FFFFFF" />
+          {/* audit: fixed white on the fixed theme.tint banner */}
+          <Text style={styles.previewBannerText}>Preview — how the public sees your page</Text>
+          <Pressable
+            onPress={handleBack}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Exit preview"
+          >
+            <Text style={styles.previewBannerExit}>Exit</Text>
+          </Pressable>
+        </View>
+      )}
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -1092,6 +1134,21 @@ export default function OrganizationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  previewBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  // audit: fixed white on the fixed theme.tint preview banner background
+  previewBannerText: { flex: 1, color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  previewBannerExit: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   loadingContainer: {
     flex: 1,

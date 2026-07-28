@@ -11,13 +11,13 @@ import {
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { gameRowTitle } from '@/utils/eventTitle';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { safeGoBack } from '@/utils/navigation';
+import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -58,6 +58,26 @@ function ProgramScreen() {
     setIsFollowing(!!data.program.is_following);
     setFollowersCount(data.program.followers_count ?? 0);
   }, [data]);
+
+  // A sport with exactly ONE (visible) team is not a "program" — it's that
+  // single team. Redirect to its team page so the org never shows both an empty
+  // program wrapper AND a team page for the same thing (owner's no-duplicates
+  // rule). from=program stops the team page bouncing back here. Latched so it
+  // fires once. Multi-team sports and all-hidden (0-team) programs stay put.
+  const redirectedToTeamRef = useRef(false);
+  useEffect(() => {
+    if (redirectedToTeamRef.current) return;
+    const levels = data?.levels;
+    if (!Array.isArray(levels) || levels.length !== 1) return;
+    const soleTeam = levels[0]?.team as { id?: string | number; name?: string } | undefined;
+    const teamId = soleTeam?.id;
+    if (teamId == null || String(teamId).length === 0) return;
+    redirectedToTeamRef.current = true;
+    replaceAsRedirect(router, {
+      pathname: '/team-page',
+      params: { id: String(teamId), name: soleTeam?.name ?? '', from: 'program' },
+    } as any); // nav-safe: a single-team sport IS the team; canonical page is the team page, from=program stops the reverse redirect
+  }, [data, router]);
 
   // One page per sport: controls only exist when they disambiguate.
   // Overrides are null until the user taps; the effective values derive from

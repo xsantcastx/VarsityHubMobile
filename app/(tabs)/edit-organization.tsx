@@ -339,6 +339,29 @@ export default function EditOrganizationScreen() {
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets
       >
+        {/* Preview public page — shows the org page exactly as a guest sees it */}
+        {params.id ? (
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: '/organization',
+                params: { id: params.id as string, preview: '1' },
+              })
+            }
+            style={[
+              styles.previewButton,
+              { borderColor: theme.border, backgroundColor: theme.card },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Preview how your page looks to the public"
+          >
+            <Ionicons name="eye-outline" size={18} color={theme.tint} />
+            <Text style={[styles.previewButtonText, { color: theme.tint }]}>
+              Preview public page
+            </Text>
+          </Pressable>
+        ) : null}
+
         {/* Background Image */}
         {renderImageUpload(
           'Background Image',
@@ -559,6 +582,17 @@ export default function EditOrganizationScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  previewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  previewButtonText: { fontSize: 15, fontWeight: '600' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   dangerZone: { marginTop: 28 },
   transferButton: {
