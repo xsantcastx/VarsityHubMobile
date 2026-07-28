@@ -114,17 +114,20 @@ const buildZipDirectory = (items: GameItem[]): ZipDirectoryEntry[] => {
     });
 };
 
-const deriveTeamLabels = (game: GameItem): { teamA: string; teamB: string } => {
+// Real matchup labels, or null when the game has no linked teams and the title
+// isn't a "X vs Y" matchup. Returning null lets the card skip the team pills
+// instead of showing a meaningless "Team A vs Team B" placeholder — pro-sports
+// events (titled "Away at Home", no linked Team rows) are the common case, and
+// the owner's rule is no team pills tied to those yet. The card title still
+// carries the matchup.
+const deriveTeamLabels = (game: GameItem): { teamA: string; teamB: string } | null => {
   const g: any = game as any;
-  if (Array.isArray(g.teams) && g.teams.length >= 2) {
-    return {
-      teamA: String(g.teams[0]?.name || 'Team A'),
-      teamB: String(g.teams[1]?.name || 'Team B'),
-    };
+  if (Array.isArray(g.teams) && g.teams.length >= 2 && g.teams[0]?.name && g.teams[1]?.name) {
+    return { teamA: String(g.teams[0].name), teamB: String(g.teams[1].name) };
   }
   const a = g.team_a?.name || g.teamA?.name || g.team_a_name || g.teamAName;
   const b = g.team_b?.name || g.teamB?.name || g.team_b_name || g.teamBName;
-  if (a || b) return { teamA: String(a || 'Team A'), teamB: String(b || 'Team B') };
+  if (a && b) return { teamA: String(a), teamB: String(b) };
   const title = typeof game.title === 'string' ? game.title : '';
   if (title) {
     const parts = title
@@ -135,7 +138,7 @@ const deriveTeamLabels = (game: GameItem): { teamA: string; teamB: string } => {
       return { teamA: parts[0], teamB: parts[1] };
     }
   }
-  return { teamA: 'Team A', teamB: 'Team B' };
+  return null;
 };
 
 function CommunityDiscoverScreen() {
@@ -1894,7 +1897,7 @@ function CommunityDiscoverScreen() {
                       void router.push({ pathname: '/game/[id]', params: { id: String(game.id) } })
                     }
                     accessibilityRole="button"
-                    accessibilityLabel={`${game.title || `${labels.teamA} vs ${labels.teamB}`} at ${time}`}
+                    accessibilityLabel={`${game.title || (labels ? `${labels.teamA} vs ${labels.teamB}` : 'Game')} at ${time}`}
                   >
                     <View style={styles.dateGameTime}>
                       <MaterialIcons
@@ -1910,7 +1913,7 @@ function CommunityDiscoverScreen() {
                       style={[styles.dateGameTitle, { color: Colors[colorScheme].text }]}
                       numberOfLines={1}
                     >
-                      {game.title || `${labels.teamA} vs ${labels.teamB}`}
+                      {game.title || (labels ? `${labels.teamA} vs ${labels.teamB}` : 'Game')}
                     </Text>
                     {game.location && (
                       <View style={styles.dateGameLocation}>
@@ -2841,6 +2844,7 @@ function CommunityDiscoverScreen() {
                   </Text>
                   {(() => {
                     const labels = deriveTeamLabels(item);
+                    if (!labels) return null;
                     return (
                       <View style={styles.teamRow}>
                         <View
