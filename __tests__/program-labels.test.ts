@@ -121,6 +121,43 @@ describe('program display plan (one page per sport)', () => {
   });
 });
 
+describe('family tree — Freshman + JV + Varsity of one sport on ONE page', () => {
+  // The owner's core model: an org's sport is the parent; its Freshman/JV/Varsity
+  // level teams are children of that ONE sport page, and each level's upcoming
+  // events stay visible. This pins the exact 3-level, single-gender case.
+  const fresh = { id: 'fr', name: 'Boys Freshman', gender: 'boys' };
+  const jv = { id: 'jv', name: 'Boys JV', gender: 'boys' };
+  const varsity = { id: 'vr', name: 'Boys Varsity', gender: 'boys' };
+  const plan = () =>
+    buildProgramDisplayPlan([
+      { level: 'freshman', team: fresh, games: [{ id: 'f1', date: '2026-03-05T00:00:00.000Z' }] },
+      { level: 'jv', team: jv, games: [{ id: 'j1', date: '2026-03-03T00:00:00.000Z' }] },
+      { level: 'varsity', team: varsity, games: [{ id: 'v1', date: '2026-03-01T00:00:00.000Z' }] },
+    ]);
+
+  it('keeps all three levels on one page: no gender toggle, level chips in display order', () => {
+    const p = plan();
+    // Single gender → no toggle. Three levels → chips (All + each, varsity>jv>freshman).
+    expect(p.showGenderToggle).toBe(false);
+    expect(p.genderOptions.map(o => o.value)).toEqual(['boys']);
+    expect(p.levelChipsFor('boys').map(c => c.label)).toEqual(['All', 'Varsity', 'JV', 'Freshman']);
+  });
+
+  it('the merged "All" feed shows every level’s upcoming events, date-sorted and level-tagged', () => {
+    const rows = filterProgramGames(plan(), 'boys', 'all');
+    expect(rows.map(r => r.game.id)).toEqual(['v1', 'j1', 'f1']); // Mar 1, 3, 5
+    expect(rows.map(r => r.levelLabel)).toEqual(['Varsity', 'JV', 'Freshman']);
+    // Each event is attributed to the correct level team.
+    expect(rows.map(r => r.teamId)).toEqual(['vr', 'jv', 'fr']);
+  });
+
+  it('tapping a level chip narrows to just that level’s events', () => {
+    expect(filterProgramGames(plan(), 'boys', 'freshman').map(r => r.game.id)).toEqual(['f1']);
+    expect(filterProgramGames(plan(), 'boys', 'jv').map(r => r.game.id)).toEqual(['j1']);
+    expect(filterProgramGames(plan(), 'boys', 'varsity').map(r => r.game.id)).toEqual(['v1']);
+  });
+});
+
 describe('program display plan — intra-program games', () => {
   it('a game between two level teams of the same program renders once, attributed to the higher level', () => {
     // Server maps a game to BOTH its home and away team (programs.ts groups by
