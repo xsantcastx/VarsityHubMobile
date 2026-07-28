@@ -40,9 +40,12 @@ describe('program labels', () => {
   });
 });
 
-import { buildProgramDisplayPlan, filterProgramGames } from '@/constants/programs';
+import { buildProgramSubTeams } from '@/constants/programs';
 
-describe('program display plan (one page per sport)', () => {
+// The owner's model (July 28): a sport is ONE page. Its sub-teams (Boys
+// Varsity, Girls JV, …) are a tappable list; picking one shows just that
+// sub-team's upcoming events. There are never separate per-sub-team pages.
+describe('buildProgramSubTeams — one page, tap a sub-team for its events', () => {
   const entry = (
     level: string | null,
     gender: string | null,
@@ -55,121 +58,57 @@ describe('program display plan (one page per sport)', () => {
   });
   const g = (id: string, date: string | null) => ({ id, date });
 
-  it('shows the gender toggle only when more than one gender bucket exists', () => {
-    const both = buildProgramDisplayPlan([
-      entry('varsity', 'boys', 't1'),
-      entry('varsity', 'girls', 't2'),
+  it('returns each sub-team as its own tappable unit, labelled by gender + level', () => {
+    const subs = buildProgramSubTeams([
+      entry('varsity', 'boys', 'bv'),
+      entry('jv', 'girls', 'gjv'),
     ]);
-    expect(both.showGenderToggle).toBe(true);
-    expect(both.genderOptions.map(o => o.label)).toEqual(['Boys', 'Girls']);
-
-    const one = buildProgramDisplayPlan([
-      entry('varsity', 'boys', 't1'),
-      entry('jv', 'boys', 't2'),
-    ]);
-    expect(one.showGenderToggle).toBe(false);
-    expect(one.genderOptions.map(o => o.value)).toEqual(['boys']);
+    expect(subs.map(s => s.label)).toEqual(['Boys Varsity', 'Girls JV']);
+    expect(subs.map(s => s.teamId)).toEqual(['bv', 'gjv']);
   });
 
-  it('buckets coed and unknown genders together as Coed', () => {
-    const plan = buildProgramDisplayPlan([
-      entry('varsity', 'coed', 't1'),
-      entry('other', null, 't2'),
+  it('orders sub-teams by level then gender (varsity before jv; boys before girls)', () => {
+    const subs = buildProgramSubTeams([
+      entry('jv', 'girls', 'gjv'),
+      entry('varsity', 'girls', 'gv'),
+      entry('varsity', 'boys', 'bv'),
+      entry('jv', 'boys', 'bjv'),
     ]);
-    expect(plan.showGenderToggle).toBe(false);
-    expect(plan.genderOptions).toEqual([{ value: 'coed', label: 'Coed' }]);
+    expect(subs.map(s => s.teamId)).toEqual(['bv', 'gv', 'bjv', 'gjv']);
   });
 
-  it('offers level chips only when the selected gender has more than one level', () => {
-    const plan = buildProgramDisplayPlan([
-      entry('varsity', 'boys', 't1'),
-      entry('jv', 'boys', 't2'),
-      entry('varsity', 'girls', 't3'),
+  it("carries each sub-team's OWN games ascending by date, dateless last (no merging)", () => {
+    const subs = buildProgramSubTeams([
+      entry('varsity', 'boys', 'bv', [
+        g('v2', '2026-03-05T00:00:00.000Z'),
+        g('vnodate', null),
+        g('v1', '2026-03-01T00:00:00.000Z'),
+      ]),
+      entry('jv', 'boys', 'bjv', [g('j1', '2026-03-02T00:00:00.000Z')]),
     ]);
-    expect(plan.levelChipsFor('boys').map(c => c.label)).toEqual(['All', 'Varsity', 'JV']);
-    expect(plan.levelChipsFor('girls')).toEqual([]);
+    const bv = subs.find(s => s.teamId === 'bv')!;
+    const bjv = subs.find(s => s.teamId === 'bjv')!;
+    expect(bv.games.map((x: any) => x.id)).toEqual(['v1', 'v2', 'vnodate']);
+    expect(bjv.games.map((x: any) => x.id)).toEqual(['j1']);
   });
 
-  it('merges games across the selected gender levels, sorted by date, tagged with a level label', () => {
-    const plan = buildProgramDisplayPlan([
-      entry('jv', 'boys', 't2', [g('late', '2026-02-08T00:00:00.000Z')]),
-      entry('varsity', 'boys', 't1', [g('early', '2026-02-01T00:00:00.000Z'), g('nodate', null)]),
-      entry('varsity', 'girls', 't3', [g('girls', '2026-02-02T00:00:00.000Z')]),
+  it('family-tree case: Freshman + JV + Varsity on ONE list, each with its own events', () => {
+    const subs = buildProgramSubTeams([
+      entry('freshman', 'boys', 'fr', [g('f1', '2026-03-05T00:00:00.000Z')]),
+      entry('jv', 'boys', 'jv', [g('j1', '2026-03-03T00:00:00.000Z')]),
+      entry('varsity', 'boys', 'vr', [g('v1', '2026-03-01T00:00:00.000Z')]),
     ]);
-    const games = filterProgramGames(plan, 'boys', 'all');
-    expect(games.map(x => x.game.id)).toEqual(['early', 'late', 'nodate']);
-    expect(games[0].levelLabel).toBe('Varsity');
-    expect(games[1].levelLabel).toBe('JV');
-    expect(games[0].teamId).toBe('t1');
+    expect(subs.map(s => s.label)).toEqual(['Boys Varsity', 'Boys JV', 'Boys Freshman']);
+    expect(subs.find(s => s.teamId === 'fr')!.games.map((x: any) => x.id)).toEqual(['f1']);
+    expect(subs.find(s => s.teamId === 'jv')!.games.map((x: any) => x.id)).toEqual(['j1']);
+    expect(subs.find(s => s.teamId === 'vr')!.games.map((x: any) => x.id)).toEqual(['v1']);
   });
 
-  it('filters by a specific level chip', () => {
-    const plan = buildProgramDisplayPlan([
-      entry('varsity', 'boys', 't1', [g('v1', '2026-02-01T00:00:00.000Z')]),
-      entry('jv', 'boys', 't2', [g('j1', '2026-02-02T00:00:00.000Z')]),
+  it('skips entries with no team id', () => {
+    const subs = buildProgramSubTeams([
+      entry('varsity', 'boys', 'bv'),
+      { level: 'jv', team: { id: null, gender: 'boys' }, games: [] },
     ]);
-    expect(filterProgramGames(plan, 'boys', 'jv').map(x => x.game.id)).toEqual(['j1']);
-  });
-
-  it('a single-team program needs no toggle and no chips', () => {
-    const plan = buildProgramDisplayPlan([
-      entry('other', 'coed', 't1', [g('a', '2026-07-12T00:00:00.000Z')]),
-    ]);
-    expect(plan.showGenderToggle).toBe(false);
-    expect(plan.levelChipsFor('coed')).toEqual([]);
-    expect(filterProgramGames(plan, 'coed', 'all').map(x => x.game.id)).toEqual(['a']);
-  });
-});
-
-describe('family tree — Freshman + JV + Varsity of one sport on ONE page', () => {
-  // The owner's core model: an org's sport is the parent; its Freshman/JV/Varsity
-  // level teams are children of that ONE sport page, and each level's upcoming
-  // events stay visible. This pins the exact 3-level, single-gender case.
-  const fresh = { id: 'fr', name: 'Boys Freshman', gender: 'boys' };
-  const jv = { id: 'jv', name: 'Boys JV', gender: 'boys' };
-  const varsity = { id: 'vr', name: 'Boys Varsity', gender: 'boys' };
-  const plan = () =>
-    buildProgramDisplayPlan([
-      { level: 'freshman', team: fresh, games: [{ id: 'f1', date: '2026-03-05T00:00:00.000Z' }] },
-      { level: 'jv', team: jv, games: [{ id: 'j1', date: '2026-03-03T00:00:00.000Z' }] },
-      { level: 'varsity', team: varsity, games: [{ id: 'v1', date: '2026-03-01T00:00:00.000Z' }] },
-    ]);
-
-  it('keeps all three levels on one page: no gender toggle, level chips in display order', () => {
-    const p = plan();
-    // Single gender → no toggle. Three levels → chips (All + each, varsity>jv>freshman).
-    expect(p.showGenderToggle).toBe(false);
-    expect(p.genderOptions.map(o => o.value)).toEqual(['boys']);
-    expect(p.levelChipsFor('boys').map(c => c.label)).toEqual(['All', 'Varsity', 'JV', 'Freshman']);
-  });
-
-  it('the merged "All" feed shows every level’s upcoming events, date-sorted and level-tagged', () => {
-    const rows = filterProgramGames(plan(), 'boys', 'all');
-    expect(rows.map(r => r.game.id)).toEqual(['v1', 'j1', 'f1']); // Mar 1, 3, 5
-    expect(rows.map(r => r.levelLabel)).toEqual(['Varsity', 'JV', 'Freshman']);
-    // Each event is attributed to the correct level team.
-    expect(rows.map(r => r.teamId)).toEqual(['vr', 'jv', 'fr']);
-  });
-
-  it('tapping a level chip narrows to just that level’s events', () => {
-    expect(filterProgramGames(plan(), 'boys', 'freshman').map(r => r.game.id)).toEqual(['f1']);
-    expect(filterProgramGames(plan(), 'boys', 'jv').map(r => r.game.id)).toEqual(['j1']);
-    expect(filterProgramGames(plan(), 'boys', 'varsity').map(r => r.game.id)).toEqual(['v1']);
-  });
-});
-
-describe('program display plan — intra-program games', () => {
-  it('a game between two level teams of the same program renders once, attributed to the higher level', () => {
-    // Server maps a game to BOTH its home and away team (programs.ts groups by
-    // home_team_id AND away_team_id), so a Varsity-vs-JV scrimmage arrives in
-    // two level entries. The merged feed must dedupe by game id.
-    const scrimmage = { id: 'gx', date: '2026-02-03T00:00:00.000Z' };
-    const plan = buildProgramDisplayPlan([
-      { level: 'jv', team: { id: 't2', gender: 'boys' }, games: [scrimmage] },
-      { level: 'varsity', team: { id: 't1', gender: 'boys' }, games: [scrimmage] },
-    ]);
-    const rows = filterProgramGames(plan, 'boys', 'all');
-    expect(rows).toHaveLength(1);
-    expect(rows[0].levelLabel).toBe('Varsity');
+    expect(subs.map(s => s.teamId)).toEqual(['bv']);
   });
 });

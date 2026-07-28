@@ -82,11 +82,8 @@ export function genderRank(gender: string | null | undefined): number {
 }
 
 /**
- * Display plan for the one-page-per-sport program surface: controls only
- * appear when they disambiguate something. Gender toggle only when more than
- * one gender bucket exists; level chips only when the selected gender spans
- * more than one level; a single-team program renders a plain feed.
- * Unknown/null genders bucket with coed.
+ * One level-team of a sport program: its level, the team (with id + gender),
+ * and that team's games. Input shape for `buildProgramSubTeams`.
  */
 type ProgramLevelInput = {
   level: string | null;
@@ -94,98 +91,49 @@ type ProgramLevelInput = {
   games: Record<string, any>[];
 };
 
-export type ProgramDisplayPlan = {
-  genderOptions: { value: TeamGender; label: string }[];
-  showGenderToggle: boolean;
-  levelChipsFor: (gender: string) => { value: string; label: string }[];
-  entriesFor: (gender: string) => ProgramLevelInput[];
-};
-
-function genderBucket(gender: string | null | undefined): TeamGender {
-  return gender === 'boys' || gender === 'girls' ? gender : 'coed';
-}
-
-export function buildProgramDisplayPlan(levels: ProgramLevelInput[]): ProgramDisplayPlan {
-  const byGender = new Map<TeamGender, ProgramLevelInput[]>();
-  for (const entry of levels) {
-    const bucket = genderBucket(entry.team?.gender);
-    byGender.set(bucket, [...(byGender.get(bucket) ?? []), entry]);
-  }
-
-  const genderOptions = GENDER_OPTIONS.filter(o => byGender.has(o.value));
-
-  const entriesFor = (gender: string) =>
-    [...(byGender.get(genderBucket(gender)) ?? [])].sort(
-      (a, b) => levelRank(a.level) - levelRank(b.level)
-    );
-
-  const levelChipsFor = (gender: string) => {
-    const distinct = [...new Set(entriesFor(gender).map(e => e.level ?? 'other'))];
-    if (distinct.length <= 1) return [];
-    return [
-      { value: 'all', label: 'All' },
-      ...distinct
-        .sort((a, b) => levelRank(a) - levelRank(b))
-        .map(level => ({ value: level, label: formatLevelLabel(level) ?? 'Other' })),
-    ];
-  };
-
-  return {
-    genderOptions,
-    showGenderToggle: genderOptions.length > 1,
-    levelChipsFor,
-    entriesFor,
-  };
-}
-
-export type ProgramGameRow = {
-  game: Record<string, any>;
-  teamId: string;
-  levelLabel: string | null;
-};
-
-/**
- * The merged events feed for the current toggle/chip selection: every game of
- * the selected gender's level teams (or one level when a chip is active),
- * ascending by date with dateless games last, each tagged with its level so
- * rows stay attributable without separate team pages.
- */
-export function filterProgramGames(
-  plan: ProgramDisplayPlan,
-  gender: string,
-  level: string
-): ProgramGameRow[] {
-  const entries = plan
-    .entriesFor(gender)
-    .filter(e => level === 'all' || (e.level ?? 'other') === level);
-  // The server maps a game to BOTH its home and away team, so an
-  // intra-program matchup arrives in two level entries. Dedupe by game id;
-  // entriesFor is level-rank sorted, so the higher level's copy wins.
-  const seenGameIds = new Set<string>();
-  const rows: ProgramGameRow[] = entries.flatMap(e =>
-    (Array.isArray(e.games) ? e.games : [])
-      .filter(game => {
-        const id = game?.id != null ? String(game.id) : null;
-        if (!id) return true;
-        if (seenGameIds.has(id)) return false;
-        seenGameIds.add(id);
-        return true;
-      })
-      .map(game => ({
-        game,
-        teamId: String(e.team?.id ?? ''),
-        levelLabel: formatLevelLabel(e.level),
-      }))
-  );
-  return rows.sort((a, b) => {
-    const at = a.game?.scheduled_date || a.game?.date;
-    const bt = b.game?.scheduled_date || b.game?.date;
+/** Ascending by scheduled_date||date; games without a date sort last. */
+function sortGamesAscending(games: Record<string, any>[]): Record<string, any>[] {
+  return [...games].sort((a, b) => {
+    const at = a?.scheduled_date || a?.date;
+    const bt = b?.scheduled_date || b?.date;
     const ams = at ? new Date(at).getTime() : NaN;
     const bms = bt ? new Date(bt).getTime() : NaN;
     if (!Number.isFinite(ams)) return 1;
     if (!Number.isFinite(bms)) return -1;
     return ams - bms;
   });
+}
+
+export type ProgramSubTeam = {
+  teamId: string;
+  label: string;
+  gender: string | null;
+  level: string | null;
+  games: Record<string, any>[];
+};
+
+/**
+ * The sub-teams of a sport as ONE tappable list — Boys Varsity, Girls JV, … —
+ * ordered by level then gender, each carrying that sub-team's own games
+ * (ascending by date). This is the owner's model: the whole sport is ONE page,
+ * and the Events tab lets a viewer tap a sub-team to see just its upcoming
+ * events. There are never separate per-sub-team public pages.
+ */
+export function buildProgramSubTeams(levels: ProgramLevelInput[]): ProgramSubTeam[] {
+  return [...levels]
+    .filter(e => e?.team?.id != null && String(e.team.id).length > 0)
+    .sort(
+      (a, b) =>
+        levelRank(a.level) - levelRank(b.level) ||
+        genderRank(a.team?.gender) - genderRank(b.team?.gender)
+    )
+    .map(e => ({
+      teamId: String(e.team.id),
+      label: formatTeamFolderLabel({ gender: e.team?.gender ?? null, level: e.level }),
+      gender: e.team?.gender ?? null,
+      level: e.level,
+      games: sortGamesAscending(Array.isArray(e.games) ? e.games : []),
+    }));
 }
 
 /**

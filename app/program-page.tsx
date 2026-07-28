@@ -3,11 +3,7 @@ import { useProgramScreenSummary } from '@/hooks/useProgramScreenSummary';
 import { Program } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
-import {
-  buildProgramDisplayPlan,
-  filterProgramGames,
-  formatProgramLabel,
-} from '@/constants/programs';
+import { buildProgramSubTeams, formatProgramLabel } from '@/constants/programs';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { gameRowTitle } from '@/utils/eventTitle';
 import { optimizeImageUrl } from '@/utils/imageUrl';
@@ -79,25 +75,16 @@ function ProgramScreen() {
     } as any); // nav-safe: a single-team sport IS the team; canonical page is the team page, from=program stops the reverse redirect
   }, [data, router]);
 
-  // One page per sport: controls only exist when they disambiguate.
-  // Overrides are null until the user taps; the effective values derive from
-  // the display plan so a data refresh can never strand an invalid selection.
-  const [genderOverride, setGenderOverride] = useState<string | null>(null);
-  const [levelOverride, setLevelOverride] = useState<string>('all');
-  const displayPlan = useMemo(
-    () => buildProgramDisplayPlan((data?.levels ?? []) as ProgramLevel[]),
+  // ONE page per sport: the sub-teams (Boys Varsity, Girls JV, …) are a tappable
+  // list; picking one shows just that sub-team's upcoming events. There are no
+  // separate per-sub-team public pages — everything lives on this page.
+  const subTeams = useMemo(
+    () => buildProgramSubTeams((data?.levels ?? []) as ProgramLevel[]),
     [data?.levels]
   );
-  const activeGender =
-    genderOverride && displayPlan.genderOptions.some(o => o.value === genderOverride)
-      ? genderOverride
-      : (displayPlan.genderOptions[0]?.value ?? 'coed');
-  const levelChips = displayPlan.levelChipsFor(activeGender);
-  const activeLevel = levelChips.some(c => c.value === levelOverride) ? levelOverride : 'all';
-  const gameRows = useMemo(
-    () => filterProgramGames(displayPlan, activeGender, activeLevel),
-    [displayPlan, activeGender, activeLevel]
-  );
+  const [selectedTeamOverride, setSelectedTeamOverride] = useState<string | null>(null);
+  const activeSubTeam =
+    subTeams.find(s => s.teamId === selectedTeamOverride) ?? subTeams[0] ?? null;
 
   const handleFollow = async () => {
     if (!programId || followLoading) return;
@@ -401,68 +388,41 @@ function ProgramScreen() {
           </View>
         ) : (
           <View style={styles.feedSection}>
-            {displayPlan.showGenderToggle && (
-              <View style={[styles.genderToggle, { borderColor: theme.border }]}>
-                {displayPlan.genderOptions.map(opt => {
-                  const selected = opt.value === activeGender;
-                  return (
-                    <Pressable
-                      key={opt.value}
-                      testID={`program-gender-${opt.value}`}
-                      onPress={() => {
-                        setGenderOverride(opt.value);
-                        setLevelOverride('all');
-                      }}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      accessibilityLabel={`Show ${opt.label} teams`}
-                      style={[styles.genderSegment, selected && { backgroundColor: theme.tint }]}
-                    >
-                      <Text
-                        style={[
-                          styles.genderSegmentText,
-                          // audit: fixed white on the theme.tint segment bg
-                          { color: selected ? '#FFFFFF' : theme.mutedText },
-                        ]}
-                      >
-                        {opt.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-
-            {levelChips.length > 0 && (
+            {/* Sub-team picker: the whole sport is ONE page — tap a sub-team
+                (Boys Varsity, Girls JV, …) to see just its upcoming events.
+                Hidden when there's only one sub-team (nothing to pick). */}
+            {subTeams.length > 1 && (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.levelChipsRow}
+                contentContainerStyle={styles.subTeamRow}
               >
-                {levelChips.map(chip => {
-                  const selected = chip.value === activeLevel;
+                {subTeams.map(st => {
+                  const selected = st.teamId === activeSubTeam?.teamId;
                   return (
                     <Pressable
-                      key={chip.value}
-                      testID={`program-level-chip-${chip.value}`}
-                      onPress={() => setLevelOverride(chip.value)}
+                      key={st.teamId}
+                      testID={`program-subteam-${st.teamId}`}
+                      onPress={() => setSelectedTeamOverride(st.teamId)}
                       accessibilityRole="button"
                       accessibilityState={{ selected }}
+                      accessibilityLabel={`Show ${st.label} events`}
                       style={[
-                        styles.levelChip,
+                        styles.subTeamChip,
                         {
                           borderColor: selected ? theme.tint : theme.border,
-                          backgroundColor: selected ? theme.tint + '22' : theme.card,
+                          backgroundColor: selected ? theme.tint : theme.card,
                         },
                       ]}
                     >
                       <Text
                         style={[
-                          styles.levelChipText,
-                          { color: selected ? theme.tint : theme.mutedText },
+                          styles.subTeamChipText,
+                          // audit: fixed white on the selected theme.tint chip
+                          { color: selected ? '#FFFFFF' : theme.text },
                         ]}
                       >
-                        {chip.label}
+                        {st.label}
                       </Text>
                     </Pressable>
                   );
@@ -470,14 +430,12 @@ function ProgramScreen() {
               </ScrollView>
             )}
 
-            {gameRows.length === 0 ? (
+            {!activeSubTeam || activeSubTeam.games.length === 0 ? (
               <Text style={[styles.folderEmpty, { color: theme.mutedText }]}>
-                No games scheduled
+                No upcoming events
               </Text>
             ) : (
-              gameRows.map(row =>
-                renderGameRow(row.game, row.teamId, levelChips.length > 0 ? row.levelLabel : null)
-              )
+              activeSubTeam.games.map(g => renderGameRow(g, activeSubTeam.teamId, null))
             )}
           </View>
         )}
@@ -595,23 +553,14 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
 
   feedSection: { marginTop: 16, paddingHorizontal: 16 },
-  genderToggle: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderRadius: 999,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  genderSegment: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 999 },
-  genderSegmentText: { fontSize: 14, fontWeight: '600' },
-  levelChipsRow: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
-  levelChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+  subTeamRow: { flexDirection: 'row', gap: 8, paddingBottom: 10 },
+  subTeamChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
   },
-  levelChipText: { fontSize: 13, fontWeight: '600' },
+  subTeamChipText: { fontSize: 14, fontWeight: '600' },
   folderEmpty: { fontSize: 14, paddingVertical: 12, paddingHorizontal: 4 },
 
   eventRow: {
