@@ -256,7 +256,8 @@ const TEMPLATE_IDS = {
   ),
 
   // Roster / membership lifecycle notifications
-  ATHLETE_INVITATION: tmpl('SENDGRID_ATHLETE_INVITATION_TEMPLATE_ID'),
+  // (ATHLETE_INVITATION removed 2026-07-27 — teams are staff-only; athletes
+  //  connect by following, never by invite, so the template is dead.)
   STAFF_MEMBER_JOINED: tmpl('SENDGRID_STAFF_MEMBER_JOINED_TEMPLATE_ID'),
   TEAM_ROSTER_UPDATE: tmpl('SENDGRID_TEAM_ROSTER_UPDATE_TEMPLATE_ID'),
   INVITATION_DECLINED: tmpl('SENDGRID_INVITATION_DECLINED_TEMPLATE_ID'),
