@@ -3,8 +3,9 @@
  *
  * Fetches every game between --from and --to (inclusive, UTC dates) and
  * idempotently creates a Game + linked Event for each, matched by title +
- * exact date (same convention as the one-off template). No Team or
- * Organization records are created — home/away are plain display strings.
+ * a ±12h date window (MLB shifts first-pitch times between syncs, so an exact
+ * timestamp match created duplicates). No Team or Organization records are
+ * created — home/away are plain display strings.
  *
  * Usage:
  *   npx tsx scripts/mlb/sync-mlb-schedule.ts --inspect                        # dump raw API shape, no DB writes
@@ -88,9 +89,21 @@ async function ensureGame(
     return 'no-venue';
   }
 
+  // Match on title + a ±12h window, NOT the exact timestamp: MLB firms up
+  // first-pitch times between syncs (TBD → scheduled, rain delays), so an
+  // exact-`date` match missed and every run created a fresh duplicate row.
+  // A ±12h window absorbs any intra-day shift; consecutive games in a series
+  // are >24h apart so they never collapse (a same-day doubleheader is the one
+  // accepted merge — rare, and preferable to daily duplicates).
+  const HALF_DAY_MS = 12 * 60 * 60 * 1000;
+  const dateWindow = {
+    gte: new Date(date.getTime() - HALF_DAY_MS),
+    lte: new Date(date.getTime() + HALF_DAY_MS),
+  };
+
   let gameId: string | undefined;
   const existingGame = await prisma.game.findFirst({
-    where: { title, date },
+    where: { title, date: dateWindow },
     select: { id: true, banner_url: true },
   });
   if (existingGame) {
@@ -132,7 +145,7 @@ async function ensureGame(
   }
 
   const existingEvent = await prisma.event.findFirst({
-    where: { title, date },
+    where: { title, date: dateWindow },
     select: { id: true, game_id: true, banner_url: true },
   });
   if (existingEvent) {
