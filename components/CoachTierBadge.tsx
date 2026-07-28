@@ -219,7 +219,7 @@ function getTierBenefits(tier: CoachTier) {
           `First ${ROOKIE_PROGRAM_LIMIT} sports free`,
           'Ex: Mens and Womens soccer',
           'Basic scheduling',
-          'Roster management',
+          'Staff management',
           'Event creation',
           'Photo/video sharing',
           'Community support',

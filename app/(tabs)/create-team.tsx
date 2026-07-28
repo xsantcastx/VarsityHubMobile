@@ -300,6 +300,10 @@ function CreateTeamScreen() {
     { name: 'Black', hex: '#000000' }, // audit: swatch data, not a text color
     { name: 'Silver', hex: '#C0C0C0' },
     { name: 'Metallic Gold', hex: '#D4AF37' },
+    { name: 'Teal', hex: '#14B8A6' },
+    { name: 'Pink', hex: '#EC4899' },
+    { name: 'Lime', hex: '#84CC16' },
+    { name: 'Brown', hex: '#92400E' },
   ];
 
   // Organization search inside modal

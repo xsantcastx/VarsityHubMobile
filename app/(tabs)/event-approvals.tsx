@@ -918,7 +918,7 @@ export default function EventApprovalsScreen() {
 
             {/* ── Section 2: Roster Invites ── */}
             {renderSectionHeader(
-              'Roster Invites',
+              'Staff Invites',
               'people-outline',
               teamInvites.length,
               '#3B82F6',

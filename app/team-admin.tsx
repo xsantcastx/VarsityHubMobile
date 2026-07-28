@@ -68,7 +68,7 @@ type TeamAdminSummary = TeamAdminSummaryResponse;
 
 const TABS: Array<{ key: TeamAdminTab; label: string }> = [
   { key: 'overview', label: 'Overview' },
-  { key: 'roster', label: 'Roster' },
+  { key: 'roster', label: 'Staff' },
   { key: 'schedule', label: 'Schedule' },
   { key: 'staff', label: 'Invites/Staff' },
 ];
@@ -460,7 +460,7 @@ export default function TeamAdminScreen() {
                       }
                       style={[styles.primaryButton, { backgroundColor: theme.tint }]}
                     >
-                      <Text style={styles.primaryButtonText}>Manage Roster</Text>
+                      <Text style={styles.primaryButtonText}>Manage Staff</Text>
                     </Pressable>
                   </>
                 ) : null}
@@ -533,7 +533,7 @@ export default function TeamAdminScreen() {
                   { backgroundColor: theme.card, borderColor: theme.border },
                 ]}
               >
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Roster</Text>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Staff</Text>
 
                 {/* Add staff by search — full-administration only (server 403s the staff tier) */}
                 {canAdminister && (
