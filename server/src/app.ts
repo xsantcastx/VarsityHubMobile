@@ -51,7 +51,7 @@ import { postsRouter } from './routes/posts.js';
 import { programsRouter } from './routes/programs.js';
 import { promosRouter } from './routes/promos.js';
 import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';
-import { publicSiteRouter } from './routes/publicSite.js';
+import { publicSiteRouter, isWebHost, MARKETING_SITE_URL } from './routes/publicSite.js';
 import { reportsRouter } from './routes/reports.js';
 import { rsvpsRouter } from './routes/rsvps.js';
 import { searchRouter } from './routes/search.js';
@@ -296,6 +296,20 @@ app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use(requestLogging);
+
+// Fast root path. Health monitors (UptimeRobot, Railway) hammer `HEAD /` and
+// `GET /`; on the API host that request otherwise falls through authMiddleware
+// + the entire API router tree before reaching the redirect at the very end
+// (publicSiteRouter, ~750ms server-side, flooding the slow-request log). Handle
+// it here with the SAME behavior, just early. Web hosts fall through unchanged
+// so publicSiteRouter still serves the web app.
+const fastApiRoot = (req: Request, res: Response, next: NextFunction) => {
+  if (isWebHost(req.hostname)) return next();
+  res.redirect(308, MARKETING_SITE_URL);
+};
+app.get('/', fastApiRoot);
+app.head('/', fastApiRoot);
+
 app.use(authMiddleware);
 
 const shouldCaptureRequestBreadcrumb = (req: Request) => {

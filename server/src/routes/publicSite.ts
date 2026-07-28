@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const publicSiteRouter = Router();
-const MARKETING_SITE_URL = 'https://varsityhub.app/';
+export const MARKETING_SITE_URL = 'https://varsityhub.app/';
 const FALLBACK_WEB_APP_ORIGIN = 'https://www.varsityhub.app';
 const FALLBACK_WEB_HOSTS = ['varsityhub.app', 'www.varsityhub.app'];
 const WEB_APP_REDIRECT_PATHS = new Set([
@@ -62,7 +62,7 @@ function normalizeHostname(hostname: string | undefined): string {
     .replace(/:\d+$/, '');
 }
 
-function isWebHost(hostname: string | undefined): boolean {
+export function isWebHost(hostname: string | undefined): boolean {
   return getWebHosts().has(normalizeHostname(hostname));
 }
 
