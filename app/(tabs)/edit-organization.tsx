@@ -348,7 +348,10 @@ export default function EditOrganizationScreen() {
                 params: { id: params.id as string, preview: '1' },
               })
             }
-            style={[styles.previewButton, { borderColor: theme.border, backgroundColor: theme.card }]}
+            style={[
+              styles.previewButton,
+              { borderColor: theme.border, backgroundColor: theme.card },
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Preview how your page looks to the public"
           >

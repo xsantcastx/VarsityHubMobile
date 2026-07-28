@@ -287,8 +287,7 @@ export default function OrganizationScreen() {
   const isOrgOwner =
     !previewAsPublic &&
     ((organization as any)?.can_edit === true || (organization as any)?.is_owner === true);
-  const isOrgAdmin =
-    !previewAsPublic && ((organization as any)?.can_manage === true || isOrgOwner);
+  const isOrgAdmin = !previewAsPublic && ((organization as any)?.can_manage === true || isOrgOwner);
   const canReviewCoachRequests =
     !previewAsPublic &&
     ((organization as any)?.can_review_coaches === true ||
@@ -1145,7 +1144,12 @@ const styles = StyleSheet.create({
   },
   // audit: fixed white on the fixed theme.tint preview banner background
   previewBannerText: { flex: 1, color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
-  previewBannerExit: { color: '#FFFFFF', fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
+  previewBannerExit: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
