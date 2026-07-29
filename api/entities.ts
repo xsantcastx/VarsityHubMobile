@@ -364,7 +364,13 @@ export const Post = {
   },
   create: (data: CreatePostPayload) => httpPostLongTimeout('/posts', data),
   filter: async (
-    where: { game_id?: string; team_id?: string; type?: string; user_id?: string } = {},
+    where: {
+      game_id?: string;
+      team_id?: string;
+      program_id?: string;
+      type?: string;
+      user_id?: string;
+    } = {},
     sort?: string,
     limit: number = 20
   ) => {
@@ -373,6 +379,9 @@ export const Post = {
     if (limit) q.push('limit=' + String(limit));
     if (where.game_id) q.push('game_id=' + encodeURIComponent(where.game_id));
     if (where.team_id) q.push('team_id=' + encodeURIComponent(where.team_id));
+    // program_id = the whole sport's posts, shared across every sub-team (owner
+    // July-28: ONE sport page). Mutually exclusive with team_id in practice.
+    if (where.program_id) q.push('program_id=' + encodeURIComponent(where.program_id));
     if (where.type) q.push('type=' + encodeURIComponent(where.type));
     if (where.user_id) q.push('user_id=' + encodeURIComponent(where.user_id));
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));

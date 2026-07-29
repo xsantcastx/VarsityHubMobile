@@ -257,6 +257,54 @@ describeDb('Posts API Endpoints', () => {
           .catch(() => {});
       }
     });
+
+    it('program_id filter returns posts across ALL sub-teams in the program (shared sport page)', async () => {
+      // Owner July-28: ONE sport page — the Posts tab is shared across every
+      // sub-team. A post on the home sub-team AND a post on the away sub-team
+      // both surface under program_id, regardless of which sub-team was tapped.
+      const program = await prisma.sportProgram.create({
+        data: { organization_id: bypassOrgId, sport: 'basketball' },
+      });
+      await prisma.team.updateMany({
+        where: { id: { in: [bypassHomeTeamId, bypassAwayTeamId] } },
+        data: { program_id: program.id },
+      });
+      const [homePost, awayPost] = await Promise.all([
+        prisma.post.create({
+          data: {
+            author_id: testUser.id,
+            content: 'home sub-team post',
+            team_id: bypassHomeTeamId,
+          },
+        }),
+        prisma.post.create({
+          data: {
+            author_id: testUser.id,
+            content: 'away sub-team post',
+            team_id: bypassAwayTeamId,
+          },
+        }),
+      ]);
+      try {
+        const res = await request(app).get('/posts').query({ program_id: program.id, limit: '50' });
+
+        expect(res.statusCode).toEqual(200);
+        const ids = res.body.items.map((p: any) => p.id);
+        expect(ids).toContain(homePost.id);
+        expect(ids).toContain(awayPost.id);
+      } finally {
+        await prisma.post
+          .deleteMany({ where: { id: { in: [homePost.id, awayPost.id] } } })
+          .catch(() => {});
+        await prisma.team
+          .updateMany({
+            where: { id: { in: [bypassHomeTeamId, bypassAwayTeamId] } },
+            data: { program_id: null },
+          })
+          .catch(() => {});
+        await prisma.sportProgram.delete({ where: { id: program.id } }).catch(() => {});
+      }
+    });
   });
 
   describe('POST /posts', () => {
