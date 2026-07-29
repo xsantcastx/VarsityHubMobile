@@ -345,6 +345,41 @@ postsRouter.get(
         },
       ];
     }
+    if (req.query.program_id) {
+      const programId = String(req.query.program_id);
+      // ONE sport page (owner July-28): the Posts tab is SHARED across every
+      // sub-team in the program — regardless of which sub-team the viewer tapped
+      // in the Events tab. Match posts attached to any active sub-team directly
+      // or to any of their games (home/away side). Privacy is enforced per
+      // sub-team via isTeamHiddenFromViewer (mirrors the ?team_id= guard above):
+      // a private sub-team the viewer can't see drops out of the union.
+      const programTeams = await prisma.team.findMany({
+        where: { program_id: programId, status: 'active' },
+        select: { id: true },
+        take: 100,
+      });
+      const visibleTeamIds: string[] = [];
+      for (const t of programTeams) {
+        if (!(await isTeamHiddenFromViewer(t.id, currentUserId))) visibleTeamIds.push(t.id);
+      }
+      if (visibleTeamIds.length === 0) return res.json({ items: [], nextCursor: null });
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        {
+          OR: [
+            { team_id: { in: visibleTeamIds } },
+            {
+              game: {
+                OR: [
+                  { home_team_id: { in: visibleTeamIds } },
+                  { away_team_id: { in: visibleTeamIds } },
+                ],
+              },
+            },
+          ],
+        },
+      ];
+    }
     if (req.query.event_id) {
       const eventId = String(req.query.event_id);
       const event = await prisma.event.findUnique({

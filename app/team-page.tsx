@@ -297,14 +297,19 @@ function TeamScreen() {
     };
   }, []);
 
-  const refreshPosts = useCallback(async (teamId: string) => {
+  const refreshPosts = useCallback(async (teamId: string, programId?: string | null) => {
     if (postsRequestInFlight.current || !mounted.current) return;
     postsRequestInFlight.current = true;
     if (mounted.current) setPostsLoading(true);
     try {
       // Single server-side query: posts attached to the team directly or to
-      // any of its games (matched by team ID, not name substring).
-      const teamPosts = await Post.filter({ team_id: teamId }, '-created_at', 20);
+      // any of its games (matched by team ID, not name substring). When this
+      // team belongs to a multi-sub-team program, the Posts tab is SHARED across
+      // the whole sport (owner July-28) — filter by program_id (the union of
+      // every sub-team) instead of the single opened sub-team.
+      const teamPosts = programId
+        ? await Post.filter({ program_id: programId }, '-created_at', 20)
+        : await Post.filter({ team_id: teamId }, '-created_at', 20);
       if (!mounted.current) return;
       setPosts(Array.isArray(teamPosts) ? teamPosts : []);
       setPostsHasMore(false); // Simplified pagination
@@ -436,13 +441,23 @@ function TeamScreen() {
   useEffect(() => {
     if (!team?.id) return;
     if (activeTab === 'posts') {
-      void refreshPosts(String(team.id));
+      // Program team → whole-sport posts (shared across sub-teams); otherwise the
+      // single team's posts.
+      void refreshPosts(String(team.id), isProgramTeam ? team.program_id : undefined);
     } else if (activeTab === 'replies') {
       void refreshReplies(String(team.id));
     } else if (activeTab === 'upvotes') {
       void refreshUpvotes(String(team.id));
     }
-  }, [activeTab, team?.id, refreshPosts, refreshReplies, refreshUpvotes]);
+  }, [
+    activeTab,
+    team?.id,
+    team?.program_id,
+    isProgramTeam,
+    refreshPosts,
+    refreshReplies,
+    refreshUpvotes,
+  ]);
 
   const loadMorePosts = useCallback(async () => {
     if (postsLoading || !postsHasMore || !team?.id || !mounted.current) return;
