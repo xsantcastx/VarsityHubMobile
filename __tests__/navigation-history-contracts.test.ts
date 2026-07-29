@@ -52,7 +52,8 @@ describe('navigation history contracts', () => {
     const requireCoach = read('hooks/useRequireCoach.ts');
     const requireTeamManagement = read('hooks/useRequireTeamManagement.ts');
     expect(navigationUtils).toContain('export function replaceAsRedirect');
-    expect(teamPage).toContain('replaceAsRedirect(router, ');
+    // team-page no longer redirects — it's the canonical sport page (its Events
+    // tab shows the sub-team picker), so it doesn't use replaceAsRedirect.
     expect(approvals).toContain('replaceAsRedirect(router, ');
     expect(requireCoach).toContain('replaceAsRedirect(router, ');
     expect(requireTeamManagement).toContain('replaceAsRedirect(router, ');

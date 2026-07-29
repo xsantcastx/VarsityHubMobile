@@ -1,15 +1,9 @@
 /**
- * Phase 3 Task 6 — team-page redirects legacy team links to the canonical
- * program page once the team's program is known.
- *
- * Rule under test (app/team-page.tsx): after the team loads, if
- * `team.program_id` is set AND the route did not arrive with `from=program`
- * (which would create a redirect loop back from program-page's own "Team
- * page" link), replace the current screen with `/program-page?id=<program>`.
- * The redirect must fire at most once per mount (useRef latch) and must
- * never fire while the query has no data yet, or when `program_id` is
- * null/undefined (legacy + ungrouped teams, and the OTA-safe default when
- * the server predates the Phase 0+1 program rollout).
+ * team-page is the ONE canonical page for a sport (owner July-28). It no longer
+ * redirects program teams to a separate program page — instead, when a team
+ * belongs to a program with >1 sub-team, its Events tab renders a sub-team
+ * picker (Boys Varsity, Boys JV, …) and tapping one shows that sub-team's
+ * games. A lone-team program (or an ungrouped team) renders a plain team page.
  */
 import { act, render, screen, waitFor } from '@testing-library/react-native';
 
@@ -25,11 +19,6 @@ jest.mock('@react-navigation/native', () => ({
   ...require('@/test-utils/screenMocks').reactNavigationOverrides(),
 }));
 
-// Stable mock fns (module scope) so calls made across re-renders accumulate
-// on the same jest.fn() — the default expoRouterOverrides() factory mints a
-// fresh useRouter() object (and therefore fresh jest.fn()s) on every render,
-// which would make it impossible to assert "called exactly once" across the
-// several renders a real query lifecycle produces.
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
 let mockParams: Record<string, any> = { id: 'team1' };
@@ -55,12 +44,12 @@ jest.mock('expo-router', () => ({
   Redirect: () => null,
 }));
 
-// Heavy media child pulls in expo-video, which can't load under jest.
 jest.mock('../game-details/GameVerticalFeedScreen', () =>
   require('@/test-utils/screenMocks').childSentinelMock('GameVerticalFeed')()
 );
 
 const mockScreenSummary = jest.fn();
+const mockProgramSummary = jest.fn();
 jest.mock('@/api/entities', () => ({
   __esModule: true,
   Team: {
@@ -71,6 +60,7 @@ jest.mock('@/api/entities', () => ({
     unfollow: jest.fn(),
     members: jest.fn().mockResolvedValue([]),
   },
+  Program: { screenSummary: (...args: any[]) => mockProgramSummary(...args) },
   Game: { list: jest.fn().mockResolvedValue([]) },
   Post: { filter: jest.fn().mockResolvedValue([]) },
 }));
@@ -84,15 +74,9 @@ jest.mock('@/hooks/useCustomColorScheme', () => ({
 import TeamScreen from '../team-page';
 import { QueryWrapper } from '../../test-utils/screenMocks';
 
-const baseTeam = {
-  id: 'team1',
-  name: 'Varsity Tigers',
-  organization_id: 'org1',
-};
+const baseTeam = { id: 'team1', name: 'Varsity Tigers', organization_id: 'org1' };
 
 async function settle() {
-  // Give the screen several async turns so the query resolves and the
-  // mirror/redirect effects run.
   for (let i = 0; i < 5; i++) {
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -104,16 +88,31 @@ beforeEach(() => {
   mockReplace.mockReset();
   mockPush.mockReset();
   mockScreenSummary.mockReset();
+  mockProgramSummary
+    .mockReset()
+    .mockResolvedValue({ program: { id: 'prog1' }, levels: [], counts: {} });
   mockParams = { id: 'team1' };
 });
 
-describe('team-page → program-page redirect', () => {
-  it('redirects to the program page when the team has a program_id', async () => {
+describe('team-page is the canonical sport page (no redirect)', () => {
+  it('a program team renders the sub-team picker in its Events tab — NO redirect', async () => {
     mockScreenSummary.mockResolvedValue({
       team: { ...baseTeam, program_id: 'prog1' },
       members: [],
       games: [],
       permissions: { can_manage: false },
+    });
+    mockProgramSummary.mockResolvedValue({
+      program: { id: 'prog1', sport: 'basketball' },
+      levels: [
+        {
+          level: 'varsity',
+          team: { id: 'team1', gender: 'boys', name: 'Varsity Tigers' },
+          games: [],
+        },
+        { level: 'jv', team: { id: 'team2', gender: 'boys', name: 'JV Tigers' }, games: [] },
+      ],
+      counts: { levels: 2, teams: 2, games: 0 },
     });
 
     render(
@@ -122,20 +121,14 @@ describe('team-page → program-page redirect', () => {
       </QueryWrapper>
     );
 
-    await waitFor(() => expect(mockReplace).toHaveBeenCalled());
-
-    expect(mockReplace).toHaveBeenCalledWith({
-      pathname: '/program-page',
-      params: { id: 'prog1' },
-    });
-
-    // Latch: further render churn (query settling, focus effects, etc.) must
-    // not fire the redirect a second time.
+    // Sub-team picker renders (no redirect to a separate program page).
+    expect(await screen.findByTestId('team-subteam-team1')).toBeTruthy();
+    expect(screen.getByTestId('team-subteam-team2')).toBeTruthy();
     await settle();
-    expect(mockReplace).toHaveBeenCalledTimes(1);
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
-  it('does not redirect and renders the team page when program_id is null', async () => {
+  it('an ungrouped team (no program_id) renders a plain team page, no picker, no redirect', async () => {
     mockScreenSummary.mockResolvedValue({
       team: { ...baseTeam, program_id: null },
       members: [],
@@ -150,28 +143,7 @@ describe('team-page → program-page redirect', () => {
     );
 
     expect(await screen.findByText('Varsity Tigers')).toBeTruthy();
-
-    await settle();
-    expect(mockReplace).not.toHaveBeenCalled();
-  });
-
-  it('does not redirect when from=program even if program_id is set (no loop)', async () => {
-    mockParams = { id: 'team1', from: 'program' };
-    mockScreenSummary.mockResolvedValue({
-      team: { ...baseTeam, program_id: 'prog1' },
-      members: [],
-      games: [],
-      permissions: { can_manage: false },
-    });
-
-    render(
-      <QueryWrapper>
-        <TeamScreen />
-      </QueryWrapper>
-    );
-
-    expect(await screen.findByText('Varsity Tigers')).toBeTruthy();
-
+    expect(screen.queryByTestId('team-subteam-team1')).toBeNull();
     await settle();
     expect(mockReplace).not.toHaveBeenCalled();
   });
