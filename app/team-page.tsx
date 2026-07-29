@@ -6,7 +6,9 @@ import { gameRowTitle } from '@/utils/eventTitle';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
-import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
+import { safeGoBack } from '@/utils/navigation';
+import { useProgramScreenSummary } from '@/hooks/useProgramScreenSummary';
+import { buildProgramSubTeams } from '@/constants/programs';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -14,13 +16,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -377,21 +380,25 @@ function TeamScreen() {
     setTeamThemeColor('#3B82F6');
   }, [teamQuery.data]);
 
-  // Redirect legacy team links to the canonical program page once the team
-  // has loaded and it belongs to a program. `from=program` breaks the loop
-  // when the program page's own folder header pushed us here on purpose.
-  // The ref latch guarantees this fires at most once per mount — never on
-  // every render, and never while the query has no data yet.
-  const redirectedToProgramRef = useRef(false);
-  useEffect(() => {
-    if (redirectedToProgramRef.current) return;
-    if (teamQuery.isPending) return;
-    const programId = team?.program_id;
-    if (!programId) return;
-    if (params.from === 'program') return;
-    redirectedToProgramRef.current = true;
-    replaceAsRedirect(router, { pathname: '/program-page', params: { id: programId } } as any); // nav-safe: canonical program page supersedes the level-team page; from=program bypasses; marked so this hop never becomes a back target
-  }, [team, teamQuery.isPending, params.from, router]);
+  // team-page is the ONE canonical page for a sport (owner July-28). When this
+  // team belongs to a program, the Events tab shows the whole sport's sub-team
+  // picker — no redirect to a separate program page.
+  const programQuery = useProgramScreenSummary(team?.program_id);
+  const subTeams = useMemo(
+    () => buildProgramSubTeams((programQuery.data?.levels ?? []) as any),
+    [programQuery.data]
+  );
+  // A team is a "sport" surface when its program has >1 sub-team. A lone-team
+  // program stays a plain team page (nothing to pick).
+  const isProgramTeam = subTeams.length > 1;
+  const [selectedSubTeamId, setSelectedSubTeamId] = useState<string | null>(null);
+  const activeSubTeam =
+    subTeams.find(s => s.teamId === selectedSubTeamId) ??
+    subTeams.find(s => s.teamId === params.id) ??
+    subTeams[0] ??
+    null;
+  // Events shown: the picked sub-team's games in program mode, else this team's.
+  const eventsGames = isProgramTeam && activeSubTeam ? activeSubTeam.games : games;
 
   // Pick up server-side edits (e.g. renamed team) when the screen regains focus.
   // The callback must NOT depend on `teamQuery`: the query result object gets a
@@ -929,6 +936,47 @@ function TeamScreen() {
     </View>
   );
 
+  // Sub-team picker for the Events tab: the whole sport lives on THIS one page —
+  // tap a sub-team (Boys Varsity, Girls JV, …) to see just its games/events.
+  const renderSubTeamPicker = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.subTeamRow}
+    >
+      {subTeams.map(st => {
+        const selected = st.teamId === activeSubTeam?.teamId;
+        return (
+          <Pressable
+            key={st.teamId}
+            testID={`team-subteam-${st.teamId}`}
+            onPress={() => setSelectedSubTeamId(st.teamId)}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={`Show ${st.label} events`}
+            style={[
+              styles.subTeamChip,
+              {
+                borderColor: selected ? theme.tint : theme.border,
+                backgroundColor: selected ? theme.tint : theme.card,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.subTeamChipText,
+                // audit: fixed white on the selected theme.tint chip
+                { color: selected ? '#FFFFFF' : theme.text },
+              ]}
+            >
+              {st.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+
   const onEndReachedPosts = useCallback(() => {
     if (team?.id) void loadMorePosts();
   }, [team?.id, loadMorePosts]);
@@ -1288,7 +1336,7 @@ function TeamScreen() {
         />
       ) : (
         <FlatList
-          data={[...games].sort((a, b) => {
+          data={[...eventsGames].sort((a, b) => {
             // Always show every event (past + upcoming); dateless games sink to the bottom.
             const da = (a as any).scheduled_date || a.date;
             const db = (b as any).scheduled_date || b.date;
@@ -1298,7 +1346,12 @@ function TeamScreen() {
           })}
           key={`${activeTab}-list`}
           keyExtractor={item => item.id}
-          ListHeaderComponent={renderHeader}
+          ListHeaderComponent={
+            <>
+              {renderHeader()}
+              {isProgramTeam ? renderSubTeamPicker() : null}
+            </>
+          }
           ListEmptyComponent={renderEmptyEvents}
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           renderItem={({ item }) => {
@@ -1382,6 +1435,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  subTeamRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  subTeamChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  subTeamChipText: { fontSize: 14, fontWeight: '600' },
   center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#b91c1c', textAlign: 'center', marginBottom: 16 },
   retryButton: {
