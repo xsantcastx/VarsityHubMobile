@@ -36,6 +36,7 @@
     "verify:rate-limits": "tsx scripts/verify-rate-limit-coverage.ts",
     "verify:cloudinary": "tsx scripts/verify-cloudinary.ts",
     "verify:coach-approval": "tsx scripts/verify-coach-approval.ts",
+    "verify:backup-freshness": "tsx scripts/verify-backup-freshness.ts",
     "prepare:app-review": "tsx scripts/create-demo-account.ts",
     "prepare:coach:uat": "tsx scripts/prepare-coach-uat-accounts.ts",
     "audit:prod": "npm audit --omit=dev",
