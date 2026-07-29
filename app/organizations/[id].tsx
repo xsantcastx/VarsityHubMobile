@@ -58,7 +58,7 @@ const VALID_ID = /^[a-zA-Z0-9_-]{1,128}$/;
 function OrganizationDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; preview?: string }>();
   const normalizedId = useMemo(() => {
     const raw = Array.isArray(params.id) ? params.id[0] : params.id;
     const trimmed = raw?.trim();
@@ -214,7 +214,14 @@ function OrganizationDetailScreen() {
   // everything else here too, so deep links / shared /organizations/:id URLs
   // also land on the good screen — not just in-app search.
   if (normalizedId && !seedOrg) {
-    return <Redirect href={`/organization?id=${encodeURIComponent(normalizedId)}` as any} />;
+    // Preserve preview=1 so "View Page" lands on the public/guest render, not
+    // the owner's management view.
+    const previewSuffix = params.preview === '1' || params.preview === 'true' ? '&preview=1' : '';
+    return (
+      <Redirect
+        href={`/organization?id=${encodeURIComponent(normalizedId)}${previewSuffix}` as any}
+      />
+    );
   }
 
   if (loading) {
