@@ -357,14 +357,14 @@ export default function OrganizationScreen() {
   );
 
   const handleTeamPress = (team: TeamItem) => {
-    // Program teams go straight to the canonical program page. Pushing the
-    // team page would just flash it and redirect there anyway, leaving a
-    // self-redirecting entry in the back history.
-    if (team.program_id) {
-      router.push({ pathname: '/program-page', params: { id: team.program_id } });
-      return;
-    }
-    router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } });
+    // ONE page per sport (owner July-28): team-page is canonical. If the team
+    // belongs to a program, its Events tab renders the sub-team picker — no
+    // redirect, no separate program page. from=program is retained as a
+    // deliberate-open marker (team-page no longer reverse-redirects).
+    router.push({
+      pathname: '/team-page',
+      params: { id: team.id, name: team.name, ...(team.program_id ? { from: 'program' } : {}) },
+    });
   };
 
   const handleGamePress = (game: GameItem) => {
@@ -531,19 +531,23 @@ export default function OrganizationScreen() {
         key={group.programId}
         style={[styles.rowItem, { borderColor: theme.border }]}
         onPress={() => {
-          // A single-team sport IS that team — open it directly (no empty
-          // program wrapper). from=program stops team-page bouncing back.
-          // Multi-team sports open the sport/program container. The program
-          // page also redirects a resolved single-team sport as a backstop.
-          const sole = count === 1 ? group.teams[0] : null;
-          if (sole) {
-            router.push({
-              pathname: '/team-page',
-              params: { id: String(sole.id), name: sole.name ?? '', from: 'program' },
-            });
-          } else {
-            router.push({ pathname: '/program-page', params: { id: group.programId as string } });
-          }
+          // ONE page per sport (owner July-28): open the sport's team-page. Its
+          // Events tab renders the sub-team picker (Boys Varsity, Girls JV, …)
+          // when the program has >1 sub-team; a single-team sport just shows
+          // that team. We open the level/gender-first sub-team (Boys Varsity
+          // first) so the landing sub-team is deterministic. from=program marks
+          // a deliberate open (team-page no longer reverse-redirects).
+          const ordered = [...group.teams].sort((a, b) => {
+            const byLevel = levelRank(a.level) - levelRank(b.level);
+            if (byLevel !== 0) return byLevel;
+            return genderRank(a.gender) - genderRank(b.gender);
+          });
+          const repr = ordered[0] ?? group.teams[0];
+          if (!repr) return;
+          router.push({
+            pathname: '/team-page',
+            params: { id: String(repr.id), name: repr.name ?? '', from: 'program' },
+          });
         }}
       >
         <View style={{ flex: 1, gap: 2 }}>
