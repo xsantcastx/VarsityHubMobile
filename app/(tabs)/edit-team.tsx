@@ -244,10 +244,34 @@ function EditTeamScreen() {
     ]);
   };
 
-  const onSubmit = async () => {
+  const onSubmit = async (confirmedProgramPrivacy = false) => {
     if (!params.id) return;
     if (!name.trim()) {
       Alert.alert('Team name required', 'Please enter a team name to continue.');
+      return;
+    }
+
+    // Whole-sport-follow exposure warning (audit: sport-follow-private-exposure).
+    // A private team that belongs to a program is STILL shown to everyone who
+    // follows the program — Program.follow fans out a TeamFollow to every
+    // sub-team, and a follower can see a private team. Warn the coach the first
+    // time they turn a program team private (public → private transition), before
+    // it saves. Only a transition triggers it, so re-saving an already-private
+    // program team never nags.
+    const turningPrivateInProgram = isPrivate && !!team?.program_id && !team?.is_private;
+    if (turningPrivateInProgram && !confirmedProgramPrivacy) {
+      Alert.alert(
+        'Private team in a program',
+        'This team is part of a sport program. Making it private will still show it to everyone who follows the program — following the sport follows all of its teams. Make it private anyway?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Make Private',
+            style: 'destructive',
+            onPress: () => void onSubmit(true),
+          },
+        ]
+      );
       return;
     }
 
@@ -746,7 +770,9 @@ function EditTeamScreen() {
           tintColor={Colors[colorScheme].tint}
           disabled={submitting}
           loading={submitting}
-          onPress={onSubmit}
+          // Wrap so the press event isn't passed as `confirmedProgramPrivacy`
+          // (a truthy event would skip the private-in-program warning).
+          onPress={() => onSubmit()}
         />
       </ScrollView>
 
