@@ -35,6 +35,19 @@ unreachable, missing a table, or stale beyond the drift budget
 (`BACKUP_MAX_DRIFT_PCT`, default 10% — normal 6-hourly lag passes). Capture its
 output as the "verification command/test outputs" evidence in section 3.
 
+### Continuous automated alert (no action needed — runs in prod)
+
+The drill only catches a stalled sync **when you run it**. To cover the gap
+between runs, the `db-backup-freshness-check` scheduler job runs the same check
+(`checkBackupFreshness` in `server/src/lib/backupFreshness.ts` — the shared
+pass/fail definition behind both) at `0 3,9,15,21 * * *`, ~3h after each 6-hourly
+`db-backup-sync`. If the backup is missing a table, unreachable, or past the
+drift budget, it `captureException`s to Sentry (context `db_backup_freshness_stale`)
+so a silently stopped sync surfaces within one cycle instead of at restore time.
+It stays silent when `DATABASE_BACKUP_URL` is unset (the sync skips too, so there
+is nothing to alert on). Tune the cadence/threshold via the job's `cron` and
+`BACKUP_MAX_DRIFT_PCT`.
+
 ---
 
 ## 1) Required baseline
