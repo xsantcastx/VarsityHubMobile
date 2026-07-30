@@ -176,6 +176,54 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       }
     },
   },
+  {
+    // Closes the gap the db-backup-sync job can't: if that sync SILENTLY stops
+    // (errors mid-run, backup unreachable, replica falls behind), nothing notices
+    // until a disaster or the next manual drill. This runs the same freshness
+    // check as `npm run verify:backup-freshness` a few hours after each 6h sync
+    // and captures to Sentry the moment the backup drifts past budget — so a
+    // stalled sync surfaces within one cycle instead of at restore time.
+    name: 'db-backup-freshness-check',
+    cron: '0 3,9,15,21 * * *', // 3h after each 6-hourly db-backup-sync (00/06/12/18)
+    description: 'Alert (Sentry) if the DR backup replica falls behind the primary',
+    handler: async () => {
+      try {
+        const { checkBackupFreshness } = await import('../lib/backupFreshness.js');
+        const result = await checkBackupFreshness();
+        if (!result.configured) {
+          // No backup configured — the sync skips too, so there is nothing to
+          // alert on. Silent, same as db-backup-sync.
+          return;
+        }
+        if (result.ok) {
+          console.log(
+            `[Scheduler] DB backup freshness OK — ${result.reason} (${result.primaryTotal} primary rows)`
+          );
+          return;
+        }
+        console.error(`[Scheduler] DB backup freshness ALERT: ${result.reason}`);
+        captureException(new Error(`DR backup is stale: ${result.reason}`), {
+          ...withJobTags('db-backup-freshness-check', {
+            context: 'db_backup_freshness_stale',
+          }),
+          missing: result.missing,
+          deficit: result.deficit,
+          driftPct: Number(result.driftPct.toFixed(2)),
+          maxDriftPct: result.maxDriftPct,
+          primaryTotal: result.primaryTotal,
+          backupTotal: result.backupTotal,
+        });
+      } catch (error) {
+        console.error('[Scheduler] DB backup freshness check error:', error);
+        captureException(
+          error instanceof Error ? error : new Error(String(error)),
+          withJobTags('db-backup-freshness-check', {
+            context: 'db_backup_freshness_check_failed',
+          })
+        );
+      }
+    },
+  },
   // Founder metrics job removed — non-mandatory internal report email
   // subscription-expiry-check removed — the handler was a no-op stub and the
   // renewal reminder email was intentionally dropped as non-mandatory marketing.
