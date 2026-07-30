@@ -1,4 +1,4 @@
-import { Game, Post, Team } from '@/api/entities';
+import { Game, Post, Program, Team } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -405,6 +405,23 @@ function TeamScreen() {
   // Events shown: the picked sub-team's games in program mode, else this team's.
   const eventsGames = isProgramTeam && activeSubTeam ? activeSubTeam.games : games;
 
+  // Whole-sport Follow (owner July-28): on a program team, the Follow button
+  // follows the SPORT — Program.follow writes the ProgramFollow ledger and fans
+  // out a TeamFollow to every sub-team, so following the sport follows all its
+  // sub-teams. State + count come from the program screen-summary (ProgramFollow-
+  // based), not the single opened sub-team. A lone team keeps the team-follow path.
+  const programId = team?.program_id ?? null;
+  const [programIsFollowing, setProgramIsFollowing] = useState(false);
+  useEffect(() => {
+    if (isProgramTeam && programQuery.data?.program) {
+      setProgramIsFollowing(!!(programQuery.data.program as any).is_following);
+    }
+  }, [isProgramTeam, programQuery.data]);
+  const effectiveFollowing = isProgramTeam ? programIsFollowing : isFollowing;
+  const effectiveFollowersCount = isProgramTeam
+    ? ((programQuery.data?.program as any)?.followers_count ?? 0)
+    : ((team as any)?.followers_count ?? 0);
+
   // Pick up server-side edits (e.g. renamed team) when the screen regains focus.
   // The callback must NOT depend on `teamQuery`: the query result object gets a
   // new identity on every state transition, so keying the focus effect on it
@@ -667,13 +684,21 @@ function TeamScreen() {
                 style={[
                   styles.followButtonBelowBanner,
                   {
-                    backgroundColor: isFollowing ? '#10B981' : '#FFD600',
+                    backgroundColor: effectiveFollowing ? '#10B981' : '#FFD600',
                     borderWidth: 0,
                   },
                   followLoading && { opacity: 0.5 },
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel={isFollowing ? 'Unfollow team' : 'Follow team'}
+                accessibilityLabel={
+                  effectiveFollowing
+                    ? isProgramTeam
+                      ? 'Unfollow sport'
+                      : 'Unfollow team'
+                    : isProgramTeam
+                      ? 'Follow sport'
+                      : 'Follow team'
+                }
                 disabled={followLoading}
                 onPress={async () => {
                   if (!team?.id || team.id.startsWith('temp-') || followLoading) {
@@ -681,6 +706,35 @@ function TeamScreen() {
                   }
                   if (!currentUser) {
                     router.push('/sign-in' as any);
+                    return;
+                  }
+                  // Program team → follow the whole SPORT. Program.follow fans out
+                  // a TeamFollow to every sub-team server-side, so this follows all
+                  // sub-teams at once; state + count come from the program summary.
+                  if (isProgramTeam && programId) {
+                    const next = !programIsFollowing;
+                    setFollowLoading(true);
+                    setProgramIsFollowing(next); // optimistic
+                    try {
+                      if (next) {
+                        await Program.follow(programId);
+                      } else {
+                        await Program.unfollow(programId);
+                      }
+                      void programQuery.refetch();
+                    } catch (err: any) {
+                      setProgramIsFollowing(!next); // rollback
+                      const serverMsg =
+                        err?.data?.error || err?.data?.message || err?.message || 'Unknown error';
+                      if (__DEV__)
+                        console.error('[Follow] Program follow/unfollow failed:', serverMsg);
+                      Alert.alert(
+                        'Follow Failed',
+                        `${serverMsg} (status: ${err?.status || 'unknown'})`
+                      );
+                    } finally {
+                      setFollowLoading(false);
+                    }
                     return;
                   }
                   setFollowLoading(true);
@@ -737,7 +791,7 @@ function TeamScreen() {
                   }
                 }}
               >
-                {isFollowing ? (
+                {effectiveFollowing ? (
                   // audit: fixed white on the fixed green button (theme-independent bg)
                   <Ionicons name="checkmark" size={18} color="#FFFFFF" />
                 ) : (
@@ -791,7 +845,7 @@ function TeamScreen() {
             <Text style={[styles.statNumber, { color: theme.text }]}>{members.length}</Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Members </Text>
             <Text style={[styles.statNumber, { color: theme.text }]}>
-              {(team as any)?.followers_count ?? 0}
+              {effectiveFollowersCount}
             </Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Followers </Text>
             <Text style={[styles.statNumber, { color: theme.text }]}>{games.length}</Text>
