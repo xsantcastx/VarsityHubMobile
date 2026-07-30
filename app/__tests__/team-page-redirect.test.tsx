@@ -5,7 +5,7 @@
  * picker (Boys Varsity, Boys JV, …) and tapping one shows that sub-team's
  * games. A lone-team program (or an ungrouped team) renders a plain team page.
  */
-import { act, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 jest.mock('expo-image', () => require('@/test-utils/screenMocks').expoImageMock());
 jest.mock('expo-linear-gradient', () =>
@@ -50,6 +50,8 @@ jest.mock('../game-details/GameVerticalFeedScreen', () =>
 
 const mockScreenSummary = jest.fn();
 const mockProgramSummary = jest.fn();
+const mockProgramFollow = jest.fn();
+const mockProgramUnfollow = jest.fn();
 jest.mock('@/api/entities', () => ({
   __esModule: true,
   Team: {
@@ -60,7 +62,11 @@ jest.mock('@/api/entities', () => ({
     unfollow: jest.fn(),
     members: jest.fn().mockResolvedValue([]),
   },
-  Program: { screenSummary: (...args: any[]) => mockProgramSummary(...args) },
+  Program: {
+    screenSummary: (...args: any[]) => mockProgramSummary(...args),
+    follow: (...args: any[]) => mockProgramFollow(...args),
+    unfollow: (...args: any[]) => mockProgramUnfollow(...args),
+  },
   Game: { list: jest.fn().mockResolvedValue([]) },
   Post: { filter: jest.fn().mockResolvedValue([]) },
 }));
@@ -91,6 +97,8 @@ beforeEach(() => {
   mockProgramSummary
     .mockReset()
     .mockResolvedValue({ program: { id: 'prog1' }, levels: [], counts: {} });
+  mockProgramFollow.mockReset().mockResolvedValue({});
+  mockProgramUnfollow.mockReset().mockResolvedValue({});
   mockParams = { id: 'team1' };
 });
 
@@ -126,6 +134,39 @@ describe('team-page is the canonical sport page (no redirect)', () => {
     expect(screen.getByTestId('team-subteam-team2')).toBeTruthy();
     await settle();
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('Follow on a program team follows the whole SPORT (Program.follow, not Team.follow)', async () => {
+    mockScreenSummary.mockResolvedValue({
+      team: { ...baseTeam, program_id: 'prog1' },
+      members: [],
+      games: [],
+      permissions: { can_manage: false },
+    });
+    mockProgramSummary.mockResolvedValue({
+      program: { id: 'prog1', sport: 'basketball', is_following: false, followers_count: 5 },
+      levels: [
+        {
+          level: 'varsity',
+          team: { id: 'team1', gender: 'boys', name: 'Varsity Tigers' },
+          games: [],
+        },
+        { level: 'jv', team: { id: 'team2', gender: 'boys', name: 'JV Tigers' }, games: [] },
+      ],
+      counts: { levels: 2, teams: 2, games: 0 },
+    });
+
+    render(
+      <QueryWrapper>
+        <TeamScreen />
+      </QueryWrapper>
+    );
+
+    const followBtn = await screen.findByTestId('team-page-follow-button');
+    await act(async () => {
+      fireEvent.press(followBtn);
+    });
+    await waitFor(() => expect(mockProgramFollow).toHaveBeenCalledWith('prog1'));
   });
 
   it('an ungrouped team (no program_id) renders a plain team page, no picker, no redirect', async () => {
