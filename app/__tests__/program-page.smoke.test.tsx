@@ -1,12 +1,11 @@
 /**
- * Render test for the public program page (app/program-page.tsx) —
- * one-page-per-sport spec: a gender toggle appears only when both genders
- * exist, level chips only when the selected gender spans multiple levels,
- * games render as ONE merged level-tagged feed (no collapsible folders), and
- * there is no public "Team page" link. A single-team program renders a plain
- * feed with no controls.
+ * Render test for app/program-page.tsx, now a thin redirect shim (Phase 2,
+ * owner July-28: ONE sport page = team-page). A program opens by redirecting to
+ * its level/gender-first sub-team's team-page (Boys Varsity first), carrying
+ * from=program. A program with no visible sub-teams shows a graceful empty state
+ * instead of redirecting. There is NO rendering surface of its own anymore.
  */
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { render, screen, waitFor } from '@testing-library/react-native';
 
 beforeAll(() => jest.useFakeTimers());
 afterAll(() => jest.useRealTimers());
@@ -135,60 +134,25 @@ beforeEach(() => {
   mockScreenSummary.mockReset().mockResolvedValue(twoGenderSummary);
 });
 
-describe('ProgramScreen (one page per sport)', () => {
-  it('renders a gender toggle + level chips and one merged boys feed by default', async () => {
+describe('program-page redirect shim (Phase 2: ONE sport page = team-page)', () => {
+  it('a multi-team sport redirects to the level/gender-first sub-team’s team-page (Boys Varsity)', async () => {
+    mockScreenSummary.mockReset().mockResolvedValue(twoGenderSummary);
+    mockReplaceAsRedirect.mockClear();
     render(
       <QueryWrapper>
         <ProgramScreen />
       </QueryWrapper>
     );
 
-    await waitFor(() => expect(mockScreenSummary).toHaveBeenCalledWith('prog1'));
-    expect(await screen.findByText('Basketball')).toBeTruthy();
-
-    // A multi-team program keeps the PROGRAM badge (it aggregates >1 team).
-    expect(screen.getByText('PROGRAM')).toBeTruthy();
-
-    // Both genders exist → toggle renders, Boys selected first.
-    expect(screen.getByTestId('program-gender-boys')).toBeTruthy();
-    expect(screen.getByTestId('program-gender-girls')).toBeTruthy();
-
-    // Boys span varsity + jv → chips render.
-    expect(screen.getByTestId('program-level-chip-all')).toBeTruthy();
-    expect(screen.getByTestId('program-level-chip-varsity')).toBeTruthy();
-    expect(screen.getByTestId('program-level-chip-jv')).toBeTruthy();
-
-    // Merged boys feed: BOTH boys games visible at once, level-tagged; the
-    // girls game is not. No folders, no public team-page link.
-    expect(await screen.findByText('vs Hawks')).toBeTruthy();
-    expect(screen.getByText('vs Bears')).toBeTruthy();
-    expect(screen.queryByText('vs Lions')).toBeNull();
-    expect(screen.getByText('Varsity · Game')).toBeTruthy();
-    expect(screen.getByText('JV · Game')).toBeTruthy();
-    expect(screen.queryByText('Team page')).toBeNull();
+    await waitFor(() => expect(mockReplaceAsRedirect).toHaveBeenCalled());
+    const href = mockReplaceAsRedirect.mock.calls[0][1];
+    expect(href.pathname).toBe('/team-page');
+    // Boys Varsity (t1) sorts first (varsity before jv; boys before girls) — the
+    // deterministic landing sub-team. from=program marks the deliberate open.
+    expect(href.params).toMatchObject({ id: 't1', name: 'Boys Varsity', from: 'program' });
   });
 
-  it('switching gender swaps the feed; a level chip narrows it', async () => {
-    render(
-      <QueryWrapper>
-        <ProgramScreen />
-      </QueryWrapper>
-    );
-    await screen.findByText('vs Hawks');
-
-    fireEvent.press(screen.getByTestId('program-gender-girls'));
-    expect(await screen.findByText('vs Lions')).toBeTruthy();
-    expect(screen.queryByText('vs Hawks')).toBeNull();
-    // Girls have a single level → no chips.
-    expect(screen.queryByTestId('program-level-chip-all')).toBeNull();
-
-    fireEvent.press(screen.getByTestId('program-gender-boys'));
-    fireEvent.press(screen.getByTestId('program-level-chip-jv'));
-    expect(await screen.findByText('vs Bears')).toBeTruthy();
-    expect(screen.queryByText('vs Hawks')).toBeNull();
-  });
-
-  it('a single-team sport redirects to its team page (no duplicate program wrapper)', async () => {
+  it('a single-team sport redirects to that team’s team-page', async () => {
     mockScreenSummary.mockReset().mockResolvedValue(singleTeamSummary);
     mockReplaceAsRedirect.mockClear();
     render(
@@ -200,12 +164,15 @@ describe('ProgramScreen (one page per sport)', () => {
     await waitFor(() => expect(mockReplaceAsRedirect).toHaveBeenCalled());
     const href = mockReplaceAsRedirect.mock.calls[0][1];
     expect(href.pathname).toBe('/team-page');
-    // Routes to the sole team, with from=program so team-page won't bounce back.
     expect(href.params).toMatchObject({ id: 't9', from: 'program' });
   });
 
-  it('a multi-team sport does NOT redirect (stays on the program page)', async () => {
-    mockScreenSummary.mockReset().mockResolvedValue(twoGenderSummary);
+  it('a program with no visible sub-teams shows a graceful empty state, no redirect', async () => {
+    mockScreenSummary.mockReset().mockResolvedValue({
+      ...twoGenderSummary,
+      levels: [],
+      counts: { levels: 0, teams: 0, games: 0 },
+    });
     mockReplaceAsRedirect.mockClear();
     render(
       <QueryWrapper>
@@ -213,24 +180,8 @@ describe('ProgramScreen (one page per sport)', () => {
       </QueryWrapper>
     );
 
-    expect(await screen.findByText('vs Hawks')).toBeTruthy();
-    expect(mockReplaceAsRedirect).not.toHaveBeenCalled();
-  });
-
-  it('renders the empty state when the program has no level teams', async () => {
-    mockScreenSummary.mockReset().mockResolvedValue({
-      ...twoGenderSummary,
-      levels: [],
-      counts: { levels: 0, teams: 0, games: 0 },
-    });
-
-    render(
-      <QueryWrapper>
-        <ProgramScreen />
-      </QueryWrapper>
-    );
-
     await waitFor(() => expect(mockScreenSummary).toHaveBeenCalledWith('prog1'));
-    expect(await screen.findByText('No teams in this program yet')).toBeTruthy();
+    expect(await screen.findByText('This program isn’t available.')).toBeTruthy();
+    expect(mockReplaceAsRedirect).not.toHaveBeenCalled();
   });
 });

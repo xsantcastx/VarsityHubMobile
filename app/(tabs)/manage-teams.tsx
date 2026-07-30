@@ -380,7 +380,7 @@ function ManageTeamsSimpleScreen() {
                   <Text style={styles.leagueStatNumber}>
                     {activeTeams.reduce((sum, t) => sum + t.members, 0)}
                   </Text>
-                  <Text style={styles.leagueStatLabel}>Players</Text>
+                  <Text style={styles.leagueStatLabel}>Staff</Text>
                 </View>
               </View>
 

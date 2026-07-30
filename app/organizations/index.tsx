@@ -109,7 +109,9 @@ function OrganizationsIndexScreen() {
           <Pressable
             accessibilityRole="button"
             style={styles.featuredButton}
-            onPress={() => router.push(`/organizations/${featured.id}`)}
+            // "View Page" = see the org exactly as the public does (preview=1),
+            // even for the owner — never their management/edit view.
+            onPress={() => router.push(`/organizations/${featured.id}?preview=1`)}
           >
             <Text style={styles.featuredButtonText}>View Page</Text>
             <MaterialIcons name="arrow-forward" size={18} color="#fff" />

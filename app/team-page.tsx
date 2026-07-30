@@ -1,4 +1,4 @@
-import { Game, Post, Team } from '@/api/entities';
+import { Game, Post, Program, Team } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -6,7 +6,9 @@ import { gameRowTitle } from '@/utils/eventTitle';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
-import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
+import { safeGoBack } from '@/utils/navigation';
+import { useProgramScreenSummary } from '@/hooks/useProgramScreenSummary';
+import { buildProgramSubTeams } from '@/constants/programs';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -14,13 +16,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -294,14 +297,19 @@ function TeamScreen() {
     };
   }, []);
 
-  const refreshPosts = useCallback(async (teamId: string) => {
+  const refreshPosts = useCallback(async (teamId: string, programId?: string | null) => {
     if (postsRequestInFlight.current || !mounted.current) return;
     postsRequestInFlight.current = true;
     if (mounted.current) setPostsLoading(true);
     try {
       // Single server-side query: posts attached to the team directly or to
-      // any of its games (matched by team ID, not name substring).
-      const teamPosts = await Post.filter({ team_id: teamId }, '-created_at', 20);
+      // any of its games (matched by team ID, not name substring). When this
+      // team belongs to a multi-sub-team program, the Posts tab is SHARED across
+      // the whole sport (owner July-28) — filter by program_id (the union of
+      // every sub-team) instead of the single opened sub-team.
+      const teamPosts = programId
+        ? await Post.filter({ program_id: programId }, '-created_at', 20)
+        : await Post.filter({ team_id: teamId }, '-created_at', 20);
       if (!mounted.current) return;
       setPosts(Array.isArray(teamPosts) ? teamPosts : []);
       setPostsHasMore(false); // Simplified pagination
@@ -377,21 +385,42 @@ function TeamScreen() {
     setTeamThemeColor('#3B82F6');
   }, [teamQuery.data]);
 
-  // Redirect legacy team links to the canonical program page once the team
-  // has loaded and it belongs to a program. `from=program` breaks the loop
-  // when the program page's own folder header pushed us here on purpose.
-  // The ref latch guarantees this fires at most once per mount — never on
-  // every render, and never while the query has no data yet.
-  const redirectedToProgramRef = useRef(false);
+  // team-page is the ONE canonical page for a sport (owner July-28). When this
+  // team belongs to a program, the Events tab shows the whole sport's sub-team
+  // picker — no redirect to a separate program page.
+  const programQuery = useProgramScreenSummary(team?.program_id);
+  const subTeams = useMemo(
+    () => buildProgramSubTeams((programQuery.data?.levels ?? []) as any),
+    [programQuery.data]
+  );
+  // A team is a "sport" surface when its program has >1 sub-team. A lone-team
+  // program stays a plain team page (nothing to pick).
+  const isProgramTeam = subTeams.length > 1;
+  const [selectedSubTeamId, setSelectedSubTeamId] = useState<string | null>(null);
+  const activeSubTeam =
+    subTeams.find(s => s.teamId === selectedSubTeamId) ??
+    subTeams.find(s => s.teamId === params.id) ??
+    subTeams[0] ??
+    null;
+  // Events shown: the picked sub-team's games in program mode, else this team's.
+  const eventsGames = isProgramTeam && activeSubTeam ? activeSubTeam.games : games;
+
+  // Whole-sport Follow (owner July-28): on a program team, the Follow button
+  // follows the SPORT — Program.follow writes the ProgramFollow ledger and fans
+  // out a TeamFollow to every sub-team, so following the sport follows all its
+  // sub-teams. State + count come from the program screen-summary (ProgramFollow-
+  // based), not the single opened sub-team. A lone team keeps the team-follow path.
+  const programId = team?.program_id ?? null;
+  const [programIsFollowing, setProgramIsFollowing] = useState(false);
   useEffect(() => {
-    if (redirectedToProgramRef.current) return;
-    if (teamQuery.isPending) return;
-    const programId = team?.program_id;
-    if (!programId) return;
-    if (params.from === 'program') return;
-    redirectedToProgramRef.current = true;
-    replaceAsRedirect(router, { pathname: '/program-page', params: { id: programId } } as any); // nav-safe: canonical program page supersedes the level-team page; from=program bypasses; marked so this hop never becomes a back target
-  }, [team, teamQuery.isPending, params.from, router]);
+    if (isProgramTeam && programQuery.data?.program) {
+      setProgramIsFollowing(!!(programQuery.data.program as any).is_following);
+    }
+  }, [isProgramTeam, programQuery.data]);
+  const effectiveFollowing = isProgramTeam ? programIsFollowing : isFollowing;
+  const effectiveFollowersCount = isProgramTeam
+    ? ((programQuery.data?.program as any)?.followers_count ?? 0)
+    : ((team as any)?.followers_count ?? 0);
 
   // Pick up server-side edits (e.g. renamed team) when the screen regains focus.
   // The callback must NOT depend on `teamQuery`: the query result object gets a
@@ -429,13 +458,23 @@ function TeamScreen() {
   useEffect(() => {
     if (!team?.id) return;
     if (activeTab === 'posts') {
-      void refreshPosts(String(team.id));
+      // Program team → whole-sport posts (shared across sub-teams); otherwise the
+      // single team's posts.
+      void refreshPosts(String(team.id), isProgramTeam ? team.program_id : undefined);
     } else if (activeTab === 'replies') {
       void refreshReplies(String(team.id));
     } else if (activeTab === 'upvotes') {
       void refreshUpvotes(String(team.id));
     }
-  }, [activeTab, team?.id, refreshPosts, refreshReplies, refreshUpvotes]);
+  }, [
+    activeTab,
+    team?.id,
+    team?.program_id,
+    isProgramTeam,
+    refreshPosts,
+    refreshReplies,
+    refreshUpvotes,
+  ]);
 
   const loadMorePosts = useCallback(async () => {
     if (postsLoading || !postsHasMore || !team?.id || !mounted.current) return;
@@ -645,13 +684,21 @@ function TeamScreen() {
                 style={[
                   styles.followButtonBelowBanner,
                   {
-                    backgroundColor: isFollowing ? '#10B981' : '#FFD600',
+                    backgroundColor: effectiveFollowing ? '#10B981' : '#FFD600',
                     borderWidth: 0,
                   },
                   followLoading && { opacity: 0.5 },
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel={isFollowing ? 'Unfollow team' : 'Follow team'}
+                accessibilityLabel={
+                  effectiveFollowing
+                    ? isProgramTeam
+                      ? 'Unfollow sport'
+                      : 'Unfollow team'
+                    : isProgramTeam
+                      ? 'Follow sport'
+                      : 'Follow team'
+                }
                 disabled={followLoading}
                 onPress={async () => {
                   if (!team?.id || team.id.startsWith('temp-') || followLoading) {
@@ -659,6 +706,35 @@ function TeamScreen() {
                   }
                   if (!currentUser) {
                     router.push('/sign-in' as any);
+                    return;
+                  }
+                  // Program team → follow the whole SPORT. Program.follow fans out
+                  // a TeamFollow to every sub-team server-side, so this follows all
+                  // sub-teams at once; state + count come from the program summary.
+                  if (isProgramTeam && programId) {
+                    const next = !programIsFollowing;
+                    setFollowLoading(true);
+                    setProgramIsFollowing(next); // optimistic
+                    try {
+                      if (next) {
+                        await Program.follow(programId);
+                      } else {
+                        await Program.unfollow(programId);
+                      }
+                      void programQuery.refetch();
+                    } catch (err: any) {
+                      setProgramIsFollowing(!next); // rollback
+                      const serverMsg =
+                        err?.data?.error || err?.data?.message || err?.message || 'Unknown error';
+                      if (__DEV__)
+                        console.error('[Follow] Program follow/unfollow failed:', serverMsg);
+                      Alert.alert(
+                        'Follow Failed',
+                        `${serverMsg} (status: ${err?.status || 'unknown'})`
+                      );
+                    } finally {
+                      setFollowLoading(false);
+                    }
                     return;
                   }
                   setFollowLoading(true);
@@ -715,7 +791,7 @@ function TeamScreen() {
                   }
                 }}
               >
-                {isFollowing ? (
+                {effectiveFollowing ? (
                   // audit: fixed white on the fixed green button (theme-independent bg)
                   <Ionicons name="checkmark" size={18} color="#FFFFFF" />
                 ) : (
@@ -769,7 +845,7 @@ function TeamScreen() {
             <Text style={[styles.statNumber, { color: theme.text }]}>{members.length}</Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Members </Text>
             <Text style={[styles.statNumber, { color: theme.text }]}>
-              {(team as any)?.followers_count ?? 0}
+              {effectiveFollowersCount}
             </Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Followers </Text>
             <Text style={[styles.statNumber, { color: theme.text }]}>{games.length}</Text>
@@ -927,6 +1003,47 @@ function TeamScreen() {
         This team's games and events will appear here
       </Text>
     </View>
+  );
+
+  // Sub-team picker for the Events tab: the whole sport lives on THIS one page —
+  // tap a sub-team (Boys Varsity, Girls JV, …) to see just its games/events.
+  const renderSubTeamPicker = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.subTeamRow}
+    >
+      {subTeams.map(st => {
+        const selected = st.teamId === activeSubTeam?.teamId;
+        return (
+          <Pressable
+            key={st.teamId}
+            testID={`team-subteam-${st.teamId}`}
+            onPress={() => setSelectedSubTeamId(st.teamId)}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={`Show ${st.label} events`}
+            style={[
+              styles.subTeamChip,
+              {
+                borderColor: selected ? theme.tint : theme.border,
+                backgroundColor: selected ? theme.tint : theme.card,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.subTeamChipText,
+                // audit: fixed white on the selected theme.tint chip
+                { color: selected ? '#FFFFFF' : theme.text },
+              ]}
+            >
+              {st.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 
   const onEndReachedPosts = useCallback(() => {
@@ -1288,7 +1405,7 @@ function TeamScreen() {
         />
       ) : (
         <FlatList
-          data={[...games].sort((a, b) => {
+          data={[...eventsGames].sort((a, b) => {
             // Always show every event (past + upcoming); dateless games sink to the bottom.
             const da = (a as any).scheduled_date || a.date;
             const db = (b as any).scheduled_date || b.date;
@@ -1298,7 +1415,12 @@ function TeamScreen() {
           })}
           key={`${activeTab}-list`}
           keyExtractor={item => item.id}
-          ListHeaderComponent={renderHeader}
+          ListHeaderComponent={
+            <>
+              {renderHeader()}
+              {isProgramTeam ? renderSubTeamPicker() : null}
+            </>
+          }
           ListEmptyComponent={renderEmptyEvents}
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           renderItem={({ item }) => {
@@ -1382,6 +1504,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  subTeamRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  subTeamChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  subTeamChipText: { fontSize: 14, fontWeight: '600' },
   center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#b91c1c', textAlign: 'center', marginBottom: 16 },
   retryButton: {

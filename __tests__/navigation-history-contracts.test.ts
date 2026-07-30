@@ -52,7 +52,8 @@ describe('navigation history contracts', () => {
     const requireCoach = read('hooks/useRequireCoach.ts');
     const requireTeamManagement = read('hooks/useRequireTeamManagement.ts');
     expect(navigationUtils).toContain('export function replaceAsRedirect');
-    expect(teamPage).toContain('replaceAsRedirect(router, ');
+    // team-page no longer redirects — it's the canonical sport page (its Events
+    // tab shows the sub-team picker), so it doesn't use replaceAsRedirect.
     expect(approvals).toContain('replaceAsRedirect(router, ');
     expect(requireCoach).toContain('replaceAsRedirect(router, ');
     expect(requireTeamManagement).toContain('replaceAsRedirect(router, ');
@@ -65,20 +66,23 @@ describe('navigation history contracts', () => {
     );
   });
 
-  it('org team rows route program teams to the program page — no redirect hop', () => {
+  it('org team rows route program teams to team-page (Phase 2: ONE sport page, no program-page hop)', () => {
+    // Phase 2 (owner July-28): team-page is the canonical sport page — the org
+    // opens it directly (never program-page), and it carries from=program to
+    // mark a deliberate open. program-page is now only a deep-link redirect shim.
     const organization = read('app/(tabs)/organization.tsx');
-    expect(organization).toMatch(/program_id[\s\S]{0,300}\/program-page/);
+    expect(organization).not.toContain('/program-page');
+    // Program teams open team-page carrying the from=program deliberate-open marker.
+    expect(organization).toMatch(/pathname: '\/team-page'[\s\S]{0,200}from: 'program'/);
   });
 
-  it('program page has no public team-page link; staff surfaces pass the from=program bypass', () => {
-    // Level teams have no public page — the program page is the only public
-    // surface. Staff/admin surfaces still open team pages deliberately, so
-    // they carry from=program to bypass the canonical redirect.
+  it('program-page is a redirect shim to team-page; staff surfaces pass the from=program marker', () => {
+    // program-page keeps no rendering surface — it redirects to the sport's
+    // team-page. Its ONE team-page reference (the redirect) must carry
+    // from=program, the same deliberate-open marker the staff surfaces use.
     const programPage = read('app/program-page.tsx');
-    // The program page's ONLY team-page reference is the single-team redirect
-    // (a one-team sport IS that team). It must carry from=program so team-page
-    // never bounces back here — same rule as the staff surfaces below.
-    for (const m of programPage.matchAll(/team-page/g)) {
+    // Match the route literal ('/team-page'), not prose mentions in comments.
+    for (const m of programPage.matchAll(/\/team-page/g)) {
       const windowText = programPage.slice(m.index!, m.index! + 200);
       expect(windowText).toMatch(/from=program|from: 'program'/);
     }
