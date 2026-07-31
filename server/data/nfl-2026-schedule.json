@@ -1,0 +1,2369 @@
+[
+  {
+    "external_ref": "nfl:401872656",
+    "league": "nfl",
+    "starts_at": "2026-09-10T00:20Z",
+    "home_team_ref": "nfl:seattle-seahawks",
+    "away_team_ref": "nfl:new-england-patriots",
+    "venue_name": "Lumen Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872925",
+    "league": "nfl",
+    "starts_at": "2026-09-13T17:00Z",
+    "home_team_ref": "nfl:cincinnati-bengals",
+    "away_team_ref": "nfl:tampa-bay-buccaneers",
+    "venue_name": "Paycor Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872923",
+    "league": "nfl",
+    "starts_at": "2026-09-13T17:00Z",
+    "home_team_ref": "nfl:detroit-lions",
+    "away_team_ref": "nfl:new-orleans-saints",
+    "venue_name": "Ford Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872924",
+    "league": "nfl",
+    "starts_at": "2026-09-13T17:00Z",
+    "home_team_ref": "nfl:tennessee-titans",
+    "away_team_ref": "nfl:new-york-jets",
+    "venue_name": "Nissan Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872659",
+    "league": "nfl",
+    "starts_at": "2026-09-13T17:00Z",
+    "home_team_ref": "nfl:indianapolis-colts",
+    "away_team_ref": "nfl:baltimore-ravens",
+    "venue_name": "Lucas Oil Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872658",
+    "league": "nfl",
+    "starts_at": "2026-09-13T17:00Z",
+    "home_team_ref": "nfl:pittsburgh-steelers",
+    "away_team_ref": "nfl:atlanta-falcons",
+    "venue_name": "Acrisure Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872661",
+    "league": "nfl",
+    "starts_at": "2026-09-13T17:00Z",
+    "home_team_ref": "nfl:carolina-panthers",
+    "away_team_ref": "nfl:chicago-bears",
+    "venue_name": "Bank of America Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872922",
+    "league": "nfl",
+    "starts_at": "2026-09-13T17:00Z",
+    "home_team_ref": "nfl:jacksonville-jaguars",
+    "away_team_ref": "nfl:cleveland-browns",
+    "venue_name": "EverBank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872660",
+    "league": "nfl",
+    "starts_at": "2026-09-13T17:00Z",
+    "home_team_ref": "nfl:houston-texans",
+    "away_team_ref": "nfl:buffalo-bills",
+    "venue_name": "NRG Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872928",
+    "league": "nfl",
+    "starts_at": "2026-09-13T20:25Z",
+    "home_team_ref": "nfl:las-vegas-raiders",
+    "away_team_ref": "nfl:miami-dolphins",
+    "venue_name": "Allegiant Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872927",
+    "league": "nfl",
+    "starts_at": "2026-09-13T20:25Z",
+    "home_team_ref": "nfl:minnesota-vikings",
+    "away_team_ref": "nfl:green-bay-packers",
+    "venue_name": "U.S. Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872929",
+    "league": "nfl",
+    "starts_at": "2026-09-13T20:25Z",
+    "home_team_ref": "nfl:philadelphia-eagles",
+    "away_team_ref": "nfl:washington-commanders",
+    "venue_name": "Lincoln Financial Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872926",
+    "league": "nfl",
+    "starts_at": "2026-09-13T20:25Z",
+    "home_team_ref": "nfl:los-angeles-chargers",
+    "away_team_ref": "nfl:arizona-cardinals",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872930",
+    "league": "nfl",
+    "starts_at": "2026-09-14T00:20Z",
+    "home_team_ref": "nfl:new-york-giants",
+    "away_team_ref": "nfl:dallas-cowboys",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872931",
+    "league": "nfl",
+    "starts_at": "2026-09-15T00:15Z",
+    "home_team_ref": "nfl:kansas-city-chiefs",
+    "away_team_ref": "nfl:denver-broncos",
+    "venue_name": "GEHA Field at Arrowhead Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872932",
+    "league": "nfl",
+    "starts_at": "2026-09-18T00:15Z",
+    "home_team_ref": "nfl:buffalo-bills",
+    "away_team_ref": "nfl:detroit-lions",
+    "venue_name": "Highmark Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872933",
+    "league": "nfl",
+    "starts_at": "2026-09-20T17:00Z",
+    "home_team_ref": "nfl:atlanta-falcons",
+    "away_team_ref": "nfl:carolina-panthers",
+    "venue_name": "Mercedes-Benz Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872937",
+    "league": "nfl",
+    "starts_at": "2026-09-20T17:00Z",
+    "home_team_ref": "nfl:chicago-bears",
+    "away_team_ref": "nfl:minnesota-vikings",
+    "venue_name": "Soldier Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872939",
+    "league": "nfl",
+    "starts_at": "2026-09-20T17:00Z",
+    "home_team_ref": "nfl:tennessee-titans",
+    "away_team_ref": "nfl:philadelphia-eagles",
+    "venue_name": "Nissan Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872946",
+    "league": "nfl",
+    "starts_at": "2026-09-20T17:00Z",
+    "home_team_ref": "nfl:new-england-patriots",
+    "away_team_ref": "nfl:pittsburgh-steelers",
+    "venue_name": "Gillette Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872936",
+    "league": "nfl",
+    "starts_at": "2026-09-20T17:00Z",
+    "home_team_ref": "nfl:new-york-jets",
+    "away_team_ref": "nfl:green-bay-packers",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872935",
+    "league": "nfl",
+    "starts_at": "2026-09-20T17:00Z",
+    "home_team_ref": "nfl:tampa-bay-buccaneers",
+    "away_team_ref": "nfl:cleveland-browns",
+    "venue_name": "Raymond James Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872938",
+    "league": "nfl",
+    "starts_at": "2026-09-20T17:00Z",
+    "home_team_ref": "nfl:baltimore-ravens",
+    "away_team_ref": "nfl:new-orleans-saints",
+    "venue_name": "M&T Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872934",
+    "league": "nfl",
+    "starts_at": "2026-09-20T17:00Z",
+    "home_team_ref": "nfl:houston-texans",
+    "away_team_ref": "nfl:cincinnati-bengals",
+    "venue_name": "NRG Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872940",
+    "league": "nfl",
+    "starts_at": "2026-09-20T20:05Z",
+    "home_team_ref": "nfl:denver-broncos",
+    "away_team_ref": "nfl:jacksonville-jaguars",
+    "venue_name": "Empower Field at Mile High",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872941",
+    "league": "nfl",
+    "starts_at": "2026-09-20T20:05Z",
+    "home_team_ref": "nfl:los-angeles-chargers",
+    "away_team_ref": "nfl:las-vegas-raiders",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872944",
+    "league": "nfl",
+    "starts_at": "2026-09-20T20:25Z",
+    "home_team_ref": "nfl:dallas-cowboys",
+    "away_team_ref": "nfl:washington-commanders",
+    "venue_name": "AT&T Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872943",
+    "league": "nfl",
+    "starts_at": "2026-09-20T20:25Z",
+    "home_team_ref": "nfl:arizona-cardinals",
+    "away_team_ref": "nfl:seattle-seahawks",
+    "venue_name": "State Farm Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872942",
+    "league": "nfl",
+    "starts_at": "2026-09-20T20:25Z",
+    "home_team_ref": "nfl:san-francisco-49ers",
+    "away_team_ref": "nfl:miami-dolphins",
+    "venue_name": "Levi's Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872945",
+    "league": "nfl",
+    "starts_at": "2026-09-21T00:20Z",
+    "home_team_ref": "nfl:kansas-city-chiefs",
+    "away_team_ref": "nfl:indianapolis-colts",
+    "venue_name": "GEHA Field at Arrowhead Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872947",
+    "league": "nfl",
+    "starts_at": "2026-09-22T00:15Z",
+    "home_team_ref": "nfl:los-angeles-rams",
+    "away_team_ref": "nfl:new-york-giants",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872948",
+    "league": "nfl",
+    "starts_at": "2026-09-25T00:15Z",
+    "home_team_ref": "nfl:green-bay-packers",
+    "away_team_ref": "nfl:atlanta-falcons",
+    "venue_name": "Lambeau Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872953",
+    "league": "nfl",
+    "starts_at": "2026-09-27T17:00Z",
+    "home_team_ref": "nfl:buffalo-bills",
+    "away_team_ref": "nfl:los-angeles-chargers",
+    "venue_name": "Highmark Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872949",
+    "league": "nfl",
+    "starts_at": "2026-09-27T17:00Z",
+    "home_team_ref": "nfl:cleveland-browns",
+    "away_team_ref": "nfl:carolina-panthers",
+    "venue_name": "Huntington Bank Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872954",
+    "league": "nfl",
+    "starts_at": "2026-09-27T17:00Z",
+    "home_team_ref": "nfl:detroit-lions",
+    "away_team_ref": "nfl:new-york-jets",
+    "venue_name": "Ford Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872951",
+    "league": "nfl",
+    "starts_at": "2026-09-27T17:00Z",
+    "home_team_ref": "nfl:indianapolis-colts",
+    "away_team_ref": "nfl:houston-texans",
+    "venue_name": "Lucas Oil Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872952",
+    "league": "nfl",
+    "starts_at": "2026-09-27T17:00Z",
+    "home_team_ref": "nfl:miami-dolphins",
+    "away_team_ref": "nfl:kansas-city-chiefs",
+    "venue_name": "Hard Rock Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872956",
+    "league": "nfl",
+    "starts_at": "2026-09-27T17:00Z",
+    "home_team_ref": "nfl:new-york-giants",
+    "away_team_ref": "nfl:tennessee-titans",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872950",
+    "league": "nfl",
+    "starts_at": "2026-09-27T17:00Z",
+    "home_team_ref": "nfl:pittsburgh-steelers",
+    "away_team_ref": "nfl:cincinnati-bengals",
+    "venue_name": "Acrisure Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872955",
+    "league": "nfl",
+    "starts_at": "2026-09-27T17:00Z",
+    "home_team_ref": "nfl:washington-commanders",
+    "away_team_ref": "nfl:seattle-seahawks",
+    "venue_name": "Northwest Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872957",
+    "league": "nfl",
+    "starts_at": "2026-09-27T17:00Z",
+    "home_team_ref": "nfl:jacksonville-jaguars",
+    "away_team_ref": "nfl:new-england-patriots",
+    "venue_name": "EverBank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872958",
+    "league": "nfl",
+    "starts_at": "2026-09-27T20:05Z",
+    "home_team_ref": "nfl:san-francisco-49ers",
+    "away_team_ref": "nfl:arizona-cardinals",
+    "venue_name": "Levi's Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872959",
+    "league": "nfl",
+    "starts_at": "2026-09-27T20:05Z",
+    "home_team_ref": "nfl:tampa-bay-buccaneers",
+    "away_team_ref": "nfl:minnesota-vikings",
+    "venue_name": "Raymond James Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872961",
+    "league": "nfl",
+    "starts_at": "2026-09-27T20:25Z",
+    "home_team_ref": "nfl:new-orleans-saints",
+    "away_team_ref": "nfl:las-vegas-raiders",
+    "venue_name": "Caesars Superdome",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872962",
+    "league": "nfl",
+    "starts_at": "2026-09-28T00:20Z",
+    "home_team_ref": "nfl:denver-broncos",
+    "away_team_ref": "nfl:los-angeles-rams",
+    "venue_name": "Empower Field at Mile High",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872963",
+    "league": "nfl",
+    "starts_at": "2026-09-29T00:15Z",
+    "home_team_ref": "nfl:chicago-bears",
+    "away_team_ref": "nfl:philadelphia-eagles",
+    "venue_name": "Soldier Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872964",
+    "league": "nfl",
+    "starts_at": "2026-10-02T00:15Z",
+    "home_team_ref": "nfl:cleveland-browns",
+    "away_team_ref": "nfl:pittsburgh-steelers",
+    "venue_name": "Huntington Bank Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872971",
+    "league": "nfl",
+    "starts_at": "2026-10-04T17:00Z",
+    "home_team_ref": "nfl:buffalo-bills",
+    "away_team_ref": "nfl:new-england-patriots",
+    "venue_name": "Highmark Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872972",
+    "league": "nfl",
+    "starts_at": "2026-10-04T17:00Z",
+    "home_team_ref": "nfl:chicago-bears",
+    "away_team_ref": "nfl:new-york-jets",
+    "venue_name": "Soldier Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872969",
+    "league": "nfl",
+    "starts_at": "2026-10-04T17:00Z",
+    "home_team_ref": "nfl:cincinnati-bengals",
+    "away_team_ref": "nfl:jacksonville-jaguars",
+    "venue_name": "Paycor Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872966",
+    "league": "nfl",
+    "starts_at": "2026-10-04T17:00Z",
+    "home_team_ref": "nfl:new-york-giants",
+    "away_team_ref": "nfl:arizona-cardinals",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872970",
+    "league": "nfl",
+    "starts_at": "2026-10-04T17:00Z",
+    "home_team_ref": "nfl:philadelphia-eagles",
+    "away_team_ref": "nfl:los-angeles-rams",
+    "venue_name": "Lincoln Financial Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872968",
+    "league": "nfl",
+    "starts_at": "2026-10-04T17:00Z",
+    "home_team_ref": "nfl:tampa-bay-buccaneers",
+    "away_team_ref": "nfl:green-bay-packers",
+    "venue_name": "Raymond James Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872973",
+    "league": "nfl",
+    "starts_at": "2026-10-04T17:00Z",
+    "home_team_ref": "nfl:baltimore-ravens",
+    "away_team_ref": "nfl:tennessee-titans",
+    "venue_name": "M&T Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872967",
+    "league": "nfl",
+    "starts_at": "2026-10-04T17:00Z",
+    "home_team_ref": "nfl:houston-texans",
+    "away_team_ref": "nfl:dallas-cowboys",
+    "venue_name": "NRG Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872974",
+    "league": "nfl",
+    "starts_at": "2026-10-04T20:05Z",
+    "home_team_ref": "nfl:minnesota-vikings",
+    "away_team_ref": "nfl:miami-dolphins",
+    "venue_name": "U.S. Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872976",
+    "league": "nfl",
+    "starts_at": "2026-10-04T20:25Z",
+    "home_team_ref": "nfl:las-vegas-raiders",
+    "away_team_ref": "nfl:kansas-city-chiefs",
+    "venue_name": "Allegiant Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872975",
+    "league": "nfl",
+    "starts_at": "2026-10-04T20:25Z",
+    "home_team_ref": "nfl:san-francisco-49ers",
+    "away_team_ref": "nfl:denver-broncos",
+    "venue_name": "Levi's Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872977",
+    "league": "nfl",
+    "starts_at": "2026-10-04T20:25Z",
+    "home_team_ref": "nfl:seattle-seahawks",
+    "away_team_ref": "nfl:los-angeles-chargers",
+    "venue_name": "Lumen Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872978",
+    "league": "nfl",
+    "starts_at": "2026-10-05T00:20Z",
+    "home_team_ref": "nfl:carolina-panthers",
+    "away_team_ref": "nfl:detroit-lions",
+    "venue_name": "Bank of America Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872979",
+    "league": "nfl",
+    "starts_at": "2026-10-06T00:15Z",
+    "home_team_ref": "nfl:new-orleans-saints",
+    "away_team_ref": "nfl:atlanta-falcons",
+    "venue_name": "Caesars Superdome",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872980",
+    "league": "nfl",
+    "starts_at": "2026-10-09T00:15Z",
+    "home_team_ref": "nfl:dallas-cowboys",
+    "away_team_ref": "nfl:tampa-bay-buccaneers",
+    "venue_name": "AT&T Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872984",
+    "league": "nfl",
+    "starts_at": "2026-10-11T17:00Z",
+    "home_team_ref": "nfl:tennessee-titans",
+    "away_team_ref": "nfl:houston-texans",
+    "venue_name": "Nissan Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872982",
+    "league": "nfl",
+    "starts_at": "2026-10-11T17:00Z",
+    "home_team_ref": "nfl:miami-dolphins",
+    "away_team_ref": "nfl:cincinnati-bengals",
+    "venue_name": "Hard Rock Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872986",
+    "league": "nfl",
+    "starts_at": "2026-10-11T17:00Z",
+    "home_team_ref": "nfl:new-england-patriots",
+    "away_team_ref": "nfl:las-vegas-raiders",
+    "venue_name": "Gillette Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872987",
+    "league": "nfl",
+    "starts_at": "2026-10-11T17:00Z",
+    "home_team_ref": "nfl:new-orleans-saints",
+    "away_team_ref": "nfl:minnesota-vikings",
+    "venue_name": "Caesars Superdome",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872983",
+    "league": "nfl",
+    "starts_at": "2026-10-11T17:00Z",
+    "home_team_ref": "nfl:new-york-jets",
+    "away_team_ref": "nfl:cleveland-browns",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872985",
+    "league": "nfl",
+    "starts_at": "2026-10-11T17:00Z",
+    "home_team_ref": "nfl:pittsburgh-steelers",
+    "away_team_ref": "nfl:indianapolis-colts",
+    "venue_name": "Acrisure Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872988",
+    "league": "nfl",
+    "starts_at": "2026-10-11T17:00Z",
+    "home_team_ref": "nfl:washington-commanders",
+    "away_team_ref": "nfl:new-york-giants",
+    "venue_name": "Northwest Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872989",
+    "league": "nfl",
+    "starts_at": "2026-10-11T20:05Z",
+    "home_team_ref": "nfl:los-angeles-chargers",
+    "away_team_ref": "nfl:denver-broncos",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872990",
+    "league": "nfl",
+    "starts_at": "2026-10-11T20:25Z",
+    "home_team_ref": "nfl:green-bay-packers",
+    "away_team_ref": "nfl:chicago-bears",
+    "venue_name": "Lambeau Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872991",
+    "league": "nfl",
+    "starts_at": "2026-10-11T20:25Z",
+    "home_team_ref": "nfl:arizona-cardinals",
+    "away_team_ref": "nfl:detroit-lions",
+    "venue_name": "State Farm Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872992",
+    "league": "nfl",
+    "starts_at": "2026-10-11T20:25Z",
+    "home_team_ref": "nfl:seattle-seahawks",
+    "away_team_ref": "nfl:san-francisco-49ers",
+    "venue_name": "Lumen Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872993",
+    "league": "nfl",
+    "starts_at": "2026-10-12T00:20Z",
+    "home_team_ref": "nfl:atlanta-falcons",
+    "away_team_ref": "nfl:baltimore-ravens",
+    "venue_name": "Mercedes-Benz Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872994",
+    "league": "nfl",
+    "starts_at": "2026-10-13T00:15Z",
+    "home_team_ref": "nfl:los-angeles-rams",
+    "away_team_ref": "nfl:buffalo-bills",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872995",
+    "league": "nfl",
+    "starts_at": "2026-10-16T00:15Z",
+    "home_team_ref": "nfl:denver-broncos",
+    "away_team_ref": "nfl:seattle-seahawks",
+    "venue_name": "Empower Field at Mile High",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872999",
+    "league": "nfl",
+    "starts_at": "2026-10-18T17:00Z",
+    "home_team_ref": "nfl:atlanta-falcons",
+    "away_team_ref": "nfl:chicago-bears",
+    "venue_name": "Mercedes-Benz Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872997",
+    "league": "nfl",
+    "starts_at": "2026-10-18T17:00Z",
+    "home_team_ref": "nfl:cleveland-browns",
+    "away_team_ref": "nfl:baltimore-ravens",
+    "venue_name": "Huntington Bank Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873003",
+    "league": "nfl",
+    "starts_at": "2026-10-18T17:00Z",
+    "home_team_ref": "nfl:indianapolis-colts",
+    "away_team_ref": "nfl:tennessee-titans",
+    "venue_name": "Lucas Oil Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873001",
+    "league": "nfl",
+    "starts_at": "2026-10-18T17:00Z",
+    "home_team_ref": "nfl:new-england-patriots",
+    "away_team_ref": "nfl:new-york-jets",
+    "venue_name": "Gillette Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873000",
+    "league": "nfl",
+    "starts_at": "2026-10-18T17:00Z",
+    "home_team_ref": "nfl:new-york-giants",
+    "away_team_ref": "nfl:new-orleans-saints",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401872998",
+    "league": "nfl",
+    "starts_at": "2026-10-18T17:00Z",
+    "home_team_ref": "nfl:philadelphia-eagles",
+    "away_team_ref": "nfl:carolina-panthers",
+    "venue_name": "Lincoln Financial Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873002",
+    "league": "nfl",
+    "starts_at": "2026-10-18T17:00Z",
+    "home_team_ref": "nfl:tampa-bay-buccaneers",
+    "away_team_ref": "nfl:pittsburgh-steelers",
+    "venue_name": "Raymond James Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873004",
+    "league": "nfl",
+    "starts_at": "2026-10-18T20:05Z",
+    "home_team_ref": "nfl:los-angeles-rams",
+    "away_team_ref": "nfl:arizona-cardinals",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873006",
+    "league": "nfl",
+    "starts_at": "2026-10-18T20:25Z",
+    "home_team_ref": "nfl:kansas-city-chiefs",
+    "away_team_ref": "nfl:los-angeles-chargers",
+    "venue_name": "GEHA Field at Arrowhead Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873005",
+    "league": "nfl",
+    "starts_at": "2026-10-18T20:25Z",
+    "home_team_ref": "nfl:las-vegas-raiders",
+    "away_team_ref": "nfl:buffalo-bills",
+    "venue_name": "Allegiant Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873007",
+    "league": "nfl",
+    "starts_at": "2026-10-19T00:20Z",
+    "home_team_ref": "nfl:green-bay-packers",
+    "away_team_ref": "nfl:dallas-cowboys",
+    "venue_name": "Lambeau Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873008",
+    "league": "nfl",
+    "starts_at": "2026-10-20T00:15Z",
+    "home_team_ref": "nfl:san-francisco-49ers",
+    "away_team_ref": "nfl:washington-commanders",
+    "venue_name": "Levi's Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873010",
+    "league": "nfl",
+    "starts_at": "2026-10-23T00:15Z",
+    "home_team_ref": "nfl:chicago-bears",
+    "away_team_ref": "nfl:new-england-patriots",
+    "venue_name": "Soldier Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873017",
+    "league": "nfl",
+    "starts_at": "2026-10-25T17:00Z",
+    "home_team_ref": "nfl:atlanta-falcons",
+    "away_team_ref": "nfl:san-francisco-49ers",
+    "venue_name": "Mercedes-Benz Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873013",
+    "league": "nfl",
+    "starts_at": "2026-10-25T17:00Z",
+    "home_team_ref": "nfl:tennessee-titans",
+    "away_team_ref": "nfl:cleveland-browns",
+    "venue_name": "Nissan Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873014",
+    "league": "nfl",
+    "starts_at": "2026-10-25T17:00Z",
+    "home_team_ref": "nfl:minnesota-vikings",
+    "away_team_ref": "nfl:indianapolis-colts",
+    "venue_name": "U.S. Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873015",
+    "league": "nfl",
+    "starts_at": "2026-10-25T17:00Z",
+    "home_team_ref": "nfl:new-york-jets",
+    "away_team_ref": "nfl:miami-dolphins",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873018",
+    "league": "nfl",
+    "starts_at": "2026-10-25T17:00Z",
+    "home_team_ref": "nfl:carolina-panthers",
+    "away_team_ref": "nfl:tampa-bay-buccaneers",
+    "venue_name": "Bank of America Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873012",
+    "league": "nfl",
+    "starts_at": "2026-10-25T17:00Z",
+    "home_team_ref": "nfl:baltimore-ravens",
+    "away_team_ref": "nfl:cincinnati-bengals",
+    "venue_name": "M&T Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873016",
+    "league": "nfl",
+    "starts_at": "2026-10-25T17:00Z",
+    "home_team_ref": "nfl:houston-texans",
+    "away_team_ref": "nfl:new-york-giants",
+    "venue_name": "NRG Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873019",
+    "league": "nfl",
+    "starts_at": "2026-10-25T20:05Z",
+    "home_team_ref": "nfl:arizona-cardinals",
+    "away_team_ref": "nfl:denver-broncos",
+    "venue_name": "State Farm Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873020",
+    "league": "nfl",
+    "starts_at": "2026-10-25T20:25Z",
+    "home_team_ref": "nfl:detroit-lions",
+    "away_team_ref": "nfl:green-bay-packers",
+    "venue_name": "Ford Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873021",
+    "league": "nfl",
+    "starts_at": "2026-10-25T20:25Z",
+    "home_team_ref": "nfl:las-vegas-raiders",
+    "away_team_ref": "nfl:los-angeles-rams",
+    "venue_name": "Allegiant Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873022",
+    "league": "nfl",
+    "starts_at": "2026-10-26T00:20Z",
+    "home_team_ref": "nfl:seattle-seahawks",
+    "away_team_ref": "nfl:kansas-city-chiefs",
+    "venue_name": "Lumen Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873009",
+    "league": "nfl",
+    "starts_at": "2026-10-27T00:15Z",
+    "home_team_ref": "nfl:philadelphia-eagles",
+    "away_team_ref": "nfl:dallas-cowboys",
+    "venue_name": "Lincoln Financial Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873023",
+    "league": "nfl",
+    "starts_at": "2026-10-30T00:15Z",
+    "home_team_ref": "nfl:green-bay-packers",
+    "away_team_ref": "nfl:carolina-panthers",
+    "venue_name": "Lambeau Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873026",
+    "league": "nfl",
+    "starts_at": "2026-11-01T18:00Z",
+    "home_team_ref": "nfl:buffalo-bills",
+    "away_team_ref": "nfl:baltimore-ravens",
+    "venue_name": "Highmark Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873031",
+    "league": "nfl",
+    "starts_at": "2026-11-01T18:00Z",
+    "home_team_ref": "nfl:cincinnati-bengals",
+    "away_team_ref": "nfl:tennessee-titans",
+    "venue_name": "Paycor Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873024",
+    "league": "nfl",
+    "starts_at": "2026-11-01T18:00Z",
+    "home_team_ref": "nfl:dallas-cowboys",
+    "away_team_ref": "nfl:arizona-cardinals",
+    "venue_name": "AT&T Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873030",
+    "league": "nfl",
+    "starts_at": "2026-11-01T18:00Z",
+    "home_team_ref": "nfl:detroit-lions",
+    "away_team_ref": "nfl:minnesota-vikings",
+    "venue_name": "Ford Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873029",
+    "league": "nfl",
+    "starts_at": "2026-11-01T18:00Z",
+    "home_team_ref": "nfl:new-york-jets",
+    "away_team_ref": "nfl:las-vegas-raiders",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873027",
+    "league": "nfl",
+    "starts_at": "2026-11-01T18:00Z",
+    "home_team_ref": "nfl:pittsburgh-steelers",
+    "away_team_ref": "nfl:cleveland-browns",
+    "venue_name": "Acrisure Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873025",
+    "league": "nfl",
+    "starts_at": "2026-11-01T18:00Z",
+    "home_team_ref": "nfl:tampa-bay-buccaneers",
+    "away_team_ref": "nfl:atlanta-falcons",
+    "venue_name": "Raymond James Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873028",
+    "league": "nfl",
+    "starts_at": "2026-11-01T18:00Z",
+    "home_team_ref": "nfl:jacksonville-jaguars",
+    "away_team_ref": "nfl:indianapolis-colts",
+    "venue_name": "EverBank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873032",
+    "league": "nfl",
+    "starts_at": "2026-11-01T21:05Z",
+    "home_team_ref": "nfl:los-angeles-rams",
+    "away_team_ref": "nfl:los-angeles-chargers",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873033",
+    "league": "nfl",
+    "starts_at": "2026-11-01T21:25Z",
+    "home_team_ref": "nfl:denver-broncos",
+    "away_team_ref": "nfl:kansas-city-chiefs",
+    "venue_name": "Empower Field at Mile High",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873034",
+    "league": "nfl",
+    "starts_at": "2026-11-01T21:25Z",
+    "home_team_ref": "nfl:miami-dolphins",
+    "away_team_ref": "nfl:new-england-patriots",
+    "venue_name": "Hard Rock Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873035",
+    "league": "nfl",
+    "starts_at": "2026-11-02T01:20Z",
+    "home_team_ref": "nfl:washington-commanders",
+    "away_team_ref": "nfl:philadelphia-eagles",
+    "venue_name": "Northwest Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873036",
+    "league": "nfl",
+    "starts_at": "2026-11-03T01:15Z",
+    "home_team_ref": "nfl:seattle-seahawks",
+    "away_team_ref": "nfl:chicago-bears",
+    "venue_name": "Lumen Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873037",
+    "league": "nfl",
+    "starts_at": "2026-11-06T01:15Z",
+    "home_team_ref": "nfl:baltimore-ravens",
+    "away_team_ref": "nfl:jacksonville-jaguars",
+    "venue_name": "M&T Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873040",
+    "league": "nfl",
+    "starts_at": "2026-11-08T18:00Z",
+    "home_team_ref": "nfl:indianapolis-colts",
+    "away_team_ref": "nfl:dallas-cowboys",
+    "venue_name": "Lucas Oil Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873045",
+    "league": "nfl",
+    "starts_at": "2026-11-08T18:00Z",
+    "home_team_ref": "nfl:kansas-city-chiefs",
+    "away_team_ref": "nfl:new-york-jets",
+    "venue_name": "GEHA Field at Arrowhead Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873042",
+    "league": "nfl",
+    "starts_at": "2026-11-08T18:00Z",
+    "home_team_ref": "nfl:miami-dolphins",
+    "away_team_ref": "nfl:detroit-lions",
+    "venue_name": "Hard Rock Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873039",
+    "league": "nfl",
+    "starts_at": "2026-11-08T18:00Z",
+    "home_team_ref": "nfl:new-orleans-saints",
+    "away_team_ref": "nfl:cleveland-browns",
+    "venue_name": "Caesars Superdome",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873044",
+    "league": "nfl",
+    "starts_at": "2026-11-08T18:00Z",
+    "home_team_ref": "nfl:philadelphia-eagles",
+    "away_team_ref": "nfl:new-york-giants",
+    "venue_name": "Lincoln Financial Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873043",
+    "league": "nfl",
+    "starts_at": "2026-11-08T18:00Z",
+    "home_team_ref": "nfl:washington-commanders",
+    "away_team_ref": "nfl:los-angeles-rams",
+    "venue_name": "Northwest Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873041",
+    "league": "nfl",
+    "starts_at": "2026-11-08T18:00Z",
+    "home_team_ref": "nfl:carolina-panthers",
+    "away_team_ref": "nfl:denver-broncos",
+    "venue_name": "Bank of America Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873046",
+    "league": "nfl",
+    "starts_at": "2026-11-08T21:05Z",
+    "home_team_ref": "nfl:los-angeles-chargers",
+    "away_team_ref": "nfl:houston-texans",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873047",
+    "league": "nfl",
+    "starts_at": "2026-11-08T21:05Z",
+    "home_team_ref": "nfl:san-francisco-49ers",
+    "away_team_ref": "nfl:las-vegas-raiders",
+    "venue_name": "Levi's Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873049",
+    "league": "nfl",
+    "starts_at": "2026-11-08T21:25Z",
+    "home_team_ref": "nfl:new-england-patriots",
+    "away_team_ref": "nfl:green-bay-packers",
+    "venue_name": "Gillette Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873048",
+    "league": "nfl",
+    "starts_at": "2026-11-08T21:25Z",
+    "home_team_ref": "nfl:seattle-seahawks",
+    "away_team_ref": "nfl:arizona-cardinals",
+    "venue_name": "Lumen Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873050",
+    "league": "nfl",
+    "starts_at": "2026-11-09T01:20Z",
+    "home_team_ref": "nfl:chicago-bears",
+    "away_team_ref": "nfl:tampa-bay-buccaneers",
+    "venue_name": "Soldier Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873051",
+    "league": "nfl",
+    "starts_at": "2026-11-10T01:15Z",
+    "home_team_ref": "nfl:minnesota-vikings",
+    "away_team_ref": "nfl:buffalo-bills",
+    "venue_name": "U.S. Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873052",
+    "league": "nfl",
+    "starts_at": "2026-11-13T01:15Z",
+    "home_team_ref": "nfl:new-york-giants",
+    "away_team_ref": "nfl:washington-commanders",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873058",
+    "league": "nfl",
+    "starts_at": "2026-11-15T18:00Z",
+    "home_team_ref": "nfl:atlanta-falcons",
+    "away_team_ref": "nfl:kansas-city-chiefs",
+    "venue_name": "Mercedes-Benz Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873056",
+    "league": "nfl",
+    "starts_at": "2026-11-15T18:00Z",
+    "home_team_ref": "nfl:cleveland-browns",
+    "away_team_ref": "nfl:houston-texans",
+    "venue_name": "Huntington Bank Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873060",
+    "league": "nfl",
+    "starts_at": "2026-11-15T18:00Z",
+    "home_team_ref": "nfl:green-bay-packers",
+    "away_team_ref": "nfl:minnesota-vikings",
+    "venue_name": "Lambeau Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873057",
+    "league": "nfl",
+    "starts_at": "2026-11-15T18:00Z",
+    "home_team_ref": "nfl:tennessee-titans",
+    "away_team_ref": "nfl:jacksonville-jaguars",
+    "venue_name": "Nissan Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873059",
+    "league": "nfl",
+    "starts_at": "2026-11-15T18:00Z",
+    "home_team_ref": "nfl:indianapolis-colts",
+    "away_team_ref": "nfl:miami-dolphins",
+    "venue_name": "Lucas Oil Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873055",
+    "league": "nfl",
+    "starts_at": "2026-11-15T18:00Z",
+    "home_team_ref": "nfl:new-orleans-saints",
+    "away_team_ref": "nfl:carolina-panthers",
+    "venue_name": "Caesars Superdome",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873054",
+    "league": "nfl",
+    "starts_at": "2026-11-15T18:00Z",
+    "home_team_ref": "nfl:new-york-jets",
+    "away_team_ref": "nfl:buffalo-bills",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873062",
+    "league": "nfl",
+    "starts_at": "2026-11-15T21:05Z",
+    "home_team_ref": "nfl:las-vegas-raiders",
+    "away_team_ref": "nfl:seattle-seahawks",
+    "venue_name": "Allegiant Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873061",
+    "league": "nfl",
+    "starts_at": "2026-11-15T21:05Z",
+    "home_team_ref": "nfl:arizona-cardinals",
+    "away_team_ref": "nfl:los-angeles-rams",
+    "venue_name": "State Farm Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873063",
+    "league": "nfl",
+    "starts_at": "2026-11-15T21:25Z",
+    "home_team_ref": "nfl:dallas-cowboys",
+    "away_team_ref": "nfl:san-francisco-49ers",
+    "venue_name": "AT&T Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873064",
+    "league": "nfl",
+    "starts_at": "2026-11-16T01:20Z",
+    "home_team_ref": "nfl:cincinnati-bengals",
+    "away_team_ref": "nfl:pittsburgh-steelers",
+    "venue_name": "Paycor Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873065",
+    "league": "nfl",
+    "starts_at": "2026-11-17T01:15Z",
+    "home_team_ref": "nfl:baltimore-ravens",
+    "away_team_ref": "nfl:los-angeles-chargers",
+    "venue_name": "M&T Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873066",
+    "league": "nfl",
+    "starts_at": "2026-11-20T01:15Z",
+    "home_team_ref": "nfl:houston-texans",
+    "away_team_ref": "nfl:indianapolis-colts",
+    "venue_name": "NRG Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873070",
+    "league": "nfl",
+    "starts_at": "2026-11-22T18:00Z",
+    "home_team_ref": "nfl:buffalo-bills",
+    "away_team_ref": "nfl:miami-dolphins",
+    "venue_name": "Highmark Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873071",
+    "league": "nfl",
+    "starts_at": "2026-11-22T18:00Z",
+    "home_team_ref": "nfl:chicago-bears",
+    "away_team_ref": "nfl:new-orleans-saints",
+    "venue_name": "Soldier Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873073",
+    "league": "nfl",
+    "starts_at": "2026-11-22T18:00Z",
+    "home_team_ref": "nfl:dallas-cowboys",
+    "away_team_ref": "nfl:tennessee-titans",
+    "venue_name": "AT&T Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873072",
+    "league": "nfl",
+    "starts_at": "2026-11-22T18:00Z",
+    "home_team_ref": "nfl:detroit-lions",
+    "away_team_ref": "nfl:tampa-bay-buccaneers",
+    "venue_name": "Ford Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873067",
+    "league": "nfl",
+    "starts_at": "2026-11-22T18:00Z",
+    "home_team_ref": "nfl:kansas-city-chiefs",
+    "away_team_ref": "nfl:arizona-cardinals",
+    "venue_name": "GEHA Field at Arrowhead Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873069",
+    "league": "nfl",
+    "starts_at": "2026-11-22T18:00Z",
+    "home_team_ref": "nfl:new-york-giants",
+    "away_team_ref": "nfl:jacksonville-jaguars",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873068",
+    "league": "nfl",
+    "starts_at": "2026-11-22T18:00Z",
+    "home_team_ref": "nfl:carolina-panthers",
+    "away_team_ref": "nfl:baltimore-ravens",
+    "venue_name": "Bank of America Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873074",
+    "league": "nfl",
+    "starts_at": "2026-11-22T21:05Z",
+    "home_team_ref": "nfl:los-angeles-chargers",
+    "away_team_ref": "nfl:new-york-jets",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873075",
+    "league": "nfl",
+    "starts_at": "2026-11-22T21:25Z",
+    "home_team_ref": "nfl:denver-broncos",
+    "away_team_ref": "nfl:las-vegas-raiders",
+    "venue_name": "Empower Field at Mile High",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873076",
+    "league": "nfl",
+    "starts_at": "2026-11-22T21:25Z",
+    "home_team_ref": "nfl:philadelphia-eagles",
+    "away_team_ref": "nfl:pittsburgh-steelers",
+    "venue_name": "Lincoln Financial Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873078",
+    "league": "nfl",
+    "starts_at": "2026-11-24T01:15Z",
+    "home_team_ref": "nfl:washington-commanders",
+    "away_team_ref": "nfl:cincinnati-bengals",
+    "venue_name": "Northwest Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873079",
+    "league": "nfl",
+    "starts_at": "2026-11-26T01:00Z",
+    "home_team_ref": "nfl:los-angeles-rams",
+    "away_team_ref": "nfl:green-bay-packers",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873081",
+    "league": "nfl",
+    "starts_at": "2026-11-26T18:00Z",
+    "home_team_ref": "nfl:detroit-lions",
+    "away_team_ref": "nfl:chicago-bears",
+    "venue_name": "Ford Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873080",
+    "league": "nfl",
+    "starts_at": "2026-11-26T21:30Z",
+    "home_team_ref": "nfl:dallas-cowboys",
+    "away_team_ref": "nfl:philadelphia-eagles",
+    "venue_name": "AT&T Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873082",
+    "league": "nfl",
+    "starts_at": "2026-11-27T01:20Z",
+    "home_team_ref": "nfl:buffalo-bills",
+    "away_team_ref": "nfl:kansas-city-chiefs",
+    "venue_name": "Highmark Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873083",
+    "league": "nfl",
+    "starts_at": "2026-11-27T20:00Z",
+    "home_team_ref": "nfl:pittsburgh-steelers",
+    "away_team_ref": "nfl:denver-broncos",
+    "venue_name": "Acrisure Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873087",
+    "league": "nfl",
+    "starts_at": "2026-11-29T18:00Z",
+    "home_team_ref": "nfl:cincinnati-bengals",
+    "away_team_ref": "nfl:new-orleans-saints",
+    "venue_name": "Paycor Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873086",
+    "league": "nfl",
+    "starts_at": "2026-11-29T18:00Z",
+    "home_team_ref": "nfl:cleveland-browns",
+    "away_team_ref": "nfl:las-vegas-raiders",
+    "venue_name": "Huntington Bank Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873088",
+    "league": "nfl",
+    "starts_at": "2026-11-29T18:00Z",
+    "home_team_ref": "nfl:indianapolis-colts",
+    "away_team_ref": "nfl:new-york-giants",
+    "venue_name": "Lucas Oil Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873089",
+    "league": "nfl",
+    "starts_at": "2026-11-29T18:00Z",
+    "home_team_ref": "nfl:miami-dolphins",
+    "away_team_ref": "nfl:new-york-jets",
+    "venue_name": "Hard Rock Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873084",
+    "league": "nfl",
+    "starts_at": "2026-11-29T18:00Z",
+    "home_team_ref": "nfl:minnesota-vikings",
+    "away_team_ref": "nfl:atlanta-falcons",
+    "venue_name": "U.S. Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873085",
+    "league": "nfl",
+    "starts_at": "2026-11-29T18:00Z",
+    "home_team_ref": "nfl:houston-texans",
+    "away_team_ref": "nfl:baltimore-ravens",
+    "venue_name": "NRG Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873090",
+    "league": "nfl",
+    "starts_at": "2026-11-29T21:05Z",
+    "home_team_ref": "nfl:jacksonville-jaguars",
+    "away_team_ref": "nfl:tennessee-titans",
+    "venue_name": "EverBank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873092",
+    "league": "nfl",
+    "starts_at": "2026-11-29T21:25Z",
+    "home_team_ref": "nfl:arizona-cardinals",
+    "away_team_ref": "nfl:washington-commanders",
+    "venue_name": "State Farm Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873091",
+    "league": "nfl",
+    "starts_at": "2026-11-29T21:25Z",
+    "home_team_ref": "nfl:san-francisco-49ers",
+    "away_team_ref": "nfl:seattle-seahawks",
+    "venue_name": "Levi's Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873093",
+    "league": "nfl",
+    "starts_at": "2026-11-30T01:20Z",
+    "home_team_ref": "nfl:los-angeles-chargers",
+    "away_team_ref": "nfl:new-england-patriots",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873094",
+    "league": "nfl",
+    "starts_at": "2026-12-01T01:15Z",
+    "home_team_ref": "nfl:tampa-bay-buccaneers",
+    "away_team_ref": "nfl:carolina-panthers",
+    "venue_name": "Raymond James Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873096",
+    "league": "nfl",
+    "starts_at": "2026-12-04T01:15Z",
+    "home_team_ref": "nfl:los-angeles-rams",
+    "away_team_ref": "nfl:kansas-city-chiefs",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873098",
+    "league": "nfl",
+    "starts_at": "2026-12-06T18:00Z",
+    "home_team_ref": "nfl:atlanta-falcons",
+    "away_team_ref": "nfl:detroit-lions",
+    "venue_name": "Mercedes-Benz Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873100",
+    "league": "nfl",
+    "starts_at": "2026-12-06T18:00Z",
+    "home_team_ref": "nfl:chicago-bears",
+    "away_team_ref": "nfl:jacksonville-jaguars",
+    "venue_name": "Soldier Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873097",
+    "league": "nfl",
+    "starts_at": "2026-12-06T18:00Z",
+    "home_team_ref": "nfl:cleveland-browns",
+    "away_team_ref": "nfl:cincinnati-bengals",
+    "venue_name": "Huntington Bank Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873102",
+    "league": "nfl",
+    "starts_at": "2026-12-06T18:00Z",
+    "home_team_ref": "nfl:tennessee-titans",
+    "away_team_ref": "nfl:washington-commanders",
+    "venue_name": "Nissan Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873099",
+    "league": "nfl",
+    "starts_at": "2026-12-06T18:00Z",
+    "home_team_ref": "nfl:new-orleans-saints",
+    "away_team_ref": "nfl:green-bay-packers",
+    "venue_name": "Caesars Superdome",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873095",
+    "league": "nfl",
+    "starts_at": "2026-12-06T18:00Z",
+    "home_team_ref": "nfl:new-york-giants",
+    "away_team_ref": "nfl:san-francisco-49ers",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873101",
+    "league": "nfl",
+    "starts_at": "2026-12-06T18:00Z",
+    "home_team_ref": "nfl:tampa-bay-buccaneers",
+    "away_team_ref": "nfl:los-angeles-chargers",
+    "venue_name": "Raymond James Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873103",
+    "league": "nfl",
+    "starts_at": "2026-12-06T21:05Z",
+    "home_team_ref": "nfl:denver-broncos",
+    "away_team_ref": "nfl:miami-dolphins",
+    "venue_name": "Empower Field at Mile High",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873104",
+    "league": "nfl",
+    "starts_at": "2026-12-06T21:05Z",
+    "home_team_ref": "nfl:arizona-cardinals",
+    "away_team_ref": "nfl:philadelphia-eagles",
+    "venue_name": "State Farm Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873106",
+    "league": "nfl",
+    "starts_at": "2026-12-06T21:25Z",
+    "home_team_ref": "nfl:minnesota-vikings",
+    "away_team_ref": "nfl:carolina-panthers",
+    "venue_name": "U.S. Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873105",
+    "league": "nfl",
+    "starts_at": "2026-12-06T21:25Z",
+    "home_team_ref": "nfl:new-england-patriots",
+    "away_team_ref": "nfl:buffalo-bills",
+    "venue_name": "Gillette Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873107",
+    "league": "nfl",
+    "starts_at": "2026-12-07T01:20Z",
+    "home_team_ref": "nfl:pittsburgh-steelers",
+    "away_team_ref": "nfl:houston-texans",
+    "venue_name": "Acrisure Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873108",
+    "league": "nfl",
+    "starts_at": "2026-12-08T01:15Z",
+    "home_team_ref": "nfl:seattle-seahawks",
+    "away_team_ref": "nfl:dallas-cowboys",
+    "venue_name": "Lumen Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873109",
+    "league": "nfl",
+    "starts_at": "2026-12-11T01:15Z",
+    "home_team_ref": "nfl:new-england-patriots",
+    "away_team_ref": "nfl:minnesota-vikings",
+    "venue_name": "Gillette Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873110",
+    "league": "nfl",
+    "starts_at": "2026-12-13T18:00Z",
+    "home_team_ref": "nfl:cleveland-browns",
+    "away_team_ref": "nfl:atlanta-falcons",
+    "venue_name": "Huntington Bank Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873117",
+    "league": "nfl",
+    "starts_at": "2026-12-13T18:00Z",
+    "home_team_ref": "nfl:detroit-lions",
+    "away_team_ref": "nfl:tennessee-titans",
+    "venue_name": "Ford Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873111",
+    "league": "nfl",
+    "starts_at": "2026-12-13T18:00Z",
+    "home_team_ref": "nfl:miami-dolphins",
+    "away_team_ref": "nfl:chicago-bears",
+    "venue_name": "Hard Rock Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873112",
+    "league": "nfl",
+    "starts_at": "2026-12-13T18:00Z",
+    "home_team_ref": "nfl:new-york-jets",
+    "away_team_ref": "nfl:denver-broncos",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873114",
+    "league": "nfl",
+    "starts_at": "2026-12-13T18:00Z",
+    "home_team_ref": "nfl:philadelphia-eagles",
+    "away_team_ref": "nfl:indianapolis-colts",
+    "venue_name": "Lincoln Financial Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873113",
+    "league": "nfl",
+    "starts_at": "2026-12-13T18:00Z",
+    "home_team_ref": "nfl:washington-commanders",
+    "away_team_ref": "nfl:houston-texans",
+    "venue_name": "Northwest Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873115",
+    "league": "nfl",
+    "starts_at": "2026-12-13T18:00Z",
+    "home_team_ref": "nfl:carolina-panthers",
+    "away_team_ref": "nfl:new-orleans-saints",
+    "venue_name": "Bank of America Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873116",
+    "league": "nfl",
+    "starts_at": "2026-12-13T18:00Z",
+    "home_team_ref": "nfl:baltimore-ravens",
+    "away_team_ref": "nfl:tampa-bay-buccaneers",
+    "venue_name": "M&T Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873118",
+    "league": "nfl",
+    "starts_at": "2026-12-13T21:05Z",
+    "home_team_ref": "nfl:las-vegas-raiders",
+    "away_team_ref": "nfl:los-angeles-chargers",
+    "venue_name": "Allegiant Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873119",
+    "league": "nfl",
+    "starts_at": "2026-12-13T21:25Z",
+    "home_team_ref": "nfl:cincinnati-bengals",
+    "away_team_ref": "nfl:kansas-city-chiefs",
+    "venue_name": "Paycor Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873120",
+    "league": "nfl",
+    "starts_at": "2026-12-13T21:25Z",
+    "home_team_ref": "nfl:san-francisco-49ers",
+    "away_team_ref": "nfl:los-angeles-rams",
+    "venue_name": "Levi's Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873121",
+    "league": "nfl",
+    "starts_at": "2026-12-13T21:25Z",
+    "home_team_ref": "nfl:seattle-seahawks",
+    "away_team_ref": "nfl:new-york-giants",
+    "venue_name": "Lumen Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873122",
+    "league": "nfl",
+    "starts_at": "2026-12-14T01:20Z",
+    "home_team_ref": "nfl:green-bay-packers",
+    "away_team_ref": "nfl:buffalo-bills",
+    "venue_name": "Lambeau Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873123",
+    "league": "nfl",
+    "starts_at": "2026-12-15T01:15Z",
+    "home_team_ref": "nfl:jacksonville-jaguars",
+    "away_team_ref": "nfl:pittsburgh-steelers",
+    "venue_name": "EverBank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873124",
+    "league": "nfl",
+    "starts_at": "2026-12-18T01:15Z",
+    "home_team_ref": "nfl:los-angeles-chargers",
+    "away_team_ref": "nfl:san-francisco-49ers",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873125",
+    "league": "nfl",
+    "starts_at": "2026-12-19T22:00Z",
+    "home_team_ref": "nfl:philadelphia-eagles",
+    "away_team_ref": "nfl:seattle-seahawks",
+    "venue_name": "Lincoln Financial Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873126",
+    "league": "nfl",
+    "starts_at": "2026-12-20T01:20Z",
+    "home_team_ref": "nfl:buffalo-bills",
+    "away_team_ref": "nfl:chicago-bears",
+    "venue_name": "Highmark Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873133",
+    "league": "nfl",
+    "starts_at": "2026-12-20T18:00Z",
+    "home_team_ref": "nfl:green-bay-packers",
+    "away_team_ref": "nfl:miami-dolphins",
+    "venue_name": "Lambeau Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873131",
+    "league": "nfl",
+    "starts_at": "2026-12-20T18:00Z",
+    "home_team_ref": "nfl:tennessee-titans",
+    "away_team_ref": "nfl:indianapolis-colts",
+    "venue_name": "Nissan Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873130",
+    "league": "nfl",
+    "starts_at": "2026-12-20T18:00Z",
+    "home_team_ref": "nfl:new-york-giants",
+    "away_team_ref": "nfl:cleveland-browns",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873128",
+    "league": "nfl",
+    "starts_at": "2026-12-20T18:00Z",
+    "home_team_ref": "nfl:pittsburgh-steelers",
+    "away_team_ref": "nfl:baltimore-ravens",
+    "venue_name": "Acrisure Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873134",
+    "league": "nfl",
+    "starts_at": "2026-12-20T18:00Z",
+    "home_team_ref": "nfl:tampa-bay-buccaneers",
+    "away_team_ref": "nfl:new-orleans-saints",
+    "venue_name": "Raymond James Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873127",
+    "league": "nfl",
+    "starts_at": "2026-12-20T18:00Z",
+    "home_team_ref": "nfl:washington-commanders",
+    "away_team_ref": "nfl:atlanta-falcons",
+    "venue_name": "Northwest Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873129",
+    "league": "nfl",
+    "starts_at": "2026-12-20T18:00Z",
+    "home_team_ref": "nfl:carolina-panthers",
+    "away_team_ref": "nfl:cincinnati-bengals",
+    "venue_name": "Bank of America Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873132",
+    "league": "nfl",
+    "starts_at": "2026-12-20T18:00Z",
+    "home_team_ref": "nfl:houston-texans",
+    "away_team_ref": "nfl:jacksonville-jaguars",
+    "venue_name": "NRG Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873135",
+    "league": "nfl",
+    "starts_at": "2026-12-20T21:05Z",
+    "home_team_ref": "nfl:arizona-cardinals",
+    "away_team_ref": "nfl:new-york-jets",
+    "venue_name": "State Farm Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873137",
+    "league": "nfl",
+    "starts_at": "2026-12-20T21:25Z",
+    "home_team_ref": "nfl:las-vegas-raiders",
+    "away_team_ref": "nfl:denver-broncos",
+    "venue_name": "Allegiant Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873136",
+    "league": "nfl",
+    "starts_at": "2026-12-20T21:25Z",
+    "home_team_ref": "nfl:los-angeles-rams",
+    "away_team_ref": "nfl:dallas-cowboys",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873138",
+    "league": "nfl",
+    "starts_at": "2026-12-21T01:20Z",
+    "home_team_ref": "nfl:minnesota-vikings",
+    "away_team_ref": "nfl:detroit-lions",
+    "venue_name": "U.S. Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873139",
+    "league": "nfl",
+    "starts_at": "2026-12-22T01:15Z",
+    "home_team_ref": "nfl:kansas-city-chiefs",
+    "away_team_ref": "nfl:new-england-patriots",
+    "venue_name": "GEHA Field at Arrowhead Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873140",
+    "league": "nfl",
+    "starts_at": "2026-12-25T01:15Z",
+    "home_team_ref": "nfl:philadelphia-eagles",
+    "away_team_ref": "nfl:houston-texans",
+    "venue_name": "Lincoln Financial Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873141",
+    "league": "nfl",
+    "starts_at": "2026-12-25T18:00Z",
+    "home_team_ref": "nfl:chicago-bears",
+    "away_team_ref": "nfl:green-bay-packers",
+    "venue_name": "Soldier Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873142",
+    "league": "nfl",
+    "starts_at": "2026-12-25T21:30Z",
+    "home_team_ref": "nfl:denver-broncos",
+    "away_team_ref": "nfl:buffalo-bills",
+    "venue_name": "Empower Field at Mile High",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873143",
+    "league": "nfl",
+    "starts_at": "2026-12-26T01:15Z",
+    "home_team_ref": "nfl:seattle-seahawks",
+    "away_team_ref": "nfl:los-angeles-rams",
+    "venue_name": "Lumen Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873146",
+    "league": "nfl",
+    "starts_at": "2026-12-27T05:00Z",
+    "home_team_ref": "nfl:atlanta-falcons",
+    "away_team_ref": "nfl:tampa-bay-buccaneers",
+    "venue_name": "Mercedes-Benz Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873145",
+    "league": "nfl",
+    "starts_at": "2026-12-27T05:00Z",
+    "home_team_ref": "nfl:indianapolis-colts",
+    "away_team_ref": "nfl:cincinnati-bengals",
+    "venue_name": "Lucas Oil Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873147",
+    "league": "nfl",
+    "starts_at": "2026-12-27T05:00Z",
+    "home_team_ref": "nfl:minnesota-vikings",
+    "away_team_ref": "nfl:washington-commanders",
+    "venue_name": "U.S. Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873144",
+    "league": "nfl",
+    "starts_at": "2026-12-27T05:00Z",
+    "home_team_ref": "nfl:pittsburgh-steelers",
+    "away_team_ref": "nfl:carolina-panthers",
+    "venue_name": "Acrisure Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873150",
+    "league": "nfl",
+    "starts_at": "2026-12-27T18:00Z",
+    "home_team_ref": "nfl:miami-dolphins",
+    "away_team_ref": "nfl:los-angeles-chargers",
+    "venue_name": "Hard Rock Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873148",
+    "league": "nfl",
+    "starts_at": "2026-12-27T18:00Z",
+    "home_team_ref": "nfl:new-orleans-saints",
+    "away_team_ref": "nfl:arizona-cardinals",
+    "venue_name": "Caesars Superdome",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873151",
+    "league": "nfl",
+    "starts_at": "2026-12-27T18:00Z",
+    "home_team_ref": "nfl:new-york-jets",
+    "away_team_ref": "nfl:new-england-patriots",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873149",
+    "league": "nfl",
+    "starts_at": "2026-12-27T18:00Z",
+    "home_team_ref": "nfl:baltimore-ravens",
+    "away_team_ref": "nfl:cleveland-browns",
+    "venue_name": "M&T Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873152",
+    "league": "nfl",
+    "starts_at": "2026-12-27T21:05Z",
+    "home_team_ref": "nfl:las-vegas-raiders",
+    "away_team_ref": "nfl:tennessee-titans",
+    "venue_name": "Allegiant Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873153",
+    "league": "nfl",
+    "starts_at": "2026-12-27T21:25Z",
+    "home_team_ref": "nfl:kansas-city-chiefs",
+    "away_team_ref": "nfl:san-francisco-49ers",
+    "venue_name": "GEHA Field at Arrowhead Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873154",
+    "league": "nfl",
+    "starts_at": "2026-12-28T01:20Z",
+    "home_team_ref": "nfl:dallas-cowboys",
+    "away_team_ref": "nfl:jacksonville-jaguars",
+    "venue_name": "AT&T Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873155",
+    "league": "nfl",
+    "starts_at": "2026-12-29T01:15Z",
+    "home_team_ref": "nfl:detroit-lions",
+    "away_team_ref": "nfl:new-york-giants",
+    "venue_name": "Ford Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873156",
+    "league": "nfl",
+    "starts_at": "2027-01-01T01:15Z",
+    "home_team_ref": "nfl:cincinnati-bengals",
+    "away_team_ref": "nfl:baltimore-ravens",
+    "venue_name": "Paycor Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873157",
+    "league": "nfl",
+    "starts_at": "2027-01-03T05:00Z",
+    "home_team_ref": "nfl:new-england-patriots",
+    "away_team_ref": "nfl:denver-broncos",
+    "venue_name": "Gillette Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873158",
+    "league": "nfl",
+    "starts_at": "2027-01-03T05:00Z",
+    "home_team_ref": "nfl:los-angeles-chargers",
+    "away_team_ref": "nfl:kansas-city-chiefs",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873159",
+    "league": "nfl",
+    "starts_at": "2027-01-03T05:00Z",
+    "home_team_ref": "nfl:tampa-bay-buccaneers",
+    "away_team_ref": "nfl:los-angeles-rams",
+    "venue_name": "Raymond James Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873160",
+    "league": "nfl",
+    "starts_at": "2027-01-03T05:00Z",
+    "home_team_ref": "nfl:jacksonville-jaguars",
+    "away_team_ref": "nfl:washington-commanders",
+    "venue_name": "EverBank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873164",
+    "league": "nfl",
+    "starts_at": "2027-01-03T18:00Z",
+    "home_team_ref": "nfl:atlanta-falcons",
+    "away_team_ref": "nfl:new-orleans-saints",
+    "venue_name": "Mercedes-Benz Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873162",
+    "league": "nfl",
+    "starts_at": "2027-01-03T18:00Z",
+    "home_team_ref": "nfl:cleveland-browns",
+    "away_team_ref": "nfl:indianapolis-colts",
+    "venue_name": "Huntington Bank Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873165",
+    "league": "nfl",
+    "starts_at": "2027-01-03T18:00Z",
+    "home_team_ref": "nfl:dallas-cowboys",
+    "away_team_ref": "nfl:new-york-giants",
+    "venue_name": "AT&T Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873166",
+    "league": "nfl",
+    "starts_at": "2027-01-03T18:00Z",
+    "home_team_ref": "nfl:tennessee-titans",
+    "away_team_ref": "nfl:pittsburgh-steelers",
+    "venue_name": "Nissan Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873161",
+    "league": "nfl",
+    "starts_at": "2027-01-03T18:00Z",
+    "home_team_ref": "nfl:miami-dolphins",
+    "away_team_ref": "nfl:buffalo-bills",
+    "venue_name": "Hard Rock Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873163",
+    "league": "nfl",
+    "starts_at": "2027-01-03T18:00Z",
+    "home_team_ref": "nfl:new-york-jets",
+    "away_team_ref": "nfl:minnesota-vikings",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873167",
+    "league": "nfl",
+    "starts_at": "2027-01-03T18:00Z",
+    "home_team_ref": "nfl:carolina-panthers",
+    "away_team_ref": "nfl:seattle-seahawks",
+    "venue_name": "Bank of America Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873168",
+    "league": "nfl",
+    "starts_at": "2027-01-03T21:05Z",
+    "home_team_ref": "nfl:arizona-cardinals",
+    "away_team_ref": "nfl:las-vegas-raiders",
+    "venue_name": "State Farm Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873169",
+    "league": "nfl",
+    "starts_at": "2027-01-03T21:25Z",
+    "home_team_ref": "nfl:chicago-bears",
+    "away_team_ref": "nfl:detroit-lions",
+    "venue_name": "Soldier Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873170",
+    "league": "nfl",
+    "starts_at": "2027-01-04T01:20Z",
+    "home_team_ref": "nfl:san-francisco-49ers",
+    "away_team_ref": "nfl:philadelphia-eagles",
+    "venue_name": "Levi's Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873171",
+    "league": "nfl",
+    "starts_at": "2027-01-05T01:15Z",
+    "home_team_ref": "nfl:green-bay-packers",
+    "away_team_ref": "nfl:houston-texans",
+    "venue_name": "Lambeau Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873181",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:buffalo-bills",
+    "away_team_ref": "nfl:new-york-jets",
+    "venue_name": "Highmark Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873174",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:cincinnati-bengals",
+    "away_team_ref": "nfl:cleveland-browns",
+    "venue_name": "Paycor Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873179",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:denver-broncos",
+    "away_team_ref": "nfl:los-angeles-chargers",
+    "venue_name": "Empower Field at Mile High",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873176",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:green-bay-packers",
+    "away_team_ref": "nfl:detroit-lions",
+    "venue_name": "Lambeau Field",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873177",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:indianapolis-colts",
+    "away_team_ref": "nfl:jacksonville-jaguars",
+    "venue_name": "Lucas Oil Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873178",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:kansas-city-chiefs",
+    "away_team_ref": "nfl:las-vegas-raiders",
+    "venue_name": "GEHA Field at Arrowhead Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873185",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:los-angeles-rams",
+    "away_team_ref": "nfl:seattle-seahawks",
+    "venue_name": "SoFi Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873173",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:minnesota-vikings",
+    "away_team_ref": "nfl:chicago-bears",
+    "venue_name": "U.S. Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873180",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:new-england-patriots",
+    "away_team_ref": "nfl:miami-dolphins",
+    "venue_name": "Gillette Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873186",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:new-orleans-saints",
+    "away_team_ref": "nfl:tampa-bay-buccaneers",
+    "venue_name": "Caesars Superdome",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873182",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:new-york-giants",
+    "away_team_ref": "nfl:philadelphia-eagles",
+    "venue_name": "MetLife Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873184",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:arizona-cardinals",
+    "away_team_ref": "nfl:san-francisco-49ers",
+    "venue_name": "State Farm Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873175",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:washington-commanders",
+    "away_team_ref": "nfl:dallas-cowboys",
+    "venue_name": "Northwest Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873172",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:carolina-panthers",
+    "away_team_ref": "nfl:atlanta-falcons",
+    "venue_name": "Bank of America Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873183",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:baltimore-ravens",
+    "away_team_ref": "nfl:pittsburgh-steelers",
+    "venue_name": "M&T Bank Stadium",
+    "status": "scheduled"
+  },
+  {
+    "external_ref": "nfl:401873187",
+    "league": "nfl",
+    "starts_at": "2027-01-10T05:00Z",
+    "home_team_ref": "nfl:houston-texans",
+    "away_team_ref": "nfl:tennessee-titans",
+    "venue_name": "NRG Stadium",
+    "status": "scheduled"
+  }
+]
