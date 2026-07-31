@@ -6,6 +6,7 @@ import { gameRowTitle } from '@/utils/eventTitle';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
+import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { safeGoBack } from '@/utils/navigation';
 import { useProgramScreenSummary } from '@/hooks/useProgramScreenSummary';
 import { buildProgramSubTeams } from '@/constants/programs';
@@ -160,7 +161,13 @@ async function fetchTeamData(teamId?: string, teamName?: string): Promise<TeamPa
         if (summary?.team) {
           teamData = summary.team as LeagueTeam;
           summaryMembers = Array.isArray(summary.members) ? (summary.members as TeamMember[]) : [];
-          summaryGames = Array.isArray(summary.games) ? (summary.games as GameItem[]) : [];
+          // Prefer the merged schedule (games+events); fall back to games for an
+          // older server response. The Events tab renders items by `kind`.
+          summaryGames = Array.isArray(summary.schedule)
+            ? (summary.schedule as GameItem[])
+            : Array.isArray(summary.games)
+              ? (summary.games as GameItem[])
+              : [];
           canManageTeam =
             summary?.permissions?.can_manage === true || summary?.team?.can_manage_team === true;
         } else {
@@ -403,7 +410,7 @@ function TeamScreen() {
     subTeams[0] ??
     null;
   // Events shown: the picked sub-team's games in program mode, else this team's.
-  const eventsGames = isProgramTeam && activeSubTeam ? activeSubTeam.games : games;
+  const eventsGames = isProgramTeam && activeSubTeam ? activeSubTeam.schedule : games;
 
   // Whole-sport Follow (owner July-28): on a program team, the Follow button
   // follows the SPORT — Program.follow writes the ProgramFollow ledger and fans
@@ -1425,6 +1432,47 @@ function TeamScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           renderItem={({ item }) => {
             const g = item as any;
+            // Standalone event (practice, meeting, fundraiser, …): title + type,
+            // no opponent/score, routes to the shared event/game detail screen.
+            if (g.kind === 'event') {
+              const eventRawDate = g.scheduled_date || g.date;
+              const eventDateStr = eventRawDate
+                ? new Date(eventRawDate).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })
+                : 'TBD';
+              const eventLabel = g.event_type
+                ? String(g.event_type)
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, (c: string) => c.toUpperCase())
+                : 'Event';
+              return (
+                <Pressable
+                  onPress={() => router.push(buildEventDetailRoute(String(g.id)))}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open event ${g.title} on ${eventDateStr}`}
+                  style={({ pressed }) => [
+                    styles.eventRow,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                    pressed ? { opacity: 0.6 } : null,
+                  ]}
+                >
+                  <View style={[styles.eventDateBadge, { backgroundColor: theme.tint + '22' }]}>
+                    <Text style={[styles.eventDate, { color: theme.tint }]}>{eventDateStr}</Text>
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.eventTitle, { color: theme.text }]} numberOfLines={1}>
+                      {g.title}
+                    </Text>
+                    <Text style={[styles.eventTypeText, { color: theme.mutedText }]}>
+                      {eventLabel}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            }
             const rawDate = g.scheduled_date || g.date;
             const dateStr = rawDate
               ? new Date(rawDate).toLocaleDateString('en-US', {
