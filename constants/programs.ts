@@ -89,6 +89,8 @@ type ProgramLevelInput = {
   level: string | null;
   team: { id?: string | number | null; gender?: string | null } & Record<string, any>;
   games: Record<string, any>[];
+  /** Merged games+events feed from the server; falls back to `games` if absent. */
+  schedule?: Record<string, any>[];
 };
 
 /** Ascending by scheduled_date||date; games without a date sort last. */
@@ -110,6 +112,8 @@ export type ProgramSubTeam = {
   gender: string | null;
   level: string | null;
   games: Record<string, any>[];
+  /** Merged games+events the Events tab renders (kind-tagged). Games fallback. */
+  schedule: Record<string, any>[];
 };
 
 /**
@@ -133,6 +137,11 @@ export function buildProgramSubTeams(levels: ProgramLevelInput[]): ProgramSubTea
       gender: e.team?.gender ?? null,
       level: e.level,
       games: sortGamesAscending(Array.isArray(e.games) ? e.games : []),
+      // Prefer the server's merged schedule (games+events); fall back to games
+      // so an older server response (pre-schedule) still renders.
+      schedule: Array.isArray(e.schedule)
+        ? e.schedule
+        : sortGamesAscending(Array.isArray(e.games) ? e.games : []),
     }));
 }
 
