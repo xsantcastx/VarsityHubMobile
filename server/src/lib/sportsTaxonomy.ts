@@ -90,3 +90,19 @@ export function normalizeSportToSlug(input: string | null | undefined): string |
   const byLabel = taxonomy.sports.find(s => s.label.toLowerCase() === collapsed);
   return byLabel ? byLabel.slug : null;
 }
+
+/**
+ * Stable program slug for a non-canonical ("Other") sport, keyed on the name so
+ * two different custom sports in one org do NOT collapse into a single 'other'
+ * program (unique constraint is (organization_id, sport)). The `custom:` prefix
+ * guarantees no collision with a future canonical slug of the same word. A
+ * blank name has nothing to key on, so it falls back to the shared 'other'.
+ */
+export function customSportSlug(name: string | null | undefined): string {
+  const slug = (name ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug ? `custom:${slug}` : 'other';
+}
