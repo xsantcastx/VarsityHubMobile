@@ -20,6 +20,7 @@ import { sendPushNotification } from '../lib/pushNotifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
 import { customSportSlug, normalizeSportToSlug } from '../lib/sportsTaxonomy.js';
+import { getTeamScheduleFeed } from '../lib/teamScheduleFeed.js';
 import {
   canAdministerTeam as canAdministerTeamScoped,
   canAssignTeamRole as canAssignTeamRoleScoped,
@@ -1008,6 +1009,10 @@ teamsRouter.get(
       }),
     ]);
 
+    // Merged public schedule (approved+visible games + standalone events) — the
+    // single source of truth the Events tab renders. `games` stays for back-compat.
+    const schedule = await getTeamScheduleFeed([teamId], viewerId);
+
     return res.json({
       team: serializeTeam(access.team, {
         includeCounts: true,
@@ -1031,6 +1036,7 @@ teamsRouter.get(
         ...game,
         date: game.date instanceof Date ? game.date.toISOString() : String(game.date),
       })),
+      schedule,
     });
   })
 );
