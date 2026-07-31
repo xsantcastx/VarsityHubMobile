@@ -3,6 +3,7 @@ import { sendError } from '../lib/http/sendError.js';
 import { prisma } from '../lib/prisma.js';
 import { isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
+import { getTeamScheduleFeed } from '../lib/teamScheduleFeed.js';
 import { serializeTeam, buildTeamSerializeSelect } from '../lib/serializeTeam.js';
 import { captureMessage } from '../lib/sentry.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -109,16 +110,20 @@ programsRouter.get(
       }
     }
 
-    const levels = [...visibleTeams]
-      .sort((a, b) => levelRank(a.level) - levelRank(b.level))
-      .map(team => ({
-        level: team.level ?? null,
-        team: serializeTeam(team, { includeCounts: true }),
-        games: (gamesByTeam.get(team.id) ?? []).map(g => ({
-          ...g,
-          date: g.date instanceof Date ? g.date.toISOString() : String(g.date),
-        })),
-      }));
+    const levels = await Promise.all(
+      [...visibleTeams]
+        .sort((a, b) => levelRank(a.level) - levelRank(b.level))
+        .map(async team => ({
+          level: team.level ?? null,
+          team: serializeTeam(team, { includeCounts: true }),
+          games: (gamesByTeam.get(team.id) ?? []).map(g => ({
+            ...g,
+            date: g.date instanceof Date ? g.date.toISOString() : String(g.date),
+          })),
+          // Merged per-sub-team schedule (games+events) the picker renders.
+          schedule: await getTeamScheduleFeed([team.id], viewerId),
+        }))
+    );
 
     return res.json({
       program: {
