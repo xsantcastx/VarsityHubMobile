@@ -41,6 +41,7 @@ import {
   getLinkedProviders,
 } from '../lib/oauthAccountLinking.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
+import { isReservedUsername, RESERVED_USERNAME_MESSAGE } from '../lib/reservedUsernames.js';
 import { getOrganizationJoinRequestStateForUser } from '../lib/organizationWorkflowState.js';
 import { prisma } from '../lib/prisma.js';
 import { invalidatePrivateIdsCache } from '../lib/privacyUtils.js';
@@ -2847,6 +2848,7 @@ const updateMeSchema = z.object({
     .regex(/^[a-z0-9_.]+$/, {
       message: 'Username can only contain lowercase letters, numbers, dots, and underscores',
     })
+    .refine(val => !isReservedUsername(val), { message: RESERVED_USERNAME_MESSAGE })
     .optional()
     .nullable(),
   avatar_url: z
@@ -3440,6 +3442,7 @@ const completeOnboardingSchema = z.object({
       /^[a-z0-9_.]+$/,
       'Username must contain only lowercase letters, numbers, dots, and underscores'
     )
+    .refine(val => !isReservedUsername(val), RESERVED_USERNAME_MESSAGE)
     .optional(),
   display_name: z
     .string()

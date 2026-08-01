@@ -26,6 +26,7 @@ export const TABLES_IN_ORDER = [
   'SportProgram',
   'Team',
   'Game',
+  'ProTeam', // no FK deps; must precede Event (pro_home_team_id / pro_away_team_id)
   'Event',
   'Post',
   'Ad',
@@ -54,6 +55,7 @@ export const TABLES_IN_ORDER = [
   'TeamMembership',
   'TeamFollow',
   'ProgramFollow',
+  'ProTeamFollow', // needs User + ProTeam
   'TeamInvite',
   'TeamJoinRequest',
   'OrganizationMembership',

@@ -49,6 +49,7 @@ import { organizationsRouter } from './routes/organizations.js';
 import { paymentsRouter } from './routes/payments.js';
 import { postsRouter } from './routes/posts.js';
 import { programsRouter } from './routes/programs.js';
+import { proTeamsRouter } from './routes/pro-teams.js';
 import { promosRouter } from './routes/promos.js';
 import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';
 import { publicSiteRouter, isWebHost, MARKETING_SITE_URL } from './routes/publicSite.js';
@@ -432,6 +433,7 @@ function mountApiRoutes(parent: any) {
   parent.use('/teams', teamsRouter);
   parent.use('/organizations', organizationsRouter);
   parent.use('/programs', programsRouter);
+  parent.use('/pro-teams', proTeamsRouter);
   parent.use('/users', noStore, usersRouter);
   parent.use('/search', noStore, searchRouter);
   parent.use('/reports', noStore, reportsRouter);
