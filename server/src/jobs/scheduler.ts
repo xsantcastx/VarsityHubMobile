@@ -111,6 +111,18 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
     },
   },
   {
+    name: 'pro-schedule-rolling',
+    cron: '0 8 * * *', // Daily 8am — keeps the ~14-day pro-events window fresh
+    description: 'Populate pro league (NFL/NBA/WNBA/MLB) event pages for the next ~14 days',
+    handler: async () => {
+      const { runRollingScheduleIngest } = await import('../cron/pro-schedule-rolling.js');
+      // Double-gated so a deploy never silently writes to prod: the adapter is
+      // null unless PRO_SCHEDULE_PROVIDER=espn, and writes happen only when
+      // PRO_SCHEDULE_ROLLING_ENABLED=1. Otherwise this is a safe dry-run/no-op.
+      await runRollingScheduleIngest({ apply: process.env.PRO_SCHEDULE_ROLLING_ENABLED === '1' });
+    },
+  },
+  {
     name: 'cleanup-old-notifications',
     cron: '0 3 * * *', // Every day at 3am
     description: 'Clean up old read notifications',
