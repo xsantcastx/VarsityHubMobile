@@ -1,8 +1,10 @@
 import type { ProLeague } from '@prisma/client';
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
+import { compositeAdapter } from './compositeAdapter.js';
 import { espnAdapter } from './espnAdapter.js';
 import type { ProFixture, ProScheduleAdapter } from './types.js';
+import { wweAdapter } from './wweAdapter.js';
 
 /**
  * Schedule provider adapters.
@@ -87,8 +89,11 @@ export function resolveConfiguredAdapter(env = process.env): ProScheduleAdapter 
   const file = env.PRO_SCHEDULE_JSON_PATH;
   if (file) return jsonFileAdapter(file);
 
-  // ESPN public scoreboard — the live, all-league rolling source (no key).
-  if (env.PRO_SCHEDULE_PROVIDER === 'espn') return espnAdapter();
+  // Live rolling source: ESPN for the four league sports + TheSportsDB for
+  // touring WWE, behind one composite so the cron covers all five leagues.
+  if (env.PRO_SCHEDULE_PROVIDER === 'espn') {
+    return compositeAdapter([espnAdapter(), wweAdapter()]);
+  }
 
   return null;
 }
