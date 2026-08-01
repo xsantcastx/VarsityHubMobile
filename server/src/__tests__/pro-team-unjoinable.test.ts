@@ -16,10 +16,7 @@ import path from 'node:path';
  * route that mutates a user↔ProTeam relation other than a follow.
  */
 
-const SCHEMA = readFileSync(
-  path.join(process.cwd(), 'prisma/schema.prisma'),
-  'utf8'
-);
+const SCHEMA = readFileSync(path.join(process.cwd(), 'prisma/schema.prisma'), 'utf8');
 
 function modelBlock(name: string): string {
   const match = SCHEMA.match(new RegExp(`^model ${name} \\{([\\s\\S]*?)^\\}`, 'm'));
@@ -49,7 +46,7 @@ describe('ProTeam is unjoinable by construction', () => {
   });
 
   it('exposes exactly one user-facing relation, the follow', () => {
-    const relations = [...block.matchAll(/^\s*\w+\s+(\w+)\[\]/gm)].map((m) => m[1]);
+    const relations = [...block.matchAll(/^\s*\w+\s+(\w+)\[\]/gm)].map(m => m[1]);
     // ProTeamFollow (users) plus the two Event back-relations (fixtures).
     expect(new Set(relations)).toEqual(new Set(['ProTeamFollow', 'Event']));
   });
@@ -72,10 +69,10 @@ describe('ProTeamFollow carries no role or status', () => {
 
 describe('no route grants a user any ProTeam relation but a follow', () => {
   const routesDir = path.join(process.cwd(), 'src/routes');
-  const routeFiles = readdirSync(routesDir).filter((f) => f.endsWith('.ts'));
+  const routeFiles = readdirSync(routesDir).filter(f => f.endsWith('.ts'));
 
   it('only pro-teams.ts touches proTeam at all', () => {
-    const touching = routeFiles.filter((f) =>
+    const touching = routeFiles.filter(f =>
       /prisma\.proTeam(Follow)?\./.test(readFileSync(path.join(routesDir, f), 'utf8'))
     );
     expect(touching).toEqual(['pro-teams.ts']);
@@ -89,8 +86,10 @@ describe('no route grants a user any ProTeam relation but a follow', () => {
 
   it('writes only proTeamFollow, and only upsert/deleteMany', () => {
     const source = readFileSync(path.join(routesDir, 'pro-teams.ts'), 'utf8');
-    const writes = [...source.matchAll(/prisma\.proTeamFollow\.(\w+)/g)].map((m) => m[1]);
-    const writeOps = writes.filter((op) => !['count', 'findUnique', 'findMany', 'findFirst'].includes(op));
+    const writes = [...source.matchAll(/prisma\.proTeamFollow\.(\w+)/g)].map(m => m[1]);
+    const writeOps = writes.filter(
+      op => !['count', 'findUnique', 'findMany', 'findFirst'].includes(op)
+    );
     expect(new Set(writeOps)).toEqual(new Set(['upsert', 'deleteMany']));
   });
 });

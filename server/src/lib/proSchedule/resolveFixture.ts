@@ -145,10 +145,9 @@ export const TOURING_LEAGUES: ReadonlySet<ProLeague> = new Set<ProLeague>(['wwe'
  * Only applies when the fixture names no teams; a feed that does supply them is
  * left alone.
  */
-export function attachTouringPromotion<T extends { league: ProLeague; home_team_ref: string | null; away_team_ref: string | null }>(
-  fixture: T,
-  promotionRefsByLeague: ReadonlyMap<ProLeague, string>
-): T {
+export function attachTouringPromotion<
+  T extends { league: ProLeague; home_team_ref: string | null; away_team_ref: string | null },
+>(fixture: T, promotionRefsByLeague: ReadonlyMap<ProLeague, string>): T {
   if (!TOURING_LEAGUES.has(fixture.league)) return fixture;
   if (fixture.home_team_ref || fixture.away_team_ref) return fixture;
 

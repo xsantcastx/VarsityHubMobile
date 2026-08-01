@@ -145,7 +145,10 @@ const DISTINCTIVE_NICKNAMES = [
 function marketInitials(market: string): string | null {
   const words = market.trim().split(/\s+/).filter(Boolean);
   if (words.length < 2) return null;
-  return words.map((w) => w[0]).join('').toLowerCase();
+  return words
+    .map(w => w[0])
+    .join('')
+    .toLowerCase();
 }
 
 /**

@@ -50,7 +50,7 @@ async function loadTeams(league: ProLeague): Promise<Map<string, ProTeamVenue>> 
     },
     take: 1000,
   });
-  return new Map(teams.map((t) => [t.external_ref, t]));
+  return new Map(teams.map(t => [t.external_ref, t]));
 }
 
 export async function ingestFixtures(
@@ -71,14 +71,14 @@ export async function ingestFixtures(
 
   const teamsByRef = await loadTeams(league);
 
-  const refs = fixtures.map((f) => f.external_ref);
+  const refs = fixtures.map(f => f.external_ref);
   const existing = await prisma.event.findMany({
     where: { pro_external_ref: { in: refs } },
     select: { id: true, pro_external_ref: true },
     take: 10000,
   });
   const existingByRef = new Map(
-    existing.flatMap((e) => (e.pro_external_ref ? [[e.pro_external_ref, e.id] as const] : []))
+    existing.flatMap(e => (e.pro_external_ref ? [[e.pro_external_ref, e.id] as const] : []))
   );
 
   // A touring promotion's shows name no teams, so they must be pinned to the

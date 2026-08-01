@@ -9,14 +9,14 @@ describe('reserved usernames', () => {
   describe('platform identities', () => {
     it.each(['varsityhub', 'admin', 'support', 'moderator', 'official', 'noreply'])(
       'reserves %s',
-      (name) => {
+      name => {
         expect(isReservedUsername(name)).toBe(true);
       }
     );
   });
 
   describe('league marks', () => {
-    it.each(['nfl', 'nba', 'wnba', 'mlb', 'wwe'])('reserves %s', (name) => {
+    it.each(['nfl', 'nba', 'wnba', 'mlb', 'wwe'])('reserves %s', name => {
       expect(isReservedUsername(name)).toBe(true);
     });
   });
@@ -29,7 +29,7 @@ describe('reserved usernames', () => {
       'bostonceltics',
       'seattlestorm',
       'indianafever',
-    ])('reserves %s', (name) => {
+    ])('reserves %s', name => {
       expect(isReservedUsername(name)).toBe(true);
     });
   });
@@ -41,7 +41,7 @@ describe('reserved usernames', () => {
       ['sfgiants', 'San Francisco Giants'],
       ['lvraiders', 'Las Vegas Raiders'],
       ['kcchiefs', 'Kansas City Chiefs'],
-    ])('reserves %s (%s)', (handle) => {
+    ])('reserves %s (%s)', handle => {
       expect(isReservedUsername(handle)).toBe(true);
     });
   });
@@ -49,7 +49,7 @@ describe('reserved usernames', () => {
   describe('distinctive bare nicknames', () => {
     it.each(['lakers', 'yankees', 'steelers', 'packers', 'celtics', 'dodgers'])(
       'reserves %s',
-      (name) => {
+      name => {
         expect(isReservedUsername(name)).toBe(true);
       }
     );
@@ -58,7 +58,7 @@ describe('reserved usernames', () => {
   describe('normalization defeats punctuation evasion', () => {
     it.each(['ny_yankees', 'n.y.yankees', 'NY_YANKEES', 'la.lakers', 'l_a_k_e_r_s'])(
       'catches %s',
-      (name) => {
+      name => {
         expect(isReservedUsername(name)).toBe(true);
       }
     );
@@ -83,13 +83,13 @@ describe('reserved usernames', () => {
       'wings',
       'aces',
       'sparks',
-    ])('leaves %s claimable', (name) => {
+    ])('leaves %s claimable', name => {
       expect(isReservedUsername(name)).toBe(false);
     });
 
     it.each(['emil', 'coachmike', 'varsity_dad', 'jsmith', 'team_parent99'])(
       'leaves ordinary handle %s claimable',
-      (name) => {
+      name => {
         expect(isReservedUsername(name)).toBe(false);
       }
     );

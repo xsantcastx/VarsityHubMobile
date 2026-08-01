@@ -23,8 +23,8 @@ import { ingestLeague } from '../src/lib/proSchedule/ingest.js';
 const ALL_LEAGUES: ProLeague[] = ['nfl', 'nba', 'wnba', 'mlb', 'wwe'];
 
 const apply = process.argv.includes('--apply');
-const leagueArg = process.argv.find((a) => a.startsWith('--league='))?.split('=')[1];
-const daysArg = process.argv.find((a) => a.startsWith('--days='))?.split('=')[1];
+const leagueArg = process.argv.find(a => a.startsWith('--league='))?.split('=')[1];
+const daysArg = process.argv.find(a => a.startsWith('--days='))?.split('=')[1];
 
 async function main() {
   const adapter = resolveConfiguredAdapter();
@@ -34,7 +34,9 @@ async function main() {
   }
 
   if (leagueArg && !ALL_LEAGUES.includes(leagueArg as ProLeague)) {
-    console.error(`[ingest-pro-schedule] unknown league "${leagueArg}". Valid: ${ALL_LEAGUES.join(', ')}`);
+    console.error(
+      `[ingest-pro-schedule] unknown league "${leagueArg}". Valid: ${ALL_LEAGUES.join(', ')}`
+    );
     process.exitCode = 1;
     return;
   }
@@ -67,16 +69,20 @@ async function main() {
     } catch (err) {
       // One league's provider failure must not abort the others.
       totalFailures += 1;
-      console.error(`[ingest-pro-schedule] ${league} failed:`, err instanceof Error ? err.message : err);
+      console.error(
+        `[ingest-pro-schedule] ${league} failed:`,
+        err instanceof Error ? err.message : err
+      );
     }
   }
 
-  if (!apply) console.log('\n[ingest-pro-schedule] dry run — nothing written. Re-run with --apply.');
+  if (!apply)
+    console.log('\n[ingest-pro-schedule] dry run — nothing written. Re-run with --apply.');
   if (totalFailures > 0) process.exitCode = 1;
 }
 
 main()
-  .catch((err) => {
+  .catch(err => {
     console.error('[ingest-pro-schedule] failed:', err);
     process.exitCode = 1;
   })

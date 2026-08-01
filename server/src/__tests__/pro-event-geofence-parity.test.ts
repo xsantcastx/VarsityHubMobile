@@ -52,14 +52,11 @@ describe('pro event / geofence parity', () => {
   it('populates every field the posting gate selects', () => {
     // The gate's select list, read from source so this test tracks it rather
     // than restating a stale copy.
-    const source = readFileSync(
-      path.join(process.cwd(), 'src/lib/geofencing.ts'),
-      'utf8'
-    );
+    const source = readFileSync(path.join(process.cwd(), 'src/lib/geofencing.ts'), 'utf8');
     const block = source.split('const postingEventSelect = {')[1]?.split('} as const;')[0];
     expect(block).toBeTruthy();
 
-    const selectedFields = [...(block ?? '').matchAll(/^\s*(\w+):\s*true,/gm)].map((m) => m[1]);
+    const selectedFields = [...(block ?? '').matchAll(/^\s*(\w+):\s*true,/gm)].map(m => m[1]);
     expect(selectedFields.length).toBeGreaterThan(0);
 
     const v = resolved();
@@ -67,7 +64,7 @@ describe('pro event / geofence parity', () => {
     // id is assigned by the DB; game_id and exclusive_poster_id are legitimately
     // null on a pro event (no linked Game, no exclusive poster).
     const ingestionOwned = selectedFields.filter(
-      (f) => !['id', 'game_id', 'exclusive_poster_id'].includes(f)
+      f => !['id', 'game_id', 'exclusive_poster_id'].includes(f)
     );
 
     for (const field of ingestionOwned) {
@@ -92,12 +89,16 @@ describe('pro event / geofence parity', () => {
     const beforeOpen = new Date(tipoff.getTime() - 90 * 60 * 1000);
     const justOpen = new Date(tipoff.getTime() - 30 * 60 * 1000);
     const during = new Date(tipoff.getTime() + 60 * 60 * 1000);
-    const afterClose = new Date(tipoff.getTime() + (v.live_window_hours_after_start + 1) * 3600_000);
+    const afterClose = new Date(
+      tipoff.getTime() + (v.live_window_hours_after_start + 1) * 3600_000
+    );
 
     expect(getPostPostingWindowState(v.date, beforeOpen, v.live_window_hours_after_start)).toBe(
       'before_open'
     );
-    expect(getPostPostingWindowState(v.date, justOpen, v.live_window_hours_after_start)).toBe('live');
+    expect(getPostPostingWindowState(v.date, justOpen, v.live_window_hours_after_start)).toBe(
+      'live'
+    );
     expect(getPostPostingWindowState(v.date, during, v.live_window_hours_after_start)).toBe('live');
     // Past the live cutoff it becomes 'grace' — open only to users who already
     // earned an unlock, which is the same rule school events follow.

@@ -22,7 +22,7 @@ import { prisma } from '../src/lib/prisma.js';
 import { PRO_TEAM_SEED, PRO_TEAM_SEED_COUNTS, type ProTeamSeed } from '../src/lib/proTeams.js';
 
 const apply = process.argv.includes('--apply');
-const leagueArg = process.argv.find((a) => a.startsWith('--league='))?.split('=')[1];
+const leagueArg = process.argv.find(a => a.startsWith('--league='))?.split('=')[1];
 
 // Fields compared to decide whether an existing row actually needs an update.
 // Excludes id/created_at/updated_at, which the seed never asserts.
@@ -45,12 +45,12 @@ const COMPARED_FIELDS = [
 
 function diffFields(existing: Record<string, unknown>, seed: ProTeamSeed): string[] {
   return COMPARED_FIELDS.filter(
-    (f) => (existing[f] ?? null) !== ((seed as unknown as Record<string, unknown>)[f] ?? null)
+    f => (existing[f] ?? null) !== ((seed as unknown as Record<string, unknown>)[f] ?? null)
   );
 }
 
 async function main() {
-  const seed = leagueArg ? PRO_TEAM_SEED.filter((t) => t.league === leagueArg) : PRO_TEAM_SEED;
+  const seed = leagueArg ? PRO_TEAM_SEED.filter(t => t.league === leagueArg) : PRO_TEAM_SEED;
 
   if (seed.length === 0) {
     console.error(
@@ -63,17 +63,19 @@ async function main() {
   // A duplicate external_ref would make the upsert non-deterministic — catch it
   // here rather than discovering it as a confusing half-applied run.
   const refs = new Set<string>();
-  const duplicates = seed.filter((t) => (refs.has(t.external_ref) ? true : (refs.add(t.external_ref), false)));
+  const duplicates = seed.filter(t =>
+    refs.has(t.external_ref) ? true : (refs.add(t.external_ref), false)
+  );
   if (duplicates.length > 0) {
     console.error(
-      `[seed-pro-teams] duplicate external_ref in seed data: ${duplicates.map((d) => d.external_ref).join(', ')}`
+      `[seed-pro-teams] duplicate external_ref in seed data: ${duplicates.map(d => d.external_ref).join(', ')}`
     );
     process.exitCode = 1;
     return;
   }
 
   const existing = await prisma.proTeam.findMany({ take: 10000 });
-  const byRef = new Map(existing.map((t) => [t.external_ref, t]));
+  const byRef = new Map(existing.map(t => [t.external_ref, t]));
 
   const toCreate: ProTeamSeed[] = [];
   const toUpdate: Array<{ seed: ProTeamSeed; changed: string[] }> = [];
@@ -90,10 +92,14 @@ async function main() {
     else unchanged += 1;
   }
 
-  const seedRefs = new Set(seed.map((t) => t.external_ref));
-  const orphaned = existing.filter((t) => !seedRefs.has(t.external_ref) && (!leagueArg || t.league === leagueArg));
+  const seedRefs = new Set(seed.map(t => t.external_ref));
+  const orphaned = existing.filter(
+    t => !seedRefs.has(t.external_ref) && (!leagueArg || t.league === leagueArg)
+  );
 
-  console.log(`[seed-pro-teams] ${apply ? 'APPLY' : 'DRY RUN'}${leagueArg ? ` league=${leagueArg}` : ''}`);
+  console.log(
+    `[seed-pro-teams] ${apply ? 'APPLY' : 'DRY RUN'}${leagueArg ? ` league=${leagueArg}` : ''}`
+  );
   console.log(`  seed rows:  ${seed.length}`);
   console.log(`  create:     ${toCreate.length}`);
   console.log(`  update:     ${toUpdate.length}`);
@@ -116,7 +122,7 @@ async function main() {
   // touring promotion (its events carry their own coordinates) and a bug for a
   // franchise, so surface the distinction rather than letting it pass silently.
   const missingVenue = seed.filter(
-    (t) => t.league !== 'wwe' && (t.venue_lat === null || t.venue_lng === null)
+    t => t.league !== 'wwe' && (t.venue_lat === null || t.venue_lng === null)
   );
   if (missingVenue.length > 0) {
     console.warn(
@@ -134,7 +140,7 @@ async function main() {
   // alone and the reported counts mean what they say.
   let created = 0;
   let updated = 0;
-  for (const t of [...toCreate, ...toUpdate.map((u) => u.seed)]) {
+  for (const t of [...toCreate, ...toUpdate.map(u => u.seed)]) {
     const { external_ref, ...data } = t;
     await prisma.proTeam.upsert({
       where: { external_ref },
@@ -145,11 +151,13 @@ async function main() {
     else created += 1;
   }
 
-  console.log(`\n[seed-pro-teams] done. created=${created} updated=${updated} unchanged=${unchanged}`);
+  console.log(
+    `\n[seed-pro-teams] done. created=${created} updated=${updated} unchanged=${unchanged}`
+  );
 }
 
 main()
-  .catch((err) => {
+  .catch(err => {
     console.error('[seed-pro-teams] failed:', err);
     process.exitCode = 1;
   })
