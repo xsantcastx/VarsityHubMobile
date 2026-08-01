@@ -1,6 +1,7 @@
 import type { ProLeague } from '@prisma/client';
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
+import { espnAdapter } from './espnAdapter.js';
 import type { ProFixture, ProScheduleAdapter } from './types.js';
 
 /**
@@ -86,8 +87,8 @@ export function resolveConfiguredAdapter(env = process.env): ProScheduleAdapter 
   const file = env.PRO_SCHEDULE_JSON_PATH;
   if (file) return jsonFileAdapter(file);
 
-  // When a provider is licensed, resolve it here from its API key.
-  // if (env.PRO_SCHEDULE_PROVIDER === '...' && env.PRO_SCHEDULE_API_KEY) return ...;
+  // ESPN public scoreboard — the live, all-league rolling source (no key).
+  if (env.PRO_SCHEDULE_PROVIDER === 'espn') return espnAdapter();
 
   return null;
 }
