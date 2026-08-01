@@ -15,6 +15,7 @@ import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js'
 import { renderReviewPage, renderResultPage, renderFinalStatePage } from '../lib/reviewPage.js';
 import { debugLog } from '../lib/debugLog.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
+import { proLeagueToSport } from '../lib/proSchedule/leagueSport.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { viewerHasPostedOnEntity } from '../lib/geofencing.js';
 import {
@@ -354,6 +355,10 @@ const serializeEvent = (
     approved_at:
       event.approved_at instanceof Date ? event.approved_at.toISOString() : event.approved_at,
     rejected_reason: event.rejected_reason,
+    // Sport for the map filter. Pro events derive it from their league; regular
+    // events (team/game-linked) get their sport from the map-filter change
+    // (feat/map-sport-filter) — combine both fallbacks when these merge.
+    sport: proLeagueToSport(event.proHomeTeam?.league ?? event.proAwayTeam?.league),
   };
   if (typeof opts.rsvpCount === 'number') {
     base.attendees_count = opts.rsvpCount;
@@ -491,6 +496,10 @@ eventsRouter.get(
       orderBy,
       take: fetchLimit,
       include: {
+        // Pro events have no team/game — their sport comes from the pro league,
+        // for the map's sport filter.
+        proHomeTeam: { select: { league: true } },
+        proAwayTeam: { select: { league: true } },
         game: {
           select: {
             id: true,
