@@ -354,6 +354,13 @@ const serializeEvent = (
     approved_at:
       event.approved_at instanceof Date ? event.approved_at.toISOString() : event.approved_at,
     rejected_reason: event.rejected_reason,
+    // Sport powers the map's sport filter. Direct team wins; otherwise borrow
+    // the linked game's matchup sport. Null when neither is known.
+    sport:
+      event.team?.sport ??
+      event.game?.homeTeam?.sport ??
+      event.game?.awayTeam?.sport ??
+      null,
   };
   if (typeof opts.rsvpCount === 'number') {
     base.attendees_count = opts.rsvpCount;
@@ -524,6 +531,9 @@ eventsRouter.get(
       orderBy,
       take: fetchLimit,
       include: {
+        // Sport for the map filter: a fan event is tied to a team; a
+        // game-linked event borrows its matchup's sport.
+        team: { select: { sport: true } },
         game: {
           select: {
             id: true,
@@ -535,6 +545,8 @@ eventsRouter.get(
             longitude: true,
             venue_lat: true,
             venue_lng: true,
+            homeTeam: { select: { sport: true } },
+            awayTeam: { select: { sport: true } },
           },
         },
       },

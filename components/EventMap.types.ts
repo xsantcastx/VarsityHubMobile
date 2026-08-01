@@ -8,6 +8,8 @@ export interface EventMapData {
   latitude?: number;
   longitude?: number;
   type?: 'game' | 'event' | 'post';
+  /** Canonical sport slug (see constants/sports.ts) — drives the map sport filter. */
+  sport?: string | null;
 }
 
 export interface EventMapProps {
