@@ -76,8 +76,8 @@ export function parseScoreboard(
     if (Number.isNaN(startsAt.getTime())) continue;
     if (startsAt < from || startsAt > to) continue;
 
-    const home = comp.competitors?.find((c) => c.homeAway === 'home')?.team?.displayName ?? null;
-    const away = comp.competitors?.find((c) => c.homeAway === 'away')?.team?.displayName ?? null;
+    const home = comp.competitors?.find(c => c.homeAway === 'home')?.team?.displayName ?? null;
+    const away = comp.competitors?.find(c => c.homeAway === 'away')?.team?.displayName ?? null;
     const homeRef = resolveProTeamRef(league, home);
     const awayRef = resolveProTeamRef(league, away);
 

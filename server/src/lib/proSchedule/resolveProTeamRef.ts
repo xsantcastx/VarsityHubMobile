@@ -38,7 +38,10 @@ export function slugifyTeam(name: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-export function resolveProTeamRef(league: ProLeague, name: string | null | undefined): string | null {
+export function resolveProTeamRef(
+  league: ProLeague,
+  name: string | null | undefined
+): string | null {
   if (!name) return null;
   const candidate = `${league}:${slugifyTeam(name)}`;
   if (ALIASES[candidate]) return ALIASES[candidate];

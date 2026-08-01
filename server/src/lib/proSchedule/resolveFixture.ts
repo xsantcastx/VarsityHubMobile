@@ -89,15 +89,27 @@ export function resolveFixture(
   // attendee. Without its own coords it falls through to NO_VENUE_COORDS below.
   const useHomeFallback = !hasFixtureCoords && !fixture.venue_is_neutral;
 
-  const latitude = hasFixtureCoords ? fixture.venue_lat! : (useHomeFallback ? (home?.venue_lat ?? null) : null);
-  const longitude = hasFixtureCoords ? fixture.venue_lng! : (useHomeFallback ? (home?.venue_lng ?? null) : null);
+  const latitude = hasFixtureCoords
+    ? fixture.venue_lat!
+    : useHomeFallback
+      ? (home?.venue_lat ?? null)
+      : null;
+  const longitude = hasFixtureCoords
+    ? fixture.venue_lng!
+    : useHomeFallback
+      ? (home?.venue_lng ?? null)
+      : null;
 
   const venueName = hasFixtureCoords
     ? (fixture.venue_name ?? null)
-    : (useHomeFallback ? (fixture.venue_name ?? home?.venue_name ?? null) : (fixture.venue_name ?? null));
+    : useHomeFallback
+      ? (fixture.venue_name ?? home?.venue_name ?? null)
+      : (fixture.venue_name ?? null);
   const venueAddress = hasFixtureCoords
     ? (fixture.venue_address ?? null)
-    : (useHomeFallback ? (fixture.venue_address ?? home?.venue_address ?? null) : (fixture.venue_address ?? null));
+    : useHomeFallback
+      ? (fixture.venue_address ?? home?.venue_address ?? null)
+      : (fixture.venue_address ?? null);
 
   // Without coordinates the geofence can never pass, so the event page would be
   // permanently unpostable. Better to skip and report than to publish a page
@@ -150,10 +162,9 @@ export const TOURING_LEAGUES: ReadonlySet<ProLeague> = new Set<ProLeague>(['wwe'
  * Only applies when the fixture names no teams; a feed that does supply them is
  * left alone.
  */
-export function attachTouringPromotion<T extends { league: ProLeague; home_team_ref: string | null; away_team_ref: string | null }>(
-  fixture: T,
-  promotionRefsByLeague: ReadonlyMap<ProLeague, string>
-): T {
+export function attachTouringPromotion<
+  T extends { league: ProLeague; home_team_ref: string | null; away_team_ref: string | null },
+>(fixture: T, promotionRefsByLeague: ReadonlyMap<ProLeague, string>): T {
   if (!TOURING_LEAGUES.has(fixture.league)) return fixture;
   if (fixture.home_team_ref || fixture.away_team_ref) return fixture;
 

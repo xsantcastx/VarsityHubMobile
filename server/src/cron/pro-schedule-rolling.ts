@@ -61,7 +61,7 @@ export async function runRollingScheduleIngest(opts: { apply?: boolean } = {}): 
 if (import.meta.url === `file://${process.argv[1]}`) {
   runRollingScheduleIngest()
     .then(() => process.exit(process.exitCode ?? 0))
-    .catch((err) => {
+    .catch(err => {
       console.error('[pro-schedule-rolling] fatal:', err);
       process.exit(1);
     })

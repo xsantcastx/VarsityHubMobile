@@ -50,7 +50,12 @@ describe('espnAdapter parser', () => {
         },
       ],
     };
-    const parsed = adapter.__parseScoreboard!('wnba', bad, new Date('2000-01-01'), new Date('2100-01-01'));
+    const parsed = adapter.__parseScoreboard!(
+      'wnba',
+      bad,
+      new Date('2000-01-01'),
+      new Date('2100-01-01')
+    );
     expect(parsed[0].home_team_ref).toBe('wnba:atlanta-dream');
     expect(parsed[0].away_team_ref).toBeNull();
   });
@@ -81,7 +86,12 @@ describe('neutral-site detection', () => {
   };
 
   it('flags a game away from the home stadium as neutral and sets a geocode query', () => {
-    const [g] = adapter.__parseScoreboard!('wnba', neutralSample, new Date('2000-01-01'), new Date('2100-01-01'));
+    const [g] = adapter.__parseScoreboard!(
+      'wnba',
+      neutralSample,
+      new Date('2000-01-01'),
+      new Date('2100-01-01')
+    );
     expect(g.venue_is_neutral).toBe(true);
     expect(g._geocodeQuery).toContain('Wembley Stadium');
     expect(g._geocodeQuery).toContain('London');
@@ -89,9 +99,14 @@ describe('neutral-site detection', () => {
 
   it('does NOT flag a normal home game as neutral', () => {
     // The WNBA sample's games are at home venues.
-    const home = adapter.__parseScoreboard!('wnba', sample, new Date('2000-01-01'), new Date('2100-01-01'));
-    expect(home.every((g) => g.venue_is_neutral === false)).toBe(true);
-    expect(home.every((g) => g._geocodeQuery === null)).toBe(true);
+    const home = adapter.__parseScoreboard!(
+      'wnba',
+      sample,
+      new Date('2000-01-01'),
+      new Date('2100-01-01')
+    );
+    expect(home.every(g => g.venue_is_neutral === false)).toBe(true);
+    expect(home.every(g => g._geocodeQuery === null)).toBe(true);
   });
 });
 

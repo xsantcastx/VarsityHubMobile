@@ -63,7 +63,7 @@ export function jsonFileAdapter(path: string): ProScheduleAdapter {
         if (!result.success) {
           throw new Error(
             `[proSchedule] ${path}[${i}] is not a valid fixture: ${result.error.issues
-              .map((iss) => `${iss.path.join('.')} ${iss.message}`)
+              .map(iss => `${iss.path.join('.')} ${iss.message}`)
               .join('; ')}`
           );
         }

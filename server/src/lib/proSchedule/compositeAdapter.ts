@@ -16,7 +16,7 @@ export function compositeAdapter(subs: ProScheduleAdapter[]): ProScheduleAdapter
   }
 
   return {
-    name: `composite(${subs.map((s) => s.name).join('+')})`,
+    name: `composite(${subs.map(s => s.name).join('+')})`,
     leagues: [...byLeague.keys()],
     async fetchFixtures(league: ProLeague, from: Date, to: Date): Promise<ProFixture[]> {
       const sub = byLeague.get(league);
