@@ -1352,6 +1352,10 @@ gamesRouter.get(
           created_by: {
             select: { id: true, display_name: true, username: true, avatar_url: true },
           },
+          // Sport comes from either side of the matchup (both play the same
+          // sport). Powers the map's sport filter; not rendered directly.
+          homeTeam: { select: { sport: true } },
+          awayTeam: { select: { sport: true } },
         },
       });
 
@@ -1374,7 +1378,16 @@ gamesRouter.get(
 
       const payload = results.map((game: any) => {
         const event = game.events[0] ?? null;
-        const { events, _count, created_by: createdByUser, ...rest } = game as any;
+        const {
+          events,
+          _count,
+          created_by: createdByUser,
+          homeTeam,
+          awayTeam,
+          ...rest
+        } = game as any;
+        // Both teams play the same sport; either side answers "what sport is this".
+        const sport = homeTeam?.sport ?? awayTeam?.sport ?? null;
         let distance: number | null = null;
         if (
           hasCoords &&
@@ -1405,6 +1418,7 @@ gamesRouter.get(
         );
         return {
           ...rest,
+          sport,
           appearance: rest.appearance ?? null,
           event_id: event?.id ?? null,
           ...liveWindow,

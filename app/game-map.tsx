@@ -7,7 +7,9 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { safeGoBack } from '@/utils/navigation';
 import { shouldShowEventOnMap } from '@/utils/mapEventFilters';
-import { useCallback, useEffect, useState } from 'react';
+import SportFilterBar from '@/components/SportFilterBar';
+import { normalizeSportSlug } from '@/constants/sports';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 // SafeAreaView removed — native header handles safe area
 // @ts-ignore
@@ -22,6 +24,7 @@ function GameMapScreen() {
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<EventMapData[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSport, setSelectedSport] = useState<string | null>(null);
 
   const loadGames = useCallback(async () => {
     setLoading(true);
@@ -123,6 +126,7 @@ function GameMapScreen() {
             latitude: coords.latitude,
             longitude: coords.longitude,
             type: 'game' as const,
+            sport: normalizeSportSlug(game.sport),
           };
         });
 
@@ -146,6 +150,7 @@ function GameMapScreen() {
             latitude: coords.latitude,
             longitude: coords.longitude,
             type: 'event' as const,
+            sport: normalizeSportSlug(event.sport),
           };
         });
 
@@ -187,6 +192,20 @@ function GameMapScreen() {
     }
   };
 
+  // Sports actually present on the map right now — the filter only offers what
+  // exists (no 🏒 chip when there's no hockey nearby).
+  const presentSports = useMemo(
+    () => Array.from(new Set(events.map(e => e.sport).filter((s): s is string => !!s))),
+    [events]
+  );
+
+  // Client-side filter — no refetch. A stale selection (sport no longer present)
+  // simply yields an empty map until cleared, which is self-explanatory.
+  const visibleEvents = useMemo(
+    () => (selectedSport ? events.filter(e => e.sport === selectedSport) : events),
+    [events, selectedSport]
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen
@@ -215,12 +234,23 @@ function GameMapScreen() {
       */}
       <View style={styles.container}>
         <EventMap
-          events={events}
+          events={visibleEvents}
           onEventPress={handleEventPress}
           showUserLocation={true}
           dataLoaded={!loading}
           onRefresh={!loading && !error ? loadGames : undefined}
         />
+
+        {/* Discreet sport filter — sits on the count-badge row, right of it. */}
+        {!loading && !error && presentSports.length > 1 && (
+          <View style={styles.sportFilter} pointerEvents="box-none">
+            <SportFilterBar
+              sports={presentSports}
+              selected={selectedSport}
+              onSelect={setSelectedSport}
+            />
+          </View>
+        )}
 
         {loading && (
           <View style={styles.loadingOverlay}>
@@ -270,6 +300,16 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     padding: 8,
+  },
+  // Shares the row with EventMap's "N events" count pill (top: 72, left: 16),
+  // starting to its right so the two don't overlap.
+  sportFilter: {
+    position: 'absolute',
+    top: 72,
+    left: 120,
+    right: 12,
+    height: 34,
+    justifyContent: 'center',
   },
   loadingOverlay: {
     position: 'absolute',
