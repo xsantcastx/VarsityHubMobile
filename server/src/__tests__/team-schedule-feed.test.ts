@@ -6,7 +6,14 @@ const FUTURE = new Date(Date.now() + 86_400_000).toISOString();
 describe('buildScheduleItems', () => {
   it('includes an approved game with a consenting opponent', () => {
     const items = buildScheduleItems(
-      [{ id: 'g1', date: FUTURE, approval_status: 'approved', opponent_approval_status: 'approved' }],
+      [
+        {
+          id: 'g1',
+          date: FUTURE,
+          approval_status: 'approved',
+          opponent_approval_status: 'approved',
+        },
+      ],
       []
     );
     expect(items.map(i => i.id)).toEqual(['g1']);
@@ -15,7 +22,14 @@ describe('buildScheduleItems', () => {
 
   it('hides an UPCOMING game whose opponent has not consented', () => {
     const items = buildScheduleItems(
-      [{ id: 'g2', date: FUTURE, approval_status: 'approved', opponent_approval_status: 'pending' }],
+      [
+        {
+          id: 'g2',
+          date: FUTURE,
+          approval_status: 'approved',
+          opponent_approval_status: 'pending',
+        },
+      ],
       []
     );
     expect(items).toEqual([]);
@@ -39,7 +53,14 @@ describe('buildScheduleItems', () => {
 
   it('sorts games and events together by date, most recent first', () => {
     const items = buildScheduleItems(
-      [{ id: 'g', date: PAST, approval_status: 'approved', opponent_approval_status: 'not_required' }],
+      [
+        {
+          id: 'g',
+          date: PAST,
+          approval_status: 'approved',
+          opponent_approval_status: 'not_required',
+        },
+      ],
       [{ id: 'e', title: 'x', date: FUTURE, event_type: 'bbq' }]
     );
     expect(items.map(i => i.id)).toEqual(['e', 'g']); // future before past
