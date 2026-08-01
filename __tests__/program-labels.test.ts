@@ -112,3 +112,32 @@ describe('buildProgramSubTeams — one page, tap a sub-team for its events', () 
     expect(subs.map(s => s.teamId)).toEqual(['bv']);
   });
 });
+
+describe('buildProgramSubTeams schedule passthrough', () => {
+  it('carries the server schedule array for each sub-team', () => {
+    const subs = buildProgramSubTeams([
+      {
+        level: 'varsity',
+        team: { id: 't1', gender: 'boys' },
+        games: [],
+        schedule: [
+          { kind: 'event', id: 'e1', title: 'Practice', date: '2026-08-01T00:00:00.000Z' },
+        ],
+      },
+    ] as any);
+    expect(subs[0].schedule).toEqual([
+      { kind: 'event', id: 'e1', title: 'Practice', date: '2026-08-01T00:00:00.000Z' },
+    ]);
+  });
+
+  it('falls back to games when schedule is absent (old server response)', () => {
+    const subs = buildProgramSubTeams([
+      {
+        level: 'jv',
+        team: { id: 't2', gender: 'boys' },
+        games: [{ id: 'g1', date: '2026-08-01' }],
+      },
+    ] as any);
+    expect(subs[0].schedule.map((s: any) => s.id)).toEqual(['g1']);
+  });
+});

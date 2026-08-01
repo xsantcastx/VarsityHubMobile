@@ -19,7 +19,8 @@ import { getExcludedPrivateTeamIds, isTeamHiddenFromViewer } from '../lib/privac
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
-import { normalizeSportToSlug } from '../lib/sportsTaxonomy.js';
+import { customSportSlug, normalizeSportToSlug } from '../lib/sportsTaxonomy.js';
+import { getTeamScheduleFeed } from '../lib/teamScheduleFeed.js';
 import {
   canAdministerTeam as canAdministerTeamScoped,
   canAssignTeamRole as canAssignTeamRoleScoped,
@@ -1008,6 +1009,10 @@ teamsRouter.get(
       }),
     ]);
 
+    // Merged public schedule (approved+visible games + standalone events) — the
+    // single source of truth the Events tab renders. `games` stays for back-compat.
+    const schedule = await getTeamScheduleFeed([teamId], viewerId);
+
     return res.json({
       team: serializeTeam(access.team, {
         includeCounts: true,
@@ -1031,6 +1036,7 @@ teamsRouter.get(
         ...game,
         date: game.date instanceof Date ? game.date.toISOString() : String(game.date),
       })),
+      schedule,
     });
   })
 );
@@ -1699,7 +1705,9 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
     // level team to an EXISTING sport isn't mis-gated as a brand-new billable
     // program, which false-blocked free level-team add-ons at the rookie limit.
     // Keyed on the RESOLVED org id so the `organization_name` path is covered too.
-    const sportSlug = normalizeSportToSlug(data.sport) ?? 'other';
+    // MUST mirror the create-transaction slug resolution (below) exactly, or the
+    // billing pre-check keys on a different program than the one create writes.
+    const sportSlug = normalizeSportToSlug(data.sport) ?? customSportSlug(data.sport);
     const existingProgram = await prisma.sportProgram.findUnique({
       where: {
         organization_id_sport: { organization_id: organizationId, sport: sportSlug },
@@ -1884,12 +1892,21 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
         const isSportTeam = (data.club_type || 'sport') === 'sport';
         let resolvedProgramId: string | null = data.program_id ?? null;
         if (!resolvedProgramId && isSportTeam) {
-          const sportSlug = normalizeSportToSlug(data.sport) ?? 'other';
+          const canonicalSlug = normalizeSportToSlug(data.sport);
+          const sportSlug = canonicalSlug ?? customSportSlug(data.sport);
+          // Custom (non-canonical) sports carry a display name so the program
+          // label reads "Rowing", not "custom:rowing". Canonical sports keep the
+          // taxonomy label and set no name (avoids churn on existing programs).
+          const programName = !canonicalSlug && data.sport?.trim() ? data.sport.trim() : null;
           const program = await tx.sportProgram.upsert({
             where: {
               organization_id_sport: { organization_id: organizationId, sport: sportSlug },
             },
-            create: { organization_id: organizationId, sport: sportSlug },
+            create: {
+              organization_id: organizationId,
+              sport: sportSlug,
+              ...(programName ? { name: programName } : {}),
+            },
             update: {},
             select: { id: true },
           });

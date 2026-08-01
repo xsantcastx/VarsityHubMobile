@@ -5,8 +5,10 @@ import { createTestUser } from './helpers/createTestUser.js';
 
 // Rule: every SPORT team must belong to a SportProgram (no ungrouped billable
 // units). The server auto-resolves/creates the org's (org, sport) program when
-// no program_id is supplied; custom/unrecognized sports fall back to the
-// taxonomy 'other' program; extracurricular clubs are exempt.
+// no program_id is supplied. Each custom/unrecognized sport gets its OWN stable
+// `custom:<name>` program, so two different custom sports in one org don't
+// collide into a single mashup program; a blank sport falls back to 'other'.
+// Extracurricular clubs are exempt.
 
 let prisma: any;
 let signJwt: any;
@@ -100,7 +102,7 @@ describe('require a SportProgram for every sport team', () => {
     expect(count).toBe(1); // both basketball teams share one program
   });
 
-  it("groups a custom/unrecognized sport under the org's 'other' program (never null)", async () => {
+  it('gives a custom/unrecognized sport its OWN stable program (never null, never shared "other")', async () => {
     const name = `RSP Custom ${ts}`;
     const res = await createTeam(coachToken, {
       name,
@@ -112,7 +114,11 @@ describe('require a SportProgram for every sport team', () => {
     const team = await teamByName(name);
     expect(team.program_id).toBeTruthy();
     const prog = await prisma.sportProgram.findUnique({ where: { id: team.program_id } });
-    expect(prog.sport).toBe('other');
+    // Keyed on the custom name (not the shared 'other' slug) so distinct custom
+    // sports don't collapse into one mashup program. (That distinct-slug property
+    // is unit-pinned in custom-sport-slug.test.ts; the (org, sport) upsert is
+    // unique, so distinct slugs => distinct programs.)
+    expect(prog.sport).toBe('custom:underwater-basket-weaving');
   });
 
   it('leaves an extracurricular club ungrouped (exempt from the rule)', async () => {
