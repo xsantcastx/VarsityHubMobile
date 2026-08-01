@@ -38,6 +38,14 @@ export type ProFixture = {
   venue_lng?: number | null;
   timezone?: string | null;
 
+  /**
+   * True when the game is NOT at the home team's stadium (neutral-site /
+   * international). Such a fixture must never inherit the home stadium's
+   * geofence — if it has no coords of its own it is quarantined instead. Home
+   * games leave this false/undefined and keep the home-stadium fallback.
+   */
+  venue_is_neutral?: boolean;
+
   status: 'scheduled' | 'postponed' | 'cancelled';
 };
 

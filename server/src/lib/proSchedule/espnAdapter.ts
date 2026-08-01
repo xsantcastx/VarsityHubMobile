@@ -1,4 +1,5 @@
 import type { ProLeague } from '@prisma/client';
+import { geocodeVenue, type GeocodeFn } from './geocodeVenue.js';
 import { resolveProTeamRef } from './resolveProTeamRef.js';
 import type { ProFixture, ProScheduleAdapter } from './types.js';
 
@@ -9,10 +10,12 @@ import type { ProFixture, ProScheduleAdapter } from './types.js';
  * date-range call per league. WWE is a touring promotion ESPN does not carry —
  * it is intentionally excluded and needs its own source.
  *
- * ESPN provides no venue coordinates, so fixtures carry a null lat/lng and
- * resolveFixture falls back to the home team's seeded stadium. A neutral-site
- * game (venue != home stadium) with no coords is quarantined by resolveFixture
- * (NO_VENUE_COORDS) rather than pinned to the wrong city — accurate by refusal.
+ * ESPN provides no venue coordinates. For a HOME game that is fine —
+ * resolveFixture falls back to the home team's seeded stadium. But a
+ * neutral-site/international game (venue != the home stadium) must NOT inherit
+ * the home geofence, or fans in London would be geofenced to Jacksonville. The
+ * adapter detects those and geocodes their venue; a venue that won't geocode is
+ * left coord-less and quarantined downstream — accurate by refusal.
  */
 
 const ESPN_PATH: Partial<Record<ProLeague, string>> = {
@@ -29,15 +32,18 @@ type EspnEvent = {
   id: string;
   date: string;
   competitions?: Array<{
-    venue?: { fullName?: string };
+    venue?: { fullName?: string; address?: { city?: string; state?: string; country?: string } };
     status?: { type?: { name?: string } };
     competitors?: EspnCompetitor[];
   }>;
 };
 
+/** A parsed fixture before geocoding; `_geocodeQuery` is set only for neutral-site games. */
+export type EspnPreGeocode = ProFixture & { _geocodeQuery: string | null };
+
 type EspnAdapter = ProScheduleAdapter & {
-  /** Test-only pure parser so tests never hit the network. */
-  __parseScoreboard?: (league: ProLeague, raw: unknown, from: Date, to: Date) => ProFixture[];
+  /** Test-only pure parser (no network, no geocode). */
+  __parseScoreboard?: (league: ProLeague, raw: unknown, from: Date, to: Date) => EspnPreGeocode[];
 };
 
 /** ESPN status type name → our fixture status. Future-window games are scheduled. */
@@ -53,11 +59,16 @@ function yyyymmdd(d: Date): string {
   return d.toISOString().slice(0, 10).replace(/-/g, '');
 }
 
-function parseScoreboard(league: ProLeague, raw: unknown, from: Date, to: Date): ProFixture[] {
+export function parseScoreboard(
+  league: ProLeague,
+  raw: unknown,
+  from: Date,
+  to: Date
+): EspnPreGeocode[] {
   const events = (raw as { events?: EspnEvent[] })?.events;
   if (!Array.isArray(events)) return [];
 
-  const out: ProFixture[] = [];
+  const out: EspnPreGeocode[] = [];
   for (const e of events) {
     const comp = e.competitions?.[0];
     if (!comp) continue;
@@ -67,24 +78,46 @@ function parseScoreboard(league: ProLeague, raw: unknown, from: Date, to: Date):
 
     const home = comp.competitors?.find((c) => c.homeAway === 'home')?.team?.displayName ?? null;
     const away = comp.competitors?.find((c) => c.homeAway === 'away')?.team?.displayName ?? null;
+    const homeRef = resolveProTeamRef(league, home);
+    const awayRef = resolveProTeamRef(league, away);
+
+    const venueName = comp.venue?.fullName ?? null;
+    const addr = comp.venue?.address ?? {};
+
+    // Neutral-site (international) detection. ESPN is inconsistent about the
+    // country field — NFL stamps "USA" on domestic games, MLB leaves it null —
+    // so the reliable signal is "country is set AND it isn't the home nation".
+    // That flags only genuinely international games (London, Melbourne, Mexico
+    // City…), which are exactly the ones that must not inherit the home
+    // stadium's geofence. Toronto's home games read as USA-null domestic, so the
+    // Blue Jays are unaffected. (A US team playing IN Canada would geocode via
+    // the cache — correct coords, negligible cost.)
+    const country = (addr.country ?? '').trim();
+    const DOMESTIC = new Set(['usa', 'us', 'united states']);
+    const isNeutral = country.length > 0 && !DOMESTIC.has(country.toLowerCase());
+    const geocodeQuery = isNeutral
+      ? [venueName, addr.city, addr.state, country].filter(Boolean).join(', ')
+      : null;
 
     out.push({
       external_ref: `${league}:${e.id}`,
       league,
       starts_at: startsAt,
-      home_team_ref: resolveProTeamRef(league, home),
-      away_team_ref: resolveProTeamRef(league, away),
+      home_team_ref: homeRef,
+      away_team_ref: awayRef,
       title: null, // resolveFixture derives "Away at Home" from short names
-      venue_name: comp.venue?.fullName ?? null,
-      venue_lat: null, // ESPN carries none; resolveFixture falls back to the home stadium
+      venue_name: venueName,
+      venue_lat: null,
       venue_lng: null,
+      venue_is_neutral: isNeutral,
       status: mapStatus(comp.status?.type?.name),
+      _geocodeQuery: geocodeQuery,
     });
   }
   return out;
 }
 
-export function espnAdapter(): EspnAdapter {
+export function espnAdapter(geocode: GeocodeFn = geocodeVenue): EspnAdapter {
   return {
     name: 'espn',
     leagues: ESPN_LEAGUES,
@@ -97,7 +130,24 @@ export function espnAdapter(): EspnAdapter {
         `?dates=${yyyymmdd(from)}-${yyyymmdd(to)}&limit=1000`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`[espn] ${res.status} for ${league} (${url})`);
-      return parseScoreboard(league, await res.json(), from, to);
+      const parsed = parseScoreboard(league, await res.json(), from, to);
+
+      const fixtures: ProFixture[] = [];
+      for (const p of parsed) {
+        const { _geocodeQuery, ...fixture } = p;
+        if (_geocodeQuery) {
+          const coords = await geocode(_geocodeQuery);
+          if (coords) {
+            fixture.venue_lat = coords.lat;
+            fixture.venue_lng = coords.lng;
+          }
+          // If geocoding fails, coords stay null. For a neutral game the home
+          // stadium is the wrong place, so resolveFixture will quarantine it
+          // (NO_VENUE_COORDS) rather than publish a wrong geofence.
+        }
+        fixtures.push(fixture);
+      }
+      return fixtures;
     },
   };
 }
