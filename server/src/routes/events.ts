@@ -356,11 +356,7 @@ const serializeEvent = (
     rejected_reason: event.rejected_reason,
     // Sport powers the map's sport filter. Direct team wins; otherwise borrow
     // the linked game's matchup sport. Null when neither is known.
-    sport:
-      event.team?.sport ??
-      event.game?.homeTeam?.sport ??
-      event.game?.awayTeam?.sport ??
-      null,
+    sport: event.team?.sport ?? event.game?.homeTeam?.sport ?? event.game?.awayTeam?.sport ?? null,
   };
   if (typeof opts.rsvpCount === 'number') {
     base.attendees_count = opts.rsvpCount;
