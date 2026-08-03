@@ -1,0 +1,94 @@
+{
+  "events": [
+    {
+      "id": "401857102",
+      "date": "2026-07-31T23:30Z",
+      "competitions": [
+        {
+          "venue": {
+            "fullName": "Gateway Center"
+          },
+          "status": {
+            "type": {
+              "name": "STATUS_FINAL"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Atlanta Dream"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Seattle Storm"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401857103",
+      "date": "2026-07-31T23:30Z",
+      "competitions": [
+        {
+          "venue": {
+            "fullName": "CareFirst Arena"
+          },
+          "status": {
+            "type": {
+              "name": "STATUS_FINAL"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Washington Mystics"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Dallas Wings"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401857104",
+      "date": "2026-08-01T02:00Z",
+      "competitions": [
+        {
+          "venue": {
+            "fullName": "Moda Center"
+          },
+          "status": {
+            "type": {
+              "name": "STATUS_IN_PROGRESS"
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "displayName": "Portland Fire"
+              }
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "displayName": "Indiana Fever"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
