@@ -15,6 +15,7 @@ import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js'
 import { renderReviewPage, renderResultPage, renderFinalStatePage } from '../lib/reviewPage.js';
 import { debugLog } from '../lib/debugLog.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
+import { proLeagueToSport } from '../lib/proSchedule/leagueSport.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { viewerHasPostedOnEntity } from '../lib/geofencing.js';
 import {
@@ -356,7 +357,12 @@ const serializeEvent = (
     rejected_reason: event.rejected_reason,
     // Sport powers the map's sport filter. Direct team wins; otherwise borrow
     // the linked game's matchup sport. Null when neither is known.
-    sport: event.team?.sport ?? event.game?.homeTeam?.sport ?? event.game?.awayTeam?.sport ?? null,
+    sport:
+      event.team?.sport ??
+      event.game?.homeTeam?.sport ??
+      event.game?.awayTeam?.sport ??
+      proLeagueToSport(event.proHomeTeam?.league ?? event.proAwayTeam?.league) ??
+      null,
   };
   if (typeof opts.rsvpCount === 'number') {
     base.attendees_count = opts.rsvpCount;
@@ -528,8 +534,11 @@ eventsRouter.get(
       take: fetchLimit,
       include: {
         // Sport for the map filter: a fan event is tied to a team; a
-        // game-linked event borrows its matchup's sport.
+        // game-linked event borrows its matchup's sport; a pro event derives
+        // it from its league.
         team: { select: { sport: true } },
+        proHomeTeam: { select: { league: true } },
+        proAwayTeam: { select: { league: true } },
         game: {
           select: {
             id: true,
