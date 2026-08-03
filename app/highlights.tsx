@@ -1063,10 +1063,14 @@ function HighlightsScreen() {
                   <Text style={{ color: Colors[colorScheme].text }}>🏆 {org.name}</Text>
                 </Pressable>
               ))}
-              {/* No recommendations */}
+              {/* No recommendations — only when EVERY category (incl. events
+                  and posts, shown in the full results list below) is empty, so
+                  the dropdown never claims "nothing" while events render below. */}
               {searchResults.users.length === 0 &&
                 searchResults.teams.length === 0 &&
-                searchResults.organizations.length === 0 && (
+                searchResults.organizations.length === 0 &&
+                searchResults.events.length === 0 &&
+                searchResults.posts.length === 0 && (
                   <View style={{ padding: 12 }}>
                     <Text style={{ color: Colors[colorScheme].tabIconDefault }}>
                       No recommendations

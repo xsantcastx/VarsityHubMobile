@@ -113,12 +113,10 @@ searchRouter.get(
       id => id !== currentUserId
     );
 
-    const todayUtcStart = new Date();
-    todayUtcStart.setUTCHours(0, 0, 0, 0);
-
     // Date lookup: a query that IS a date ("July 14 2026", "7/14/26") returns
-    // every approved game/event in that day's window — including past dates,
-    // which the text path deliberately excludes. Text queries are unaffected.
+    // every approved game/event in that day's window. Plain text queries match
+    // by name/location across all dates (past, present, upcoming) — see the
+    // per-model where clauses below.
     const dateWindow = parseDateQuery(q);
 
     const [users, teams, organizations, games, events, posts] = await Promise.all([
@@ -216,7 +214,10 @@ searchRouter.get(
           ...(dateWindow
             ? { date: { gte: dateWindow.start, lt: dateWindow.end } }
             : {
-                date: { gte: todayUtcStart },
+                // Name/text search spans past, present, and upcoming (owner
+                // decision 2026-08-03) so finished pages — e.g. Fanatics Fest
+                // recaps — stay reviewable by title. Date-range queries keep
+                // the explicit window above.
                 OR: [
                   { title: { contains: q, mode: 'insensitive' } },
                   { location: { contains: q, mode: 'insensitive' } },
@@ -227,7 +228,8 @@ searchRouter.get(
               }),
         },
         take: limit,
-        orderBy: [{ date: 'asc' }, { created_at: 'desc' }],
+        // Most recent / upcoming first now that past fixtures are in scope.
+        orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
         select: {
           id: true,
           title: true,
@@ -245,9 +247,7 @@ searchRouter.get(
         where: {
           approval_status: 'approved',
           status: 'approved',
-          ...(dateWindow
-            ? { date: { gte: dateWindow.start, lt: dateWindow.end } }
-            : { date: { gte: todayUtcStart } }),
+          ...(dateWindow ? { date: { gte: dateWindow.start, lt: dateWindow.end } } : {}),
           AND: [
             ...(dateWindow
               ? []
@@ -277,7 +277,8 @@ searchRouter.get(
           ],
         },
         take: limit,
-        orderBy: [{ date: 'asc' }, { created_at: 'desc' }],
+        // Most recent / upcoming first now that past events are in scope.
+        orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
         select: {
           id: true,
           title: true,

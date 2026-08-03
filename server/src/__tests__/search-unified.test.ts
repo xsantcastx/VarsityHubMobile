@@ -243,16 +243,45 @@ describe('Unified search', () => {
         .expect(200);
       expect(res.body?.games?.some((row: any) => row.id === pastGame.id)).toBe(true);
 
-      // The text path keeps its future-only gate: searching the same game by
-      // title must NOT surface it once its date has passed.
+      // Text search now spans past events too (owner decision 2026-08-03):
+      // finished pages must stay reviewable, so a past game matched by title
+      // surfaces alongside upcoming ones.
       const textRes = await request(app)
         .get('/search')
         .query({ q: `Date Lookup Game ${ts}` })
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
-      expect(textRes.body?.games?.some((row: any) => row.id === pastGame.id)).toBe(false);
+      expect(textRes.body?.games?.some((row: any) => row.id === pastGame.id)).toBe(true);
     } finally {
       await prisma.game.delete({ where: { id: pastGame.id } });
+    }
+  });
+
+  it('finds a finished event by name so its recap page stays reviewable', async () => {
+    // Regression for the Fanatics Fest miss (owner report 2026-08-03): a past
+    // event was unfindable by name in unified search. game_id: null so it isn't
+    // gated by opponent-consent — a pure past-date/text case.
+    const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const pastEvent = await prisma.event.create({
+      data: {
+        title: `Recap Fest ${ts}`,
+        date: lastWeek,
+        location: 'Recap Arena',
+        status: 'approved',
+        approval_status: 'approved',
+        event_type: 'other',
+      },
+      select: { id: true },
+    });
+    try {
+      const res = await request(app)
+        .get('/search')
+        .query({ q: `Recap Fest ${ts}` })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(res.body?.events?.some((row: any) => row.id === pastEvent.id)).toBe(true);
+    } finally {
+      await prisma.event.delete({ where: { id: pastEvent.id } });
     }
   });
 });
