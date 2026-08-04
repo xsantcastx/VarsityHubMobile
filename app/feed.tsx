@@ -840,7 +840,12 @@ export default function FeedScreen() {
               typeof user?.preferences?.country_code === 'string'
                 ? String(user.preferences.country_code).toUpperCase()
                 : undefined;
-            const todayISO = new Date().toISOString().slice(0, 10);
+            // LOCAL calendar date (not UTC). Ad reservations are stored as
+            // calendar-day labels; sending the UTC date made a paid ad vanish
+            // on the evening of its last booked day once UTC rolled over
+            // (owner-reported "when I check it it's no longer there").
+            const _now = new Date();
+            const todayISO = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
             const userZip =
               typeof user?.preferences?.zip_code === 'string'
                 ? user.preferences.zip_code
@@ -897,7 +902,23 @@ export default function FeedScreen() {
             const followedPage = bundle?.posts ?? emptyPage;
             const followedTeamsPage = bundle?.posts_followed_teams ?? emptyPage;
             const highlightsData = bundle?.highlights ?? null;
-            const forFeedAds = bundle?.ads ?? null;
+            // Guests (incl. logged-out web visitors) still see active local
+            // ads — /ads/for-feed is public. The authenticated feed bundle
+            // isn't loaded for guests, so fetch ads directly when we have a
+            // location to target them with.
+            let forFeedAds: any = bundle?.ads ?? null;
+            if (!user && (userZip || (deviceLat != null && deviceLng != null))) {
+              forFeedAds = await Advertisement.forFeed(
+                todayISO,
+                userZip,
+                2,
+                deviceLat,
+                deviceLng
+              ).catch(err => {
+                if (__DEV__) console.warn('[feed] Guest ads load failed:', err);
+                return null;
+              });
+            }
 
             setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
             setFollowedFeedMeta(followedPage?.followed_feed_meta);
@@ -1889,7 +1910,7 @@ export default function FeedScreen() {
                 <BannerAd
                   adId={adData.id}
                   bannerUrl={adData.banner_url}
-                  fitMode={adData.banner_fit_mode || 'fill'}
+                  fitMode={adData.banner_fit_mode || 'contain'}
                   targetUrl={adData.target_url}
                   businessName={adData.business_name}
                   description={adData.description}

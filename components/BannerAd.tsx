@@ -31,7 +31,10 @@ export function BannerAd({
   targetUrl,
   businessName,
   description,
-  fitMode = 'fill',
+  // Default to 'contain' so an ad image is never distorted — it shows at its
+  // true proportions (letterboxed if needed) rather than being stretched to
+  // fill. Advertisers who pick an explicit fit at checkout still override this.
+  fitMode = 'contain',
   aspectRatio = 16 / 9,
   onPress,
 }: BannerAdProps) {
