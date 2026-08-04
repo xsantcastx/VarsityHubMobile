@@ -37,11 +37,11 @@ describe('Session fingerprint — device_id path (vh1: prefix)', () => {
     expect(result.reason).toBe('device_id_mismatch');
   });
 
-  it('hard-rejects when device_id header is absent (enforce=true)', () => {
+  it('does NOT enforce when device_id header is merely absent (warn only — a transient SecureStore/Keychain read failure must not evict a legitimate session)', () => {
     const noDeviceReq = mockRequest({ 'user-agent': 'SomeBrowser/1.0' });
     const result = verifyStoredSessionFingerprint(deviceId, noDeviceReq);
     expect(result.matches).toBe(false);
-    expect(result.enforce).toBe(true);
+    expect(result.enforce).toBe(false); // soft: absent header ≠ device mismatch
     expect(result.reason).toBe('device_id_missing');
   });
 });

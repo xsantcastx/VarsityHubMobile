@@ -62,9 +62,16 @@ export function verifyStoredSessionFingerprint(
     const deviceId = getRequestDeviceId(req);
     const currentFingerprint = deviceId ? `${DEVICE_ID_PREFIX}${deviceId}` : null;
     if (!currentFingerprint) {
+      // Device-id HEADER MISSING (not a mismatch). A legitimate client can
+      // transiently fail to read its device id from SecureStore (Keychain read
+      // races, cold start). Deleting the refresh token here logged real users
+      // out — the reported daily sign-outs. The refresh token itself is still
+      // the primary secret; device binding is defense-in-depth, so a merely
+      // absent header must NOT evict the session. A genuine device_id_mismatch
+      // (below) is still enforced.
       return {
         matches: false,
-        enforce: true,
+        enforce: false,
         currentFingerprint: null,
         storedFingerprintType: 'device_id',
         reason: 'device_id_missing',

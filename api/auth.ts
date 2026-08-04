@@ -184,7 +184,14 @@ async function saveToken(token: string | null) {
       }
       clearLegacyWebToken(TOKEN_KEY);
     } else {
-      if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
+      // AFTER_FIRST_UNLOCK: readable after the first unlock following a reboot,
+      // so a background/cold-start token read never fails on a still-locked
+      // Keychain (the default WHEN_UNLOCKED can be unreadable and looked like a
+      // signed-out state). Self-heals existing tokens on the next write.
+      if (token)
+        await SecureStore.setItemAsync(TOKEN_KEY, token, {
+          keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+        });
       else await SecureStore.deleteItemAsync(TOKEN_KEY);
     }
   } catch (error) {
@@ -204,7 +211,10 @@ async function saveRefreshToken(token: string | null) {
       // Ensure no legacy refresh token remains in persistent storage.
       clearLegacyWebToken(REFRESH_TOKEN_KEY);
     } else {
-      if (token) await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
+      if (token)
+        await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token, {
+          keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+        });
       else await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
     }
   } catch (error) {
