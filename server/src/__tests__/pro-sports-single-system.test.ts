@@ -22,7 +22,7 @@ const RETIRED_PARALLEL_SYNC = [
 ];
 
 describe('pro sports: single system (no parallel MLB/WNBA sync)', () => {
-  it.each(RETIRED_PARALLEL_SYNC)('retired file stays retired: %s', (rel) => {
+  it.each(RETIRED_PARALLEL_SYNC)('retired file stays retired: %s', rel => {
     expect(existsSync(path.join(repoRoot, rel))).toBe(false);
   });
 });

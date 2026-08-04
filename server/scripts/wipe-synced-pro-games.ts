@@ -27,8 +27,8 @@ async function main() {
     select: { id: true, title: true, date: true, game_id: true },
     take: 100000,
   });
-  const eventIds = events.map((e) => e.id);
-  const gameIds = events.map((e) => e.game_id).filter((g): g is string => !!g);
+  const eventIds = events.map(e => e.id);
+  const gameIds = events.map(e => e.game_id).filter((g): g is string => !!g);
   console.log(`Found ${events.length} synced events, ${gameIds.length} linked games`);
 
   if (!apply) {
@@ -50,10 +50,14 @@ async function main() {
   if (gameIds.length) {
     await del('stories', () => prisma.story.deleteMany({ where: { game_id: { in: gameIds } } }));
     await del('game posts', () => prisma.post.deleteMany({ where: { game_id: { in: gameIds } } }));
-    await del('game votes', () => prisma.gameVote.deleteMany({ where: { game_id: { in: gameIds } } }));
+    await del('game votes', () =>
+      prisma.gameVote.deleteMany({ where: { game_id: { in: gameIds } } })
+    );
   }
   await del('event posts', () => prisma.post.deleteMany({ where: { event_id: { in: eventIds } } }));
-  await del('event RSVPs', () => prisma.eventRsvp.deleteMany({ where: { event_id: { in: eventIds } } }));
+  await del('event RSVPs', () =>
+    prisma.eventRsvp.deleteMany({ where: { event_id: { in: eventIds } } })
+  );
 
   const eventResult = await prisma.event.deleteMany({ where: { id: { in: eventIds } } });
   const gameResult = gameIds.length
@@ -64,7 +68,7 @@ async function main() {
 }
 
 main()
-  .catch((err) => {
+  .catch(err => {
     console.error(err);
     process.exit(1);
   })
