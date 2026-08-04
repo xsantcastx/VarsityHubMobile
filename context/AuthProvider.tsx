@@ -875,6 +875,14 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
+      // One-time: upgrade already-stored Keychain tokens to AFTER_FIRST_UNLOCK.
+      // A plain re-write can't change the accessibility of an existing item
+      // (expo-secure-store's update path ignores it), so existing sessions need
+      // an explicit delete→re-add. Best-effort; must not block bootstrap.
+      await import('@/api/auth')
+        .then(({ migrateKeychainAccessibility }) => migrateKeychainAccessibility())
+        .catch(() => {});
+
       if (__DEV__) console.log('[AuthProvider] Checking authentication...');
       try {
         await checkAuthRef.current();

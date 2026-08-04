@@ -24,6 +24,7 @@ import { validateAuthenticatedUser } from './schemas/auth';
 const TOKEN_KEY = 'auth_token_key';
 const REFRESH_TOKEN_KEY = 'refresh_token_key';
 const FRESH_INSTALL_KEY = '@varsityhub_installed';
+const KEYCHAIN_AFU_MIGRATION_KEY = '@varsityhub_keychain_afu_migrated';
 
 // ── User.me() client-side TTL cache ──────────────────────────────────
 // Caches the /me response for up to 30 seconds to cut redundant GETs.
@@ -78,6 +79,53 @@ export async function clearStaleTokensOnFreshInstall(): Promise<FreshInstallClea
       );
     }
     return { freshInstall: true, ok: false, error };
+  }
+}
+
+/**
+ * One-time upgrade of already-stored Keychain tokens to AFTER_FIRST_UNLOCK.
+ *
+ * WHY THIS IS NEEDED (not just the `keychainAccessible` option on writes):
+ * expo-secure-store's overwrite path uses `SecItemUpdate`, which only rewrites
+ * the value and LEAVES the original `kSecAttrAccessible` untouched. Accessibility
+ * is applied only on the initial `SecItemAdd`. So for a user who is already
+ * signed in, every token rotation keeps the old WHEN_UNLOCKED accessibility and
+ * the option alone never upgrades them. Re-adding each key (delete → set) forces
+ * the `SecItemAdd` path so the durable accessibility actually takes effect.
+ *
+ * Runs once (guarded by an AsyncStorage flag), best-effort — never throws into
+ * bootstrap. In-memory `tokenCache` is repopulated so a delete→set race can't
+ * drop the active session for this run.
+ */
+export async function migrateKeychainAccessibility(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    const alreadyMigrated = await AsyncStorage.getItem(KEYCHAIN_AFU_MIGRATION_KEY);
+    if (alreadyMigrated) return;
+
+    for (const key of [TOKEN_KEY, REFRESH_TOKEN_KEY]) {
+      try {
+        const value = await SecureStore.getItemAsync(key);
+        if (!value) continue;
+        // Keep the value in memory across the delete→set window so an
+        // interrupted migration can't strand the session (the access token
+        // is also re-cached below).
+        await SecureStore.deleteItemAsync(key);
+        await SecureStore.setItemAsync(key, value, {
+          keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+        });
+        if (key === TOKEN_KEY) setAuthToken(value);
+      } catch (keyErr) {
+        // Per-key best effort — a single failure must not block the others or
+        // bootstrap. The flag is only set on a fully clean pass (below).
+        if (__DEV__)
+          console.warn('[auth] Keychain accessibility migration failed for a key:', keyErr);
+        return; // leave the flag unset so it retries next launch
+      }
+    }
+    await AsyncStorage.setItem(KEYCHAIN_AFU_MIGRATION_KEY, 'true');
+  } catch (error) {
+    if (__DEV__) console.warn('[auth] Keychain accessibility migration skipped:', error);
   }
 }
 
