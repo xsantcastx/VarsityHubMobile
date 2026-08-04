@@ -717,10 +717,25 @@ export async function sendAdPaymentConfirmedEmail(params: {
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.AD_PAYMENT_CONFIRMED;
   if (!templateId) {
-    console.warn(
-      '[email] Missing SENDGRID_AD_PAYMENT_CONFIRMED_TEMPLATE_ID — advertiser will not receive payment receipt'
-    );
-    return false;
+    // No hosted template configured — send a locally-built receipt instead of
+    // silently dropping it (advertisers were getting no confirmation at all).
+    // Mirrors sendAdTakenDownPendingReviewEmail's fallback pattern.
+    const subject = 'Ad Reservation Confirmed — VarsityHub';
+    const fallback = buildAdPaymentConfirmedFallbackEmail({
+      businessName: params.businessName,
+      zipCode: params.zipCode,
+      amount: params.amount,
+      hoursLabel: params.hoursLabel,
+      dates: params.dates,
+    });
+    return sendHtmlFallbackEmail({
+      to: params.to,
+      subject,
+      html: fallback.html,
+      text: fallback.text,
+      logMessage: `Ad payment confirmed email sent to ${params.to}`,
+      fallbackKey: 'ad_payment_confirmed',
+    });
   }
   return sendTemplateEmail(
     templateId,
@@ -1719,6 +1734,74 @@ function buildAdTakedownFallbackEmail(params: {
     '',
     'We removed your ad from rotation while it goes through additional moderation review.',
     `Reason: ${params.reason || 'Your ad was temporarily taken down for moderation review.'}`,
+    '',
+    `Open VarsityHub: ${APP_BASE_URL}`,
+    `Questions? Contact ${CUSTOMER_SERVICE_EMAIL}`,
+  ].join('\n');
+  return { html, text };
+}
+
+/**
+ * Locally-built ad payment receipt used when the hosted SendGrid template
+ * (SENDGRID_AD_PAYMENT_CONFIRMED_TEMPLATE_ID) is not configured. Ensures an
+ * advertiser always gets a booking confirmation — the missing-template case
+ * previously sent nothing at all.
+ */
+function buildAdPaymentConfirmedFallbackEmail(params: {
+  businessName?: string;
+  zipCode?: string;
+  amount?: string;
+  hoursLabel?: string;
+  dates?: string[];
+}): { html: string; text: string } {
+  const businessName = escapeHtml(params.businessName || 'your business');
+  const amount = params.amount ? escapeHtml(params.amount) : '';
+  const zip = params.zipCode ? escapeHtml(params.zipCode) : '';
+  const hoursLabel = params.hoursLabel ? escapeHtml(params.hoursLabel) : '';
+  const dates = (params.dates || []).map(d => escapeHtml(d));
+  const supportEmail = escapeHtml(CUSTOMER_SERVICE_EMAIL);
+  const appUrl = escapeHtml(APP_BASE_URL);
+  const datesRows = dates.length
+    ? dates
+        .map(
+          d =>
+            `<span style="display:inline-block;margin:0 6px 6px 0;padding:6px 12px;border:1px solid #dbeafe;border-radius:999px;background:#eff6ff;font-size:13px;color:#1e3a8a;">${d}</span>`
+        )
+        .join('')
+    : '<span style="font-size:14px;color:#64748b;">See your campaign in the app.</span>';
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<body style="margin:0;padding:24px;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a;">
+  <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;padding:32px;">
+    <p style="margin:0 0 10px;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#047857;font-weight:700;">Payment received</p>
+    <h1 style="margin:0 0 16px;font-size:28px;line-height:1.3;">Your ad for ${businessName} is confirmed</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#475569;">
+      Thanks — your payment is confirmed and your ad will go live on the dates below. It typically appears in the feed within a few minutes.
+    </p>
+    <div style="margin:0 0 20px;padding:18px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc;">
+      ${amount ? `<p style="margin:0 0 10px;font-size:15px;color:#0f172a;"><strong>Amount:</strong> ${amount}</p>` : ''}
+      ${hoursLabel ? `<p style="margin:0 0 10px;font-size:15px;color:#0f172a;"><strong>Exposure:</strong> ${hoursLabel}</p>` : ''}
+      ${zip ? `<p style="margin:0 0 10px;font-size:15px;color:#0f172a;"><strong>Target area:</strong> Zip ${zip}</p>` : ''}
+      <p style="margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:#334155;font-weight:700;">Campaign dates</p>
+      <div>${datesRows}</div>
+    </div>
+    <p style="margin:0 0 24px;text-align:center;">
+      <a href="${appUrl}" style="display:inline-block;background:#1B3A6B;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:999px;font-weight:700;">Open VarsityHub</a>
+    </p>
+    <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;">
+      Questions? Contact <a href="mailto:${supportEmail}" style="color:#1B3A6B;text-decoration:none;">${supportEmail}</a>.
+    </p>
+  </div>
+</body>
+</html>`;
+  const text = [
+    `Your ad for ${params.businessName || 'your business'} is confirmed`,
+    '',
+    'Your payment is confirmed and your ad will go live on the dates below.',
+    ...(params.amount ? [`Amount: ${params.amount}`] : []),
+    ...(params.hoursLabel ? [`Exposure: ${params.hoursLabel}`] : []),
+    ...(params.zipCode ? [`Target area: Zip ${params.zipCode}`] : []),
+    ...(dates.length ? [`Campaign dates: ${(params.dates || []).join(', ')}`] : []),
     '',
     `Open VarsityHub: ${APP_BASE_URL}`,
     `Questions? Contact ${CUSTOMER_SERVICE_EMAIL}`,
