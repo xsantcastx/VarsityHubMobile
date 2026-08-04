@@ -18,3 +18,44 @@ export function getDeterministicGameCardGradient(
   const seed = String(gameId ?? title ?? 'varsityhub-game-card');
   return GAME_CARD_GRADIENTS[hashSeed(seed) % GAME_CARD_GRADIENTS.length];
 }
+
+/** Accepts `#RGB` / `#RRGGBB`, returns a normalized `#RRGGBB` or null. */
+function normalizeHex(color?: string | null): string | null {
+  if (!color) return null;
+  const m = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(color.trim());
+  if (!m) return null;
+  let hex = m[1];
+  if (hex.length === 3)
+    hex = hex
+      .split('')
+      .map(c => c + c)
+      .join('');
+  return `#${hex.toLowerCase()}`;
+}
+
+/** Darken a hex color by `amount` (0–1) — used to pair a lone team color. */
+function darken(hex: string, amount = 0.45): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.round(((n >> 16) & 0xff) * (1 - amount));
+  const g = Math.round(((n >> 8) & 0xff) * (1 - amount));
+  const b = Math.round((n & 0xff) * (1 - amount));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+/**
+ * Branded gradient for a pro game from its two teams' accent colors, so a
+ * banner-less pro card reads as intentional instead of an empty dark box. Falls
+ * back to null (→ deterministic gradient) when neither color is a valid hex.
+ * Pro teams carry no logos (trademark), so color is the only brand signal.
+ */
+export function proGameCardGradient(
+  homeColor?: string | null,
+  awayColor?: string | null
+): [string, string] | null {
+  const a = normalizeHex(awayColor);
+  const b = normalizeHex(homeColor);
+  if (a && b) return [a, b];
+  if (b) return [darken(b), b];
+  if (a) return [a, darken(a)];
+  return null;
+}

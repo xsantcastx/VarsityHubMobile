@@ -1343,7 +1343,18 @@ gamesRouter.get(
         take: poolSize + 1,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
         include: {
-          events: { orderBy: { date: 'asc' }, take: 1 },
+          events: {
+            orderBy: { date: 'asc' },
+            take: 1,
+            // Pro-matchup team colors power the feed card's team-color gradient
+            // (utils/feedGameCard.ts). Pro teams live on the linked EVENT, not
+            // the game, so they must be pulled through here — mirrors the
+            // /events serializer (routes/events.ts). Null for non-pro events.
+            include: {
+              proHomeTeam: { select: { primary_color: true } },
+              proAwayTeam: { select: { primary_color: true } },
+            },
+          },
           _count: { select: { events: true } },
           // Load the creator so Event Approvals can show a "submitted by" label
           // on pending game cards. Without this, the client-side filter at
@@ -1421,6 +1432,10 @@ gamesRouter.get(
           sport,
           appearance: rest.appearance ?? null,
           event_id: event?.id ?? null,
+          // Pro-matchup colors for the feed card gradient. Null for non-pro
+          // games; the client falls back to a deterministic gradient.
+          pro_home_color: event?.proHomeTeam?.primary_color ?? null,
+          pro_away_color: event?.proAwayTeam?.primary_color ?? null,
           ...liveWindow,
           // Fixed: Prioritize game.banner_url over other sources
           banner_url: rest.banner_url || rest.cover_image_url || event?.banner_url || null,

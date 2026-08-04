@@ -410,21 +410,29 @@ adsRouter.get(
   })
 );
 
-// Ads for feed: return ads with a reservation for a specific date (default: today), filtered by location radius
+// Ads for feed: return ads with a reservation for a specific date (default: today), filtered by location radius.
+// PUBLIC (optional auth): guests / logged-out web visitors must see active ads
+// too (owner requirement — an ad may be shown to someone on the web app without
+// an account). authMiddleware still populates req.user for token-bearers, so the
+// minor gate below applies to signed-in minors; anonymous visitors are treated
+// as general public and are filtered by location only.
 adsRouter.get(
   '/for-feed',
-  requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    // Age gate — under-18 users never see ads. Reads the canonical DOB column
-    // with fallback to preferences.dob for users whose backfill hasn't run.
-    // requireAuth above guarantees req.user is populated, so we can always
-    // resolve an age — no anonymous bypass.
+    // Age gate — under-18 SIGNED-IN users never see ads. Reads the canonical DOB
+    // column with fallback to preferences.dob for users whose backfill hasn't run.
+    // Guarded on req.user?.id so anonymous visitors skip it (age unknowable).
+    let viewerPrefs: Record<string, unknown> | null = null;
     if (req.user?.id) {
       const me = await prisma.user.findUnique({
         where: { id: req.user.id },
         select: { date_of_birth: true, preferences: true },
       });
       if (me) {
+        viewerPrefs =
+          me.preferences && typeof me.preferences === 'object'
+            ? (me.preferences as Record<string, unknown>)
+            : null;
         const { isMinor } = await import('../lib/userAge.js');
         if (isMinor(me)) {
           return res.json({ date: new Date().toISOString().slice(0, 10), ads: [] });
@@ -455,6 +463,19 @@ adsRouter.get(
       userCoords = await getZipCoordinatesWithFallback(zip);
     } else if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
       userCoords = { lat, lon: lng };
+    }
+
+    // Fallback to the authenticated viewer's saved zip when the client sent no
+    // usable location — mirrors /feed/bundle so older app builds that never
+    // forward location still see their local ads. Anonymous visitors have no
+    // profile zip (viewerPrefs is null), so they must supply a location via
+    // query; otherwise the empty-location guard below returns no ads.
+    if (!userCoords) {
+      const profileZip =
+        viewerPrefs && typeof viewerPrefs.zip_code === 'string' ? viewerPrefs.zip_code.trim() : '';
+      if (profileZip) {
+        userCoords = await getZipCoordinatesWithFallback(profileZip);
+      }
     }
 
     debugLog('[ads] for-feed user coordinates:', userCoords);

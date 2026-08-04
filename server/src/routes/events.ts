@@ -363,6 +363,10 @@ const serializeEvent = (
       event.game?.awayTeam?.sport ??
       proLeagueToSport(event.proHomeTeam?.league ?? event.proAwayTeam?.league) ??
       null,
+    // Pro teams carry no logo (trademark), only an accent color. The card uses
+    // these two to render a branded gradient when a pro event has no banner.
+    pro_home_color: event.proHomeTeam?.primary_color ?? null,
+    pro_away_color: event.proAwayTeam?.primary_color ?? null,
   };
   if (typeof opts.rsvpCount === 'number') {
     base.attendees_count = opts.rsvpCount;
@@ -537,8 +541,8 @@ eventsRouter.get(
         // game-linked event borrows its matchup's sport; a pro event derives
         // it from its league.
         team: { select: { sport: true } },
-        proHomeTeam: { select: { league: true } },
-        proAwayTeam: { select: { league: true } },
+        proHomeTeam: { select: { league: true, primary_color: true } },
+        proAwayTeam: { select: { league: true, primary_color: true } },
         game: {
           select: {
             id: true,

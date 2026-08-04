@@ -37,7 +37,12 @@ async function loadOrCreateNativeDeviceId(): Promise<string | null> {
     if (existing) return existing;
 
     const created = generateDeviceId();
-    await SecureStore.setItemAsync(DEVICE_ID_KEY, created);
+    // AFTER_FIRST_UNLOCK so the device id is readable on cold start even before
+    // the user unlocks — a missing device-id header weakened the session
+    // fingerprint check on refresh.
+    await SecureStore.setItemAsync(DEVICE_ID_KEY, created, {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+    });
     return created;
   } catch {
     return null;
