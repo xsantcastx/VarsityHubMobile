@@ -48,7 +48,7 @@ import {
   mergeFeedGames,
   type FeedGameQueryPlan,
 } from '@/utils/feedGameQueries';
-import { getDeterministicGameCardGradient } from '@/utils/feedGameCard';
+import { getDeterministicGameCardGradient, proGameCardGradient } from '@/utils/feedGameCard';
 import { getLiveBounds, isGameLive, isGameOver, shouldPinToFeed } from '@/utils/liveWindow';
 import {
   FEST_RECAP_GAME_IDS,
@@ -345,7 +345,12 @@ const FeedGameCard = memo(function FeedGameCard({
         : null;
   const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
   const hasBanner = typeof banner === 'string' && banner.length > 0;
-  const gradient = getDeterministicGameCardGradient(gameItem.id, gameItem.title);
+  // Pro games have no banner (and no logo, by design) — brand the card with the
+  // two teams' accent colors so it isn't a blank dark box. Non-pro games keep
+  // the deterministic gradient.
+  const gradient =
+    proGameCardGradient(raw?.pro_home_color, raw?.pro_away_color) ??
+    getDeterministicGameCardGradient(gameItem.id, gameItem.title);
   // Display the SERVER-AUTHORITATIVE start, not the game row's own date. The
   // server derives starts_at from the linked Event (serializeLiveWindow in
   // lib/geofencing.ts), and the two genuinely disagree — a game row's date can
