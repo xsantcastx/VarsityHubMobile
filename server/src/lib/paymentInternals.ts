@@ -8,7 +8,7 @@ import {
 } from './planDefinitions.js';
 import { getMaxTeamsForPlan } from './planLimits.js';
 import { prisma } from './prisma.js';
-import { captureException } from './sentry.js';
+import { captureException, captureMessage } from './sentry.js';
 import { buildBillingStateColumns, mergeBillingStateIntoPreferences } from './userBillingState.js';
 import { invalidateMeCacheForUser } from './userCache.js';
 import { WEEKDAY_BLOCK_PRICE_CENTS, WEEKEND_BLOCK_PRICE_CENTS } from '../utils/adPricing.js';
@@ -108,6 +108,7 @@ async function getUserEmail(userId?: string | null, fallbackEmail?: string | nul
 export async function sendAdPaymentEmail({
   userId,
   fallbackEmail,
+  contactEmail,
   adId,
   dates,
   totalCents,
@@ -116,14 +117,28 @@ export async function sendAdPaymentEmail({
 }: {
   userId?: string | null;
   fallbackEmail?: string | null;
+  contactEmail?: string | null;
   adId: string;
   dates: string[];
   totalCents?: number | null;
   businessName?: string | null;
   zipCode?: string | null;
 }) {
-  const email = await getUserEmail(userId, fallbackEmail);
-  if (!email) return;
+  // Recipient: the advertiser's account email, falling back to the ad's own
+  // contact_email. Ad.user_id is nullable (onDelete: SetNull) and web/guest
+  // advertisers may have no linked account, so account email can be absent —
+  // contact_email (entered at booking) is then the only address we have.
+  const accountEmail = await getUserEmail(userId, fallbackEmail);
+  const email =
+    accountEmail || (contactEmail && contactEmail.includes('@') ? contactEmail.trim() : null);
+  if (!email) {
+    // Previously a silent return — the invisible failure behind "advertiser got
+    // no receipt". Surface it so the next occurrence is diagnosable.
+    const msg = `[payments] Ad payment receipt skipped — no recipient email (adId=${adId}, userId=${userId ?? 'none'})`;
+    console.warn(msg);
+    captureMessage(msg, 'warning', { context: 'ad_receipt_no_recipient', provider: 'sendgrid' });
+    return;
+  }
   const amount = formatUsd(totalCents);
 
   let hoursLabel = '';
@@ -1181,10 +1196,16 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
       });
       const adForEmail = await prisma.ad.findUnique({
         where: { id: ad_id },
-        select: { business_name: true, target_zip_code: true, user_id: true },
+        select: {
+          business_name: true,
+          target_zip_code: true,
+          user_id: true,
+          contact_email: true,
+        },
       });
       sendAdPaymentEmail({
         userId: adForEmail?.user_id || null,
+        contactEmail: adForEmail?.contact_email || null,
         adId: String(ad_id),
         dates: decodeAdDates(session.metadata?.dates),
         totalCents: session.amount_total ?? null,
