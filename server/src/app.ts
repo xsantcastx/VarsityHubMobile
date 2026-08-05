@@ -33,6 +33,7 @@ import { adminReportsRouter } from './routes/adminReports.js';
 import { adsRouter } from './routes/ads.js';
 import { ogRouter } from './routes/og.js';
 import { authRouter } from './routes/auth.js';
+import calendarRouter from './routes/calendar.js';
 import { consentRouter, handleConsentResend } from './routes/consent.js';
 import { dataExportRouter } from './routes/dataExport.js';
 import { eventsRouter } from './routes/events.js';
@@ -411,6 +412,7 @@ function mountApiRoutes(parent: any) {
   // to run before every route in this bundle.
   parent.use(requireParentalConsent as any);
   parent.use('/auth', authMountLimiter, authRouter);
+  parent.use('/calendar', calendarRouter);
   parent.use('/consent', consentRouter);
   parent.post('/me/consent/resend', noStore, ...handleConsentResend);
   parent.use(dataExportRouter);

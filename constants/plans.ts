@@ -101,6 +101,9 @@ export const ROOKIE_TEAM_LIMIT = PLAN_DEFINITIONS.rookie.max_teams ?? 0;
 // above is retained but vestigial for billing/metering copy.
 export const ROOKIE_PROGRAM_LIMIT = PLAN_DEFINITIONS.rookie.max_programs ?? 5;
 export const VETERAN_MIN_TOTAL_TEAMS = ROOKIE_TEAM_LIMIT + 1;
+export const VETERAN_MONTHLY_TEAM_UNIT_PRICE = Number(
+  String(PLAN_DEFINITIONS.veteran.price).replace(/[^0-9.]/g, '')
+);
 export const VETERAN_MONTHLY_TEAM_PRICE_LABEL = `${PLAN_DEFINITIONS.veteran.price}/month per team over ${ROOKIE_TEAM_LIMIT}`;
 export const LEGEND_YEARLY_PRICE_LABEL = `${PLAN_DEFINITIONS.legend.price}/year`;
 

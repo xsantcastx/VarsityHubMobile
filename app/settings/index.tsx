@@ -921,6 +921,22 @@ export default function SettingsScreen() {
             />
           </SectionCard>
 
+          {/* Calendar */}
+          <SectionCard title="Calendar">
+            <NavRow
+              title="Google Calendar Sync"
+              subtitle="Export your games and events to Google Calendar"
+              isLast
+              onPress={() => {
+                Alert.alert(
+                  'Google Calendar Sync',
+                  'Coming soon: Connect your Google Calendar to automatically sync VarsityHub games and events.',
+                  [{ text: 'OK', style: 'default' }]
+                );
+              }}
+            />
+          </SectionCard>
+
           {/* Session */}
           <SectionCard title="Session">
             <NavRow

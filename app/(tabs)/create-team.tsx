@@ -33,7 +33,7 @@ import { Organization, Subscriptions, Team } from '@/api/entities';
 import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
-import { normalizePlan, ROOKIE_PROGRAM_LIMIT } from '@/constants/plans';
+import { normalizePlan, ROOKIE_PROGRAM_LIMIT, VETERAN_MONTHLY_TEAM_UNIT_PRICE } from '@/constants/plans';
 import {
   GENDER_OPTIONS,
   LEVEL_OPTIONS,
@@ -624,7 +624,7 @@ function CreateTeamScreen() {
           const { newProgramCount, billableProgramCount } = meteringAction;
           Alert.alert(
             'Add Sport',
-            `Adding this sport will update your Veteran billing to $${(billableProgramCount * 0.99).toFixed(2)}/month (${billableProgramCount} billable sport${billableProgramCount === 1 ? '' : 's'} beyond the first ${ROOKIE_PROGRAM_LIMIT} free). Your subscription will be updated automatically.`,
+            `Adding this sport will update your Veteran billing to $${(billableProgramCount * VETERAN_MONTHLY_TEAM_UNIT_PRICE).toFixed(2)}/month (${billableProgramCount} billable sport${billableProgramCount === 1 ? '' : 's'} beyond the first ${ROOKIE_PROGRAM_LIMIT} free). Your subscription will be updated automatically.`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
               {
