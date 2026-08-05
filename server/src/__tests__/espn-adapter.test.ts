@@ -174,6 +174,37 @@ describe('espnAdapter coverage', () => {
     expect(ESPN_LEAGUES.sort()).toEqual(['mlb', 'nba', 'nfl', 'wnba']);
     expect(ESPN_LEAGUES).not.toContain('wwe');
   });
+
+  it('does not filter out NFL preseason games', () => {
+    const preseason = {
+      events: [
+        {
+          id: 'p1',
+          date: '2026-08-13T00:00:00Z',
+          competitions: [
+            {
+              season: { type: { name: 'PRESEASON' }, displayName: 'Preseason' },
+              status: { type: { name: 'STATUS_SCHEDULED' } },
+              venue: { fullName: 'Arrowhead Stadium' },
+              competitors: [
+                { homeAway: 'home', team: { displayName: 'Kansas City Chiefs' } },
+                { homeAway: 'away', team: { displayName: 'Chicago Bears' } },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const parsed = adapter.__parseScoreboard!(
+      'nfl',
+      preseason,
+      new Date('2026-08-01T00:00:00Z'),
+      new Date('2026-08-31T23:59:59Z')
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].home_team_ref).toBe('nfl:kansas-city-chiefs');
+    expect(parsed[0].away_team_ref).toBe('nfl:chicago-bears');
+  });
 });
 
 describe('resolveProTeamRef', () => {
