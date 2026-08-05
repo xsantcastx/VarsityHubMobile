@@ -404,6 +404,21 @@ async function getAdsBundle(
   } else if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
     userCoords = { lat, lon: lng };
   }
+  // Fallback to the authenticated viewer's saved zip when the client sent no
+  // usable location. Ad visibility must not depend on every client version
+  // correctly forwarding location — the server already knows where the signed-in
+  // viewer lives. Guests can't reach here (/bundle requires auth) and the minor
+  // gate above still applies, so this never widens who sees ads.
+  if (!userCoords) {
+    const prefs = viewer?.preferences;
+    const profileZip =
+      prefs && typeof prefs === 'object' && typeof (prefs as any).zip_code === 'string'
+        ? (prefs as any).zip_code.trim()
+        : '';
+    if (profileZip) {
+      userCoords = await getZipCoordinatesWithFallback(profileZip);
+    }
+  }
   if (!userCoords) return { date: dateISO, ads: [] };
 
   const { lat: bboxLat, lng: bboxLng } = getAdBoundingBoxDegrees(userCoords.lat);

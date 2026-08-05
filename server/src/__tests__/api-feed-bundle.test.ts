@@ -275,6 +275,37 @@ describeDb('GET /feed/bundle', () => {
     expect(viewerRow?.id).toBe(viewerId);
   });
 
+  // REGRESSION GUARD: ad visibility must not depend on the client forwarding
+  // location. A stale app build or a web session that never sends zip/lat/lng
+  // still gets ads because the server falls back to the signed-in viewer's
+  // saved zip_code (the ad here targets 10001; the viewer's profile zip is
+  // 10001). Without the fallback getAdsBundle returned zero ads for any client
+  // that omitted location — the "active ad but I don't see it" bug.
+  it('serves geofenced ads from the viewer profile zip when the request carries no location', async () => {
+    const existing = await prisma.user.findUnique({
+      where: { id: viewerId },
+      select: { preferences: true },
+    });
+    await prisma.user.update({
+      where: { id: viewerId },
+      data: {
+        preferences: {
+          ...((existing?.preferences as object) ?? {}),
+          zip_code: '10001',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .get('/feed/bundle')
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .query({ date: new Date().toISOString().slice(0, 10) }); // no zip / lat / lng
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body?.ads?.ads)).toBe(true);
+    expect(res.body?.ads?.ads.length).toBeGreaterThan(0);
+  });
+
   // REGRESSION GUARD: the bundled highlights section must NOT filter on `post.type`.
   //
   // `Post.type` is nullable with no default and no backfill, and the main
