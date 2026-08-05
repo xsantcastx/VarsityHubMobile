@@ -170,6 +170,10 @@ npx tsc --noEmit --project server/tsconfig.json
 npm run verify:error-envelope
 ```
 
+**NEVER bypass the commit guardrails.** Do not use `git commit --no-verify` / `-n` or disable the pre-commit / pre-push hooks. They run tsc-files, eslint, prettier, conflict-marker and secret scans on staged files — skipping them has shipped un-typechecked, unformatted, secret-leaking commits. If a hook blocks you, fix the cause. `main` has no server-side branch protection, so these local hooks are the only gate before Railway auto-deploys to prod.
+
+**NEVER claim verification you did not run.** "TypeScript passes" requires running BOTH the client (`npx tsc --noEmit`) AND server (`npx tsc --noEmit --project server/tsconfig.json`) typechecks in a tree that HAS `node_modules`, with 0 errors — not "skipped," not assumed. A worktree created without `node_modules` cannot typecheck the client; install deps or verify elsewhere. Same for tests/lint/route-reachability: report what you actually ran, or don't claim it.
+
 ## Team Role-Barrier Model (2026-07-06)
 
 `server/src/lib/teamAuthorization.ts` splits team/org authorization into two tiers: `canAdministerTeam()` (team owner/coach, or org owner — settings, invites, roster add/remove/role-change, ownership transfer) vs `canManageTeam()`/`canManageAnyTeam()` (also admits team manager/assistant_coach and org manager — event/game create + approve/deny ONLY). Organization management (`isOrgOwner()`) is owner-only — org managers have zero admin power. Athletes/parents/members have no admin functions. New mutation endpoints must pick the correct tier explicitly. Athlete self-service team join requests were removed 2026-07-09 (rosters are coach-invite/direct-add only; the `TeamJoinRequest` table remains in the DB but nothing writes to it). Also 2026-07-09: teams hold STAFF ONLY — the `player`/`parent`/`member` team roles are retired (assignable: manager/coach/assistant_coach/equipment/health_wellness); athletes connect by following. `TeamRole` enum keeps retired values (no migration); legacy athlete rows are archived via `server/scripts/archive-athlete-team-memberships.ts`; invite-accept 410s retired-role invites.
