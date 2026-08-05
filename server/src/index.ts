@@ -10,6 +10,7 @@ import { env } from './lib/env.js';
 import { APP_REVIEW_EMAIL } from './lib/appReviewFixture.js';
 import { ADMIN_EMAILS, ADMIN_NOTIFICATION_EMAILS } from './lib/adminEmails.js';
 import { runRouteStartupBackfills } from './startup/routeBackfills.js';
+import { runProSportsBootstrap } from './startup/proSportsBootstrap.js';
 import { runClusterOnce } from './lib/distributedLock.js';
 import {
   getSendGridApiKeyFingerprint,
@@ -290,6 +291,15 @@ runClusterOnce('route-startup-backfills', async () => {
 }).catch(error => {
   console.error('[startup] Route startup backfills failed:', error);
   captureException(error, { context: 'route_startup_backfills' });
+});
+
+// One-time pro-sports data rollout (seed teams + WWE schedule). Self-guarded by
+// PRO_SPORTS_BOOTSTRAP=1 and idempotent; single replica to avoid double-writes.
+runClusterOnce('pro-sports-bootstrap', async () => {
+  await runProSportsBootstrap();
+}).catch(error => {
+  console.error('[startup] Pro-sports bootstrap failed:', error);
+  captureException(error, { context: 'pro_sports_bootstrap' });
 });
 
 const PORT = Number(env.PORT || 4000);
