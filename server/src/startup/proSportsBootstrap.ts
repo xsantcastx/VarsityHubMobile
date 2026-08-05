@@ -1,7 +1,9 @@
-import { prisma } from '../lib/prisma.js';
-import { ingestFixtures } from '../lib/proSchedule/ingest.js';
+import { espnAdapter } from '../lib/proSchedule/espnAdapter.js';
+import { ingestFixtures, ingestLeague } from '../lib/proSchedule/ingest.js';
 import { WWE_FIXTURES_2026 } from '../lib/proSchedule/wweSchedule2026.js';
+import { prisma } from '../lib/prisma.js';
 import { PRO_TEAM_SEED } from '../lib/proTeams.js';
+import type { ProLeague } from '@prisma/client';
 
 /**
  * One-time rollout of the pro-sports data layer.
@@ -45,6 +47,24 @@ export async function runProSportsBootstrap(): Promise<void> {
         '[pro-bootstrap] WWE ingest skips:',
         stats.failures.slice(0, 10).map(f => `${f.external_ref}: ${f.reason}`)
       );
+    }
+
+    // 3) Ingest the ESPN leagues over a ~4-week window — NFL preseason is live
+    //    now, MLB in-season; NBA/WNBA return empty in the offseason (a valid
+    //    result, not a failure). Home games resolve via the seeded team venue,
+    //    so this works even if per-fixture geocoding is unavailable.
+    const espn = espnAdapter();
+    const from = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const to = new Date(Date.now() + 28 * 24 * 60 * 60 * 1000);
+    for (const league of ['nfl', 'mlb', 'nba', 'wnba'] as ProLeague[]) {
+      try {
+        const s = await ingestLeague(espn, league, from, to);
+        console.log(
+          `[pro-bootstrap] ${league} ingest: created=${s.created} updated=${s.updated} skipped=${s.skipped}`
+        );
+      } catch (e) {
+        console.warn(`[pro-bootstrap] ${league} ingest failed (non-fatal):`, (e as Error).message);
+      }
     }
   } catch (err) {
     console.error('[pro-bootstrap] failed (non-fatal):', err);
