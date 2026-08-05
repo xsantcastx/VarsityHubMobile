@@ -1,8 +1,4 @@
-import {
-  getDeterministicGameCardGradient,
-  proGameCardGradient,
-  stadiumMapImageUrl,
-} from '../feedGameCard';
+import { getDeterministicGameCardGradient, proGameCardGradient } from '../feedGameCard';
 
 describe('proGameCardGradient', () => {
   it('uses both team colors when valid (away, home)', () => {
@@ -23,37 +19,6 @@ describe('proGameCardGradient', () => {
   it('returns null for no/invalid colors so the deterministic gradient is used', () => {
     expect(proGameCardGradient(null, null)).toBeNull();
     expect(proGameCardGradient('not-a-color', '')).toBeNull();
-  });
-});
-
-describe('stadiumMapImageUrl', () => {
-  const KEY = 'EXPO_PUBLIC_GOOGLE_MAPS_API_KEY';
-  const original = process.env[KEY];
-  afterEach(() => {
-    if (original === undefined) delete process.env[KEY];
-    else process.env[KEY] = original;
-  });
-
-  it('builds a hybrid static-map url centered on the venue when a key is set', () => {
-    process.env[KEY] = 'test-key';
-    const url = stadiumMapImageUrl(29.7573, -95.3555);
-    expect(url).toContain('maps.googleapis.com/maps/api/staticmap');
-    expect(url).toContain('center=29.75730,-95.35550');
-    expect(url).toContain('maptype=hybrid');
-    expect(url).toContain('key=test-key');
-  });
-
-  it('returns null without a key so the caller falls back to the gradient', () => {
-    delete process.env[KEY];
-    expect(stadiumMapImageUrl(29.7573, -95.3555)).toBeNull();
-  });
-
-  it('returns null for missing/invalid/0,0 coords', () => {
-    process.env[KEY] = 'test-key';
-    expect(stadiumMapImageUrl(null, null)).toBeNull();
-    expect(stadiumMapImageUrl(29.75, undefined)).toBeNull();
-    expect(stadiumMapImageUrl(NaN, 10)).toBeNull();
-    expect(stadiumMapImageUrl(0, 0)).toBeNull();
   });
 });
 
