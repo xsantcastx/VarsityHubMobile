@@ -41,6 +41,7 @@ const COMPARED_FIELDS = [
   'venue_lng',
   'timezone',
   'primary_color',
+  'venue_photo_url',
 ] as const;
 
 function diffFields(existing: Record<string, unknown>, seed: ProTeamSeed): string[] {

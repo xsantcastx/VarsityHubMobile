@@ -1541,6 +1541,13 @@ model ProTeam {
 
   primary_color String? @db.VarChar(20)
 
+  // Free-use (Wikimedia Commons) photo of the home stadium, used as the pro
+  // game card backdrop. Pro franchises are shown without team branding
+  // (trademark), so a neutral venue photo is the only "stadium preview" signal.
+  // Nullable: a card with no photo (or one that fails to load) falls back to
+  // the team-color gradient.
+  venue_photo_url String? @db.VarChar(500)
+
   // Stable ingestion key (`{league}:{slug}`), letting the seed and the schedule
   // ingester upsert idempotently and letting a relocated or renamed franchise
   // keep its identity (and its followers) across a rename.

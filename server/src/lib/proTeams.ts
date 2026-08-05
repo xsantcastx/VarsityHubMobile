@@ -46,6 +46,11 @@ export type ProTeamSeed = {
   venue_lng: number | null;
   timezone: string | null;
   primary_color: string | null;
+  // Free-use (Wikimedia Commons) home-stadium photo for the pro game card
+  // backdrop. Optional in the seed: teams without one fall back to the
+  // team-color gradient. Sourced as stable commons.wikimedia.org
+  // Special:FilePath URLs (see seed values below).
+  venue_photo_url?: string | null;
 };
 
 const NFL: ProTeamSeed[] = [
@@ -1138,6 +1143,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -112.0667,
     timezone: 'America/Phoenix',
     primary_color: '#A71930',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Chase%20Field%2C%20July%203%2C%202021.jpg?width=1200',
   },
   {
     external_ref: 'mlb:atlanta-braves',
@@ -1155,6 +1162,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -84.4677,
     timezone: 'America/New_York',
     primary_color: '#CE1141',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/SunTrust%20Park%20Opening%20Day%202017.jpg?width=1200',
   },
   {
     external_ref: 'mlb:baltimore-orioles',
@@ -1172,6 +1181,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -76.6217,
     timezone: 'America/New_York',
     primary_color: '#DF4601',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/OrioleParkAtCamdenYardsJune2013.jpg?width=1200',
   },
   {
     external_ref: 'mlb:boston-red-sox',
@@ -1189,6 +1200,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -71.0972,
     timezone: 'America/New_York',
     primary_color: '#BD3039',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Fenway%20Park.jpg?width=1200',
   },
   {
     external_ref: 'mlb:chicago-cubs',
@@ -1206,6 +1219,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -87.6553,
     timezone: 'America/Chicago',
     primary_color: '#0E3386',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Wrigley%20Field%2C%20Chicago%2C%20Illinois%20(42488207635).jpg?width=1200',
   },
   {
     // verify: ballpark renamed from Guaranteed Rate Field (2025).
@@ -1224,6 +1239,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -87.6338,
     timezone: 'America/Chicago',
     primary_color: '#27251F',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/U.S.%20Cellular%20Field%20(30972191694).jpg?width=1200',
   },
   {
     external_ref: 'mlb:cincinnati-reds',
@@ -1241,6 +1258,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -84.5069,
     timezone: 'America/New_York',
     primary_color: '#C6011F',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Great%20American%20Ballpark%202007.jpg?width=1200',
   },
   {
     external_ref: 'mlb:cleveland-guardians',
@@ -1258,6 +1277,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -81.6852,
     timezone: 'America/New_York',
     primary_color: '#00385D',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Progressive%20Field%20aerial%202015.jpg?width=1200',
   },
   {
     external_ref: 'mlb:colorado-rockies',
@@ -1275,6 +1296,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -104.9942,
     timezone: 'America/Denver',
     primary_color: '#33006F',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Coors%20field%20aerial%201.JPG?width=1200',
   },
   {
     external_ref: 'mlb:detroit-tigers',
@@ -1292,6 +1315,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -83.0485,
     timezone: 'America/Detroit',
     primary_color: '#0C2340',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Comerica%20Park%2C%20Home%20of%20the%20Detroit%20Tigers%20Baseball%20Team.jpg?width=1200',
   },
   {
     // verify: ballpark renamed from Minute Maid Park (2025).
@@ -1310,6 +1335,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -95.3555,
     timezone: 'America/Chicago',
     primary_color: '#EB6E1F',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Minute%20Maid%20Park%202010.JPG?width=1200',
   },
   {
     external_ref: 'mlb:kansas-city-royals',
@@ -1327,6 +1354,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -94.4803,
     timezone: 'America/Chicago',
     primary_color: '#004687',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/NewKauffman.jpg?width=1200',
   },
   {
     external_ref: 'mlb:los-angeles-angels',
@@ -1344,6 +1373,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -117.8827,
     timezone: 'America/Los_Angeles',
     primary_color: '#BA0021',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Angel%20Stadium%20of%20Anaheim.jpg?width=1200',
   },
   {
     external_ref: 'mlb:los-angeles-dodgers',
@@ -1361,6 +1392,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -118.24,
     timezone: 'America/Los_Angeles',
     primary_color: '#005A9C',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Aerial%20view%20of%20Dodger%20Stadium%2C%20April%202024.JPG?width=1200',
   },
   {
     external_ref: 'mlb:miami-marlins',
@@ -1412,6 +1445,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -93.2775,
     timezone: 'America/Chicago',
     primary_color: '#002B5C',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Target%20Field%20Aerial.jpg?width=1200',
   },
   {
     external_ref: 'mlb:new-york-mets',
@@ -1429,6 +1464,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -73.8458,
     timezone: 'America/New_York',
     primary_color: '#002D72',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Aerial%20Shot%20of%20Citi%20Field%20Opening%20Day%20April%2013th%202009.jpg?width=1200',
   },
   {
     external_ref: 'mlb:new-york-yankees',
@@ -1446,6 +1483,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -73.9262,
     timezone: 'America/New_York',
     primary_color: '#003087',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Yankee%20Stadium%202009.jpg?width=1200',
   },
   {
     // verify: relocated from Oakland (2025) and now branded without a city.
@@ -1482,6 +1521,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -75.1665,
     timezone: 'America/New_York',
     primary_color: '#E81828',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Citizens%20Bank%20Park%202021.jpg?width=1200',
   },
   {
     external_ref: 'mlb:pittsburgh-pirates',
@@ -1499,6 +1540,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -80.0057,
     timezone: 'America/New_York',
     primary_color: '#FDB827',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/PNC%20Park%2C%20Home%20of%20Pittsburgh%20Pirates.jpg?width=1200',
   },
   {
     external_ref: 'mlb:san-diego-padres',
@@ -1533,6 +1576,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -122.3893,
     timezone: 'America/Los_Angeles',
     primary_color: '#FD5A1E',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/AT%26T%20Park%2C%20San%20Francisco%20at%20night.jpg?width=1200',
   },
   {
     external_ref: 'mlb:seattle-mariners',
@@ -1550,6 +1595,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -122.3325,
     timezone: 'America/Los_Angeles',
     primary_color: '#0C2C56',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/SafecoFieldTop.jpg?width=1200',
   },
   {
     external_ref: 'mlb:st-louis-cardinals',
@@ -1567,6 +1614,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -90.1928,
     timezone: 'America/Chicago',
     primary_color: '#C41E3A',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Busch%20Stadium%20from%20top%20of%20the%20Gateway%20Arch.JPG?width=1200',
   },
   {
     // verify: HIGH PRIORITY. Tropicana Field was damaged by Hurricane Milton
@@ -1605,6 +1654,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -97.0838,
     timezone: 'America/Chicago',
     primary_color: '#003278',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Globelifefield%20june2020.jpg?width=1200',
   },
   {
     external_ref: 'mlb:toronto-blue-jays',
@@ -1622,6 +1673,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -79.3894,
     timezone: 'America/Toronto',
     primary_color: '#134A8E',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Rogers%20Centre%2C%20Toronto%2C%20Ontario%20from%20CN%20Tower%20(21652315548).jpg?width=1200',
   },
   {
     external_ref: 'mlb:washington-nationals',
@@ -1639,6 +1692,8 @@ const MLB: ProTeamSeed[] = [
     venue_lng: -77.0074,
     timezone: 'America/New_York',
     primary_color: '#AB0003',
+    venue_photo_url:
+      'https://commons.wikimedia.org/wiki/Special:FilePath/Aerial%20view%20of%20Nationals%20Park.jpg?width=1200',
   },
 ];
 

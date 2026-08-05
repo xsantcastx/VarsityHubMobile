@@ -76,6 +76,35 @@ function FullBleedCardImage({ uri }: { uri: string }) {
   return <Image source={{ uri }} style={StyleSheet.absoluteFillObject} contentFit="cover" />;
 }
 
+// Free-use (Wikimedia Commons) photo of a pro game's home stadium, drawn as the
+// card backdrop when there's no banner — pro teams carry no banner or logo
+// (trademark), so this is the real "stadium preview". On any load failure
+// (missing/renamed file, network) it unmounts so the team-color gradient behind
+// it shows through — no broken-image tile, no regression versus gradient-only.
+const ProStadiumImage = memo(function ProStadiumImage({ uri }: { uri: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  if (Platform.OS === 'web') {
+    return (
+      <RNImage
+        source={{ uri }}
+        style={StyleSheet.absoluteFillObject}
+        resizeMode="cover"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <Image
+      source={{ uri }}
+      style={StyleSheet.absoluteFillObject}
+      contentFit="cover"
+      transition={200}
+      onError={() => setFailed(true)}
+    />
+  );
+});
+
 type GameItem = {
   id: string;
   title?: string;
@@ -83,6 +112,7 @@ type GameItem = {
   location?: string;
   cover_image_url?: string;
   banner_url?: string | null;
+  pro_venue_photo_url?: string | null;
   event_id?: string | null;
   home_score?: number | null;
   away_score?: number | null;
@@ -351,6 +381,13 @@ const FeedGameCard = memo(function FeedGameCard({
   const gradient =
     proGameCardGradient(raw?.pro_home_color, raw?.pro_away_color) ??
     getDeterministicGameCardGradient(gameItem.id, gameItem.title);
+  // Pro games: a free-use photo of the home stadium as the backdrop — the real
+  // "stadium preview". Only when there's no banner; the card falls back to the
+  // team-color gradient when there's no seeded photo or the image fails to load.
+  const stadiumPhotoUrl =
+    !hasBanner && typeof raw?.pro_venue_photo_url === 'string' && raw.pro_venue_photo_url.length > 0
+      ? (raw.pro_venue_photo_url as string)
+      : null;
   // Display the SERVER-AUTHORITATIVE start, not the game row's own date. The
   // server derives starts_at from the linked Event (serializeLiveWindow in
   // lib/geofencing.ts), and the two genuinely disagree — a game row's date can
@@ -406,6 +443,7 @@ const FeedGameCard = memo(function FeedGameCard({
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       />
+      {stadiumPhotoUrl && <ProStadiumImage uri={stadiumPhotoUrl} />}
       {hasBanner && <FullBleedCardImage uri={optimizeImageUrl(banner!, 400) || banner!} />}
       <LinearGradient
         colors={

@@ -367,6 +367,9 @@ const serializeEvent = (
     // these two to render a branded gradient when a pro event has no banner.
     pro_home_color: event.proHomeTeam?.primary_color ?? null,
     pro_away_color: event.proAwayTeam?.primary_color ?? null,
+    // Free-use home-stadium photo — the pro card backdrop, drawn over the
+    // gradient. Null when unseeded; the card falls back to the gradient.
+    pro_venue_photo_url: event.proHomeTeam?.venue_photo_url ?? null,
   };
   if (typeof opts.rsvpCount === 'number') {
     base.attendees_count = opts.rsvpCount;
@@ -541,7 +544,7 @@ eventsRouter.get(
         // game-linked event borrows its matchup's sport; a pro event derives
         // it from its league.
         team: { select: { sport: true } },
-        proHomeTeam: { select: { league: true, primary_color: true } },
+        proHomeTeam: { select: { league: true, primary_color: true, venue_photo_url: true } },
         proAwayTeam: { select: { league: true, primary_color: true } },
         game: {
           select: {

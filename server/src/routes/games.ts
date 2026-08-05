@@ -1351,7 +1351,7 @@ gamesRouter.get(
             // the game, so they must be pulled through here — mirrors the
             // /events serializer (routes/events.ts). Null for non-pro events.
             include: {
-              proHomeTeam: { select: { primary_color: true } },
+              proHomeTeam: { select: { primary_color: true, venue_photo_url: true } },
               proAwayTeam: { select: { primary_color: true } },
             },
           },
@@ -1436,6 +1436,11 @@ gamesRouter.get(
           // games; the client falls back to a deterministic gradient.
           pro_home_color: event?.proHomeTeam?.primary_color ?? null,
           pro_away_color: event?.proAwayTeam?.primary_color ?? null,
+          // Free-use photo of the home stadium (the game is played at the home
+          // venue) — the pro card backdrop. Null for non-pro games and for pro
+          // venues not yet seeded with a photo; the client card then shows the
+          // team-color gradient.
+          pro_venue_photo_url: event?.proHomeTeam?.venue_photo_url ?? null,
           ...liveWindow,
           // Fixed: Prioritize game.banner_url over other sources
           banner_url: rest.banner_url || rest.cover_image_url || event?.banner_url || null,
