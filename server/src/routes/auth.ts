@@ -4153,4 +4153,38 @@ authRouter.post(
   })
 );
 
+/**
+ * GET /auth/calendar-oauth-callback
+ * Handle Google Calendar OAuth redirect. Exchange code for tokens via POST /calendar/connect.
+ * Query params: code (required), state (optional), error (if denied)
+ */
+authRouter.get(
+  '/calendar-oauth-callback',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const { code, state, error } = req.query;
+
+    // Handle explicit deny
+    if (error) {
+      const errorDescription = req.query.error_description || 'Unknown error';
+      console.warn('[auth/calendar] OAuth denied:', error, errorDescription);
+      return res.redirect(
+        `/settings?calendar_error=${encodeURIComponent(String(errorDescription))}`
+      );
+    }
+
+    // Validate required code
+    if (!code || typeof code !== 'string') {
+      console.warn('[auth/calendar] OAuth callback missing code');
+      return res.redirect('/settings?calendar_error=Missing+authorization+code');
+    }
+
+    // Redirect to settings with code, which the app will use to POST /v1/calendar/connect.
+    // Deep link handling in app will capture the code from query params and initiate the exchange.
+    const safeRedirect = `/settings?calendar_code=${encodeURIComponent(code)}${
+      state && typeof state === 'string' ? `&state=${encodeURIComponent(state)}` : ''
+    }`;
+    return res.redirect(safeRedirect);
+  })
+);
+
 export default authRouter;

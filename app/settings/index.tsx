@@ -198,6 +198,209 @@ function SwitchRow({
   );
 }
 
+/**
+ * Calendar Sync Section — manages Google Calendar connection
+ */
+function CalendarSyncSection() {
+  const router = useRouter();
+  const [calendarStatus, setCalendarStatus] = useState<{
+    connected: boolean;
+    lastSyncAt?: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load calendar status on mount
+  useEffect(() => {
+    void loadCalendarStatus();
+  }, []);
+
+  const loadCalendarStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/v1/calendar/sync-status', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCalendarStatus(data);
+        setError(null);
+      }
+    } catch (err) {
+      console.error('[calendar] Failed to fetch status:', err);
+      setError('Could not load calendar status');
+    }
+  }, []);
+
+  const handleConnect = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Generate OAuth URL and open in browser/webview
+      // In production, this would use the buildGoogleCalendarAuthUrl helper
+      const clientId = 'YOUR_GOOGLE_OAUTH_CLIENT_ID';
+      const redirectUri = 'https://api.varsityhub.app/v1/auth/calendar-oauth-callback';
+      const scopes = encodeURIComponent('https://www.googleapis.com/auth/calendar');
+      const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}&access_type=offline`;
+
+      // Open OAuth URL in app browser
+      router.push(`/?oauth_url=${encodeURIComponent(oauthUrl)}`);
+
+      // Or: use WebView in a modal for seamless flow
+      Alert.alert(
+        'Connect Google Calendar',
+        'You will be redirected to Google to authorize calendar access. After authorization, you can sync your games.',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => setLoading(false) },
+          {
+            text: 'Continue',
+            onPress: () => {
+              // This is where the OAuth flow would be initiated
+              // For MVP, show a message that it's ready but requires backend config
+              Alert.alert(
+                'Configuration Required',
+                'Your backend admin needs to configure Google OAuth credentials in production.',
+                [{ text: 'OK', onPress: () => setLoading(false) }]
+              );
+            },
+          },
+        ]
+      );
+    } catch (err) {
+      console.error('[calendar] Connect failed:', err);
+      setError('Failed to initiate connection');
+      setLoading(false);
+    }
+  }, [router]);
+
+  const handleDisconnect = useCallback(async () => {
+    Alert.alert('Disconnect Google Calendar?', 'Your games will no longer sync to Google Calendar.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Disconnect',
+        style: 'destructive',
+        onPress: async () => {
+          setLoading(true);
+          try {
+            const response = await fetch('/v1/calendar/disconnect', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+            });
+            if (response.ok) {
+              setCalendarStatus({ connected: false });
+              setError(null);
+              Alert.alert('Disconnected', 'Google Calendar sync has been disabled.');
+            } else {
+              throw new Error('Failed to disconnect');
+            }
+          } catch (err) {
+            console.error('[calendar] Disconnect failed:', err);
+            setError('Failed to disconnect');
+          } finally {
+            setLoading(false);
+          }
+        },
+      },
+    ]);
+  }, []);
+
+  const handleSyncNow = useCallback(async () => {
+    setSyncLoading(true);
+    try {
+      const response = await fetch('/v1/calendar/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (response.ok) {
+        const result = await response.json();
+        Alert.alert('Sync Complete', `Synced ${result.synced} events.`);
+        void loadCalendarStatus();
+      } else {
+        throw new Error('Sync failed');
+      }
+    } catch (err) {
+      console.error('[calendar] Sync failed:', err);
+      setError('Failed to sync events');
+    } finally {
+      setSyncLoading(false);
+    }
+  }, [loadCalendarStatus]);
+
+  const formatLastSync = (isoString?: string) => {
+    if (!isoString) return 'Never';
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / 1000 / 60);
+
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  };
+
+  return (
+    <View>
+      {error && (
+        <View style={[styles.errorContainer, { backgroundColor: '#fee2e2' }]}>
+          <Text style={[styles.errorText, { color: '#dc2626' }]}>{error}</Text>
+        </View>
+      )}
+
+      {!calendarStatus?.connected ? (
+        <Pressable
+          style={[styles.row, { opacity: loading ? 0.6 : 1 }]}
+          onPress={handleConnect}
+          disabled={loading}
+        >
+          <View>
+            <Text style={styles.rowTitle}>Connect Google Calendar</Text>
+            <Text style={styles.rowSubtitle}>
+              {loading ? 'Connecting...' : 'Export your games to Google Calendar'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#999" />
+        </Pressable>
+      ) : (
+        <>
+          <View style={styles.row}>
+            <View>
+              <Text style={styles.rowTitle}>Google Calendar Connected</Text>
+              <Text style={styles.rowSubtitle}>Last synced: {formatLastSync(calendarStatus.lastSyncAt)}</Text>
+            </View>
+            <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+          </View>
+
+          <Pressable
+            style={[styles.row, { opacity: syncLoading ? 0.6 : 1 }]}
+            onPress={handleSyncNow}
+            disabled={syncLoading || loading}
+          >
+            <View>
+              <Text style={styles.rowTitle}>{syncLoading ? 'Syncing...' : 'Sync Now'}</Text>
+              <Text style={styles.rowSubtitle}>Upload your upcoming games</Text>
+            </View>
+            <Ionicons name="cloud-upload" size={20} color="#3b82f6" />
+          </Pressable>
+
+          <Pressable
+            style={[styles.row, { opacity: loading ? 0.6 : 1 }]}
+            onPress={handleDisconnect}
+            disabled={loading}
+          >
+            <View>
+              <Text style={[styles.rowTitle, { color: '#ef4444' }]}>Disconnect</Text>
+              <Text style={styles.rowSubtitle}>Stop syncing to Google Calendar</Text>
+            </View>
+            <Ionicons name="trash-outline" size={20} color="#ef4444" />
+          </Pressable>
+        </>
+      )}
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useCustomColorScheme();
@@ -923,18 +1126,7 @@ export default function SettingsScreen() {
 
           {/* Calendar */}
           <SectionCard title="Calendar">
-            <NavRow
-              title="Google Calendar Sync"
-              subtitle="Export your games and events to Google Calendar"
-              isLast
-              onPress={() => {
-                Alert.alert(
-                  'Google Calendar Sync',
-                  'Coming soon: Connect your Google Calendar to automatically sync VarsityHub games and events.',
-                  [{ text: 'OK', style: 'default' }]
-                );
-              }}
-            />
+            <CalendarSyncSection />
           </SectionCard>
 
           {/* Session */}
