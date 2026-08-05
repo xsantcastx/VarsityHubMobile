@@ -871,10 +871,11 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
             // Send payment receipt (PDF Note 8 — restored from 87aeafa0)
             const adForEmail = await prisma.ad.findUnique({
               where: { id: adId },
-              select: { business_name: true, target_zip_code: true },
+              select: { business_name: true, target_zip_code: true, contact_email: true },
             });
             sendAdPaymentEmail({
               userId: meta.user_id || null,
+              contactEmail: adForEmail?.contact_email || null,
               adId,
               dates: piDates,
               totalCents: pi.amount,
