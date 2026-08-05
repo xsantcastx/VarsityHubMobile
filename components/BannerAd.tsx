@@ -163,6 +163,15 @@ export function BannerAd({
     return getRotateFitScale(rotation, layout.width, layout.height);
   }, [base, rotation, layout.width, layout.height]);
 
+  // Measured aspect ratio of the loaded image. For the default 'contain' fit we
+  // size the box to the image's OWN ratio so there are no letterbox bars — a
+  // fixed extreme box (e.g. 3.5:1) made a normal banner sit in a sea of empty
+  // space. Clamped to a sane band so an unusually tall/wide creative can't
+  // dominate the feed or render as a sliver. Explicit non-contain fits
+  // (cover/fill/rotate, chosen by the advertiser) keep the caller's aspectRatio.
+  const [intrinsicRatio, setIntrinsicRatio] = useState<number | null>(null);
+  const effectiveAspectRatio = base === 'contain' && intrinsicRatio ? intrinsicRatio : aspectRatio;
+
   // If no banner URL, show placeholder
   if (!bannerUrl) {
     return (
@@ -198,7 +207,7 @@ export function BannerAd({
       style={({ pressed }) => [
         styles.container,
         {
-          aspectRatio,
+          aspectRatio: effectiveAspectRatio,
           backgroundColor: Colors[colorScheme].surface,
           borderColor: Colors[colorScheme].border,
           opacity: pressed ? 0.8 : 1,
@@ -225,6 +234,15 @@ export function BannerAd({
             },
         ]}
         contentFit={getContentFit()}
+        onLoad={e => {
+          const w = e?.source?.width;
+          const h = e?.source?.height;
+          if (w && h) {
+            // Clamp to [0.8, 2.5] — squares and standard banners pass through;
+            // extreme creatives are bounded so one ad can't own the viewport.
+            setIntrinsicRatio(Math.min(Math.max(w / h, 0.8), 2.5));
+          }
+        }}
       />
 
       {/* "Tap to visit" overlay — top-left */}
