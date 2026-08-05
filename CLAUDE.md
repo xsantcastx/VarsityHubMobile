@@ -195,6 +195,10 @@ npm run verify:error-envelope   # no raw res.status().json()
 npm run audit:navigation        # classify all router.replace calls; flag REVIEW items
 ```
 
+**NEVER bypass the commit guardrails.** Do not run `git commit --no-verify` (or `-n`), and do not disable the pre-commit / pre-push hooks. Those hooks run tsc-files, eslint, prettier, conflict-marker and secret scans on staged files — bypassing them has shipped un-typechecked, unformatted, and secret-leaking commits. If a hook blocks you, fix the cause; never skip it. `main` has no server-side branch protection, so the local hooks are the only gate before Railway deploys to prod.
+
+**NEVER claim verification you did not run.** "TypeScript passes" means you ran BOTH `npx tsc --noEmit` (client) AND `npx tsc --noEmit --project server/tsconfig.json` (server) in a tree that HAS `node_modules`, and saw 0 errors — not one, not "skipped due to tooling," not assumed. A git worktree created without `node_modules` cannot typecheck the client; install deps or verify in a tree that can. The same rule holds for tests, lint, and "route reachable" claims: state what you actually ran and what it output, or don't claim it.
+
 ## Known Quirks
 
 - Local `server/.env` has placeholder Cloudinary creds — uploads only work in production
