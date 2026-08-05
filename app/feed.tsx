@@ -1914,7 +1914,10 @@ export default function FeedScreen() {
                   targetUrl={adData.target_url}
                   businessName={adData.business_name}
                   description={adData.description}
-                  aspectRatio={3.5}
+                  // Pre-load placeholder ratio only — a 'contain' ad snaps to
+                  // its image's true ratio on load (no letterbox bars). A wide
+                  // 3.5:1 box here just wasted vertical space around the image.
+                  aspectRatio={16 / 9}
                 />
               ) : (
                 <View
