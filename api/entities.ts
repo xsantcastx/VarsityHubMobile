@@ -1084,6 +1084,14 @@ export const Search = {
   },
 };
 
+export const Calendar = {
+  syncStatus: () => httpGet('/calendar/sync-status'),
+  connect: (code: string, state?: string) =>
+    httpPost('/calendar/connect', { code, state }),
+  disconnect: () => httpPost('/calendar/disconnect', {}),
+  sync: () => httpPost('/calendar/sync', {}),
+};
+
 export const Highlights = {
   fetch: (
     params: {

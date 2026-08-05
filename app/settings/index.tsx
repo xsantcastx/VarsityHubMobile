@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { User } from '@/api/entities';
+import { User, Calendar } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
@@ -203,6 +203,7 @@ function SwitchRow({
  */
 function CalendarSyncSection() {
   const router = useRouter();
+  const colorScheme = useCustomColorScheme();
   const [calendarStatus, setCalendarStatus] = useState<{
     connected: boolean;
     lastSyncAt?: string;
@@ -218,18 +219,12 @@ function CalendarSyncSection() {
 
   const loadCalendarStatus = useCallback(async () => {
     try {
-      const response = await fetch('/v1/calendar/sync-status', {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setCalendarStatus(data);
-        setError(null);
-      }
+      const data = await Calendar.syncStatus();
+      setCalendarStatus(data);
+      setError(null);
     } catch (err) {
       console.error('[calendar] Failed to fetch status:', err);
-      setError('Could not load calendar status');
+      setError(toUserMessage(err));
     }
   }, []);
 
@@ -268,7 +263,7 @@ function CalendarSyncSection() {
       );
     } catch (err) {
       console.error('[calendar] Connect failed:', err);
-      setError('Failed to initiate connection');
+      setError(toUserMessage(err));
       setLoading(false);
     }
   }, [router]);
@@ -282,20 +277,13 @@ function CalendarSyncSection() {
         onPress: async () => {
           setLoading(true);
           try {
-            const response = await fetch('/v1/calendar/disconnect', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-            });
-            if (response.ok) {
-              setCalendarStatus({ connected: false });
-              setError(null);
-              Alert.alert('Disconnected', 'Google Calendar sync has been disabled.');
-            } else {
-              throw new Error('Failed to disconnect');
-            }
+            await Calendar.disconnect();
+            setCalendarStatus({ connected: false });
+            setError(null);
+            Alert.alert('Disconnected', 'Google Calendar sync has been disabled.');
           } catch (err) {
             console.error('[calendar] Disconnect failed:', err);
-            setError('Failed to disconnect');
+            setError(toUserMessage(err));
           } finally {
             setLoading(false);
           }
@@ -307,20 +295,12 @@ function CalendarSyncSection() {
   const handleSyncNow = useCallback(async () => {
     setSyncLoading(true);
     try {
-      const response = await fetch('/v1/calendar/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (response.ok) {
-        const result = await response.json();
-        Alert.alert('Sync Complete', `Synced ${result.synced} events.`);
-        void loadCalendarStatus();
-      } else {
-        throw new Error('Sync failed');
-      }
+      const result = await Calendar.sync();
+      Alert.alert('Sync Complete', `Synced ${result.synced || 0} events.`);
+      void loadCalendarStatus();
     } catch (err) {
       console.error('[calendar] Sync failed:', err);
-      setError('Failed to sync events');
+      setError(toUserMessage(err));
     } finally {
       setSyncLoading(false);
     }
@@ -343,8 +323,8 @@ function CalendarSyncSection() {
   return (
     <View>
       {error && (
-        <View style={[styles.errorContainer, { backgroundColor: '#fee2e2' }]}>
-          <Text style={[styles.errorText, { color: '#dc2626' }]}>{error}</Text>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
 
@@ -1723,5 +1703,33 @@ const styles = StyleSheet.create({
   deleteConfirmText: {
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  errorContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginBottom: 12,
+  },
+  errorText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  row: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  rowTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  rowSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
   },
 });
