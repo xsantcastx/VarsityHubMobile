@@ -1351,7 +1351,14 @@ gamesRouter.get(
             // the game, so they must be pulled through here — mirrors the
             // /events serializer (routes/events.ts). Null for non-pro events.
             include: {
-              proHomeTeam: { select: { primary_color: true } },
+              proHomeTeam: {
+                select: {
+                  primary_color: true,
+                  venue_lat: true,
+                  venue_lng: true,
+                  venue_name: true,
+                },
+              },
               proAwayTeam: { select: { primary_color: true } },
             },
           },
@@ -1436,6 +1443,11 @@ gamesRouter.get(
           // games; the client falls back to a deterministic gradient.
           pro_home_color: event?.proHomeTeam?.primary_color ?? null,
           pro_away_color: event?.proAwayTeam?.primary_color ?? null,
+          // Home-stadium coordinates power the pro card's satellite map preview
+          // (the game is played at the home team's venue). Null for non-pro.
+          pro_venue_lat: event?.proHomeTeam?.venue_lat ?? null,
+          pro_venue_lng: event?.proHomeTeam?.venue_lng ?? null,
+          pro_venue_name: event?.proHomeTeam?.venue_name ?? null,
           ...liveWindow,
           // Fixed: Prioritize game.banner_url over other sources
           banner_url: rest.banner_url || rest.cover_image_url || event?.banner_url || null,

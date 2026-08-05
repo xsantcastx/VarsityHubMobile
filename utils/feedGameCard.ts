@@ -59,3 +59,32 @@ export function proGameCardGradient(
   if (a) return [a, darken(a)];
   return null;
 }
+
+/**
+ * Google Static Maps image of a pro game's home stadium (hybrid = satellite
+ * imagery + labels, so the actual ballpark is recognizable from above). Used as
+ * the pro card backdrop — the real "stadium preview". Returns null when coords
+ * are missing or the maps key isn't configured, so the caller falls back to the
+ * team-color gradient. Requires the "Maps Static API" to be enabled on
+ * EXPO_PUBLIC_GOOGLE_MAPS_API_KEY; if it isn't, the image 404s and the card
+ * gracefully shows the gradient instead.
+ */
+export function stadiumMapImageUrl(lat?: number | null, lng?: number | null): string | null {
+  if (
+    typeof lat !== 'number' ||
+    typeof lng !== 'number' ||
+    Number.isNaN(lat) ||
+    Number.isNaN(lng) ||
+    (lat === 0 && lng === 0)
+  ) {
+    return null;
+  }
+  const key = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+  if (!key) return null;
+  const center = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+  return (
+    `https://maps.googleapis.com/maps/api/staticmap?center=${center}` +
+    `&zoom=16&size=640x360&scale=2&maptype=hybrid` +
+    `&markers=color:0xEF4444%7C${center}&key=${key}`
+  );
+}
