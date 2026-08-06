@@ -32,7 +32,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Event, Post } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
-import { safeGoBack } from '@/utils/navigation';
+import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
 import { promptForSignIn } from '@/utils/requireSignIn';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 
@@ -59,7 +59,7 @@ function PublicEventScreen() {
   useEffect(() => {
     if (redirectId) {
       // nav-safe: pure forwarder to the canonical rich event page — replace so it never sits in the back stack
-      router.replace(buildEventDetailRoute(redirectId));
+      replaceAsRedirect(router, buildEventDetailRoute(redirectId));
     }
   }, [redirectId, router]);
   const loadEventData = useCallback(async () => {

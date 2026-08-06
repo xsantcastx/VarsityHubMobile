@@ -10,7 +10,7 @@
  */
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { safeGoBack } from '@/utils/navigation';
+import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -40,7 +40,7 @@ export default function EventDetailScreen() {
         throw new Error('Event not found');
       }
       const linkedGameId = raw.game_id ?? raw.gameId;
-      router.replace(buildEventDetailRoute(String(raw.id), linkedGameId)); // nav-safe: canonical rich event/game page
+      replaceAsRedirect(router, buildEventDetailRoute(String(raw.id), linkedGameId)); // nav-safe: canonical rich event/game page
     } catch (e: any) {
       setError(e?.status === 404 ? 'Event not found.' : 'Unable to load event. Please try again.');
     }

@@ -100,6 +100,8 @@ type GameVM = {
   location: string | null;
   description?: string | null;
   bannerUrl?: string | null;
+  venuePhotoUrl?: string | null;
+  venuePhotoCredit?: string | null;
   homeTeam?: string | null;
   awayTeam?: string | null;
   appearance?: string | null;
@@ -131,6 +133,17 @@ const ensureIso = (value: any) => {
   if (typeof value === 'string') return value;
   if (value instanceof Date) return value.toISOString();
   return null;
+};
+
+const getVenuePhoto = (value: unknown): { url: string | null; credit: string | null } => {
+  if (!value || typeof value !== 'object') {
+    return { url: null, credit: null };
+  }
+  const record = value as { url?: unknown; credit?: unknown };
+  return {
+    url: typeof record.url === 'string' ? record.url : null,
+    credit: typeof record.credit === 'string' ? record.credit : null,
+  };
 };
 
 const formatDateLabel = (iso?: string | null) => {
@@ -704,6 +717,8 @@ const GameDetailsScreen = () => {
       let location: string | null = null;
       let description: string | null = null;
       let bannerCandidate: string | null = null;
+      let venuePhotoUrl: string | null = null;
+      let venuePhotoCredit: string | null = null;
       let cover: string | null = null;
       let capacity: number | null = null;
       let rsvpCount: number | null = null;
@@ -723,6 +738,16 @@ const GameDetailsScreen = () => {
         location = summary.location ?? summary.event?.location ?? null;
         description = summary.description ?? null;
         bannerCandidate = summary.bannerUrl ?? null;
+        const summaryVenuePhoto =
+          (summary as any)?.venue_photo ?? (summary as any)?.event?.venue_photo;
+        if (summaryVenuePhoto && typeof summaryVenuePhoto === 'object') {
+          venuePhotoUrl =
+            typeof summaryVenuePhoto.url === 'string' ? summaryVenuePhoto.url : venuePhotoUrl;
+          venuePhotoCredit =
+            typeof summaryVenuePhoto.credit === 'string'
+              ? summaryVenuePhoto.credit
+              : venuePhotoCredit;
+        }
         cover = summary.coverImageUrl ?? null;
         capacity =
           typeof summary.capacity === 'number'
@@ -763,6 +788,12 @@ const GameDetailsScreen = () => {
         location = gameRecord.location || null;
         description = gameRecord.description || null;
         bannerCandidate = gameRecord.banner_url || null; // Check game banner_url first
+        const recordVenuePhoto = (gameRecord as any)?.venue_photo;
+        if (recordVenuePhoto && typeof recordVenuePhoto === 'object') {
+          venuePhotoUrl = typeof recordVenuePhoto.url === 'string' ? recordVenuePhoto.url : null;
+          venuePhotoCredit =
+            typeof recordVenuePhoto.credit === 'string' ? recordVenuePhoto.credit : null;
+        }
         cover = gameRecord.cover_image_url || null;
         dateIso = ensureIso(gameRecord.date) ?? null;
         title = gameRecord.title || '';
@@ -814,6 +845,7 @@ const GameDetailsScreen = () => {
       if (!bannerCandidate && summary?.event?.banner_url)
         bannerCandidate = summary.event.banner_url;
       if (!bannerCandidate && gameRecord?.banner_url) bannerCandidate = gameRecord.banner_url; // Fallback to game banner
+      if (!bannerCandidate && venuePhotoUrl) bannerCandidate = venuePhotoUrl;
 
       let deferredEventPromise: Promise<any> | null = null;
       let deferredRsvpPromise: Promise<any> | null = null;
@@ -880,6 +912,8 @@ const GameDetailsScreen = () => {
         location,
         description,
         bannerUrl: bannerCandidate,
+        venuePhotoUrl,
+        venuePhotoCredit,
         appearance,
         coverImageUrl: cover,
         homeTeam,
@@ -910,10 +944,18 @@ const GameDetailsScreen = () => {
           if (!eventDetails) return;
           setVm(prev => {
             if (!prev || prev.gameId !== gameIdValue) return prev;
+            const eventVenuePhoto = getVenuePhoto(eventDetails.venue_photo);
             return {
               ...prev,
               location: prev.location || eventDetails.location || null,
-              bannerUrl: prev.bannerUrl || eventDetails.banner_url || null,
+              bannerUrl:
+                prev.bannerUrl ||
+                eventDetails.banner_url ||
+                eventDetails.cover_image_url ||
+                eventVenuePhoto.url ||
+                null,
+              venuePhotoUrl: prev.venuePhotoUrl || eventVenuePhoto.url,
+              venuePhotoCredit: prev.venuePhotoCredit || eventVenuePhoto.credit,
               appearance: prev.appearance || (eventDetails as any)?.appearance || null,
               capacity:
                 typeof prev.capacity === 'number'
@@ -987,6 +1029,7 @@ const GameDetailsScreen = () => {
         replaceToCanonicalGame(String(event.game_id));
         return;
       }
+      const eventVenuePhoto = getVenuePhoto((event as any)?.venue_photo);
       const dateIso = ensureIso(event?.date) ?? new Date().toISOString();
       const vmPayload: GameVM = {
         id: `event-${eventIdValue}`,
@@ -996,7 +1039,9 @@ const GameDetailsScreen = () => {
         date: dateIso,
         location: event?.location || null,
         description: event?.description || null,
-        bannerUrl: event?.banner_url || event?.cover_image_url || null,
+        bannerUrl: event?.banner_url || event?.cover_image_url || eventVenuePhoto.url || null,
+        venuePhotoUrl: eventVenuePhoto.url,
+        venuePhotoCredit: eventVenuePhoto.credit,
         coverImageUrl: event?.cover_image_url || null,
         homeTeam: null,
         awayTeam: null,
@@ -2048,6 +2093,11 @@ const GameDetailsScreen = () => {
     // event matches what ships to the detail page.
     const bannerHeight = isHero ? 320 : 240;
 
+    const venueCreditForVisibleBanner =
+      bannerImageUrl && vm?.venuePhotoUrl && bannerImageUrl === vm.venuePhotoUrl
+        ? vm.venuePhotoCredit || null
+        : null;
+
     const heroBanner =
       bannerImageUrl && !isHero ? (
         // Tap a real photo banner to open it fullscreen with pinch-to-zoom.
@@ -2098,6 +2148,13 @@ const GameDetailsScreen = () => {
     return (
       <View style={[styles.bannerWrapper, { height: bannerHeight }]}>
         {heroBanner}
+        {venueCreditForVisibleBanner ? (
+          <View style={styles.bannerCreditChip}>
+            <Text style={styles.bannerCreditText} numberOfLines={2}>
+              {venueCreditForVisibleBanner}
+            </Text>
+          </View>
+        ) : null}
         <FullscreenImageViewer
           visible={bannerPreviewOpen}
           uri={bannerImageUrl}
@@ -3509,6 +3566,23 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
       backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#eff6ff',
     },
     bannerImage: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+    bannerCreditChip: {
+      position: 'absolute',
+      left: 12,
+      right: 12,
+      bottom: 10,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      zIndex: 5,
+    },
+    bannerCreditText: {
+      color: '#FFFFFF',
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: '600',
+    },
     bannerShade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0 },
     headerWrap: {
       position: 'absolute',

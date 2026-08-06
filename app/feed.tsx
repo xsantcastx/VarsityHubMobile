@@ -49,6 +49,7 @@ import {
   type FeedGameQueryPlan,
 } from '@/utils/feedGameQueries';
 import { getDeterministicGameCardGradient, proGameCardGradient } from '@/utils/feedGameCard';
+import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { getLiveBounds, isGameLive, isGameOver, shouldPinToFeed } from '@/utils/liveWindow';
 import {
   FEST_RECAP_GAME_IDS,
@@ -1284,7 +1285,7 @@ export default function FeedScreen() {
       if (item.source_type === 'event') {
         const eventId = item.event_id || item.id;
         if (!eventId) return;
-        void router.push({ pathname: '/event-detail', params: { id: eventId } });
+        void router.push(buildEventDetailRoute(eventId));
         return;
       }
       void router.push({ pathname: '/game/[id]', params: { id: item.id } });
