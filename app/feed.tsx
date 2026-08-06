@@ -194,6 +194,57 @@ function dedupeFeedEntities(items: GameItem[]): GameItem[] {
   return Array.from(byKey.values());
 }
 
+function parseMatchupSides(title?: string | null): [string, string] | null {
+  const raw = String(title || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!raw) return null;
+  const parts = raw.split(/\s+(?:at|vs|v)\s+/i);
+  if (parts.length !== 2) return null;
+  return [parts[0].trim(), parts[1].trim()];
+}
+
+function normalizeTeamTail(team: string): string {
+  const tokens = team.split(' ').filter(Boolean);
+  if (tokens.length === 0) return '';
+  if (tokens.length >= 2 && ['red', 'white', 'blue', 'trail'].includes(tokens[tokens.length - 2])) {
+    return `${tokens[tokens.length - 2]} ${tokens[tokens.length - 1]}`;
+  }
+  return tokens[tokens.length - 1];
+}
+
+function buildMatchupSignature(item: GameItem): string | null {
+  const sides = parseMatchupSides(item.title);
+  if (!sides) return null;
+  const dateMs = Date.parse(item.date || '');
+  if (!Number.isFinite(dateMs)) return null;
+  const roundedThirtyMinutes = Math.floor(dateMs / (30 * 60 * 1000));
+  const venue = String(item.location || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+  if (!venue) return null;
+  return `${roundedThirtyMinutes}|${venue}|${normalizeTeamTail(sides[0])}|${normalizeTeamTail(sides[1])}`;
+}
+
+function filterProEventsAlreadyRepresentedByGames(
+  gameRows: GameItem[],
+  proEventRows: GameItem[]
+): GameItem[] {
+  const gameSignatures = new Set(
+    gameRows
+      .map(item => buildMatchupSignature(item))
+      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+  );
+  return proEventRows.filter(eventRow => {
+    const signature = buildMatchupSignature(eventRow);
+    if (!signature) return true;
+    return !gameSignatures.has(signature);
+  });
+}
+
 // RSVP Badge Component
 const RSVPBadge = ({
   gameItem,
@@ -944,16 +995,29 @@ export default function FeedScreen() {
 
         const upcomingPage = normalizeGamesPage(upcomingData);
         let cursor = upcomingPage.cursor;
+        const gameRows = [
+          ...normalizeGamesPage(pastGamesData).games,
+          ...upcomingPage.games,
+          ...normalizeGamesPage(marqueeGamesData).games,
+        ];
+        const proPastRows = filterProEventsAlreadyRepresentedByGames(
+          gameRows,
+          normalizeProFeedEvents(proPastData)
+        );
+        const proUpcomingRows = filterProEventsAlreadyRepresentedByGames(
+          gameRows,
+          normalizeProFeedEvents(proUpcomingData)
+        );
+        const proWweRows = filterProEventsAlreadyRepresentedByGames(
+          gameRows,
+          normalizeProFeedEvents(proWweUpcomingData, 'wwe')
+        );
+        const proNflRows = filterProEventsAlreadyRepresentedByGames(
+          gameRows,
+          normalizeProFeedEvents(proNflUpcomingData, 'nfl')
+        );
         let normalizedGames = dedupeFeedEntities(
-          mergeFeedGames(
-            normalizeGamesPage(pastGamesData).games,
-            upcomingPage.games,
-            normalizeGamesPage(marqueeGamesData).games,
-            normalizeProFeedEvents(proPastData),
-            normalizeProFeedEvents(proUpcomingData),
-            normalizeProFeedEvents(proWweUpcomingData, 'wwe'),
-            normalizeProFeedEvents(proNflUpcomingData, 'nfl')
-          )
+          mergeFeedGames(gameRows, proPastRows, proUpcomingRows, proWweRows, proNflRows)
         );
 
         // Post-fest recap pin (owner ask 2026-07-20): once Fanatics Fest is fully
