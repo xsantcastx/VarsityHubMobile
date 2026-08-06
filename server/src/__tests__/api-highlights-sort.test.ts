@@ -11,7 +11,7 @@
  *   Trending = the whole app's recent posts ranked by ENGAGEMENT; location
  *              does NOT matter (2026-07-20, superseding the 2026-07-16
  *              proximity rule — Highlights covers every user in the app).
- *   Top      = top 10 by engagement THIS CALENDAR MONTH (2026-07-16).
+ *   Top      = top 10 by engagement over the last 30 days (rolling window).
  *
  * Each describe uses a unique country code so ordering assertions are isolated
  * from other test data.
@@ -69,15 +69,6 @@ async function createPost(
       deleted_at: null,
     },
   });
-}
-
-/**
- * Start of the current UTC calendar month — the Top tab's window. Mirrors the
- * route so the test moves with the calendar instead of pinning a fixed date.
- */
-function monthStart(): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
 beforeAll(async () => {
@@ -190,17 +181,16 @@ describe('GET /highlights?v2=1&sort=recent — block filter applies (country IS)
 });
 
 /**
- * Owner rule (Fanatics Fest punch list, 2026-07-16):
- *   "top should top 10 post with the most engagement that month."
- * CALENDAR month, and exactly 10 — not a rolling 30-day window, and not a
- * client-tunable page size.
+ * Owner rule:
+ *   top should show the top 10 posts by engagement over the last 30 days.
+ * Window = rolling 30 days, and exactly 10 — not a client-tunable page size.
  */
 describe('GET /highlights?v2=1&sort=top — country FJ', () => {
   let authorId: string;
   let commentHeavyPost: string; // 2 upvotes + 4 comments = engagement 8
   let upvoteOnlyPost: string; // 5 upvotes = engagement 5
-  let lastMonthViralPost: string; // 1ms before this month — must never appear
-  let monthStartPost: string; // exactly at monthStart — must appear (inclusive)
+  let withinWindowViralPost: string; // 29 days old — inside 30-day window, must appear
+  let olderThanWindowViralPost: string; // 31 days old — outside 30-day window, must not appear
   const cleanup: string[] = [];
   const commentIds: string[] = [];
 
@@ -209,17 +199,19 @@ describe('GET /highlights?v2=1&sort=top — country FJ', () => {
     authorId = author.id;
     commentHeavyPost = (await createPost(authorId, 'FJ', { upvotes: 2, createdAt: new Date() })).id;
     upvoteOnlyPost = (await createPost(authorId, 'FJ', { upvotes: 5, createdAt: new Date() })).id;
-    // The exact boundary: the final millisecond of the previous calendar month.
-    // Under the old rolling-30-day rule this 900-upvote post dominated Top for
-    // the first ~29 days of every month.
-    lastMonthViralPost = (
+    withinWindowViralPost = (
       await createPost(authorId, 'FJ', {
         upvotes: 900,
-        createdAt: new Date(monthStart().getTime() - 1),
+        createdDaysAgo: 29,
       })
     ).id;
-    monthStartPost = (await createPost(authorId, 'FJ', { upvotes: 1, createdAt: monthStart() })).id;
-    cleanup.push(commentHeavyPost, upvoteOnlyPost, lastMonthViralPost, monthStartPost);
+    olderThanWindowViralPost = (
+      await createPost(authorId, 'FJ', {
+        upvotes: 1200,
+        createdDaysAgo: 31,
+      })
+    ).id;
+    cleanup.push(commentHeavyPost, upvoteOnlyPost, withinWindowViralPost, olderThanWindowViralPost);
     for (let i = 0; i < 4; i++) {
       const c = await prisma.comment.create({
         data: { post_id: commentHeavyPost, author_id: authorId, content: `comment ${i}` },
@@ -242,14 +234,14 @@ describe('GET /highlights?v2=1&sort=top — country FJ', () => {
     expect(ids.indexOf(commentHeavyPost)).toBeLessThan(ids.indexOf(upvoteOnlyPost));
   });
 
-  it('excludes last calendar month, even 1ms before the boundary and even when viral', async () => {
+  it('includes viral posts inside the rolling 30-day window', async () => {
     const res = await request(app).get('/highlights?v2=1&country=FJ&sort=top');
-    expect(res.body.items.map((p: any) => p.id)).not.toContain(lastMonthViralPost);
+    expect(res.body.items.map((p: any) => p.id)).toContain(withinWindowViralPost);
   });
 
-  it('includes a post created exactly at the month boundary (gte, not gt)', async () => {
+  it('excludes viral posts older than 30 days', async () => {
     const res = await request(app).get('/highlights?v2=1&country=FJ&sort=top');
-    expect(res.body.items.map((p: any) => p.id)).toContain(monthStartPost);
+    expect(res.body.items.map((p: any) => p.id)).not.toContain(olderThanWindowViralPost);
   });
 
   it('caps at exactly 10 — ?limit= must never widen it', async () => {
