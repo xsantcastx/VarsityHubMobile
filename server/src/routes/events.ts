@@ -14,6 +14,7 @@ import {
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
 import { renderReviewPage, renderResultPage, renderFinalStatePage } from '../lib/reviewPage.js';
 import { debugLog } from '../lib/debugLog.js';
+import { sendError } from '../lib/http/sendError.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { proLeagueToSport } from '../lib/proSchedule/leagueSport.js';
 import { geocodeLocation } from '../lib/geocoding.js';
@@ -52,6 +53,7 @@ registerIdValidation(eventsRouter);
  *  raise if/when production traces show a real ceiling. */
 const RSVP_FANOUT_LIMIT = 50_000;
 const RSVP_FANOUT_BATCH = 200;
+const PRO_LEAGUES = ['nfl', 'nba', 'wnba', 'mlb', 'wwe'] as const;
 const encodeEventRsvpCursor = (row: { created_at: Date | string; id: string }) => {
   const createdAt =
     row.created_at instanceof Date
@@ -424,6 +426,12 @@ eventsRouter.get(
     const proOnly =
       String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
     const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
+    const proLeagueRaw =
+      typeof req.query.pro_league === 'string' ? req.query.pro_league.trim().toLowerCase() : '';
+    if (proLeagueRaw && !PRO_LEAGUES.includes(proLeagueRaw as (typeof PRO_LEAGUES)[number])) {
+      return sendError(res, 400, 'Invalid pro_league');
+    }
+    const proLeague = proLeagueRaw as (typeof PRO_LEAGUES)[number] | '';
 
     const where: any = {};
     if (status) where.status = status;
@@ -452,6 +460,15 @@ eventsRouter.get(
       where.AND = where.AND || [];
       where.AND.push({
         OR: [{ pro_home_team_id: { not: null } }, { pro_away_team_id: { not: null } }],
+      });
+    }
+    if (proLeague) {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { proHomeTeam: { is: { league: proLeague } } },
+          { proAwayTeam: { is: { league: proLeague } } },
+        ],
       });
     }
     if (search) {

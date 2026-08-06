@@ -760,102 +760,149 @@ export default function FeedScreen() {
         // curated/marquee events (no real team matchup — e.g. Fanatics Fest)
         // are best effort: a failure just means that section is empty this
         // load, never blocks or errors the main games list.
-        const [upcomingData, pastGamesData, marqueeGamesData, proUpcomingData, proPastData] =
-          await Promise.all([
-            queryClient
-              .fetchQuery({
-                queryKey: [
-                  'feed-games-upcoming',
-                  queryPlan.upcoming.options.dateFrom,
-                  viewerCoords?.lat ?? null,
-                  viewerCoords?.lng ?? null,
-                ],
-                queryFn: () => Game.list(queryPlan.upcoming.sort, queryPlan.upcoming.options),
-              })
-              .catch((err: any) => {
-                if (__DEV__) console.error('[Feed] Failed to load games:', err);
-                // If it's a network error, show a more helpful message
-                if (err?.isNetworkError || err?.status === 0) {
-                  setError('Unable to connect to server. Please check your internet connection.');
-                } else if (err?.status === 401 || err?.status === 403) {
-                  setError('Unable to load games right now.');
-                } else {
-                  setError('Unable to load games. Please try again.');
-                }
-                return null;
-              }),
-            queryClient
-              .fetchQuery({
-                queryKey: [
-                  'feed-games-past',
-                  queryPlan.past.options.dateFrom,
-                  viewerCoords?.lat ?? null,
-                  viewerCoords?.lng ?? null,
-                ],
-                queryFn: () => Game.list(queryPlan.past.sort, queryPlan.past.options),
-              })
-              .catch((err: any) => {
-                if (__DEV__) console.warn('[Feed] Failed to load past games:', err);
-                return null;
-              }),
-            queryClient
-              .fetchQuery({
-                queryKey: [
-                  'feed-games-marquee',
-                  queryPlan.marquee.options.dateFrom,
-                  viewerCoords?.lat ?? null,
-                  viewerCoords?.lng ?? null,
-                ],
-                queryFn: () => Game.list(queryPlan.marquee.sort, queryPlan.marquee.options),
-              })
-              .catch((err: any) => {
-                if (__DEV__) console.warn('[Feed] Failed to load marquee games:', err);
-                return null;
-              }),
-            queryClient
-              .fetchQuery({
-                queryKey: ['feed-pro-events-upcoming', queryPlan.upcoming.options.dateFrom],
-                queryFn: () =>
-                  Event.filter(
-                    {
-                      event_type: 'game',
-                      pro_only: true,
-                      event_only: true,
-                      from: queryPlan.upcoming.options.dateFrom,
-                    },
-                    'date',
-                    30
-                  ),
-              })
-              .catch((err: any) => {
-                if (__DEV__) console.warn('[Feed] Failed to load pro upcoming events:', err);
-                return null;
-              }),
-            queryClient
-              .fetchQuery({
-                queryKey: [
-                  'feed-pro-events-past',
-                  queryPlan.past.options.dateFrom,
-                  queryPlan.past.options.dateTo ?? null,
-                ],
-                queryFn: () =>
-                  Event.filter(
-                    {
-                      event_type: 'game',
-                      pro_only: true,
-                      event_only: true,
-                      from: queryPlan.past.options.dateFrom,
-                      to: queryPlan.past.options.dateTo,
-                    },
-                    '-date',
-                    30
-                  ),
-              })
-              .catch((err: any) => {
-                if (__DEV__) console.warn('[Feed] Failed to load pro past events:', err);
-                return null;
-              }),
-          ]);
+        const [
+          upcomingData,
+          pastGamesData,
+          marqueeGamesData,
+          proUpcomingData,
+          proPastData,
+          proWweUpcomingData,
+          proNflUpcomingData,
+        ] = await Promise.all([
+          queryClient
+            .fetchQuery({
+              queryKey: [
+                'feed-games-upcoming',
+                queryPlan.upcoming.options.dateFrom,
+                viewerCoords?.lat ?? null,
+                viewerCoords?.lng ?? null,
+              ],
+              queryFn: () => Game.list(queryPlan.upcoming.sort, queryPlan.upcoming.options),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.error('[Feed] Failed to load games:', err);
+              // If it's a network error, show a more helpful message
+              if (err?.isNetworkError || err?.status === 0) {
+                setError('Unable to connect to server. Please check your internet connection.');
+              } else if (err?.status === 401 || err?.status === 403) {
+                setError('Unable to load games right now.');
+              } else {
+                setError('Unable to load games. Please try again.');
+              }
+              return null;
+            }),
+          queryClient
+            .fetchQuery({
+              queryKey: [
+                'feed-games-past',
+                queryPlan.past.options.dateFrom,
+                viewerCoords?.lat ?? null,
+                viewerCoords?.lng ?? null,
+              ],
+              queryFn: () => Game.list(queryPlan.past.sort, queryPlan.past.options),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load past games:', err);
+              return null;
+            }),
+          queryClient
+            .fetchQuery({
+              queryKey: [
+                'feed-games-marquee',
+                queryPlan.marquee.options.dateFrom,
+                viewerCoords?.lat ?? null,
+                viewerCoords?.lng ?? null,
+              ],
+              queryFn: () => Game.list(queryPlan.marquee.sort, queryPlan.marquee.options),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load marquee games:', err);
+              return null;
+            }),
+          queryClient
+            .fetchQuery({
+              queryKey: ['feed-pro-events-upcoming', queryPlan.upcoming.options.dateFrom],
+              queryFn: () =>
+                Event.filter(
+                  {
+                    event_type: 'game',
+                    pro_only: true,
+                    event_only: true,
+                    from: queryPlan.upcoming.options.dateFrom,
+                  },
+                  'date',
+                  30
+                ),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load pro upcoming events:', err);
+              return null;
+            }),
+          queryClient
+            .fetchQuery({
+              queryKey: [
+                'feed-pro-events-past',
+                queryPlan.past.options.dateFrom,
+                queryPlan.past.options.dateTo ?? null,
+              ],
+              queryFn: () =>
+                Event.filter(
+                  {
+                    event_type: 'game',
+                    pro_only: true,
+                    event_only: true,
+                    from: queryPlan.past.options.dateFrom,
+                    to: queryPlan.past.options.dateTo,
+                  },
+                  '-date',
+                  30
+                ),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load pro past events:', err);
+              return null;
+            }),
+          queryClient
+            .fetchQuery({
+              queryKey: ['feed-pro-events-upcoming-wwe', queryPlan.upcoming.options.dateFrom],
+              queryFn: () =>
+                Event.filter(
+                  {
+                    event_type: 'game',
+                    pro_only: true,
+                    pro_league: 'wwe',
+                    event_only: true,
+                    from: queryPlan.upcoming.options.dateFrom,
+                  },
+                  'date',
+                  30
+                ),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load WWE upcoming events:', err);
+              return null;
+            }),
+          queryClient
+            .fetchQuery({
+              queryKey: ['feed-pro-events-upcoming-nfl', queryPlan.upcoming.options.dateFrom],
+              queryFn: () =>
+                Event.filter(
+                  {
+                    event_type: 'game',
+                    pro_only: true,
+                    pro_league: 'nfl',
+                    event_only: true,
+                    from: queryPlan.upcoming.options.dateFrom,
+                  },
+                  'date',
+                  30
+                ),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load NFL upcoming events:', err);
+              return null;
+            }),
+        ]);
 
         const upcomingPage = normalizeGamesPage(upcomingData);
         let cursor = upcomingPage.cursor;
@@ -864,7 +911,9 @@ export default function FeedScreen() {
           upcomingPage.games,
           normalizeGamesPage(marqueeGamesData).games,
           normalizeProFeedEvents(proPastData),
-          normalizeProFeedEvents(proUpcomingData)
+          normalizeProFeedEvents(proUpcomingData),
+          normalizeProFeedEvents(proWweUpcomingData),
+          normalizeProFeedEvents(proNflUpcomingData)
         );
 
         // Post-fest recap pin (owner ask 2026-07-20): once Fanatics Fest is fully

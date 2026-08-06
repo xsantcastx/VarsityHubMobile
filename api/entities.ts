@@ -528,6 +528,7 @@ export const Event = {
       team_ids?: string[];
       following?: boolean;
       pro_only?: boolean;
+      pro_league?: 'nfl' | 'nba' | 'wnba' | 'mlb' | 'wwe';
       event_only?: boolean;
       from?: string;
       to?: string;
@@ -538,6 +539,7 @@ export const Event = {
     const q: string[] = [];
     if (where.following) q.push('following=true');
     if (where.pro_only) q.push('pro_only=true');
+    if (where.pro_league) q.push('pro_league=' + encodeURIComponent(where.pro_league));
     if (where.event_only) q.push('event_only=true');
     if (where.status) q.push('status=' + encodeURIComponent(where.status));
     if (where.approval_status)
