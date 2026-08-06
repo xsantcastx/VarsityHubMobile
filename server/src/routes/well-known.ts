@@ -31,20 +31,24 @@ const IOS_PATHS = [
   '/payment-success',
   '/payment-cancel',
 ] as const;
-const FALLBACK_AASA = JSON.stringify({
-  applinks: {
-    apps: [],
-    details: [
-      {
-        appID: IOS_APP_ID,
-        paths: [...IOS_PATHS],
-      },
-    ],
-  },
-  webcredentials: {
-    apps: [IOS_APP_ID],
-  },
-});
+function buildAasaPayload(): string {
+  return JSON.stringify({
+    applinks: {
+      apps: [],
+      details: [
+        {
+          appID: IOS_APP_ID,
+          paths: [...IOS_PATHS],
+        },
+      ],
+    },
+    webcredentials: {
+      apps: [IOS_APP_ID],
+    },
+  });
+}
+
+const FALLBACK_AASA = buildAasaPayload();
 const FALLBACK_ASSET_LINKS = JSON.stringify([
   {
     relation: ['delegate_permission/common.handle_all_urls'],
@@ -80,16 +84,22 @@ export function getWellKnownPayload(
   filename: 'apple-app-site-association' | 'assetlinks.json',
   baseCwd = process.cwd()
 ): string {
+  // AASA is generated from the canonical IOS_PATHS list so stale checked-in
+  // copies can never shadow the real universal-link contract in production.
+  if (filename === 'apple-app-site-association') {
+    return buildAasaPayload();
+  }
+
   const dir = resolveWellKnownDir(baseCwd);
   if (!dir) {
-    return filename === 'apple-app-site-association' ? FALLBACK_AASA : FALLBACK_ASSET_LINKS;
+    return FALLBACK_ASSET_LINKS;
   }
 
   const filePath = path.join(dir, filename);
   try {
     return fs.readFileSync(filePath, 'utf-8');
   } catch {
-    return filename === 'apple-app-site-association' ? FALLBACK_AASA : FALLBACK_ASSET_LINKS;
+    return FALLBACK_ASSET_LINKS;
   }
 }
 

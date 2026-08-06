@@ -1,0 +1,15 @@
+import { describe, expect, it } from '@jest/globals';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const source = readFileSync(
+  join(process.cwd(), 'app', 'game-details', 'GameDetailsScreen.tsx'),
+  'utf8'
+);
+
+describe('GameDetailsScreen banner fallback contract', () => {
+  it('never promotes attendee media into the event hero banner fallback', () => {
+    expect(source).toContain('vm.bannerUrl || vm.coverImageUrl || finalsBanner || null');
+    expect(source).not.toContain('media[0]?.url');
+  });
+});

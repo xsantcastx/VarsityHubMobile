@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import { describe, expect, it } from '@jest/globals';
 
 import { getWellKnownPayload, resolveWellKnownDir } from '../routes/well-known.js';
@@ -24,5 +25,25 @@ describe('resolveWellKnownDir', () => {
     expect(aasa.applinks.details[0].paths).toContain('/verify-email');
     expect(aasa.applinks.details[0].paths).toContain('/reset-password');
     expect(assetLinks[0].target.package_name).toBe('com.xsantcastx.varsityhub');
+  });
+
+  it('serves canonical AASA paths even when a stale on-disk file exists', () => {
+    const fixtureDir = path.join(process.cwd(), '__stale_well_known_fixture__');
+    fs.mkdirSync(fixtureDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(fixtureDir, 'apple-app-site-association'),
+      JSON.stringify({
+        applinks: { apps: [], details: [{ appID: 'stale', paths: ['/posts/*'] }] },
+        webcredentials: { apps: [] },
+      })
+    );
+
+    const aasa = JSON.parse(getWellKnownPayload('apple-app-site-association', fixtureDir));
+    expect(aasa.applinks.details[0].appID).toBe('B5H8F69RW5.com.varsithub.varsityhub-ios');
+    expect(aasa.applinks.details[0].paths).toContain('/programs/*');
+    expect(aasa.applinks.details[0].paths).toContain('/organizations/*');
+    expect(aasa.applinks.details[0].paths).toContain('/verify-email');
+
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
   });
 });

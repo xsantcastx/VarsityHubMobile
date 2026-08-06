@@ -167,12 +167,33 @@ describe('share-landing — OG metadata enrichment', () => {
       username: 'coach_c',
       bio: 'Westhill basketball, est. 1989',
       avatar_url: 'https://cdn.example.com/avatar.jpg',
+      deleted_at: null,
+      preferences: {},
     } as any);
 
     const res = await request(makeApp()).get('/users/u1').set('Accept', 'text/html');
 
     expect(res.text).toContain('@coach_c');
     expect(res.text).toContain('Westhill basketball, est. 1989');
+  });
+
+  it('private user landing falls back to the generic branded page', async () => {
+    const privateUser = {
+      display_name: 'Private Coach',
+      username: 'locked_coach',
+      bio: 'Should not leak',
+      avatar_url: 'https://cdn.example.com/private-avatar.jpg',
+      deleted_at: null,
+      preferences: { profile_private: true },
+    } as any;
+    userFindUnique.mockResolvedValue(privateUser);
+
+    const res = await request(makeApp()).get('/users/u-private').set('Accept', 'text/html');
+
+    expect(res.text).toContain('VarsityHub');
+    expect(res.text).toContain('Open in VarsityHub');
+    expect(res.text).not.toContain('@locked_coach');
+    expect(res.text).not.toContain('https://cdn.example.com/private-avatar.jpg');
   });
 
   it('falls back to generic OG tags when the resource is missing', async () => {

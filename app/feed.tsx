@@ -52,12 +52,6 @@ import { getDeterministicGameCardGradient, proGameCardGradient } from '@/utils/f
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { getLiveBounds, isGameLive, isGameOver, shouldPinToFeed } from '@/utils/liveWindow';
 import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
-import {
-  FEST_RECAP_GAME_IDS,
-  FEST_RECAP_PINNED,
-  isFanaticsFestGame,
-  isNycViewer,
-} from '@/utils/fanaticsFest';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { prefetchGameSummary } from '@/utils/prefetch';
 import {
@@ -104,8 +98,6 @@ type FeedItem =
   | { _t: 'location_prompt' }
   | { _t: 'seed_banner' }
   | { _t: 'game'; data: GameItem; idx: number }
-  | { _t: 'fest_header' }
-  | { _t: 'fest_game'; data: GameItem; idx: number }
   | { _t: 'pinned_game'; data: GameItem; idx: number }
   | { _t: 'ad'; ad: any | null; idx: number }
   | { _t: 'section_header'; title: string; key: string }
@@ -1020,39 +1012,6 @@ export default function FeedScreen() {
           mergeFeedGames(gameRows, proPastRows, proUpcomingRows, proWweRows, proNflRows)
         );
 
-        // Post-fest recap pin (owner ask 2026-07-20): once Fanatics Fest is fully
-        // over, its four days stop appearing in the general /games feed queries
-        // (marquee/upcoming are upcoming-only; the past recap excludes these
-        // teamless one-offs), so they vanished from the feed the day after. For
-        // NYC viewers, during the recap window, fetch the four days directly by id
-        // and merge them into the pool — the existing fest-pin memo then renders
-        // all four (Day 1 included). Best-effort: a failure just means no recap
-        // pin this load, never blocks the feed. Auto-fades (utils/fanaticsFest.ts).
-        if (
-          FEST_RECAP_PINNED &&
-          isNycViewer(
-            viewerCoords ? { latitude: viewerCoords.lat, longitude: viewerCoords.lng } : null,
-            me?.preferences?.zip_code
-          )
-        ) {
-          try {
-            const recapRaw = await Promise.all(
-              FEST_RECAP_GAME_IDS.map(id =>
-                queryClient
-                  .fetchQuery({ queryKey: ['feed-fest-recap', id], queryFn: () => Game.get(id) })
-                  .catch(() => null)
-              )
-            );
-            const seen = new Set((normalizedGames ?? []).map(g => String(g.id)));
-            const recapGames = recapRaw
-              .map((raw: any) => (raw && typeof raw === 'object' ? (raw.game ?? raw) : null))
-              .filter((g: any): g is GameItem => !!g && g.id != null && !seen.has(String(g.id)));
-            if (recapGames.length) normalizedGames = [...(normalizedGames ?? []), ...recapGames];
-          } catch (recapErr: any) {
-            if (__DEV__) console.warn('[feed] fest recap fetch failed:', recapErr?.message);
-          }
-        }
-
         // If no games exist, seed sample games as real DB records (stories/polls work)
         if ((!normalizedGames || normalizedGames.length === 0) && upcomingData !== null) {
           try {
@@ -1410,112 +1369,82 @@ export default function FeedScreen() {
 
   // Separate upcoming/live and past events
   // Events within the 2-hour live window stay in "upcoming" so they appear prominently
-  const { festPinnedEvents, pinnedEvents, spotlightProEvents, upcomingEvents, pastEvents } =
-    useMemo(() => {
-      const now = Date.now();
+  const { pinnedEvents, spotlightProEvents, upcomingEvents, pastEvents } = useMemo(() => {
+    const now = Date.now();
 
-      // NYC-area viewers get all four Fanatics Fest days pinned to the very top of
-      // their feed, in day order, so they can jump into today's day and reference
-      // the ones already past — including Day 1, whose posting window has closed
-      // (owner ask, 2026-07-17). Detected from device location or a saved NYC zip
-      // (utils/fanaticsFest.ts); a viewer we can't place in NYC is NOT fest-pinned
-      // and just sees the fest days in the normal upcoming/past flow below.
-      const nycViewer = isNycViewer(viewerPosition, me?.preferences?.zip_code);
-      const festStartMs = (game: GameItem) => {
-        const bounds = getLiveBounds(game);
-        if (bounds) return bounds.startsAt;
-        return game.date ? new Date(game.date).getTime() : NaN;
-      };
+    const upcoming: GameItem[] = [];
+    const past: GameItem[] = [];
 
-      const fest: GameItem[] = [];
-      const rest: GameItem[] = [];
-      filtered.forEach(game => {
-        if (nycViewer && isFanaticsFestGame(game)) fest.push(game);
-        else rest.push(game);
-      });
-      // Day 1 → Day 4 by server-authoritative start; unparseable dates sink last.
-      fest.sort((a, b) => {
-        const at = festStartMs(a);
-        const bt = festStartMs(b);
-        if (!Number.isFinite(at)) return 1;
-        if (!Number.isFinite(bt)) return -1;
-        return at - bt;
-      });
-
-      const upcoming: GameItem[] = [];
-      const past: GameItem[] = [];
-
-      rest.forEach(game => {
-        // A game stays "upcoming" until its live window actually closes, which is
-        // a server rule shipped on the payload (starts_at/live_from/live_until).
-        // The old check compared the game's own date against a fixed 2h window,
-        // so an all-day event (Fanatics Fest runs 18h) dropped into `past`
-        // two hours in — vanishing from the feed while fans were still posting.
-        // Defensive: an unparseable date yields null bounds; bucket those into
-        // upcoming, where dateless games already go, rather than silently past.
-        const bounds = getLiveBounds(game);
-        if (!bounds) {
-          upcoming.push(game);
-          return;
-        }
-        if (isGameOver(game, now)) past.push(game);
-        else upcoming.push(game);
-      });
-
-      // Sort: currently-live events first, then future events by ascending start time
-      upcoming.sort((a, b) => {
-        const aB = getLiveBounds(a);
-        const bB = getLiveBounds(b);
-        if (!aB) return 1;
-        if (!bB) return -1;
-        const aLive = isGameLive(a, now);
-        const bLive = isGameLive(b, now);
-        if (aLive && !bLive) return -1;
-        if (!aLive && bLive) return 1;
-        return aB.startsAt - bB.startsAt;
-      });
-
-      // Past Events: most recent first going down
-      past.sort((a, b) => {
-        if (!a.date) return 1;
-        if (!b.date) return -1;
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
-      });
-
-      // Owner rule (2026-07-16): "If an event is live and the user is at the
-      // location it should basically be pinned on the feed page." Lift those out
-      // of the normal upcoming flow so they render first, above the ad slot —
-      // a fan standing at the venue should never have to scroll to find the
-      // event they are currently attending.
-      const pinned: GameItem[] = [];
-      const unpinned: GameItem[] = [];
-      upcoming.forEach(game => {
-        if (shouldPinToFeed(game, viewerPosition, now)) pinned.push(game);
-        else unpinned.push(game);
-      });
-
-      // Root-cause fix (2026-08-05): WWE/NFL pro rows existed in payloads but
-      // were buried deep in global upcoming lists. Surface the next entry for
-      // each spotlight league at the top, then keep chronological order below.
-      const spotlight: GameItem[] = [];
-      const spotlightIds = new Set<string>();
-      for (const league of PRO_SPOTLIGHT_LEAGUES) {
-        const nextLeagueItem = unpinned.find(game => (game as any)?.pro_league === league);
-        if (nextLeagueItem && !spotlightIds.has(String(nextLeagueItem.id))) {
-          spotlight.push(nextLeagueItem);
-          spotlightIds.add(String(nextLeagueItem.id));
-        }
+    filtered.forEach(game => {
+      // A game stays "upcoming" until its live window actually closes, which is
+      // a server rule shipped on the payload (starts_at/live_from/live_until).
+      // The old check compared the game's own date against a fixed 2h window,
+      // so an all-day event dropped into `past` two hours in — vanishing from
+      // the feed while fans were still posting.
+      // Defensive: an unparseable date yields null bounds; bucket those into
+      // upcoming, where dateless games already go, rather than silently past.
+      const bounds = getLiveBounds(game);
+      if (!bounds) {
+        upcoming.push(game);
+        return;
       }
-      const remainingUpcoming = unpinned.filter(game => !spotlightIds.has(String(game.id)));
+      if (isGameOver(game, now)) past.push(game);
+      else upcoming.push(game);
+    });
 
-      return {
-        festPinnedEvents: fest,
-        pinnedEvents: pinned,
-        spotlightProEvents: spotlight,
-        upcomingEvents: remainingUpcoming,
-        pastEvents: past,
-      };
-    }, [filtered, viewerPosition, me?.preferences?.zip_code]);
+    // Sort: currently-live events first, then future events by ascending start time
+    upcoming.sort((a, b) => {
+      const aB = getLiveBounds(a);
+      const bB = getLiveBounds(b);
+      if (!aB) return 1;
+      if (!bB) return -1;
+      const aLive = isGameLive(a, now);
+      const bLive = isGameLive(b, now);
+      if (aLive && !bLive) return -1;
+      if (!aLive && bLive) return 1;
+      return aB.startsAt - bB.startsAt;
+    });
+
+    // Past Events: most recent first going down
+    past.sort((a, b) => {
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+
+    // Owner rule (2026-07-16): "If an event is live and the user is at the
+    // location it should basically be pinned on the feed page." Lift those out
+    // of the normal upcoming flow so they render first, above the ad slot —
+    // a fan standing at the venue should never have to scroll to find the
+    // event they are currently attending.
+    const pinned: GameItem[] = [];
+    const unpinned: GameItem[] = [];
+    upcoming.forEach(game => {
+      if (shouldPinToFeed(game, viewerPosition, now)) pinned.push(game);
+      else unpinned.push(game);
+    });
+
+    // Root-cause fix (2026-08-05): WWE/NFL pro rows existed in payloads but
+    // were buried deep in global upcoming lists. Surface the next entry for
+    // each spotlight league at the top, then keep chronological order below.
+    const spotlight: GameItem[] = [];
+    const spotlightIds = new Set<string>();
+    for (const league of PRO_SPOTLIGHT_LEAGUES) {
+      const nextLeagueItem = unpinned.find(game => (game as any)?.pro_league === league);
+      if (nextLeagueItem && !spotlightIds.has(String(nextLeagueItem.id))) {
+        spotlight.push(nextLeagueItem);
+        spotlightIds.add(String(nextLeagueItem.id));
+      }
+    }
+    const remainingUpcoming = unpinned.filter(game => !spotlightIds.has(String(game.id)));
+
+    return {
+      pinnedEvents: pinned,
+      spotlightProEvents: spotlight,
+      upcomingEvents: remainingUpcoming,
+      pastEvents: past,
+    };
+  }, [filtered, viewerPosition]);
 
   // Ad rotation timer logic (max 2 advertisers):
   // 1 ad: Show ad for 5 minutes, then placeholder for 15 seconds, repeat
@@ -1612,16 +1541,6 @@ export default function FeedScreen() {
   const feedItems = useMemo(() => {
     const items: FeedItem[] = [];
 
-    // Fanatics Fest weekend pinned to the top for NYC users — all four days in
-    // order under one header (owner ask, 2026-07-17). Sits above even the
-    // at-venue pin so the whole weekend is the first thing a NYC fan sees.
-    if (festPinnedEvents.length > 0) {
-      items.push({ _t: 'fest_header' });
-      festPinnedEvents.forEach((game, idx) => {
-        items.push({ _t: 'fest_game', data: game, idx });
-      });
-    }
-
     // An event the viewer is physically at, right now, outranks everything —
     // including the verify-email nudge. This is the "you're here, post to it"
     // surface (owner rule, 2026-07-16).
@@ -1712,7 +1631,6 @@ export default function FeedScreen() {
     hasDeviceLocation,
     sponsoredAds.length,
     showSeedBanner,
-    festPinnedEvents,
     pinnedEvents,
     spotlightProEvents,
     upcomingWithAds,
@@ -1868,10 +1786,6 @@ export default function FeedScreen() {
         return 'seed_banner';
       case 'game':
         return `game-${item.data.id}`;
-      case 'fest_header':
-        return 'fest_header';
-      case 'fest_game':
-        return `fest_game-${item.data.id}`;
       case 'pinned_game':
         return `pinned_game-${item.data.id}`;
       case 'ad':
@@ -1974,51 +1888,6 @@ export default function FeedScreen() {
           return (
             <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
               {renderGameCard(item.data, isGameLive(item.data), 'feed')}
-            </View>
-          );
-        }
-
-        case 'fest_header':
-          return (
-            <View style={{ paddingHorizontal: 16, marginBottom: 12, marginTop: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <MaterialIcons
-                  name="stars"
-                  size={16}
-                  color={Colors[colorScheme].tint}
-                  accessibilityElementsHidden
-                />
-                <Text
-                  style={{
-                    color: Colors[colorScheme].tint,
-                    fontSize: 13,
-                    fontWeight: '700',
-                    letterSpacing: 0.3,
-                  }}
-                >
-                  Fanatics Fest NYC 2026
-                </Text>
-              </View>
-              <Text
-                style={{
-                  color: Colors[colorScheme].mutedText,
-                  fontSize: 12,
-                  marginTop: 2,
-                }}
-              >
-                All four days at the Javits Center — tap a day to see highlights.
-              </Text>
-            </View>
-          );
-
-        case 'fest_game': {
-          // Whole weekend pinned for NYC users, in day order. Unlike the at-venue
-          // pin below, these are NOT forced live — Day 1's window has closed, so
-          // the card reflects its real state (isGameLive) and its own posting
-          // gate handles that a closed day can be viewed but not posted to.
-          return (
-            <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
-              {renderGameCard(item.data, isGameLive(item.data), 'feed-fest')}
             </View>
           );
         }

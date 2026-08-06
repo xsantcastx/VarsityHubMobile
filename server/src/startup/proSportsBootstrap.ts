@@ -3,6 +3,7 @@ import { ingestFixtures, ingestLeague } from '../lib/proSchedule/ingest.js';
 import { WWE_FIXTURES_2026 } from '../lib/proSchedule/wweSchedule2026.js';
 import { prisma } from '../lib/prisma.js';
 import { PRO_TEAM_SEED } from '../lib/proTeams.js';
+import { getProScheduleWindowDays } from '../lib/proSchedule/window.js';
 import type { ProLeague } from '@prisma/client';
 
 /**
@@ -49,13 +50,15 @@ export async function runProSportsBootstrap(): Promise<void> {
       );
     }
 
-    // 3) Ingest the ESPN leagues over a ~4-week window — NFL preseason is live
-    //    now, MLB in-season; NBA/WNBA return empty in the offseason (a valid
+    // 3) Ingest the ESPN leagues over a long enough window to cover the full
+    //    NFL preseason slate instead of just the next couple of weeks. MLB
+    //    remains in-season; NBA/WNBA return empty in the offseason (a valid
     //    result, not a failure). Home games resolve via the seeded team venue,
     //    so this works even if per-fixture geocoding is unavailable.
     const espn = espnAdapter();
+    const windowDays = getProScheduleWindowDays();
     const from = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-    const to = new Date(Date.now() + 28 * 24 * 60 * 60 * 1000);
+    const to = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000);
     for (const league of ['nfl', 'mlb', 'nba', 'wnba'] as ProLeague[]) {
       try {
         const s = await ingestLeague(espn, league, from, to);

@@ -66,6 +66,7 @@ describe('program share-landing', () => {
       name: null,
       logo_url: 'https://cdn.example.com/program-logo.jpg',
       organization: { name: 'Stamford High', admin_approved: true },
+      teams: [{ id: 't1' }],
     } as any);
 
     const res = await request(makeApp()).get('/programs/p1').set('Accept', 'text/html');
@@ -87,6 +88,7 @@ describe('program share-landing', () => {
       name: 'Lady Knights Basketball',
       logo_url: null,
       organization: { name: 'Stamford High', admin_approved: true },
+      teams: [{ id: 't1' }],
     } as any);
 
     const res = await request(makeApp()).get('/programs/p2').set('Accept', 'text/html');
@@ -100,6 +102,7 @@ describe('program share-landing', () => {
       name: null,
       logo_url: null,
       organization: { name: 'Westhill', admin_approved: true },
+      teams: [{ id: 't1' }],
     } as any);
 
     const res = await request(makeApp()).get('/programs/p3').set('Accept', 'text/html');
@@ -113,13 +116,14 @@ describe('program share-landing', () => {
       name: null,
       logo_url: null,
       organization: null,
+      teams: [{ id: 't1' }],
     } as any);
 
     const res = await request(makeApp()).get('/programs/p4').set('Accept', 'text/html');
 
-    expect(res.text).toContain('Soccer');
-    expect(res.text).not.toContain('undefined');
-    expect(res.text).not.toContain('null');
+    expect(res.text).toContain('VarsityHub');
+    expect(res.text).toContain('Open in VarsityHub');
+    expect(res.text).not.toContain('Soccer');
   });
 
   it('unknown-but-well-formed program id renders the generic branded landing (not a raw 404)', async () => {
@@ -137,12 +141,30 @@ describe('program share-landing', () => {
     expect(res.text).not.toContain('api-response'); // did not fall through to the stub API
   });
 
+  it('all-private-team programs fall back to the generic branded landing', async () => {
+    sportProgramFindUnique.mockResolvedValueOnce({
+      sport: 'basketball',
+      name: 'Private Hoops',
+      logo_url: 'https://cdn.example.com/private-program.jpg',
+      organization: { name: 'Stamford High', admin_approved: true },
+      teams: [],
+    } as any);
+
+    const res = await request(makeApp()).get('/programs/p-private').set('Accept', 'text/html');
+
+    expect(res.text).toContain('VarsityHub');
+    expect(res.text).toContain('Open in VarsityHub');
+    expect(res.text).not.toContain('Private Hoops');
+    expect(res.text).not.toContain('https://cdn.example.com/private-program.jpg');
+  });
+
   it('escapes HTML entities in the program label (no XSS)', async () => {
     sportProgramFindUnique.mockResolvedValueOnce({
       sport: 'basketball',
       name: '<script>alert(1)</script>',
       logo_url: null,
       organization: { name: 'Stamford High', admin_approved: true },
+      teams: [{ id: 't1' }],
     } as any);
 
     const res = await request(makeApp()).get('/programs/p5').set('Accept', 'text/html');
