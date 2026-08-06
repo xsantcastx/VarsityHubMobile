@@ -100,6 +100,28 @@ wait_for_log() {
   done
 }
 
+# --- Database: ensure a target DB is configured and fully migrated before boot ---
+# Both the API server AND the Playwright specs' own `new PrismaClient()` read
+# DATABASE_URL, so it must be exported here (not just left to the server's own
+# dotenv). An unmigrated local DB is the single biggest source of confusing 500s
+# in this suite — e.g. `column User.terms_accepted_at does not exist` makes auth
+# look broken when it is only schema drift — so migrate up-front and fail loudly
+# rather than booting against drift.
+export DATABASE_URL="${DATABASE_URL:-postgresql://localhost:5432/varsityhub_dev}"
+export JWT_SECRET="${JWT_SECRET:-test-jwt-secret-32-chars-minimum}"
+
+echo "[test:smoke] Applying database migrations (prisma migrate deploy)..."
+MIGRATE_LOG="$(mktemp -t varsityhub-smoke-migrate.XXXXXX.log)"
+if ! ( cd "$ROOT_DIR/server" && npx prisma migrate deploy ) >"$MIGRATE_LOG" 2>&1; then
+  echo "[test:smoke] prisma migrate deploy FAILED against DATABASE_URL=$DATABASE_URL"
+  echo "[test:smoke] Confirm the target Postgres is running and reachable, then retry."
+  echo "[test:smoke] --- migrate output ---"
+  cat "$MIGRATE_LOG" || true
+  rm -f "$MIGRATE_LOG"
+  exit 1
+fi
+rm -f "$MIGRATE_LOG"
+
 kill_repo_listener "4000" "API"
 kill_repo_listener "8081" "web"
 

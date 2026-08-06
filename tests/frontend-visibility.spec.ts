@@ -10,7 +10,7 @@ async function gotoAndWait(page: Page, path: string) {
 async function enableEmailSignUp(
   termsCheckbox: Locator,
   ageCheckbox: Locator,
-  emailSignupButton: Locator,
+  emailSignupButton: Locator
 ) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     if (await emailSignupButton.isEnabled()) {
@@ -51,36 +51,47 @@ test.describe('Front-End Visibility Tests', () => {
     const emailInput = page.getByTestId('sign-in-email');
     const submitButton = page.getByLabel('Sign In', { exact: true });
 
-    const titleFontSize = await title.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
-    const inputFontSize = await emailInput.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
-    const buttonFontSize = await submitButton.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
+    const titleFontSize = await title.evaluate(el =>
+      Number.parseFloat(getComputedStyle(el).fontSize)
+    );
+    const inputFontSize = await emailInput.evaluate(el =>
+      Number.parseFloat(getComputedStyle(el).fontSize)
+    );
+    const buttonFontSize = await submitButton.evaluate(el =>
+      Number.parseFloat(getComputedStyle(el).fontSize)
+    );
 
     expect(titleFontSize).toBeGreaterThanOrEqual(14);
     expect(inputFontSize).toBeGreaterThanOrEqual(14);
     expect(buttonFontSize).toBeGreaterThanOrEqual(14);
   });
 
-  test('Root route resolves to a visible auth surface without fatal console errors', async ({ page }) => {
+  test('Root route resolves to a visible auth surface without fatal console errors', async ({
+    page,
+  }) => {
     const consoleErrors: string[] = [];
 
-    page.on('console', (msg) => {
+    page.on('console', msg => {
       if (msg.type() === 'error') {
         consoleErrors.push(msg.text());
       }
     });
 
-    page.on('pageerror', (error) => {
+    page.on('pageerror', error => {
       consoleErrors.push(error.message);
     });
 
     await gotoAndWait(page, '');
 
     await expect(
-      page.getByText('Welcome back').or(page.getByRole('heading', { name: 'Create Account' })).first()
+      page
+        .getByText('Welcome back')
+        .or(page.getByRole('heading', { name: 'Create Account' }))
+        .first()
     ).toBeVisible();
 
     const criticalErrors = consoleErrors.filter(
-      (error) =>
+      error =>
         !error.includes('favicon') &&
         !error.includes('sourcemap') &&
         !error.includes('extension') &&
@@ -110,7 +121,9 @@ test.describe('Front-End Visibility Tests', () => {
     await expect(emailSignupButton).toBeEnabled();
   });
 
-  test('Create-account route reveals the email/password form after prerequisites are checked', async ({ page }) => {
+  test('Create-account route reveals the email/password form after prerequisites are checked', async ({
+    page,
+  }) => {
     await gotoAndWait(page, '/sign-up');
 
     const termsCheckbox = page.getByRole('checkbox', {
@@ -125,13 +138,17 @@ test.describe('Front-End Visibility Tests', () => {
     await emailSignupButton.click();
 
     await expect(page.getByLabel('Email')).toBeVisible();
-    await expect(page.getByLabel('Password')).toBeVisible();
+    // Stable testID: getByLabel('Password') matches the "Show password" toggle
+    // too (substring), so assert the field by its testID instead.
+    await expect(page.getByTestId('sign-up-password')).toBeVisible();
     await expect(page.getByLabel('Create account')).toBeVisible();
   });
 
-  test('Payment-success stays on the public handoff screen without bouncing anonymous users into auth', async ({ page }) => {
+  test('Payment-success stays on the public handoff screen without bouncing anonymous users into auth', async ({
+    page,
+  }) => {
     const consoleMessages: string[] = [];
-    page.on('console', (msg) => {
+    page.on('console', msg => {
       consoleMessages.push(msg.text());
     });
 
@@ -145,13 +162,15 @@ test.describe('Front-End Visibility Tests', () => {
     );
     expect(pageText).not.toContain('Create Account');
 
-    const redirectLogs = consoleMessages.filter((message) =>
+    const redirectLogs = consoleMessages.filter(message =>
       message.includes('Redirecting to /sign-up (unauthenticated)')
     );
     expect(redirectLogs).toHaveLength(0);
   });
 
-  test('Payment-cancel stays readable as a public screen for anonymous visitors', async ({ page }) => {
+  test('Payment-cancel stays readable as a public screen for anonymous visitors', async ({
+    page,
+  }) => {
     await gotoAndWait(page, '/payment-cancel?type=subscription');
 
     await expect(page).toHaveURL(/\/payment-cancel\?type=subscription$/);

@@ -1,88 +1,27 @@
 import 'dotenv/config';
 import { PrismaClient } from '../../server/node_modules/@prisma/client/index.js';
 import { test, expect } from '@playwright/test';
+import { createApprovedCoach as sharedCreateApprovedCoach } from '../e2e/helpers/apiTestUtils';
 
 /**
  * Posts API Integration Tests
- * 
+ *
  * Tests the posts endpoints for creating, reading, and managing posts.
  */
 
 const API_BASE_URL = process.env.API_URL || 'http://localhost:4000';
 const prisma = new PrismaClient();
 
-// Posts mutations now require a verified, onboarded, approved coach (or staff),
-// so smoke has to promote the registered user into that server-side state.
+// Posts mutations require a verified, onboarded, APPROVED coach. That server-side
+// promotion is centralized in `createApprovedCoach` (tests/e2e/helpers/apiTestUtils)
+// so the registration contract lives in exactly one place.
 async function createApprovedCoach(request: any) {
-  const idSuffix = Date.now().toString(36);
-  const testEmail = `posts-test-${Date.now()}@varsityhub-test.app`;
-  const testPassword = 'TestPassword123!';
-  const username = `pc${idSuffix}`.slice(0, 20);
-
-  const response = await request.post(`${API_BASE_URL}/auth/register`, {
-    data: {
-      email: testEmail,
-      password: testPassword,
-      display_name: 'Posts Test Coach',
-      role: 'coach',
-      dob: '1990-01-15',
-    },
+  return sharedCreateApprovedCoach({
+    request,
+    prisma,
+    apiBaseUrl: API_BASE_URL,
+    displayName: 'Posts Test Coach',
   });
-
-  expect(response.ok()).toBeTruthy();
-  const body = await response.json();
-  const { access_token, user, dev_verification_code } = body;
-
-  if (!dev_verification_code) {
-    throw new Error(
-      'ENABLE_DEV_CODES not set on API: smoke user registration did not return dev_verification_code, so posts API smoke cannot verify its test user.'
-    );
-  }
-
-  const verifyResponse = await request.post(`${API_BASE_URL}/auth/verify/confirm`, {
-    headers: { Authorization: `Bearer ${access_token}` },
-    data: { code: String(dev_verification_code) },
-  });
-  expect([200, 204, 429]).toContain(verifyResponse.status());
-
-  const now = new Date();
-  const currentUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { preferences: true },
-  });
-  const nextPreferences =
-    currentUser?.preferences && typeof currentUser.preferences === 'object'
-      ? { ...(currentUser.preferences as Record<string, unknown>) }
-      : {};
-
-  nextPreferences.role = 'coach';
-  nextPreferences.onboarding_completed = true;
-  nextPreferences.coach_agreement_accepted_at = now.toISOString();
-  nextPreferences.plan = 'rookie';
-  delete nextPreferences.pending_plan;
-  delete nextPreferences.payment_pending;
-  delete nextPreferences.payment_approved;
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      email_verified: true,
-      username,
-      role: 'coach',
-      onboarding_completed: true,
-      approval_status: 'APPROVED',
-      coach_agreement_accepted_at: now,
-      coach_agreement_version: Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1),
-      plan: 'rookie',
-      pending_plan: null,
-      payment_pending: false,
-      payment_approved: false,
-      subscription_tier: 'free',
-      preferences: nextPreferences,
-    },
-  });
-
-  return { access_token, user, email: testEmail, password: testPassword };
 }
 
 test.describe('Posts API', () => {
@@ -131,19 +70,25 @@ test.describe('Posts API', () => {
   });
 
   test('POST /posts should create a post with media URL', async ({ request }) => {
+    // media_url is host-allowlisted server-side (isAllowedPostMediaUrl): only
+    // platform hosts, R2, and data:/relative forms are accepted — off-platform
+    // URLs like example.com are rejected as a moderation/exfil guard. Use an
+    // allowlisted data: URI so this exercises the happy path, not the guard.
+    const mediaUrl =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
     const response = await request.post(`${API_BASE_URL}/posts`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
       data: {
-        media_url: 'https://example.com/test-image.jpg',
+        media_url: mediaUrl,
       },
     });
 
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     expect(body.id).toBeDefined();
-    expect(body.media_url).toBe('https://example.com/test-image.jpg');
+    expect(body.media_url).toBe(mediaUrl);
   });
 
   test('POST /posts should require either content or media_url', async ({ request }) => {
@@ -200,7 +145,7 @@ test.describe('Posts API', () => {
         password: 'TestPassword123!',
       },
     });
-    
+
     const { access_token } = await registerResponse.json();
 
     // Try to create post (should fail - needs verification)

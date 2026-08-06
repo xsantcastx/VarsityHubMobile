@@ -9,9 +9,11 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
  * - Game creation from discover is guarded by server-side coach + team rules
  */
 
-const API_BASE_URL =
-  (process.env.API_URL || process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:4000')
-    .replace('://localhost', '://127.0.0.1');
+const API_BASE_URL = (
+  process.env.API_URL ||
+  process.env.EXPO_PUBLIC_API_URL ||
+  'http://127.0.0.1:4000'
+).replace('://localhost', '://127.0.0.1');
 
 function createAuthRequest(request: APIRequestContext, token: string) {
   const withAuth = (options: Record<string, any> = {}) => ({
@@ -39,7 +41,7 @@ async function createTestUser(request: APIRequestContext, role: 'fan' | 'coach' 
       email,
       password,
       display_name: displayName,
-      role,
+      role: role === 'coach' ? 'fan' : role,
       ...(role === 'coach' ? { dob: '1990-01-15' } : {}),
     },
   });
@@ -52,6 +54,13 @@ async function createTestUser(request: APIRequestContext, role: 'fan' | 'coach' 
     await request.post(`${API_BASE_URL}/auth/verify/confirm`, {
       headers: { Authorization: `Bearer ${token}` },
       data: { code: String(body.dev_verification_code) },
+    });
+  }
+
+  if (role === 'coach') {
+    await request.post(`${API_BASE_URL}/auth/upgrade-to-coach`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { plan: 'rookie' },
     });
   }
 
@@ -93,36 +102,40 @@ test.describe('Discover Page', () => {
 
   test('Discover page supports search by keyword', async ({ request }) => {
     const games = await fetchGames(request);
-    const candidate = games.find((game) => typeof game.title === 'string' && game.title.trim().length > 0);
+    const candidate = games.find(
+      game => typeof game.title === 'string' && game.title.trim().length > 0
+    );
     const query = candidate?.title?.trim().split(/\s+/)[0] ?? 'basketball';
-    const filtered = games.filter((game) => game.title?.toLowerCase().includes(query.toLowerCase()));
+    const filtered = games.filter(game => game.title?.toLowerCase().includes(query.toLowerCase()));
 
     expect(Array.isArray(filtered)).toBe(true);
     if (candidate) {
-      expect(filtered.some((game) => game.id === candidate.id)).toBe(true);
+      expect(filtered.some(game => game.id === candidate.id)).toBe(true);
     }
   });
 
   test('Discover page supports search by zip code', async ({ request }) => {
     const games = await fetchGames(request);
-    const candidate = games.find((game) => typeof game.location === 'string' && /\b\d{5}\b/.test(game.location));
+    const candidate = games.find(
+      game => typeof game.location === 'string' && /\b\d{5}\b/.test(game.location)
+    );
     const zip = candidate?.location?.match(/\b\d{5}\b/)?.[0];
     const filtered = zip
-      ? games.filter((game) => typeof game.location === 'string' && game.location.includes(zip))
+      ? games.filter(game => typeof game.location === 'string' && game.location.includes(zip))
       : [];
 
     expect(Array.isArray(filtered)).toBe(true);
     if (zip) {
-      expect(filtered.every((game) => game.location?.includes(zip))).toBe(true);
+      expect(filtered.every(game => game.location?.includes(zip))).toBe(true);
     }
   });
 
   test('Discover page filters games by selected date', async ({ request }) => {
     const games = await fetchGames(request);
-    const candidate = games.find((game) => typeof game.date === 'string');
+    const candidate = games.find(game => typeof game.date === 'string');
     const selectedDate = candidate ? new Date(candidate.date).toISOString().split('T')[0] : null;
     const filtered = selectedDate
-      ? games.filter((game) => {
+      ? games.filter(game => {
           if (!game.date) return false;
           return new Date(game.date).toISOString().split('T')[0] === selectedDate;
         })
@@ -130,7 +143,7 @@ test.describe('Discover Page', () => {
 
     expect(Array.isArray(filtered)).toBe(true);
     if (candidate) {
-      expect(filtered.some((game) => game.id === candidate.id)).toBe(true);
+      expect(filtered.some(game => game.id === candidate.id)).toBe(true);
     }
   });
 
@@ -181,7 +194,7 @@ test.describe('Discover Page', () => {
   test('Discover page supports map view toggle', async ({ request }) => {
     const games = await fetchGames(request);
     const gamesWithCoords = games.filter(
-      (game) => typeof game.latitude === 'number' && typeof game.longitude === 'number'
+      game => typeof game.latitude === 'number' && typeof game.longitude === 'number'
     );
 
     expect(Array.isArray(gamesWithCoords)).toBe(true);
@@ -203,7 +216,9 @@ test.describe('Discover Page', () => {
     }
   });
 
-  test('Discover page quick actions dashboard shows correct actions for coach', async ({ request }) => {
+  test('Discover page quick actions dashboard shows correct actions for coach', async ({
+    request,
+  }) => {
     const coach = await createTestUser(request, 'coach');
     const meResponse = await createAuthRequest(request, coach.token).get(`${API_BASE_URL}/auth/me`);
 
@@ -212,13 +227,17 @@ test.describe('Discover Page', () => {
     expect(me.preferences?.role === 'coach' || me.role === 'coach').toBe(true);
   });
 
-  test('Discover page quick actions dashboard shows correct actions for fan', async ({ request }) => {
+  test('Discover page quick actions dashboard shows correct actions for fan', async ({
+    request,
+  }) => {
     const fan = await createTestUser(request, 'fan');
     const meResponse = await createAuthRequest(request, fan.token).get(`${API_BASE_URL}/auth/me`);
 
     expect(meResponse.status()).toBe(200);
     const me = await meResponse.json();
-    expect(!me.preferences?.role || me.preferences?.role === 'fan' || !me.role || me.role === 'fan').toBe(true);
+    expect(
+      !me.preferences?.role || me.preferences?.role === 'fan' || !me.role || me.role === 'fan'
+    ).toBe(true);
   });
 
   test('Discover quick add respects current game-creation guardrails', async ({ request }) => {
@@ -238,12 +257,12 @@ test.describe('Discover Page', () => {
     const games = await fetchGames(request);
     const datesWithGames = new Set(
       games
-        .filter((game) => typeof game.date === 'string')
-        .map((game) => new Date(game.date).toISOString().split('T')[0])
+        .filter(game => typeof game.date === 'string')
+        .map(game => new Date(game.date).toISOString().split('T')[0])
     );
 
     expect(datesWithGames).toBeInstanceOf(Set);
-    if (games.some((game) => typeof game.date === 'string')) {
+    if (games.some(game => typeof game.date === 'string')) {
       expect(datesWithGames.size).toBeGreaterThan(0);
     }
   });
@@ -264,7 +283,7 @@ test.describe('Discover Page', () => {
   test('Discover page handles location permission for map view', async ({ request }) => {
     const games = await fetchGames(request);
     const gamesWithCoords = games.filter(
-      (game) => typeof game.latitude === 'number' && typeof game.longitude === 'number'
+      game => typeof game.latitude === 'number' && typeof game.longitude === 'number'
     );
 
     expect(Array.isArray(gamesWithCoords)).toBe(true);
@@ -274,7 +293,7 @@ test.describe('Discover Page', () => {
     const games = await fetchGames(request);
     const zipCounts = new Map<string, number>();
 
-    games.forEach((game) => {
+    games.forEach(game => {
       const zip = game.location?.match(/\b\d{5}\b/)?.[0];
       if (zip) {
         zipCounts.set(zip, (zipCounts.get(zip) || 0) + 1);

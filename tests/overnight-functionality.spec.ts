@@ -1,13 +1,17 @@
 import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
+import { PrismaClient } from '../server/node_modules/@prisma/client/index.js';
+import { createApprovedCoach as sharedCreateApprovedCoach } from './e2e/helpers/apiTestUtils';
+
+const prisma = new PrismaClient();
 
 /**
  * Real-World Functionality Overnight Tests
- * 
+ *
  * These tests verify that the app's core features work end-to-end as real users would use them.
  * Designed to run overnight to catch regressions in actual functionality.
- * 
+ *
  * Coverage:
  * - User authentication (register, login, email verification)
  * - Post creation and feed display
@@ -42,7 +46,13 @@ interface FunctionalityResult {
 
 const results: FunctionalityResult[] = [];
 
-function logResult(testName: string, passed: boolean, details: string, apiStatus?: number, error?: string) {
+function logResult(
+  testName: string,
+  passed: boolean,
+  details: string,
+  apiStatus?: number,
+  error?: string
+) {
   results.push({
     test: testName,
     passed,
@@ -67,7 +77,7 @@ function generateTestData() {
 // Helper: Create authenticated user via API
 async function createVerifiedUser(request: any) {
   const testData = generateTestData();
-  
+
   // Register user
   const registerResponse = await request.post(`${API_URL}/auth/register`, {
     data: {
@@ -93,7 +103,7 @@ async function createVerifiedUser(request: any) {
         headers: { Authorization: `Bearer ${token}` },
         data: { code: String(registerData.dev_verification_code) },
       });
-      
+
       if (verifyResponse.ok()) {
         // Wait for DB update
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -108,44 +118,28 @@ async function createVerifiedUser(request: any) {
 }
 
 // Helper: Create coach user
+// Direct coach registration is disabled server-side; the register→verify→approve
+// promotion is centralized in `createApprovedCoach` (tests/e2e/helpers/apiTestUtils)
+// so this suite gets an APPROVED, onboarded coach that can create teams/games.
 async function createCoachUser(request: any) {
-  const testData = generateTestData();
-  
-  const registerResponse = await request.post(`${API_URL}/auth/register`, {
-    data: {
-      email: testData.email,
-      password: testData.password,
-      display_name: testData.displayName,
-      role: 'coach',
-    },
-  });
-
-  if (!registerResponse.ok()) {
-    const errorText = await registerResponse.text();
-    throw new Error(`Coach registration failed: ${registerResponse.status()} - ${errorText}`);
-  }
-
-  const registerData = await registerResponse.json();
-  const token = registerData.access_token;
-
-  // Verify email
-  if (registerData.dev_verification_code) {
-    try {
-      await request.post(`${API_URL}/auth/verify/confirm`, {
-        headers: { Authorization: `Bearer ${token}` },
-        data: { code: String(registerData.dev_verification_code) },
-      });
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (e) {
-      console.warn('Coach email verification failed:', e);
-    }
-  }
-
-  return { ...testData, token, userId: registerData.user?.id };
+  const coach = await sharedCreateApprovedCoach({ request, prisma, apiBaseUrl: API_URL });
+  return {
+    email: coach.email,
+    password: coach.password,
+    displayName: coach.user?.display_name,
+    token: coach.access_token,
+    userId: coach.user?.id,
+  };
 }
 
 // Helper: Make authenticated API request
-async function authRequest(request: any, token: string, method: string, endpoint: string, data?: any) {
+async function authRequest(
+  request: any,
+  token: string,
+  method: string,
+  endpoint: string,
+  data?: any
+) {
   const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
   return request[method.toLowerCase()](url, {
     headers: { Authorization: `Bearer ${token}` },
@@ -158,10 +152,10 @@ test.describe('Real-World Functionality Tests', () => {
 
   test('1. User Registration and Email Verification', async ({ request }) => {
     const testName = 'User Registration Flow';
-    
+
     try {
       const testData = generateTestData();
-      
+
       // Register user
       const registerResponse = await request.post(`${API_URL}/auth/register`, {
         data: {
@@ -178,29 +172,41 @@ test.describe('Real-World Functionality Tests', () => {
         expect(body).toHaveProperty('access_token');
         expect(body).toHaveProperty('user');
         expect(body.user.email).toBe(testData.email.toLowerCase());
-        
+
         // Check if verification code provided (dev mode)
-        const hasVerificationCode = body.dev_verification_code || body.user?.email_verification_code;
-        
-        logResult(testName, true, `User registered successfully. Email verified: ${!!hasVerificationCode}`, status);
+        const hasVerificationCode =
+          body.dev_verification_code || body.user?.email_verification_code;
+
+        logResult(
+          testName,
+          true,
+          `User registered successfully. Email verified: ${!!hasVerificationCode}`,
+          status
+        );
         expect(true).toBeTruthy();
       } else {
         logResult(testName, false, `Registration failed: ${status}`, status, JSON.stringify(body));
         throw new Error(`Registration returned ${status}`);
       }
     } catch (error) {
-      logResult(testName, false, `Error: ${error instanceof Error ? error.message : String(error)}`, undefined, String(error));
+      logResult(
+        testName,
+        false,
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+        undefined,
+        String(error)
+      );
       throw error;
     }
   });
 
   test('2. User Login Flow', async ({ request }) => {
     const testName = 'User Login Flow';
-    
+
     try {
       // First create a user
       const user = await createVerifiedUser(request);
-      
+
       // Try to login
       const loginResponse = await request.post(`${API_URL}/auth/login`, {
         data: {
@@ -216,7 +222,7 @@ test.describe('Real-World Functionality Tests', () => {
         expect(body).toHaveProperty('access_token');
         expect(body).toHaveProperty('user');
         expect(body.user.email).toBe(user.email);
-        
+
         logResult(testName, true, 'Login successful', status);
         expect(true).toBeTruthy();
       } else {
@@ -224,17 +230,23 @@ test.describe('Real-World Functionality Tests', () => {
         throw new Error(`Login returned ${status}`);
       }
     } catch (error) {
-      logResult(testName, false, `Error: ${error instanceof Error ? error.message : String(error)}`, undefined, String(error));
+      logResult(
+        testName,
+        false,
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+        undefined,
+        String(error)
+      );
       throw error;
     }
   });
 
   test('3. Create Post with Content', async ({ request }) => {
     const testName = 'Post Creation';
-    
+
     try {
       const user = await createVerifiedUser(request);
-      
+
       // Create a post
       const postResponse = await authRequest(request, user.token, 'post', '/posts', {
         content: 'Overnight test post - checking functionality',
@@ -249,7 +261,7 @@ test.describe('Real-World Functionality Tests', () => {
         expect(body).toHaveProperty('id');
         expect(body).toHaveProperty('content');
         expect(body.author_id).toBe(user.userId);
-        
+
         logResult(testName, true, `Post created with ID: ${body.id}`, status);
         expect(true).toBeTruthy();
       } else {
@@ -277,10 +289,10 @@ test.describe('Real-World Functionality Tests', () => {
 
   test('4. View Posts Feed', async ({ request }) => {
     const testName = 'Posts Feed Retrieval';
-    
+
     try {
       const user = await createVerifiedUser(request);
-      
+
       // Fetch posts feed
       const feedResponse = await authRequest(request, user.token, 'get', '/posts');
       const status = feedResponse.status();
@@ -298,17 +310,23 @@ test.describe('Real-World Functionality Tests', () => {
         throw new Error(`Feed returned ${status}`);
       }
     } catch (error) {
-      logResult(testName, false, `Error: ${error instanceof Error ? error.message : String(error)}`, undefined, String(error));
+      logResult(
+        testName,
+        false,
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+        undefined,
+        String(error)
+      );
       throw error;
     }
   });
 
   test('5. Coach Team Creation', async ({ request }) => {
     const testName = 'Team Creation (Coach)';
-    
+
     try {
       const coach = await createCoachUser(request);
-      
+
       // Create a team
       const teamResponse = await authRequest(request, coach.token, 'post', '/teams', {
         name: `Overnight Test Team ${Date.now()}`,
@@ -322,7 +340,7 @@ test.describe('Real-World Functionality Tests', () => {
       if (status === 201 || status === 200) {
         expect(body).toHaveProperty('id');
         expect(body).toHaveProperty('name');
-        
+
         logResult(testName, true, `Team created with ID: ${body.id}`, status);
         expect(true).toBeTruthy();
       } else if (status === 403) {
@@ -354,10 +372,10 @@ test.describe('Real-World Functionality Tests', () => {
 
   test('6. View Teams List', async ({ request }) => {
     const testName = 'Teams List Retrieval';
-    
+
     try {
       const user = await createVerifiedUser(request);
-      
+
       // Fetch teams
       const teamsResponse = await authRequest(request, user.token, 'get', '/teams');
       const status = teamsResponse.status();
@@ -365,7 +383,7 @@ test.describe('Real-World Functionality Tests', () => {
 
       if (status === 200) {
         expect(Array.isArray(body)).toBe(true);
-        
+
         logResult(testName, true, `Teams list retrieved with ${body.length} teams`, status);
         expect(true).toBeTruthy();
       } else {
@@ -373,17 +391,23 @@ test.describe('Real-World Functionality Tests', () => {
         throw new Error(`Teams list returned ${status}`);
       }
     } catch (error) {
-      logResult(testName, false, `Error: ${error instanceof Error ? error.message : String(error)}`, undefined, String(error));
+      logResult(
+        testName,
+        false,
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+        undefined,
+        String(error)
+      );
       throw error;
     }
   });
 
   test('7. Create Game/Event', async ({ request }) => {
     const testName = 'Game/Event Creation';
-    
+
     try {
       const coach = await createCoachUser(request);
-      
+
       // First create a team (required for game creation)
       const teamResponse = await authRequest(request, coach.token, 'post', '/teams', {
         name: `Game Test Team ${Date.now()}`,
@@ -413,7 +437,7 @@ test.describe('Real-World Functionality Tests', () => {
       if (status === 201 || status === 200) {
         expect(body).toHaveProperty('id');
         expect(body).toHaveProperty('title');
-        
+
         logResult(testName, true, `Game created with ID: ${body.id}`, status);
         expect(true).toBeTruthy();
       } else if (status === 403 || status === 401) {
@@ -444,11 +468,11 @@ test.describe('Real-World Functionality Tests', () => {
 
   test('8. Send Direct Message', async ({ request }) => {
     const testName = 'Direct Messaging';
-    
+
     try {
       const sender = await createVerifiedUser(request);
       const recipient = await createVerifiedUser(request);
-      
+
       // Send a message
       const messageResponse = await authRequest(request, sender.token, 'post', '/messages', {
         content: 'Overnight test message',
@@ -461,7 +485,7 @@ test.describe('Real-World Functionality Tests', () => {
       if (status === 201 || status === 200) {
         expect(body).toHaveProperty('id');
         expect(body.content).toContain('Overnight test message');
-        
+
         logResult(testName, true, `Message sent with ID: ${body.id}`, status);
         expect(true).toBeTruthy();
       } else if (status === 403) {
@@ -492,10 +516,10 @@ test.describe('Real-World Functionality Tests', () => {
 
   test('9. View Messages List', async ({ request }) => {
     const testName = 'Messages List Retrieval';
-    
+
     try {
       const user = await createVerifiedUser(request);
-      
+
       // Fetch messages
       const messagesResponse = await authRequest(request, user.token, 'get', '/messages');
       const status = messagesResponse.status();
@@ -503,25 +527,36 @@ test.describe('Real-World Functionality Tests', () => {
 
       if (status === 200) {
         expect(Array.isArray(body)).toBe(true);
-        
+
         logResult(testName, true, `Messages list retrieved with ${body.length} messages`, status);
         expect(true).toBeTruthy();
       } else if (status === 403) {
-        logResult(testName, true, 'Messages list properly enforces the verified-account gate', status);
+        logResult(
+          testName,
+          true,
+          'Messages list properly enforces the verified-account gate',
+          status
+        );
         expect(true).toBeTruthy();
       } else {
         logResult(testName, false, `Messages list failed: ${status}`, status);
         throw new Error(`Messages list returned ${status}`);
       }
     } catch (error) {
-      logResult(testName, false, `Error: ${error instanceof Error ? error.message : String(error)}`, undefined, String(error));
+      logResult(
+        testName,
+        false,
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+        undefined,
+        String(error)
+      );
       throw error;
     }
   });
 
   test('10. Health Check Endpoint', async ({ request }) => {
     const testName = 'API Health Check';
-    
+
     try {
       const healthResponse = await request.get(`${API_URL}/health`);
       const status = healthResponse.status();
@@ -529,7 +564,7 @@ test.describe('Real-World Functionality Tests', () => {
 
       if (status === 200) {
         expect(body).toHaveProperty('status');
-        
+
         // Check integrations
         const integrations = body.integrations || {};
         const healthStatus = {
@@ -539,25 +574,36 @@ test.describe('Real-World Functionality Tests', () => {
           sentry: integrations.sentry || false,
           database: integrations.database || false,
         };
-        
-        logResult(testName, true, `Health check passed. Integrations: ${JSON.stringify(healthStatus)}`, status);
+
+        logResult(
+          testName,
+          true,
+          `Health check passed. Integrations: ${JSON.stringify(healthStatus)}`,
+          status
+        );
         expect(body.status).toBe('ok');
       } else {
         logResult(testName, false, `Health check failed: ${status}`, status);
         throw new Error(`Health check returned ${status}`);
       }
     } catch (error) {
-      logResult(testName, false, `Error: ${error instanceof Error ? error.message : String(error)}`, undefined, String(error));
+      logResult(
+        testName,
+        false,
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+        undefined,
+        String(error)
+      );
       throw error;
     }
   });
 
   test('11. User Profile Retrieval', async ({ request }) => {
     const testName = 'User Profile (Me)';
-    
+
     try {
       const user = await createVerifiedUser(request);
-      
+
       // Get user profile
       const profileResponse = await authRequest(request, user.token, 'get', '/me');
       const status = profileResponse.status();
@@ -567,25 +613,37 @@ test.describe('Real-World Functionality Tests', () => {
         expect(body).toHaveProperty('id');
         expect(body).toHaveProperty('email');
         expect(body.email).toBe(user.email);
-        
+
         logResult(testName, true, `Profile retrieved for user: ${body.email}`, status);
         expect(true).toBeTruthy();
       } else {
-        logResult(testName, false, `Profile retrieval failed: ${status}`, status, JSON.stringify(body));
+        logResult(
+          testName,
+          false,
+          `Profile retrieval failed: ${status}`,
+          status,
+          JSON.stringify(body)
+        );
         throw new Error(`Profile returned ${status}`);
       }
     } catch (error) {
-      logResult(testName, false, `Error: ${error instanceof Error ? error.message : String(error)}`, undefined, String(error));
+      logResult(
+        testName,
+        false,
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+        undefined,
+        String(error)
+      );
       throw error;
     }
   });
 
   test('12. Events List Retrieval', async ({ request }) => {
     const testName = 'Events List Retrieval';
-    
+
     try {
       const user = await createVerifiedUser(request);
-      
+
       // Fetch events
       const eventsResponse = await authRequest(request, user.token, 'get', '/events');
       const status = eventsResponse.status();
@@ -593,11 +651,16 @@ test.describe('Real-World Functionality Tests', () => {
 
       if (status === 200) {
         expect(Array.isArray(body)).toBe(true);
-        
+
         logResult(testName, true, `Events list retrieved with ${body.length} events`, status);
         expect(true).toBeTruthy();
       } else {
-        logResult(testName, true, `Events list unavailable in this environment (${status})`, status);
+        logResult(
+          testName,
+          true,
+          `Events list unavailable in this environment (${status})`,
+          status
+        );
         // Don't throw - events endpoint might not exist or require auth
         expect(status).toBeGreaterThanOrEqual(200);
       }
@@ -614,6 +677,7 @@ test.describe('Real-World Functionality Tests', () => {
   });
 
   test.afterAll(async () => {
+    await prisma.$disconnect().catch(() => {});
     // Save results to JSON file
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const resultsFile = join(RESULTS_DIR, `functionality-results-${timestamp}.json`);

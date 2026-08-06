@@ -737,7 +737,7 @@ function HighlightsScreen() {
           (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
         );
       case 'top':
-        // Product rule: top 10 by engagement over the last month.
+        // Product rule: top 10 by engagement over the last 30 days.
         return list
           .filter(p => Date.now() - new Date(p.created_at || 0).getTime() <= 30 * 86400000)
           .sort((a, b) => engagement(b) - engagement(a))

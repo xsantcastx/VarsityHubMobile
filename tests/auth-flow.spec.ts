@@ -165,7 +165,9 @@ test.describe('Authentication Flow', () => {
     await emailSignupButton.click();
 
     await page.getByLabel('Email').fill(email);
-    await page.getByLabel('Password').fill(password);
+    // Use the stable testID: getByLabel('Password') substring-matches the
+    // show/hide toggle's "Show password" label and resolves to 2 elements.
+    await page.getByTestId('sign-up-password').fill(password);
     await submitSignUpRequest(page);
 
     await waitForVerificationScreen(page);

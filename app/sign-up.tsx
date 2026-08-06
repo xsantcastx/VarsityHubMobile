@@ -700,6 +700,7 @@ export default function SignUpScreen() {
             />
             <PasswordInput
               ref={passwordRef}
+              testID="sign-up-password"
               placeholder="Password"
               value={password}
               onChangeText={handlePasswordChange}
