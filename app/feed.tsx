@@ -84,6 +84,13 @@ type GameItem = {
   cover_image_url?: string;
   banner_url?: string | null;
   event_id?: string | null;
+  source_type?: 'game' | 'event';
+  venue_photo?: { url: string; credit: string } | null;
+  pro_home_color?: string | null;
+  pro_away_color?: string | null;
+  starts_at?: string | null;
+  live_from?: string | null;
+  live_until?: string | null;
   home_score?: number | null;
   away_score?: number | null;
   winner?: string | null;
@@ -125,6 +132,31 @@ const normalizeGamesPage = (gamesData: any): { games: GameItem[]; cursor: string
     games: Array.isArray(gamesData) ? gamesData : [],
     cursor: null,
   };
+};
+
+const normalizeProFeedEvents = (eventsData: any): GameItem[] => {
+  const list = Array.isArray(eventsData) ? eventsData : [];
+  return list
+    .filter((event: any) => event && typeof event.id === 'string')
+    .map((event: any) => ({
+      id: String(event.id),
+      title: event.title,
+      date: event.date,
+      location: event.location,
+      cover_image_url: event.game?.cover_image_url ?? null,
+      banner_url: event.banner_url ?? null,
+      event_id: event.id,
+      source_type: 'event',
+      venue_photo: event.venue_photo ?? null,
+      pro_home_color: event.pro_home_color ?? null,
+      pro_away_color: event.pro_away_color ?? null,
+      starts_at: event.starts_at ?? null,
+      live_from: event.live_from ?? null,
+      live_until: event.live_until ?? null,
+      home_score: null,
+      away_score: null,
+      winner: null,
+    }));
 };
 
 // RSVP Badge Component
@@ -175,13 +207,16 @@ const RSVPBadge = ({
     try {
       const newRsvpState = !isRsvped;
       const response: any = await Event.rsvp(gameItem.event_id, newRsvpState);
+      const entityLabel = gameItem.source_type === 'event' ? 'event' : 'game';
 
       setIsRsvped(response.going || response.attending || false);
       setRsvpCount(response.count || 0);
 
       Alert.alert(
         newRsvpState ? 'RSVP Confirmed' : 'RSVP Removed',
-        newRsvpState ? 'You are now attending this game!' : 'You are no longer attending this game.'
+        newRsvpState
+          ? `You are now attending this ${entityLabel}!`
+          : `You are no longer attending this ${entityLabel}.`
       );
 
       onRSVPChange?.();
@@ -317,7 +352,7 @@ type FeedGameCardProps = {
   voteSummary: VotePreviewEntry | null;
   rsvp: { going: boolean; count: number } | undefined;
   colorScheme: 'light' | 'dark';
-  onPress: (id: string) => void;
+  onPress: (item: GameItem) => void;
   onRSVPChange: () => void;
 };
 
@@ -337,14 +372,20 @@ const FeedGameCard = memo(function FeedGameCard({
   onRSVPChange,
 }: FeedGameCardProps) {
   const raw = gameItem as any;
+  const isEventOnly = gameItem.source_type === 'event';
   const firstMediaUrl =
     Array.isArray(raw?.media) && raw.media.length > 0
       ? raw.media[0]?.thumbnail_url || raw.media[0]?.url || null
       : Array.isArray(raw?.posts) && raw.posts.length > 0
         ? raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null
         : null;
-  const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
+  const venuePhotoUrl = raw?.venue_photo?.url || null;
+  const banner = gameItem.cover_image_url || raw?.banner_url || venuePhotoUrl || firstMediaUrl || null;
   const hasBanner = typeof banner === 'string' && banner.length > 0;
+  const venuePhotoCredit =
+    banner === venuePhotoUrl && typeof raw?.venue_photo?.credit === 'string'
+      ? raw.venue_photo.credit
+      : null;
   // Pro games have no banner (and no logo, by design) — brand the card with the
   // two teams' accent colors so it isn't a blank dark box. Non-pro games keep
   // the deterministic gradient.
@@ -390,15 +431,18 @@ const FeedGameCard = memo(function FeedGameCard({
     typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
       ? `${raw.home_score} - ${raw.away_score}`
       : null;
+  const entityLabel = isEventOnly ? 'Event' : 'Game';
 
   return (
     <Pressable
       testID={`${testIDPrefix}-game-card-${gameItem.id}`}
       style={[styles.singleEventCard, isLive ? { borderWidth: 2, borderColor: '#EF4444' } : null]}
-      onPressIn={() => prefetchGameSummary(String(gameItem.id))}
-      onPress={() => onPress(String(gameItem.id))}
+      onPressIn={() => {
+        if (!isEventOnly) prefetchGameSummary(String(gameItem.id));
+      }}
+      onPress={() => onPress(gameItem)}
       accessibilityRole="button"
-      accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}${isLive ? ' — LIVE NOW' : ''}`}
+      accessibilityLabel={`${gameItem.title || entityLabel} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}${isLive ? ' — LIVE NOW' : ''}`}
     >
       <LinearGradient
         colors={gradient}
@@ -442,7 +486,7 @@ const FeedGameCard = memo(function FeedGameCard({
           ) : null}
         </View>
         <Text style={styles.gridTitle} numberOfLines={2}>
-          {gameItem.title ? String(gameItem.title) : 'Game'}
+          {gameItem.title ? String(gameItem.title) : entityLabel}
         </Text>
         <Text style={styles.gridMeta} numberOfLines={1}>
           {scoreText
@@ -464,6 +508,11 @@ const FeedGameCard = memo(function FeedGameCard({
         {voteText ? (
           <Text style={styles.gridVoteText} numberOfLines={1}>
             {voteText}
+          </Text>
+        ) : null}
+        {venuePhotoCredit ? (
+          <Text style={styles.gridCredit} numberOfLines={1}>
+            {venuePhotoCredit}
           </Text>
         ) : null}
       </View>
@@ -559,6 +608,7 @@ export default function FeedScreen() {
 
   const preloadVoteSummaries = useCallback(async (gameList: GameItem[]) => {
     const candidates = gameList
+      .filter(game => game.source_type !== 'event')
       .map(game => ({ id: String(game.id), labels: deriveTeamLabels(game) }))
       .filter(entry => entry.id && !voteSummariesRef.current[entry.id]);
     if (!candidates.length) return;
@@ -709,7 +759,8 @@ export default function FeedScreen() {
         // curated/marquee events (no real team matchup — e.g. Fanatics Fest)
         // are best effort: a failure just means that section is empty this
         // load, never blocks or errors the main games list.
-        const [upcomingData, pastGamesData, marqueeGamesData] = await Promise.all([
+        const [upcomingData, pastGamesData, marqueeGamesData, proUpcomingData, proPastData] =
+          await Promise.all([
           queryClient
             .fetchQuery({
               queryKey: [
@@ -760,6 +811,49 @@ export default function FeedScreen() {
               if (__DEV__) console.warn('[Feed] Failed to load marquee games:', err);
               return null;
             }),
+          queryClient
+            .fetchQuery({
+              queryKey: ['feed-pro-events-upcoming', queryPlan.upcoming.options.dateFrom],
+              queryFn: () =>
+                Event.filter(
+                  {
+                    event_type: 'game',
+                    pro_only: true,
+                    event_only: true,
+                    from: queryPlan.upcoming.options.dateFrom,
+                  },
+                  'date',
+                  30
+                ),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load pro upcoming events:', err);
+              return null;
+            }),
+          queryClient
+            .fetchQuery({
+              queryKey: [
+                'feed-pro-events-past',
+                queryPlan.past.options.dateFrom,
+                queryPlan.past.options.dateTo ?? null,
+              ],
+              queryFn: () =>
+                Event.filter(
+                  {
+                    event_type: 'game',
+                    pro_only: true,
+                    event_only: true,
+                    from: queryPlan.past.options.dateFrom,
+                    to: queryPlan.past.options.dateTo,
+                  },
+                  '-date',
+                  30
+                ),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load pro past events:', err);
+              return null;
+            }),
         ]);
 
         const upcomingPage = normalizeGamesPage(upcomingData);
@@ -767,7 +861,9 @@ export default function FeedScreen() {
         let normalizedGames = mergeFeedGames(
           normalizeGamesPage(pastGamesData).games,
           upcomingPage.games,
-          normalizeGamesPage(marqueeGamesData).games
+          normalizeGamesPage(marqueeGamesData).games,
+          normalizeProFeedEvents(proPastData),
+          normalizeProFeedEvents(proUpcomingData)
         );
 
         // Post-fest recap pin (owner ask 2026-07-20): once Fanatics Fest is fully
@@ -1134,8 +1230,14 @@ export default function FeedScreen() {
 
   // Stable handler so memoized FeedGameCard props don't change every render.
   const handleGamePress = useCallback(
-    (id: string) => {
-      void router.push({ pathname: '/game/[id]', params: { id } });
+    (item: GameItem) => {
+      if (item.source_type === 'event') {
+        const eventId = item.event_id || item.id;
+        if (!eventId) return;
+        void router.push({ pathname: '/event-detail', params: { id: eventId } });
+        return;
+      }
+      void router.push({ pathname: '/game/[id]', params: { id: item.id } });
     },
     [router]
   );
@@ -3046,6 +3148,7 @@ const styles = StyleSheet.create({
   gridStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   gridStatText: { color: '#F9FAFB', fontSize: 11, fontWeight: '600' },
   gridVoteText: { color: '#E0F2FE', fontSize: 11, fontWeight: '600' },
+  gridCredit: { color: '#F9FAFB', fontSize: 10, opacity: 0.9 },
   gridFooter: { width: '100%', marginTop: 12, gap: 24, paddingHorizontal: 8, overflow: 'hidden' },
   sponsoredGridCard: {
     borderRadius: 18,

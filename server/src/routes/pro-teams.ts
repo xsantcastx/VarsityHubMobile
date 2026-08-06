@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sendError } from '../lib/http/sendError.js';
 import { prisma } from '../lib/prisma.js';
 import { serializeLiveWindow } from '../lib/geofencing.js';
+import { getVenuePhoto } from '../lib/venuePhotos.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { followLimiter } from '../middleware/rateLimiters.js';
@@ -169,6 +170,7 @@ type ProEventRow = {
 function serializeProEvent(event: ProEventRow) {
   return {
     ...event,
+    venue_photo: getVenuePhoto(typeof event.location === 'string' ? event.location : null),
     live_window: serializeLiveWindow(event.date, event.live_window_hours_after_start),
   };
 }
