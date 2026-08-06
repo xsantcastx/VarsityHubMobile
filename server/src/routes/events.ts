@@ -370,6 +370,7 @@ const serializeEvent = (
     // these two to render a branded gradient when a pro event has no banner.
     pro_home_color: event.proHomeTeam?.primary_color ?? null,
     pro_away_color: event.proAwayTeam?.primary_color ?? null,
+    pro_league: event.proHomeTeam?.league ?? event.proAwayTeam?.league ?? null,
     venue_photo: venuePhotoFor(event.location),
     ...serializeLiveWindow(event.date, event.live_window_hours_after_start),
   };

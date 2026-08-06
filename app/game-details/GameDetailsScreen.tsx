@@ -32,6 +32,7 @@ import { toUserMessage } from '@/utils/toUserMessage';
 import { promptForSignIn } from '@/utils/requireSignIn';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
+import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -2078,7 +2079,10 @@ const GameDetailsScreen = () => {
     const leftLogo = vm?.homeTeam ? getTeamLogo(vm.homeTeam) : null;
     const rightLogo = vm?.awayTeam ? getTeamLogo(vm.awayTeam) : null;
     const finalsBanner = finalsBannerUrl;
-    const bannerImageUrl = finalsBanner || bannerUrl;
+    const venuePhotoFallback = getVenuePhotoFallback(vm?.location);
+    const fallbackVenuePhotoUrl = vm?.venuePhotoUrl || venuePhotoFallback?.url || null;
+    const fallbackVenuePhotoCredit = vm?.venuePhotoCredit || venuePhotoFallback?.credit || null;
+    const bannerImageUrl = finalsBanner || bannerUrl || fallbackVenuePhotoUrl;
     const bannerImageKey = bannerImageUrl
       ? `${bannerImageUrl}-${vm?.gameId || vm?.id || vm?.title || ''}`
       : 'banner-fallback';
@@ -2094,8 +2098,8 @@ const GameDetailsScreen = () => {
     const bannerHeight = isHero ? 320 : 240;
 
     const venueCreditForVisibleBanner =
-      bannerImageUrl && vm?.venuePhotoUrl && bannerImageUrl === vm.venuePhotoUrl
-        ? vm.venuePhotoCredit || null
+      bannerImageUrl && fallbackVenuePhotoUrl && bannerImageUrl === fallbackVenuePhotoUrl
+        ? fallbackVenuePhotoCredit
         : null;
 
     const heroBanner =
@@ -4007,11 +4011,21 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
       marginTop: 8,
       marginBottom: 6,
     },
-    locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+    locationRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      marginBottom: 12,
+      width: '100%',
+      paddingRight: 6,
+    },
     locationText: {
       color: Colors[colorScheme].text,
       fontWeight: '600',
       textDecorationLine: 'underline',
+      flex: 1,
+      flexShrink: 1,
+      lineHeight: 20,
     },
     actionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
     secondaryActionsRow: {
