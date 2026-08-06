@@ -527,18 +527,26 @@ export const Event = {
       team_id?: string;
       team_ids?: string[];
       following?: boolean;
+      pro_only?: boolean;
+      event_only?: boolean;
+      from?: string;
+      to?: string;
     } = {},
     sort?: string,
     limit?: number
   ) => {
     const q: string[] = [];
     if (where.following) q.push('following=true');
+    if (where.pro_only) q.push('pro_only=true');
+    if (where.event_only) q.push('event_only=true');
     if (where.status) q.push('status=' + encodeURIComponent(where.status));
     if (where.approval_status)
       q.push('approval_status=' + encodeURIComponent(where.approval_status));
     if (where.event_type) q.push('event_type=' + encodeURIComponent(where.event_type));
     if (where.include_cancelled) q.push('include_cancelled=true');
     if (where.q) q.push('q=' + encodeURIComponent(where.q));
+    if (where.from) q.push('from=' + encodeURIComponent(where.from));
+    if (where.to) q.push('to=' + encodeURIComponent(where.to));
     if (where.team_id) q.push('team_id=' + encodeURIComponent(where.team_id));
     if (Array.isArray(where.team_ids) && where.team_ids.length > 0) {
       q.push('team_ids=' + where.team_ids.map(teamId => encodeURIComponent(teamId)).join(','));
