@@ -269,27 +269,31 @@ function CalendarSyncSection() {
   }, [router]);
 
   const handleDisconnect = useCallback(async () => {
-    Alert.alert('Disconnect Google Calendar?', 'Your games will no longer sync to Google Calendar.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Disconnect',
-        style: 'destructive',
-        onPress: async () => {
-          setLoading(true);
-          try {
-            await Calendar.disconnect();
-            setCalendarStatus({ connected: false });
-            setError(null);
-            Alert.alert('Disconnected', 'Google Calendar sync has been disabled.');
-          } catch (err) {
-            console.error('[calendar] Disconnect failed:', err);
-            setError(toUserMessage(err));
-          } finally {
-            setLoading(false);
-          }
+    Alert.alert(
+      'Disconnect Google Calendar?',
+      'Your games will no longer sync to Google Calendar.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await Calendar.disconnect();
+              setCalendarStatus({ connected: false });
+              setError(null);
+              Alert.alert('Disconnected', 'Google Calendar sync has been disabled.');
+            } catch (err) {
+              console.error('[calendar] Disconnect failed:', err);
+              setError(toUserMessage(err));
+            } finally {
+              setLoading(false);
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   }, []);
 
   const handleSyncNow = useCallback(async () => {
@@ -347,7 +351,9 @@ function CalendarSyncSection() {
           <View style={styles.row}>
             <View>
               <Text style={styles.rowTitle}>Google Calendar Connected</Text>
-              <Text style={styles.rowSubtitle}>Last synced: {formatLastSync(calendarStatus.lastSyncAt)}</Text>
+              <Text style={styles.rowSubtitle}>
+                Last synced: {formatLastSync(calendarStatus.lastSyncAt)}
+              </Text>
             </View>
             <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
           </View>
@@ -1567,7 +1573,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
   },
-  rowTitle: { fontWeight: '600' },
   mutedSmall: { fontSize: 12 },
   chev: { fontSize: 20, transform: [{ rotate: '0deg' }] },
   chevOpen: { transform: [{ rotate: '90deg' }] },
