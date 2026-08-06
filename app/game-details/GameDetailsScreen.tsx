@@ -2073,16 +2073,23 @@ const GameDetailsScreen = () => {
     () => void handleTeamPress(awayTeamObj, vm?.awayTeam ?? null),
     [handleTeamPress, awayTeamObj, vm?.awayTeam]
   );
+  const venuePhotoFallback = useMemo(() => getVenuePhotoFallback(vm?.location), [vm?.location]);
+  const resolvedVenuePhotoUrl = vm?.venuePhotoUrl || venuePhotoFallback?.url || null;
+  const resolvedVenuePhotoCredit = vm?.venuePhotoCredit || venuePhotoFallback?.credit || null;
+  const shouldShowVenuePhotoCredit =
+    Boolean(
+      (finalsBannerUrl || bannerUrl || resolvedVenuePhotoUrl) &&
+      resolvedVenuePhotoUrl &&
+      (finalsBannerUrl || bannerUrl || resolvedVenuePhotoUrl) === resolvedVenuePhotoUrl &&
+      resolvedVenuePhotoCredit
+    ) || false;
 
   const renderBanner = () => {
     // Prefer a full MatchBanner hero if both teams have logos available
     const leftLogo = vm?.homeTeam ? getTeamLogo(vm.homeTeam) : null;
     const rightLogo = vm?.awayTeam ? getTeamLogo(vm.awayTeam) : null;
     const finalsBanner = finalsBannerUrl;
-    const venuePhotoFallback = getVenuePhotoFallback(vm?.location);
-    const fallbackVenuePhotoUrl = vm?.venuePhotoUrl || venuePhotoFallback?.url || null;
-    const fallbackVenuePhotoCredit = vm?.venuePhotoCredit || venuePhotoFallback?.credit || null;
-    const bannerImageUrl = finalsBanner || bannerUrl || fallbackVenuePhotoUrl;
+    const bannerImageUrl = finalsBanner || bannerUrl || resolvedVenuePhotoUrl;
     const bannerImageKey = bannerImageUrl
       ? `${bannerImageUrl}-${vm?.gameId || vm?.id || vm?.title || ''}`
       : 'banner-fallback';
@@ -2096,11 +2103,6 @@ const GameDetailsScreen = () => {
     // uses the same value) so the crop the user sees while creating the
     // event matches what ships to the detail page.
     const bannerHeight = isHero ? 320 : 240;
-
-    const venueCreditForVisibleBanner =
-      bannerImageUrl && fallbackVenuePhotoUrl && bannerImageUrl === fallbackVenuePhotoUrl
-        ? fallbackVenuePhotoCredit
-        : null;
 
     const heroBanner =
       bannerImageUrl && !isHero ? (
@@ -2152,13 +2154,6 @@ const GameDetailsScreen = () => {
     return (
       <View style={[styles.bannerWrapper, { height: bannerHeight }]}>
         {heroBanner}
-        {venueCreditForVisibleBanner ? (
-          <View style={styles.bannerCreditChip}>
-            <Text style={styles.bannerCreditText} numberOfLines={2}>
-              {venueCreditForVisibleBanner}
-            </Text>
-          </View>
-        ) : null}
         <FullscreenImageViewer
           visible={bannerPreviewOpen}
           uri={bannerImageUrl}
@@ -2959,6 +2954,11 @@ const GameDetailsScreen = () => {
                 <Text style={styles.sectionTitle}>Teams</Text>
                 {renderTeams()}
               </View>
+              {shouldShowVenuePhotoCredit ? (
+                <View style={styles.venueCreditFooter}>
+                  <Text style={styles.venueCreditFooterText}>{resolvedVenuePhotoCredit}</Text>
+                </View>
+              ) : null}
             </>
           ) : null}
         </View>
@@ -3570,22 +3570,19 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
       backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#eff6ff',
     },
     bannerImage: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
-    bannerCreditChip: {
-      position: 'absolute',
-      left: 12,
-      right: 12,
-      bottom: 10,
-      paddingHorizontal: 8,
-      paddingVertical: 6,
-      borderRadius: 8,
-      backgroundColor: 'rgba(0,0,0,0.6)',
-      zIndex: 5,
+    venueCreditFooter: {
+      marginTop: 14,
+      marginBottom: 4,
+      paddingTop: 12,
+      paddingHorizontal: 2,
+      borderTopWidth: 1,
+      borderTopColor: Colors[colorScheme].border,
     },
-    bannerCreditText: {
-      color: '#FFFFFF',
+    venueCreditFooterText: {
+      color: Colors[colorScheme].mutedText,
       fontSize: 11,
-      lineHeight: 14,
-      fontWeight: '600',
+      lineHeight: 15,
+      textAlign: 'center',
     },
     bannerShade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0 },
     headerWrap: {
