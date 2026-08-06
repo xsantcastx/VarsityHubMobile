@@ -17,7 +17,7 @@ import { debugLog } from '../lib/debugLog.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { proLeagueToSport } from '../lib/proSchedule/leagueSport.js';
 import { geocodeLocation } from '../lib/geocoding.js';
-import { viewerHasPostedOnEntity } from '../lib/geofencing.js';
+import { serializeLiveWindow, viewerHasPostedOnEntity } from '../lib/geofencing.js';
 import {
   cancelGameReminders,
   rescheduleGameRemindersForEvent,
@@ -28,6 +28,7 @@ import { prisma } from '../lib/prisma.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { mustSucceed } from '../lib/sideEffect.js';
+import { venuePhotoFor } from '../lib/proSchedule/venuePhotos.js';
 import {
   canManageAnyTeam,
   canManageTeam as canManageTeamScoped,
@@ -367,6 +368,8 @@ const serializeEvent = (
     // these two to render a branded gradient when a pro event has no banner.
     pro_home_color: event.proHomeTeam?.primary_color ?? null,
     pro_away_color: event.proAwayTeam?.primary_color ?? null,
+    venue_photo: venuePhotoFor(event.location),
+    ...serializeLiveWindow(event.date, event.live_window_hours_after_start),
   };
   if (typeof opts.rsvpCount === 'number') {
     base.attendees_count = opts.rsvpCount;
@@ -416,6 +419,11 @@ eventsRouter.get(
     // v1.0.2 pass 12: default to 100 when no limit is supplied so the query is always bounded.
     // Previous `undefined` fallback let callers omit `limit` and get an unbounded scan on Event.
     const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
+    const dateFrom = typeof req.query.from === 'string' ? new Date(req.query.from) : null;
+    const dateTo = typeof req.query.to === 'string' ? new Date(req.query.to) : null;
+    const proOnly =
+      String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
+    const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
 
     const where: any = {};
     if (status) where.status = status;
@@ -439,6 +447,13 @@ eventsRouter.get(
       });
     }
     if (eventType) where.event_type = eventType;
+    if (eventOnly) where.game_id = null;
+    if (proOnly) {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [{ pro_home_team_id: { not: null } }, { pro_away_team_id: { not: null } }],
+      });
+    }
     if (search) {
       where.OR = [
         { title: { contains: search, mode: 'insensitive' } },
@@ -502,13 +517,25 @@ eventsRouter.get(
     // v1.0.2: auto-archive window is 3 days after event date (was "hide anything past").
     // Events remain visible in listings for 72h after they happen (post-game photos, recap)
     // and drop off after. `include_past=true` still returns everything for admin/team views.
-    if (!req.query.include_past && !approvalStatus) {
+    if (
+      (dateFrom && !Number.isNaN(dateFrom.getTime())) ||
+      (dateTo && !Number.isNaN(dateTo.getTime()))
+    ) {
+      where.date = where.date || {};
+      if (dateFrom && !Number.isNaN(dateFrom.getTime())) where.date.gte = dateFrom;
+      if (dateTo && !Number.isNaN(dateTo.getTime())) where.date.lte = dateTo;
+    } else if (!req.query.include_past && !approvalStatus) {
       const EVENT_ARCHIVE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
       const archiveCutoff = new Date(Date.now() - EVENT_ARCHIVE_WINDOW_MS);
       where.date = { gte: archiveCutoff };
     }
 
-    const orderBy = sort === 'date' ? { date: 'asc' as const } : { created_at: 'desc' as const };
+    const orderBy =
+      sort === 'date'
+        ? { date: 'asc' as const }
+        : sort === '-date'
+          ? { date: 'desc' as const }
+          : { created_at: 'desc' as const };
 
     // Location filtering: resolve user coordinates from zip or lat/lng params
     const showAll = String(req.query.show_all || '').toLowerCase() === 'true';
