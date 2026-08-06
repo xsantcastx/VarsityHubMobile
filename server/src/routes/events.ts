@@ -15,7 +15,7 @@ import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js'
 import { renderReviewPage, renderResultPage, renderFinalStatePage } from '../lib/reviewPage.js';
 import { debugLog } from '../lib/debugLog.js';
 import { sendError } from '../lib/http/sendError.js';
-import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
+import { geoBoundingBox, getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { proLeagueToSport } from '../lib/proSchedule/leagueSport.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { serializeLiveWindow, viewerHasPostedOnEntity } from '../lib/geofencing.js';
@@ -573,6 +573,26 @@ eventsRouter.get(
           userCoords = { lat: pLat, lon: pLng };
         }
       }
+    }
+
+    // Constrain the DB query to a bounding box around the viewer BEFORE the
+    // take/order cap, so a bulk import of far-away events (e.g. hundreds of pro
+    // fixtures) can't push a nearby event out of the fetched window entirely.
+    // The haversine pass below refines this square to the true radius. Events
+    // with no own coordinates (game-linked events derive coords from the linked
+    // game) are kept here and distance-filtered afterwards via that fallback.
+    if (userCoords) {
+      const box = geoBoundingBox(userCoords.lat, userCoords.lon, eventRadius);
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          {
+            latitude: { gte: box.minLat, lte: box.maxLat },
+            longitude: { gte: box.minLng, lte: box.maxLng },
+          },
+          { latitude: null },
+        ],
+      });
     }
 
     // Over-fetch when location filtering to compensate for filtered-out events
