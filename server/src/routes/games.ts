@@ -1437,6 +1437,7 @@ gamesRouter.get(
           // games; the client falls back to a deterministic gradient.
           pro_home_color: event?.proHomeTeam?.primary_color ?? null,
           pro_away_color: event?.proAwayTeam?.primary_color ?? null,
+          pro_league: event?.proHomeTeam?.league ?? event?.proAwayTeam?.league ?? null,
           venue_photo: venuePhotoFor(event?.location ?? rest.location),
           ...liveWindow,
           // Fixed: Prioritize game.banner_url over other sources

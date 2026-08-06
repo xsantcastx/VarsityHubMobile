@@ -32,6 +32,7 @@ import { toUserMessage } from '@/utils/toUserMessage';
 import { promptForSignIn } from '@/utils/requireSignIn';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
+import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -100,6 +101,8 @@ type GameVM = {
   location: string | null;
   description?: string | null;
   bannerUrl?: string | null;
+  venuePhotoUrl?: string | null;
+  venuePhotoCredit?: string | null;
   homeTeam?: string | null;
   awayTeam?: string | null;
   appearance?: string | null;
@@ -131,6 +134,17 @@ const ensureIso = (value: any) => {
   if (typeof value === 'string') return value;
   if (value instanceof Date) return value.toISOString();
   return null;
+};
+
+const getVenuePhoto = (value: unknown): { url: string | null; credit: string | null } => {
+  if (!value || typeof value !== 'object') {
+    return { url: null, credit: null };
+  }
+  const record = value as { url?: unknown; credit?: unknown };
+  return {
+    url: typeof record.url === 'string' ? record.url : null,
+    credit: typeof record.credit === 'string' ? record.credit : null,
+  };
 };
 
 const formatDateLabel = (iso?: string | null) => {
@@ -704,6 +718,8 @@ const GameDetailsScreen = () => {
       let location: string | null = null;
       let description: string | null = null;
       let bannerCandidate: string | null = null;
+      let venuePhotoUrl: string | null = null;
+      let venuePhotoCredit: string | null = null;
       let cover: string | null = null;
       let capacity: number | null = null;
       let rsvpCount: number | null = null;
@@ -723,6 +739,16 @@ const GameDetailsScreen = () => {
         location = summary.location ?? summary.event?.location ?? null;
         description = summary.description ?? null;
         bannerCandidate = summary.bannerUrl ?? null;
+        const summaryVenuePhoto =
+          (summary as any)?.venue_photo ?? (summary as any)?.event?.venue_photo;
+        if (summaryVenuePhoto && typeof summaryVenuePhoto === 'object') {
+          venuePhotoUrl =
+            typeof summaryVenuePhoto.url === 'string' ? summaryVenuePhoto.url : venuePhotoUrl;
+          venuePhotoCredit =
+            typeof summaryVenuePhoto.credit === 'string'
+              ? summaryVenuePhoto.credit
+              : venuePhotoCredit;
+        }
         cover = summary.coverImageUrl ?? null;
         capacity =
           typeof summary.capacity === 'number'
@@ -763,6 +789,12 @@ const GameDetailsScreen = () => {
         location = gameRecord.location || null;
         description = gameRecord.description || null;
         bannerCandidate = gameRecord.banner_url || null; // Check game banner_url first
+        const recordVenuePhoto = (gameRecord as any)?.venue_photo;
+        if (recordVenuePhoto && typeof recordVenuePhoto === 'object') {
+          venuePhotoUrl = typeof recordVenuePhoto.url === 'string' ? recordVenuePhoto.url : null;
+          venuePhotoCredit =
+            typeof recordVenuePhoto.credit === 'string' ? recordVenuePhoto.credit : null;
+        }
         cover = gameRecord.cover_image_url || null;
         dateIso = ensureIso(gameRecord.date) ?? null;
         title = gameRecord.title || '';
@@ -814,6 +846,7 @@ const GameDetailsScreen = () => {
       if (!bannerCandidate && summary?.event?.banner_url)
         bannerCandidate = summary.event.banner_url;
       if (!bannerCandidate && gameRecord?.banner_url) bannerCandidate = gameRecord.banner_url; // Fallback to game banner
+      if (!bannerCandidate && venuePhotoUrl) bannerCandidate = venuePhotoUrl;
 
       let deferredEventPromise: Promise<any> | null = null;
       let deferredRsvpPromise: Promise<any> | null = null;
@@ -880,6 +913,8 @@ const GameDetailsScreen = () => {
         location,
         description,
         bannerUrl: bannerCandidate,
+        venuePhotoUrl,
+        venuePhotoCredit,
         appearance,
         coverImageUrl: cover,
         homeTeam,
@@ -910,10 +945,18 @@ const GameDetailsScreen = () => {
           if (!eventDetails) return;
           setVm(prev => {
             if (!prev || prev.gameId !== gameIdValue) return prev;
+            const eventVenuePhoto = getVenuePhoto(eventDetails.venue_photo);
             return {
               ...prev,
               location: prev.location || eventDetails.location || null,
-              bannerUrl: prev.bannerUrl || eventDetails.banner_url || null,
+              bannerUrl:
+                prev.bannerUrl ||
+                eventDetails.banner_url ||
+                eventDetails.cover_image_url ||
+                eventVenuePhoto.url ||
+                null,
+              venuePhotoUrl: prev.venuePhotoUrl || eventVenuePhoto.url,
+              venuePhotoCredit: prev.venuePhotoCredit || eventVenuePhoto.credit,
               appearance: prev.appearance || (eventDetails as any)?.appearance || null,
               capacity:
                 typeof prev.capacity === 'number'
@@ -987,6 +1030,7 @@ const GameDetailsScreen = () => {
         replaceToCanonicalGame(String(event.game_id));
         return;
       }
+      const eventVenuePhoto = getVenuePhoto((event as any)?.venue_photo);
       const dateIso = ensureIso(event?.date) ?? new Date().toISOString();
       const vmPayload: GameVM = {
         id: `event-${eventIdValue}`,
@@ -996,7 +1040,9 @@ const GameDetailsScreen = () => {
         date: dateIso,
         location: event?.location || null,
         description: event?.description || null,
-        bannerUrl: event?.banner_url || event?.cover_image_url || null,
+        bannerUrl: event?.banner_url || event?.cover_image_url || eventVenuePhoto.url || null,
+        venuePhotoUrl: eventVenuePhoto.url,
+        venuePhotoCredit: eventVenuePhoto.credit,
         coverImageUrl: event?.cover_image_url || null,
         homeTeam: null,
         awayTeam: null,
@@ -2027,13 +2073,23 @@ const GameDetailsScreen = () => {
     () => void handleTeamPress(awayTeamObj, vm?.awayTeam ?? null),
     [handleTeamPress, awayTeamObj, vm?.awayTeam]
   );
+  const venuePhotoFallback = useMemo(() => getVenuePhotoFallback(vm?.location), [vm?.location]);
+  const resolvedVenuePhotoUrl = vm?.venuePhotoUrl || venuePhotoFallback?.url || null;
+  const resolvedVenuePhotoCredit = vm?.venuePhotoCredit || venuePhotoFallback?.credit || null;
+  const shouldShowVenuePhotoCredit =
+    Boolean(
+      (finalsBannerUrl || bannerUrl || resolvedVenuePhotoUrl) &&
+      resolvedVenuePhotoUrl &&
+      (finalsBannerUrl || bannerUrl || resolvedVenuePhotoUrl) === resolvedVenuePhotoUrl &&
+      resolvedVenuePhotoCredit
+    ) || false;
 
   const renderBanner = () => {
     // Prefer a full MatchBanner hero if both teams have logos available
     const leftLogo = vm?.homeTeam ? getTeamLogo(vm.homeTeam) : null;
     const rightLogo = vm?.awayTeam ? getTeamLogo(vm.awayTeam) : null;
     const finalsBanner = finalsBannerUrl;
-    const bannerImageUrl = finalsBanner || bannerUrl;
+    const bannerImageUrl = finalsBanner || bannerUrl || resolvedVenuePhotoUrl;
     const bannerImageKey = bannerImageUrl
       ? `${bannerImageUrl}-${vm?.gameId || vm?.id || vm?.title || ''}`
       : 'banner-fallback';
@@ -2898,6 +2954,11 @@ const GameDetailsScreen = () => {
                 <Text style={styles.sectionTitle}>Teams</Text>
                 {renderTeams()}
               </View>
+              {shouldShowVenuePhotoCredit ? (
+                <View style={styles.venueCreditFooter}>
+                  <Text style={styles.venueCreditFooterText}>{resolvedVenuePhotoCredit}</Text>
+                </View>
+              ) : null}
             </>
           ) : null}
         </View>
@@ -3509,6 +3570,20 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
       backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#eff6ff',
     },
     bannerImage: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+    venueCreditFooter: {
+      marginTop: 14,
+      marginBottom: 4,
+      paddingTop: 12,
+      paddingHorizontal: 2,
+      borderTopWidth: 1,
+      borderTopColor: Colors[colorScheme].border,
+    },
+    venueCreditFooterText: {
+      color: Colors[colorScheme].mutedText,
+      fontSize: 11,
+      lineHeight: 15,
+      textAlign: 'center',
+    },
     bannerShade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0 },
     headerWrap: {
       position: 'absolute',
@@ -3933,11 +4008,21 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
       marginTop: 8,
       marginBottom: 6,
     },
-    locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+    locationRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      marginBottom: 12,
+      width: '100%',
+      paddingRight: 6,
+    },
     locationText: {
       color: Colors[colorScheme].text,
       fontWeight: '600',
       textDecorationLine: 'underline',
+      flex: 1,
+      flexShrink: 1,
+      lineHeight: 20,
     },
     actionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
     secondaryActionsRow: {

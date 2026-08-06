@@ -218,66 +218,65 @@
   },
   "overrides": {
     "react-native-safe-area-context": "5.6.2",
-    "undici": "^6.27.0",
+    "undici": "^6.28.0",
     "fast-xml-parser": "5.7.1",
     "engine.io-client": "6.6.6",
     "qs": "6.15.2",
     "@tootallnate/once": "3.0.1",
     "node-forge": "^1.4.0",
-    "brace-expansion": "^2.1.2",
+    "brace-expansion": "5.0.9",
     "picomatch": "^4.0.4",
     "@humanwhocodes/config-array": {
-      "brace-expansion": "^2.0.0"
+      "minimatch": "10.2.6"
     },
     "@expo/fingerprint": {
       "minimatch": {
-        "brace-expansion": "^5.0.7"
+        "brace-expansion": "5.0.9"
       }
     },
     "@expo/config-plugins": {
       "glob": {
         "minimatch": {
-          "brace-expansion": "^5.0.7"
+          "brace-expansion": "5.0.9"
         }
       }
     },
     "@expo/config": {
       "glob": {
         "minimatch": {
-          "brace-expansion": "^5.0.7"
+          "brace-expansion": "5.0.9"
         }
       }
     },
     "expo-updates": {
       "glob": {
         "minimatch": {
-          "brace-expansion": "^5.0.7"
+          "brace-expansion": "5.0.9"
         }
       }
     },
     "expo": {
       "glob": {
         "minimatch": {
-          "brace-expansion": "^5.0.7"
+          "brace-expansion": "5.0.9"
         }
       }
     },
     "react-native": {
       "glob": {
-        "minimatch": {
-          "brace-expansion": "^2.1.2"
-        }
+        "minimatch": "10.2.6"
       }
     },
     "handlebars": "4.7.9",
     "yaml": "^2.8.3",
     "@xmldom/xmldom": "0.8.13",
-    "postcss": "8.5.12",
+    "postcss": "8.5.25",
     "uuid": "^14.0.0",
     "lodash": ">=4.18.0",
-    "axios": "^1.16.0",
+    "axios": "^1.19.0",
     "follow-redirects": ">=1.15.12",
     "shell-quote": "^1.9.0",
-    "fast-uri": "^3.1.3"
+    "fast-uri": "^4.1.2",
+    "socket.io-parser": "^4.2.7"
   }
 }
