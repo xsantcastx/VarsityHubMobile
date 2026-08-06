@@ -478,16 +478,6 @@ const FeedGameCard = memo(function FeedGameCard({
   const gradient =
     proGameCardGradient(raw?.pro_home_color, raw?.pro_away_color) ??
     getDeterministicGameCardGradient(gameItem.id, gameItem.title);
-  // Pro-schedule stadium photo (Wikimedia), shown when there's no real banner.
-  // `credit` MUST render with the image (CC-BY/CC-BY-SA). width param keeps the
-  // feed from pulling a multi-MB original.
-  const venuePhoto =
-    !hasBanner && raw?.venue_photo?.url
-      ? {
-          uri: `${raw.venue_photo.url}${raw.venue_photo.url.includes('?') ? '&' : '?'}width=800`,
-          credit: typeof raw.venue_photo.credit === 'string' ? raw.venue_photo.credit : '',
-        }
-      : null;
   // Display the SERVER-AUTHORITATIVE start, not the game row's own date. The
   // server derives starts_at from the linked Event (serializeLiveWindow in
   // lib/geofencing.ts), and the two genuinely disagree — a game row's date can
@@ -547,7 +537,6 @@ const FeedGameCard = memo(function FeedGameCard({
         end={{ x: 1, y: 1 }}
       />
       {hasBanner && <FullBleedCardImage uri={optimizeImageUrl(banner!, 400) || banner!} />}
-      {venuePhoto && <FullBleedCardImage uri={venuePhoto.uri} />}
       <LinearGradient
         colors={
           colorScheme === 'dark'
@@ -614,11 +603,6 @@ const FeedGameCard = memo(function FeedGameCard({
         ) : null}
       </View>
       <RSVPBadge gameItem={gameItem} initialRsvp={rsvp} onRSVPChange={onRSVPChange} />
-      {venuePhoto?.credit ? (
-        <Text style={styles.venueCredit} numberOfLines={1}>
-          {`📷 ${venuePhoto.credit}`}
-        </Text>
-      ) : null}
     </Pressable>
   );
 });
