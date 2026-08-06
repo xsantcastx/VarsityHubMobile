@@ -174,26 +174,24 @@ highlightsRouter.get(
           });
         }
         if (sort === 'top') {
-          // Product rule (owner, 2026-07-16): "top should top 10 post with the
-          // most engagement that month" — the CALENDAR month (UTC; Railway runs
-          // UTC), not a rolling 30-day window, and exactly 10 items regardless
-          // of the client's `limit`.
+          // Product rule: top 10 by engagement over the last 30 days, and
+          // exactly 10 items regardless of the client's `limit`.
           //
           // engagement = upvotes_count + comments*1.5 + bookmarks*1.5
           // Only signals the Post schema actually carries (there is no view
           // counter). Comments and bookmarks are weighted above a passing
           // upvote because both take deliberate effort.
-          const now = new Date();
-          const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+          const TOP_WINDOW_DAYS = 30;
+          const topSince = new Date(Date.now() - TOP_WINDOW_DAYS * 864e5);
           const [byUpvotes, byComments] = await Promise.all([
             prisma.post.findMany({
-              where: { ...baseWhere, created_at: { gte: monthStart } },
+              where: { ...baseWhere, created_at: { gte: topSince } },
               orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
               take: 100,
               select: highlightPostSelect,
             }),
             prisma.post.findMany({
-              where: { ...baseWhere, created_at: { gte: monthStart } },
+              where: { ...baseWhere, created_at: { gte: topSince } },
               // Unlike byUpvotes (covered by the country/upvotes/created_at
               // index), this relation-count order runs a per-row correlated
               // COUNT — accepted cost at single-country/one-month volume.
