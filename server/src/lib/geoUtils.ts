@@ -31,6 +31,35 @@ function toRadians(degrees: number): number {
 }
 
 /**
+ * Axis-aligned lat/lng bounding box around a point for a radius in miles.
+ *
+ * Used to pre-filter a geo query in the DB *before* a precise haversine pass, so
+ * the query's take/order cap applies to rows near the viewer instead of the
+ * globally-newest rows. Without it, a bulk import of far-away rows (e.g. hundreds
+ * of pro fixtures) can push a nearby row out of the fetched window entirely.
+ *
+ * The box is a superset of the true circle (a square around it) — the caller
+ * still refines it with an exact haversineDistance check. Longitude degrees
+ * shrink with latitude (cos), clamped near the poles so the divisor never hits 0.
+ */
+export function geoBoundingBox(
+  lat: number,
+  lon: number,
+  radiusMiles: number
+): { minLat: number; maxLat: number; minLng: number; maxLng: number } {
+  const MILES_PER_DEGREE_LAT = 69;
+  const latDelta = radiusMiles / MILES_PER_DEGREE_LAT;
+  const lngDelta =
+    radiusMiles / (MILES_PER_DEGREE_LAT * Math.max(Math.cos(toRadians(lat)), 0.01));
+  return {
+    minLat: lat - latDelta,
+    maxLat: lat + latDelta,
+    minLng: lon - lngDelta,
+    maxLng: lon + lngDelta,
+  };
+}
+
+/**
  * Get approximate coordinates for a US zip code
  * Uses the first 3 digits to map to a region's centroid
  *
