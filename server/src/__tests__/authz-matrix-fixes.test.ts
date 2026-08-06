@@ -57,7 +57,7 @@ describe('block filtering on DM history + game posts', () => {
 describe('shareLanding user + program privacy gates', () => {
   it('userLanding checks profile privacy and programLanding checks team privacy', () => {
     const src = read('routes', 'shareLanding.ts');
-    expect(src).toMatch(/profile_private/);
+    expect(src).toMatch(/isAuthorHiddenFromViewer/);
     expect(src).toMatch(/isTeamHiddenFromViewer|is_private/);
   });
 });

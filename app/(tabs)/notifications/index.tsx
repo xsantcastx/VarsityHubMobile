@@ -1,10 +1,11 @@
 import { useAuth } from '@/context/AuthProvider';
 import { inboxHeaderSharedStyles } from '@/components/InboxHeaderShared';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
@@ -60,6 +61,8 @@ function NotificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<Notif[]>([]);
   const [markingAll, setMarkingAll] = useState(false);
+  const autoMarkedThisFocusRef = useRef(false);
+  const isFocusedRef = useRef(false);
 
   // react-query owns the paginated fetch: revisiting the tab serves the cached
   // first page instantly (no spinner) and revalidates in the background. This
@@ -92,12 +95,37 @@ function NotificationsScreen() {
   const loading = isPending; // no cached data yet — never gate on background fetch
   const error = isError ? (queryError as any)?.message || 'Failed to load notifications' : null;
 
+  useFocusEffect(
+    useCallback(() => {
+      isFocusedRef.current = true;
+      autoMarkedThisFocusRef.current = false;
+      // Opening notifications is itself the "seen" action, so clear the app
+      // badge immediately instead of waiting for the network round-trip.
+      void clearNotificationBadge();
+      return () => {
+        isFocusedRef.current = false;
+      };
+    }, [])
+  );
+
   useEffect(() => {
-    // Sync the app icon badge with server state on screen mount so the
-    // count reflects reality when the user opens this tab. Best-effort;
-    // failures are swallowed inside the helper.
-    void syncNotificationBadge();
-  }, []);
+    if (!isFocusedRef.current) return;
+    if (markingAll || autoMarkedThisFocusRef.current) return;
+    if (!items.some(item => !item.read_at)) return;
+
+    autoMarkedThisFocusRef.current = true;
+    const now = new Date().toISOString();
+    const previousItems = items;
+    setItems(items.map(item => (item.read_at ? item : { ...item, read_at: now })));
+    void clearNotificationBadge();
+
+    Notification.markAllRead().catch(err => {
+      autoMarkedThisFocusRef.current = false;
+      if (__DEV__) console.error('Failed to auto-mark notifications as read', err);
+      setItems(previousItems);
+      void syncNotificationBadge();
+    });
+  }, [items, markingAll]);
 
   const onRefresh = () => {
     setRefreshing(true);

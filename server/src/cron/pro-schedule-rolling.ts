@@ -1,5 +1,5 @@
 /**
- * Rolling pro-schedule ingest — all leagues, ~2-week horizon.
+ * Rolling pro-schedule ingest — all leagues, preseason-safe horizon.
  *
  * Every run pulls each league's games in the next WINDOW_DAYS from the
  * configured provider (ESPN) and upserts them as Event pages. Idempotent on
@@ -11,15 +11,14 @@
  * publishes only if both teams map to seeded refs AND its venue resolves to a
  * coordinate. Anything else is quarantined and reported, never published wrong.
  *
- * Railway cron suggestion: daily (`0 8 * * *`) keeps the ~14-day window fresh.
+ * Railway cron suggestion: daily (`0 8 * * *`) keeps the configured window fresh.
  * DRY RUN by default; pass --apply (or ROLLING_APPLY=1) to write.
  *   PRO_SCHEDULE_PROVIDER=espn npx tsx src/cron/pro-schedule-rolling.ts --apply
  */
 import { prisma } from '../lib/prisma.js';
 import { NO_ADAPTER_MESSAGE, resolveConfiguredAdapter } from '../lib/proSchedule/adapters.js';
 import { ingestLeague } from '../lib/proSchedule/ingest.js';
-
-const WINDOW_DAYS = 14;
+import { getProScheduleWindowDays } from '../lib/proSchedule/window.js';
 
 export async function runRollingScheduleIngest(opts: { apply?: boolean } = {}): Promise<void> {
   const apply =
@@ -31,11 +30,12 @@ export async function runRollingScheduleIngest(opts: { apply?: boolean } = {}): 
     return;
   }
 
+  const windowDays = getProScheduleWindowDays();
   const from = new Date();
-  const to = new Date(from.getTime() + WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const to = new Date(from.getTime() + windowDays * 24 * 60 * 60 * 1000);
   console.log(
     `[pro-schedule-rolling] ${apply ? 'APPLY' : 'DRY RUN'} via ${adapter.name}, ` +
-      `${adapter.leagues.join(',')} over ${WINDOW_DAYS}d ` +
+      `${adapter.leagues.join(',')} over ${windowDays}d ` +
       `(${from.toISOString()} → ${to.toISOString()})`
   );
 

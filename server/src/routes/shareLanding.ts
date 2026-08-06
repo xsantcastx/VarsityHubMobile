@@ -50,6 +50,7 @@ const SHAREABLE_PATHS = [
   '/users',
   '/events',
   '/programs',
+  '/organizations',
   '/join',
   '/share',
 ] as const;
@@ -375,16 +376,21 @@ async function programLanding(req: Request, res: Response, next: NextFunction) {
         name: true,
         logo_url: true,
         organization: { select: { name: true, admin_approved: true } },
+        teams: {
+          where: { status: 'active', is_private: false },
+          select: { id: true },
+          take: 1,
+        },
       },
     })
     .catch(() => null);
 
-  // The landing exposes only the program label (sport + name), org name, and
-  // logo — never any team, so an all-private-teams program leaks nothing here.
-  // The only privacy concern is surfacing an UNAPPROVED org's name; an org-less
-  // program has no org to leak and stays shareable. Audit 2026-07-14.
+  // Mirror the public program-page boundary: only approved-org programs with at
+  // least one public active level team may render branded metadata here.
   const visibleProgram =
-    program && (!program.organization || program.organization.admin_approved) ? program : null;
+    program && program.organization?.admin_approved === true && program.teams.length > 0
+      ? program
+      : null;
 
   const meta: LandingMeta = visibleProgram
     ? {
@@ -418,17 +424,19 @@ async function userLanding(req: Request, res: Response, next: NextFunction) {
     })
     .catch(() => null);
 
-  // Don't leak deleted/anonymized accounts at all; for a PRIVATE profile mirror
-  // the in-app non-follower projection (name + avatar, but no bio). Audit 2026-07-14.
-  const isPrivate = (user?.preferences as any)?.profile_private === true;
-  const visibleUser = user && !user.deleted_at ? user : null;
+  // Mirror the public profile gate exactly: deleted/anonymized accounts AND
+  // private profiles for anonymous viewers fall back to the generic landing.
+  const hiddenFromAnonymous = user
+    ? await isAuthorHiddenFromViewer(id, null).catch(() => true)
+    : true;
+  const visibleUser = user && !user.deleted_at && !hiddenFromAnonymous ? user : null;
   const handle = visibleUser?.username
     ? `@${visibleUser.username}`
     : visibleUser?.display_name || 'A VarsityHub member';
   const meta: LandingMeta = visibleUser
     ? {
         title: handle,
-        description: isPrivate ? undefined : visibleUser.bio || undefined,
+        description: visibleUser.bio || undefined,
         imageUrl: visibleUser.avatar_url || undefined,
         url: fullUrl(req),
       }

@@ -37,10 +37,15 @@ writes only when `PRO_SCHEDULE_PROVIDER=espn` **and**
    cd server && PRO_SCHEDULE_PROVIDER=espn npx tsx src/cron/pro-schedule-rolling.ts
    ```
 2. **Go live:** add `PRO_SCHEDULE_ROLLING_ENABLED=1`. Next run (or an on-demand
-   `--apply`) populates the next ~14 days as event pages:
+   `--apply`) populates the configured forward window as event pages. Default is
+   **45 days**, which is long enough to cover the full NFL preseason slate:
    ```bash
    cd server && PRO_SCHEDULE_PROVIDER=espn PRO_SCHEDULE_ROLLING_ENABLED=1 \
      npx tsx src/cron/pro-schedule-rolling.ts --apply
+   ```
+   Optional override:
+   ```bash
+   PRO_SCHEDULE_WINDOW_DAYS=60
    ```
 3. **Full WWE (optional):** add `PRO_SCHEDULE_TSDB_KEY=<patreon key>` for the
    whole WWE schedule instead of just the next show.

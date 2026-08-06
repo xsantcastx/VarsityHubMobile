@@ -216,9 +216,9 @@ const finalsBannerForTeams = (
   return null;
 };
 
-const pickBannerFromArrays = (vm: Partial<GameVM>, media: MediaItem[]) => {
+const pickBannerFromArrays = (vm: Partial<GameVM>) => {
   const finalsBanner = finalsBannerForTeams(vm.homeTeam, vm.awayTeam, vm.title as any);
-  const result = vm.bannerUrl || vm.coverImageUrl || finalsBanner || media[0]?.url || null;
+  const result = vm.bannerUrl || vm.coverImageUrl || finalsBanner || null;
   return result;
 };
 
@@ -460,7 +460,7 @@ const GameDetailsScreen = () => {
 
   const bannerUrl = useMemo(() => {
     if (finalsBannerUrl) return finalsBannerUrl;
-    return pickBannerFromArrays(vm ?? {}, vm?.media ?? []);
+    return pickBannerFromArrays(vm ?? {});
   }, [vm, finalsBannerUrl]);
 
   // Load teams data
