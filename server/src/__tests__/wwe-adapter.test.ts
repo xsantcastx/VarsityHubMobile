@@ -48,6 +48,25 @@ describe('wweAdapter geocoding (injected)', () => {
       globalThis.fetch = realFetch;
     }
   });
+
+  it('uses static WWE venue fallback when geocoder returns null', async () => {
+    const nullGeocode = async () => null;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      ({ ok: true, json: async () => sample }) as any) as typeof fetch;
+    try {
+      const fx = await wweAdapter('3', nullGeocode).fetchFixtures(
+        'wwe',
+        new Date('2000-01-01'),
+        new Date('2100-01-01')
+      );
+      // U.S. Bank Stadium is seeded in the static fallback table.
+      expect(fx[0].venue_lat).toBeCloseTo(44.9737, 3);
+      expect(fx[0].venue_lng).toBeCloseTo(-93.2577, 3);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
 });
 
 describe('compositeAdapter', () => {
