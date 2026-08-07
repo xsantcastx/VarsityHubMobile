@@ -42,7 +42,11 @@ import {
 } from '@/utils/publicRoutes';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { captureException, setUserContext as setSentryUser } from '@/utils/sentry';
-import { onSessionExpired, type SessionExpiredReason } from '@/utils/sessionEvents';
+import {
+  onSessionExpired,
+  type SessionExpiredReason,
+  type SessionExpiredDetails,
+} from '@/utils/sessionEvents';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -752,7 +756,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
    * not strand browse-mode users on sign-in.
    */
   const handleSessionExpired = useCallback(
-    async (reason: SessionExpiredReason) => {
+    async (reason: SessionExpiredReason, details?: SessionExpiredDetails) => {
       const userBeforeExpiry = user;
       const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
       const isAuthEntryScreen =
@@ -771,6 +775,16 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           showWarningToast('Your session expired. Please sign in again.');
         } catch {}
       }
+      captureException(new Error('session_expired_redirect'), {
+        tags: {
+          context: 'session_expired_handler',
+          reason,
+          source: details?.source || 'unknown',
+        },
+        details,
+        currentPath,
+        hadUser: !!userBeforeExpiry,
+      });
       redirectWithTelemetry(
         unauthenticatedEntryRoute,
         `session_expired:${reason}`,
@@ -787,8 +801,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   );
 
   useEffect(() => {
-    const unsubscribe = onSessionExpired(reason => {
-      void handleSessionExpired(reason).catch(err =>
+    const unsubscribe = onSessionExpired((reason, details) => {
+      void handleSessionExpired(reason, details).catch(err =>
         captureException(err, { tags: { context: 'session_expired_handler' } })
       );
     });

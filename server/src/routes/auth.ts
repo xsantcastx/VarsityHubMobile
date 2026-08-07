@@ -922,13 +922,17 @@ async function serveRotatedTokenOrRevoke(
 ) {
   const user = await prisma.user.findUnique({ where: { id: stored.user_id } });
   if (!user || user.banned) {
-    return res.status(401).json({ error: 'Invalid refresh token' });
+    return res
+      .status(401)
+      .json({ error: 'Invalid refresh token', code: 'REFRESH_USER_NOT_FOUND_OR_BANNED' });
   }
 
   // A password change already revokes sessions on its own path — never reissue
   // a token that predates it, even inside the grace window.
   if (user.password_changed_at && stored.created_at < user.password_changed_at) {
-    return res.status(401).json({ error: 'Token invalidated by password change' });
+    return res
+      .status(401)
+      .json({ error: 'Token invalidated by password change', code: 'REFRESH_PASSWORD_CHANGED' });
   }
 
   const rotatedAtMs = stored.rotated_at ? stored.rotated_at.getTime() : 0;
@@ -989,12 +993,14 @@ authRouter.post(
       typeof req.body.refresh_token !== 'string' ||
       !req.body.refresh_token.trim()
     ) {
-      return res.status(401).json({ error: 'Invalid refresh token' });
+      return res.status(401).json({ error: 'Invalid refresh token', code: 'REFRESH_MISSING' });
     }
 
     try {
       const parsed = refreshSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(401).json({ error: 'Invalid refresh token' });
+      if (!parsed.success) {
+        return res.status(401).json({ error: 'Invalid refresh token', code: 'REFRESH_SCHEMA_INVALID' });
+      }
 
       const { refresh_token } = parsed.data;
 
@@ -1010,7 +1016,9 @@ authRouter.post(
         const tokenHash = hashRefreshToken(refresh_token);
         stored = await prisma.refreshToken.findUnique({ where: { token_hash: tokenHash } });
       }
-      if (!stored) return res.status(401).json({ error: 'Invalid refresh token' });
+      if (!stored) {
+        return res.status(401).json({ error: 'Invalid refresh token', code: 'REFRESH_NOT_FOUND' });
+      }
 
       // Constant-time verification against the stored hash.
       const matches = await verifyRefreshTokenHash(
@@ -1018,7 +1026,9 @@ authRouter.post(
         stored.token_hash,
         stored.hash_version
       );
-      if (!matches) return res.status(401).json({ error: 'Invalid refresh token' });
+      if (!matches) {
+        return res.status(401).json({ error: 'Invalid refresh token', code: 'REFRESH_HASH_MISMATCH' });
+      }
 
       // Already-rotated (superseded) token. Handle before the generic expiry
       // check: rotation shrinks the old row's expiry to the grace window, so a
@@ -1039,7 +1049,7 @@ authRouter.post(
           },
           () => prisma.refreshToken.delete({ where: { id: stored.id } })
         );
-        return res.status(401).json({ error: 'Refresh token expired' });
+        return res.status(401).json({ error: 'Refresh token expired', code: 'REFRESH_EXPIRED' });
       }
 
       // Check user still valid
@@ -1054,7 +1064,9 @@ authRouter.post(
           },
           () => prisma.refreshToken.delete({ where: { id: stored.id } })
         );
-        return res.status(401).json({ error: 'Account not found or banned' });
+        return res
+          .status(401)
+          .json({ error: 'Account not found or banned', code: 'REFRESH_ACCOUNT_BLOCKED' });
       }
 
       // Reject tokens issued before a password change
@@ -1068,7 +1080,9 @@ authRouter.post(
           },
           () => prisma.refreshToken.delete({ where: { id: stored.id } })
         );
-        return res.status(401).json({ error: 'Token invalidated by password change' });
+        return res
+          .status(401)
+          .json({ error: 'Token invalidated by password change', code: 'REFRESH_PASSWORD_CHANGED' });
       }
 
       const fingerprintCheck = verifyStoredSessionFingerprint(stored.device_info, req);
@@ -1089,7 +1103,9 @@ authRouter.post(
             },
             () => prisma.refreshToken.delete({ where: { id: stored.id } })
           );
-          return res.status(401).json({ error: 'Invalid refresh token' });
+          return res
+            .status(401)
+            .json({ error: 'Invalid refresh token', code: 'REFRESH_DEVICE_MISMATCH' });
         }
 
         console.warn('[auth] Refresh token used from different legacy device fingerprint', {
@@ -1163,7 +1179,7 @@ authRouter.post(
       const access_token = signAccessTokenForSession(user.id, (user as any).session_epoch ?? 0);
       return res.json({ access_token, refresh_token: newRawRefresh });
     } catch (err) {
-      return res.status(401).json({ error: 'Invalid refresh token' });
+      return res.status(401).json({ error: 'Invalid refresh token', code: 'REFRESH_INVALID' });
     }
   })
 );

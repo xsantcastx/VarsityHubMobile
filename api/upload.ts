@@ -180,7 +180,11 @@ async function applyRefreshResultToUploadBoundary(
   if (refreshResult?.reason === 'auth' || refreshResult?.reason === 'missing') {
     await auth.clearTokensOnly();
     if (error) error.isSessionExpired = true;
-    emitSessionExpired(refreshResult.reason === 'missing' ? 'refresh_missing' : 'refresh_failed');
+    emitSessionExpired(refreshResult.reason === 'missing' ? 'refresh_missing' : 'refresh_failed', {
+      source: 'upload',
+      refreshReason: refreshResult.reason,
+      authCode: typeof error?.data?.code === 'string' ? error.data.code : undefined,
+    });
     return false;
   }
 
@@ -529,7 +533,14 @@ async function getCloudinarySignature(
           if (refreshed.reason === 'auth' || refreshed.reason === 'missing') {
             await auth.clearTokensOnly();
             emitSessionExpired(
-              refreshed.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
+              refreshed.reason === 'missing' ? 'refresh_missing' : 'refresh_failed',
+              {
+                source: 'upload',
+                path: '/uploads/cloudinary-signature',
+                status: res.status,
+                refreshReason: refreshed.reason,
+                authCode: typeof data?.code === 'string' ? data.code : undefined,
+              }
             );
             return null;
           }
@@ -944,7 +955,13 @@ export async function uploadFileWithProgress(
                 sessionErr.status = 401;
                 sessionErr.isSessionExpired = true;
                 emitSessionExpired(
-                  refreshed.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
+                  refreshed.reason === 'missing' ? 'refresh_missing' : 'refresh_failed',
+                  {
+                    source: 'upload',
+                    path: '/uploads',
+                    status: 401,
+                    refreshReason: refreshed.reason,
+                  }
                 );
                 reject(sessionErr);
                 return;

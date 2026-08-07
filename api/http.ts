@@ -427,7 +427,12 @@ async function request(
           // microtask reference, which is negligible.
           if (retryRes.status === 401) {
             await auth.clearTokensOnly();
-            emitSessionExpired('token_rejected_after_refresh');
+            emitSessionExpired('token_rejected_after_refresh', {
+              source: 'http',
+              path,
+              status: retryRes.status,
+              authCode: retryData?.code,
+            });
             return new Promise(() => {}); // intentional never-resolves
           }
           throw retryErr;
@@ -437,15 +442,23 @@ async function request(
         // Same contract as the retry-401 branch above: emit the event and
         // hang the Promise so per-screen catches don't stack a native Alert
         // on top of AuthProvider's redirect.
+        const refreshError = refreshResult && 'error' in refreshResult ? refreshResult.error : err;
+
         if (refreshResult?.reason === 'auth' || refreshResult?.reason === 'missing') {
           await auth.clearTokensOnly();
           emitSessionExpired(
-            refreshResult.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
+            refreshResult.reason === 'missing' ? 'refresh_missing' : 'refresh_failed',
+            {
+              source: 'http',
+              path,
+              status: err.status,
+              refreshReason: refreshResult.reason,
+              authCode:
+                typeof refreshError?.data?.code === 'string' ? refreshError.data.code : undefined,
+            }
           );
           return new Promise(() => {}); // intentional never-resolves
         }
-
-        const refreshError = refreshResult && 'error' in refreshResult ? refreshResult.error : err;
 
         const transientRefreshErr: any = new Error(
           'Unable to refresh session right now. Please try again.'

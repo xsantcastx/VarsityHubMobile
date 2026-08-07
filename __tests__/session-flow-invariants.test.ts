@@ -123,9 +123,9 @@ describe('session-expired event bus — client wiring invariants', () => {
     });
 
     it('subscribes via onSessionExpired inside an effect (so it cleans up on unmount)', () => {
-      // Pattern: `const unsubscribe = onSessionExpired(reason => {...})` inside
+      // Pattern: `const unsubscribe = onSessionExpired((reason, details?) => {...})` inside
       // a useEffect whose cleanup calls unsubscribe().
-      expect(authProvider).toMatch(/onSessionExpired\s*\(\s*[a-zA-Z_][\w]*\s*=>/);
+      expect(authProvider).toMatch(/onSessionExpired\s*\(/);
     });
 
     it('routes to the guest feed on session-expired event', () => {

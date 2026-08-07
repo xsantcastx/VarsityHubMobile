@@ -305,7 +305,10 @@ describe('api/http — auth refresh', () => {
 
     expect(mockClearTokensOnly).toHaveBeenCalledTimes(1);
     expect(mockEmitSessionExpired).toHaveBeenCalledTimes(1);
-    expect(mockEmitSessionExpired).toHaveBeenCalledWith('refresh_failed');
+    expect(mockEmitSessionExpired).toHaveBeenCalledWith(
+      'refresh_failed',
+      expect.objectContaining({ source: 'http', path: '/me', refreshReason: 'auth' })
+    );
     expect(settled).not.toHaveBeenCalled();
   });
 
@@ -326,7 +329,10 @@ describe('api/http — auth refresh', () => {
 
     expect(mockClearTokensOnly).toHaveBeenCalledTimes(1);
     expect(mockEmitSessionExpired).toHaveBeenCalledTimes(1);
-    expect(mockEmitSessionExpired).toHaveBeenCalledWith('refresh_missing');
+    expect(mockEmitSessionExpired).toHaveBeenCalledWith(
+      'refresh_missing',
+      expect.objectContaining({ source: 'http', path: '/me', refreshReason: 'missing' })
+    );
     expect(settled).not.toHaveBeenCalled();
   });
 });
