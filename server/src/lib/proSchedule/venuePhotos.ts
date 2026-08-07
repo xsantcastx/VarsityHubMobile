@@ -1,6 +1,6 @@
 /**
  * Venue photos + attribution for pro-schedule events, sourced from Wikimedia
- * Commons via each venue's Wikidata P18 image (91 venues).
+ * Commons via each venue's Wikidata P18 image (117 venues).
  * Keyed by ProTeam/fixture venue_name. Each entry carries the credit string
  * that MUST be displayed with the image (CC-BY / CC-BY-SA compliance): the
  * pro card + team page render `credit` beneath the photo. Venues without a
@@ -107,6 +107,32 @@ export const VENUE_PHOTOS: Record<string, VenuePhoto> = {
   "Wrigley Field": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Wrigley_Field_2018_-_42195054760.jpg", credit: "Ryan Dickey / Wikimedia Commons, CC BY 2.0" },
   "Xfinity Mobile Arena": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Wells_Fargo_Center_-_2019_OWL_Grand_Finals.jpg", credit: "Jen Smith / Wikimedia Commons, CC BY 3.0" },
   "Yankee Stadium": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Yankee_Stadium_upper_deck_2010.jpg", credit: "Matt Boulton / Wikimedia Commons, CC BY-SA 2.0" },
+  // 2026-08-06 expansion (owner note "event pages should always have pictures"):
+  // 20 venues referenced by the pro schedule that had no photo. Sourced the same
+  // way as the rest — Wikidata P18 → Commons, attribution verified, each image
+  // URL confirmed to load. Several use the building's former name (same venue,
+  // renamed): Climate Pledge=KeyArena, Enterprise=Scottrade, Pechanga=SD Sports
+  // Arena, SNHU=Verizon Wireless, Coca-Cola Coliseum=Ricoh, Tom Benson=Fawcett.
+  "American Bank Center": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/AmericanBankCenterCorpus.jpg", credit: "WhisperToMe / Wikimedia Commons, CC0" },
+  "Arena CDMX": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/ACMX16.JPG", credit: "Santix1988 / Wikimedia Commons, CC BY-SA 3.0" },
+  "Cajundome": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Cajundome_Afternoon.JPG", credit: "Jcarriere at en.wikipedia / Wikimedia Commons, Public domain" },
+  "Canada Life Place": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Canada_Life_Place%2C_formly_the_called_Budweiser_Gardens.jpg", credit: "Gogerr / Wikimedia Commons, CC BY 4.0" },
+  "Canadian Tire Centre": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Canadian_Tire_Centre_1.JPG", credit: "Ontario Images / Wikimedia Commons, CC BY-SA 4.0" },
+  "Climate Pledge Arena": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/KeyArena_(2890740573).jpg", credit: "Cliff from Arlington, Virginia, USA / Wikimedia Commons, CC BY 2.0" },
+  "Coca-Cola Coliseum": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Ricohcoliseum.jpg", credit: "Diego Torres Silvestre / Wikimedia Commons, CC BY 2.0" },
+  "College Park Center": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/University_of_Texas_at_Arlington_March_2021_008_(College_Park_Center).jpg", credit: "Michael Barera / Wikimedia Commons, CC BY-SA 4.0" },
+  "Enterprise Center": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Scottrade_Center_3Apr2005.jpg", credit: "Haaron755 / Wikimedia Commons, CC BY-SA 3.0" },
+  "KeyBank Center": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/KeyBank_Center_side_view_from_Main_Street_at_Prime_Street%2C_Buffalo%2C_New_York_-_20210725.jpg", credit: "Andre Carrotflower / Wikimedia Commons, CC BY-SA 4.0" },
+  "Legacy Arena": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Legacy_Arena_2022.jpg", credit: "AuburnShuffle / Wikimedia Commons, CC0" },
+  "Levi's Stadium": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Levi's_Stadium_interior_1.jpg", credit: "Matthew Roth / Wikimedia Commons, CC BY-SA 2.0" },
+  "Michelob Ultra Arena": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/MandalayBay2010.JPG", credit: "Kris1123 / Wikimedia Commons, CC BY 3.0" },
+  "North Charleston Coliseum": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/North_Charleston_Coliseum_Aug2010.jpg", credit: "Chris Pruitt / Wikimedia Commons, CC BY-SA 3.0" },
+  "Pechanga Arena": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/San_Diego_Sports_Arena.jpg", credit: "Nehrams2020 / Wikimedia Commons, CC BY-SA 3.0" },
+  "Rogers Place": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Rogers_Place%2C_Edmonton%2C_June_6%2C_2024.jpg", credit: "D. Benjamin Miller / Wikimedia Commons, CC0" },
+  "Save Mart Center": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/2009-0725-CA-SaveMartCenter.jpg", credit: "Bobak Ha'Eri / Wikimedia Commons, CC BY 3.0" },
+  "Scotiabank Saddledome": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/2020_Calgary_Saddledome.jpg", credit: "AceYYC / Wikimedia Commons, CC BY-SA 4.0" },
+  "SNHU Arena": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Verizon_Wireless_Arena_front.jpg", credit: "ToddC4176 at English Wikipedia (Original text: T.S. Custadio ToddC4176) / Wikimedia Commons, CC BY-SA 3.0" },
+  "Tom Benson Hall of Fame Stadium": { url: "https://commons.wikimedia.org/wiki/Special:FilePath/Fawcett_Stadium.jpg", credit: "Harrier233 at English Wikipedia / Wikimedia Commons, Public domain" },
 };
 
 /** Case-insensitive lookup by venue name (the part before the first comma of an event location). */
