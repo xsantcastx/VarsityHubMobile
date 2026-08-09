@@ -33,6 +33,22 @@ This document outlines the production hardening roadmap for VarsityHub, covering
 - Ads/payments routes behind global rate limiter + `no-store` headers
 - JWT signing uses validated secret only (no dev fallback)
 
+### Operational Readiness Check (BACKUPS + ALERTS) ✅
+
+Use the repo's operational readiness helper to confirm the app is ready for a production handoff:
+
+```bash
+npm run verify:ops
+```
+
+This script checks the public `/health` endpoint, confirms Sentry DSN configuration, and prints the remaining manual Railway/Sentry follow-ups for:
+
+- Postgres backup enablement + retention confirmation
+- Restore procedure validation and a documented rollback path
+- Sentry alerts for 5xx spikes, slow-query bursts, auth failures, and payment errors
+
+If the health probe fails, fix the deployment before treating the release as safe. If the health probe passes but the manual checklist items are still unchecked, treat the rollout as operationally incomplete.
+
 ---
 
 ## Table of Contents

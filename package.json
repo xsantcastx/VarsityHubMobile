@@ -54,6 +54,7 @@
     "verify:confidence": "bash scripts/verify-confidence.sh",
     "verify:production-ready": "bash scripts/verify-production-ready.sh",
     "verify:railway-health": "bash scripts/railway-health-check.sh --ci",
+    "verify:ops": "bash scripts/verify-ops-readiness.sh",
     "test:build": "bash scripts/test-build-config.sh",
     "audit:app": "bash scripts/comprehensive-app-audit.sh",
     "audit:pre-release": "bash scripts/pre-release-audit.sh",
