@@ -24,17 +24,87 @@ export async function runProSportsBootstrap(): Promise<void> {
   if (process.env.PRO_SPORTS_BOOTSTRAP !== '1') return;
   try {
     // 1) Seed the pro franchises + the WWE promotion. Mirrors seed-pro-teams.ts.
-    let teams = 0;
-    for (const t of PRO_TEAM_SEED) {
-      const { external_ref, ...data } = t;
-      await prisma.proTeam.upsert({
-        where: { external_ref },
-        create: { external_ref, ...data },
-        update: data,
+    const seedRefs = PRO_TEAM_SEED.map(team => team.external_ref);
+    const existingTeams = await prisma.proTeam.findMany({
+      where: { external_ref: { in: seedRefs } },
+      select: {
+        id: true,
+        external_ref: true,
+        league: true,
+        name: true,
+        short_name: true,
+        abbreviation: true,
+        city: true,
+        state: true,
+        conference: true,
+        division: true,
+        venue_name: true,
+        venue_address: true,
+        venue_lat: true,
+        venue_lng: true,
+        timezone: true,
+        primary_color: true,
+        active: true,
+      },
+      take: 1000,
+    });
+    const existingByRef = new Map(existingTeams.map(team => [team.external_ref, team]));
+    const toCreate = PRO_TEAM_SEED.filter(team => !existingByRef.has(team.external_ref));
+    const toUpdate = PRO_TEAM_SEED.filter(team => {
+      const existing = existingByRef.get(team.external_ref);
+      if (!existing) return false;
+      return (
+        existing.league !== team.league ||
+        existing.name !== team.name ||
+        existing.short_name !== team.short_name ||
+        existing.abbreviation !== team.abbreviation ||
+        existing.city !== team.city ||
+        existing.state !== team.state ||
+        existing.conference !== team.conference ||
+        existing.division !== team.division ||
+        existing.venue_name !== team.venue_name ||
+        existing.venue_address !== team.venue_address ||
+        existing.venue_lat !== team.venue_lat ||
+        existing.venue_lng !== team.venue_lng ||
+        existing.timezone !== team.timezone ||
+        existing.primary_color !== team.primary_color ||
+        existing.active !== true
+      );
+    });
+
+    if (toCreate.length > 0) {
+      await prisma.proTeam.createMany({
+        data: toCreate.map(team => ({ ...team, active: true })),
+        skipDuplicates: true,
       });
-      teams += 1;
     }
-    console.log(`[pro-bootstrap] seeded/updated ${teams} pro teams`);
+
+    for (const team of toUpdate) {
+      await prisma.proTeam.update({
+        where: { external_ref: team.external_ref },
+        data: {
+          league: team.league,
+          name: team.name,
+          short_name: team.short_name,
+          abbreviation: team.abbreviation,
+          city: team.city,
+          state: team.state,
+          conference: team.conference,
+          division: team.division,
+          venue_name: team.venue_name,
+          venue_address: team.venue_address,
+          venue_lat: team.venue_lat,
+          venue_lng: team.venue_lng,
+          timezone: team.timezone,
+          primary_color: team.primary_color,
+          active: true,
+        },
+      });
+    }
+    console.log(
+      `[pro-bootstrap] seeded/updated ${PRO_TEAM_SEED.length} pro teams ` +
+        `(created=${toCreate.length}, updated=${toUpdate.length})`
+    );
 
     // 2) Ingest the curated WWE schedule (touring shows -> Event rows pinned to
     //    the WWE promotion). Idempotent on Event.pro_external_ref.
