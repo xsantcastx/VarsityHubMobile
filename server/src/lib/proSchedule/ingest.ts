@@ -50,10 +50,7 @@ type ExistingEventSnapshot = {
   status: EventStatus;
 };
 
-function hasProviderFieldChanges(
-  existing: ExistingEventSnapshot,
-  next: ResolvedFixture
-): boolean {
+function hasProviderFieldChanges(existing: ExistingEventSnapshot, next: ResolvedFixture): boolean {
   return (
     existing.title !== next.title ||
     existing.date.getTime() !== next.date.getTime() ||
@@ -259,7 +256,10 @@ export async function ingestFixtures(
         }
       }
       if (err instanceof Error) {
-        console.warn('[proScheduleIngest] createMany failed, fell back to per-row create:', err.message);
+        console.warn(
+          '[proScheduleIngest] createMany failed, fell back to per-row create:',
+          err.message
+        );
       }
     }
   }
