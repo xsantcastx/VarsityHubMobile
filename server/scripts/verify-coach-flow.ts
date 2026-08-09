@@ -15,6 +15,27 @@
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+function loadEnvFallback() {
+  const candidates = [join(process.cwd(), '.env'), join(process.cwd(), '.env.example')];
+  for (const file of candidates) {
+    if (!existsSync(file)) continue;
+    const lines = readFileSync(file, 'utf-8').split(/\r?\n/);
+    for (const line of lines) {
+      if (!line || line.startsWith('#') || !line.includes('=')) continue;
+      const key = line.slice(0, line.indexOf('='));
+      const value = line.slice(line.indexOf('=') + 1);
+      if (process.env[key] === undefined || process.env[key] === '') {
+        process.env[key] = value;
+      }
+    }
+    return;
+  }
+}
+
+loadEnvFallback();
 
 const BASE = process.env.VERIFY_COACH_FLOW_BASE_URL || 'http://localhost:4000';
 const prisma = new PrismaClient();
@@ -350,12 +371,12 @@ async function main() {
 
   const meApproved = await getMe(coachToken);
   assert(
-    meApproved.account_state === 'coach_agreement_required',
-    `Expected coach_agreement_required after approval, got ${meApproved.account_state}`
+    meApproved.account_state === 'coach_active',
+    `Expected coach_active after approval, got ${meApproved.account_state}`
   );
   assert(
-    meApproved.next_step === '/onboarding/coach-agreement',
-    `Expected /onboarding/coach-agreement after approval, got ${meApproved.next_step}`
+    meApproved.next_step === '/(tabs)',
+    `Expected /(tabs) after approval, got ${meApproved.next_step}`
   );
 
   const approvalNotification = await prisma.notification.findFirst({

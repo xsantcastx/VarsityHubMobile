@@ -26,6 +26,34 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+extract_json_field() {
+  local json="$1"
+  local key="$2"
+  local default_value="${3:-}"
+
+  if [ -z "$json" ]; then
+    echo "$default_value"
+    return 0
+  fi
+
+  node - "$json" "$key" "$default_value" <<'NODE'
+const [json, key, defaultValue] = process.argv.slice(2);
+try {
+  const parsed = JSON.parse(json);
+  const value = parsed[key];
+  if (typeof value === 'boolean') {
+    process.stdout.write(value ? 'true' : 'false');
+  } else if (value === null || value === undefined) {
+    process.stdout.write(defaultValue || '');
+  } else {
+    process.stdout.write(String(value));
+  }
+} catch {
+  process.stdout.write(defaultValue || '');
+}
+NODE
+}
+
 MODE="${1:-local}"
 
 # Helper functions
@@ -57,16 +85,21 @@ check_health() {
   local response
   local http_code
   local body
+  local status
+  local ready
   
   while [ $attempt -le $RETRIES ]; do
     response=$(curl -s --max-time $TIMEOUT -w "\n%{http_code}" "$HEALTH_ENDPOINT" 2>/dev/null || echo "")
     http_code=$(echo "$response" | tail -1)
     body=$(echo "$response" | sed '$d')
+    status=$(extract_json_field "$body" "status")
+    ready=$(extract_json_field "$body" "ready")
     
     if [ "$http_code" == "200" ] || [ "$http_code" == "202" ]; then
-      # Return JSON only (no logging)
-      echo "$body"
-      return 0
+      if [ "$status" == "ok" ] && { [ -z "$ready" ] || [ "$ready" == "true" ]; }; then
+        echo "$body"
+        return 0
+      fi
     fi
     
     ((attempt++))
@@ -83,6 +116,8 @@ check_health_verbose() {
   local response
   local http_code
   local body
+  local status
+  local ready
   
   while [ $attempt -le $RETRIES ]; do
     log_info "Attempt $attempt/$RETRIES..."
@@ -90,11 +125,15 @@ check_health_verbose() {
     response=$(curl -s --max-time $TIMEOUT -w "\n%{http_code}" "$HEALTH_ENDPOINT" 2>/dev/null || echo "")
     http_code=$(echo "$response" | tail -1)
     body=$(echo "$response" | sed '$d')
+    status=$(extract_json_field "$body" "status")
+    ready=$(extract_json_field "$body" "ready")
     
     if [ "$http_code" == "200" ] || [ "$http_code" == "202" ]; then
-      # Return JSON only (no logging)
-      echo "$body"
-      return 0
+      if [ "$status" == "ok" ] && { [ -z "$ready" ] || [ "$ready" == "true" ]; }; then
+        echo "$body"
+        return 0
+      fi
+      log_warn "Health endpoint reported status=$status ready=$ready"
     fi
     
     if [ $attempt -lt $RETRIES ]; then
@@ -105,7 +144,7 @@ check_health_verbose() {
     ((attempt++))
   done
   
-  log_fail "Health check failed after $RETRIES attempts (HTTP $http_code)"
+  log_fail "Health check failed after $RETRIES attempts (HTTP $http_code, status=$status, ready=$ready)"
   return 1
 }
 
@@ -129,24 +168,9 @@ verify_deployment() {
     ready=$(echo "$health_json" | jq -r '.ready // false' 2>/dev/null)
     uptime=$(echo "$health_json" | jq -r '.uptime // "unknown"' 2>/dev/null)
   else
-    # Fallback: grep-based parser (no external dependencies)
-    # Normalize JSON: remove newlines and extra spaces
-    local normalized
-    normalized=$(echo "$health_json" | tr -d '\n' | sed 's/[[:space:]]*//g')
-    
-    # Extract status field (e.g., "status":"ok")
-    status=$(echo "$normalized" | grep -o '"status":"[^"]*"' | head -1 | sed 's/"status":"//; s/"$//')
-    
-    # Extract ready field (e.g., "ready":false)
-    ready=$(echo "$normalized" | grep -o '"ready":[^,}]*' | head -1 | sed 's/"ready"://')
-    
-    # Extract uptime field (e.g., "uptime":3600)
-    uptime=$(echo "$normalized" | grep -o '"uptime":[^,}]*' | head -1 | sed 's/"uptime"://')
-    
-    # Set defaults if extraction failed
-    [ -z "$status" ] && status="unknown"
-    [ -z "$ready" ] && ready="false"
-    [ -z "$uptime" ] && uptime="unknown"
+    status=$(extract_json_field "$health_json" "status" "unknown")
+    ready=$(extract_json_field "$health_json" "ready" "false")
+    uptime=$(extract_json_field "$health_json" "uptime" "unknown")
   fi
   
   log_info "Parsed fields:"

@@ -60,7 +60,7 @@ function normalizeGoogleClientId(
 }
 
 function getDevLocalApiUrl(): string {
-  if (typeof window === 'undefined') {
+  if (typeof window === 'undefined' || !window.location?.hostname) {
     return Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000';
   }
   const host = window.location.hostname;

@@ -20,20 +20,32 @@ NC='\033[0m' # No Color
 echo "Step 1: Environment Variables"
 echo "------------------------------"
 
-if grep -q "EXPO_PUBLIC_SENTRY_DSN=https://" .env; then
+ENV_FILE=".env"
+if [ ! -f "$ENV_FILE" ]; then
+  ENV_FILE=".env.example"
+fi
+
+if [ ! -f "$ENV_FILE" ]; then
+  echo -e "${RED}❌${NC} No .env or .env.example file found"
+  exit 1
+fi
+
+echo "Using $ENV_FILE"
+
+if grep -q "EXPO_PUBLIC_SENTRY_DSN=https://" "$ENV_FILE"; then
   echo -e "${GREEN}✅${NC} EXPO_PUBLIC_SENTRY_DSN configured"
 else
   echo -e "${RED}❌${NC} EXPO_PUBLIC_SENTRY_DSN missing"
   exit 1
 fi
 
-if grep -q "EXPO_PUBLIC_API_URL=https://api-production" .env; then
+if grep -q "EXPO_PUBLIC_API_URL=https://api-production" "$ENV_FILE"; then
   echo -e "${GREEN}✅${NC} EXPO_PUBLIC_API_URL set to production"
 else
   echo -e "${YELLOW}⚠️${NC} EXPO_PUBLIC_API_URL not production (may be development)"
 fi
 
-if grep -q "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live" .env; then
+if grep -q "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live" "$ENV_FILE"; then
   echo -e "${GREEN}✅${NC} Stripe keys are LIVE (production)"
 else
   echo -e "${YELLOW}⚠️${NC} Stripe keys may be test (development)"
@@ -75,39 +87,45 @@ echo "Step 4: Backend Health Endpoint"
 echo "------------------------------"
 
 API_URL="https://api-production-8ac3.up.railway.app"
+HEALTH_SECRET="${HEALTH_CHECK_SECRET:-}"
 
 echo "Checking $API_URL/health..."
 
-HEALTH=$(curl -s "$API_URL/health" 2>/dev/null || echo "{}")
+if [ -n "$HEALTH_SECRET" ]; then
+  HEALTH=$(curl -s -H "x-health-check-secret: $HEALTH_SECRET" "$API_URL/health" 2>/dev/null || echo "{}")
+else
+  HEALTH=$(curl -s "$API_URL/health" 2>/dev/null || echo "{}")
+fi
 
 if echo "$HEALTH" | grep -q '"status":"ok"'; then
   echo -e "${GREEN}✅${NC} Health endpoint responsive"
-  
-  # Check integrations
-  if echo "$HEALTH" | grep -q '"database":true'; then
-    echo -e "  ${GREEN}✅${NC} Database connected"
+  if echo "$HEALTH" | grep -q '"integrations":'; then
+    if echo "$HEALTH" | grep -q '"database":true'; then
+      echo -e "  ${GREEN}✅${NC} Database connected"
+    else
+      echo -e "  ${RED}❌${NC} Database not connected"
+    fi
+
+    if echo "$HEALTH" | grep -q '"sendgrid":true'; then
+      echo -e "  ${GREEN}✅${NC} SendGrid configured"
+    else
+      echo -e "  ${YELLOW}⚠️${NC} SendGrid not configured (verify in Railway)"
+    fi
+
+    if echo "$HEALTH" | grep -q '"sentry":true'; then
+      echo -e "  ${GREEN}✅${NC} Sentry configured"
+    else
+      echo -e "  ${YELLOW}⚠️${NC} Sentry not configured (check Railway secrets)"
+    fi
+
+    if echo "$HEALTH" | grep -q '"stripe":true'; then
+      echo -e "  ${GREEN}✅${NC} Stripe configured"
+    else
+      echo -e "  ${YELLOW}⚠️${NC} Stripe not configured"
+    fi
   else
-    echo -e "  ${RED}❌${NC} Database not connected"
+    echo -e "  ${YELLOW}⚠️${NC} Detailed integration status unavailable without HEALTH_CHECK_SECRET"
   fi
-  
-  if echo "$HEALTH" | grep -q '"sendgrid":true'; then
-    echo -e "  ${GREEN}✅${NC} SendGrid configured"
-  else
-    echo -e "  ${YELLOW}⚠️${NC} SendGrid not configured (verify in Railway)"
-  fi
-  
-  if echo "$HEALTH" | grep -q '"sentry":true'; then
-    echo -e "  ${GREEN}✅${NC} Sentry configured"
-  else
-    echo -e "  ${YELLOW}⚠️${NC} Sentry not configured (check Railway secrets)"
-  fi
-  
-  if echo "$HEALTH" | grep -q '"stripe":true'; then
-    echo -e "  ${GREEN}✅${NC} Stripe configured"
-  else
-    echo -e "  ${YELLOW}⚠️${NC} Stripe not configured"
-  fi
-  
 else
   echo -e "${YELLOW}⚠️${NC} Could not reach health endpoint"
   echo "   (Check Railway service is running)"

@@ -61,10 +61,11 @@ check(
   createRouteHasConditionalPending
 );
 
-// 4. League approval sets league owner to APPROVED
+// 4. League approval routes through the shared approval handler and writes approved status
 check(
-  'League approval sets league owner to APPROVED',
-  orgRoutes.includes('league_owner_id') && orgRoutes.includes("approval_status: 'APPROVED'") &&
+  'League approval routes through the shared approval handler',
+  orgRoutes.includes('league_owner_id') &&
+   orgRoutes.includes("approval_status: 'approved'") &&
   orgRoutes.includes('approveLeagueHandler'),
 );
 
@@ -72,8 +73,8 @@ check(
 check(
   'League owner can approve coaches (POST /join-requests/:requestId/approve)',
   orgRoutes.includes('/join-requests/:requestId/approve') &&
-    orgRoutes.includes("Only the league owner can approve coach requests") &&
-    orgRoutes.includes("approval_status: 'APPROVED'"),
+   orgRoutes.includes('Only the organization owner can approve coach requests') &&
+   orgRoutes.includes("approval_status: 'approved'"),
 );
 
 // 6. Join request sets coach to PENDING

@@ -29,6 +29,23 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 export const healthRouter = Router();
 const isDatabaseHealthy = () => runDatabaseHealthcheck(() => prisma.$queryRaw`SELECT 1`);
 
+export function buildPublicHealthPayload({
+  databaseHealthy,
+  timestamp = new Date().toISOString(),
+}: {
+  databaseHealthy: boolean;
+  timestamp?: string;
+}) {
+  return {
+    status: databaseHealthy ? 'ok' : 'error',
+    ready: databaseHealthy,
+    timestamp,
+    checks: {
+      database: databaseHealthy,
+    },
+  };
+}
+
 /**
  * Health check endpoint
  * GET /health
@@ -47,13 +64,16 @@ healthRouter.get(
       // emitted unconditionally — it's non-sensitive and lets external probes
       // distinguish a stale cached 200 from a live response without needing
       // the HEALTH_CHECK_SECRET to do it.
-      if (await isDatabaseHealthy()) {
-        return res.json({ status: 'ok', timestamp: new Date().toISOString() });
+      const timestamp = new Date().toISOString();
+      const databaseHealthy = await isDatabaseHealthy();
+      const payload = buildPublicHealthPayload({ databaseHealthy, timestamp });
+      res.set('Cache-Control', 'no-store');
+      if (databaseHealthy) {
+        return res.json(payload);
       }
       return res.status(503).json({
-        status: 'error',
+        ...payload,
         message: 'Database unreachable',
-        timestamp: new Date().toISOString(),
       });
     }
 
@@ -110,17 +130,24 @@ healthRouter.get(
     const stripePublishableKey =
       process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '';
     const includePayments = req.query.include === 'payments';
+    const timestamp = new Date().toISOString();
+    res.set('Cache-Control', 'no-store');
     const body: Record<string, unknown> = {
       status: 'ok',
-      timestamp: new Date().toISOString(),
+      ready: allConfigured,
+      timestamp,
       environment: process.env.NODE_ENV || 'development',
       integrations,
+      checks: {
+        database: integrations.database,
+        redis: integrations.redis,
+        email: sendgridReady,
+      },
       // Circuit breaker snapshot for the outbound upstreams (SendGrid, Cloudinary,
       // google-maps, apple-verify, google-play). An `open: true` entry means that
       // upstream is currently failing fast — surfaced here so external monitors and
       // dashboards can observe degradation without waiting for a Sentry alert.
       circuits: getCircuitStats(),
-      ready: allConfigured,
       warnings: [
         ...(!integrations.twilio ? ['Twilio not configured - SMS disabled'] : []),
         ...(!sendgridReady

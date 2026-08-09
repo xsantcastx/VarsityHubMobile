@@ -405,7 +405,7 @@ async function verifyGameFlow(managerToken: string, outsiderToken: string) {
 
   const managerPendingBefore = await api<GameListBody>(
     'GET',
-    '/games?show_pending=true&limit=50',
+    '/games?approval_status=pending&limit=50',
     undefined,
     managerToken
   );
@@ -451,7 +451,7 @@ async function verifyGameFlow(managerToken: string, outsiderToken: string) {
 
   const managerPendingAfterApprove = await api<GameListBody>(
     'GET',
-    '/games?show_pending=true&limit=50',
+    '/games?approval_status=pending&limit=50',
     undefined,
     managerToken
   );

@@ -1,6 +1,24 @@
 #!/bin/bash
 set -euo pipefail
 
+ENV_FILE=".env"
+if [ ! -f "$ENV_FILE" ]; then
+  ENV_FILE=".env.example"
+fi
+
+if [ -f "$ENV_FILE" ]; then
+  while IFS= read -r line; do
+    case "$line" in
+      ''|\#*) continue ;;
+      *=*)
+        key="${line%%=*}"
+        value="${line#*=}"
+        export "$key=$value"
+        ;;
+    esac
+  done < "$ENV_FILE"
+fi
+
 API_BASE_URL="${VERIFY_COACH_FLOW_BASE_URL:-http://localhost:4000}"
 STARTED_API_PID=""
 API_LOG_FILE="${TMPDIR:-/tmp}/varsityhub-verify-api.log"
