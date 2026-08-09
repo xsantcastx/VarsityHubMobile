@@ -195,7 +195,7 @@ describe('coach/org navigation contracts', () => {
     // behaviorally by utils/__tests__/eventRoutes.test.ts; what matters here is
     // that the redirector delegates rather than hand-rolling a route.
     expect(eventDetail).toContain('LEGACY REDIRECTOR');
-    expect(eventDetail).toContain('router.replace(buildEventDetailRoute(');
+    expect(eventDetail).toContain('replaceAsRedirect(router, buildEventDetailRoute(');
     expect(eventDetail).toContain("safeGoBack(router, '/(tabs)/feed')");
   });
 
