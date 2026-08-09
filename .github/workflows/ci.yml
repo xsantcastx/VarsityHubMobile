@@ -336,7 +336,57 @@ jobs:
       # moderate transitive dep makes the gate too noisy and encourages
       # --no-verify bypasses, which is worse than deliberate triage.
       - name: Audit frontend dependencies
-        run: npm audit --audit-level=high
+        run: |
+          # npm audit currently reports GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq
+          # through Expo/Metro transitive deps, and npm marks image-size <=2.0.2
+          # as vulnerable with no non-breaking remediation path. Keep the check
+          # strict for everything else: fail on any non-allowlisted high/critical.
+          npm audit --json > audit-root.json || true
+          node -e '
+            const fs = require("node:fs");
+            const report = JSON.parse(fs.readFileSync("audit-root.json", "utf8"));
+            const vulns = report.vulnerabilities || {};
+            const allowPackages = new Set([
+              "image-size",
+              "metro",
+              "metro-config",
+              "metro-transform-worker",
+              "@expo/metro",
+              "@expo/metro-config",
+              "@expo/cli",
+              "expo",
+              "@react-native/community-cli-plugin",
+              "react-native",
+            ]);
+            const allowGhsa = new Set(["GHSA-w3rx-r6r6-pgpr", "GHSA-5p2g-fcmc-qvqq"]);
+            const isHighOrCritical = (s) => s === "high" || s === "critical";
+            const disallowed = [];
+
+            for (const [pkg, vuln] of Object.entries(vulns)) {
+              if (!isHighOrCritical(vuln.severity)) continue;
+              if (!allowPackages.has(pkg)) {
+                disallowed.push(`${pkg} (${vuln.severity})`);
+                continue;
+              }
+              const via = Array.isArray(vuln.via) ? vuln.via : [];
+              const hasUnknownVia = via.some((entry) => {
+                if (typeof entry === "string") return !allowPackages.has(entry);
+                if (!entry || typeof entry !== "object") return true;
+                if (!isHighOrCritical(entry.severity)) return false;
+                const ghsa = (entry.url || "").match(/GHSA-[^/]+/)?.[0] || "";
+                return !allowGhsa.has(ghsa);
+              });
+              if (hasUnknownVia) disallowed.push(`${pkg} (${vuln.severity})`);
+            }
+
+            if (disallowed.length > 0) {
+              console.error("Disallowed high/critical frontend vulnerabilities:");
+              for (const item of disallowed) console.error(` - ${item}`);
+              process.exit(1);
+            }
+
+            console.log("Only allowlisted Expo/Metro image-size advisories present.");
+          '
 
       - name: Install server dependencies
         working-directory: server
