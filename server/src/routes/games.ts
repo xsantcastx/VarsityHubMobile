@@ -27,7 +27,7 @@ import {
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
-import { venuePhotoFor } from '../lib/proSchedule/venuePhotos.js';
+import { venuePhotoFor, leagueDefaultPhoto } from '../lib/proSchedule/venuePhotos.js';
 import {
   creatorSideTeamIds,
   deriveGameApproval,
@@ -1438,7 +1438,9 @@ gamesRouter.get(
           pro_home_color: event?.proHomeTeam?.primary_color ?? null,
           pro_away_color: event?.proAwayTeam?.primary_color ?? null,
           pro_league: event?.proHomeTeam?.league ?? event?.proAwayTeam?.league ?? null,
-          venue_photo: venuePhotoFor(event?.location ?? rest.location),
+          venue_photo:
+            venuePhotoFor(event?.location ?? rest.location) ??
+            leagueDefaultPhoto(event?.proHomeTeam?.league ?? event?.proAwayTeam?.league ?? null),
           ...liveWindow,
           // Fixed: Prioritize game.banner_url over other sources
           banner_url: rest.banner_url || rest.cover_image_url || event?.banner_url || null,

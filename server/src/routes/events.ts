@@ -29,7 +29,7 @@ import { prisma } from '../lib/prisma.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { mustSucceed } from '../lib/sideEffect.js';
-import { venuePhotoFor } from '../lib/proSchedule/venuePhotos.js';
+import { venuePhotoFor, leagueDefaultPhoto } from '../lib/proSchedule/venuePhotos.js';
 import {
   canManageAnyTeam,
   canManageTeam as canManageTeamScoped,
@@ -371,7 +371,9 @@ const serializeEvent = (
     pro_home_color: event.proHomeTeam?.primary_color ?? null,
     pro_away_color: event.proAwayTeam?.primary_color ?? null,
     pro_league: event.proHomeTeam?.league ?? event.proAwayTeam?.league ?? null,
-    venue_photo: venuePhotoFor(event.location),
+    venue_photo:
+      venuePhotoFor(event.location) ??
+      leagueDefaultPhoto(event.proHomeTeam?.league ?? event.proAwayTeam?.league ?? null),
     ...serializeLiveWindow(event.date, event.live_window_hours_after_start),
   };
   if (typeof opts.rsvpCount === 'number') {
@@ -424,8 +426,7 @@ eventsRouter.get(
     const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
     const dateFrom = typeof req.query.from === 'string' ? new Date(req.query.from) : null;
     const dateTo = typeof req.query.to === 'string' ? new Date(req.query.to) : null;
-    const proOnly =
-      String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
+    const proOnly = String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
     const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
     const proLeagueRaw =
       typeof req.query.pro_league === 'string' ? req.query.pro_league.trim().toLowerCase() : '';
