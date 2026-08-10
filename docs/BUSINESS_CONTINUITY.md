@@ -19,6 +19,8 @@
 
 - Weekly backup verification (see `docs/PRODUCTION_HARDENING.md`).
 - Document restore steps and test cadence.
+- Run `npm run verify:db-backup` to generate a PostgreSQL custom-format backup archive from the active Railway service environment and validate the dump structure locally.
+- For restore testing, export `RESTORE_DATABASE_URL` to a disposable database and run the restore command printed by the script.
 
 ### Recovery Steps (Draft)
 

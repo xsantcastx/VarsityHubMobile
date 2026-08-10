@@ -35,17 +35,20 @@ This document outlines the production hardening roadmap for VarsityHub, covering
 
 ### Operational Readiness Check (BACKUPS + ALERTS) ✅
 
-Use the repo's operational readiness helper to confirm the app is ready for a production handoff:
+Use the repo's operational readiness helpers to confirm the app is ready for a production handoff:
 
 ```bash
 npm run verify:ops
+npm run verify:db-backup
 ```
 
-This script checks the public `/health` endpoint, confirms Sentry DSN configuration, and prints the remaining manual Railway/Sentry follow-ups for:
+`verify:ops` checks the public `/health` endpoint, confirms Sentry DSN configuration, and prints the remaining manual Railway/Sentry follow-ups for:
 
 - Postgres backup enablement + retention confirmation
 - Restore procedure validation and a documented rollback path
 - Sentry alerts for 5xx spikes, slow-query bursts, auth failures, and payment errors
+
+`verify:db-backup` uses the Railway-connected database environment to create a PostgreSQL custom-format backup archive and validates the dump structure locally. Use it as the baseline for your weekly backup verification drill.
 
 If the health probe fails, fix the deployment before treating the release as safe. If the health probe passes but the manual checklist items are still unchecked, treat the rollout as operationally incomplete.
 
