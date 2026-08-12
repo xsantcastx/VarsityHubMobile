@@ -19,7 +19,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 export type IgStoryResult = 'shared' | 'unavailable' | 'error';
 
 // Bundled sticker (ships in the binary). Reuse the app logo.
-const STICKER_ASSET = require('../assets/logo.png');
+const STICKER_ASSET = require('../assets/images/logo.png');
 
 const BRAND_NAVY = '#0F172A';
 
