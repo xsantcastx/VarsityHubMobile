@@ -1,0 +1,30 @@
+-- Add two enum values that have been declared in prisma/schema.prisma but were
+-- never accompanied by a migration, so they are absent from the production
+-- Postgres enums. Every code path that wrote them raised PostgresError 22P02
+-- ("invalid input value for enum") at runtime.
+--
+-- 1) TransactionStatus 'RECEIVED'
+--    Written by server/src/lib/appleNotificationDedup.ts (the Apple S2S
+--    notification dedup pre-write). recordAppleNotificationReceipt only catches
+--    P2002 (unique violation) and rethrows everything else, so the write failed,
+--    the /payments/apple/notifications handler returned 503 (Sentry
+--    VARSITYHUB-3S), and Apple kept retrying the notification without it ever
+--    being recorded or deduplicated. The earlier migration
+--    20260426193000_add_apple_s2s_notification_enum_value fixed the
+--    transaction_type column of that same INSERT but missed this status column,
+--    so the crash simply moved from one column to the other.
+--
+-- 2) TransactionType 'SUBSCRIPTION_RENEWAL_FAILED'
+--    Written by server/src/routes/payments.ts (the DID_FAIL_TO_RENEW branch)
+--    inside a $transaction that also sets subscription_status='past_due' and the
+--    grace-period cutoff. The failed enum write rolls the whole transaction
+--    back, so a user whose Apple renewal failed would NOT be marked past_due and
+--    the grace-period safety-net cutoff would not be recorded. Latent today only
+--    because it fires on billing-failure notifications rather than every
+--    notification.
+--
+-- IF NOT EXISTS makes each statement idempotent — safe if the value was added by
+-- hand on any environment. ADD VALUE statements are run outside a transaction by
+-- Prisma migrate (they cannot be used in the transaction that adds them).
+ALTER TYPE "TransactionStatus" ADD VALUE IF NOT EXISTS 'RECEIVED';
+ALTER TYPE "TransactionType" ADD VALUE IF NOT EXISTS 'SUBSCRIPTION_RENEWAL_FAILED';
