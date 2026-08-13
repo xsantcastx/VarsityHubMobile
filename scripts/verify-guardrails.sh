@@ -129,4 +129,13 @@ if ! bash scripts/audit-navigation.sh --fail >/dev/null 2>&1; then
   exit 1
 fi
 
+# ── Template/UI image-host allowlist ──────────────────────────────────────────
+# Only free-to-use image hosts may appear in seed/template + client code, so no
+# copyrighted stadium photo / broadcast still / trademarked logo can be shipped.
+if ! node scripts/check-template-images.js; then
+  echo ""
+  echo "Guardrail failed: disallowed image host in templates/UI (see above)."
+  exit 1
+fi
+
 echo "Guardrails passed."
