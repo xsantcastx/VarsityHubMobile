@@ -10,6 +10,7 @@ import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
 import { debugLog } from '../lib/debugLog.js';
 import { AVATAR_URL_MESSAGE, isAllowedAvatarUrl } from '../lib/mediaHosts.js';
+import { logSecurityEvent } from '../lib/securityEvents.js';
 import {
   getCoachFlowState,
   getLatestCoachApplication,
@@ -828,6 +829,17 @@ authRouter.post(
     // too many failed attempts, refuse before doing any DB or bcrypt work.
     const lockCheck = await checkLoginAttempt(sanitizedEmail);
     if (!lockCheck.allowed) {
+      // A locked account being hammered is an in-progress attack on a *known*
+      // address, not a user who forgot their password. Escalate.
+      logSecurityEvent({
+        type: 'auth.login_lockout',
+        severity: 'critical',
+        email: sanitizedEmail,
+        ip: req.ip ?? null,
+        path: req.path,
+        method: req.method,
+        requestId: (req as any).requestId ?? null,
+      });
       return res.status(429).json({
         error: 'Too many failed login attempts. Please try again later.',
         retry_after_ms: lockCheck.retryAfterMs,
@@ -846,16 +858,38 @@ authRouter.post(
     const hashToCompare = user?.password_hash || DUMMY_BCRYPT_HASH;
     const passwordMatches = await bcrypt.compare(password, hashToCompare);
 
+    // Single failure emitter. `reason` stays internal — the HTTP response is
+    // an identical generic 401 in all three cases so the account-enumeration
+    // protection above (DUMMY_BCRYPT_HASH timing equalization) is preserved.
+    const failLogin = (reason: 'no_account' | 'no_password_hash' | 'bad_password') => {
+      logSecurityEvent({
+        type: 'auth.login_failed',
+        // Individually routine; the alertable pattern is volume, which Sentry
+        // thresholds on the shared `security_event_type` tag.
+        severity: 'warning',
+        email: sanitizedEmail,
+        userId: user?.id ?? null,
+        ip: req.ip ?? null,
+        path: req.path,
+        method: req.method,
+        requestId: (req as any).requestId ?? null,
+        metadata: { reason },
+      });
+    };
+
     if (!user) {
       await recordLoginFailure(sanitizedEmail);
+      failLogin('no_account');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     if (!user.password_hash) {
       await recordLoginFailure(sanitizedEmail);
+      failLogin('no_password_hash');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     if (!passwordMatches) {
       await recordLoginFailure(sanitizedEmail);
+      failLogin('bad_password');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     // Success — clear the failure counter so this account isn't half-locked.
