@@ -12,6 +12,7 @@ import {
 import { sendError } from '../lib/http/sendError.js';
 import { captureException } from '../lib/sentry.js';
 import { runWithBreaker } from '../lib/circuitBreaker.js';
+import { safeErrorMessage } from '../lib/redactSecrets.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -86,8 +87,9 @@ geocodingRouter.post(
           message: 'Geocoding temporarily unavailable',
         });
       }
-      console.error('Geocoding request failed:', error);
-      captureException(error instanceof Error ? error : new Error(String(error)), {
+      const safe = safeErrorMessage(error);
+      console.error('Geocoding request failed:', safe);
+      captureException(new Error(`Geocoding request failed: ${safe}`), {
         context: 'geocoding_location_failed',
         provider: 'google-maps',
       });
@@ -189,8 +191,9 @@ geocodingRouter.get(
           message: 'Place suggestions temporarily unavailable',
         });
       }
-      console.error('Autocomplete request failed:', error);
-      captureException(error instanceof Error ? error : new Error(String(error)), {
+      const safe = safeErrorMessage(error);
+      console.error('Autocomplete request failed:', safe);
+      captureException(new Error(`Autocomplete request failed: ${safe}`), {
         context: 'geocoding_autocomplete_failed',
         provider: 'google-maps',
       });
