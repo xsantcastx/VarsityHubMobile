@@ -40,6 +40,14 @@ import { sendError } from '../lib/http/sendError.js';
 
 export const postsRouter = Router();
 registerIdValidation(postsRouter);
+postsRouter.use((req, res, next) => {
+  if (req.method === 'GET') {
+    res.set('Cache-Control', 'no-store, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Vary', 'Authorization, Origin');
+  }
+  next();
+});
 
 const POST_UNDO_WINDOW_MS = 5 * 60 * 1000;
 
