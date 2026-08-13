@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { compositeAdapter } from './compositeAdapter.js';
 import { espnAdapter } from './espnAdapter.js';
 import type { ProFixture, ProScheduleAdapter } from './types.js';
-import { wweAdapter } from './wweAdapter.js';
 
 /**
  * Schedule provider adapters.
@@ -89,10 +88,15 @@ export function resolveConfiguredAdapter(env = process.env): ProScheduleAdapter 
   const file = env.PRO_SCHEDULE_JSON_PATH;
   if (file) return jsonFileAdapter(file);
 
-  // Live rolling source: ESPN for the four league sports + TheSportsDB for
-  // touring WWE, behind one composite so the cron covers all five leagues.
+  // Live rolling source: ESPN for the four league sports only. WWE is
+  // deliberately NOT rolled here — it is a touring promotion whose schedule is
+  // the curated static file (wweSchedule2026.ts), ingested once by the bootstrap.
+  // Rolling the live TheSportsDB adapter alongside that file double-ingests each
+  // show under a different ref namespace (wwe:{id} vs wwe:{date-city}) with no
+  // dedup, so WWE stays single-sourced from the file. (The live wweAdapter is
+  // still unit-tested and available should WWE ever move to a live-only source.)
   if (env.PRO_SCHEDULE_PROVIDER === 'espn') {
-    return compositeAdapter([espnAdapter(), wweAdapter()]);
+    return compositeAdapter([espnAdapter()]);
   }
 
   return null;
