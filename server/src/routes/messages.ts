@@ -18,6 +18,14 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const messagesRouter = Router();
 registerIdValidation(messagesRouter);
+messagesRouter.use((req, res, next) => {
+  if (req.method === 'GET') {
+    res.set('Cache-Control', 'no-store, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Vary', 'Authorization, Origin');
+  }
+  next();
+});
 
 const baseUserSelect = { id: true, display_name: true, avatar_url: true, username: true };
 

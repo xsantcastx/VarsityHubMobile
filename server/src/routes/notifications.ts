@@ -10,6 +10,14 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const notificationsRouter = Router();
 registerIdValidation(notificationsRouter);
+notificationsRouter.use((req, res, next) => {
+  if (req.method === 'GET') {
+    res.set('Cache-Control', 'no-store, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Vary', 'Authorization, Origin');
+  }
+  next();
+});
 
 const NOTIFICATIONS_QUERY_TIMEOUT_MS = 25000;
 
