@@ -846,6 +846,7 @@ export default function FeedScreen() {
           proPastData,
           proWweUpcomingData,
           proNflUpcomingData,
+          proFollowedData,
         ] = await Promise.all([
           queryClient
             .fetchQuery({
@@ -983,6 +984,31 @@ export default function FeedScreen() {
               if (__DEV__) console.warn('[Feed] Failed to load NFL upcoming events:', err);
               return null;
             }),
+          // Upcoming games for the PRO teams this viewer follows (Yankees, Jets,
+          // …). Guaranteed into the merge below so a followed franchise's games
+          // aren't crowded out of the nationwide date-sorted pro slices above.
+          // Empty for guests / anyone following no pro team — never a global scan.
+          queryClient
+            .fetchQuery({
+              queryKey: ['feed-pro-events-followed', queryPlan.upcoming.options.dateFrom],
+              queryFn: () =>
+                Event.filter(
+                  {
+                    event_type: 'game',
+                    pro_only: true,
+                    pro_followed: true,
+                    event_only: true,
+                    from: queryPlan.upcoming.options.dateFrom,
+                    to: proLookaheadTo,
+                  },
+                  'date',
+                  40
+                ),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load followed pro events:', err);
+              return null;
+            }),
         ]);
 
         const upcomingPage = normalizeGamesPage(upcomingData);
@@ -1008,8 +1034,19 @@ export default function FeedScreen() {
           gameRows,
           normalizeProFeedEvents(proNflUpcomingData, 'nfl')
         );
+        const proFollowedRows = filterProEventsAlreadyRepresentedByGames(
+          gameRows,
+          normalizeProFeedEvents(proFollowedData)
+        );
         let normalizedGames = dedupeFeedEntities(
-          mergeFeedGames(gameRows, proPastRows, proUpcomingRows, proWweRows, proNflRows)
+          mergeFeedGames(
+            gameRows,
+            proPastRows,
+            proUpcomingRows,
+            proWweRows,
+            proNflRows,
+            proFollowedRows
+          )
         );
 
         // If no games exist, seed sample games as real DB records (stories/polls work)

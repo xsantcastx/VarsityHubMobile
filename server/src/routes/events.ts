@@ -533,6 +533,32 @@ eventsRouter.get(
       });
     }
 
+    // `pro_followed=true` scopes to the PRO teams the viewer follows (Yankees,
+    // Jets, …). Pro fixtures are teamless Event rows carrying pro_home/away_team_id
+    // and are followed via ProTeamFollow — a separate ledger from the TeamFollow
+    // that `following` above reads — so following a pro franchise surfaces its
+    // upcoming games in the feed. Same guest/empty short-circuit as `following`.
+    const proFollowing = String(req.query.pro_followed || '').toLowerCase() === 'true';
+    if (proFollowing) {
+      const viewerId = (req as any).user?.id as string | undefined;
+      if (!viewerId) return res.json([]);
+      // audit-allow unbounded: feed scope needs every pro team the viewer follows
+      const followedProRows = await prisma.proTeamFollow.findMany({
+        where: { user_id: viewerId },
+        select: { pro_team_id: true },
+        take: 500,
+      });
+      const followedProTeamIds = followedProRows.map(r => r.pro_team_id);
+      if (followedProTeamIds.length === 0) return res.json([]);
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { pro_home_team_id: { in: followedProTeamIds } },
+          { pro_away_team_id: { in: followedProTeamIds } },
+        ],
+      });
+    }
+
     // v1.0.2: auto-archive window is 3 days after event date (was "hide anything past").
     // Events remain visible in listings for 72h after they happen (post-game photos, recap)
     // and drop off after. `include_past=true` still returns everything for admin/team views.
