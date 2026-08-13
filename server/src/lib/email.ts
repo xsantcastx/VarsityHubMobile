@@ -819,14 +819,16 @@ export async function sendEventApprovedEmail(params: any): Promise<boolean> {
       event_date: params.eventDate || '',
       event_time: params.eventTime || '',
       event_location: params.eventLocation || '',
-      // Template renders {{opponent}} unconditionally in the event-details
-      // table (event-approved.html:84). Empty string leaves a blank cell;
-      // 'TBD' communicates the absence properly.
+      // 'TBD' rather than '' so {{opponent}} doesn't render a blank cell.
       opponent: params.opponent || 'TBD',
       organization_name: params.organizationName || 'VarsityHub',
       approval_notes: params.approvalNotes || '',
+      // Casing aliases are added centrally; these are SEMANTIC renames (different
+      // words) the hosted template uses, so they're set explicitly.
       view_event_url: buildEventDetailUrl(params.eventId, params.eventLink),
+      eventLink: buildEventDetailUrl(params.eventId, params.eventLink),
       manage_event_url: params.manageLink || buildWebScreenUrl('/organization?tab=teams'),
+      manageLink: params.manageLink || buildWebScreenUrl('/organization?tab=teams'),
     },
     `Event approved email sent to ${params.to}`,
     { metadata: await resolveMinorAuditMetadata(params.to) }
@@ -912,6 +914,9 @@ export async function sendEventDeniedEmail(params: any): Promise<boolean> {
       denial_reason: params.denialReason || params.reason || '',
       submit_new_event_url: params.resubmitLink || buildWebScreenUrl('/create-fan-event'),
       contact_support_url: params.supportLink || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
+      // Semantic renames the hosted template uses (not just casing).
+      resubmitLink: params.resubmitLink || buildWebScreenUrl('/create-fan-event'),
+      supportLink: params.supportLink || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
       organization_name: params.organizationName || 'VarsityHub',
     },
     `Event denied email sent to ${params.to}`,
@@ -1129,6 +1134,16 @@ export async function sendAccountModerationEmail(params: {
     console.error(`[email] Missing template for moderation action: ${params.action}`);
     return false;
   }
+  // Hosted moderation templates use action-specific variable names that the
+  // generic sender didn't provide (the screenshot-confirmed blank-field bug).
+  // Derive what we can from the action + endsAt; violation_type/report_id are
+  // not available here and still need to be plumbed from the caller.
+  const fmtDate = (d?: Date | null) =>
+    d ? d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+  const today = fmtDate(new Date());
+  const suspensionDays =
+    params.action === 'suspension_7d' ? '7' : params.action === 'suspension_45d' ? '45' : '';
+  const suspensionDuration = suspensionDays ? `${suspensionDays} days` : '';
   return sendTemplateEmail(
     templateId,
     params.to,
@@ -1141,6 +1156,16 @@ export async function sendAccountModerationEmail(params: {
       reason,
       ends_at: params.endsAt ? params.endsAt.toISOString() : null,
       support_email: CUSTOMER_SERVICE_EMAIL,
+      // Action-specific reason/date names the hosted templates render.
+      suspension_reason: reason,
+      warning_reason: reason,
+      ban_reason: reason,
+      suspension_days: suspensionDays,
+      suspension_duration: suspensionDuration,
+      suspension_date: today,
+      ban_date: today,
+      warning_date: today,
+      reinstatement_date: fmtDate(params.endsAt),
     },
     `Moderation email (${params.action}) sent to ${params.to}`,
     { metadata: await resolveMinorAuditMetadata(params.to) }
@@ -1440,6 +1465,31 @@ export async function sendTeamInviteEmail(params: {
 /**
  * Helper function to send template-based emails using EmailService
  */
+/**
+ * Defensive against snake_case ↔ camelCase template-variable drift.
+ *
+ * Project memory (live-API diff + a screenshot of a blank suspension email)
+ * established that several HOSTED SendGrid templates use camelCase vars while the
+ * senders pass snake_case (and the local sendgrid-templates/*.html export is
+ * stale). The two references can't be reconciled without the live key, so we send
+ * each value under BOTH casings. SendGrid ignores unused template vars, so the
+ * email renders correctly regardless of which casing the hosted template uses.
+ * Existing keys are never overwritten. (Semantic renames — different words, not
+ * just casing — are still handled explicitly in the individual senders.)
+ */
+export function expandKeyCaseAliases(data: Record<string, any>): Record<string, any> {
+  const toCamel = (k: string) => k.replace(/_([a-z0-9])/g, (_m, c) => c.toUpperCase());
+  const toSnake = (k: string) => k.replace(/([A-Z])/g, (m) => '_' + m.toLowerCase());
+  const out: Record<string, any> = { ...data };
+  for (const [k, v] of Object.entries(data)) {
+    const camel = toCamel(k);
+    const snake = toSnake(k);
+    if (camel !== k && !(camel in out)) out[camel] = v;
+    if (snake !== k && !(snake in out)) out[snake] = v;
+  }
+  return out;
+}
+
 async function sendTemplateEmail(
   templateId: string,
   to: string,
@@ -1504,7 +1554,9 @@ async function sendTemplateEmail(
       to,
       subject,
       templateId,
-      templateData,
+      // Send each value under both snake_case and camelCase so hosted-template
+      // casing drift can't blank out fields (see expandKeyCaseAliases).
+      templateData: expandKeyCaseAliases(templateData),
       replyTo,
       metadata: options?.metadata,
     });
