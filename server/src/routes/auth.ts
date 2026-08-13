@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
+import { buildCoachActionQueue } from '../lib/coachActionQueue.js';
 import { debugLog } from '../lib/debugLog.js';
 import { AVATAR_URL_MESSAGE, isAllowedAvatarUrl } from '../lib/mediaHosts.js';
 import {
@@ -88,6 +89,7 @@ import {
   verificationConfirmLimiter,
 } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 
 export const authRouter = Router();
@@ -2829,6 +2831,16 @@ authRouter.get(
     };
     void cacheSet(cacheKey, payload, 60); // 60s TTL
     return res.json(payload);
+  })
+);
+
+authRouter.get(
+  '/me/action-queue',
+  requireAuth as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const queue = await buildCoachActionQueue(req.user!.id);
+    return res.json(queue);
   })
 );
 

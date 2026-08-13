@@ -9,6 +9,7 @@ import {
   httpPostWithOptions,
   httpPut,
 } from './http';
+import { validateActionQueue } from './schemas/actionQueue';
 import { validateAuthenticatedUser, validateOnboardingCompletion } from './schemas/auth';
 import {
   validateEvent,
@@ -77,6 +78,8 @@ export const User = {
       validateOnboardingCompletion('auth.completeOnboarding', response)
     );
   },
+  actionQueue: () =>
+    httpGet('/me/action-queue').then(data => validateActionQueue('user.actionQueue', data)),
   requestVerification: () => auth.requestEmailVerification(),
   verifyEmail: (code: string) => auth.verifyEmail(code),
   usernameAvailable: (username: string) =>
