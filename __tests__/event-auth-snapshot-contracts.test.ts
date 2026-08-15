@@ -38,7 +38,7 @@ describe('event auth snapshot contracts', () => {
       "import { buildEventDetailRoute } from '@/utils/eventRoutes';"
     );
     expect(eventDetailScreen).toContain(
-      'router.replace(buildEventDetailRoute(String(raw.id), linkedGameId))'
+      'replaceAsRedirect(router, buildEventDetailRoute(String(raw.id), linkedGameId))'
     );
     expect(eventDetailScreen).not.toContain('pathname: PUBLIC_EVENT_PATHNAME');
     expect(eventDetailScreen).not.toContain('User.me()');

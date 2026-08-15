@@ -1,6 +1,6 @@
 /**
  * Venue photos + attribution for pro-schedule events, sourced from Wikimedia
- * Commons via each venue's Wikidata P18 image (91 venues).
+ * Commons via each venue's Wikidata P18 image (119 venues).
  * Keyed by ProTeam/fixture venue_name. Each entry carries the credit string
  * that MUST be displayed with the image (CC-BY / CC-BY-SA compliance): the
  * pro card + team page render `credit` beneath the photo. Venues without a
@@ -439,6 +439,60 @@ export const VENUE_PHOTOS: Record<string, VenuePhoto> = {
   'Yankee Stadium': {
     url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Yankee_Stadium_upper_deck_2010.jpg',
     credit: 'Matt Boulton / Wikimedia Commons, CC BY-SA 2.0',
+  },
+  // Venues from main's 2026-08-06 expansion (merged): additional
+  // pro-schedule venues, same Wikidata P18 -> Commons sourcing.
+  'American Bank Center': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/AmericanBankCenterCorpus.jpg',
+    credit: 'WhisperToMe / Wikimedia Commons, CC0',
+  },
+  'Arena CDMX': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/ACMX16.JPG',
+    credit: 'Santix1988 / Wikimedia Commons, CC BY-SA 3.0',
+  },
+  'Cajundome': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Cajundome_Afternoon.JPG',
+    credit: 'Jcarriere at en.wikipedia / Wikimedia Commons, Public domain',
+  },
+  'Canadian Tire Centre': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Canadian_Tire_Centre_1.JPG',
+    credit: 'Ontario Images / Wikimedia Commons, CC BY-SA 4.0',
+  },
+  'Enterprise Center': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Scottrade_Center_3Apr2005.jpg',
+    credit: 'Haaron755 / Wikimedia Commons, CC BY-SA 3.0',
+  },
+  'Legacy Arena': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Legacy_Arena_2022.jpg',
+    credit: 'AuburnShuffle / Wikimedia Commons, CC0',
+  },
+  'Levi\'s Stadium': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Levi\'s_Stadium_interior_1.jpg',
+    credit: 'Matthew Roth / Wikimedia Commons, CC BY-SA 2.0',
+  },
+  'North Charleston Coliseum': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/North_Charleston_Coliseum_Aug2010.jpg',
+    credit: 'Chris Pruitt / Wikimedia Commons, CC BY-SA 3.0',
+  },
+  'Pechanga Arena': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/San_Diego_Sports_Arena.jpg',
+    credit: 'Nehrams2020 / Wikimedia Commons, CC BY-SA 3.0',
+  },
+  'Rogers Place': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Rogers_Place%2C_Edmonton%2C_June_6%2C_2024.jpg',
+    credit: 'D. Benjamin Miller / Wikimedia Commons, CC0',
+  },
+  'Save Mart Center': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/2009-0725-CA-SaveMartCenter.jpg',
+    credit: 'Bobak Ha\'Eri / Wikimedia Commons, CC BY 3.0',
+  },
+  'Scotiabank Saddledome': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/2020_Calgary_Saddledome.jpg',
+    credit: 'AceYYC / Wikimedia Commons, CC BY-SA 4.0',
+  },
+  'Tom Benson Hall of Fame Stadium': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Fawcett_Stadium.jpg',
+    credit: 'Harrier233 at English Wikipedia / Wikimedia Commons, Public domain',
   },
 };
 

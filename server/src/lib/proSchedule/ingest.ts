@@ -1,7 +1,8 @@
-import type { ProLeague } from '@prisma/client';
+import type { EventStatus, ProLeague } from '@prisma/client';
 import { prisma } from '../prisma.js';
 import {
   attachTouringPromotion,
+  type ResolvedFixture,
   resolveFixture,
   TOURING_LEAGUES,
   type ProTeamVenue,
@@ -33,6 +34,36 @@ export type IngestOptions = {
   /** Report what would change without writing. */
   dryRun?: boolean;
 };
+
+type ExistingEventSnapshot = {
+  id: string;
+  pro_external_ref: string | null;
+  title: string;
+  date: Date;
+  timezone: string | null;
+  location: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  pro_home_team_id: string | null;
+  pro_away_team_id: string | null;
+  live_window_hours_after_start: number | null;
+  status: EventStatus;
+};
+
+function hasProviderFieldChanges(existing: ExistingEventSnapshot, next: ResolvedFixture): boolean {
+  return (
+    existing.title !== next.title ||
+    existing.date.getTime() !== next.date.getTime() ||
+    existing.timezone !== next.timezone ||
+    existing.location !== next.location ||
+    existing.latitude !== next.latitude ||
+    existing.longitude !== next.longitude ||
+    existing.pro_home_team_id !== next.pro_home_team_id ||
+    existing.pro_away_team_id !== next.pro_away_team_id ||
+    existing.live_window_hours_after_start !== next.live_window_hours_after_start ||
+    existing.status !== next.status
+  );
+}
 
 async function loadTeams(league: ProLeague): Promise<Map<string, ProTeamVenue>> {
   const teams = await prisma.proTeam.findMany({
@@ -74,11 +105,24 @@ export async function ingestFixtures(
   const refs = fixtures.map(f => f.external_ref);
   const existing = await prisma.event.findMany({
     where: { pro_external_ref: { in: refs } },
-    select: { id: true, pro_external_ref: true },
+    select: {
+      id: true,
+      pro_external_ref: true,
+      title: true,
+      date: true,
+      timezone: true,
+      location: true,
+      latitude: true,
+      longitude: true,
+      pro_home_team_id: true,
+      pro_away_team_id: true,
+      live_window_hours_after_start: true,
+      status: true,
+    },
     take: 10000,
   });
   const existingByRef = new Map(
-    existing.flatMap(e => (e.pro_external_ref ? [[e.pro_external_ref, e.id] as const] : []))
+    existing.flatMap(e => (e.pro_external_ref ? [[e.pro_external_ref, e] as const] : []))
   );
 
   // A touring promotion's shows name no teams, so they must be pinned to the
@@ -88,6 +132,38 @@ export async function ingestFixtures(
     const first = [...teamsByRef.values()][0];
     if (first) promotionRefs.set(league, first.external_ref);
   }
+
+  const createRows: Array<{
+    pro_external_ref: string;
+    title: string;
+    date: Date;
+    timezone: string | null;
+    location: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    pro_home_team_id: string | null;
+    pro_away_team_id: string | null;
+    live_window_hours_after_start: number | null;
+    status: EventStatus;
+    approval_status: 'approved';
+    event_type: 'game';
+  }> = [];
+  const updates: Array<{
+    id: string;
+    externalRef: string;
+    data: {
+      title: string;
+      date: Date;
+      timezone: string | null;
+      location: string | null;
+      latitude: number | null;
+      longitude: number | null;
+      pro_home_team_id: string | null;
+      pro_away_team_id: string | null;
+      live_window_hours_after_start: number | null;
+      status: EventStatus;
+    };
+  }> = [];
 
   for (const rawFixture of fixtures) {
     const fixture = attachTouringPromotion(rawFixture, promotionRefs);
@@ -104,7 +180,8 @@ export async function ingestFixtures(
     }
 
     const v = resolved.value;
-    const isUpdate = existingByRef.has(v.pro_external_ref);
+    const existingEvent = existingByRef.get(v.pro_external_ref);
+    const isUpdate = Boolean(existingEvent);
 
     if (options.dryRun) {
       if (isUpdate) stats.updated += 1;
@@ -112,49 +189,92 @@ export async function ingestFixtures(
       continue;
     }
 
+    if (existingEvent) {
+      if (hasProviderFieldChanges(existingEvent, v)) {
+        updates.push({
+          id: existingEvent.id,
+          externalRef: fixture.external_ref,
+          data: {
+            // Deliberately narrow. Only provider-owned fields are refreshed —
+            // banner_url, description, and the poster grants are set by staff on
+            // our side and must survive a re-ingest.
+            title: v.title,
+            date: v.date,
+            timezone: v.timezone,
+            location: v.location,
+            latitude: v.latitude,
+            longitude: v.longitude,
+            pro_home_team_id: v.pro_home_team_id,
+            pro_away_team_id: v.pro_away_team_id,
+            live_window_hours_after_start: v.live_window_hours_after_start,
+            status: v.status,
+          },
+        });
+      }
+      stats.updated += 1;
+      continue;
+    }
+
+    createRows.push({
+      pro_external_ref: v.pro_external_ref,
+      title: v.title,
+      date: v.date,
+      timezone: v.timezone,
+      location: v.location,
+      latitude: v.latitude,
+      longitude: v.longitude,
+      pro_home_team_id: v.pro_home_team_id,
+      pro_away_team_id: v.pro_away_team_id,
+      live_window_hours_after_start: v.live_window_hours_after_start,
+      status: v.status,
+      // System-ingested: no creator, and pre-approved because there is no human
+      // submission to review. creator_id stays null, which marks these apart
+      // from fan-pitched events.
+      approval_status: 'approved',
+      event_type: 'game',
+    });
+    stats.created += 1;
+  }
+
+  if (!options.dryRun && createRows.length > 0) {
     try {
-      await prisma.event.upsert({
-        where: { pro_external_ref: v.pro_external_ref },
-        create: {
-          pro_external_ref: v.pro_external_ref,
-          title: v.title,
-          date: v.date,
-          timezone: v.timezone,
-          location: v.location,
-          latitude: v.latitude,
-          longitude: v.longitude,
-          pro_home_team_id: v.pro_home_team_id,
-          pro_away_team_id: v.pro_away_team_id,
-          live_window_hours_after_start: v.live_window_hours_after_start,
-          status: v.status,
-          // System-ingested: no creator, and pre-approved because there is no
-          // human submission to review. creator_id stays null, which is what
-          // marks these apart from fan-pitched events.
-          approval_status: 'approved',
-          event_type: 'game',
-        },
-        update: {
-          // Deliberately narrow. Only provider-owned fields are refreshed —
-          // banner_url, description, and the poster grants are set by staff on
-          // our side and must survive a re-ingest.
-          title: v.title,
-          date: v.date,
-          timezone: v.timezone,
-          location: v.location,
-          latitude: v.latitude,
-          longitude: v.longitude,
-          pro_home_team_id: v.pro_home_team_id,
-          pro_away_team_id: v.pro_away_team_id,
-          live_window_hours_after_start: v.live_window_hours_after_start,
-          status: v.status,
-        },
+      await prisma.event.createMany({
+        data: createRows,
+        skipDuplicates: true,
       });
-      if (isUpdate) stats.updated += 1;
-      else stats.created += 1;
+    } catch (err) {
+      for (const row of createRows) {
+        try {
+          await prisma.event.create({ data: row });
+        } catch (createErr) {
+          stats.skipped += 1;
+          stats.created = Math.max(0, stats.created - 1);
+          stats.failures.push({
+            external_ref: row.pro_external_ref,
+            reason: createErr instanceof Error ? createErr.message : String(createErr),
+          });
+        }
+      }
+      if (err instanceof Error) {
+        console.warn(
+          '[proScheduleIngest] createMany failed, fell back to per-row create:',
+          err.message
+        );
+      }
+    }
+  }
+
+  for (const update of updates) {
+    try {
+      await prisma.event.update({
+        where: { id: update.id },
+        data: update.data,
+      });
     } catch (err) {
       stats.skipped += 1;
+      stats.updated = Math.max(0, stats.updated - 1);
       stats.failures.push({
-        external_ref: fixture.external_ref,
+        external_ref: update.externalRef,
         reason: err instanceof Error ? err.message : String(err),
       });
     }

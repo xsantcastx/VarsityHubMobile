@@ -42,16 +42,65 @@ jobs:
         id: root-parse
         run: |
           TOTAL=$(jq '.metadata.vulnerabilities.total // 0' audit-root.json)
-          CRITICAL=$(jq '.metadata.vulnerabilities.critical // 0' audit-root.json)
-          HIGH=$(jq '.metadata.vulnerabilities.high // 0' audit-root.json)
           MODERATE=$(jq '.metadata.vulnerabilities.moderate // 0' audit-root.json)
+          # Same allowlist policy as ci.yml: npm currently marks image-size <=2.0.2
+          # vulnerable with no non-breaking remediation, which appears only via
+          # Expo/Metro transitive deps in this repo.
+          PARSED="$(node -e '
+            const fs = require("node:fs");
+            const report = JSON.parse(fs.readFileSync("audit-root.json", "utf8"));
+            const vulns = report.vulnerabilities || {};
+            const allowPackages = new Set([
+              "image-size",
+              "metro",
+              "metro-config",
+              "metro-transform-worker",
+              "@expo/metro",
+              "@expo/metro-config",
+              "@expo/cli",
+              "expo",
+              "@react-native/community-cli-plugin",
+              "react-native",
+            ]);
+            const allowGhsa = new Set(["GHSA-w3rx-r6r6-pgpr", "GHSA-5p2g-fcmc-qvqq"]);
+            const isHighOrCritical = (s) => s === "high" || s === "critical";
+            let critical = 0;
+            let high = 0;
+            let allowlistedHigh = 0;
+            for (const [pkg, vuln] of Object.entries(vulns)) {
+              if (!isHighOrCritical(vuln.severity)) continue;
+              const via = Array.isArray(vuln.via) ? vuln.via : [];
+              const isAllowlistedPkg = allowPackages.has(pkg);
+              const hasUnknownVia = via.some((entry) => {
+                if (typeof entry === "string") return !allowPackages.has(entry);
+                if (!entry || typeof entry !== "object") return true;
+                if (!isHighOrCritical(entry.severity)) return false;
+                const ghsa = (entry.url || "").match(/GHSA-[^/]+/)?.[0] || "";
+                return !allowGhsa.has(ghsa);
+              });
+              if (isAllowlistedPkg && !hasUnknownVia) {
+                if (vuln.severity === "high") allowlistedHigh += 1;
+                continue;
+              }
+              if (vuln.severity === "critical") critical += 1;
+              else if (vuln.severity === "high") high += 1;
+            }
+            process.stdout.write(`${critical} ${high} ${allowlistedHigh}`);
+          ')"
+          CRITICAL="$(echo "$PARSED" | awk "{print \$1}")"
+          HIGH="$(echo "$PARSED" | awk "{print \$2}")"
+          ALLOWLISTED_HIGH="$(echo "$PARSED" | awk "{print \$3}")"
           echo "vulnerabilities=$TOTAL" >> $GITHUB_OUTPUT
           echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
           echo "high=$HIGH" >> $GITHUB_OUTPUT
           echo "moderate=$MODERATE" >> $GITHUB_OUTPUT
+          echo "allowlisted_high=$ALLOWLISTED_HIGH" >> $GITHUB_OUTPUT
           if [ "$TOTAL" -gt 0 ]; then
             echo "❌ Root vulnerabilities: $TOTAL"
             jq '.vulnerabilities | to_entries[] | "\(.value.name)@\(.value.via[0]) - \(.value.severity)"' audit-root.json
+            if [ "$ALLOWLISTED_HIGH" -gt 0 ]; then
+              echo "ℹ️ Allowlisted high vulnerabilities: $ALLOWLISTED_HIGH (Expo/Metro image-size chain)"
+            fi
           fi
 
       - name: Audit server dependencies

@@ -68,6 +68,37 @@ if (isTest) {
   ).__VARSITYHUB_TEST_PRISMA__ = prisma;
 }
 
+/**
+ * Slow-query logging.
+ *
+ * Production threshold defaults to 100ms (override with PRISMA_SLOW_QUERY_MS).
+ * Non-production defaults to 500ms and is silenced entirely in the test suite
+ * to avoid noise. Only `Model.action`, the measured duration, and the
+ * configured threshold are ever logged — never raw query args, params, or
+ * results — so this is safe to run in production without risking PII or
+ * secret leakage into logs.
+ */
+export const SLOW_QUERY_THRESHOLD_MS = (() => {
+  const envValue = Number(process.env.PRISMA_SLOW_QUERY_MS);
+  if (Number.isFinite(envValue) && envValue > 0) return envValue;
+  return isProduction ? 100 : 500;
+})();
+
+prisma.$use(async (params, next) => {
+  const startedAt = Date.now();
+  const result = await next(params);
+  const durationMs = Date.now() - startedAt;
+
+  if (!isTest && durationMs >= SLOW_QUERY_THRESHOLD_MS) {
+    const label = params.model ? `${params.model}.${params.action}` : params.action;
+    console.warn(
+      `[prisma] slow query: ${label} took ${durationMs}ms (threshold ${SLOW_QUERY_THRESHOLD_MS}ms)`
+    );
+  }
+
+  return result;
+});
+
 const getTrimmed = (value: unknown): string | null => {
   if (typeof value !== 'string') return null;
   return value.trim();

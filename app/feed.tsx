@@ -462,8 +462,10 @@ const FeedGameCard = memo(function FeedGameCard({
   const banner =
     gameItem.cover_image_url || raw?.banner_url || venuePhotoUrl || firstMediaUrl || null;
   const hasBanner = typeof banner === 'string' && banner.length > 0;
-  const venuePhotoCredit =
-    banner === venuePhotoUrl && typeof venuePhoto?.credit === 'string' ? venuePhoto.credit : null;
+  // Venue-photo attribution is intentionally NOT shown on the feed card (owner
+  // ask 2026-08-06 — it cluttered the card preview). The CC BY-SA credit is
+  // rendered in the event page footer instead (GameDetailsScreen
+  // `venueCreditFooter`), where the photo is shown full-bleed as the hero.
   // Pro games have no banner (and no logo, by design) — brand the card with the
   // two teams' accent colors so it isn't a blank dark box. Non-pro games keep
   // the deterministic gradient.
@@ -586,11 +588,6 @@ const FeedGameCard = memo(function FeedGameCard({
         {voteText ? (
           <Text style={styles.gridVoteText} numberOfLines={1}>
             {voteText}
-          </Text>
-        ) : null}
-        {venuePhotoCredit ? (
-          <Text style={styles.gridCredit} numberOfLines={1}>
-            {venuePhotoCredit}
           </Text>
         ) : null}
       </View>
@@ -1336,6 +1333,14 @@ export default function FeedScreen() {
   // Load notifications when modal opens
   useEffect(() => {
     if (!notificationsMenuOpen) return;
+
+    // Opening the panel means the user has seen their notifications. Clear the
+    // badge immediately (owner ask 2026-08-06 — the count lingered even after
+    // viewing) and persist the read state server-side so the next feed-bundle
+    // refresh returns 0 instead of re-showing the old count. Best-effort: if the
+    // server call fails, the 60s bundle poll reconciles.
+    setUnreadNotifCount(0);
+    void NotificationApi.markAllRead().catch(() => {});
 
     let mounted = true;
     const loadModalData = async () => {
