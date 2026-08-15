@@ -328,7 +328,12 @@ async function isOrgAdmin(userId: string): Promise<boolean> {
 
 const serializeEvent = (
   event: any,
-  opts: { includeGame?: boolean; rsvpCount?: number; includeCreator?: boolean } = {}
+  opts: {
+    includeGame?: boolean;
+    rsvpCount?: number;
+    includeCreator?: boolean;
+    activityCount?: number;
+  } = {}
 ) => {
   // Fall back to linked game coordinates when event itself lacks lat/lng
   const resolvedLat = event.latitude ?? event.game?.latitude ?? event.game?.venue_lat ?? null;
@@ -378,6 +383,11 @@ const serializeEvent = (
     base.attendees_count = opts.rsvpCount;
     base.rsvp_count = opts.rsvpCount;
   }
+  // Dev/marketing-only engagement score (posts on the event + its linked game).
+  // Present only when the caller passes ?marketing=1; absent for every other path.
+  if (typeof opts.activityCount === 'number') {
+    base.activity_count = opts.activityCount;
+  }
   if (opts.includeGame && event.game) {
     base.game = {
       id: event.game.id,
@@ -426,6 +436,12 @@ eventsRouter.get(
     const dateTo = typeof req.query.to === 'string' ? new Date(req.query.to) : null;
     const proOnly =
       String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
+    // Opt-in, read-only marketing ranking (dev/sim capture). When set, the
+    // response carries a per-event `activity_count` (posts on the event + its
+    // linked game) and `sort=active` orders by it. Absent for all other callers.
+    const marketing = ['1', 'true', 'yes', 'on'].includes(
+      String(req.query.marketing || '').toLowerCase()
+    );
     const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
     const proLeagueRaw =
       typeof req.query.pro_league === 'string' ? req.query.pro_league.trim().toLowerCase() : '';
@@ -638,6 +654,38 @@ eventsRouter.get(
       if (take) events = events.slice(0, take);
     }
 
+    if (marketing) {
+      // Rank the already-capped result set by real engagement so a capture
+      // surfaces the liveliest pages. Activity = posts linked directly to the
+      // event (event_id) plus posts on its linked game (game_id). Two grouped
+      // counts over the returned ids — bounded, read-only, no per-row queries.
+      const eventIds = events.map((e: any) => e.id);
+      const gameIds = [...new Set(events.map((e: any) => e.game_id).filter(Boolean))] as string[];
+      const byEvent = eventIds.length
+        ? await prisma.post.groupBy({
+            by: ['event_id'],
+            where: { event_id: { in: eventIds } },
+            _count: { _all: true },
+          })
+        : [];
+      const byGame = gameIds.length
+        ? await prisma.post.groupBy({
+            by: ['game_id'],
+            where: { game_id: { in: gameIds } },
+            _count: { _all: true },
+          })
+        : [];
+      const byEventMap = new Map(byEvent.map(r => [r.event_id, r._count._all]));
+      const byGameMap = new Map(byGame.map(r => [r.game_id, r._count._all]));
+      const activityOf = (e: any) =>
+        (byEventMap.get(e.id) ?? 0) + (e.game_id ? (byGameMap.get(e.game_id) ?? 0) : 0);
+      const ranked = sort === 'active' ? [...events].sort((a, b) => activityOf(b) - activityOf(a)) : events;
+      return res.json(
+        ranked.map((event: any) =>
+          serializeEvent(event, { includeGame: true, activityCount: activityOf(event) })
+        )
+      );
+    }
     res.json(events.map(event => serializeEvent(event, { includeGame: true })));
   })
 );

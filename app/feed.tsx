@@ -52,7 +52,9 @@ import { getDeterministicGameCardGradient, proGameCardGradient } from '@/utils/f
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { getLiveBounds, isGameLive, isGameOver, shouldPinToFeed } from '@/utils/liveWindow';
 import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
+import { pickTopShuffled } from '@/utils/marketingFeed';
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import Constants from 'expo-constants';
 import { prefetchGameSummary } from '@/utils/prefetch';
 import {
   getNotificationHrefForUser,
@@ -63,6 +65,21 @@ import {
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
 const VARSITYHUB_LOGO = require('../assets/images/logo.png');
+
+// Dev/sim-only marketing capture. When ON, the feed is replaced with the
+// most-active event pages, shuffled (see the fetch flow below). Double-gated:
+// `__DEV__` strips it from every production bundle, and it still requires the
+// EXPO_PUBLIC_MARKETING_FEED flag on top. Real users can never trigger it.
+// Enable: `EXPO_PUBLIC_MARKETING_FEED=1 npm run dev:expo`.
+const MARKETING_FEED =
+  __DEV__ &&
+  ['1', 'true', 'yes', 'on'].includes(
+    String(
+      (Constants.expoConfig?.extra as any)?.EXPO_PUBLIC_MARKETING_FEED ??
+        process.env.EXPO_PUBLIC_MARKETING_FEED ??
+        ''
+    ).toLowerCase()
+  );
 
 function FullBleedCardImage({ uri }: { uri: string }) {
   if (Platform.OS === 'web') {
@@ -1008,6 +1025,27 @@ export default function FeedScreen() {
         let normalizedGames = dedupeFeedEntities(
           mergeFeedGames(gameRows, proPastRows, proUpcomingRows, proWweRows, proNflRows)
         );
+
+        // Dev/sim-only marketing capture: replace the feed with the most-active
+        // event pages, shuffled. __DEV__ + flag gated, so this whole branch is
+        // dead code in a release bundle and never runs for real users. See
+        // docs/superpowers/specs/2026-08-15-marketing-feed-devonly-design.md.
+        if (MARKETING_FEED) {
+          try {
+            const marketingEvents = await Event.filter(
+              { marketing: true, show_all: true, include_past: true },
+              'active',
+              60
+            );
+            const marketingRows = pickTopShuffled(normalizeProFeedEvents(marketingEvents), 40);
+            if (marketingRows.length > 0) {
+              normalizedGames = marketingRows;
+              cursor = null;
+            }
+          } catch (err) {
+            if (__DEV__) console.warn('[Feed] marketing feed load failed:', err);
+          }
+        }
 
         // If no games exist, seed sample games as real DB records (stories/polls work)
         if ((!normalizedGames || normalizedGames.length === 0) && upcomingData !== null) {

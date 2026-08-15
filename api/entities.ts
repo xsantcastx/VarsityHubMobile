@@ -532,11 +532,18 @@ export const Event = {
       event_only?: boolean;
       from?: string;
       to?: string;
+      // Dev/marketing-only (feed capture): rank by engagement + skip geo/archive.
+      marketing?: boolean;
+      show_all?: boolean;
+      include_past?: boolean;
     } = {},
     sort?: string,
     limit?: number
   ) => {
     const q: string[] = [];
+    if (where.marketing) q.push('marketing=1');
+    if (where.show_all) q.push('show_all=true');
+    if (where.include_past) q.push('include_past=true');
     if (where.following) q.push('following=true');
     if (where.pro_only) q.push('pro_only=true');
     if (where.pro_league) q.push('pro_league=' + encodeURIComponent(where.pro_league));
