@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { sendError } from '../lib/http/sendError.js';
 import { prisma } from '../lib/prisma.js';
 import { serializeLiveWindow } from '../lib/geofencing.js';
-import { venuePhotoFor } from '../lib/proSchedule/venuePhotos.js';
+import { venuePhotoFor, leagueDefaultPhoto } from '../lib/proSchedule/venuePhotos.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { followLimiter } from '../middleware/rateLimiters.js';
@@ -158,8 +158,12 @@ const EVENT_SELECT = {
   live_window_hours_after_start: true,
   pro_home_team_id: true,
   pro_away_team_id: true,
-  proHomeTeam: { select: { id: true, name: true, short_name: true, primary_color: true } },
-  proAwayTeam: { select: { id: true, name: true, short_name: true, primary_color: true } },
+  proHomeTeam: {
+    select: { id: true, name: true, short_name: true, primary_color: true, league: true },
+  },
+  proAwayTeam: {
+    select: { id: true, name: true, short_name: true, primary_color: true, league: true },
+  },
 } as const;
 
 type ProEventRow = {
@@ -173,7 +177,13 @@ function serializeProEvent(event: ProEventRow) {
   // comma). Exposed as a new `venue_photo` field so only updated clients render
   // it — and they render `credit` alongside the image, satisfying CC-BY/CC-BY-SA.
   // Old clients ignore the field, so no image ever shows without its credit.
-  const venue_photo = venuePhotoFor(typeof event.location === 'string' ? event.location : null);
+  const proLeague =
+    (event.proHomeTeam as { league?: ProLeague } | null | undefined)?.league ??
+    (event.proAwayTeam as { league?: ProLeague } | null | undefined)?.league ??
+    null;
+  const venue_photo =
+    venuePhotoFor(typeof event.location === 'string' ? event.location : null) ??
+    leagueDefaultPhoto(proLeague);
   return {
     ...event,
     venue_photo,

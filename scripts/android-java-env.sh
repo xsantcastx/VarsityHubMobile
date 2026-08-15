@@ -5,11 +5,19 @@ set -euo pipefail
 ensure_android_java() {
   local required_major="${1:-17}"
   local current_major=""
+  local version_output=""
 
   if [ -n "${JAVA_HOME:-}" ] && [ -x "${JAVA_HOME}/bin/java" ]; then
-    current_major="$("${JAVA_HOME}/bin/java" -version 2>&1 | awk -F[\".] '/version/ { print $2; exit }')"
+    version_output="$("${JAVA_HOME}/bin/java" -version 2>&1 || true)"
   elif command -v java >/dev/null 2>&1; then
-    current_major="$(java -version 2>&1 | awk -F[\".] '/version/ { print $2; exit }')"
+    version_output="$(java -version 2>&1 || true)"
+  fi
+
+  if [ -n "$version_output" ]; then
+    current_major="$(printf '%s\n' "$version_output" | sed -nE 's/.*version "([0-9]+).*/\1/p' | head -n1)"
+    if [ -z "$current_major" ]; then
+      current_major="$(printf '%s\n' "$version_output" | sed -nE 's/.*openjdk[[:space:]]+([0-9]+).*/\1/p' | head -n1)"
+    fi
   fi
 
   if [ "$current_major" = "$required_major" ]; then

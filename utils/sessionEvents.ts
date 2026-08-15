@@ -18,7 +18,15 @@ export type SessionExpiredReason =
   | 'refresh_missing'
   | 'token_rejected_after_refresh';
 
-type Listener = (reason: SessionExpiredReason) => void;
+export type SessionExpiredDetails = {
+  source?: 'http' | 'upload';
+  path?: string;
+  status?: number;
+  refreshReason?: 'missing' | 'auth' | 'network' | 'unknown' | 'success';
+  authCode?: string;
+};
+
+type Listener = (reason: SessionExpiredReason, details?: SessionExpiredDetails) => void;
 
 const listeners = new Set<Listener>();
 let lastFiredAt = 0;
@@ -31,13 +39,16 @@ export function onSessionExpired(listener: Listener): () => void {
   };
 }
 
-export function emitSessionExpired(reason: SessionExpiredReason): void {
+export function emitSessionExpired(
+  reason: SessionExpiredReason,
+  details?: SessionExpiredDetails
+): void {
   const now = Date.now();
   if (now - lastFiredAt < DEDUPE_WINDOW_MS) return;
   lastFiredAt = now;
   listeners.forEach(fn => {
     try {
-      fn(reason);
+      fn(reason, details);
     } catch {
       // Listener errors must not break the event bus.
     }

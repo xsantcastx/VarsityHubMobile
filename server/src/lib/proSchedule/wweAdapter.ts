@@ -1,6 +1,7 @@
 import type { ProLeague } from '@prisma/client';
 import { geocodeVenue, type GeocodeFn } from './geocodeVenue.js';
 import type { ProFixture, ProScheduleAdapter } from './types.js';
+import { resolveWweVenueFallback } from './wweVenueFallbacks.js';
 
 /**
  * WWE schedule adapter (TheSportsDB league 4444).
@@ -29,7 +30,12 @@ type TsdbWweEvent = {
 };
 
 /** A parsed fixture before geocoding (venue known, coords still null). */
-export type WwePreGeocode = ProFixture & { _venueQuery: string | null };
+export type WwePreGeocode = ProFixture & {
+  _venueQuery: string | null;
+  _venueName: string | null;
+  _venueCity: string | null;
+  _venueCountry: string | null;
+};
 
 type WweAdapter = ProScheduleAdapter & {
   /** Test-only pure parser (no network, no geocode). */
@@ -71,6 +77,9 @@ export function parseWweEvents(raw: unknown, from: Date, to: Date): WwePreGeocod
       venue_lng: null,
       status,
       _venueQuery: venueQuery(e),
+      _venueName: e.strVenue ?? null,
+      _venueCity: e.strCity ?? null,
+      _venueCountry: e.strCountry ?? null,
     });
   }
   return out;
@@ -93,13 +102,21 @@ export function wweAdapter(
 
       const fixtures: ProFixture[] = [];
       for (const p of parsed) {
-        const { _venueQuery, ...fixture } = p;
+        const { _venueQuery, _venueName, _venueCity, _venueCountry, ...fixture } = p;
+        let coords = null;
         if (_venueQuery) {
-          const coords = await geocode(_venueQuery);
-          if (coords) {
-            fixture.venue_lat = coords.lat;
-            fixture.venue_lng = coords.lng;
-          }
+          coords = await geocode(_venueQuery);
+        }
+        if (!coords) {
+          coords = resolveWweVenueFallback({
+            venueName: _venueName,
+            city: _venueCity,
+            country: _venueCountry,
+          });
+        }
+        if (coords) {
+          fixture.venue_lat = coords.lat;
+          fixture.venue_lng = coords.lng;
         }
         fixtures.push(fixture);
       }

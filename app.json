@@ -174,7 +174,8 @@
           "uploadSourcemaps": true
         }
       ],
-      "react-native-iap"
+      "react-native-iap",
+      "./plugins/withInstagramStories"
     ],
     "experiments": {
       "typedRoutes": true
@@ -188,6 +189,7 @@
       "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
       "EXPO_PUBLIC_NODE_ENV": "production",
       "EXPO_PUBLIC_APP_SCHEME": "varsityhubmobile",
+      "EXPO_PUBLIC_META_APP_ID": "",
       "EXPO_PUBLIC_WEB_BASE_URL": "https://varsityhub.app",
       "APP_STORE_PRIVACY_POLICY_URL": "https://varsityhub.app/privacy-policy",
       "EXPO_PUBLIC_SENTRY_DSN": "",

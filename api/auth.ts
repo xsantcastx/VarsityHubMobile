@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { captureBreadcrumb } from '@/utils/sentry';
 import {
   clearAuthToken,
   getAuthToken,
@@ -508,6 +509,19 @@ export const auth = {
       return { accessToken: access_token, reason: 'success' };
     } catch (error: any) {
       if (__DEV__) console.error('[auth] Token refresh failed:', error);
+      captureBreadcrumb('auth.refresh.failed', 'auth', {
+        status: error?.status,
+        code: typeof error?.data?.code === 'string' ? error.data.code : undefined,
+        reason:
+          error?.status === 401 || error?.status === 403
+            ? 'auth'
+            : error?.status === 0 ||
+                error?.status === 408 ||
+                error?.status === 502 ||
+                error?.status === 503
+              ? 'network'
+              : 'unknown',
+      });
       if (error?.status === 401 || error?.status === 403) {
         await saveToken(null);
         await saveRefreshToken(null);

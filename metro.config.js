@@ -23,6 +23,8 @@ config.resolver = {
     ...config.resolver.alias,
     'is-arrayish': path.resolve(__dirname, 'shims/is-arrayish.js'),
     'react-native-maps': path.resolve(__dirname, 'shims/react-native-maps.js'),
+    // Pin reanimated resolution for OTA export in symlinked/case-variant workspaces.
+    'react-native-reanimated': path.resolve(__dirname, 'node_modules/react-native-reanimated'),
   },
 };
 
@@ -33,6 +35,8 @@ config.resolver.extraNodeModules = {
     __dirname,
     'shims/PushNotificationIOS.js'
   ),
+  // Keep parity with alias above for Metro's module map resolution.
+  'react-native-reanimated': path.resolve(__dirname, 'node_modules/react-native-reanimated'),
 };
 
 // Shim native-only modules on web so Metro doesn't try to bundle them

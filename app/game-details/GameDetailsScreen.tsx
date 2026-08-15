@@ -32,6 +32,11 @@ import { toUserMessage } from '@/utils/toUserMessage';
 import { promptForSignIn } from '@/utils/requireSignIn';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
+import AppLinks from '@/utils/links';
+import {
+  shareToInstagramStory,
+  isInstagramStoryShareConfigured,
+} from '@/utils/shareToInstagramStory';
 import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
@@ -1774,9 +1779,36 @@ const GameDetailsScreen = () => {
     contextLines: shareContextLines,
   });
 
+  const onShareToStory = useCallback(async () => {
+    const backgroundImageUrl = finalsBannerUrl || bannerUrl || vm?.venuePhotoUrl || null;
+    const link = vm?.gameId
+      ? AppLinks.game(String(vm.gameId))
+      : vm?.eventId
+        ? AppLinks.event(String(vm.eventId))
+        : null;
+    const result = await shareToInstagramStory({
+      backgroundImageUrl,
+      linkUrl: link?.webUrl ?? null,
+    });
+    // Fall back to the OS share sheet when IG Stories isn't available (old
+    // binary, IG not installed, no Meta App ID) or the hand-off errored.
+    if (result !== 'shared') void shareGameLink();
+  }, [finalsBannerUrl, bannerUrl, vm?.venuePhotoUrl, vm?.gameId, vm?.eventId, shareGameLink]);
+
   const onShare = useCallback(() => {
+    const backgroundImageUrl = finalsBannerUrl || bannerUrl || vm?.venuePhotoUrl || null;
+    // Only offer the IG-Story path when it can actually work (configured App ID
+    // + an image to use as the background). Otherwise keep the plain link share.
+    if (isInstagramStoryShareConfigured() && backgroundImageUrl) {
+      Alert.alert('Share', undefined, [
+        { text: 'Share to Instagram Story', onPress: () => void onShareToStory() },
+        { text: 'Share link…', onPress: () => void shareGameLink() },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+      return;
+    }
     void shareGameLink();
-  }, [shareGameLink]);
+  }, [finalsBannerUrl, bannerUrl, vm?.venuePhotoUrl, onShareToStory, shareGameLink]);
 
   const onPressLocation = useCallback(() => {
     if (vm?.location) openMaps(vm.location);

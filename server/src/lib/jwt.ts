@@ -21,10 +21,11 @@ const DEFAULT_ACCESS_TOKEN_EXPIRY = '15m';
 // Refresh tokens rotate on every use and are re-issued with a fresh full-length
 // expiry each time, so an even occasionally-active user is never logged out —
 // the ceiling only bites after this many days of TOTAL inactivity. Product
-// requirement: once signed in, stay signed in. 365d rolling delivers that while
-// still bounding truly-abandoned sessions (vs. a non-expiring token). Rotation
+// requirement: once signed in, stay signed in. A 10-year rolling window is
+// effectively "always on" for active users while still bounding
+// truly-abandoned sessions (vs. a non-expiring token). Rotation
 // + revokeAllSessions/password-change/ban remain the server-side remote kill.
-export const REFRESH_TOKEN_EXPIRY_DAYS = 365;
+export const REFRESH_TOKEN_EXPIRY_DAYS = 3650;
 
 // Rotation grace / reuse leeway. When a refresh token is rotated the old row is
 // superseded (marked, not deleted). A retry that re-presents the just-rotated

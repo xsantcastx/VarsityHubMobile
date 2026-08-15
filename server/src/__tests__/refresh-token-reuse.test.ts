@@ -7,7 +7,8 @@
  *   retry — see refresh-token-rotation-grace.test.ts for the full matrix).
  * - Reuse outside the grace window, or from a different device, revokes all
  *   sessions and returns { code: 'TOKEN_REUSED' }.
- * - A legitimately expired or invalid token still returns a plain 401.
+ * - A legitimately expired or invalid token still returns 401 but NOT
+ *   TOKEN_REUSED (no mass-revoke side effect).
  * - v1 → v2 lazy upgrade: refreshing a legacy v1 token issues a v2 token.
  */
 
@@ -95,11 +96,12 @@ describeDb('Refresh token reuse detection', () => {
     await prisma.refreshToken.deleteMany({ where: { user_id: userId } });
   });
 
-  it('returns plain 401 (no TOKEN_REUSED code) for a completely unknown token', async () => {
+  it('returns 401 with invalid-token code (not TOKEN_REUSED) for a completely unknown token', async () => {
     const { raw } = generateRefreshTokenV2();
     const res = await request(app).post('/auth/refresh').send({ refresh_token: raw });
     expect(res.status).toBe(401);
-    expect(res.body.code).toBeUndefined();
+    expect(res.body.code).toBe('REFRESH_NOT_FOUND');
+    expect(res.body.code).not.toBe('TOKEN_REUSED');
   });
 
   it('returns 401 for an expired refresh token and cleans it up', async () => {
