@@ -54,7 +54,7 @@ import { getLiveBounds, isGameLive, isGameOver, shouldPinToFeed } from '@/utils/
 import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
 import { pickTopShuffled } from '@/utils/marketingFeed';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { prefetchGameSummary } from '@/utils/prefetch';
 import {
   getNotificationHrefForUser,
@@ -66,20 +66,13 @@ import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
 const VARSITYHUB_LOGO = require('../assets/images/logo.png');
 
-// Dev/sim-only marketing capture. When ON, the feed is replaced with the
-// most-active event pages, shuffled (see the fetch flow below). Double-gated:
-// `__DEV__` strips it from every production bundle, and it still requires the
-// EXPO_PUBLIC_MARKETING_FEED flag on top. Real users can never trigger it.
-// Enable: `EXPO_PUBLIC_MARKETING_FEED=1 npm run dev:expo`.
-const MARKETING_FEED =
-  __DEV__ &&
-  ['1', 'true', 'yes', 'on'].includes(
-    String(
-      (Constants.expoConfig?.extra as any)?.EXPO_PUBLIC_MARKETING_FEED ??
-        process.env.EXPO_PUBLIC_MARKETING_FEED ??
-        ''
-    ).toLowerCase()
-  );
+// Admin-only marketing capture. When an admin toggles it ON (long-press the
+// header brand), the feed is replaced with the most-active event pages,
+// shuffled (see the fetch flow below). Gated at runtime by BOTH the server
+// admin flag AND this persisted per-device toggle — a normal user can never
+// turn it on or see it, and it defaults OFF so an admin's own feed is normal
+// until they deliberately enable it for a capture session.
+const MARKETING_FEED_STORAGE_KEY = 'vh_marketing_feed_capture';
 
 function FullBleedCardImage({ uri }: { uri: string }) {
   if (Platform.OS === 'web') {
@@ -615,7 +608,7 @@ const FeedGameCard = memo(function FeedGameCard({
 
 export default function FeedScreen() {
   const router = useRouter();
-  const { user, checkAuth } = useAuth();
+  const { user, checkAuth, isAdmin } = useAuth();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme() ?? 'light';
@@ -625,6 +618,22 @@ export default function FeedScreen() {
   const [games, setGames] = useState<GameItem[]>([]);
   const [gamesCursor, setGamesCursor] = useState<string | null>(null);
   const [hasMoreGames, setHasMoreGames] = useState(true);
+  // Admin-only marketing capture toggle (see MARKETING_FEED_STORAGE_KEY). The
+  // load() callback reads the active state via a ref so toggling never rebuilds
+  // the fetch closure or leaves it reading a stale value.
+  const [marketingFeedOn, setMarketingFeedOn] = useState(false);
+  const marketingActiveRef = useRef(false);
+  useEffect(() => {
+    marketingActiveRef.current = isAdmin && marketingFeedOn;
+  }, [isAdmin, marketingFeedOn]);
+  // Restore the persisted toggle on mount — admins only; a non-admin can never
+  // flip it on, so their feed is always the real one.
+  useEffect(() => {
+    if (!isAdmin) return;
+    AsyncStorage.getItem(MARKETING_FEED_STORAGE_KEY)
+      .then(v => setMarketingFeedOn(v === '1'))
+      .catch(() => {});
+  }, [isAdmin]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [query] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -1026,11 +1035,11 @@ export default function FeedScreen() {
           mergeFeedGames(gameRows, proPastRows, proUpcomingRows, proWweRows, proNflRows)
         );
 
-        // Dev/sim-only marketing capture: replace the feed with the most-active
-        // event pages, shuffled. __DEV__ + flag gated, so this whole branch is
-        // dead code in a release bundle and never runs for real users. See
+        // Admin-only marketing capture: replace the feed with the most-active
+        // event pages, shuffled. Guarded by isAdmin AND the persisted toggle
+        // (via marketingActiveRef) — never runs for a normal user. See
         // docs/superpowers/specs/2026-08-15-marketing-feed-devonly-design.md.
-        if (MARKETING_FEED) {
+        if (marketingActiveRef.current) {
           try {
             const marketingEvents = await Event.filter(
               { marketing: true, show_all: true, include_past: true },
@@ -1230,6 +1239,26 @@ export default function FeedScreen() {
     },
     [checkAuth, user]
   );
+
+  // Admin-only: long-pressing the header brand flips the marketing capture feed
+  // on/off, persists the choice, and reloads so the change takes effect
+  // immediately. A no-op for everyone else.
+  const toggleMarketingFeed = useCallback(() => {
+    if (!isAdmin) return;
+    setMarketingFeedOn(prev => {
+      const next = !prev;
+      marketingActiveRef.current = next; // isAdmin is already true here
+      AsyncStorage.setItem(MARKETING_FEED_STORAGE_KEY, next ? '1' : '0').catch(() => {});
+      Alert.alert(
+        'Marketing feed',
+        next
+          ? 'ON — feed now shows the most-active events, shuffled. Long-press the logo again to turn it off.'
+          : 'OFF — back to the normal feed.'
+      );
+      void load({ force: true });
+      return next;
+    });
+  }, [isAdmin, load]);
 
   const _loadMore = useCallback(async () => {
     if (loadingMore || !hasMoreGames || !gamesCursor) return;
@@ -2651,6 +2680,8 @@ export default function FeedScreen() {
             testID="feed-brand-button"
             style={styles.brandRow}
             onPress={openInstagram}
+            onLongPress={isAdmin ? toggleMarketingFeed : undefined}
+            delayLongPress={600}
             accessibilityRole="button"
             accessibilityLabel="Open VarsityHub Instagram"
           >

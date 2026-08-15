@@ -1,8 +1,20 @@
 # Marketing Feed (dev/sim-only) — Design
 
 **Date:** 2026-08-15
-**Status:** Approved (design)
-**Scope:** Dev/simulator-only. Zero behavioral change for production users.
+**Status:** Approved (design); implementation pivoted to admin-gated (see Update).
+**Scope:** Admin-only in production, behind a per-device toggle. Zero behavioral
+change for non-admin users.
+
+## Update (2026-08-15) — pivot from dev-only to admin-gated
+
+Local simulator builds on the dev machine were blocked by three unrelated
+toolchain issues (brace-expansion codegen, RN 0.81 prebuilt-React link, a
+Metro/Node asset-hashing bug), so capturing in the sim was impractical. The
+owner chose to run the capture against the real production app instead, gated so
+only they can see it. The `__DEV__`+env gate below is replaced by:
+**`isAdmin && <persisted per-device toggle>`**, flipped by long-pressing the
+feed header brand. Everything else in this design (server `marketing=1`,
+`sort=active`, top-40 Fisher-Yates shuffle, replace-the-list) is unchanged.
 
 ## Goal
 
