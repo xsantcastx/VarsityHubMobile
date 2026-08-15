@@ -262,6 +262,13 @@
         }
       }
     },
+    "@react-native/codegen": {
+      "glob": {
+        "minimatch": {
+          "brace-expansion": "1.1.18"
+        }
+      }
+    },
     "react-native": {
       "glob": {
         "minimatch": "10.2.6"
