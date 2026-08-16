@@ -2155,10 +2155,11 @@ export default function FeedScreen() {
                   targetUrl={adData.target_url}
                   businessName={adData.business_name}
                   description={adData.description}
-                  // Match the empty ad placeholder's footprint (aspectRatio 3.5)
-                  // so a filled ad slot is the same size as an empty one — the
-                  // image is fit inside this fixed box, never grown past it.
-                  aspectRatio={3.5}
+                  // Match the advertiser's checkout preview (EditAdScreenBase:
+                  // full-width x 160, contain → ~2:1) so what they design is
+                  // what renders in the feed. The empty placeholder below uses
+                  // the same 2:1 box, so filled and empty slots stay identical.
+                  aspectRatio={2}
                 />
               ) : (
                 <View
@@ -3172,7 +3173,7 @@ const styles = StyleSheet.create({
   },
   adPlaceholder: {
     width: '100%',
-    aspectRatio: 3.5,
+    aspectRatio: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
