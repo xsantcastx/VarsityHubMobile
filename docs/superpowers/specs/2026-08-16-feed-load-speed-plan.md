@@ -4,7 +4,7 @@
 | ----------- | ------------------------------------------------------------------------ |
 | **Date**    | 2026-08-16                                                               |
 | **Branch**  | `feat/marketing-feed-devonly`                                            |
-| **Status**  | Plan — pending approval                                                  |
+| **Status**  | Phase 1 + 2 implemented (2026-08-16); Phase 3 deferred                   |
 | **Trigger** | User note: "it seems like it just takes a long time for events to load." |
 
 ## Problem (verified)

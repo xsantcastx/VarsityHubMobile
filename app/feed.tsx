@@ -79,7 +79,18 @@ function FullBleedCardImage({ uri }: { uri: string }) {
     return <RNImage source={{ uri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />;
   }
 
-  return <Image source={{ uri }} style={StyleSheet.absoluteFillObject} contentFit="cover" />;
+  // Fade the venue photo in (instead of a hard dark-box pop) and cache it to
+  // disk so it loads instantly on later views. transition softens the wait
+  // while the feed's first paint no longer blocks on every image.
+  return (
+    <Image
+      source={{ uri }}
+      style={StyleSheet.absoluteFillObject}
+      contentFit="cover"
+      transition={250}
+      cachePolicy="memory-disk"
+    />
+  );
 }
 
 type GameItem = {
@@ -879,6 +890,25 @@ export default function FeedScreen() {
                 viewerCoords?.lng ?? null,
               ],
               queryFn: () => Game.list(queryPlan.upcoming.sort, queryPlan.upcoming.options),
+            })
+            .then((data: any) => {
+              // First paint: show the primary upcoming games the moment they
+              // resolve, instead of gating the whole feed on the slowest of the
+              // seven parallel queries. The past recap / marquee / pro-league
+              // sections are best-effort and fold in via the full merge below.
+              // Skipped when the admin marketing toggle owns the feed (that
+              // path builds its own list) — a second setGames follows either way.
+              if (isCurrentRequest() && !marketingActiveRef.current) {
+                const page = normalizeGamesPage(data);
+                const firstGames = dedupeFeedEntities(page.games);
+                if (firstGames.length > 0) {
+                  setGames(firstGames);
+                  setGamesCursor(page.cursor);
+                  setHasMoreGames(!!page.cursor);
+                  if (!silent) setLoading(false);
+                }
+              }
+              return data;
             })
             .catch((err: any) => {
               if (__DEV__) console.error('[Feed] Failed to load games:', err);
