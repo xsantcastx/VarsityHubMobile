@@ -1,6 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
+import { startMarketingTakeover, stopMarketingTakeover } from '../lib/marketingTakeover.js';
 import { approveCoach, rejectCoach } from '../lib/approvalService.js';
 import { renderReviewPage, renderResultPage } from '../lib/reviewPage.js';
 import { sendAccountModerationEmail } from '../lib/email.js';
@@ -1035,6 +1036,42 @@ adminRouter.post(
     }
 
     return res.json({ ok: true, banned: false });
+  })
+);
+
+// ── Marketing feed takeover (server-controlled) ──────────────────────────────
+// Flip the public feed to the shuffled most-active event pages for a bounded
+// window. Router-level requireAdmin already gates these. See
+// docs/superpowers/specs/2026-08-16-marketing-feed-takeover-server-controlled-design.md.
+adminRouter.post(
+  '/marketing-takeover',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const requested = Number((req.body ?? {}).minutes);
+    // startMarketingTakeover clamps to [1, 180]; a missing/NaN value → default 60.
+    const state = await startMarketingTakeover(requested);
+    await logAdminActivityFromReq(
+      req,
+      'MARKETING_TAKEOVER_START',
+      'system',
+      'feed',
+      `Marketing feed takeover ON until ${state.until}`
+    );
+    return res.json(state);
+  })
+);
+
+adminRouter.delete(
+  '/marketing-takeover',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const state = await stopMarketingTakeover();
+    await logAdminActivityFromReq(
+      req,
+      'MARKETING_TAKEOVER_STOP',
+      'system',
+      'feed',
+      'Marketing feed takeover OFF'
+    );
+    return res.json(state);
   })
 );
 

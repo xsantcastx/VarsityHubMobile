@@ -1152,6 +1152,29 @@ export default function FeedScreen() {
 
             if (!isCurrentRequest()) return;
 
+            // Server-controlled marketing takeover (see 2026-08-16 spec). When
+            // the flag is active on the bundle, swap the feed to the shuffled
+            // most-active events for EVERY user — the same path as the admin
+            // toggle, just triggered by the server instead of a local toggle.
+            // Skipped when the admin toggle already put us in marketing mode.
+            if (!marketingActiveRef.current && (bundle as any)?.marketing_takeover?.active) {
+              try {
+                const takeoverEvents = await Event.filter(
+                  { marketing: true, show_all: true, include_past: true },
+                  'active',
+                  60
+                );
+                const takeoverRows = pickTopShuffled(normalizeProFeedEvents(takeoverEvents), 40);
+                if (takeoverRows.length > 0 && isCurrentRequest()) {
+                  setGames(takeoverRows);
+                  setGamesCursor(null);
+                  setHasMoreGames(false);
+                }
+              } catch (err) {
+                if (__DEV__) console.warn('[Feed] takeover load failed:', err);
+              }
+            }
+
             const followedPage = bundle?.posts ?? emptyPage;
             const followedTeamsPage = bundle?.posts_followed_teams ?? emptyPage;
             const highlightsData = bundle?.highlights ?? null;
