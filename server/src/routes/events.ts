@@ -39,6 +39,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js';
 import { getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
+import { getExcludedPrivateTeamIds } from '../lib/privacyUtils.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
@@ -450,6 +451,13 @@ eventsRouter.get(
     }
     const proLeague = proLeagueRaw as (typeof PRO_LEAGUES)[number] | '';
 
+    // Validate the status enum up front so an invalid value returns 400 rather
+    // than reaching Prisma (or any DB work) and surfacing as a 500.
+    const VALID_EVENT_STATUSES = ['draft', 'approved', 'rejected', 'cancelled'];
+    if (status && !VALID_EVENT_STATUSES.includes(status)) {
+      return sendError(res, 400, 'Invalid status');
+    }
+
     const where: any = {};
     if (status) where.status = status;
     else if (!includeCancelled) where.status = { not: 'cancelled' }; // Exclude cancelled by default; ?include_cancelled=true for admin views
@@ -470,6 +478,27 @@ eventsRouter.get(
           { game: { is: { date: { lt: new Date() } } } },
         ],
       });
+      // Privacy: never surface an event whose linked game involves a private
+      // team the viewer can't see. The events list historically lacked this
+      // filter that games/posts/highlights/feed all enforce (a sibling path
+      // that dropped the check). Event-only and pro events (null team ids) are
+      // unaffected — the NOT-of-is form leaves a null relation visible. Admins
+      // see everything.
+      const excludedPrivateTeamIds = await getExcludedPrivateTeamIds((req as any).user?.id ?? null);
+      if (excludedPrivateTeamIds.length > 0) {
+        where.AND.push({
+          NOT: {
+            game: {
+              is: {
+                OR: [
+                  { home_team_id: { in: excludedPrivateTeamIds } },
+                  { away_team_id: { in: excludedPrivateTeamIds } },
+                ],
+              },
+            },
+          },
+        });
+      }
     }
     if (eventType) where.event_type = eventType;
     if (eventOnly) where.game_id = null;
