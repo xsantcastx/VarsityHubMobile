@@ -13,7 +13,7 @@ describe('game/feed auth snapshot contracts', () => {
   it('feed screen resolves current user through the shared auth snapshot helper', () => {
     expect(feedScreen).toContain("import { useAuth } from '@/context/AuthProvider';");
     expect(feedScreen).toContain("import { getAuthSnapshot } from '@/utils/authState';");
-    expect(feedScreen).toContain('const { user, checkAuth } = useAuth();');
+    expect(feedScreen).toContain('const { user, checkAuth, isAdmin } = useAuth();');
     expect(feedScreen).toContain('const userPromise = getAuthSnapshot(checkAuth, user)');
     expect(feedScreen).not.toContain('const userPromise = User.me()');
   });

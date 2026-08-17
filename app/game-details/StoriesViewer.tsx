@@ -15,10 +15,20 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Reanimated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 
 // @ts-ignore JS exports
 import { Game } from '@/api/entities';
 import VideoPlayer from '@/components/VideoPlayer';
+import { SPRING_DEFAULT } from '@/constants/motion';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { shouldDismissSwipe } from '@/utils/swipeBack';
 import { useAuth } from '@/context/AuthProvider';
 import { getAuthSnapshot } from '@/utils/authState';
 import { optimizeImageUrl } from '@/utils/imageUrl';
@@ -63,8 +73,41 @@ export default function StoriesViewer({
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
   const [current, setCurrent] = useState(index);
   const [resolvedCurrentUserId, setCurrentUserId] = useState<string | null>(currentUserId ?? null);
-  const w = useWindowDimensions().width;
+  const { width: w, height: winHeight } = useWindowDimensions();
+  const reduceMotion = useReducedMotion();
   const progress = useRef(new Animated.Value(0)).current;
+
+  // Swipe-down-to-dismiss: the story tracks the finger 1:1 and the backdrop fades
+  // as it drags away; release past ~25% (or a downward flick) dismisses, else it
+  // springs home (apple-design §2/§6). Skipped visually under Reduce Motion.
+  const dragY = useSharedValue(0);
+  const dismissStyle = useAnimatedStyle(
+    () => ({
+      transform: [{ translateY: dragY.value }],
+      opacity: 1 - Math.min(dragY.value / winHeight, 0.5),
+    }),
+    [winHeight]
+  );
+  const dismissPan = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY(15)
+        .failOffsetX([-24, 24])
+        .onUpdate(e => {
+          'worklet';
+          if (reduceMotion) return;
+          dragY.value = Math.max(0, e.translationY);
+        })
+        .onEnd(e => {
+          'worklet';
+          if (shouldDismissSwipe(e.translationY, e.velocityY, winHeight, 0.25)) {
+            runOnJS(onClose)();
+          } else {
+            dragY.value = withSpring(0, SPRING_DEFAULT);
+          }
+        }),
+    [reduceMotion, winHeight, dragY, onClose]
+  );
   const [paused, setPaused] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -202,170 +245,185 @@ export default function StoriesViewer({
       hardwareAccelerated
       statusBarTranslucent
     >
-      <View
-        style={styles.storyViewerRoot}
-        needsOffscreenAlphaCompositing
-        renderToHardwareTextureAndroid
-      >
-        <View style={[styles.storyViewerTopBar, { paddingTop: insets.top + 8 }]}>
-          <View style={styles.storyProgressRow}>
-            {items.map((_, i) => {
-              const isPast = i < current;
-              const isFuture = i > current;
-              const isActive = i === current;
-              return (
-                <View key={i} style={styles.storyProgressSegment}>
-                  <View style={styles.storyProgressTrack} />
-                  {isPast ? (
-                    <View style={[styles.storyProgressFillAbs, { transform: [{ scaleX: 1 }] }]} />
-                  ) : isFuture ? (
-                    <View style={[styles.storyProgressFillAbs, { transform: [{ scaleX: 0 }] }]} />
-                  ) : isActive ? (
-                    <Animated.View
-                      style={[styles.storyProgressFillAbs, { transform: [{ scaleX: progress }] }]}
-                    />
-                  ) : null}
-                </View>
-              );
-            })}
-          </View>
-          <View style={styles.storyTopRight}>
-            <Text style={styles.storyTopLabel}>
-              {current + 1} / {items.length}
-            </Text>
-            {showDeleteButton && (
-              <Pressable
-                onPress={e => {
-                  e?.stopPropagation?.();
-                  void handleDelete();
-                }}
-                style={({ pressed }) => [
-                  styles.storyDeleteBtn,
-                  {
-                    zIndex: 9999,
-                    opacity: pressed ? 0.7 : 1,
-                    transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }],
-                  },
-                ]}
-                accessibilityLabel="Delete story"
-                disabled={deleting}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="trash-outline" size={22} color={deleting ? '#9CA3AF' : '#EF4444'} />
-              </Pressable>
-            )}
-            <Pressable
-              onPress={onClose}
-              style={styles.storyCloseBtn}
-              accessibilityLabel="Close stories"
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={{ flex: 1, flexDirection: 'column' }}>
-          <View
-            style={styles.storyStage}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <GestureDetector gesture={dismissPan}>
+          <Reanimated.View
+            style={[styles.storyViewerRoot, dismissStyle]}
             needsOffscreenAlphaCompositing
             renderToHardwareTextureAndroid
-            collapsable={false}
           >
-            {isVideo ? (
-              // Videos autoplay when story opens - no controls, just video
-              <View
-                style={{
-                  width: w,
-                  aspectRatio: 9 / 16,
-                  backgroundColor: Colors[colorScheme].surface,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <VideoPlayer
-                  key={item.id}
-                  uri={item.url}
-                  poster={item.thumbnail_url}
-                  autoPlay={!paused}
-                  nativeControls={false}
-                  paused={paused}
-                  style={{ width: '100%', height: '100%' }}
-                />
+            <View style={[styles.storyViewerTopBar, { paddingTop: insets.top + 8 }]}>
+              <View style={styles.storyProgressRow}>
+                {items.map((_, i) => {
+                  const isPast = i < current;
+                  const isFuture = i > current;
+                  const isActive = i === current;
+                  return (
+                    <View key={i} style={styles.storyProgressSegment}>
+                      <View style={styles.storyProgressTrack} />
+                      {isPast ? (
+                        <View
+                          style={[styles.storyProgressFillAbs, { transform: [{ scaleX: 1 }] }]}
+                        />
+                      ) : isFuture ? (
+                        <View
+                          style={[styles.storyProgressFillAbs, { transform: [{ scaleX: 0 }] }]}
+                        />
+                      ) : isActive ? (
+                        <Animated.View
+                          style={[
+                            styles.storyProgressFillAbs,
+                            { transform: [{ scaleX: progress }] },
+                          ]}
+                        />
+                      ) : null}
+                    </View>
+                  );
+                })}
               </View>
-            ) : (
-              <Image
-                source={{ uri: optimizeImageUrl(item.url, 1200) }}
-                style={{
-                  width: w,
-                  aspectRatio: 9 / 16,
-                  backgroundColor: Colors[colorScheme].surface,
-                  borderWidth: 0,
-                }}
-                contentFit="cover"
-                transition={0}
-                cachePolicy="memory-disk"
-                recyclingKey={item.url}
-              />
-            )}
-          </View>
-
-          {/* Caption below media - separate section to avoid overlap */}
-          {item?.caption?.trim() ? (
-            <View style={[styles.storyCaptionWrap, { paddingBottom: insets.bottom + 12 }]}>
-              <Text style={styles.storyCaptionText} numberOfLines={3}>
-                {item.caption.trim()}
-              </Text>
+              <View style={styles.storyTopRight}>
+                <Text style={styles.storyTopLabel}>
+                  {current + 1} / {items.length}
+                </Text>
+                {showDeleteButton && (
+                  <Pressable
+                    onPress={e => {
+                      e?.stopPropagation?.();
+                      void handleDelete();
+                    }}
+                    style={({ pressed }) => [
+                      styles.storyDeleteBtn,
+                      {
+                        zIndex: 9999,
+                        opacity: pressed ? 0.7 : 1,
+                        transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }],
+                      },
+                    ]}
+                    accessibilityLabel="Delete story"
+                    disabled={deleting}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={22}
+                      color={deleting ? '#9CA3AF' : '#EF4444'}
+                    />
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={onClose}
+                  style={styles.storyCloseBtn}
+                  accessibilityLabel="Close stories"
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
+                </Pressable>
+              </View>
             </View>
-          ) : null}
-        </View>
 
-        {/* Preload the next story's image to minimize flicker on advance. For a
+            <View style={{ flex: 1, flexDirection: 'column' }}>
+              <View
+                style={styles.storyStage}
+                needsOffscreenAlphaCompositing
+                renderToHardwareTextureAndroid
+                collapsable={false}
+              >
+                {isVideo ? (
+                  // Videos autoplay when story opens - no controls, just video
+                  <View
+                    style={{
+                      width: w,
+                      aspectRatio: 9 / 16,
+                      backgroundColor: Colors[colorScheme].surface,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <VideoPlayer
+                      key={item.id}
+                      uri={item.url}
+                      poster={item.thumbnail_url}
+                      autoPlay={!paused}
+                      nativeControls={false}
+                      paused={paused}
+                      style={{ width: '100%', height: '100%' }}
+                    />
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: optimizeImageUrl(item.url, 1200) }}
+                    style={{
+                      width: w,
+                      aspectRatio: 9 / 16,
+                      backgroundColor: Colors[colorScheme].surface,
+                      borderWidth: 0,
+                    }}
+                    contentFit="cover"
+                    transition={0}
+                    cachePolicy="memory-disk"
+                    recyclingKey={item.url}
+                  />
+                )}
+              </View>
+
+              {/* Caption below media - separate section to avoid overlap */}
+              {item?.caption?.trim() ? (
+                <View style={[styles.storyCaptionWrap, { paddingBottom: insets.bottom + 12 }]}>
+                  <Text style={styles.storyCaptionText} numberOfLines={3}>
+                    {item.caption.trim()}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            {/* Preload the next story's image to minimize flicker on advance. For a
             photo that's the photo itself; for a video it's the poster, so the
             next video shows its first frame the instant it opens rather than a
             spinner while the player instantiates and buffers. */}
-        {(() => {
-          const nextIndex = current + 1;
-          const next = nextIndex < items.length ? items[nextIndex] : null;
-          if (!next) return null;
-          const nextUri = next.kind === 'video' ? next.thumbnail_url : next.url;
-          if (!nextUri) return null;
-          return (
-            <Image
-              source={{ uri: optimizeImageUrl(nextUri, 1200) }}
-              style={{
-                width: 1,
-                height: 1,
-                position: 'absolute',
-                left: -1000,
-                top: -1000,
-                opacity: 0,
-              }}
-              contentFit="cover"
-              transition={0}
-              cachePolicy="memory-disk"
-              recyclingKey={nextUri}
-            />
-          );
-        })()}
+            {(() => {
+              const nextIndex = current + 1;
+              const next = nextIndex < items.length ? items[nextIndex] : null;
+              if (!next) return null;
+              const nextUri = next.kind === 'video' ? next.thumbnail_url : next.url;
+              if (!nextUri) return null;
+              return (
+                <Image
+                  source={{ uri: optimizeImageUrl(nextUri, 1200) }}
+                  style={{
+                    width: 1,
+                    height: 1,
+                    position: 'absolute',
+                    left: -1000,
+                    top: -1000,
+                    opacity: 0,
+                  }}
+                  contentFit="cover"
+                  transition={0}
+                  cachePolicy="memory-disk"
+                  recyclingKey={nextUri}
+                />
+              );
+            })()}
 
-        <View style={styles.storyTouchLayer} pointerEvents="box-none">
-          <Pressable
-            style={styles.storyTouchHalf}
-            onPress={onNavLeft}
-            onLongPress={onLongPress}
-            onPressOut={onPressOut}
-            delayLongPress={150}
-          />
-          <Pressable
-            style={styles.storyTouchHalf}
-            onPress={onNavRight}
-            onLongPress={onLongPress}
-            onPressOut={onPressOut}
-            delayLongPress={150}
-          />
-        </View>
-      </View>
+            <View style={styles.storyTouchLayer} pointerEvents="box-none">
+              <Pressable
+                style={styles.storyTouchHalf}
+                onPress={onNavLeft}
+                onLongPress={onLongPress}
+                onPressOut={onPressOut}
+                delayLongPress={150}
+              />
+              <Pressable
+                style={styles.storyTouchHalf}
+                onPress={onNavRight}
+                onLongPress={onLongPress}
+                onPressOut={onPressOut}
+                delayLongPress={150}
+              />
+            </View>
+          </Reanimated.View>
+        </GestureDetector>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

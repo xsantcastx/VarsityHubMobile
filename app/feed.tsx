@@ -52,7 +52,9 @@ import { getDeterministicGameCardGradient, proGameCardGradient } from '@/utils/f
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { getLiveBounds, isGameLive, isGameOver, shouldPinToFeed } from '@/utils/liveWindow';
 import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
+import { pickTopShuffled } from '@/utils/marketingFeed';
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { prefetchGameSummary } from '@/utils/prefetch';
 import {
   getNotificationHrefForUser,
@@ -64,12 +66,31 @@ import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
 const VARSITYHUB_LOGO = require('../assets/images/logo.png');
 
+// Admin-only marketing capture. When an admin toggles it ON (long-press the
+// header brand), the feed is replaced with the most-active event pages,
+// shuffled (see the fetch flow below). Gated at runtime by BOTH the server
+// admin flag AND this persisted per-device toggle — a normal user can never
+// turn it on or see it, and it defaults OFF so an admin's own feed is normal
+// until they deliberately enable it for a capture session.
+const MARKETING_FEED_STORAGE_KEY = 'vh_marketing_feed_capture';
+
 function FullBleedCardImage({ uri }: { uri: string }) {
   if (Platform.OS === 'web') {
     return <RNImage source={{ uri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />;
   }
 
-  return <Image source={{ uri }} style={StyleSheet.absoluteFillObject} contentFit="cover" />;
+  // Fade the venue photo in (instead of a hard dark-box pop) and cache it to
+  // disk so it loads instantly on later views. transition softens the wait
+  // while the feed's first paint no longer blocks on every image.
+  return (
+    <Image
+      source={{ uri }}
+      style={StyleSheet.absoluteFillObject}
+      contentFit="cover"
+      transition={250}
+      cachePolicy="memory-disk"
+    />
+  );
 }
 
 type GameItem = {
@@ -598,7 +619,7 @@ const FeedGameCard = memo(function FeedGameCard({
 
 export default function FeedScreen() {
   const router = useRouter();
-  const { user, checkAuth } = useAuth();
+  const { user, checkAuth, isAdmin } = useAuth();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme() ?? 'light';
@@ -608,6 +629,22 @@ export default function FeedScreen() {
   const [games, setGames] = useState<GameItem[]>([]);
   const [gamesCursor, setGamesCursor] = useState<string | null>(null);
   const [hasMoreGames, setHasMoreGames] = useState(true);
+  // Admin-only marketing capture toggle (see MARKETING_FEED_STORAGE_KEY). The
+  // load() callback reads the active state via a ref so toggling never rebuilds
+  // the fetch closure or leaves it reading a stale value.
+  const [marketingFeedOn, setMarketingFeedOn] = useState(false);
+  const marketingActiveRef = useRef(false);
+  useEffect(() => {
+    marketingActiveRef.current = isAdmin && marketingFeedOn;
+  }, [isAdmin, marketingFeedOn]);
+  // Restore the persisted toggle on mount — admins only; a non-admin can never
+  // flip it on, so their feed is always the real one.
+  useEffect(() => {
+    if (!isAdmin) return;
+    AsyncStorage.getItem(MARKETING_FEED_STORAGE_KEY)
+      .then(v => setMarketingFeedOn(v === '1'))
+      .catch(() => {});
+  }, [isAdmin]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [query] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -854,6 +891,25 @@ export default function FeedScreen() {
               ],
               queryFn: () => Game.list(queryPlan.upcoming.sort, queryPlan.upcoming.options),
             })
+            .then((data: any) => {
+              // First paint: show the primary upcoming games the moment they
+              // resolve, instead of gating the whole feed on the slowest of the
+              // seven parallel queries. The past recap / marquee / pro-league
+              // sections are best-effort and fold in via the full merge below.
+              // Skipped when the admin marketing toggle owns the feed (that
+              // path builds its own list) — a second setGames follows either way.
+              if (isCurrentRequest() && !marketingActiveRef.current) {
+                const page = normalizeGamesPage(data);
+                const firstGames = dedupeFeedEntities(page.games);
+                if (firstGames.length > 0) {
+                  setGames(firstGames);
+                  setGamesCursor(page.cursor);
+                  setHasMoreGames(!!page.cursor);
+                  if (!silent) setLoading(false);
+                }
+              }
+              return data;
+            })
             .catch((err: any) => {
               if (__DEV__) console.error('[Feed] Failed to load games:', err);
               // If it's a network error, show a more helpful message
@@ -1009,6 +1065,27 @@ export default function FeedScreen() {
           mergeFeedGames(gameRows, proPastRows, proUpcomingRows, proWweRows, proNflRows)
         );
 
+        // Admin-only marketing capture: replace the feed with the most-active
+        // event pages, shuffled. Guarded by isAdmin AND the persisted toggle
+        // (via marketingActiveRef) — never runs for a normal user. See
+        // docs/superpowers/specs/2026-08-15-marketing-feed-devonly-design.md.
+        if (marketingActiveRef.current) {
+          try {
+            const marketingEvents = await Event.filter(
+              { marketing: true, show_all: true, include_past: true },
+              'active',
+              60
+            );
+            const marketingRows = pickTopShuffled(normalizeProFeedEvents(marketingEvents), 40);
+            if (marketingRows.length > 0) {
+              normalizedGames = marketingRows;
+              cursor = null;
+            }
+          } catch (err) {
+            if (__DEV__) console.warn('[Feed] marketing feed load failed:', err);
+          }
+        }
+
         // If no games exist, seed sample games as real DB records (stories/polls work)
         if ((!normalizedGames || normalizedGames.length === 0) && upcomingData !== null) {
           try {
@@ -1105,6 +1182,29 @@ export default function FeedScreen() {
 
             if (!isCurrentRequest()) return;
 
+            // Server-controlled marketing takeover (see 2026-08-16 spec). When
+            // the flag is active on the bundle, swap the feed to the shuffled
+            // most-active events for EVERY user — the same path as the admin
+            // toggle, just triggered by the server instead of a local toggle.
+            // Skipped when the admin toggle already put us in marketing mode.
+            if (!marketingActiveRef.current && (bundle as any)?.marketing_takeover?.active) {
+              try {
+                const takeoverEvents = await Event.filter(
+                  { marketing: true, show_all: true, include_past: true },
+                  'active',
+                  60
+                );
+                const takeoverRows = pickTopShuffled(normalizeProFeedEvents(takeoverEvents), 40);
+                if (takeoverRows.length > 0 && isCurrentRequest()) {
+                  setGames(takeoverRows);
+                  setGamesCursor(null);
+                  setHasMoreGames(false);
+                }
+              } catch (err) {
+                if (__DEV__) console.warn('[Feed] takeover load failed:', err);
+              }
+            }
+
             const followedPage = bundle?.posts ?? emptyPage;
             const followedTeamsPage = bundle?.posts_followed_teams ?? emptyPage;
             const highlightsData = bundle?.highlights ?? null;
@@ -1192,6 +1292,26 @@ export default function FeedScreen() {
     },
     [checkAuth, user]
   );
+
+  // Admin-only: long-pressing the header brand flips the marketing capture feed
+  // on/off, persists the choice, and reloads so the change takes effect
+  // immediately. A no-op for everyone else.
+  const toggleMarketingFeed = useCallback(() => {
+    if (!isAdmin) return;
+    setMarketingFeedOn(prev => {
+      const next = !prev;
+      marketingActiveRef.current = next; // isAdmin is already true here
+      AsyncStorage.setItem(MARKETING_FEED_STORAGE_KEY, next ? '1' : '0').catch(() => {});
+      Alert.alert(
+        'Marketing feed',
+        next
+          ? 'ON — feed now shows the most-active events, shuffled. Long-press the logo again to turn it off.'
+          : 'OFF — back to the normal feed.'
+      );
+      void load({ force: true });
+      return next;
+    });
+  }, [isAdmin, load]);
 
   const _loadMore = useCallback(async () => {
     if (loadingMore || !hasMoreGames || !gamesCursor) return;
@@ -2065,10 +2185,11 @@ export default function FeedScreen() {
                   targetUrl={adData.target_url}
                   businessName={adData.business_name}
                   description={adData.description}
-                  // Pre-load placeholder ratio only — a 'contain' ad snaps to
-                  // its image's true ratio on load (no letterbox bars). A wide
-                  // 3.5:1 box here just wasted vertical space around the image.
-                  aspectRatio={16 / 9}
+                  // Match the advertiser's checkout preview (EditAdScreenBase:
+                  // full-width x 160, contain → ~2:1) so what they design is
+                  // what renders in the feed. The empty placeholder below uses
+                  // the same 2:1 box, so filled and empty slots stay identical.
+                  aspectRatio={2}
                 />
               ) : (
                 <View
@@ -2613,6 +2734,8 @@ export default function FeedScreen() {
             testID="feed-brand-button"
             style={styles.brandRow}
             onPress={openInstagram}
+            onLongPress={isAdmin ? toggleMarketingFeed : undefined}
+            delayLongPress={600}
             accessibilityRole="button"
             accessibilityLabel="Open VarsityHub Instagram"
           >
@@ -3080,7 +3203,7 @@ const styles = StyleSheet.create({
   },
   adPlaceholder: {
     width: '100%',
-    aspectRatio: 3.5,
+    aspectRatio: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -39,6 +39,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js';
 import { getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
+import { getExcludedPrivateTeamIds } from '../lib/privacyUtils.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
@@ -328,7 +329,12 @@ async function isOrgAdmin(userId: string): Promise<boolean> {
 
 const serializeEvent = (
   event: any,
-  opts: { includeGame?: boolean; rsvpCount?: number; includeCreator?: boolean } = {}
+  opts: {
+    includeGame?: boolean;
+    rsvpCount?: number;
+    includeCreator?: boolean;
+    activityCount?: number;
+  } = {}
 ) => {
   // Fall back to linked game coordinates when event itself lacks lat/lng
   const resolvedLat = event.latitude ?? event.game?.latitude ?? event.game?.venue_lat ?? null;
@@ -378,6 +384,11 @@ const serializeEvent = (
     base.attendees_count = opts.rsvpCount;
     base.rsvp_count = opts.rsvpCount;
   }
+  // Dev/marketing-only engagement score (posts on the event + its linked game).
+  // Present only when the caller passes ?marketing=1; absent for every other path.
+  if (typeof opts.activityCount === 'number') {
+    base.activity_count = opts.activityCount;
+  }
   if (opts.includeGame && event.game) {
     base.game = {
       id: event.game.id,
@@ -426,6 +437,12 @@ eventsRouter.get(
     const dateTo = typeof req.query.to === 'string' ? new Date(req.query.to) : null;
     const proOnly =
       String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
+    // Opt-in, read-only marketing ranking (dev/sim capture). When set, the
+    // response carries a per-event `activity_count` (posts on the event + its
+    // linked game) and `sort=active` orders by it. Absent for all other callers.
+    const marketing = ['1', 'true', 'yes', 'on'].includes(
+      String(req.query.marketing || '').toLowerCase()
+    );
     const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
     const proLeagueRaw =
       typeof req.query.pro_league === 'string' ? req.query.pro_league.trim().toLowerCase() : '';
@@ -433,6 +450,13 @@ eventsRouter.get(
       return sendError(res, 400, 'Invalid pro_league');
     }
     const proLeague = proLeagueRaw as (typeof PRO_LEAGUES)[number] | '';
+
+    // Validate the status enum up front so an invalid value returns 400 rather
+    // than reaching Prisma (or any DB work) and surfacing as a 500.
+    const VALID_EVENT_STATUSES = ['draft', 'approved', 'rejected', 'cancelled'];
+    if (status && !VALID_EVENT_STATUSES.includes(status)) {
+      return sendError(res, 400, 'Invalid status');
+    }
 
     const where: any = {};
     if (status) where.status = status;
@@ -454,6 +478,27 @@ eventsRouter.get(
           { game: { is: { date: { lt: new Date() } } } },
         ],
       });
+      // Privacy: never surface an event whose linked game involves a private
+      // team the viewer can't see. The events list historically lacked this
+      // filter that games/posts/highlights/feed all enforce (a sibling path
+      // that dropped the check). Event-only and pro events (null team ids) are
+      // unaffected — the NOT-of-is form leaves a null relation visible. Admins
+      // see everything.
+      const excludedPrivateTeamIds = await getExcludedPrivateTeamIds((req as any).user?.id ?? null);
+      if (excludedPrivateTeamIds.length > 0) {
+        where.AND.push({
+          NOT: {
+            game: {
+              is: {
+                OR: [
+                  { home_team_id: { in: excludedPrivateTeamIds } },
+                  { away_team_id: { in: excludedPrivateTeamIds } },
+                ],
+              },
+            },
+          },
+        });
+      }
     }
     if (eventType) where.event_type = eventType;
     if (eventOnly) where.game_id = null;
@@ -638,6 +683,38 @@ eventsRouter.get(
       if (take) events = events.slice(0, take);
     }
 
+    if (marketing) {
+      // Rank the already-capped result set by real engagement so a capture
+      // surfaces the liveliest pages. Activity = posts linked directly to the
+      // event (event_id) plus posts on its linked game (game_id). Two grouped
+      // counts over the returned ids — bounded, read-only, no per-row queries.
+      const eventIds = events.map((e: any) => e.id);
+      const gameIds = [...new Set(events.map((e: any) => e.game_id).filter(Boolean))] as string[];
+      const byEvent = eventIds.length
+        ? await prisma.post.groupBy({
+            by: ['event_id'],
+            where: { event_id: { in: eventIds } },
+            _count: { _all: true },
+          })
+        : [];
+      const byGame = gameIds.length
+        ? await prisma.post.groupBy({
+            by: ['game_id'],
+            where: { game_id: { in: gameIds } },
+            _count: { _all: true },
+          })
+        : [];
+      const byEventMap = new Map(byEvent.map(r => [r.event_id, r._count._all]));
+      const byGameMap = new Map(byGame.map(r => [r.game_id, r._count._all]));
+      const activityOf = (e: any) =>
+        (byEventMap.get(e.id) ?? 0) + (e.game_id ? (byGameMap.get(e.game_id) ?? 0) : 0);
+      const ranked = sort === 'active' ? [...events].sort((a, b) => activityOf(b) - activityOf(a)) : events;
+      return res.json(
+        ranked.map((event: any) =>
+          serializeEvent(event, { includeGame: true, activityCount: activityOf(event) })
+        )
+      );
+    }
     res.json(events.map(event => serializeEvent(event, { includeGame: true })));
   })
 );

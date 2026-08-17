@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AD_GEOFENCE_RADIUS_MILES, getAdBoundingBoxDegrees } from '../lib/adGeofencing.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
+import { getMarketingTakeover } from '../lib/marketingTakeover.js';
 import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import { loadPostInteractionSets, serializeFeedPost } from '../lib/feedPostSerializer.js';
@@ -598,6 +599,11 @@ feedRouter.get(
           ? ((settled[idx] as PromiseFulfilledResult<T>).value as T)
           : fallback;
 
+      // Server-controlled marketing takeover flag (fail-closed inside the helper).
+      // Cheap single Redis read; clients that carry the consumer swap the feed
+      // to the shuffled most-active events while active.
+      const marketing_takeover = await getMarketingTakeover();
+
       res.set('Cache-Control', 'no-store, private');
       return res.json({
         posts: pick(0, POSTS_FALLBACK),
@@ -606,6 +612,7 @@ feedRouter.get(
         ads: pick(3, ADS_FALLBACK),
         unread_notifications: pick(4, 0),
         unread_messages: pick(5, 0),
+        marketing_takeover,
       });
     } catch (error: any) {
       console.error('[feed] GET /bundle error:', error);
