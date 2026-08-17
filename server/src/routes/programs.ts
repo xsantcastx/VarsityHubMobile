@@ -12,9 +12,13 @@ import { followLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 
-// Level-teams query cap for GET /:id/screen-summary — see the truncation
-// signal right after the query below.
-const SCREEN_SUMMARY_TEAM_CAP = 25;
+// Upper bound on a program's active level teams, applied on every path that
+// enumerates them: GET /:id/screen-summary (picker + counts) and POST
+// /:id/follow (TeamFollow fan-out). A single (org, sport) program realistically
+// has at most a few dozen teams (gender x level, plus duplicates), so 100 covers
+// any real program while keeping the queries bounded. Hitting it is a data
+// anomaly, signalled by the truncation warning after the screen-summary query.
+const PROGRAM_ACTIVE_TEAM_CAP = 100;
 
 export const programsRouter = Router();
 registerIdValidation(programsRouter);
@@ -44,7 +48,7 @@ programsRouter.get(
         teams: {
           where: { status: 'active' },
           orderBy: { created_at: 'asc' },
-          take: SCREEN_SUMMARY_TEAM_CAP,
+          take: PROGRAM_ACTIVE_TEAM_CAP,
           select: {
             ...buildTeamSerializeSelect({ includeCounts: true }),
             status: true,
@@ -55,13 +59,13 @@ programsRouter.get(
     if (!program) return sendError(res, 404, 'Program not found');
 
     // Signal (don't change behavior) when the level-teams query hits its cap:
-    // the 26th+ active team is silently dropped from both `levels` and
-    // `counts` below. Mirrors the truncation signal in
+    // any team past PROGRAM_ACTIVE_TEAM_CAP is silently dropped from both
+    // `levels` and `counts` below. Mirrors the truncation signal in
     // server/src/lib/programFollowFanout.ts.
-    if (program.teams.length === SCREEN_SUMMARY_TEAM_CAP) {
-      const message = `[program-screen-summary] team list truncated at ${SCREEN_SUMMARY_TEAM_CAP} for program ${programId}`;
+    if (program.teams.length === PROGRAM_ACTIVE_TEAM_CAP) {
+      const message = `[program-screen-summary] team list truncated at ${PROGRAM_ACTIVE_TEAM_CAP} for program ${programId}`;
       console.warn(message);
-      captureMessage(message, 'warning', { programId, cap: SCREEN_SUMMARY_TEAM_CAP });
+      captureMessage(message, 'warning', { programId, cap: PROGRAM_ACTIVE_TEAM_CAP });
     }
 
     // Per-team privacy gate: drop level teams the viewer isn't allowed to see
@@ -162,7 +166,14 @@ programsRouter.post(
     const programId = String(req.params.id);
     const program = await prisma.sportProgram.findUnique({
       where: { id: programId },
-      select: { id: true, teams: { where: { status: 'active' }, select: { id: true }, take: 25 } },
+      select: {
+        id: true,
+        teams: {
+          where: { status: 'active' },
+          select: { id: true },
+          take: PROGRAM_ACTIVE_TEAM_CAP,
+        },
+      },
     });
     if (!program) return sendError(res, 404, 'Program not found');
 
