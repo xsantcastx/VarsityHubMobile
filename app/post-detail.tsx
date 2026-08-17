@@ -77,7 +77,7 @@ export default function PostDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const postCache = usePostCache();
   const { user, checkAuth } = useAuth();
-  const { edgeSwipeGesture } = useEdgeSwipeBack();
+  const { edgeSwipeGesture, animatedStyle: edgeSwipeStyle } = useEdgeSwipeBack();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   // The root layout centers all screens in a MAX_CONTENT_WIDTH column on web
   // and tablets. Pager pages must match that column — sizing them to the raw
@@ -2031,7 +2031,11 @@ export default function PostDetailScreen() {
   // Only wrap with edge swipe gesture when viewing single post
   // (multi-post mode uses FlatList horizontal scrolling which conflicts with the gesture)
   if (hasMultiplePosts) return content;
-  return <GestureDetector gesture={edgeSwipeGesture}>{content}</GestureDetector>;
+  return (
+    <GestureDetector gesture={edgeSwipeGesture}>
+      <Animated.View style={[{ flex: 1 }, edgeSwipeStyle]}>{content}</Animated.View>
+    </GestureDetector>
+  );
 }
 
 const styles = StyleSheet.create({

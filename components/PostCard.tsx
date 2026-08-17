@@ -18,6 +18,7 @@ import { prefetchUserProfile } from '@/utils/prefetch';
 import { toUserMessage } from '@/utils/toUserMessage';
 import EventChip from './EventChip';
 import ExpandableText from './ExpandableText';
+import PressableScale from './PressableScale';
 import RankingBadge from './RankingBadge';
 
 type PostCardProps = {
@@ -433,9 +434,11 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
 
           {/* Meta + actions footer */}
           <View style={styles.footer}>
-            <Pressable
+            <PressableScale
               testID={`post-card-upvote-${post.id}`}
               onPress={onUpvote}
+              haptic
+              scaleTo={0.9}
               style={[styles.upvoteBtn, { backgroundColor: Colors[colorScheme].tint }]}
               accessibilityRole="button"
               accessibilityLabel="Upvote"
@@ -444,7 +447,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
               <Text style={[styles.upvoteText, { color: Colors[colorScheme].background }]}>
                 {upvotesCount}
               </Text>
-            </Pressable>
+            </PressableScale>
             <View style={{ flex: 1 }} />
             <View style={styles.metaRow}>
               <MaterialIcons
