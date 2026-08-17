@@ -220,14 +220,24 @@ export function startAdGoLiveCheck() {
         );
       }
 
-      // 2. Archive expired ads: active+paid but ALL reservations are in the past
+      // 2. Archive expired ads: active+paid but ALL reservations are in the past.
+      //    Reservations are stored as calendar-day labels (00:00 UTC) but the
+      //    ad is paid for that whole day in the VIEWER's local timezone. This
+      //    cron runs at UTC midnight, which is hours BEFORE local midnight in
+      //    the Americas — using `date < today` archived a paid ad on the evening
+      //    of its last booked day (owner-reported: "AD SPACE AVAILABLE" showed
+      //    while the ad was still paid). Archive one UTC day later so the last
+      //    booked day has fully elapsed in every timezone. Serving is unaffected
+      //    by the extra day: /ads/for-feed still requires a reservation for the
+      //    queried date, so a lingering-active ad with no future dates never shows.
+      const archiveCutoff = new Date(today.getTime() - 24 * 60 * 60 * 1000);
       const expiredAds = await prisma.ad.findMany({
         where: {
           status: 'active',
           payment_status: 'paid',
           reservations: {
             every: {
-              date: { lt: today },
+              date: { lt: archiveCutoff },
             },
           },
         },
