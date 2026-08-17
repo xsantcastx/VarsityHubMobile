@@ -54,6 +54,10 @@ registerIdValidation(eventsRouter);
 const RSVP_FANOUT_LIMIT = 50_000;
 const RSVP_FANOUT_BATCH = 200;
 const PRO_LEAGUES = ['nfl', 'nba', 'wnba', 'mlb', 'wwe'] as const;
+// Mirrors the EventStatus enum in prisma/schema.prisma. Passing any other value
+// to prisma.event.findMany({ where: { status } }) throws a
+// PrismaClientValidationError (unhandled 500), so unknown values are rejected.
+const EVENT_STATUSES = ['draft', 'approved', 'rejected', 'cancelled'] as const;
 const encodeEventRsvpCursor = (row: { created_at: Date | string; id: string }) => {
   const createdAt =
     row.created_at instanceof Date
@@ -404,6 +408,9 @@ eventsRouter.get(
   '/',
   asyncHandler(async (req, res) => {
     const status = String(req.query.status || '').trim();
+    if (status && !EVENT_STATUSES.includes(status as (typeof EVENT_STATUSES)[number])) {
+      return sendError(res, 400, 'Invalid status');
+    }
     const includeCancelled = String(req.query.include_cancelled || '').toLowerCase() === 'true';
     const approvalStatus = String(req.query.approval_status || '').trim();
     const eventType = String(req.query.event_type || '').trim();
