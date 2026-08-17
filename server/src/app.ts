@@ -67,6 +67,7 @@ import { testNotificationsRouter } from './routes/test-notifications.js';
 import { uploadsRouter } from './routes/uploads.js';
 import { usersRouter } from './routes/users.js';
 import { wellKnownRouter } from './routes/well-known.js';
+import { honeypotRouter } from './middleware/honeypot.js';
 
 const app = express();
 const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
@@ -371,6 +372,12 @@ app.use('/health', publicRouteLimiter, healthRouter);
 
 // Universal links - must be at /.well-known/ for iOS and Android
 app.use('/.well-known', publicRouteLimiter, wellKnownRouter);
+
+// Canary / honeypot decoy paths (secrets files, framework admin panels, DB
+// dumps). No real client hits these; any request is a high-signal probe that
+// alerts to Sentry and returns a bland 404. Mounted before the API routers so
+// a decoy path can never be shadowed by a real handler.
+app.use(honeypotRouter);
 
 // Share-landing fallback: serves an HTML page with OG metadata + smart
 // "Open in app" UX when a browser hits a universal-link URL (e.g.
