@@ -364,8 +364,11 @@ searchRouter.get(
       if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return true;
       // CUID v1 (starts with c, 20+ alphanumeric)
       if (/^c[0-9a-z]{20,}$/.test(s)) return true;
-      // CUID v2 / nanoid / random ID — 8+ chars, all lowercase alphanumeric, no spaces or special chars
-      if (/^[0-9a-z]{8,}$/.test(s) && !/[aeiou]{2,}/i.test(s)) return true;
+      // NOTE: the old "8+ lowercase alphanumeric, no consecutive vowel pair"
+      // rule was REMOVED — it misclassified ordinary handles like
+      // "jacobgflamm"/"superfan"/"johnsmith" as ids and nulled out real
+      // usernames + display names in search results (mirror of the client
+      // fix in utils/userHandle.ts). Valid usernames can't be raw ids anyway.
       return false;
     };
 

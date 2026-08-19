@@ -11,15 +11,20 @@
  * neutral "@user" placeholder rather than exposing the person's real name.
  */
 
-// Usernames that are actually system-generated ids (CUIDs / random ids), not
-// real handles — treat them as "no handle" so we never surface a raw id.
+// A raw internal id stored verbatim as a username (legacy rows), not a real
+// handle — treat it as "no handle" so we never surface an id. Valid usernames
+// are [a-z0-9_.] and 3–20 chars (see server usernameGenerator), so a 21+char
+// CUID can never be a valid username; this only guards legacy id-as-username
+// rows.
+//
+// The old "8+ lowercase chars, no consecutive vowel pair" rule was REMOVED: it
+// misclassified ordinary handles like "jacobgflamm" / "superfan" / "johnsmith"
+// as ids and rendered them "@user", while ironically passing actual id-shaped
+// handles (e.g. "user_ab12cd"). It caught none of the ids the generator
+// actually produces (those contain an underscore) and hid real users.
 const isInternalId = (s?: string | null): boolean => {
   if (!s) return true;
-  const v = s.trim();
-  return (
-    /^c[0-9a-z]{20,}$/.test(v) || // CUID v1
-    (/^[0-9a-z]{8,}$/.test(v) && !/[aeiou]{2,}/i.test(v)) // random id (no vowel pairs)
-  );
+  return /^c[0-9a-z]{20,}$/.test(s.trim()); // CUID stored verbatim
 };
 
 type HandleUserLike = { username?: string | null } | null | undefined;
