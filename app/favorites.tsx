@@ -20,6 +20,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAuthSnapshot } from '@/utils/authState';
+import { formatUserHandle } from '@/utils/userHandle';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
@@ -33,7 +34,7 @@ type SavedPost = {
   created_at?: string | null;
   author?: {
     id: string;
-    display_name?: string | null;
+    username?: string | null;
     avatar_url?: string | null;
   } | null;
   upvotes_count?: number;
@@ -60,7 +61,7 @@ const mapSavedPost = (raw: any): SavedPost | null => {
     author: raw.author
       ? {
           id: String(raw.author.id ?? ''),
-          display_name: raw.author.display_name ?? null,
+          username: raw.author.username ?? null,
           avatar_url: raw.author.avatar_url ?? null,
         }
       : null,
@@ -218,9 +219,9 @@ function FavoritesScreen() {
             <Text style={[styles.cardTitle, { color: palette.text }]} numberOfLines={2}>
               {item.caption || 'Saved highlight'}
             </Text>
-            {item.author?.display_name ? (
+            {item.author?.username ? (
               <Text style={[styles.cardMeta, { color: palette.mutedText }]} numberOfLines={1}>
-                by {item.author.display_name}
+                by {formatUserHandle(item.author)}
               </Text>
             ) : null}
             <View style={styles.cardStats}>

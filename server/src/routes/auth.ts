@@ -42,6 +42,7 @@ import {
 } from '../lib/oauthAccountLinking.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import { isReservedUsername, RESERVED_USERNAME_MESSAGE } from '../lib/reservedUsernames.js';
+import { generateUniqueUsername } from '../lib/usernameGenerator.js';
 import { getOrganizationJoinRequestStateForUser } from '../lib/organizationWorkflowState.js';
 import { prisma } from '../lib/prisma.js';
 import { invalidatePrivateIdsCache } from '../lib/privacyUtils.js';
@@ -711,12 +712,19 @@ authRouter.post(
     const codeHash = hashRefreshToken(code);
 
     debugLog('[register] Creating user record');
+    // Assign a username up front so no account is ever username-less (the app
+    // shows users by @username only). Onboarding step-2 pre-fills this and lets
+    // the user change it.
+    const generatedUsername = await generateUniqueUsername(
+      sanitizedEmail.split('@')[0] || display_name
+    );
     let user;
     try {
       user = await prisma.user.create({
         data: {
           email: sanitizedEmail,
           password_hash,
+          username: generatedUsername,
           display_name,
           email_verified: false,
           email_verification_code: codeHash,
@@ -1516,12 +1524,19 @@ authRouter.post(
           stage = 'create-user';
           const randomSecret = crypto.randomBytes(32).toString('hex');
           const password_hash = await bcrypt.hash(randomSecret, 10);
+          // Assign a username up front so a Google signup is never username-less
+          // (the app shows users by @username only). Onboarding step-2 pre-fills
+          // this and lets them change it.
+          const generatedUsername = await generateUniqueUsername(
+            email ? email.split('@')[0] : displayNameSource
+          );
           try {
             user = await prisma.user.create({
               data: {
                 email,
                 password_hash,
                 google_id: googleId,
+                username: generatedUsername,
                 display_name: displayNameSource,
                 avatar_url: avatarUrl,
                 email_verified: true,
@@ -1659,6 +1674,16 @@ authRouter.post(
           const randomSecret = crypto.randomBytes(32).toString('hex');
           const password_hash = await bcrypt.hash(randomSecret, 10);
           const userEmail = email || `apple_${appleId.substring(0, 16)}@appleid.local`;
+          // Assign a username up front so an Apple signup is never username-less
+          // (the app shows users by @username only). Private-relay / synthetic
+          // Apple emails have random local-parts that make poor handles, so base
+          // those on a generic root; onboarding step-2 pre-fills and lets the
+          // user change it.
+          const isSyntheticAppleEmail =
+            /@privaterelay\.appleid\.com$/i.test(userEmail) || /@appleid\.local$/i.test(userEmail);
+          const generatedUsername = await generateUniqueUsername(
+            !isSyntheticAppleEmail && email ? email.split('@')[0] : 'user'
+          );
 
           try {
             // Apple private relay emails (e.g. xyz@privaterelay.appleid.com) are random tokens,
@@ -1669,6 +1694,7 @@ authRouter.post(
                 email: userEmail,
                 password_hash,
                 apple_id: appleId,
+                username: generatedUsername,
                 display_name: null,
                 email_verified: true,
                 preferences: mergeAuthStateIntoPreferences(

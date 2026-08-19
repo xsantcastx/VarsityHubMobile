@@ -1,159 +1,118 @@
+#!/usr/bin/env npx tsx
 /**
- * Backfill Usernames for Onboarded Users
+ * backfill-usernames.ts
  *
- * Finds users with onboarding_completed = true but no username set,
- * and generates usernames from their display_name or email.
+ * Assigns a username to every account that is onboarded but has none. The app
+ * shows users by @username only (client utils/userHandle.ts), so a null username
+ * used to surface the person's real name (display_name) or a generic "User".
  *
- * Username rules (matching onboarding step-2):
- *   - Lowercase letters, numbers, dots, underscores only: /^[a-z0-9_.]+$/
- *   - Min 3, max 20 characters
- *   - Must be unique
+ * All signup paths now generate a username up front (register / Google / Apple
+ * via src/lib/usernameGenerator.ts). This backfill closes the gap for legacy
+ * accounts created before that. It reuses the SAME generator as signup — reserved
+ * -name-safe, unique, valid /^[a-z0-9_.]+$/, 3–20 chars — so there is one source
+ * of truth for how usernames are minted.
  *
- * Usage: npx tsx scripts/backfill-usernames.ts
- *   --dry-run   Preview changes without writing (default)
- *   --apply      Actually write to DB
+ * Dry run by default. Use --apply to write.
+ *   cd server
+ *   npx tsx scripts/backfill-usernames.ts          # dry run
+ *   npx tsx scripts/backfill-usernames.ts --apply
  */
+import { prisma } from '../src/lib/prisma.js';
+import { generateUniqueUsername } from '../src/lib/usernameGenerator.js';
 
-import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+const apply = process.argv.includes('--apply');
 
-const prisma = new PrismaClient();
-const dryRun = !process.argv.includes('--apply');
-
-const GREEN = '\x1b[32m';
-const YELLOW = '\x1b[33m';
-const RED = '\x1b[31m';
-const CYAN = '\x1b[36m';
-const BOLD = '\x1b[1m';
-const DIM = '\x1b[2m';
-const RESET = '\x1b[0m';
-
-const USERNAME_RE = /^[a-z0-9_.]+$/;
-
-/** Sanitize a string into a valid username base */
-function sanitize(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/\s+/g, '_')       // spaces → underscores
-    .replace(/[^a-z0-9_.]/g, '') // strip invalid chars
-    .replace(/\.{2,}/g, '.')    // collapse consecutive dots
-    .replace(/_{2,}/g, '_')     // collapse consecutive underscores
-    .slice(0, 16);              // leave room for suffix
-}
-
-/** Generate a candidate username from display_name or email */
-function generateBase(user: { display_name: string | null; email: string }): string {
-  // Prefer display_name
-  if (user.display_name && user.display_name.trim().length >= 2) {
-    const base = sanitize(user.display_name.trim());
-    if (base.length >= 3) return base;
-  }
-
-  // Fallback to email local part
-  const local = user.email.split('@')[0];
-  const base = sanitize(local);
-  if (base.length >= 3) return base;
-
-  // Last resort: pad with numbers
-  return base.padEnd(3, '0');
-}
+const C = {
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m',
+  cyan: '\x1b[36m',
+  bold: '\x1b[1m',
+  dim: '\x1b[2m',
+  reset: '\x1b[0m',
+};
 
 async function main() {
-  console.log(`\n${BOLD}${CYAN}═══ Backfill Usernames ═══${RESET}`);
-  console.log(`${DIM}Mode: ${dryRun ? `${YELLOW}DRY RUN${RESET}${DIM} (use --apply to write)` : `${GREEN}APPLY${RESET}${DIM} (writing to DB)`}${RESET}\n`);
+  console.log(`\n${C.bold}${C.cyan}═══ Backfill Usernames ═══${C.reset}`);
+  console.log(
+    `${C.dim}Mode: ${apply ? `${C.green}APPLY${C.reset}${C.dim} (writing to DB)` : `${C.yellow}DRY RUN${C.reset}${C.dim} (use --apply to write)`}${C.reset}\n`
+  );
 
-  // Find all users with onboarding_completed but no username
-  const allUsers = await prisma.user.findMany({
-    where: { username: null },
-    select: { id: true, email: true, display_name: true, preferences: true },
+  // Onboarded accounts with no username — the set that can already post and
+  // therefore surface on public feeds. Non-onboarded users get a username when
+  // they finish onboarding (step-2) and are blocked from posting until then by
+  // the requireOnboarded username gate.
+  const nullUsername = await prisma.user.findMany({
+    where: { username: null, onboarding_completed: true },
+    select: { id: true, email: true, display_name: true },
+    take: 100000,
   });
 
-  // Filter to only those with onboarding_completed = true
-  const affected = allUsers.filter((u) => {
-    const prefs = u.preferences as any;
-    return prefs?.onboarding_completed === true;
-  });
-
-  if (affected.length === 0) {
-    console.log(`${GREEN}No users need backfilling.${RESET}\n`);
+  if (nullUsername.length === 0) {
+    console.log(`${C.green}No users need backfilling.${C.reset}\n`);
     await prisma.$disconnect();
     return;
   }
 
-  console.log(`Found ${BOLD}${affected.length}${RESET} user(s) with onboarding_completed but no username:\n`);
+  console.log(`Found ${C.bold}${nullUsername.length}${C.reset} onboarded user(s) with no username:\n`);
 
-  // Gather all existing usernames for uniqueness checks
-  const existingRows = await prisma.user.findMany({
-    where: { username: { not: null } },
-    select: { username: true },
-  });
-  const taken = new Set(existingRows.map((r) => r.username!.toLowerCase()));
-
+  // Handles chosen earlier in this run but (in dry run) not yet persisted — the
+  // shared generator checks this set so it never proposes the same handle twice.
+  const claimedThisRun = new Set<string>();
   let updated = 0;
   let failed = 0;
 
-  for (const user of affected) {
-    const base = generateBase(user);
-    let candidate = base.slice(0, 20);
-    let suffix = 0;
-
-    // Ensure uniqueness
-    while (taken.has(candidate.toLowerCase())) {
-      suffix++;
-      const suffixStr = String(suffix);
-      candidate = base.slice(0, 20 - suffixStr.length) + suffixStr;
-    }
-
-    // Final validation
-    if (!USERNAME_RE.test(candidate) || candidate.length < 3 || candidate.length > 20) {
-      console.log(`  ${RED}SKIP${RESET}  ${user.email} → "${candidate}" (invalid format)`);
+  for (const user of nullUsername) {
+    // Prefer the display name (a legacy account's real name makes a friendlier
+    // handle than an email token), falling back to the email local-part.
+    const base = user.display_name?.trim() || user.email.split('@')[0];
+    let candidate: string;
+    try {
+      candidate = await generateUniqueUsername(base, prisma, claimedThisRun);
+    } catch (err: any) {
+      console.log(`  ${C.red}SKIP${C.reset}  ${user.email} — generator error: ${err?.message}`);
       failed++;
       continue;
     }
+    claimedThisRun.add(candidate.toLowerCase());
 
-    console.log(`  ${user.email.padEnd(35)} → ${GREEN}${candidate}${RESET}${user.display_name ? ` ${DIM}(from "${user.display_name}")${RESET}` : ''}`);
+    console.log(
+      `  ${user.email.padEnd(35)} → ${C.green}${candidate}${C.reset}${user.display_name ? ` ${C.dim}(from "${user.display_name}")${C.reset}` : ''}`
+    );
 
-    if (!dryRun) {
+    if (apply) {
       try {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { username: candidate },
-        });
+        await prisma.user.update({ where: { id: user.id }, data: { username: candidate } });
         updated++;
       } catch (err: any) {
-        // Handle race condition / unique constraint violation
+        // A concurrent claim (P2002) — regenerate once against the live DB.
         if (err?.code === 'P2002') {
-          console.log(`    ${RED}CONFLICT${RESET} — username "${candidate}" taken (race condition), retrying...`);
-          const retry = candidate.slice(0, 17) + '_' + String(Date.now()).slice(-3);
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { username: retry },
-          });
-          console.log(`    ${GREEN}OK${RESET} → ${retry}`);
+          const retry = await generateUniqueUsername(base, prisma, claimedThisRun);
+          claimedThisRun.add(retry.toLowerCase());
+          await prisma.user.update({ where: { id: user.id }, data: { username: retry } });
+          console.log(`    ${C.yellow}retried${C.reset} → ${C.green}${retry}${C.reset}`);
           updated++;
         } else {
-          console.log(`    ${RED}ERROR${RESET} — ${err.message}`);
+          console.log(`    ${C.red}ERROR${C.reset} — ${err?.message}`);
           failed++;
         }
       }
     } else {
       updated++;
     }
-
-    taken.add(candidate.toLowerCase());
   }
 
-  console.log(`\n${BOLD}Results:${RESET}`);
-  console.log(`  ${GREEN}${updated}${RESET} username(s) ${dryRun ? 'would be' : ''} assigned`);
-  if (failed > 0) console.log(`  ${RED}${failed}${RESET} skipped/failed`);
-  if (dryRun) console.log(`\n${YELLOW}Run with --apply to write changes to the database.${RESET}`);
+  console.log(`\n${C.bold}Results:${C.reset}`);
+  console.log(`  ${C.green}${updated}${C.reset} username(s) ${apply ? 'assigned' : 'would be assigned'}`);
+  if (failed > 0) console.log(`  ${C.red}${failed}${C.reset} skipped/failed`);
+  if (!apply) console.log(`\n${C.yellow}Run with --apply to write changes to the database.${C.reset}`);
   console.log('');
 
   await prisma.$disconnect();
 }
 
-main().catch((err) => {
-  console.error(`${RED}Fatal:${RESET}`, err);
-  prisma.$disconnect();
+main().catch(err => {
+  console.error(`${C.red}Fatal:${C.reset}`, err);
+  void prisma.$disconnect();
   process.exit(1);
 });

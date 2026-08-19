@@ -16,6 +16,7 @@ import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolveMediaType } from '@/utils/media';
 import { prefetchUserProfile } from '@/utils/prefetch';
 import { toUserMessage } from '@/utils/toUserMessage';
+import { formatUserHandle, userHandleInitial } from '@/utils/userHandle';
 import EventChip from './EventChip';
 import ExpandableText from './ExpandableText';
 import RankingBadge from './RankingBadge';
@@ -233,11 +234,11 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   if (!author?.id) return;
                   void router.push({
                     pathname: '/user-profile',
-                    params: { id: String(author.id), username: author.username || 'User' },
+                    params: { id: String(author.id), username: author.username || '' },
                   });
                 }}
                 accessibilityRole="button"
-                accessibilityLabel={`View profile of ${author?.display_name || author?.username || 'User'}`}
+                accessibilityLabel={`View profile of ${formatUserHandle(author)}`}
               >
                 <View style={styles.authorAvatarWrap}>
                   {author?.avatar_url ? (
@@ -262,7 +263,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                           { color: Colors[colorScheme].background },
                         ]}
                       >
-                        {(author?.display_name || author?.username || '?').charAt(0).toUpperCase()}
+                        {userHandleInitial(author)}
                       </Text>
                     </View>
                   )}
@@ -271,7 +272,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   numberOfLines={1}
                   style={[styles.authorName, { color: Colors[colorScheme].text }]}
                 >
-                  {author?.username ? `@${author.username}` : author?.display_name || 'User'}
+                  {formatUserHandle(author)}
                 </Text>
               </Pressable>
               {currentUser && (
@@ -293,14 +294,6 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
             variant="card"
             style={styles.eventChip}
           />
-          {/* Top accent stripe */}
-          <LinearGradient
-            colors={['#1e293b', '#0f172a']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.topAccent}
-          />
-
           {/* Media section */}
           {isImage || isVideo ? (
             <View style={styles.mediaWrap}>

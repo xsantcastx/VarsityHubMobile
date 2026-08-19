@@ -30,6 +30,9 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
         preferences: true,
         approval_status: true,
         email: true,
+        // Username is required to create content — the app shows users by
+        // @username only, so an author must have a handle.
+        username: true,
         // v1.0.3: include the top-level `role` + `onboarding_completed` columns so
         // the canonical helpers can see them. Previously only `preferences` was
         // selected, which made the onboarding-bypass fail whenever the column and
@@ -56,6 +59,21 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
   // God-admins bypass all onboarding/approval checks
   if (isEmailAdmin(u?.email)) {
     return next();
+  }
+
+  // Every content-creating user must have a username — the app shows users by
+  // @username only, so an author needs a handle. All signup paths now assign one
+  // up front (register / Google / Apple) and the backfill covers legacy
+  // accounts, so this only ever catches a genuinely username-less account, which
+  // must finish onboarding (step-2) to choose one. Placed after the god-admin
+  // bypass and before the onboarding-flow bypasses (those run at step-3, after
+  // a username already exists).
+  const username = typeof (u as any)?.username === 'string' ? (u as any).username.trim() : '';
+  if (!username) {
+    return res.status(403).json({
+      error: 'Please choose a username before creating content.',
+      code: 'USERNAME_REQUIRED',
+    });
   }
 
   // Allow team/org creation during onboarding (coach creates org+team in step 3 before onboarding completes).
