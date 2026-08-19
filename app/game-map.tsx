@@ -25,21 +25,28 @@ function GameMapScreen() {
   const [events, setEvents] = useState<EventMapData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
+  // Map scope. 'all' (default) shows games/events nationwide — parity with the
+  // feed, which is never distance-filtered; 'nearby' restricts to a ~50mi
+  // radius around the viewer. The reported map/feed split-brain ("games on the
+  // feed missing from the map") was the map's hard radius filter — All removes
+  // it via the server's show_all flag.
+  const [scope, setScope] = useState<'all' | 'nearby'>('all');
 
   const loadGames = useCallback(async () => {
     setLoading(true);
     try {
-      // Get user location from params or current location
+      // Nearby mode needs the viewer's coordinates; All mode never filters by
+      // location, so it skips the (up-to-6s) GPS wait entirely.
       let lat = params.lat ? parseFloat(params.lat) : null;
       let lng = params.lng ? parseFloat(params.lng) : null;
 
-      if (!lat || !lng) {
+      if (scope === 'nearby' && (lat == null || lng == null)) {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
           // GPS can hang indefinitely indoors or in a crowd — race it against
-          // a hard timeout so this fetch (and the "Loading nearby games..."
-          // overlay it drives) never gets stuck. On timeout we just fetch
-          // without a location filter instead of blocking the whole screen.
+          // a hard timeout so this fetch (and the "Loading games..." overlay it
+          // drives) never gets stuck. On timeout we fall back to the nationwide
+          // set instead of blocking the whole screen.
           const location = await Promise.race([
             Location.getCurrentPositionAsync({}),
             new Promise<null>(resolve => setTimeout(() => resolve(null), 6000)),
@@ -51,21 +58,38 @@ function GameMapScreen() {
         }
       }
 
-      // Fetch games and events; when user has location, filter to nearby (radius 50mi)
+      const useNearby =
+        scope === 'nearby' && lat != null && lng != null && !isNaN(lat) && !isNaN(lng);
+
+      // Events: Nearby → server bounding-box + 50mi radius; All → show_all=true
+      // disables location filtering so far-away fixtures (e.g. a marquee event
+      // in another state) surface too, matching the feed. Both bounded by limit.
       const eventsQuery = new URLSearchParams();
       eventsQuery.set('approval_status', 'approved');
-      if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+      eventsQuery.set('limit', '100');
+      // The map renders only upcoming/live events (shouldShowEventOnMap drops
+      // date < now). Ask the server for the SOONEST upcoming events from now,
+      // else passing approval_status skips the default date window and the
+      // created_at-desc default could return 100 arbitrary/old rows that the
+      // client then filters away — starving All mode of pins.
+      eventsQuery.set('sort', 'date');
+      eventsQuery.set('from', new Date().toISOString());
+      if (useNearby) {
         eventsQuery.set('lat', String(lat));
         eventsQuery.set('lng', String(lng));
         eventsQuery.set('radius', '50');
+      } else {
+        eventsQuery.set('show_all', 'true');
       }
+
       const [gamesResponse, eventsResponse] = await Promise.all([
         // v1.0.2: mapView restricts to games this week — past games drop off the map in real time.
         Game.list(
           'date',
-          lat != null && lng != null
-            ? { lat, lng, limit: 50, mapView: true }
-            : { limit: 50, mapView: true }
+          // useNearby guarantees lat/lng are non-null finite numbers (checked above).
+          useNearby
+            ? { lat: lat!, lng: lng!, limit: 50, mapView: true }
+            : { limit: 100, mapView: true }
         ).catch((error: any) => {
           if (__DEV__) console.error('[game-map] Failed to fetch games:', error);
           return { items: [] };
@@ -177,7 +201,7 @@ function GameMapScreen() {
     } finally {
       setLoading(false);
     }
-  }, [params.lat, params.lng]);
+  }, [params.lat, params.lng, scope]);
 
   useEffect(() => {
     void loadGames();
@@ -210,7 +234,7 @@ function GameMapScreen() {
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen
         options={{
-          title: 'Nearby Games',
+          title: 'Games Map',
           headerShown: true,
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
@@ -241,7 +265,43 @@ function GameMapScreen() {
           onRefresh={!loading && !error ? loadGames : undefined}
         />
 
-        {/* Discreet sport filter — sits on the count-badge row, right of it. */}
+        {/* All / Nearby scope toggle — centered under the search box. Default
+            All (nationwide) so the map matches the feed; Nearby re-applies the
+            ~50mi radius around the viewer. */}
+        {!error && (
+          <View style={styles.scopeToggle} pointerEvents="box-none">
+            <View
+              style={[styles.scopeToggleTrack, { backgroundColor: Colors[colorScheme].background }]}
+            >
+              {(['all', 'nearby'] as const).map(option => {
+                const active = scope === option;
+                return (
+                  <Pressable
+                    key={option}
+                    onPress={() => setScope(option)}
+                    style={[
+                      styles.scopeToggleOption,
+                      active && { backgroundColor: Colors[colorScheme].tint },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text
+                      style={[
+                        styles.scopeToggleLabel,
+                        { color: active ? '#FFFFFF' : Colors[colorScheme].text },
+                      ]}
+                    >
+                      {option === 'all' ? 'All' : 'Nearby'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Discreet sport filter — sits just below the count-badge row. */}
         {!loading && !error && presentSports.length > 1 && (
           <View style={styles.sportFilter} pointerEvents="box-none">
             <SportFilterBar
@@ -256,7 +316,7 @@ function GameMapScreen() {
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
             <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>
-              Loading nearby games...
+              {scope === 'nearby' ? 'Loading nearby games...' : 'Loading games...'}
             </Text>
           </View>
         )}
@@ -301,12 +361,39 @@ const styles = StyleSheet.create({
   headerButton: {
     padding: 8,
   },
-  // Shares the row with EventMap's "N events" count pill (top: 72, left: 16),
-  // starting to its right so the two don't overlap.
+  // Centered scope toggle, sitting on EventMap's "N events" count-pill row
+  // (top: 72) — the pill is left-aligned so the centered toggle clears it.
+  scopeToggle: {
+    position: 'absolute',
+    top: 70,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  scopeToggleTrack: {
+    flexDirection: 'row',
+    borderRadius: 18,
+    padding: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  scopeToggleOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  scopeToggleLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  // Sits one row below the scope toggle + count pill so the three don't overlap.
   sportFilter: {
     position: 'absolute',
-    top: 72,
-    left: 120,
+    top: 116,
+    left: 16,
     right: 12,
     height: 34,
     justifyContent: 'center',
