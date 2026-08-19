@@ -38,12 +38,12 @@ async function main() {
     `${C.dim}Mode: ${apply ? `${C.green}APPLY${C.reset}${C.dim} (writing to DB)` : `${C.yellow}DRY RUN${C.reset}${C.dim} (use --apply to write)`}${C.reset}\n`
   );
 
-  // Onboarded accounts with no username — the set that can already post and
-  // therefore surface on public feeds. Non-onboarded users get a username when
-  // they finish onboarding (step-2) and are blocked from posting until then by
-  // the requireOnboarded username gate.
+  // EVERY account with no username — the app shows users by @username only, so
+  // no account should be without one. Signup now assigns a username up front, so
+  // this only ever hits legacy accounts (onboarded ones surface on feeds;
+  // un-onboarded ones get theirs here rather than waiting for onboarding).
   const nullUsername = await prisma.user.findMany({
-    where: { username: null, onboarding_completed: true },
+    where: { username: null },
     select: { id: true, email: true, display_name: true },
     take: 100000,
   });
@@ -54,7 +54,7 @@ async function main() {
     return;
   }
 
-  console.log(`Found ${C.bold}${nullUsername.length}${C.reset} onboarded user(s) with no username:\n`);
+  console.log(`Found ${C.bold}${nullUsername.length}${C.reset} user(s) with no username:\n`);
 
   // Handles chosen earlier in this run but (in dry run) not yet persisted — the
   // shared generator checks this set so it never proposes the same handle twice.

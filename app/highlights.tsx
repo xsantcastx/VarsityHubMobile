@@ -1027,10 +1027,10 @@ function HighlightsScreen() {
                     borderBottomWidth: 1,
                     borderBottomColor: Colors[colorScheme].border,
                   }}
-                  onPress={() => setSearchQuery(user.display_name || user.username || user.email)}
+                  onPress={() => setSearchQuery(user.username ? `@${user.username}` : '')}
                 >
                   <Text style={{ color: Colors[colorScheme].text }}>
-                    👤 {user.display_name || user.username || user.email}
+                    👤 {formatUserHandle(user)}
                   </Text>
                 </Pressable>
               ))}
@@ -1215,15 +1215,7 @@ function HighlightsScreen() {
                     }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>
-                      {user.display_name}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.searchResultSubtitle,
-                        { color: Colors[colorScheme].tabIconDefault },
-                      ]}
-                    >
-                      @{user.username || user.email}
+                      {formatUserHandle(user)}
                     </Text>
                   </Pressable>
                 ))}
