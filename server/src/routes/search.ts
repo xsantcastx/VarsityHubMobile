@@ -128,12 +128,10 @@ searchRouter.get(
             {
               OR: [{ date_of_birth: null }, { date_of_birth: { lte: eighteenYearsAgo } }],
             } as any,
-            {
-              OR: [
-                { username: { contains: q, mode: 'insensitive' } },
-                { display_name: { contains: q, mode: 'insensitive' } },
-              ],
-            },
+            // Users are looked up by @username only — never by real name. Matching
+            // display_name would surface people by a name the app never shows and
+            // makes the search a real-name enumeration surface.
+            { username: { contains: q, mode: 'insensitive' } },
           ],
         },
         select: {
