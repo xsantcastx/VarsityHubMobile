@@ -314,7 +314,12 @@ export default function EventMap({
             <Marker
               key={lead.id}
               coordinate={coordinate}
-              pinColor={getMarkerColor(lead.type)}
+              // Render a custom colored dot instead of the native `pinColor` prop.
+              // `pinColor` does NOT honor arbitrary hex reliably — Android/Google
+              // snaps to a fixed hue set and iOS/Apple Maps falls back to a
+              // default/muted pin — so the legend swatch and the real pin diverged
+              // ("what's a grey dot?"). A child View paints the exact getMarkerColor
+              // hex on every provider, matching the cluster pin + legend (OTA-safe).
               // v1.0.3: single-tap takes the user straight to the detail. The previous
               // two-tap flow (callout preview → details) was rejected as "two pages."
               // Keep onCalloutPress as a belt-and-braces fallback in case the native
@@ -331,7 +336,9 @@ export default function EventMap({
                 });
                 openEventFromMarker(lead.id, lead.type);
               }}
-            />
+            >
+              <View style={[styles.markerDot, { backgroundColor: getMarkerColor(lead.type) }]} />
+            </Marker>
           );
         })}
       </MapView>
@@ -537,6 +544,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
+  },
+  // Single-event pin — a solid getMarkerColor dot with a white ring, so its
+  // color matches the legend on every map provider (replaces the native
+  // `pinColor` prop, which rendered muted/grey pins on iOS Apple Maps).
+  markerDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
   },
   clusterModalBackdrop: {
     flex: 1,

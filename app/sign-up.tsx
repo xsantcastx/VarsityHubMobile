@@ -472,13 +472,16 @@ export default function SignUpScreen() {
       await routeCurrentUser(authUser);
     } catch (e: any) {
       if (__DEV__) console.error('[sign-up] Apple sign up error:', e);
-      captureException(typeof e === 'string' ? new Error(e) : e, {
-        tags: { context: 'apple-signup' },
-      });
       const message = e?.message || 'Apple sign up failed';
+      // User cancellation is not an error — return BEFORE capturing so a tapped-
+      // away Apple sheet doesn't page us with a Sentry `error` (matches the
+      // Google handler above and the sign-in Apple handler).
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
       }
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'apple-signup' },
+      });
       setError(getOAuthExistingAccountMessage(e, 'Apple') || message);
     }
   };
