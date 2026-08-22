@@ -77,4 +77,7 @@ export const LIVE_WINDOW_HOURS_BY_LEAGUE: Record<ProLeague, number> = {
   wwe: 4,
   nba: 3,
   wnba: 3,
+  // A soccer match runs ~2h; 3 leaves a tail for post-match posting without
+  // overrunning into an unrelated later kickoff at the same venue.
+  mls_next_pro: 3,
 };

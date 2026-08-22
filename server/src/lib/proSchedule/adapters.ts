@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { compositeAdapter } from './compositeAdapter.js';
 import { espnAdapter } from './espnAdapter.js';
+import { mlsNextProAdapter } from './mlsNextProAdapter.js';
 import type { ProFixture, ProScheduleAdapter } from './types.js';
 import { wweAdapter } from './wweAdapter.js';
 
@@ -24,7 +25,7 @@ import { wweAdapter } from './wweAdapter.js';
 
 const fixtureSchema = z.object({
   external_ref: z.string().min(1).max(200),
-  league: z.enum(['nfl', 'nba', 'wnba', 'mlb', 'wwe']),
+  league: z.enum(['nfl', 'nba', 'wnba', 'mlb', 'wwe', 'mls_next_pro']),
   starts_at: z.coerce.date(),
   home_team_ref: z.string().nullable().default(null),
   away_team_ref: z.string().nullable().default(null),
@@ -49,7 +50,7 @@ const fixtureSchema = z.object({
 export function jsonFileAdapter(path: string): ProScheduleAdapter {
   return {
     name: `json:${path}`,
-    leagues: ['nfl', 'nba', 'wnba', 'mlb', 'wwe'] as const,
+    leagues: ['nfl', 'nba', 'wnba', 'mlb', 'wwe', 'mls_next_pro'] as const,
     async fetchFixtures(league: ProLeague, from: Date, to: Date): Promise<ProFixture[]> {
       const raw = await readFile(path, 'utf8');
       const parsed: unknown = JSON.parse(raw);
@@ -90,9 +91,13 @@ export function resolveConfiguredAdapter(env = process.env): ProScheduleAdapter 
   if (file) return jsonFileAdapter(file);
 
   // Live rolling source: ESPN for the four league sports + TheSportsDB for
-  // touring WWE, behind one composite so the cron covers all five leagues.
+  // touring WWE + the MLS NEXT Pro league feed, behind one composite so the
+  // cron covers every league. MLS NEXT Pro data comes from the league's own
+  // Deltatre feed (no other source carries it — ESPN's usa.1 is top-flight MLS,
+  // not NEXT Pro); its terms of service are the operative constraint, per the
+  // provider note above.
   if (env.PRO_SCHEDULE_PROVIDER === 'espn') {
-    return compositeAdapter([espnAdapter(), wweAdapter()]);
+    return compositeAdapter([espnAdapter(), wweAdapter(), mlsNextProAdapter()]);
   }
 
   return null;

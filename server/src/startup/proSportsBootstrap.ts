@@ -1,5 +1,6 @@
 import { espnAdapter } from '../lib/proSchedule/espnAdapter.js';
 import { ingestFixtures, ingestLeague } from '../lib/proSchedule/ingest.js';
+import { mlsNextProAdapter } from '../lib/proSchedule/mlsNextProAdapter.js';
 import { WWE_FIXTURES_2026 } from '../lib/proSchedule/wweSchedule2026.js';
 import { prisma } from '../lib/prisma.js';
 import { PRO_TEAM_SEED } from '../lib/proTeams.js';
@@ -138,6 +139,20 @@ export async function runProSportsBootstrap(): Promise<void> {
       } catch (e) {
         console.warn(`[pro-bootstrap] ${league} ingest failed (non-fatal):`, (e as Error).message);
       }
+    }
+
+    // 4) Ingest MLS NEXT Pro from the league feed over its own (shorter) rolling
+    //    window — 14 days per the per-league override in window.ts. Home games
+    //    resolve via the seeded club venue, same as the ESPN leagues.
+    try {
+      const mlsWindow = getProScheduleWindowDays(process.env, undefined, 'mls_next_pro');
+      const mlsTo = new Date(Date.now() + mlsWindow * 24 * 60 * 60 * 1000);
+      const s = await ingestLeague(mlsNextProAdapter(), 'mls_next_pro', from, mlsTo);
+      console.log(
+        `[pro-bootstrap] mls_next_pro ingest (${mlsWindow}d): created=${s.created} updated=${s.updated} skipped=${s.skipped}`
+      );
+    } catch (e) {
+      console.warn('[pro-bootstrap] mls_next_pro ingest failed (non-fatal):', (e as Error).message);
     }
   } catch (err) {
     console.error('[pro-bootstrap] failed (non-fatal):', err);
