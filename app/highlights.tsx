@@ -6,6 +6,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { getAuthSnapshot } from '@/utils/authState';
+import { formatUserHandle } from '@/utils/userHandle';
 import AppLinks, { buildNativeSharePayload } from '@/utils/links';
 import { promptForSignIn } from '@/utils/requireSignIn';
 import { Ionicons } from '@expo/vector-icons';
@@ -363,9 +364,7 @@ const HighlightCard = ({
                 style={[styles.authorName, { color: Colors[colorScheme].text }]}
                 numberOfLines={1}
               >
-                {item.author?.username
-                  ? `@${item.author.username}`
-                  : item.author?.display_name || 'Anonymous'}
+                {formatUserHandle(item.author)}
               </Text>
               <Ionicons
                 name="chevron-forward"
@@ -1028,10 +1027,10 @@ function HighlightsScreen() {
                     borderBottomWidth: 1,
                     borderBottomColor: Colors[colorScheme].border,
                   }}
-                  onPress={() => setSearchQuery(user.display_name || user.username || user.email)}
+                  onPress={() => setSearchQuery(user.username ? `@${user.username}` : '')}
                 >
                   <Text style={{ color: Colors[colorScheme].text }}>
-                    👤 {user.display_name || user.username || user.email}
+                    👤 {formatUserHandle(user)}
                   </Text>
                 </Pressable>
               ))}
@@ -1216,15 +1215,7 @@ function HighlightsScreen() {
                     }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>
-                      {user.display_name}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.searchResultSubtitle,
-                        { color: Colors[colorScheme].tabIconDefault },
-                      ]}
-                    >
-                      @{user.username || user.email}
+                      {formatUserHandle(user)}
                     </Text>
                   </Pressable>
                 ))}

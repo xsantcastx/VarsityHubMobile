@@ -13,7 +13,6 @@ import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -203,33 +202,6 @@ export default function EventMap({
     return () => clearTimeout(timer);
   }, [eventsWithCoordinates, dataLoaded, fitToEvents, loading]);
 
-  // Center map on user location
-  const centerOnUser = () => {
-    if (!userLocation) {
-      Alert.alert('Location Not Available', 'Unable to get your current location');
-      return;
-    }
-
-    captureBreadcrumb('Map centered on user', 'map.navigation', {
-      has_user_location: true,
-    });
-    isUserInteractionRef.current = true;
-    mapRef.current?.animateToRegion(
-      {
-        latitude: userLocation.coords.latitude,
-        longitude: userLocation.coords.longitude,
-        latitudeDelta: 0.1,
-        longitudeDelta: 0.1,
-      },
-      1000
-    );
-
-    // Reset flag after animation completes
-    setTimeout(() => {
-      isUserInteractionRef.current = false;
-    }, 1100);
-  };
-
   // Get marker color based on event type
   const getMarkerColor = (type?: string) => {
     switch (type) {
@@ -314,7 +286,12 @@ export default function EventMap({
             <Marker
               key={lead.id}
               coordinate={coordinate}
-              pinColor={getMarkerColor(lead.type)}
+              // Render a custom colored dot instead of the native `pinColor` prop.
+              // `pinColor` does NOT honor arbitrary hex reliably — Android/Google
+              // snaps to a fixed hue set and iOS/Apple Maps falls back to a
+              // default/muted pin — so the legend swatch and the real pin diverged
+              // ("what's a grey dot?"). A child View paints the exact getMarkerColor
+              // hex on every provider, matching the cluster pin + legend (OTA-safe).
               // v1.0.3: single-tap takes the user straight to the detail. The previous
               // two-tap flow (callout preview → details) was rejected as "two pages."
               // Keep onCalloutPress as a belt-and-braces fallback in case the native
@@ -331,7 +308,9 @@ export default function EventMap({
                 });
                 openEventFromMarker(lead.id, lead.type);
               }}
-            />
+            >
+              <View style={[styles.markerDot, { backgroundColor: getMarkerColor(lead.type) }]} />
+            </Marker>
           );
         })}
       </MapView>
@@ -348,15 +327,8 @@ export default function EventMap({
           </TouchableOpacity>
         )}
 
-        {/* Center on User Button */}
-        {showUserLocation && userLocation && (
-          <TouchableOpacity
-            style={[styles.controlButton, { backgroundColor: Colors[colorScheme].background }]}
-            onPress={centerOnUser}
-          >
-            <Ionicons name="navigate" size={24} color={Colors[colorScheme].tint} />
-          </TouchableOpacity>
-        )}
+        {/* Center-on-user button removed (2026-08): redundant with the All/Nearby
+            toggle, which already scopes the map to the viewer's area. */}
 
         {/* Refresh Button — re-runs the parent's data load so games added mid-event show up */}
         {onRefresh && (
@@ -537,6 +509,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
+  },
+  // Single-event pin — a solid getMarkerColor dot with a white ring, so its
+  // color matches the legend on every map provider (replaces the native
+  // `pinColor` prop, which rendered muted/grey pins on iOS Apple Maps).
+  markerDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
   },
   clusterModalBackdrop: {
     flex: 1,

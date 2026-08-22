@@ -79,8 +79,12 @@ describe('Post-mapper Consistency Rule (live mappers)', () => {
     expect(src).toContain('id: String(item.author.id ?? item.author.user_id ?? id)');
   });
 
-  it.each(sources)('$name builds the author.username with the display_name fallback', ({ src }) => {
-    expect(src).toContain('username: item.author.username ?? item.author.display_name ?? null');
+  // Product rule (2026-08-18): users are shown by username only — never their
+  // real name. The mappers must NOT fall back username → display_name (that
+  // would surface a real name wherever formatUserHandle renders the handle).
+  it.each(sources)('$name builds author.username without a display_name fallback', ({ src }) => {
+    expect(src).toContain('username: item.author.username ?? null');
+    expect(src).not.toContain('item.author.username ?? item.author.display_name');
   });
 
   it.each(sources)('$name builds the author.avatar_url with the avatarUrl fallback', ({ src }) => {

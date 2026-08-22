@@ -567,6 +567,14 @@ export const Event = {
   reject: (id: string, reason?: string) =>
     httpPut(`/events/${encodeURIComponent(id)}/reject`, reason ? { reason } : {}),
   cancel: (id: string) => httpPatch('/events/' + encodeURIComponent(id) + '/cancel'),
+  // Moderation kill switch: freeze/reopen all non-admin uploads (posts + stories)
+  // to this event. Server-gated to a platform admin or staff of the event's own
+  // team; enforced via the event's posting_closed flag.
+  setPostingClosed: (
+    id: string,
+    closed: boolean
+  ): Promise<{ id: string; posting_closed: boolean }> =>
+    httpPost(`/events/${encodeURIComponent(id)}/posting`, { closed }),
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
   rsvpSummaryBatch: (ids: string[]): Promise<Record<string, { going: boolean; count: number }>> => {
     if (ids.length === 0) return Promise.resolve({});

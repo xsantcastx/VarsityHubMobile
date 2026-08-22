@@ -23,6 +23,29 @@ describe('getPostAuthRouteDecision', () => {
       kind: 'email_verification_required',
     },
     {
+      // Regression: an OAuth (Google/Apple) signup is provider-verified and
+      // never receives an email code. A stale/racing email_verified=false must
+      // NOT strand them on the 6-digit verify screen — proceed to onboarding.
+      label: 'never routes a google-linked user to verify on a stale email_verified=false',
+      user: {
+        email_verified: false,
+        google_id: 'g-123',
+        preferences: { onboarding_completed: false, role: 'fan' },
+      },
+      expected: '/onboarding/step-1-role',
+      kind: 'generic_onboarding_required',
+    },
+    {
+      label: 'never routes an apple linked_providers user to verify on email_verified=false',
+      user: {
+        email_verified: false,
+        linked_providers: { apple: true },
+        preferences: { onboarding_completed: false, role: 'fan' },
+      },
+      expected: '/onboarding/step-1-role',
+      kind: 'generic_onboarding_required',
+    },
+    {
       label: 'routes onboarded admins with dirty rejected coach state to app home',
       user: {
         email_verified: true,

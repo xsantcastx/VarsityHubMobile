@@ -1534,20 +1534,13 @@ usersRouter.get(
       return res.json({ users: [] });
     }
 
-    // Search users by public profile fields only. Email matching here turns an
-    // @mention helper into a directory-enumeration surface for authenticated users.
+    // Users are looked up by @username only — never by real name (display_name)
+    // or email. Matching either turns this @mention helper into a real-name /
+    // directory-enumeration surface for authenticated users, and the app never
+    // shows a user by anything but their @username anyway.
     const users = await prisma.user.findMany({
       where: {
-        AND: [
-          { banned: false },
-          {
-            OR: [
-              // Search by username
-              { username: { contains: query, mode: 'insensitive' } },
-              { display_name: { contains: query, mode: 'insensitive' } },
-            ],
-          },
-        ],
+        AND: [{ banned: false }, { username: { contains: query, mode: 'insensitive' } }],
       },
       select: {
         id: true,

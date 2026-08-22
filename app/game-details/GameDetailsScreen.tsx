@@ -32,6 +32,7 @@ import { toUserMessage } from '@/utils/toUserMessage';
 import { promptForSignIn } from '@/utils/requireSignIn';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
+import * as Haptics from 'expo-haptics';
 import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
@@ -120,6 +121,9 @@ type GameVM = {
   away_score?: number | null;
   winner?: string | null;
   can_edit_result?: boolean;
+  // Posting kill switch: current freeze state + whether this viewer may toggle it.
+  posting_closed?: boolean;
+  can_manage_posting?: boolean;
   venueLat?: number | null;
   venueLng?: number | null;
   // Server-computed posting-window bounds (GET /games/:id[/summary]); used to
@@ -226,7 +230,12 @@ const GameDetailsScreen = () => {
   // Define isTestEnv at the top so all hooks can use it
   const isTestEnv =
     typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
-  const { id, eventId } = useLocalSearchParams<{ id: string; teamId?: string; eventId?: string }>();
+  const { id, eventId, from } = useLocalSearchParams<{
+    id: string;
+    teamId?: string;
+    eventId?: string;
+    from?: string;
+  }>();
   const router = useRouter();
   const { user: authUser, isAdmin: isAdminUser } = useAuth();
   const insets = useSafeAreaInsets();
@@ -256,6 +265,7 @@ const GameDetailsScreen = () => {
     kind: 'photo' | 'video';
   } | null>(null);
   const [storyBusy, setStoryBusy] = useState(false);
+  const [postingBusy, setPostingBusy] = useState(false);
   const [storyPreview, setStoryPreview] = useState<{
     uri: string;
     mimeType: string;
@@ -931,6 +941,12 @@ const GameDetailsScreen = () => {
         home_score: homeScore,
         away_score: awayScore,
         can_edit_result: canEditResult,
+        posting_closed: Boolean(
+          (summary as any)?.posting_closed ?? (gameRecord as any)?.posting_closed
+        ),
+        can_manage_posting: Boolean(
+          (summary as any)?.can_manage_posting ?? (gameRecord as any)?.can_manage_posting
+        ),
         venueLat: typeof rawLat === 'number' ? rawLat : null,
         venueLng: typeof rawLng === 'number' ? rawLng : null,
         starts_at: (summary as any)?.starts_at ?? (gameRecord as any)?.starts_at ?? null,
@@ -1055,6 +1071,8 @@ const GameDetailsScreen = () => {
         reviewsCount: null,
         isPast: computeIsPast(dateIso),
         eventType: event?.event_type ?? null,
+        posting_closed: Boolean((event as any)?.posting_closed),
+        can_manage_posting: Boolean((event as any)?.can_manage_posting),
       };
       setVm(vmPayload);
 
@@ -1407,6 +1425,44 @@ const GameDetailsScreen = () => {
     openSettings,
   ]);
 
+  // Posting kill switch — freeze/reopen all non-admin uploads to this event.
+  // Server enforces the same authorization (own-team staff / creator / admin),
+  // so an unauthorized tap is refused; the button is only shown to those who
+  // can_manage_posting (or platform admins).
+  const handleTogglePosting = useCallback(() => {
+    const eventIdValue = vm?.eventId;
+    if (!eventIdValue || postingBusy) return;
+    const next = !vm?.posting_closed;
+    Alert.alert(
+      next ? 'Freeze posting?' : 'Reopen posting?',
+      next
+        ? 'Fans and staff will no longer be able to post or add stories to this event. You can reopen it anytime.'
+        : 'Fans and staff who qualify will be able to post to this event again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: next ? 'Freeze' : 'Reopen',
+          style: next ? 'destructive' : 'default',
+          onPress: async () => {
+            setPostingBusy(true);
+            try {
+              const result = await Event.setPostingClosed(String(eventIdValue), next);
+              setVm(prev =>
+                prev ? { ...prev, posting_closed: Boolean(result?.posting_closed) } : prev
+              );
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+            } catch (err: any) {
+              const message = String(err?.data?.message || err?.message || '');
+              Alert.alert('Unable to update posting', message || 'Please try again in a moment.');
+            } finally {
+              setPostingBusy(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [vm?.eventId, vm?.posting_closed, postingBusy]);
+
   const confirmStoryUpload = useCallback(async () => {
     if (!storyPreview || !vm?.gameId) return;
     // Story cap: an over-limit pick must be trimmed (the trimmer clamps its
@@ -1629,9 +1685,16 @@ const GameDetailsScreen = () => {
     const task = InteractionManager.runAfterInteractions(() => {
       void load();
     });
-    analytics.track(ANALYTICS_EVENTS.EVENT_PAGE_VIEWED, { gameId: id, eventId });
+    // `from` attributes the view to its entry point (e.g. 'map_date' when opened
+    // from the map's past-day browse) so the date-lens → view → recap funnel is
+    // measurable in PostHog. Omitted when absent to keep the property clean.
+    analytics.track(ANALYTICS_EVENTS.EVENT_PAGE_VIEWED, {
+      gameId: id,
+      eventId,
+      ...(from ? { from } : {}),
+    });
     return () => task.cancel();
-  }, [eventId, id, load]);
+  }, [eventId, id, from, load]);
 
   // Reset per-event UI state immediately when navigating to a different event
   useEffect(() => {
@@ -2669,6 +2732,70 @@ const GameDetailsScreen = () => {
                   <Text style={styles.actionText}>{'Add Story'}</Text>
                 </Pressable>
               </View>
+
+              {/* Posting kill switch — staff/admin only. Frozen shows an amber
+                  banner + Reopen; open shows a subtle Freeze action. */}
+              {(vm?.can_manage_posting || isAdminUser) && vm?.eventId ? (
+                vm?.posting_closed ? (
+                  <View
+                    style={[
+                      styles.postingBanner,
+                      {
+                        backgroundColor:
+                          colorScheme === 'dark' ? 'rgba(245,158,11,0.12)' : '#FEF9C3',
+                        borderColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.35)' : '#FACC15',
+                      },
+                    ]}
+                  >
+                    <Ionicons name="lock-closed" size={16} color="#B45309" />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.postingBannerTitle,
+                          { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
+                        ]}
+                      >
+                        Posting is frozen
+                      </Text>
+                      <Text
+                        style={[
+                          styles.postingBannerText,
+                          { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
+                        ]}
+                      >
+                        Fans and staff can’t post or add stories to this event.
+                      </Text>
+                    </View>
+                    <Pressable onPress={handleTogglePosting} disabled={postingBusy} hitSlop={8}>
+                      <Text
+                        style={[styles.postingBannerAction, { color: Colors[colorScheme].tint }]}
+                      >
+                        {postingBusy ? 'Updating…' : 'Reopen'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View style={styles.secondaryActionsRow}>
+                    <Pressable
+                      style={[styles.actionBtn, postingBusy ? styles.actionBtnDisabled : null]}
+                      onPress={handleTogglePosting}
+                      disabled={postingBusy}
+                      accessibilityRole="button"
+                      accessibilityLabel="Freeze posting for this event"
+                    >
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={16}
+                        color={Colors[colorScheme].mutedText}
+                      />
+                      <Text style={[styles.actionText, { color: Colors[colorScheme].mutedText }]}>
+                        {postingBusy ? 'Updating…' : 'Freeze posting'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                )
+              ) : null}
+
               {showPreciseBanner ? (
                 <View
                   style={[
@@ -4053,6 +4180,18 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
     preciseBannerText: { fontSize: 13, color: '#92400E', marginTop: 2, marginBottom: 8 },
     preciseBannerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
     preciseBannerLink: { fontSize: 13, color: '#92400E' },
+    postingBanner: {
+      flexDirection: 'row',
+      gap: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      padding: 12,
+      marginBottom: 16,
+      alignItems: 'center',
+    },
+    postingBannerTitle: { fontWeight: '700', fontSize: 14 },
+    postingBannerText: { fontSize: 13, marginTop: 2 },
+    postingBannerAction: { fontSize: 14, fontWeight: '700' },
     actionBtn: {
       flex: 1,
       flexDirection: 'row',

@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Event, Game, Organization, Post, Search, Team, User } from '@/api/entities';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
+import { formatUserHandle } from '@/utils/userHandle';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
@@ -49,12 +50,9 @@ const isInternalId = (s: string) =>
   (/^[0-9a-z]{8,}$/.test(s) && !/[aeiou]{2,}/i.test(s)); // Random ID (no vowel pairs = not a real name)
 
 const safeDisplayName = (user: any): string => {
-  // Prefer username as the primary identifier (what the user chose during signup)
-  const uname = user?.username;
-  if (uname && !isInternalId(uname)) return uname;
-  const name = user?.display_name;
-  if (name && !isInternalId(name)) return name;
-  return 'User';
+  // Product rule: users are shown by their @username only, never their real
+  // name (display_name). See utils/userHandle.ts.
+  return formatUserHandle(user);
 };
 
 const safeUsername = (user: any): string | null => {
@@ -2377,7 +2375,7 @@ function CommunityDiscoverScreen() {
                       void router.push(`/user-profile?id=${authorId}`);
                     }}
                     accessibilityRole="button"
-                    accessibilityLabel={`View profile of ${author?.display_name || 'User'}`}
+                    accessibilityLabel={`View profile of ${formatUserHandle(author)}`}
                   >
                     <View style={styles.postAvatarWrap}>
                       {author?.avatar_url ? (
@@ -2394,7 +2392,7 @@ function CommunityDiscoverScreen() {
                       style={[styles.postAuthorName, { color: Colors[colorScheme].text }]}
                       numberOfLines={1}
                     >
-                      {author?.display_name || 'User'}
+                      {formatUserHandle(author)}
                     </Text>
                   </Pressable>
                   {authorId && me?.id !== authorId ? (
@@ -2439,8 +2437,8 @@ function CommunityDiscoverScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={
                         p.is_following_author
-                          ? `Unfollow ${author?.display_name || 'user'}`
-                          : `Follow ${author?.display_name || 'user'}`
+                          ? `Unfollow ${formatUserHandle(author)}`
+                          : `Follow ${formatUserHandle(author)}`
                       }
                     >
                       <Text
@@ -2468,7 +2466,10 @@ function CommunityDiscoverScreen() {
                       `/post-detail?id=${p.id}&postIds=${encodeURIComponent(postIds)}&index=${Math.max(0, index)}`
                     );
                   }}
-                  showAuthorHeader={true}
+                  // Discover renders its own single header (avatar + @username +
+                  // Follow) above each card — suppress PostCard's built-in header
+                  // so the author isn't shown twice.
+                  showAuthorHeader={false}
                   onDeleted={postId => {
                     // Remove deleted post from both cached arrays
                     patchDiscoverPosts(posts => posts.filter(post => String(post.id) !== postId));

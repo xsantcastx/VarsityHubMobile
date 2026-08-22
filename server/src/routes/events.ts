@@ -424,8 +424,7 @@ eventsRouter.get(
     const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
     const dateFrom = typeof req.query.from === 'string' ? new Date(req.query.from) : null;
     const dateTo = typeof req.query.to === 'string' ? new Date(req.query.to) : null;
-    const proOnly =
-      String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
+    const proOnly = String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
     const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
     const proLeagueRaw =
       typeof req.query.pro_league === 'string' ? req.query.pro_league.trim().toLowerCase() : '';
@@ -437,6 +436,11 @@ eventsRouter.get(
     const where: any = {};
     if (status) where.status = status;
     else if (!includeCancelled) where.status = { not: 'cancelled' }; // Exclude cancelled by default; ?include_cancelled=true for admin views
+    // Soft-archived empty events (cleanup-empty-events cron) drop out of every
+    // public list surface — map, feed, and the date-lens (from/to) browse.
+    // `?include_archived=true` re-includes them for admin/team retrospection.
+    const includeArchived = String(req.query.include_archived || '').toLowerCase() === 'true';
+    if (!includeArchived) where.archived_at = null;
     // Only admins can filter by approval_status — public users always see approved only
     const isAdminUser = (req as any).user?.id ? await getIsAdmin(req as any) : false;
     if (approvalStatus && isAdminUser) where.approval_status = approvalStatus;
@@ -546,6 +550,29 @@ eventsRouter.get(
       const EVENT_ARCHIVE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
       const archiveCutoff = new Date(Date.now() - EVENT_ARCHIVE_WINDOW_MS);
       where.date = { gte: archiveCutoff };
+    }
+
+    // Map display horizon (owner rule, 2026-08): on the map, PRO fixtures
+    // (pro_home/away_team linked — the auto-synced league schedules) are capped
+    // to the next 14 days so seeded pro games don't flood the map weeks out.
+    // Team/org events stay uncapped — a coach's full season shows. Live map only;
+    // a deliberately-picked past day (dateTo/from-to window) overrides and shows
+    // everything on that day.
+    const isMapView =
+      (req.query.map_view === 'true' || req.query.map_view === '1') &&
+      !(dateTo && !Number.isNaN(dateTo.getTime()));
+    if (isMapView) {
+      const twoWeeksFromNow = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { pro_home_team_id: null, pro_away_team_id: null },
+          {
+            OR: [{ pro_home_team_id: { not: null } }, { pro_away_team_id: { not: null } }],
+            date: { lte: twoWeeksFromNow },
+          },
+        ],
+      });
     }
 
     const orderBy =
@@ -979,6 +1006,10 @@ eventsRouter.get(
         canManage = await canManageAnyTeam(req.user.id, teamIds);
       }
       (payload as any).can_edit = canManage;
+      // Posting kill switch: current freeze state + whether this viewer may
+      // toggle it (same boundary as can_edit — own-team staff / creator / admin).
+      (payload as any).posting_closed = Boolean((event as any).posting_closed);
+      (payload as any).can_manage_posting = canManage;
     }
     return res.json(payload);
   })
@@ -1559,6 +1590,71 @@ eventsRouter.put(
       ...serializeEvent(result.event!),
       message: 'Event approved successfully!',
     });
+  })
+);
+
+// Posting kill switch — freeze / reopen all non-admin uploads (posts AND
+// stories) to an event page without deleting it. Enforced in geofencing.ts via
+// the event's posting_closed flag. Authorization mirrors event management
+// (can_edit above): a PLATFORM ADMIN, or a staff member who manages one of the
+// event's OWN teams (team_id, or the linked game's home/away team). No other
+// user can touch it, so a coach can only freeze their own team's events.
+const setPostingClosedSchema = z.object({ closed: z.boolean() });
+eventsRouter.post(
+  '/:id/posting',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
+    const id = String(req.params.id);
+
+    const parsed = setPostingClosedSchema.safeParse(req.body);
+    if (!parsed.success) return sendError(res, 400, 'Body must be { closed: boolean }');
+    const { closed } = parsed.data;
+
+    const event = await prisma.event.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        team_id: true,
+        posting_closed: true,
+        game: { select: { home_team_id: true, away_team_id: true } },
+      },
+    });
+    if (!event) return sendError(res, 404, 'Event not found');
+
+    // auth → ownership: platform admin OR staff of one of THIS event's teams.
+    const isAdmin = await getIsAdmin(req as any);
+    let canManage = isAdmin;
+    if (!canManage && event.team_id) {
+      canManage = await canManageTeamScoped(req.user.id, event.team_id);
+    }
+    if (!canManage && (event.game?.home_team_id || event.game?.away_team_id)) {
+      const teamIds = [event.game.home_team_id, event.game.away_team_id].filter(
+        Boolean
+      ) as string[];
+      canManage = await canManageAnyTeam(req.user.id, teamIds);
+    }
+    if (!canManage) {
+      return sendError(res, 403, 'You can only change posting for your own team’s events');
+    }
+
+    const updated = await prisma.event.update({
+      where: { id },
+      data: { posting_closed: closed },
+      select: { id: true, posting_closed: true },
+    });
+
+    // Auditable: actor / target / action land in AdminActivityLog.
+    await logAdminActivityFromReq(
+      req,
+      closed ? 'EVENT_POSTING_CLOSED' : 'EVENT_POSTING_REOPENED',
+      'event',
+      id,
+      `${closed ? 'Froze' : 'Reopened'} posting for event: ${event.title || id}`
+    ).catch(err => console.error('[events] AdminActivityLog write failed:', err));
+
+    return res.json({ id: updated.id, posting_closed: updated.posting_closed });
   })
 );
 

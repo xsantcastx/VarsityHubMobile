@@ -74,6 +74,7 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
           email_verified: true,
           google_id: true,
           apple_id: true,
+          username: true,
           preferences: true,
           approval_status: true,
           email: true,

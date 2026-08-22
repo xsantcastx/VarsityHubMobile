@@ -252,9 +252,9 @@ function MessagesScreen() {
     const q = query.toLowerCase();
     return conversations.filter(conv => {
       const text = (conv.lastMessage.content ?? '').toLowerCase();
-      const name = (conv.other.display_name ?? '').toLowerCase();
-      const email = (conv.other.email ?? '').toLowerCase();
-      return text.includes(q) || name.includes(q) || email.includes(q);
+      // Users are found by @username only — never by real name or email.
+      const username = (conv.other.username ?? '').toLowerCase();
+      return text.includes(q) || username.includes(q);
     });
   }, [conversations, query]);
 
@@ -436,12 +436,8 @@ function MessagesScreen() {
           ) : null}
         </View>
         <View style={{ flex: 1 }}>
+          {/* @username only — never surface the person's email in search results. */}
           <Text style={[styles.userSearchName, { color: Colors[colorScheme].text }]}>{name}</Text>
-          {item.email && (
-            <Text style={[styles.userSearchEmail, { color: Colors[colorScheme].tabIconDefault }]}>
-              {item.email}
-            </Text>
-          )}
         </View>
         <MaterialIcons name="chevron-right" size={20} color={Colors[colorScheme].tabIconDefault} />
       </Pressable>

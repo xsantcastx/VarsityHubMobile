@@ -35,6 +35,7 @@ import {
 import { buildAuthRedirectFingerprint, navigateWithAuthRedirect } from '@/utils/authTelemetry';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import Notifications from '@/utils/notifications';
+import { isOAuthLinkedUser } from '@/utils/oauthLinked';
 import {
   GUEST_HOME_ROUTE,
   isAuthEntryRouteSegment,
@@ -1082,7 +1083,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // This prevents unverified users from accessing protected features (e.g. creating posts)
       // that the server's requireVerified middleware would reject with 403
       const verifyRoutes = new Set(['verify', 'verify-email', 'verify-identity']);
-      if (user.email_verified !== true && !verifyRoutes.has(firstSegment)) {
+      // OAuth (Google/Apple) accounts are provider-verified — the server never
+      // issues them a code and self-heals email_verified on /me. Skip the verify
+      // gate so a stale/racing email_verified=false never strands them on the
+      // 6-digit screen with no code incoming. Mirrors isOAuthLinkedUser server-side.
+      if (
+        user.email_verified !== true &&
+        !isOAuthLinkedUser(user) &&
+        !verifyRoutes.has(firstSegment)
+      ) {
         if (__DEV__) console.log('[AuthProvider] User email not verified, redirecting to verify');
         if (lastRedirectRef.current !== '/verify') {
           redirectWithTelemetry('/verify', 'email_not_verified');

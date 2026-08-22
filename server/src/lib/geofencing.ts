@@ -42,7 +42,8 @@ export type PostingPermissionErrorCode =
   | 'TOO_FAR_FROM_VENUE'
   | 'LOCATION_REQUIRED'
   | 'LOCATION_SPOOF_SUSPECTED'
-  | 'EXCLUSIVE_POSTER_ONLY';
+  | 'EXCLUSIVE_POSTER_ONLY'
+  | 'POSTING_CLOSED';
 
 /**
  * Rejection shown to a user who opens a finished event page having never posted
@@ -54,6 +55,14 @@ export type PostingPermissionErrorCode =
  */
 export const EVENT_ENDED_NOT_PRESENT_REASON =
   "Sorry — you didn't post to this event while you were there, so you don't have access to post to it afterwards.";
+
+/**
+ * Shown when a platform admin or the event's own team staff has frozen uploads
+ * to this event page (posting_closed). Applies to posts AND stories, overriding
+ * every other grant for non-admins. Reversible — the same staff can reopen it.
+ */
+export const EVENT_POSTING_CLOSED_REASON =
+  'Posting to this event has been turned off by an organizer.';
 
 export type PostingPermissionResult = {
   allowed: boolean;
@@ -74,6 +83,7 @@ const postingEventSelect = {
   game_id: true,
   exclusive_poster_id: true,
   live_window_hours_after_start: true,
+  posting_closed: true,
 } as const;
 
 type PostingEvent = Awaited<ReturnType<typeof loadPostingEvent>>;
@@ -417,10 +427,7 @@ async function loadPostingEvent(eventId: string) {
  * single-user and blocks everyone else. Grant/revoke via
  * `server/scripts/set-event-designated-poster.ts`.
  */
-export async function isDesignatedEventPoster(
-  userId: string,
-  eventId: string
-): Promise<boolean> {
+export async function isDesignatedEventPoster(userId: string, eventId: string): Promise<boolean> {
   const row = await prisma.eventDesignatedPoster.findUnique({
     where: { event_id_user_id: { event_id: eventId, user_id: userId } },
     select: { user_id: true },
@@ -511,6 +518,13 @@ export async function verifyStoryPostingPermission(
 
   if (!event) {
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
+  }
+
+  // Moderation kill switch (posting_closed): a frozen event admits no non-admin
+  // story either. Checked before every grant so the freeze is absolute; admins
+  // bypass at the route level and never reach here. Mirrors the post path.
+  if (event.posting_closed) {
+    return { allowed: false, code: 'POSTING_CLOSED', reason: EVENT_POSTING_CLOSED_REASON };
   }
 
   // Additive designated-poster grant also covers stories — this closes the gap
@@ -617,6 +631,14 @@ export async function verifyEventPostingPermission(
 
   if (!event) {
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
+  }
+
+  // Moderation kill switch (posting_closed): an absolute freeze checked before
+  // every grant below — a frozen event admits NO non-admin upload, not even a
+  // designated/exclusive poster or an unlock-holder. Platform admins never
+  // reach here (they bypass at the route level), so this never blocks them.
+  if (event.posting_closed) {
+    return { allowed: false, code: 'POSTING_CLOSED', reason: EVENT_POSTING_CLOSED_REASON };
   }
 
   // Additive designated-poster grant (see isDesignatedEventPoster): allowlisted

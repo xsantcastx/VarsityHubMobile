@@ -6,6 +6,7 @@ import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
 import { toUserMessage } from '@/utils/toUserMessage';
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import { formatUserHandle } from '@/utils/userHandle';
 import { resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
 import { promptForSignIn } from '@/utils/requireSignIn';
@@ -1412,7 +1413,7 @@ export default function PostDetailScreen() {
               )}
               <View style={styles.authorDetails}>
                 <Text style={[styles.authorName, { color: Colors[colorScheme].text }]}>
-                  {postData.author?.display_name || postData.author?.username || 'Anonymous'}
+                  {formatUserHandle(postData.author)}
                 </Text>
                 <Text style={[styles.postTime, { color: Colors[colorScheme].tabIconDefault }]}>
                   {timeAgo(postData.created_at)}
@@ -1651,11 +1652,7 @@ export default function PostDetailScreen() {
                         <Text
                           style={[styles.commentAuthorName, { color: Colors[colorScheme].text }]}
                         >
-                          {c.author?.username
-                            ? `@${c.author.username}`
-                            : c.author?.display_name
-                              ? `@${c.author.display_name}`
-                              : 'User'}
+                          {formatUserHandle(c.author)}
                         </Text>
                         {c.created_at && (
                           <Text
@@ -1674,9 +1671,7 @@ export default function PostDetailScreen() {
                           onPress={() =>
                             setReplyingToComment({
                               id: String(c.id),
-                              authorName: c.author?.username
-                                ? `@${c.author.username}`
-                                : c.author?.display_name || 'User',
+                              authorName: formatUserHandle(c.author),
                             })
                           }
                         >

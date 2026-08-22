@@ -1,6 +1,7 @@
 import type { OnboardingState } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 import { isProceedingAsFanSnapshot } from './authState';
+import { isOAuthLinkedUser } from './oauthLinked';
 import {
   getCoachAccessState,
   getCoachOrganizationId,
@@ -39,6 +40,9 @@ export type RoutingUserLike = CoachUserLike & {
   email_verified?: boolean | null;
   onboarding_completed?: boolean | null;
   paid_by_owner?: boolean;
+  google_id?: string | null;
+  apple_id?: string | null;
+  linked_providers?: { google?: boolean; apple?: boolean } | null;
   preferences?: (NonNullable<CoachUserLike['preferences']> & RoutePreference) | null;
 };
 
@@ -219,7 +223,10 @@ export function getPostAuthRouteDecision(
     return { kind: 'pending_verification', route: POST_AUTH_ROUTE_BY_KIND.pending_verification };
   }
 
-  if (user.email_verified !== true) {
+  // OAuth (Google/Apple) accounts are verified at the identity provider; the
+  // server never sends them a code and self-heals email_verified on /me. Never
+  // strand such a user on the 6-digit screen on a stale/racing false read.
+  if (user.email_verified !== true && !isOAuthLinkedUser(user)) {
     return {
       kind: 'email_verification_required',
       route: POST_AUTH_ROUTE_BY_KIND.email_verification_required,
