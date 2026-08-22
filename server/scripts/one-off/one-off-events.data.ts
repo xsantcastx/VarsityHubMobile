@@ -464,4 +464,27 @@ export const EVENTS: OneOffEventDef[] = [
       isNeutral: false,
     },
   },
+  // ── MLS NEXT Pro — Carolina Core FC vs FC Cincinnati 2 (created 2026-08-22) ──
+  // Standalone preview of an MLS NEXT Pro fixture ahead of the automated
+  // rolling sync (PR #266). Once that ships, NEXT Pro games arrive as
+  // ProTeam-linked Events on the 14-day window — this one-off is independent.
+  {
+    title: 'Carolina Core FC vs FC Cincinnati 2',
+    description:
+      'MLS NEXT Pro regular-season match at Truist Point in High Point, NC. Carolina Core FC host FC Cincinnati 2.',
+    eventType: 'game',
+    dateUtc: '2026-08-22T23:30:00.000Z', // Sat Aug 22, 7:30 PM EDT
+    location: 'Truist Point, 301 N Elm St, High Point, NC 27262',
+    lat: 35.9596,
+    lng: -80.0113,
+    bannerUrl:
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/TruistParkHighPoint1.jpg/1280px-TruistParkHighPoint1.jpg',
+    contactInfo: 'customerservice@varsityhub.app',
+    linkedLeague: 'MLS NEXT Pro',
+    game: {
+      homeTeam: 'Carolina Core FC',
+      awayTeam: 'FC Cincinnati 2',
+      isNeutral: false,
+    },
+  },
 ];
