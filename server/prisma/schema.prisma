@@ -737,6 +737,12 @@ model Event {
   // platform admin or a staff member who manages one of the event's own teams.
   posting_closed   Boolean                 @default(false)
 
+  // Empty-event cleanup (2026-08): set by the cleanup-empty-events cron when an
+  // event is past its full 7-day upload window AND never received a post — a
+  // reversible soft-archive (null = live). Archived events drop out of the
+  // public /events list (map, feed, date-lens); nulling this restores them.
+  archived_at      DateTime?
+
   game             Game?                   @relation(fields: [game_id], references: [id], onDelete: SetNull)
   creator          User?                   @relation(fields: [creator_id], references: [id], onDelete: SetNull)
   rsvps            EventRsvp[]
@@ -757,6 +763,7 @@ model Event {
   @@index([exclusive_poster_id])
   @@index([pro_home_team_id, date])
   @@index([pro_away_team_id, date])
+  @@index([archived_at])
 }
 
 // Durable "was there" ledger for location-based event posting (owner rule,

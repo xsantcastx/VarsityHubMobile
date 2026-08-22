@@ -140,6 +140,16 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       console.log(`[Scheduler] Cleaned up ${result.count} old notifications`);
     },
   },
+  {
+    name: 'cleanup-empty-events',
+    cron: '30 3 * * *', // Every day at 3:30am (just after notifications cleanup)
+    description: 'Soft-archive past-window events that never received a post',
+    handler: async () => {
+      const { archiveEmptyExpiredEvents } = await import('../lib/eventCleanup.js');
+      const count = await archiveEmptyExpiredEvents();
+      console.log(`[Scheduler] Soft-archived ${count} empty past-window events`);
+    },
+  },
   // Stories persist forever — no cleanup job. BullMQ rejects the "Feb 31" pattern
   // that used to park this as a disabled stub, so the entry is removed entirely.
   {

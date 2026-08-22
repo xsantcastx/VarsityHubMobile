@@ -436,6 +436,11 @@ eventsRouter.get(
     const where: any = {};
     if (status) where.status = status;
     else if (!includeCancelled) where.status = { not: 'cancelled' }; // Exclude cancelled by default; ?include_cancelled=true for admin views
+    // Soft-archived empty events (cleanup-empty-events cron) drop out of every
+    // public list surface — map, feed, and the date-lens (from/to) browse.
+    // `?include_archived=true` re-includes them for admin/team retrospection.
+    const includeArchived = String(req.query.include_archived || '').toLowerCase() === 'true';
+    if (!includeArchived) where.archived_at = null;
     // Only admins can filter by approval_status — public users always see approved only
     const isAdminUser = (req as any).user?.id ? await getIsAdmin(req as any) : false;
     if (approvalStatus && isAdminUser) where.approval_status = approvalStatus;
