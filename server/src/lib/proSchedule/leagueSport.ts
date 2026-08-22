@@ -13,6 +13,7 @@ export const PRO_LEAGUE_SPORT: Record<ProLeague, string> = {
   wnba: 'basketball',
   mlb: 'baseball',
   wwe: 'wrestling',
+  mls_next_pro: 'soccer',
 };
 
 /** Sport slug for a pro league, or null when the league is absent/unknown. */

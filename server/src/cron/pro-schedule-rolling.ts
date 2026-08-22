@@ -30,17 +30,18 @@ export async function runRollingScheduleIngest(opts: { apply?: boolean } = {}): 
     return;
   }
 
-  const windowDays = getProScheduleWindowDays();
   const from = new Date();
-  const to = new Date(from.getTime() + windowDays * 24 * 60 * 60 * 1000);
   console.log(
     `[pro-schedule-rolling] ${apply ? 'APPLY' : 'DRY RUN'} via ${adapter.name}, ` +
-      `${adapter.leagues.join(',')} over ${windowDays}d ` +
-      `(${from.toISOString()} → ${to.toISOString()})`
+      `${adapter.leagues.join(',')} (per-league window, from ${from.toISOString()})`
   );
 
   let totalFailures = 0;
   for (const league of adapter.leagues) {
+    // Window is resolved per league, so MLS NEXT Pro can roll on 14 days while
+    // the others keep 45 — same `from`, a league-specific `to`.
+    const windowDays = getProScheduleWindowDays(process.env, undefined, league);
+    const to = new Date(from.getTime() + windowDays * 24 * 60 * 60 * 1000);
     try {
       const stats = await ingestLeague(adapter, league, from, to, { dryRun: !apply });
       totalFailures += stats.failures.length;
