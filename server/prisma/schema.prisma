@@ -728,6 +728,15 @@ model Event {
   // 1 hour before start.
   live_window_hours_after_start Int?
 
+  // Moderation kill switch (2026-08): when true, ALL non-admin uploads (posts
+  // AND stories) to this event are refused regardless of the geofence, the
+  // 7-day grace window, or any exclusive/designated-poster grant — a reversible
+  // freeze for an event whose page is being abused. Enforced server-side in
+  // geofencing.ts (verifyEventPostingPermission / verifyStoryPostingPermission);
+  // platform admins retain their existing route-level bypass. Settable by a
+  // platform admin or a staff member who manages one of the event's own teams.
+  posting_closed   Boolean                 @default(false)
+
   game             Game?                   @relation(fields: [game_id], references: [id], onDelete: SetNull)
   creator          User?                   @relation(fields: [creator_id], references: [id], onDelete: SetNull)
   rsvps            EventRsvp[]

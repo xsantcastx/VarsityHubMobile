@@ -424,8 +424,7 @@ eventsRouter.get(
     const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
     const dateFrom = typeof req.query.from === 'string' ? new Date(req.query.from) : null;
     const dateTo = typeof req.query.to === 'string' ? new Date(req.query.to) : null;
-    const proOnly =
-      String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
+    const proOnly = String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
     const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
     const proLeagueRaw =
       typeof req.query.pro_league === 'string' ? req.query.pro_league.trim().toLowerCase() : '';
@@ -1559,6 +1558,71 @@ eventsRouter.put(
       ...serializeEvent(result.event!),
       message: 'Event approved successfully!',
     });
+  })
+);
+
+// Posting kill switch — freeze / reopen all non-admin uploads (posts AND
+// stories) to an event page without deleting it. Enforced in geofencing.ts via
+// the event's posting_closed flag. Authorization mirrors event management
+// (can_edit above): a PLATFORM ADMIN, or a staff member who manages one of the
+// event's OWN teams (team_id, or the linked game's home/away team). No other
+// user can touch it, so a coach can only freeze their own team's events.
+const setPostingClosedSchema = z.object({ closed: z.boolean() });
+eventsRouter.post(
+  '/:id/posting',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
+    const id = String(req.params.id);
+
+    const parsed = setPostingClosedSchema.safeParse(req.body);
+    if (!parsed.success) return sendError(res, 400, 'Body must be { closed: boolean }');
+    const { closed } = parsed.data;
+
+    const event = await prisma.event.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        team_id: true,
+        posting_closed: true,
+        game: { select: { home_team_id: true, away_team_id: true } },
+      },
+    });
+    if (!event) return sendError(res, 404, 'Event not found');
+
+    // auth → ownership: platform admin OR staff of one of THIS event's teams.
+    const isAdmin = await getIsAdmin(req as any);
+    let canManage = isAdmin;
+    if (!canManage && event.team_id) {
+      canManage = await canManageTeamScoped(req.user.id, event.team_id);
+    }
+    if (!canManage && (event.game?.home_team_id || event.game?.away_team_id)) {
+      const teamIds = [event.game.home_team_id, event.game.away_team_id].filter(
+        Boolean
+      ) as string[];
+      canManage = await canManageAnyTeam(req.user.id, teamIds);
+    }
+    if (!canManage) {
+      return sendError(res, 403, 'You can only change posting for your own team’s events');
+    }
+
+    const updated = await prisma.event.update({
+      where: { id },
+      data: { posting_closed: closed },
+      select: { id: true, posting_closed: true },
+    });
+
+    // Auditable: actor / target / action land in AdminActivityLog.
+    await logAdminActivityFromReq(
+      req,
+      closed ? 'EVENT_POSTING_CLOSED' : 'EVENT_POSTING_REOPENED',
+      'event',
+      id,
+      `${closed ? 'Froze' : 'Reopened'} posting for event: ${event.title || id}`
+    ).catch(err => console.error('[events] AdminActivityLog write failed:', err));
+
+    return res.json({ id: updated.id, posting_closed: updated.posting_closed });
   })
 );
 
