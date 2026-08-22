@@ -39,33 +39,20 @@ import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolveMediaType } from '@/utils/media';
 import { getCoachAccessState, getCoachFinishSetupRoute } from '@/utils/roleChecks';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
+import { formatUserHandle, isInternalId } from '@/utils/userHandle';
 import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 
-// Guard against internal IDs (cuid / UUID) being leaked as display text
-const isInternalId = (s: string) =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || // UUID
-  /^c[0-9a-z]{20,}$/.test(s) || // CUID v1
-  (/^[0-9a-z]{8,}$/.test(s) && !/[aeiou]{2,}/i.test(s)); // Random ID (no vowel pairs = not a real name)
+// Identity everywhere is the @username (product rule) — routed through the one
+// canonical helper (utils/userHandle) so the id-guard can't diverge again. The
+// old local guard used a vowel-pair heuristic that misclassified real handles
+// like "jfranc15" / "johnsmith" as ids and hid them as "@user".
+const safeDisplayName = (user: any): string => formatUserHandle(user, { at: false });
 
-const safeDisplayName = (user: any): string => {
-  // Prefer username as the primary identifier (what the user chose during signup)
-  const uname = user?.username;
-  if (uname && !isInternalId(uname)) return uname;
-  const name = user?.display_name;
-  if (name && !isInternalId(name)) return name;
-  return 'User';
-};
-
-const safeUsername = (user: any): string | null => {
-  // Show @username as subtitle only when display_name (not username) is the primary text
-  const uname = user?.username;
-  const hasRealUsername = uname && !isInternalId(uname);
-  // Username is already shown as the main display name — no need to repeat it
-  if (hasRealUsername) return null;
-  // display_name is shown as main, but no real username to show as subtitle
-  return null;
-};
+const safeUsername = (_user: any): string | null =>
+  // Username is already the primary display text (safeDisplayName) — never a
+  // second, repeated subtitle line.
+  null;
 
 type GameItem = {
   id: string;

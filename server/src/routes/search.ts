@@ -358,16 +358,21 @@ searchRouter.get(
       return aExact - bExact;
     });
 
-    // Filter out system-generated usernames (UUID, CUID, random IDs) so only
-    // user-created usernames are returned to the client
+    // Filter out raw internal ids (UUID / CUID) stored verbatim as a username so
+    // only real, user-created handles are returned to the client. Valid
+    // usernames are [a-z0-9_.], 3–20 chars, so a hyphenated UUID or a 20+ char
+    // CUID can never be one — this only guards legacy id-as-username rows.
+    //
+    // The old "8+ lowercase chars, no consecutive vowel pair" rule was REMOVED:
+    // it misclassified ordinary handles like "jfranc15" / "johnsmith" as ids and
+    // hid real users from search, while ironically passing actual id-shaped
+    // handles (e.g. "user_ab12cd"). Do not reintroduce it.
     const isSystemId = (s: string | null): boolean => {
       if (!s) return false;
       // UUID pattern
       if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return true;
-      // CUID v1 (starts with c, 20+ alphanumeric)
+      // CUID (starts with c, 20+ alphanumeric)
       if (/^c[0-9a-z]{20,}$/.test(s)) return true;
-      // CUID v2 / nanoid / random ID — 8+ chars, all lowercase alphanumeric, no spaces or special chars
-      if (/^[0-9a-z]{8,}$/.test(s) && !/[aeiou]{2,}/i.test(s)) return true;
       return false;
     };
 
