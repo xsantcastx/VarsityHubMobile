@@ -8,6 +8,7 @@ import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { safeGoBack } from '@/utils/navigation';
 import { shouldShowEventOnMap } from '@/utils/mapEventFilters';
 import SportFilterBar from '@/components/SportFilterBar';
+import MapDateControl from '@/components/MapDateControl';
 import { normalizeSportSlug } from '@/constants/sports';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -31,10 +32,31 @@ function GameMapScreen() {
   // feed missing from the map") was the map's hard radius filter — All removes
   // it via the server's show_all flag.
   const [scope, setScope] = useState<'all' | 'nearby'>('all');
+  // Date lens. null = the live map (today/upcoming), the default. A selected
+  // local-midnight Date browses that single day's events/games — the way back
+  // to a past event a user attended so they can still post a recap inside its
+  // server-enforced 7-day upload window. The map otherwise drops past pins.
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const loadGames = useCallback(async () => {
     setLoading(true);
     try {
+      // When a day is selected, query that whole local day [00:00, next 00:00)
+      // and let past pins through; otherwise stay on the live (from=now) map.
+      const dayWindow = selectedDate
+        ? {
+            startIso: selectedDate.toISOString(),
+            endIso: new Date(
+              selectedDate.getFullYear(),
+              selectedDate.getMonth(),
+              selectedDate.getDate() + 1
+            ).toISOString(),
+          }
+        : null;
+      // A day-scoped query already bounds results to that day server-side, so
+      // the client "upcoming-only" gate must not re-drop them for being past.
+      const passesDateGate = (dateValue: string | null | undefined) =>
+        dayWindow ? true : shouldShowEventOnMap(dateValue);
       // Nearby mode needs the viewer's coordinates; All mode never filters by
       // location, so it skips the (up-to-6s) GPS wait entirely.
       let lat = params.lat ? parseFloat(params.lat) : null;
@@ -73,7 +95,14 @@ function GameMapScreen() {
       // created_at-desc default could return 100 arbitrary/old rows that the
       // client then filters away — starving All mode of pins.
       eventsQuery.set('sort', 'date');
-      eventsQuery.set('from', new Date().toISOString());
+      if (dayWindow) {
+        // Explicit from/to makes the events route return that day's rows,
+        // bypassing its default "hide anything older than 3 days" archive cutoff.
+        eventsQuery.set('from', dayWindow.startIso);
+        eventsQuery.set('to', dayWindow.endIso);
+      } else {
+        eventsQuery.set('from', new Date().toISOString());
+      }
       if (useNearby) {
         eventsQuery.set('lat', String(lat));
         eventsQuery.set('lng', String(lng));
@@ -84,13 +113,15 @@ function GameMapScreen() {
 
       const [gamesResponse, eventsResponse] = await Promise.all([
         // v1.0.2: mapView restricts to games this week — past games drop off the map in real time.
-        Game.list(
-          'date',
+        Game.list('date', {
           // useNearby guarantees lat/lng are non-null finite numbers (checked above).
-          useNearby
-            ? { lat: lat!, lng: lng!, limit: 50, mapView: true }
-            : { limit: 100, mapView: true }
-        ).catch((error: any) => {
+          ...(useNearby ? { lat: lat!, lng: lng!, limit: 50 } : { limit: 100 }),
+          // A selected day scopes games to that day (past days included); the
+          // live map keeps mapView's "this week only" behavior.
+          ...(dayWindow
+            ? { dateFrom: dayWindow.startIso, dateTo: dayWindow.endIso }
+            : { mapView: true }),
+        }).catch((error: any) => {
           if (__DEV__) console.error('[game-map] Failed to fetch games:', error);
           return { items: [] };
         }),
@@ -139,7 +170,7 @@ function GameMapScreen() {
       // a tappable pin that routed to the dead-end "This event has ended" page.
       const gameMarkers: EventMapData[] = gamesList
         .filter(hasValidCoords)
-        .filter((g: any) => shouldShowEventOnMap(g.date))
+        .filter((g: any) => passesDateGate(g.date))
         .map((game: any) => {
           const coords = resolveCoords(game)!;
           return {
@@ -161,8 +192,9 @@ function GameMapScreen() {
         // A game-linked event duplicates its game's pin — show the fixture once.
         .filter((e: any) => !e.game_id || !gameMarkerIds.has(String(e.game_id)))
         // Feed/list views intentionally keep recent past events visible for recap.
-        // The map should not: past events should drop off immediately.
-        .filter((e: any) => shouldShowEventOnMap(e.date))
+        // The live map should not — but a selected day deliberately shows its
+        // past events (passesDateGate lets them through only in date mode).
+        .filter((e: any) => passesDateGate(e.date))
         .filter(hasValidCoords)
         .map((event: any) => {
           const coords = resolveCoords(event)!;
@@ -201,7 +233,7 @@ function GameMapScreen() {
     } finally {
       setLoading(false);
     }
-  }, [params.lat, params.lng, scope]);
+  }, [params.lat, params.lng, scope, selectedDate]);
 
   useEffect(() => {
     void loadGames();
@@ -301,6 +333,14 @@ function GameMapScreen() {
           </View>
         )}
 
+        {/* Date lens — top-right, on the scope-toggle row. Browse a past day to
+            find an event you attended and post a recap inside its 7-day window. */}
+        {!error && (
+          <View style={styles.dateControl} pointerEvents="box-none">
+            <MapDateControl value={selectedDate} onChange={setSelectedDate} />
+          </View>
+        )}
+
         {/* Discreet sport filter — sits just below the count-badge row. */}
         {!loading && !error && presentSports.length > 1 && (
           <View style={styles.sportFilter} pointerEvents="box-none">
@@ -369,6 +409,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
+  },
+  // Top-right, same row as the centered scope toggle and left count pill.
+  dateControl: {
+    position: 'absolute',
+    top: 68,
+    right: 12,
+    alignItems: 'flex-end',
   },
   scopeToggleTrack: {
     flexDirection: 'row',

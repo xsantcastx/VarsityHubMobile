@@ -1243,10 +1243,10 @@ gamesRouter.get(
         });
       }
 
-      if (
-        (dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) ||
-        (dateToRaw && !Number.isNaN(dateToRaw.getTime()))
-      ) {
+      const hasExplicitDateWindow =
+        (dateFromRaw != null && !Number.isNaN(dateFromRaw.getTime())) ||
+        (dateToRaw != null && !Number.isNaN(dateToRaw.getTime()));
+      if (hasExplicitDateWindow) {
         whereClause.date = {};
         if (dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) {
           whereClause.date.gte = dateFromRaw;
@@ -1259,7 +1259,15 @@ gamesRouter.get(
       // v1.0.2: map_view=true restricts to "games this week" (today through +7 days).
       // Test note: once a game is in the past it should drop off the map. Map should only
       // reflect games the week of in real time. This filter is opt-in so list views still work as before.
-      const isMapView = req.query.map_view === 'true' || req.query.map_view === '1';
+      //
+      // Map date lens (2026-08): when the caller supplies an explicit from/to
+      // window (the map's single-day date picker, used to find a past event
+      // that is still inside its 7-day upload grace window), the caller's date
+      // window wins — the "this week only" clause must NOT re-hide the past day
+      // the user deliberately selected. Without a from/to window, map_view keeps
+      // its original current-week behavior untouched.
+      const isMapView =
+        (req.query.map_view === 'true' || req.query.map_view === '1') && !hasExplicitDateWindow;
       if (isMapView) {
         const now = new Date();
         const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
