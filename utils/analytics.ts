@@ -182,6 +182,10 @@ export const ANALYTICS_EVENTS = {
   POST_UPVOTED: 'post_upvoted',
   COMMENT_CREATED: 'comment_created',
   EVENT_PAGE_VIEWED: 'event_page_viewed',
+  // Map date lens (2026-08): what days people browse for past events, and
+  // whether that browse converts to opening an event / posting a recap.
+  MAP_DATE_SELECTED: 'map_date_selected',
+  MAP_DATE_CLEARED: 'map_date_cleared',
   STORY_ADDED: 'story_added',
   POLL_VOTED: 'poll_voted',
   AD_SUBMITTED: 'ad_submitted',

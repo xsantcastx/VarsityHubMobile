@@ -226,7 +226,12 @@ const GameDetailsScreen = () => {
   // Define isTestEnv at the top so all hooks can use it
   const isTestEnv =
     typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
-  const { id, eventId } = useLocalSearchParams<{ id: string; teamId?: string; eventId?: string }>();
+  const { id, eventId, from } = useLocalSearchParams<{
+    id: string;
+    teamId?: string;
+    eventId?: string;
+    from?: string;
+  }>();
   const router = useRouter();
   const { user: authUser, isAdmin: isAdminUser } = useAuth();
   const insets = useSafeAreaInsets();
@@ -1629,9 +1634,16 @@ const GameDetailsScreen = () => {
     const task = InteractionManager.runAfterInteractions(() => {
       void load();
     });
-    analytics.track(ANALYTICS_EVENTS.EVENT_PAGE_VIEWED, { gameId: id, eventId });
+    // `from` attributes the view to its entry point (e.g. 'map_date' when opened
+    // from the map's past-day browse) so the date-lens → view → recap funnel is
+    // measurable in PostHog. Omitted when absent to keep the property clean.
+    analytics.track(ANALYTICS_EVENTS.EVENT_PAGE_VIEWED, {
+      gameId: id,
+      eventId,
+      ...(from ? { from } : {}),
+    });
     return () => task.cancel();
-  }, [eventId, id, load]);
+  }, [eventId, id, from, load]);
 
   // Reset per-event UI state immediately when navigating to a different event
   useEffect(() => {

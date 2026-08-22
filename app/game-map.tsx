@@ -10,7 +10,8 @@ import { shouldShowEventOnMap } from '@/utils/mapEventFilters';
 import SportFilterBar from '@/components/SportFilterBar';
 import MapDateControl from '@/components/MapDateControl';
 import { normalizeSportSlug } from '@/constants/sports';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 // SafeAreaView removed — native header handles safe area
 // @ts-ignore
@@ -37,6 +38,21 @@ function GameMapScreen() {
   // to a past event a user attended so they can still post a recap inside its
   // server-enforced 7-day upload window. The map otherwise drops past pins.
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // Set true when the user actively picks a day, so loadGames fires ONE
+  // map_date_selected (with the day's results_count) for that pick — not on the
+  // reloads that scope changes also trigger.
+  const pendingDateTrack = useRef(false);
+
+  // Wraps setSelectedDate to emit the funnel's first step. Selection fires from
+  // loadGames (needs results_count); clearing fires here (nothing to count).
+  const handleDateChange = useCallback((date: Date | null) => {
+    if (date) {
+      pendingDateTrack.current = true;
+    } else {
+      analytics.track(ANALYTICS_EVENTS.MAP_DATE_CLEARED);
+    }
+    setSelectedDate(date);
+  }, []);
 
   const loadGames = useCallback(async () => {
     setLoading(true);
@@ -214,6 +230,26 @@ function GameMapScreen() {
       const allMarkers = [...gameMarkers, ...eventMarkers];
       setEvents(allMarkers);
 
+      // Funnel step 1 — fire once per deliberate day pick, now that we know how
+      // many pins that day yielded. results_count === 0 is the key signal: a
+      // day people wanted but that has no content (a supply gap).
+      if (pendingDateTrack.current && selectedDate) {
+        pendingDateTrack.current = false;
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const daysAgo = Math.round(
+          (startOfToday.getTime() - selectedDate.getTime()) / (24 * 60 * 60 * 1000)
+        );
+        analytics.track(ANALYTICS_EVENTS.MAP_DATE_SELECTED, {
+          days_ago: daysAgo,
+          is_past: daysAgo > 0,
+          within_upload_window: daysAgo >= 0 && daysAgo <= 7,
+          weekday: selectedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase(),
+          scope,
+          results_count: allMarkers.length,
+        });
+      }
+
       // Log for debugging
       const totalItems = gamesList.length + eventsList.length;
       if (allMarkers.length === 0 && totalItems > 0) {
@@ -240,11 +276,23 @@ function GameMapScreen() {
   }, [loadGames]);
 
   const handleEventPress = (eventId: string, eventType?: 'game' | 'event' | 'post') => {
+    // Funnel step 2 tag — only when opened from a browsed PAST day, so the
+    // event-page view (and any recap that follows) is attributable to the date
+    // lens. Live-map opens stay untagged. buildRouteParams doesn't gate in-app
+    // pushes, so this rides through as a plain param.
+    const fromDateLens = selectedDate ? { from: 'map_date' } : {};
     if (eventType === 'event') {
-      router.push(buildEventDetailRoute(eventId));
+      const route = buildEventDetailRoute(eventId);
+      if (selectedDate && typeof route === 'object') {
+        (route as any).params = { ...(route as any).params, ...fromDateLens };
+      }
+      router.push(route);
     } else {
       // Navigate to game detail page for games (or posts)
-      router.push({ pathname: '/game/[id]', params: { id: String(eventId) } });
+      router.push({
+        pathname: '/game/[id]',
+        params: { id: String(eventId), ...fromDateLens },
+      });
     }
   };
 
@@ -337,7 +385,7 @@ function GameMapScreen() {
             find an event you attended and post a recap inside its 7-day window. */}
         {!error && (
           <View style={styles.dateControl} pointerEvents="box-none">
-            <MapDateControl value={selectedDate} onChange={setSelectedDate} />
+            <MapDateControl value={selectedDate} onChange={handleDateChange} />
           </View>
         )}
 
