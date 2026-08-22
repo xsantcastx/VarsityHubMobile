@@ -2473,6 +2473,11 @@ gamesRouter.get(
         away_score: gameData.away_score ?? null,
         winner: gameData.winner ?? null,
         can_edit_result: canEditResult,
+        // Posting kill switch: current freeze state + whether THIS viewer may
+        // toggle it. can_manage_posting reuses the event-management boundary
+        // (own-team staff / creator / admin) already computed as canEditResult.
+        posting_closed: Boolean(event?.posting_closed),
+        can_manage_posting: canEditResult,
       });
     } catch (err) {
       console.error('[games] summary error:', err);

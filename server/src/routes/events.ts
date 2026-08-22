@@ -978,6 +978,10 @@ eventsRouter.get(
         canManage = await canManageAnyTeam(req.user.id, teamIds);
       }
       (payload as any).can_edit = canManage;
+      // Posting kill switch: current freeze state + whether this viewer may
+      // toggle it (same boundary as can_edit — own-team staff / creator / admin).
+      (payload as any).posting_closed = Boolean((event as any).posting_closed);
+      (payload as any).can_manage_posting = canManage;
     }
     return res.json(payload);
   })
