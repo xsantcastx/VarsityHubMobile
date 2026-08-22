@@ -552,6 +552,29 @@ eventsRouter.get(
       where.date = { gte: archiveCutoff };
     }
 
+    // Map display horizon (owner rule, 2026-08): on the map, PRO fixtures
+    // (pro_home/away_team linked — the auto-synced league schedules) are capped
+    // to the next 14 days so seeded pro games don't flood the map weeks out.
+    // Team/org events stay uncapped — a coach's full season shows. Live map only;
+    // a deliberately-picked past day (dateTo/from-to window) overrides and shows
+    // everything on that day.
+    const isMapView =
+      (req.query.map_view === 'true' || req.query.map_view === '1') &&
+      !(dateTo && !Number.isNaN(dateTo.getTime()));
+    if (isMapView) {
+      const twoWeeksFromNow = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { pro_home_team_id: null, pro_away_team_id: null },
+          {
+            OR: [{ pro_home_team_id: { not: null } }, { pro_away_team_id: { not: null } }],
+            date: { lte: twoWeeksFromNow },
+          },
+        ],
+      });
+    }
+
     const orderBy =
       sort === 'date'
         ? { date: 'asc' as const }

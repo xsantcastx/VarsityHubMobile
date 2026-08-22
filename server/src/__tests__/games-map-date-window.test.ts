@@ -169,20 +169,34 @@ describe('GET /games — map_view + explicit date window', () => {
     }
   });
 
-  it('still forces current-week-only when map_view has NO date window', async () => {
+  it('map_view (no date window): team games full season, teamless capped at ~14 days', async () => {
     const before = Date.now();
     await request(app).get('/games?sort=date&map_view=true').expect(200);
     const after = Date.now();
 
     const where = lastWhere();
-    // No top-level explicit window...
     expect(where.date).toBeUndefined();
-    // ...instead a clause forces date >= now (the this-week map behavior).
-    const constraints = collectDateConstraints(where);
-    const forcesNow = constraints.some(
-      d =>
-        d.gte != null && new Date(d.gte).getTime() >= before && new Date(d.gte).getTime() <= after
+
+    // The map_view clause is the AND branch with the team-vs-teamless OR.
+    const mapClause = (where.AND || []).find(
+      (c: any) =>
+        Array.isArray(c.OR) &&
+        c.OR.some((b: any) => b.home_team_id === null && b.away_team_id === null)
     );
-    expect(forcesNow).toBe(true);
+    expect(mapClause).toBeDefined();
+    const teamBranch = mapClause.OR.find((b: any) => Array.isArray(b.OR)); // real team games
+    const teamlessBranch = mapClause.OR.find(
+      (b: any) => b.home_team_id === null && b.away_team_id === null
+    );
+
+    // Team games: from now, and NO upper ceiling (full season).
+    expect(new Date(teamBranch.date.gte).getTime()).toBeGreaterThanOrEqual(before);
+    expect(new Date(teamBranch.date.gte).getTime()).toBeLessThanOrEqual(after);
+    expect(teamBranch.date.lte).toBeUndefined();
+
+    // Teamless (marquee / pro one-off): capped ~14 days out.
+    const days = (teamlessBranch.date.lte.getTime() - after) / (24 * 60 * 60 * 1000);
+    expect(days).toBeGreaterThan(13);
+    expect(days).toBeLessThan(15);
   });
 });

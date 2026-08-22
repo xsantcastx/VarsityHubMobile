@@ -1270,22 +1270,25 @@ gamesRouter.get(
         (req.query.map_view === 'true' || req.query.map_view === '1') && !hasExplicitDateWindow;
       if (isMapView) {
         const now = new Date();
-        const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
         const liveLookback = new Date(now.getTime() - 18 * 60 * 60 * 1000);
-        // Regular games are current-week only — a game drops off the map once
-        // it's in the past (by design). Marquee/teamless events (festivals) also
-        // stay pinned during their live window (started within 18h), so an
-        // all-day fest happening right now doesn't slide off the map at its
-        // start time. Matched on null team columns so it holds regardless of
-        // whether the map query flags teamless.
+        // Owner rule (2026-08): real TEAM games (either team id set) show the
+        // FULL SEASON on the map — a coach/org can create a whole season at once
+        // and see all of it; only past games drop off (gte now). Teamless
+        // marquee / pro one-off games (both team ids null) stay capped to the
+        // 14-day pro horizon so seeded pro fixtures don't flood the map weeks
+        // out, and stay pinned through their live window (started within 18h).
         if (!whereClause.AND) whereClause.AND = [];
         whereClause.AND.push({
           OR: [
-            { date: { gte: now, lte: weekFromNow } },
+            {
+              OR: [{ home_team_id: { not: null } }, { away_team_id: { not: null } }],
+              date: { gte: now },
+            },
             {
               home_team_id: null,
               away_team_id: null,
-              date: { gte: liveLookback, lte: weekFromNow },
+              date: { gte: liveLookback, lte: twoWeeksFromNow },
             },
           ],
         });

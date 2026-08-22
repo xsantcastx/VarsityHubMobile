@@ -118,6 +118,10 @@ function GameMapScreen() {
         eventsQuery.set('to', dayWindow.endIso);
       } else {
         eventsQuery.set('from', new Date().toISOString());
+        // Live map: apply the map horizon — pro fixtures capped to 14 days,
+        // team/org events uncapped (full season). Omitted in date-lens mode so a
+        // picked past day shows everything on it.
+        eventsQuery.set('map_view', 'true');
       }
       if (useNearby) {
         eventsQuery.set('lat', String(lat));

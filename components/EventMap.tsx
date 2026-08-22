@@ -13,7 +13,6 @@ import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -203,33 +202,6 @@ export default function EventMap({
     return () => clearTimeout(timer);
   }, [eventsWithCoordinates, dataLoaded, fitToEvents, loading]);
 
-  // Center map on user location
-  const centerOnUser = () => {
-    if (!userLocation) {
-      Alert.alert('Location Not Available', 'Unable to get your current location');
-      return;
-    }
-
-    captureBreadcrumb('Map centered on user', 'map.navigation', {
-      has_user_location: true,
-    });
-    isUserInteractionRef.current = true;
-    mapRef.current?.animateToRegion(
-      {
-        latitude: userLocation.coords.latitude,
-        longitude: userLocation.coords.longitude,
-        latitudeDelta: 0.1,
-        longitudeDelta: 0.1,
-      },
-      1000
-    );
-
-    // Reset flag after animation completes
-    setTimeout(() => {
-      isUserInteractionRef.current = false;
-    }, 1100);
-  };
-
   // Get marker color based on event type
   const getMarkerColor = (type?: string) => {
     switch (type) {
@@ -355,15 +327,8 @@ export default function EventMap({
           </TouchableOpacity>
         )}
 
-        {/* Center on User Button */}
-        {showUserLocation && userLocation && (
-          <TouchableOpacity
-            style={[styles.controlButton, { backgroundColor: Colors[colorScheme].background }]}
-            onPress={centerOnUser}
-          >
-            <Ionicons name="navigate" size={24} color={Colors[colorScheme].tint} />
-          </TouchableOpacity>
-        )}
+        {/* Center-on-user button removed (2026-08): redundant with the All/Nearby
+            toggle, which already scopes the map to the viewer's area. */}
 
         {/* Refresh Button — re-runs the parent's data load so games added mid-event show up */}
         {onRefresh && (
