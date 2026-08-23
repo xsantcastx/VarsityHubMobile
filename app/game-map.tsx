@@ -110,9 +110,11 @@ function GameMapScreen() {
       const hasValidCoords = (item: any): boolean => resolveCoords(item) !== null;
 
       // Transform games to EventMapData format.
-      // v1.0.3: past games must drop off the map immediately, same as events.
-      // Previously only events were date-filtered, so a past game remained as
-      // a tappable pin that routed to the dead-end "This event has ended" page.
+      // v1.0.3: past games are date-filtered, same as events, so a past game
+      // never remains as a tappable pin routing to the dead-end "This event
+      // has ended" page. Games/events stay visible for a 7-day backward grace
+      // window after they happen (matching the post-grace posting window),
+      // then drop off — see shouldShowEventOnMap.
       const gameMarkers: EventMapData[] = gamesList
         .filter(hasValidCoords)
         .filter((g: any) => shouldShowEventOnMap(g.date))
@@ -137,7 +139,9 @@ function GameMapScreen() {
         // A game-linked event duplicates its game's pin — show the fixture once.
         .filter((e: any) => !e.game_id || !gameMarkerIds.has(String(e.game_id)))
         // Feed/list views intentionally keep recent past events visible for recap.
-        // The map should not: past events should drop off immediately.
+        // The map matches that: events stay visible for a 7-day backward grace
+        // window after they happen (matching the post-grace posting window),
+        // then drop off — see shouldShowEventOnMap.
         .filter((e: any) => shouldShowEventOnMap(e.date))
         .filter(hasValidCoords)
         .map((event: any) => {

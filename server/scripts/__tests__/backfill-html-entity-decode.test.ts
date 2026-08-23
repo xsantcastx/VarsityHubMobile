@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { needsEntityDecode, decodeCorruptedValue } from '../backfill-html-entity-decode.js';
+import { needsEntityDecode, decodeCorruptedValue, decodeUntilStable } from '../backfill-html-entity-decode.js';
 
 describe('needsEntityDecode', () => {
   it('flags values containing a re-escaped entity', () => {
@@ -25,5 +25,23 @@ describe('decodeCorruptedValue', () => {
   it('is idempotent — re-running on already-clean text is a no-op', () => {
     const clean = decodeCorruptedValue('Swimming &amp; Diving');
     expect(decodeCorruptedValue(clean)).toBe(clean);
+  });
+
+  it('only peels one layer of escaping on a doubly-corrupted value', () => {
+    expect(decodeCorruptedValue('Swimming &amp;amp; Diving')).toBe('Swimming &amp; Diving');
+  });
+});
+
+describe('decodeUntilStable', () => {
+  it('fully resolves a doubly-escaped value in one call', () => {
+    expect(decodeUntilStable('Swimming &amp;amp; Diving')).toBe('Swimming & Diving');
+  });
+
+  it('matches decodeCorruptedValue for a singly-escaped value', () => {
+    expect(decodeUntilStable('Swimming &amp; Diving')).toBe('Swimming & Diving');
+  });
+
+  it('is a no-op on already-clean text', () => {
+    expect(decodeUntilStable('Swimming & Diving')).toBe('Swimming & Diving');
   });
 });

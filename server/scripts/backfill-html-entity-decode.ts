@@ -23,6 +23,10 @@ const APPLY = process.argv.includes('--apply');
 const BATCH = 500;
 const ENTITY_PATTERN = /&(amp|lt|gt|quot|#39);/;
 
+// Direct-message content, group chat content, and bios are private/personal —
+// dry-run logging must never print their actual text (see finding #4).
+const PRIVATE_COLUMNS = new Set(['message.content', 'groupChatMessage.content', 'user.bio']);
+
 export function needsEntityDecode(value: string | null | undefined): boolean {
   if (!value) return false;
   return ENTITY_PATTERN.test(value);
@@ -30,6 +34,20 @@ export function needsEntityDecode(value: string | null | undefined): boolean {
 
 export function decodeCorruptedValue(value: string): string {
   return stripHtml(value);
+}
+
+// A value saved through the old buggy code path more than once (e.g.
+// "&amp;amp; Diving") is escaped multiple layers deep. Peel one layer per
+// iteration until it stabilizes so a single backfill run fully repairs it
+// (see finding #9) — capped so a pathological input can't loop forever.
+export function decodeUntilStable(value: string, maxIterations = 5): string {
+  let current = value;
+  for (let i = 0; i < maxIterations; i++) {
+    const next = decodeCorruptedValue(current);
+    if (next === current) break;
+    current = next;
+  }
+  return current;
 }
 
 type ColumnTarget = {
@@ -91,13 +109,18 @@ async function backfillColumn(target: ColumnTarget): Promise<{ scanned: number; 
     for (const row of rows) {
       const current: string | null = row[column];
       if (!needsEntityDecode(current)) continue;
-      const decoded = decodeCorruptedValue(current!);
+      const decoded = decodeUntilStable(current!);
       if (decoded === current) continue;
       fixed += 1;
       if (APPLY) {
         await delegate.update({ where: { id: row.id }, data: { [column]: decoded } });
       } else {
-        console.log(`  [${model}.${column}] ${row.id}: "${current}" -> "${decoded}"`);
+        const key = `${model}.${column}`;
+        if (PRIVATE_COLUMNS.has(key)) {
+          console.log(`  [${key}] ${row.id}: ${current!.length} chars -> ${decoded.length} chars`);
+        } else {
+          console.log(`  [${key}] ${row.id}: "${current}" -> "${decoded}"`);
+        }
       }
     }
   }
@@ -124,9 +147,15 @@ async function main(): Promise<void> {
   }
 }
 
-main()
-  .catch(err => {
-    console.error('[backfill-html-entity-decode] failed:', err);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+// Only run when this file is executed directly (e.g. `npx tsx
+// scripts/backfill-html-entity-decode.ts`) — importing it for its exported
+// pure functions (as the test suite does) must not trigger a live DB scan.
+const isMainModule = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+if (isMainModule) {
+  main()
+    .catch(err => {
+      console.error('[backfill-html-entity-decode] failed:', err);
+      process.exitCode = 1;
+    })
+    .finally(() => prisma.$disconnect());
+}
