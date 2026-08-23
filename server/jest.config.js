@@ -3,19 +3,22 @@ export default {
   resolver: '<rootDir>/jest.resolver.cjs',
   extensionsToTreatAsEsm: ['.ts'],
   transform: {
-    '^.+\\.(ts|tsx|js)$': ['ts-jest', {
-      useESM: true,
-      tsconfig: {
-        isolatedModules: true,
-        allowJs: true,
-        module: 'ESNext',
-        moduleResolution: 'node',
-        esModuleInterop: true,
-        allowSyntheticDefaultImports: true,
+    '^.+\\.(ts|tsx|js)$': [
+      'ts-jest',
+      {
+        useESM: true,
+        tsconfig: {
+          isolatedModules: true,
+          allowJs: true,
+          module: 'ESNext',
+          moduleResolution: 'node',
+          esModuleInterop: true,
+          allowSyntheticDefaultImports: true,
+        },
       },
-    }],
+    ],
   },
-  roots: ['<rootDir>/src'],
+  roots: ['<rootDir>/src', '<rootDir>/scripts'],
   // 2 workers is the sweet spot for this suite (140+ ESM tests):
   // - more than 1 keeps suites isolated enough that Node's VM-modules registry
   //   doesn't collide on dynamic-imported modules (the "module is already
