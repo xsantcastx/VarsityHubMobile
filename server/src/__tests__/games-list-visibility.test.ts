@@ -246,3 +246,23 @@ describe('GET /games?following=true (followed-teams calendar)', () => {
     expect(mockGameFindMany).not.toHaveBeenCalled();
   });
 });
+
+describe('GET /games?map_view=true (this-week + 7-day grace)', () => {
+  beforeEach(() => {
+    mockGameFindMany.mockClear();
+  });
+
+  it('includes a backward grace window matching the 7-day post-grace period', async () => {
+    await request(app).get('/games?map_view=true').expect(200);
+
+    const where = lastFindManyWhere();
+    const clause = where.AND.find((c: any) => c.OR?.[0]?.date);
+    const regularGameBranch = clause.OR[0];
+    const graceStart = regularGameBranch.date.gte as Date;
+    const now = Date.now();
+    // Was `now` (0 lookback) before the fix — assert it's ~7 days back, not ~0.
+    const lookbackMs = now - graceStart.getTime();
+    expect(lookbackMs).toBeGreaterThan(6 * 24 * 60 * 60 * 1000);
+    expect(lookbackMs).toBeLessThan(8 * 24 * 60 * 60 * 1000);
+  });
+});

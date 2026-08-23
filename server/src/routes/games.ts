@@ -49,6 +49,7 @@ import {
   voteLimiter,
 } from '../middleware/rateLimiters.js';
 import {
+  REGULAR_POST_GRACE_WINDOW_MS,
   serializeLiveWindow,
   verifyStoryPostingPermission,
   viewerHasPostedOnEntity,
@@ -1261,24 +1262,26 @@ gamesRouter.get(
         }
       }
 
-      // v1.0.2: map_view=true restricts to "games this week" (today through +7 days).
-      // Test note: once a game is in the past it should drop off the map. Map should only
-      // reflect games the week of in real time. This filter is opt-in so list views still work as before.
+      // v1.0.2: map_view=true restricts to "games this week" (today through +7 days),
+      // plus a 7-day backward grace window (see postGraceLookback below) so a game
+      // stays pinned for as long as it's still legally postable. This filter is
+      // opt-in so list views still work as before.
       const isMapView = req.query.map_view === 'true' || req.query.map_view === '1';
       if (isMapView) {
         const now = new Date();
         const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
         const liveLookback = new Date(now.getTime() - 18 * 60 * 60 * 1000);
-        // Regular games are current-week only — a game drops off the map once
-        // it's in the past (by design). Marquee/teamless events (festivals) also
-        // stay pinned during their live window (started within 18h), so an
-        // all-day fest happening right now doesn't slide off the map at its
-        // start time. Matched on null team columns so it holds regardless of
-        // whether the map query flags teamless.
+        // Regular games stay on the map through the SAME 7-day window the post-grace
+        // check (REGULAR_POST_GRACE_WINDOW_MS, lib/geofencing.ts) uses to allow
+        // posting to a just-finished game — previously a game up to 7 days
+        // postable had no pin to tap to find it. Marquee/teamless events (festivals)
+        // keep their existing shorter 18h live-lookback (they aren't gated by the
+        // post-grace window the same way regular games are).
+        const postGraceLookback = new Date(now.getTime() - REGULAR_POST_GRACE_WINDOW_MS);
         if (!whereClause.AND) whereClause.AND = [];
         whereClause.AND.push({
           OR: [
-            { date: { gte: now, lte: weekFromNow } },
+            { date: { gte: postGraceLookback, lte: weekFromNow } },
             {
               home_team_id: null,
               away_team_id: null,
