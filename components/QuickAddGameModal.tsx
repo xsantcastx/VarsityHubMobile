@@ -282,6 +282,8 @@ export default function QuickAddGameModal({
   const [opponentSearchText, setOpponentSearchText] = useState('');
   const [opponentSearchResults, setOpponentSearchResults] = useState<TeamOption[]>([]);
   const [opponentSearchLoading, setOpponentSearchLoading] = useState(false);
+  const [manualOpponentMode, setManualOpponentMode] = useState(false);
+  const [manualOpponentName, setManualOpponentName] = useState('');
   const opponentSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default to next week
   const [selectedTime, setSelectedTime] = useState(new Date(new Date().setHours(19, 0, 0, 0))); // Default to 7:00 PM
@@ -1166,7 +1168,11 @@ export default function QuickAddGameModal({
                           justifyContent: 'space-between',
                         },
                       ]}
-                      onPress={() => setShowOpponentPicker(true)}
+                      onPress={() => {
+                        setManualOpponentMode(false);
+                        setManualOpponentName('');
+                        setShowOpponentPicker(true);
+                      }}
                     >
                       <Text
                         style={[
@@ -1983,102 +1989,189 @@ export default function QuickAddGameModal({
                   ) : null}
                 </View>
 
-                <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
-                  {/* Existing VarsityHub team results */}
-                  {displayedOpponentTeams.map(team => (
-                    <Pressable
-                      key={team.id}
+                {!manualOpponentMode && (
+                  <Pressable
+                    style={[styles.pickerItem, { borderBottomColor: Colors[colorScheme].border }]}
+                    onPress={() => setManualOpponentMode(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Enter opponent manually"
+                  >
+                    <View style={styles.pickerItemContent}>
+                      <View style={styles.teamLogoContainer}>
+                        <Ionicons
+                          name="create-outline"
+                          size={24}
+                          color={Colors[colorScheme].tint}
+                        />
+                      </View>
+                      <Text
+                        style={[
+                          styles.pickerItemText,
+                          { color: Colors[colorScheme].tint, fontWeight: '600' },
+                        ]}
+                      >
+                        Enter opponent manually
+                      </Text>
+                    </View>
+                  </Pressable>
+                )}
+
+                {manualOpponentMode ? (
+                  <View style={{ padding: 16, gap: 12 }}>
+                    <Text style={[styles.pickerItemText, { color: Colors[colorScheme].mutedText }]}>
+                      Use this when the other team isn't on VarsityHub yet.
+                    </Text>
+                    <TextInput
                       style={[
-                        styles.pickerItem,
-                        { borderBottomColor: Colors[colorScheme].border },
-                        opponent === team.name && { backgroundColor: Colors[colorScheme].surface },
+                        styles.searchInput,
+                        {
+                          color: Colors[colorScheme].text,
+                          borderColor: Colors[colorScheme].border,
+                          borderWidth: 1,
+                          borderRadius: 8,
+                          padding: 12,
+                        },
                       ]}
-                      onPress={() => {
-                        setOpponent(team.name);
-                        setOpponentTeamId(team.id);
-                        if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
-                        setOpponentSearchText('');
-                        setOpponentSearchResults([]);
-                        setShowOpponentPicker(false);
-                      }}
-                    >
-                      <View style={styles.pickerItemContent}>
-                        <View style={styles.teamLogoContainer}>
-                          {team.logo ? (
-                            <Image
-                              source={{ uri: optimizeImageUrl(team.logo, 160) }}
-                              style={styles.teamLogoImage}
-                            />
-                          ) : (
-                            <Text style={styles.teamLogoText}>🏆</Text>
-                          )}
-                        </View>
-                        <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
-                          {team.name}
-                        </Text>
-                      </View>
-                      {opponent === team.name && (
-                        <Ionicons name="checkmark" size={20} color="#007AFF" />
-                      )}
-                    </Pressable>
-                  ))}
-
-                  {/* No results message */}
-                  {opponentSearchText.trim().length > 0 &&
-                    !opponentSearchLoading &&
-                    displayedOpponentTeams.length === 0 && (
-                      <View style={styles.noResultsContainer}>
-                        <Text
-                          style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}
-                        >
-                          No VarsityHub teams found for "{opponentSearchText}"
-                        </Text>
-                      </View>
-                    )}
-
-                  {/* Manual entry — ALWAYS visible when text is present, even during loading */}
-                  {opponentSearchText.trim().length > 0 && (
+                      placeholder="Opponent name"
+                      placeholderTextColor={Colors[colorScheme].mutedText}
+                      value={manualOpponentName}
+                      onChangeText={setManualOpponentName}
+                      autoCapitalize="words"
+                      autoFocus
+                    />
                     <Pressable
                       style={[
                         styles.pickerItem,
                         {
-                          borderBottomColor: Colors[colorScheme].border,
-                          backgroundColor: Colors[colorScheme].surface,
+                          justifyContent: 'center',
+                          backgroundColor: Colors[colorScheme].tint,
+                          borderRadius: 8,
                         },
                       ]}
+                      disabled={!manualOpponentName.trim()}
+                      accessibilityRole="button"
+                      accessibilityLabel="Confirm manual opponent"
                       onPress={() => {
-                        const name = opponentSearchText.trim();
+                        const name = manualOpponentName.trim();
+                        if (!name) return;
                         setOpponent(name);
-                        setOpponentTeamId(''); // No team ID — manual entry
+                        setOpponentTeamId('');
                         if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
+                        setManualOpponentMode(false);
+                        setManualOpponentName('');
                         setOpponentSearchText('');
                         setOpponentSearchResults([]);
-                        if (opponentSearchTimerRef.current)
-                          clearTimeout(opponentSearchTimerRef.current);
-                        setOpponentSearchLoading(false);
                         setShowOpponentPicker(false);
                       }}
                     >
-                      <View style={styles.pickerItemContent}>
-                        <View style={styles.teamLogoContainer}>
-                          <Ionicons
-                            name="add-circle-outline"
-                            size={24}
-                            color={Colors[colorScheme].tint}
-                          />
-                        </View>
-                        <Text
-                          style={[
-                            styles.pickerItemText,
-                            { color: Colors[colorScheme].tint, fontWeight: '600' },
-                          ]}
-                        >
-                          Use "{opponentSearchText.trim()}" as opponent
-                        </Text>
-                      </View>
+                      <Text style={{ color: '#fff', fontWeight: '600' }}>Add</Text>
                     </Pressable>
-                  )}
-                </ScrollView>
+                    <Pressable onPress={() => setManualOpponentMode(false)}>
+                      <Text style={{ color: Colors[colorScheme].tint }}>Back to search</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
+                    {/* Existing VarsityHub team results */}
+                    {displayedOpponentTeams.map(team => (
+                      <Pressable
+                        key={team.id}
+                        style={[
+                          styles.pickerItem,
+                          { borderBottomColor: Colors[colorScheme].border },
+                          opponent === team.name && {
+                            backgroundColor: Colors[colorScheme].surface,
+                          },
+                        ]}
+                        onPress={() => {
+                          setOpponent(team.name);
+                          setOpponentTeamId(team.id);
+                          if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
+                          setOpponentSearchText('');
+                          setOpponentSearchResults([]);
+                          setShowOpponentPicker(false);
+                        }}
+                      >
+                        <View style={styles.pickerItemContent}>
+                          <View style={styles.teamLogoContainer}>
+                            {team.logo ? (
+                              <Image
+                                source={{ uri: optimizeImageUrl(team.logo, 160) }}
+                                style={styles.teamLogoImage}
+                              />
+                            ) : (
+                              <Text style={styles.teamLogoText}>🏆</Text>
+                            )}
+                          </View>
+                          <Text
+                            style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}
+                          >
+                            {team.name}
+                          </Text>
+                        </View>
+                        {opponent === team.name && (
+                          <Ionicons name="checkmark" size={20} color="#007AFF" />
+                        )}
+                      </Pressable>
+                    ))}
+
+                    {/* No results message */}
+                    {opponentSearchText.trim().length > 0 &&
+                      !opponentSearchLoading &&
+                      displayedOpponentTeams.length === 0 && (
+                        <View style={styles.noResultsContainer}>
+                          <Text
+                            style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}
+                          >
+                            No VarsityHub teams found for "{opponentSearchText}"
+                          </Text>
+                        </View>
+                      )}
+
+                    {/* Manual entry — ALWAYS visible when text is present, even during loading */}
+                    {opponentSearchText.trim().length > 0 && (
+                      <Pressable
+                        style={[
+                          styles.pickerItem,
+                          {
+                            borderBottomColor: Colors[colorScheme].border,
+                            backgroundColor: Colors[colorScheme].surface,
+                          },
+                        ]}
+                        onPress={() => {
+                          const name = opponentSearchText.trim();
+                          setOpponent(name);
+                          setOpponentTeamId(''); // No team ID — manual entry
+                          if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
+                          setOpponentSearchText('');
+                          setOpponentSearchResults([]);
+                          if (opponentSearchTimerRef.current)
+                            clearTimeout(opponentSearchTimerRef.current);
+                          setOpponentSearchLoading(false);
+                          setShowOpponentPicker(false);
+                        }}
+                      >
+                        <View style={styles.pickerItemContent}>
+                          <View style={styles.teamLogoContainer}>
+                            <Ionicons
+                              name="add-circle-outline"
+                              size={24}
+                              color={Colors[colorScheme].tint}
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.pickerItemText,
+                              { color: Colors[colorScheme].tint, fontWeight: '600' },
+                            ]}
+                          >
+                            Use "{opponentSearchText.trim()}" as opponent
+                          </Text>
+                        </View>
+                      </Pressable>
+                    )}
+                  </ScrollView>
+                )}
               </View>
             </KeyboardAvoidingView>
           </Modal>
