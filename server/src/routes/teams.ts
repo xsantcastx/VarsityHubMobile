@@ -21,6 +21,7 @@ import {
   isTeamHiddenFromViewer,
 } from '../lib/privacyUtils.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
+import { captureException } from '../lib/sentry.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
 import { customSportSlug, normalizeSportToSlug } from '../lib/sportsTaxonomy.js';
@@ -2039,6 +2040,14 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
         await fanOutProgramFollowersToTeam(prisma, (team as any).program_id, team.id);
       } catch (fanoutError) {
         console.error('[program-fanout] create-path fan-out failed (non-blocking):', fanoutError);
+        captureException(
+          fanoutError instanceof Error ? fanoutError : new Error(String(fanoutError)),
+          {
+            context: 'program_fanout_create',
+            programId: (team as any).program_id,
+            teamId: team.id,
+          }
+        );
       }
     }
 
@@ -2337,6 +2346,14 @@ teamsRouter.put(
           await fanOutProgramFollowersToTeam(prisma, fanOutProgramId, updatedTeam.id);
         } catch (fanoutError) {
           console.error('[program-fanout] PUT-path fan-out failed (non-blocking):', fanoutError);
+          captureException(
+            fanoutError instanceof Error ? fanoutError : new Error(String(fanoutError)),
+            {
+              context: 'program_fanout_put',
+              programId: fanOutProgramId,
+              teamId: updatedTeam.id,
+            }
+          );
         }
       }
       // Return a compact team object including organization and logo/avatar fields for client convenience
