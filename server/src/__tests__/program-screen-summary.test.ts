@@ -276,17 +276,19 @@ describe('GET /programs/:id/screen-summary', () => {
       .expect(404);
   });
 
-  it('following a program follows every current level team, idempotently', async () => {
+  it('following a program follows every current PUBLIC level team, idempotently; skips a private team the viewer has no direct access to', async () => {
     // The private freshman team is `status: 'active'` too (privacy and status
-    // are independent), so the program has 3 active level teams and a program
-    // follow fans out to all 3 — the follow route deliberately does NOT apply
-    // the isTeamHiddenFromViewer privacy gate (see the route's comment).
-    const allTeamIds = [varsityTeamId, jvTeamId, privateTeamId];
+    // are independent), so the program has 3 active level teams, but the
+    // follow fan-out excludes the private one for strangerId, who has no
+    // direct access (no membership, no org owner/manager role) — following
+    // a program must not silently unlock a private level team's roster.
+    const publicTeamIds = [varsityTeamId, jvTeamId];
     const first = await request(app)
       .post(`/programs/${programId}/follow`)
       .set('Authorization', `Bearer ${strangerToken}`);
     expect(first.status).toBe(200);
-    expect(first.body.followed_team_ids.sort()).toEqual(allTeamIds.sort());
+    expect(first.body.followed_team_ids.sort()).toEqual(publicTeamIds.sort());
+    expect(first.body.followed_team_ids).not.toContain(privateTeamId);
 
     // second call must not throw on the unique (user_id, team_id) constraint
     await request(app)
@@ -295,9 +297,26 @@ describe('GET /programs/:id/screen-summary', () => {
       .expect(200);
 
     const rows = await prisma.teamFollow.count({
-      where: { user_id: strangerId, team_id: { in: allTeamIds } },
+      where: { user_id: strangerId, team_id: { in: publicTeamIds } },
     });
-    expect(rows).toBe(3);
+    expect(rows).toBe(2);
+
+    const privateRow = await prisma.teamFollow.findUnique({
+      where: { user_id_team_id: { user_id: strangerId, team_id: privateTeamId } },
+    });
+    expect(privateRow).toBeNull();
+  });
+
+  it("following a program does not unlock a private level team's screen-summary for a viewer with no direct access", async () => {
+    // Regression proof for the fan-out privacy gate above: strangerId is
+    // still following the program from the previous test (no unfollow has
+    // run yet), but GET /teams/:id/screen-summary for the private team must
+    // still 404 them — the program-follow fan-out must not have created a
+    // TeamFollow row that isTeamHiddenFromViewer would treat as access.
+    const res = await request(app)
+      .get(`/teams/${privateTeamId}/screen-summary`)
+      .set('Authorization', `Bearer ${strangerToken}`);
+    expect(res.status).toBe(404);
   });
 
   it('unfollowing a program removes every level-team follow', async () => {
@@ -329,7 +348,7 @@ describe('GET /programs/:id/screen-summary', () => {
       .expect(404);
   });
 
-  it('follow writes a ProgramFollow row and stamps the fanned-out TeamFollow rows; idempotent on repeat', async () => {
+  it('follow writes a ProgramFollow row and stamps the fanned-out TeamFollow rows; excludes the private team the user has no direct access to; idempotent on repeat', async () => {
     const allTeamIds = [varsityTeamId, jvTeamId, privateTeamId];
 
     // Use a DEDICATED fresh user with a guaranteed-clean follow slate. The
@@ -371,10 +390,19 @@ describe('GET /programs/:id/screen-summary', () => {
     const stampedRows = await prisma.teamFollow.findMany({
       where: { user_id: stampUserId, team_id: { in: allTeamIds } },
     });
-    expect(stampedRows.length).toBe(3);
+    // Only the 2 PUBLIC level teams are stamped — stampUser has no direct
+    // access (no membership, no org owner/manager role) to the private
+    // freshman team, so the fan-out must not silently grant them a follow
+    // row on it (that would defeat is_private the same way an unguarded
+    // POST /teams/:id/follow would).
+    expect(stampedRows.length).toBe(2);
     for (const row of stampedRows) {
       expect(row.via_program_id).toBe(programId);
     }
+    const privateRow = await prisma.teamFollow.findUnique({
+      where: { user_id_team_id: { user_id: stampUserId, team_id: privateTeamId } },
+    });
+    expect(privateRow).toBeNull();
 
     // Repeat call must not throw on the ProgramFollow composite PK or the
     // TeamFollow composite PK, and row counts must stay stable.
@@ -390,7 +418,7 @@ describe('GET /programs/:id/screen-summary', () => {
     const stampedCount = await prisma.teamFollow.count({
       where: { user_id: stampUserId, team_id: { in: allTeamIds } },
     });
-    expect(stampedCount).toBe(3);
+    expect(stampedCount).toBe(2);
 
     // Cleanup: remove this test's own rows and the dedicated user.
     await prisma.programFollow.deleteMany({ where: { user_id: stampUserId } });

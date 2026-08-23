@@ -15,7 +15,11 @@ import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { SERVER_ROOKIE_PROGRAM_LIMIT } from '../lib/planDefinitions.js';
 import { getAuthorizedUsersPerTeam, planSupportsExtracurricular } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
-import { getExcludedPrivateTeamIds, isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
+import {
+  getExcludedPrivateTeamIds,
+  hasDirectTeamAccess,
+  isTeamHiddenFromViewer,
+} from '../lib/privacyUtils.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
@@ -1189,6 +1193,9 @@ teamsRouter.post(
       const team = await getTeamState(teamId);
       if (!team) return res.status(404).json({ error: 'Team not found' });
       if (team.status !== 'active') return res.status(404).json({ error: 'Team not found' });
+      if (team.is_private && !(await hasDirectTeamAccess(teamId, userId, team.organization_id))) {
+        return sendError(res, 403, 'This team is private.');
+      }
       // Upsert (not create) so a direct follow always records GENUINE intent.
       // If a program fan-out already created a stamped row (via_program_id set),
       // this PROMOTES it to a real direct follow by clearing the stamp — so a

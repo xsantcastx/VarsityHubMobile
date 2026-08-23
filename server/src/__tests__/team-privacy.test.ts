@@ -201,6 +201,32 @@ describe('Team Privacy (is_private)', () => {
       expect(res.status).toBe(200);
       expect(res.body.id).toBe(privateTeamId);
     });
+
+    it('a stranger cannot follow a private team to gain access to it', async () => {
+      const followRes = await request(app)
+        .post(`/teams/${privateTeamId}/follow`)
+        .set('Authorization', `Bearer ${strangerToken}`);
+      expect(followRes.status).toBe(403);
+
+      // The follow must not have been created even partially.
+      const followRow = await prisma.teamFollow.findFirst({
+        where: { team_id: privateTeamId, user_id: strangerId },
+      });
+      expect(followRow).toBeNull();
+
+      // And the private team must still be invisible to them afterward.
+      const teamRes = await request(app)
+        .get(`/teams/${privateTeamId}`)
+        .set('Authorization', `Bearer ${strangerToken}`);
+      expect(teamRes.status).toBe(404);
+    });
+
+    it('a team member can still follow their own private team (no-op access grant, but must not be blocked)', async () => {
+      const res = await request(app)
+        .post(`/teams/${privateTeamId}/follow`)
+        .set('Authorization', `Bearer ${memberToken}`);
+      expect(res.status).toBe(201);
+    });
   });
 
   describe('GET /search', () => {
