@@ -16,11 +16,21 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { shouldApplyStripeSubscriptionEvent } from '../lib/stripeSubscriptionGuard.js';
 
-describe('payments.ts wires the guard into both webhook handlers', () => {
-  const src = readFileSync(join(process.cwd(), 'src', 'routes', 'payments.ts'), 'utf8');
+describe('the guard is wired into every write path that can mutate entitlement from a Stripe event', () => {
+  const paymentsSrc = readFileSync(join(process.cwd(), 'src', 'routes', 'payments.ts'), 'utf8');
+  const internalsSrc = readFileSync(
+    join(process.cwd(), 'src', 'lib', 'paymentInternals.ts'),
+    'utf8'
+  );
+
   it('customer.subscription.deleted and invoice.payment_failed both call the guard', () => {
-    const calls = src.match(/shouldApplyStripeSubscriptionEvent\(/g) ?? [];
+    const calls = paymentsSrc.match(/shouldApplyStripeSubscriptionEvent\(/g) ?? [];
     expect(calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('syncStripeSubscriptionState (the customer.subscription.updated write path) calls the guard', () => {
+    const calls = internalsSrc.match(/shouldApplyStripeSubscriptionEvent\(/g) ?? [];
+    expect(calls.length).toBeGreaterThanOrEqual(1);
   });
 });
 

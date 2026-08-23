@@ -9,6 +9,7 @@ import {
 import { getMaxTeamsForPlan } from './planLimits.js';
 import { prisma } from './prisma.js';
 import { captureException, captureMessage } from './sentry.js';
+import { shouldApplyStripeSubscriptionEvent } from './stripeSubscriptionGuard.js';
 import { buildBillingStateColumns, mergeBillingStateIntoPreferences } from './userBillingState.js';
 import { invalidateMeCacheForUser } from './userCache.js';
 import { WEEKDAY_BLOCK_PRICE_CENTS, WEEKEND_BLOCK_PRICE_CENTS } from '../utils/adPricing.js';
@@ -291,6 +292,30 @@ export async function syncStripeSubscriptionState(
     subUser.preferences && typeof subUser.preferences === 'object'
       ? (subUser.preferences as any)
       : {};
+
+  // Only the webhook-driven path is guarded. `subscription.finalize` is the
+  // client-initiated activation of a brand-new subscription (e.g. an
+  // upgrade) and is EXPECTED to carry a subscription id that doesn't match
+  // whatever was previously stored — that mismatch is the upgrade
+  // succeeding, not a stale event. See stripeSubscriptionGuard.ts.
+  if (
+    source === 'subscription.updated' &&
+    !shouldApplyStripeSubscriptionEvent(existingPrefs, subscription.id)
+  ) {
+    console.warn(
+      '[payments] syncStripeSubscriptionState — ignored: stale/non-active subscription event',
+      { userId: subUser.id, subscriptionId: subscription.id }
+    );
+    return {
+      userId: subUser.id,
+      plan: resolvedPlan,
+      normalizedStatus,
+      entitlementActive,
+      transactionStatus,
+      skipped: true,
+    };
+  }
+
   const oldSubId =
     typeof existingPrefs.subscription_id === 'string' ? existingPrefs.subscription_id : null;
 
