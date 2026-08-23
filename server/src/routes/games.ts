@@ -34,6 +34,7 @@ import {
   isGamePubliclyVisible,
 } from '../lib/gameApproval.js';
 import { formatEventTime } from '../lib/formatEventTime.js';
+import { getManagedTeamIds } from '../lib/managedTeamIds.js';
 import {
   canManageAnyTeam,
   canManageTeam as canManageTeamScoped,
@@ -1220,26 +1221,30 @@ gamesRouter.get(
         whereClause.away_team_id = null;
       }
 
-      // Discover calendar: scope to the viewer's followed teams (home OR away).
-      // Guests were already short-circuited above; an authed user with zero
-      // follows gets an empty list without hitting the games table.
+      // Discover calendar: scope to teams the viewer follows OR manages (staff
+      // membership / org admin) so a coach's own team's games show up even
+      // before they've explicitly followed the team they run. Guests were
+      // already short-circuited above; an authed user with neither gets an
+      // empty list without hitting the games table.
       if (following && authedReq.user?.id) {
         // audit-allow unbounded: calendar scope needs every team the viewer follows
-        const followedRows = await prisma.teamFollow.findMany({
-          where: { user_id: authedReq.user.id },
-          select: { team_id: true },
-          take: 500,
-        });
-        const followedTeamIds = followedRows.map(r => r.team_id);
-        if (followedTeamIds.length === 0) {
+        const [followedRows, managedTeamIds] = await Promise.all([
+          prisma.teamFollow.findMany({
+            where: { user_id: authedReq.user.id },
+            select: { team_id: true },
+            take: 500,
+          }),
+          getManagedTeamIds(authedReq.user.id),
+        ]);
+        const scopedTeamIds = [
+          ...new Set([...followedRows.map(r => r.team_id), ...managedTeamIds]),
+        ];
+        if (scopedTeamIds.length === 0) {
           return res.json([]);
         }
         if (!whereClause.AND) whereClause.AND = [];
         whereClause.AND.push({
-          OR: [
-            { home_team_id: { in: followedTeamIds } },
-            { away_team_id: { in: followedTeamIds } },
-          ],
+          OR: [{ home_team_id: { in: scopedTeamIds } }, { away_team_id: { in: scopedTeamIds } }],
         });
       }
 

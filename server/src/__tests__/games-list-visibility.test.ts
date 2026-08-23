@@ -20,6 +20,9 @@ const mockCacheSet = jest.fn(async () => undefined);
 const mockGameFindMany = jest.fn(async () => []);
 const mockUserFindUnique = jest.fn();
 const mockTeamFollowFindMany = jest.fn(async () => [] as Array<{ team_id: string }>);
+const mockTeamMembershipFindMany = jest.fn(async () => [] as Array<{ team_id: string }>);
+const mockOrgMembershipFindMany = jest.fn(async () => [] as Array<{ organization_id: string }>);
+const mockTeamFindMany = jest.fn(async () => [] as Array<{ id: string }>);
 
 jest.unstable_mockModule('../lib/cache.js', () => ({
   cacheGet: mockCacheGet,
@@ -46,14 +49,14 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
     },
     teamMembership: {
       findFirst: jest.fn(async () => null),
-      findMany: jest.fn(async () => []),
+      findMany: mockTeamMembershipFindMany,
     },
     organizationMembership: {
       findFirst: jest.fn(async () => null),
-      findMany: jest.fn(async () => []),
+      findMany: mockOrgMembershipFindMany,
     },
     team: {
-      findMany: jest.fn(async () => []),
+      findMany: mockTeamFindMany,
     },
     teamFollow: {
       findMany: mockTeamFollowFindMany,
@@ -174,6 +177,12 @@ describe('GET /games?following=true (followed-teams calendar)', () => {
     mockGameFindMany.mockClear();
     mockTeamFollowFindMany.mockReset();
     mockTeamFollowFindMany.mockResolvedValue([]);
+    mockTeamMembershipFindMany.mockReset();
+    mockTeamMembershipFindMany.mockResolvedValue([]);
+    mockOrgMembershipFindMany.mockReset();
+    mockOrgMembershipFindMany.mockResolvedValue([]);
+    mockTeamFindMany.mockReset();
+    mockTeamFindMany.mockResolvedValue([]);
     mockUserFindUnique.mockReset();
     mockUserFindUnique.mockResolvedValue({ email: 'coach@example.com' });
   });
@@ -195,6 +204,38 @@ describe('GET /games?following=true (followed-teams calendar)', () => {
 
     expect(res.body).toEqual([]);
     expect(mockGameFindMany).not.toHaveBeenCalled();
+  });
+
+  it('includes a team the coach manages (staff membership) even when not followed', async () => {
+    const MANAGED_TEAM_ID = 'managed12345678901234567';
+    mockTeamFollowFindMany.mockResolvedValue([]);
+    mockTeamMembershipFindMany.mockResolvedValue([{ team_id: MANAGED_TEAM_ID }]);
+
+    await request(app).get('/games?following=true').expect(200);
+
+    const where = lastFindManyWhere();
+    expect(where.AND).toEqual([
+      {
+        OR: [
+          { home_team_id: { in: [MANAGED_TEAM_ID] } },
+          { away_team_id: { in: [MANAGED_TEAM_ID] } },
+        ],
+      },
+    ]);
+  });
+
+  it('includes a team under an org the coach owns/manages, even when not followed', async () => {
+    const ORG_TEAM_ID = 'orgteam123456789012345678';
+    mockTeamFollowFindMany.mockResolvedValue([]);
+    mockOrgMembershipFindMany.mockResolvedValue([{ organization_id: 'org-1' }]);
+    mockTeamFindMany.mockResolvedValue([{ id: ORG_TEAM_ID }]);
+
+    await request(app).get('/games?following=true').expect(200);
+
+    const where = lastFindManyWhere();
+    expect(where.AND).toEqual([
+      { OR: [{ home_team_id: { in: [ORG_TEAM_ID] } }, { away_team_id: { in: [ORG_TEAM_ID] } }] },
+    ]);
   });
 
   it('returns [] for signed-out users without touching the DB', async () => {
