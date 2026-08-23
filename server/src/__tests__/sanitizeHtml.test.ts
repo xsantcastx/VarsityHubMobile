@@ -36,4 +36,10 @@ describe('stripHtml', () => {
     expect(stripHtml('<img src=x onerror=alert(1)>')).toBe('');
     expect(stripHtml('<a href="javascript:evil()">click</a>')).toBe('click');
   });
+
+  it('does not re-escape plain-text special characters (e.g. "Swimming & Diving")', () => {
+    expect(stripHtml('Swimming & Diving')).toBe('Swimming & Diving');
+    expect(stripHtml('Q&A Night')).toBe('Q&A Night');
+    expect(stripHtml(`Coach's "favorite" drill`)).toBe(`Coach's "favorite" drill`);
+  });
 });
