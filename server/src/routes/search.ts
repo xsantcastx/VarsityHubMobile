@@ -102,10 +102,14 @@ searchRouter.get(
     const isAdmin = currentUserId ? await getIsAdmin(req as any) : false;
     const privateTeamExcludeIds = isAdmin ? [] : await getExcludedPrivateTeamIds(currentUserId);
 
-    // COPPA: hide 13–17 minors from public search. Adults (DOB >= 18 years
-    // ago) and users with unknown DOB pass through, matching the existing
-    // `isMinor` fail-open behavior. The 18-year cutoff is computed in JS so
-    // Prisma can compare against the indexed `date_of_birth` column directly.
+    // COPPA: hide minors AND unknown-DOB accounts from public search —
+    // fail closed, matching isMinor()'s real semantics (null DOB = treated
+    // as a minor), not the inverted "unknown passes through" rule this
+    // filter previously implemented. DOB is optional at registration and
+    // only guaranteed non-null once onboarding completes, so this also
+    // correctly excludes accounts still mid-onboarding. The 18-year cutoff
+    // is computed in JS so Prisma can compare against the indexed
+    // `date_of_birth` column directly.
     const eighteenYearsAgo = new Date();
     eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
 
@@ -125,9 +129,7 @@ searchRouter.get(
           AND: [
             { banned: false },
             ...(userExcludeIds.length > 0 ? [{ id: { notIn: userExcludeIds } }] : []),
-            {
-              OR: [{ date_of_birth: null }, { date_of_birth: { lte: eighteenYearsAgo } }],
-            } as any,
+            { date_of_birth: { lte: eighteenYearsAgo } },
             {
               OR: [
                 { username: { contains: q, mode: 'insensitive' } },
