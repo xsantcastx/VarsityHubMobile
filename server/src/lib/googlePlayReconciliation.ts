@@ -102,7 +102,24 @@ export async function reconcileGooglePlaySubscriptions(): Promise<GooglePlayReco
           refreshed++;
         }
       } else {
-        // Store says expired/cancelled/unknown — downgrade to rookie.
+        const reason = (verified as any)?.reason;
+        const isGenuineExpiry =
+          reason === 'google_subscription_expired' || reason === 'google_subscription_canceled';
+
+        if (!isGenuineExpiry) {
+          // A Play API error (rate limit, outage, auth/quota) or an
+          // unconfigured verifier is NOT proof of expiry. Treat it as a
+          // soft error: leave entitlement untouched and retry next run —
+          // downgrading here would mass-downgrade paying, renewing
+          // subscribers on a transient API blip.
+          errors++;
+          console.warn(
+            `[google-play-reconcile] soft error user=${user.id} reason=${reason ?? 'unknown'} — leaving entitlement untouched`
+          );
+          continue;
+        }
+
+        // Store says genuinely expired/cancelled — downgrade to rookie.
         const { google_purchase_token, google_product_id, google_expires_date, ...restPrefs } =
           prefs;
         void google_purchase_token;
@@ -130,9 +147,7 @@ export async function reconcileGooglePlaySubscriptions(): Promise<GooglePlayReco
         });
         await invalidateMeCacheForUser(user.id);
         downgraded++;
-        console.warn(
-          `[google-play-reconcile] downgraded user=${user.id} reason=${(verified as any)?.reason ?? 'unverified'}`
-        );
+        console.warn(`[google-play-reconcile] downgraded user=${user.id} reason=${reason}`);
       }
     } catch (error) {
       errors++;
