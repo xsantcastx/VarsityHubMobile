@@ -87,6 +87,17 @@ export async function reconcileGooglePlaySubscriptions(): Promise<GooglePlayReco
         });
         verified = result;
         if (result.verified) break;
+        // A genuine expiry/cancellation is a definitive signal — stop here so
+        // a LATER package's "wrong package for this token" API error (a 404,
+        // since GOOGLE_ALLOWED_PACKAGES defaults to 2 packages and a token is
+        // only valid for one) can't overwrite it and get misread as a soft
+        // API error below, which would silently skip the downgrade.
+        if (
+          result.reason === 'google_subscription_expired' ||
+          result.reason === 'google_subscription_canceled'
+        ) {
+          break;
+        }
       }
 
       if (verified && verified.verified) {

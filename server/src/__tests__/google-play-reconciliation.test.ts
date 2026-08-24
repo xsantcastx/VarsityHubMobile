@@ -24,8 +24,12 @@ jest.unstable_mockModule('../lib/userCache.js', () => ({
   invalidateMeCacheForUser: mockInvalidateMeCache,
 }));
 
+// Matches the real default (payments.ts GOOGLE_ALLOWED_PACKAGES) — two
+// packages, not one. A purchase token is only valid for the package it was
+// issued against, so the loop querying a second package for the same token
+// is the real-world shape that exposed the multi-package overwrite bug.
 jest.unstable_mockModule('../routes/payments.js', () => ({
-  GOOGLE_ALLOWED_PACKAGES: ['com.varsityhub.varsityhub'],
+  GOOGLE_ALLOWED_PACKAGES: ['com.varsityhub.varsityhub', 'com.xsantcastx.varsityhub'],
   hasGooglePlayVerifierConfig: mockHasVerifierConfig,
   verifyGooglePurchaseWithPlayApi: mockVerifyPurchase,
 }));
@@ -102,6 +106,28 @@ describe('reconcileGooglePlaySubscriptions', () => {
     const result = await reconcileGooglePlaySubscriptions();
 
     expect(result.downgraded).toBe(1);
+  });
+
+  it('a genuine expiry from the first package is not overwritten by a "wrong package" error from the second', async () => {
+    // Regression: with 2 configured packages, the token issued for package 1
+    // genuinely expired, but package 2 (the token is invalid there) returns
+    // a 404 API error. Without an early-break on genuine expiry, the second
+    // iteration's transient-looking error used to overwrite the first
+    // iteration's definitive expiry signal, and the user was never
+    // downgraded — silently defeating the whole point of this reconciliation
+    // job for every user whose token belongs to the first-listed package.
+    mockUserFindMany.mockResolvedValue([baseUser]);
+    mockVerifyPurchase
+      .mockResolvedValueOnce({ verified: false, reason: 'google_subscription_expired' })
+      .mockResolvedValueOnce({ verified: false, reason: 'google_play_api_404' });
+
+    const result = await reconcileGooglePlaySubscriptions();
+
+    expect(mockVerifyPurchase).toHaveBeenCalledTimes(1);
+    expect(mockUserUpdate).toHaveBeenCalledTimes(1);
+    expect(mockUserUpdate.mock.calls[0][0].data.subscription_tier).toBe('free');
+    expect(result.downgraded).toBe(1);
+    expect(result.errors).toBe(0);
   });
 
   it('still refreshes expiry on a verified renewal (unchanged behavior)', async () => {
