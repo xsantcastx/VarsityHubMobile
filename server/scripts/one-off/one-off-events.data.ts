@@ -464,4 +464,21 @@ export const EVENTS: OneOffEventDef[] = [
       isNeutral: false,
     },
   },
+  // ── NY & NJ Sports & Entertainment Career Expo @ MetLife (created 2026-08-18) ──
+  {
+    title: 'NY & NJ Sports & Entertainment Career Expo',
+    description:
+      'A career expo connecting job seekers with employers across the sports and entertainment industries, hosted at MetLife Stadium. Meet recruiters, explore open roles, and network with hiring teams from the New York / New Jersey metro area.',
+    eventType: 'other',
+    dateUtc: '2026-08-18T18:00:00.000Z', // Tue Aug 18, 2:00 PM EDT (UTC-4)
+    location: 'MetLife Stadium, 1 MetLife Stadium Dr, East Rutherford, NJ 07073',
+    lat: 40.8135,
+    lng: -74.0745,
+    bannerUrl:
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/MetLife_Stadium%2C_East_Rutherford_NJ.jpg/1280px-MetLife_Stadium%2C_East_Rutherford_NJ.jpg',
+    contactInfo: 'customerservice@varsityhub.app',
+    // Teamless game record so the entry surfaces in the main feed's upcoming list
+    // (feed reads Game.list() only); no "vs" is rendered for a teamless game.
+    game: {},
+  },
 ];
