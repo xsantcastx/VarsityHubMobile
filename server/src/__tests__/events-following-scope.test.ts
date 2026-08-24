@@ -1,8 +1,10 @@
 /**
  * GET /events?following=true scopes to the teams the authenticated viewer
- * follows — the Discover calendar surface (mirrors the same scope on
- * GET /games). Invariant: a follower sees their followed team's approved
- * events; a non-follower and a guest see none of them (never a global scan).
+ * follows OR manages (staff membership / org admin) — the Discover calendar
+ * surface (mirrors the same scope on GET /games). Invariant: a follower sees
+ * their followed team's approved events, a coach/manager sees their managed
+ * team's events even without following it, and a non-follower/non-manager
+ * and a guest see none of them (never a global scan).
  */
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
@@ -40,8 +42,10 @@ async function makeUser(tag: string) {
 describe('GET /events following scope', () => {
   let followerToken: string;
   let strangerToken: string;
+  let coachToken: string;
   let followedTeamId: string;
   let followedEventTitle: string;
+  let managedEventTitle: string;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -50,8 +54,10 @@ describe('GET /events following scope', () => {
     const owner = await makeUser('owner');
     const follower = await makeUser('follower');
     const stranger = await makeUser('stranger');
+    const coach = await makeUser('coach');
     followerToken = signJwt({ id: follower.id });
     strangerToken = signJwt({ id: stranger.id });
+    coachToken = signJwt({ id: coach.id });
 
     const org = await prisma.organization.create({
       data: {
@@ -94,11 +100,49 @@ describe('GET /events following scope', () => {
       },
     });
     eventIds.push(event.id);
+
+    // A second team the coach manages (active staff membership) but does NOT
+    // follow — GET /events?following=true must still surface its events
+    // (widened scope, mirrors the same fix on GET /games).
+    const managedTeam = await prisma.team.create({
+      data: {
+        name: `EFS Managed Team ${suffix}`,
+        organization_id: org.id,
+        sport: 'soccer',
+        status: 'active',
+      },
+    });
+    teamIds.push(managedTeam.id);
+
+    await prisma.teamMembership.create({
+      data: {
+        team_id: managedTeam.id,
+        user_id: coach.id,
+        role: 'coach',
+        status: 'active',
+      },
+    });
+
+    managedEventTitle = `EFS Managed Practice ${suffix}`;
+    const managedEvent = await prisma.event.create({
+      data: {
+        title: managedEventTitle,
+        date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        location: 'Field 2',
+        event_type: 'practice',
+        team_id: managedTeam.id,
+        creator_id: owner.id,
+        status: 'approved',
+        approval_status: 'approved',
+      },
+    });
+    eventIds.push(managedEvent.id);
   });
 
   afterAll(async () => {
     await prisma.event.deleteMany({ where: { id: { in: eventIds } } });
     await prisma.teamFollow.deleteMany({ where: { team_id: { in: teamIds } } });
+    await prisma.teamMembership.deleteMany({ where: { team_id: { in: teamIds } } });
     await prisma.team.deleteMany({ where: { id: { in: teamIds } } });
     await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });
@@ -129,5 +173,13 @@ describe('GET /events following scope', () => {
     const res = await request(app).get('/events?following=true');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body) ? res.body : (res.body?.events ?? [])).toEqual([]);
+  });
+
+  it('returns a managed team’s event to a coach who does not follow it', async () => {
+    const res = await request(app)
+      .get('/events?following=true')
+      .set('Authorization', `Bearer ${coachToken}`);
+    expect(res.status).toBe(200);
+    expect(titles(res.body)).toContain(managedEventTitle);
   });
 });

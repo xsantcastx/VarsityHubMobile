@@ -34,6 +34,7 @@ import {
   isGamePubliclyVisible,
 } from '../lib/gameApproval.js';
 import { formatEventTime } from '../lib/formatEventTime.js';
+import { getManagedTeamIds } from '../lib/managedTeamIds.js';
 import {
   canManageAnyTeam,
   canManageTeam as canManageTeamScoped,
@@ -48,6 +49,7 @@ import {
   voteLimiter,
 } from '../middleware/rateLimiters.js';
 import {
+  REGULAR_POST_GRACE_WINDOW_MS,
   serializeLiveWindow,
   verifyStoryPostingPermission,
   viewerHasPostedOnEntity,
@@ -1220,26 +1222,30 @@ gamesRouter.get(
         whereClause.away_team_id = null;
       }
 
-      // Discover calendar: scope to the viewer's followed teams (home OR away).
-      // Guests were already short-circuited above; an authed user with zero
-      // follows gets an empty list without hitting the games table.
+      // Discover calendar: scope to teams the viewer follows OR manages (staff
+      // membership / org admin) so a coach's own team's games show up even
+      // before they've explicitly followed the team they run. Guests were
+      // already short-circuited above; an authed user with neither gets an
+      // empty list without hitting the games table.
       if (following && authedReq.user?.id) {
         // audit-allow unbounded: calendar scope needs every team the viewer follows
-        const followedRows = await prisma.teamFollow.findMany({
-          where: { user_id: authedReq.user.id },
-          select: { team_id: true },
-          take: 500,
-        });
-        const followedTeamIds = followedRows.map(r => r.team_id);
-        if (followedTeamIds.length === 0) {
+        const [followedRows, managedTeamIds] = await Promise.all([
+          prisma.teamFollow.findMany({
+            where: { user_id: authedReq.user.id },
+            select: { team_id: true },
+            take: 500,
+          }),
+          getManagedTeamIds(authedReq.user.id),
+        ]);
+        const scopedTeamIds = [
+          ...new Set([...followedRows.map(r => r.team_id), ...managedTeamIds]),
+        ];
+        if (scopedTeamIds.length === 0) {
           return res.json([]);
         }
         if (!whereClause.AND) whereClause.AND = [];
         whereClause.AND.push({
-          OR: [
-            { home_team_id: { in: followedTeamIds } },
-            { away_team_id: { in: followedTeamIds } },
-          ],
+          OR: [{ home_team_id: { in: scopedTeamIds } }, { away_team_id: { in: scopedTeamIds } }],
         });
       }
 
@@ -1256,24 +1262,26 @@ gamesRouter.get(
         }
       }
 
-      // v1.0.2: map_view=true restricts to "games this week" (today through +7 days).
-      // Test note: once a game is in the past it should drop off the map. Map should only
-      // reflect games the week of in real time. This filter is opt-in so list views still work as before.
+      // v1.0.2: map_view=true restricts to "games this week" (today through +7 days),
+      // plus a 7-day backward grace window (see postGraceLookback below) so a game
+      // stays pinned for as long as it's still legally postable. This filter is
+      // opt-in so list views still work as before.
       const isMapView = req.query.map_view === 'true' || req.query.map_view === '1';
       if (isMapView) {
         const now = new Date();
         const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
         const liveLookback = new Date(now.getTime() - 18 * 60 * 60 * 1000);
-        // Regular games are current-week only — a game drops off the map once
-        // it's in the past (by design). Marquee/teamless events (festivals) also
-        // stay pinned during their live window (started within 18h), so an
-        // all-day fest happening right now doesn't slide off the map at its
-        // start time. Matched on null team columns so it holds regardless of
-        // whether the map query flags teamless.
+        // Regular games stay on the map through the SAME 7-day window the post-grace
+        // check (REGULAR_POST_GRACE_WINDOW_MS, lib/geofencing.ts) uses to allow
+        // posting to a just-finished game — previously a game up to 7 days
+        // postable had no pin to tap to find it. Marquee/teamless events (festivals)
+        // keep their existing shorter 18h live-lookback (they aren't gated by the
+        // post-grace window the same way regular games are).
+        const postGraceLookback = new Date(now.getTime() - REGULAR_POST_GRACE_WINDOW_MS);
         if (!whereClause.AND) whereClause.AND = [];
         whereClause.AND.push({
           OR: [
-            { date: { gte: now, lte: weekFromNow } },
+            { date: { gte: postGraceLookback, lte: weekFromNow } },
             {
               home_team_id: null,
               away_team_id: null,

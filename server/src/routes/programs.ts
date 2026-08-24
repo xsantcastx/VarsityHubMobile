@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { sendError } from '../lib/http/sendError.js';
 import { prisma } from '../lib/prisma.js';
-import { isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
+import { hasDirectTeamAccess, isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { getTeamScheduleFeed } from '../lib/teamScheduleFeed.js';
 import { serializeTeam, buildTeamSerializeSelect } from '../lib/serializeTeam.js';
@@ -31,6 +31,13 @@ function levelRank(level: string | null): number {
 // guest-accessible GET /teams/:id/screen-summary. viewerId is null for guests
 // (or a lapsed token); per-team privacy is enforced via isTeamHiddenFromViewer
 // below, so a guest sees only public level teams.
+//
+// intent: mirrors the same guest-accessible-without-admin_approved-gate
+// posture as GET /teams/:id/screen-summary (see that route's comment) —
+// inherited, not introduced by the Sport-Program work. Flagged in the
+// 2026-08-23 Trust Boundary Review; not changed pending confirmation of
+// whether the org-owner pre-approval preview flow this exemption protects
+// actually exists in the client.
 programsRouter.get(
   '/:id/screen-summary',
   asyncHandler(async (req: AuthedRequest, res) => {
@@ -162,11 +169,17 @@ programsRouter.post(
     const programId = String(req.params.id);
     const program = await prisma.sportProgram.findUnique({
       where: { id: programId },
-      select: { id: true, teams: { where: { status: 'active' }, select: { id: true }, take: 25 } },
+      select: {
+        id: true,
+        teams: {
+          where: { status: 'active' },
+          select: { id: true, is_private: true, organization_id: true },
+          take: 25,
+        },
+      },
     });
     if (!program) return sendError(res, 404, 'Program not found');
 
-    const teamIds = program.teams.map(t => t.id);
     // Write the intent ledger row first — this is the new source of truth
     // for "does this user follow the program." Upsert keeps it idempotent
     // under the (user_id, program_id) composite PK.
@@ -175,21 +188,36 @@ programsRouter.post(
       create: { user_id: req.user.id, program_id: programId },
       update: {},
     });
-    // Fan out over the program's ACTIVE level teams without the
-    // isTeamHiddenFromViewer privacy gate — following a program means
-    // following its teams, including a private one the viewer can't
-    // currently see (and isTeamHiddenFromViewer admits followers, so a
-    // private team becomes visible to the viewer as soon as this runs).
-    // createMany + skipDuplicates keeps this idempotent under the
-    // (user_id, team_id) composite PK without a P2002 round-trip. Each row
-    // is stamped via_program_id so DELETE can later target only the rows
-    // this program created — NOTE: skipDuplicates means a PRE-EXISTING
-    // direct follow (via_program_id null) of a level team is left alone,
-    // not overwritten with the program stamp. That's deliberate: it's what
-    // keeps unfollow lossless (see DELETE below), not a bug to "fix".
-    if (teamIds.length) {
+    // Following a program must not silently grant follow-based access to a
+    // private level team the viewer couldn't otherwise see — that defeats
+    // is_private the same way an unguarded POST /teams/:id/follow would (see
+    // hasDirectTeamAccess, privacyUtils.ts, and the CRITICAL fix in this same
+    // PR). Only fan out to teams that are public, or private teams the viewer
+    // already has direct access to (staff membership / org owner-manager).
+    // The ProgramFollow intent row above is unaffected — the user still
+    // "follows the program," they just don't get a free pass into a private
+    // level team's roster.
+    const followableTeamIds: string[] = [];
+    for (const team of program.teams) {
+      if (!team.is_private) {
+        followableTeamIds.push(team.id);
+        continue;
+      }
+      if (await hasDirectTeamAccess(team.id, req.user.id, team.organization_id)) {
+        followableTeamIds.push(team.id);
+      }
+    }
+    // Fan out over the followable level teams. createMany + skipDuplicates
+    // keeps this idempotent under the (user_id, team_id) composite PK without
+    // a P2002 round-trip. Each row is stamped via_program_id so DELETE can
+    // later target only the rows this program created — NOTE: skipDuplicates
+    // means a PRE-EXISTING direct follow (via_program_id null) of a level
+    // team is left alone, not overwritten with the program stamp. That's
+    // deliberate: it's what keeps unfollow lossless (see DELETE below), not a
+    // bug to "fix".
+    if (followableTeamIds.length) {
       await prisma.teamFollow.createMany({
-        data: teamIds.map(team_id => ({
+        data: followableTeamIds.map(team_id => ({
           team_id,
           user_id: req.user!.id,
           via_program_id: programId,
@@ -197,7 +225,7 @@ programsRouter.post(
         skipDuplicates: true,
       });
     }
-    return res.json({ ok: true, followed_team_ids: teamIds });
+    return res.json({ ok: true, followed_team_ids: followableTeamIds });
   })
 );
 

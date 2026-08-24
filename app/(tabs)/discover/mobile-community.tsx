@@ -39,33 +39,20 @@ import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolveMediaType } from '@/utils/media';
 import { getCoachAccessState, getCoachFinishSetupRoute } from '@/utils/roleChecks';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
+import { formatUserHandle, isInternalId } from '@/utils/userHandle';
 import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 
-// Guard against internal IDs (cuid / UUID) being leaked as display text
-const isInternalId = (s: string) =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || // UUID
-  /^c[0-9a-z]{20,}$/.test(s) || // CUID v1
-  (/^[0-9a-z]{8,}$/.test(s) && !/[aeiou]{2,}/i.test(s)); // Random ID (no vowel pairs = not a real name)
+// Identity everywhere is the @username (product rule) — routed through the one
+// canonical helper (utils/userHandle) so the id-guard can't diverge again. The
+// old local guard used a vowel-pair heuristic that misclassified real handles
+// like "jfranc15" / "johnsmith" as ids and hid them as "@user".
+const safeDisplayName = (user: any): string => formatUserHandle(user, { at: false });
 
-const safeDisplayName = (user: any): string => {
-  // Prefer username as the primary identifier (what the user chose during signup)
-  const uname = user?.username;
-  if (uname && !isInternalId(uname)) return uname;
-  const name = user?.display_name;
-  if (name && !isInternalId(name)) return name;
-  return 'User';
-};
-
-const safeUsername = (user: any): string | null => {
-  // Show @username as subtitle only when display_name (not username) is the primary text
-  const uname = user?.username;
-  const hasRealUsername = uname && !isInternalId(uname);
-  // Username is already shown as the main display name — no need to repeat it
-  if (hasRealUsername) return null;
-  // display_name is shown as main, but no real username to show as subtitle
-  return null;
-};
+const safeUsername = (_user: any): string | null =>
+  // Username is already the primary display text (safeDisplayName) — never a
+  // second, repeated subtitle line.
+  null;
 
 type GameItem = {
   id: string;
@@ -2364,100 +2351,8 @@ function CommunityDiscoverScreen() {
       ) : (
         <View style={{ marginBottom: 12, gap: 10 }}>
           {(tab === 'following' ? followingPosts : discoverPosts).map((p, _i, _arr) => {
-            const author = p?.author || null;
-            const authorId = author?.id ? String(author.id) : null;
             return (
               <View key={String(p.id)}>
-                <View style={styles.postHeaderRow}>
-                  <Pressable
-                    style={styles.postHeaderLeft}
-                    onPress={() => {
-                      if (!authorId) return;
-                      // Navigate to the specific user's profile, not own profile
-                      void router.push(`/user-profile?id=${authorId}`);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`View profile of ${author?.display_name || 'User'}`}
-                  >
-                    <View style={styles.postAvatarWrap}>
-                      {author?.avatar_url ? (
-                        <Image
-                          source={{ uri: optimizeImageUrl(String(author.avatar_url), 80) }}
-                          style={styles.postAvatar}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.postAvatar} />
-                      )}
-                    </View>
-                    <Text
-                      style={[styles.postAuthorName, { color: Colors[colorScheme].text }]}
-                      numberOfLines={1}
-                    >
-                      {author?.display_name || 'User'}
-                    </Text>
-                  </Pressable>
-                  {authorId && me?.id !== authorId ? (
-                    <Pressable
-                      onPress={async () => {
-                        if (!user) {
-                          promptForSignIn(() => router.push('/sign-in'), {
-                            message: 'Sign in to follow.',
-                          });
-                          return;
-                        }
-                        // Optimistic toggle
-                        const nextVal = !p.is_following_author;
-                        patchDiscoverPosts(posts =>
-                          posts.map(item =>
-                            item.id === p.id ? { ...item, is_following_author: nextVal } : item
-                          )
-                        );
-                        try {
-                          if (nextVal) {
-                            await User.follow(authorId);
-                          } else {
-                            await User.unfollow(authorId);
-                          }
-                        } catch {
-                          // Revert on failure
-                          patchDiscoverPosts(posts =>
-                            posts.map(item =>
-                              item.id === p.id ? { ...item, is_following_author: !nextVal } : item
-                            )
-                          );
-                        }
-                      }}
-                      style={[
-                        styles.followBtn,
-                        {
-                          backgroundColor: p.is_following_author
-                            ? Colors[colorScheme].border
-                            : Colors[colorScheme].tint,
-                        },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        p.is_following_author
-                          ? `Unfollow ${author?.display_name || 'user'}`
-                          : `Follow ${author?.display_name || 'user'}`
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.followBtnText,
-                          {
-                            color: p.is_following_author
-                              ? Colors[colorScheme].text
-                              : Colors[colorScheme].background,
-                          },
-                        ]}
-                      >
-                        {p.is_following_author ? 'Following' : 'Follow'}
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
                 <PostCard
                   post={p}
                   onPress={() => {

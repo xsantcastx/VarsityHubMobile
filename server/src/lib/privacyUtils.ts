@@ -276,6 +276,40 @@ export async function isAuthorHiddenFromViewer(
 }
 
 /**
+ * Does `viewerId` have team access independent of following it — an active
+ * staff membership, or org owner/manager on the team's org? Split out of
+ * isTeamHiddenFromViewer so the follow route can gate on it directly: a
+ * private team's is_private flag must not be unlockable just by following
+ * it, since following was previously (incorrectly) treated as equivalent
+ * to this stronger access.
+ */
+export async function hasDirectTeamAccess(
+  teamId: string,
+  viewerId: string,
+  organizationId: string | null
+): Promise<boolean> {
+  const [membership, orgMembership] = await Promise.all([
+    prisma.teamMembership.findFirst({
+      where: { user_id: viewerId, team_id: teamId, status: MembershipStatus.active },
+      select: { team_id: true },
+    }),
+    organizationId
+      ? prisma.organizationMembership.findFirst({
+          where: {
+            user_id: viewerId,
+            organization_id: organizationId,
+            role: { in: ['owner', 'manager'] },
+            status: MembershipStatus.active,
+          },
+          select: { organization_id: true },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  return Boolean(membership || orgMembership);
+}
+
+/**
  * Check if a single team's private profile is hidden from the viewer.
  * Team members, followers, and org admins can still see it.
  */
@@ -288,27 +322,13 @@ export async function isTeamHiddenFromViewer(
   if (!team.is_private) return false;
   if (!viewerId) return true;
 
-  const [follow, membership, orgMembership] = await Promise.all([
+  const [follow, hasAccess] = await Promise.all([
     prisma.teamFollow.findFirst({
       where: { user_id: viewerId, team_id: teamId },
       select: { team_id: true },
     }),
-    prisma.teamMembership.findFirst({
-      where: { user_id: viewerId, team_id: teamId, status: MembershipStatus.active },
-      select: { team_id: true },
-    }),
-    team.organization_id
-      ? prisma.organizationMembership.findFirst({
-          where: {
-            user_id: viewerId,
-            organization_id: team.organization_id,
-            role: { in: ['owner', 'manager'] },
-            status: MembershipStatus.active,
-          },
-          select: { organization_id: true },
-        })
-      : Promise.resolve(null),
+    hasDirectTeamAccess(teamId, viewerId, team.organization_id),
   ]);
 
-  return !follow && !membership && !orgMembership;
+  return !follow && !hasAccess;
 }

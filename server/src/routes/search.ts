@@ -102,10 +102,14 @@ searchRouter.get(
     const isAdmin = currentUserId ? await getIsAdmin(req as any) : false;
     const privateTeamExcludeIds = isAdmin ? [] : await getExcludedPrivateTeamIds(currentUserId);
 
-    // COPPA: hide 13–17 minors from public search. Adults (DOB >= 18 years
-    // ago) and users with unknown DOB pass through, matching the existing
-    // `isMinor` fail-open behavior. The 18-year cutoff is computed in JS so
-    // Prisma can compare against the indexed `date_of_birth` column directly.
+    // COPPA: hide minors AND unknown-DOB accounts from public search —
+    // fail closed, matching isMinor()'s real semantics (null DOB = treated
+    // as a minor), not the inverted "unknown passes through" rule this
+    // filter previously implemented. DOB is optional at registration and
+    // only guaranteed non-null once onboarding completes, so this also
+    // correctly excludes accounts still mid-onboarding. The 18-year cutoff
+    // is computed in JS so Prisma can compare against the indexed
+    // `date_of_birth` column directly.
     const eighteenYearsAgo = new Date();
     eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
 
@@ -125,9 +129,7 @@ searchRouter.get(
           AND: [
             { banned: false },
             ...(userExcludeIds.length > 0 ? [{ id: { notIn: userExcludeIds } }] : []),
-            {
-              OR: [{ date_of_birth: null }, { date_of_birth: { lte: eighteenYearsAgo } }],
-            } as any,
+            { date_of_birth: { lte: eighteenYearsAgo } },
             {
               OR: [
                 { username: { contains: q, mode: 'insensitive' } },
@@ -358,16 +360,21 @@ searchRouter.get(
       return aExact - bExact;
     });
 
-    // Filter out system-generated usernames (UUID, CUID, random IDs) so only
-    // user-created usernames are returned to the client
+    // Filter out raw internal ids (UUID / CUID) stored verbatim as a username so
+    // only real, user-created handles are returned to the client. Valid
+    // usernames are [a-z0-9_.], 3–20 chars, so a hyphenated UUID or a 20+ char
+    // CUID can never be one — this only guards legacy id-as-username rows.
+    //
+    // The old "8+ lowercase chars, no consecutive vowel pair" rule was REMOVED:
+    // it misclassified ordinary handles like "jfranc15" / "johnsmith" as ids and
+    // hid real users from search, while ironically passing actual id-shaped
+    // handles (e.g. "user_ab12cd"). Do not reintroduce it.
     const isSystemId = (s: string | null): boolean => {
       if (!s) return false;
       // UUID pattern
       if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return true;
-      // CUID v1 (starts with c, 20+ alphanumeric)
+      // CUID (starts with c, 20+ alphanumeric)
       if (/^c[0-9a-z]{20,}$/.test(s)) return true;
-      // CUID v2 / nanoid / random ID — 8+ chars, all lowercase alphanumeric, no spaces or special chars
-      if (/^[0-9a-z]{8,}$/.test(s) && !/[aeiou]{2,}/i.test(s)) return true;
       return false;
     };
 

@@ -33,6 +33,7 @@ describe('Unified search', () => {
         username: `sut${String(ts).slice(-8)}`,
         email_verified: true,
         onboarding_completed: true,
+        date_of_birth: new Date('1990-01-01'),
         role: 'fan',
         approval_status: 'APPROVED',
         preferences: {

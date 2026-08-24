@@ -1324,68 +1324,89 @@ organizationsRouter.post(
       // Atomic limit check + create to prevent race condition on concurrent invites.
       // v1.0.2 pass 12: promote to Serializable isolation — the default ReadCommitted still
       // permits two parallel invite requests to both pass the count check before either
-      // INSERTs, over-counting the authorized-user cap. Serializable forces one to retry.
-      const invite = await prisma.$transaction(
-        async tx => {
-          const existingInvite = await tx.organizationInvite.findFirst({
-            where: {
-              organization_id: id,
-              email: { equals: inviteEmail, mode: 'insensitive' },
-            } as any,
-            select: { id: true },
-          });
-
-          if (limit !== null) {
-            const inviteCount = await tx.organizationInvite.count({
+      // INSERTs, over-counting the authorized-user cap. Serializable forces one to retry —
+      // but nothing was actually retrying it, so a concurrent invite/accept on the same org
+      // surfaced Postgres's serialization failure (P2034) straight to the client as a raw
+      // 500. Retry the transaction itself, which is the standard response to P2034.
+      const runInviteTransaction = () =>
+        prisma.$transaction(
+          async tx => {
+            const existingInvite = await tx.organizationInvite.findFirst({
               where: {
                 organization_id: id,
-                status: 'pending',
-                ...(existingInvite ? { id: { not: existingInvite.id } } : {}),
-              },
-            });
-            const memberCount = await tx.organizationMembership.count({
-              where: {
-                organization_id: id,
-                status: 'active',
-                role: { in: ['owner', 'manager', 'member'] },
-              },
-            });
-            // +1 for the invite being created right now — otherwise, at exactly
-            // `inviteCount + memberCount === limit`, the check `limit > limit` is
-            // false and this invite slips through, leaking one authorized slot
-            // over the plan cap. Matches the team invite paths.
-            const totalAuthorized = inviteCount + memberCount + 1;
-            if (totalAuthorized > limit) {
-              throw Object.assign(new Error('USER_LIMIT_REACHED'), {
-                status: 403,
-                body: {
-                  error: 'USER_LIMIT_REACHED',
-                  message: `Plan limit reached. ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} for your organization.`,
-                  limit,
-                  current: totalAuthorized,
-                },
-              });
-            }
-          }
-          if (existingInvite) {
-            return tx.organizationInvite.update({
-              where: { id: existingInvite.id },
-              data: { email: inviteEmail, role: toOrganizationInviteRole(role), status: 'pending' },
+                email: { equals: inviteEmail, mode: 'insensitive' },
+              } as any,
               select: { id: true },
             });
-          }
-          return tx.organizationInvite.create({
-            data: {
-              organization_id: id,
-              email: inviteEmail,
-              role: toOrganizationInviteRole(role),
-              status: 'pending',
-            },
-            select: { id: true },
-          });
-        },
-        { isolationLevel: 'Serializable' }
-      );
+
+            if (limit !== null) {
+              const inviteCount = await tx.organizationInvite.count({
+                where: {
+                  organization_id: id,
+                  status: 'pending',
+                  ...(existingInvite ? { id: { not: existingInvite.id } } : {}),
+                },
+              });
+              const memberCount = await tx.organizationMembership.count({
+                where: {
+                  organization_id: id,
+                  status: 'active',
+                  role: { in: ['owner', 'manager', 'member'] },
+                },
+              });
+              // +1 for the invite being created right now — otherwise, at exactly
+              // `inviteCount + memberCount === limit`, the check `limit > limit` is
+              // false and this invite slips through, leaking one authorized slot
+              // over the plan cap. Matches the team invite paths.
+              const totalAuthorized = inviteCount + memberCount + 1;
+              if (totalAuthorized > limit) {
+                throw Object.assign(new Error('USER_LIMIT_REACHED'), {
+                  status: 403,
+                  body: {
+                    error: 'USER_LIMIT_REACHED',
+                    message: `Plan limit reached. ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} for your organization.`,
+                    limit,
+                    current: totalAuthorized,
+                  },
+                });
+              }
+            }
+            if (existingInvite) {
+              return tx.organizationInvite.update({
+                where: { id: existingInvite.id },
+                data: {
+                  email: inviteEmail,
+                  role: toOrganizationInviteRole(role),
+                  status: 'pending',
+                },
+                select: { id: true },
+              });
+            }
+            return tx.organizationInvite.create({
+              data: {
+                organization_id: id,
+                email: inviteEmail,
+                role: toOrganizationInviteRole(role),
+                status: 'pending',
+              },
+              select: { id: true },
+            });
+          },
+          { isolationLevel: 'Serializable' }
+        );
+
+      let invite: { id: string };
+      let attempt = 0;
+      for (;;) {
+        try {
+          invite = await runInviteTransaction();
+          break;
+        } catch (err: any) {
+          attempt += 1;
+          if (err?.code === 'P2034' && attempt < 3) continue;
+          throw err;
+        }
+      }
 
       // Send email (best effort)
       const org = await prisma.organization.findUnique({ where: { id }, select: { name: true } });

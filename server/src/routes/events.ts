@@ -19,6 +19,7 @@ import { geoBoundingBox, getZipCoordinates, haversineDistance } from '../lib/geo
 import { proLeagueToSport } from '../lib/proSchedule/leagueSport.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { serializeLiveWindow, viewerHasPostedOnEntity } from '../lib/geofencing.js';
+import { getManagedTeamIds } from '../lib/managedTeamIds.js';
 import {
   cancelGameReminders,
   rescheduleGameRemindersForEvent,
@@ -424,8 +425,7 @@ eventsRouter.get(
     const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
     const dateFrom = typeof req.query.from === 'string' ? new Date(req.query.from) : null;
     const dateTo = typeof req.query.to === 'string' ? new Date(req.query.to) : null;
-    const proOnly =
-      String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
+    const proOnly = String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
     const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
     const proLeagueRaw =
       typeof req.query.pro_league === 'string' ? req.query.pro_league.trim().toLowerCase() : '';
@@ -499,31 +499,36 @@ eventsRouter.get(
       });
     }
 
-    // `following=true` scopes to teams the authenticated viewer follows — the
-    // Discover calendar surface (mirrors the same scope on GET /games). A guest,
-    // or a viewer who follows no teams, gets an empty list, never a global scan.
+    // `following=true` scopes to teams the authenticated viewer follows OR
+    // manages (staff membership / org admin) — the Discover calendar surface
+    // (mirrors the same scope on GET /games), so a coach's own team's events
+    // show up even before they've explicitly followed the team they run. A
+    // guest, or a viewer with neither, gets an empty list, never a global scan.
     const following = String(req.query.following || '').toLowerCase() === 'true';
     if (following) {
       const viewerId = (req as any).user?.id as string | undefined;
       if (!viewerId) return res.json([]);
       // audit-allow unbounded: calendar scope needs every team the viewer follows
-      const followedRows = await prisma.teamFollow.findMany({
-        where: { user_id: viewerId },
-        select: { team_id: true },
-        take: 500,
-      });
-      const followedTeamIds = followedRows.map(r => r.team_id);
-      if (followedTeamIds.length === 0) return res.json([]);
+      const [followedRows, managedTeamIds] = await Promise.all([
+        prisma.teamFollow.findMany({
+          where: { user_id: viewerId },
+          select: { team_id: true },
+          take: 500,
+        }),
+        getManagedTeamIds(viewerId),
+      ]);
+      const scopedTeamIds = [...new Set([...followedRows.map(r => r.team_id), ...managedTeamIds])];
+      if (scopedTeamIds.length === 0) return res.json([]);
       where.AND = where.AND || [];
       where.AND.push({
         OR: [
-          { team_id: { in: followedTeamIds } },
+          { team_id: { in: scopedTeamIds } },
           {
             game: {
               is: {
                 OR: [
-                  { home_team_id: { in: followedTeamIds } },
-                  { away_team_id: { in: followedTeamIds } },
+                  { home_team_id: { in: scopedTeamIds } },
+                  { away_team_id: { in: scopedTeamIds } },
                 ],
               },
             },

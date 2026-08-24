@@ -15,8 +15,13 @@ import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { SERVER_ROOKIE_PROGRAM_LIMIT } from '../lib/planDefinitions.js';
 import { getAuthorizedUsersPerTeam, planSupportsExtracurricular } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
-import { getExcludedPrivateTeamIds, isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
+import {
+  getExcludedPrivateTeamIds,
+  hasDirectTeamAccess,
+  isTeamHiddenFromViewer,
+} from '../lib/privacyUtils.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
+import { captureException } from '../lib/sentry.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
 import { customSportSlug, normalizeSportToSlug } from '../lib/sportsTaxonomy.js';
@@ -962,6 +967,15 @@ teamsRouter.get(
   })
 );
 
+// intent: this JSON endpoint does NOT gate on organization.admin_approved,
+// unlike the HTML share-landing for the same team (shareLanding.ts), which
+// explicitly refuses to render anything for a pending-approval org. This
+// endpoint is guest-accessible by the same design as programs.ts's
+// screen-summary (the app itself needs to preview a team/program before its
+// org is approved, e.g. during a coach's own onboarding flow). Exploitability
+// via this gap is low — it requires knowing an unguessable team ID before
+// approval — but it is a deliberate choice, not an oversight. Flagged in the
+// 2026-08-23 Trust Boundary Review.
 teamsRouter.get(
   '/:id/screen-summary',
   asyncHandler(async (req, res) => {
@@ -1189,6 +1203,9 @@ teamsRouter.post(
       const team = await getTeamState(teamId);
       if (!team) return res.status(404).json({ error: 'Team not found' });
       if (team.status !== 'active') return res.status(404).json({ error: 'Team not found' });
+      if (team.is_private && !(await hasDirectTeamAccess(teamId, userId, team.organization_id))) {
+        return sendError(res, 403, 'This team is private.');
+      }
       // Upsert (not create) so a direct follow always records GENUINE intent.
       // If a program fan-out already created a stamped row (via_program_id set),
       // this PROMOTES it to a real direct follow by clearing the stamp — so a
@@ -2032,6 +2049,14 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
         await fanOutProgramFollowersToTeam(prisma, (team as any).program_id, team.id);
       } catch (fanoutError) {
         console.error('[program-fanout] create-path fan-out failed (non-blocking):', fanoutError);
+        captureException(
+          fanoutError instanceof Error ? fanoutError : new Error(String(fanoutError)),
+          {
+            context: 'program_fanout_create',
+            programId: (team as any).program_id,
+            teamId: team.id,
+          }
+        );
       }
     }
 
@@ -2330,6 +2355,14 @@ teamsRouter.put(
           await fanOutProgramFollowersToTeam(prisma, fanOutProgramId, updatedTeam.id);
         } catch (fanoutError) {
           console.error('[program-fanout] PUT-path fan-out failed (non-blocking):', fanoutError);
+          captureException(
+            fanoutError instanceof Error ? fanoutError : new Error(String(fanoutError)),
+            {
+              context: 'program_fanout_put',
+              programId: fanOutProgramId,
+              teamId: updatedTeam.id,
+            }
+          );
         }
       }
       // Return a compact team object including organization and logo/avatar fields for client convenience

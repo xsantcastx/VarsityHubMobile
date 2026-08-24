@@ -30,6 +30,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
         preferences: true,
         approval_status: true,
         email: true,
+        email_verified: true,
         // v1.0.3: include the top-level `role` + `onboarding_completed` columns so
         // the canonical helpers can see them. Previously only `preferences` was
         // selected, which made the onboarding-bypass fail whenever the column and
@@ -53,8 +54,10 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     Boolean(acceptedCoachAgreementAt) &&
     acceptedCoachAgreementVersion >= requiredCoachAgreementVersion;
 
-  // God-admins bypass all onboarding/approval checks
-  if (isEmailAdmin(u?.email)) {
+  // God-admins bypass all onboarding/approval checks — email must be
+  // verified, same invariant requireAdmin.ts enforces (2026-07-13 audit):
+  // the bare isEmailAdmin() string check must never gate access alone.
+  if (isEmailAdmin(u?.email) && (u as any)?.email_verified) {
     return next();
   }
 

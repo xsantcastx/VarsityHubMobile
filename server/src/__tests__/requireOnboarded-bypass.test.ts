@@ -78,4 +78,15 @@ describe('onboarding-create middleware boundaries', () => {
     expect(/baseUrl\s*===\s*['"]\/uploads['"]/.test(onboardedSrc)).toBe(false);
     expect(/upload_context/.test(onboardedSrc)).toBe(false);
   });
+
+  it('requires a verified email before the god-admin bypass short-circuits requireOnboarded', () => {
+    // Admin privilege must always require a verified email (requireAdmin.ts:
+    // "the bare isEmailAdmin() string check must never gate access alone").
+    // The god-admin bypass line in requireOnboarded.ts must check
+    // email_verified in the same condition as isEmailAdmin(), not separately
+    // or not at all.
+    const bypassLine = onboardedSrc.match(/if\s*\(\s*isEmailAdmin\([^{]*\)\s*\{/);
+    expect(bypassLine).not.toBeNull();
+    expect(bypassLine![0]).toMatch(/email_verified/);
+  });
 });
