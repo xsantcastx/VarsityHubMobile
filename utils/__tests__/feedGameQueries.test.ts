@@ -3,6 +3,7 @@ import {
   mergeFeedGames,
   FEED_PAST_WINDOW_MS,
   FEED_LIVE_LOOKBACK_MS,
+  FEED_UPCOMING_WINDOW_MS,
 } from '@/utils/feedGameQueries';
 
 describe('buildFeedGameQueries', () => {
@@ -12,8 +13,18 @@ describe('buildFeedGameQueries', () => {
     const q = buildFeedGameQueries(now);
     expect(q.upcoming.sort).toBe('date');
     expect(q.upcoming.options.dateFrom).toBe(new Date(now - FEED_LIVE_LOOKBACK_MS).toISOString());
-    expect(q.upcoming.options.dateTo).toBeUndefined();
+    expect(q.upcoming.options.dateTo).toBe(new Date(now + FEED_UPCOMING_WINDOW_MS).toISOString());
     expect(q.upcoming.options.limit).toBe(30);
+  });
+
+  // Asserted against a real date, not the constant: the feed's upcoming rail must
+  // end at the SAME +14-day horizon the map enforces server-side (games.ts
+  // map_view), or the two drift back out of sync. now = 2026-07-12T20:00Z, so the
+  // window must close on 2026-07-26T20:00Z.
+  it('caps the upcoming rail at a rolling two-week horizon so it matches the map window', () => {
+    const q = buildFeedGameQueries(now);
+    expect(q.upcoming.options.dateTo).toBe('2026-07-26T20:00:00.000Z');
+    expect(q.marquee.options.dateTo).toBe('2026-07-26T20:00:00.000Z');
   });
 
   it('bounds the past recap query to the past window ending now, newest first', () => {

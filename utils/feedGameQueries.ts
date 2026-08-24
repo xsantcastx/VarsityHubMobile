@@ -41,6 +41,14 @@ export const FEED_PAST_WINDOW_MS = 4 * 24 * 60 * 60 * 1000;
 export const MAX_LIVE_WINDOW_HOURS = 18;
 export const FEED_LIVE_LOOKBACK_MS = MAX_LIVE_WINDOW_HOURS * 60 * 60 * 1000;
 
+/**
+ * How far FORWARD the feed's upcoming rail looks. The map restricts to the same
+ * rolling window server-side (games.ts map_view: now → +14 days), so the feed and
+ * the map cover the same set of upcoming games and stay in sync ("heart & lungs").
+ * If this changes, change the map_view window in server/src/routes/games.ts to match.
+ */
+export const FEED_UPCOMING_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
 type GameListOptions = {
   limit: number;
   dateFrom: string;
@@ -66,13 +74,17 @@ export function buildFeedGameQueries(
   coords?: FeedViewerCoords | null
 ): FeedGameQueryPlan {
   const liveFrom = new Date(nowMs - FEED_LIVE_LOOKBACK_MS).toISOString();
+  const upcomingTo = new Date(nowMs + FEED_UPCOMING_WINDOW_MS).toISOString();
   const nowIso = new Date(nowMs).toISOString();
   // Viewer coords make the server select nearest-first instead of the N
   // soonest games nationwide. When absent, the server falls back to the
   // signed-in viewer's zip preference — so omitting lat/lng is still correct.
   const near = coords ? { lat: coords.lat, lng: coords.lng } : {};
   return {
-    upcoming: { sort: 'date', options: { limit: 30, dateFrom: liveFrom, ...near } },
+    upcoming: {
+      sort: 'date',
+      options: { limit: 30, dateFrom: liveFrom, dateTo: upcomingTo, ...near },
+    },
     past: {
       sort: '-date',
       options: {
@@ -82,7 +94,10 @@ export function buildFeedGameQueries(
         ...near,
       },
     },
-    marquee: { sort: 'date', options: { limit: 10, dateFrom: liveFrom, teamless: true, ...near } },
+    marquee: {
+      sort: 'date',
+      options: { limit: 10, dateFrom: liveFrom, dateTo: upcomingTo, teamless: true, ...near },
+    },
   };
 }
 
