@@ -36,4 +36,21 @@ describe('stripHtml', () => {
     expect(stripHtml('<img src=x onerror=alert(1)>')).toBe('');
     expect(stripHtml('<a href="javascript:evil()">click</a>')).toBe('click');
   });
+
+  // Regression: sanitize-html with allowedTags:[] HTML-encodes text, turning a
+  // name like "Swimming & Diving" into "Swimming &amp; Diving", which then renders
+  // literally in React Native <Text>. stripHtml must return true plain text.
+  it('does not HTML-encode literal ampersands', () => {
+    expect(stripHtml('Swimming & Diving')).toBe('Swimming & Diving');
+    expect(stripHtml('Track & Field')).toBe('Track & Field');
+    expect(stripHtml('R&B')).toBe('R&B');
+  });
+
+  it('does not HTML-encode literal angle brackets left after tag stripping', () => {
+    expect(stripHtml('Rock < Roll > Jazz')).toBe('Rock < Roll > Jazz');
+  });
+
+  it('strips tags but keeps surrounding literal entities decoded', () => {
+    expect(stripHtml('A<b>x</b>B & C')).toBe('AxB & C');
+  });
 });
