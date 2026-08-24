@@ -967,6 +967,15 @@ teamsRouter.get(
   })
 );
 
+// intent: this JSON endpoint does NOT gate on organization.admin_approved,
+// unlike the HTML share-landing for the same team (shareLanding.ts), which
+// explicitly refuses to render anything for a pending-approval org. This
+// endpoint is guest-accessible by the same design as programs.ts's
+// screen-summary (the app itself needs to preview a team/program before its
+// org is approved, e.g. during a coach's own onboarding flow). Exploitability
+// via this gap is low — it requires knowing an unguessable team ID before
+// approval — but it is a deliberate choice, not an oversight. Flagged in the
+// 2026-08-23 Trust Boundary Review.
 teamsRouter.get(
   '/:id/screen-summary',
   asyncHandler(async (req, res) => {

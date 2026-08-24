@@ -31,6 +31,13 @@ function levelRank(level: string | null): number {
 // guest-accessible GET /teams/:id/screen-summary. viewerId is null for guests
 // (or a lapsed token); per-team privacy is enforced via isTeamHiddenFromViewer
 // below, so a guest sees only public level teams.
+//
+// intent: mirrors the same guest-accessible-without-admin_approved-gate
+// posture as GET /teams/:id/screen-summary (see that route's comment) —
+// inherited, not introduced by the Sport-Program work. Flagged in the
+// 2026-08-23 Trust Boundary Review; not changed pending confirmation of
+// whether the org-owner pre-approval preview flow this exemption protects
+// actually exists in the client.
 programsRouter.get(
   '/:id/screen-summary',
   asyncHandler(async (req: AuthedRequest, res) => {
