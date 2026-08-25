@@ -189,13 +189,8 @@ export function UserConnectionListScreen({
                   <Avatar uri={item.avatar_url} />
                   <View style={styles.userNameCol}>
                     <Text style={[styles.userName, { color: Colors[colorScheme].text }]}>
-                      {item.display_name || item.username || 'User'}
+                      {item.username ? `@${item.username}` : 'User'}
                     </Text>
-                    {item.username ? (
-                      <Text style={[styles.userHandle, { color: Colors[colorScheme].mutedText }]}>
-                        @{item.username}
-                      </Text>
-                    ) : null}
                     {item.is_following_viewer ? (
                       <View style={styles.followsYouBadge}>
                         <Text style={styles.followsYouText}>Follows You</Text>
