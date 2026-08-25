@@ -124,7 +124,7 @@ const toFeedPost = (item: any): FeedPost | null => {
     author: item?.author
       ? {
           id: String(item.author.id ?? item.author.user_id ?? id),
-          username: item.author.username ?? item.author.display_name ?? null,
+          username: item.author.username ?? null,
           display_name: (item.author as any).display_name ?? null,
           avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null,
         }
