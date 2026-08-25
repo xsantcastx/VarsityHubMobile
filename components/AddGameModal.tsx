@@ -1060,6 +1060,39 @@ export default function AddGameModal({
             </View>
 
             <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
+              {/* Add manually — FIRST option under the search bar, so an opponent
+                  that isn't on VarsityHub can be entered by name without scrolling
+                  past the team results (owner note 4). */}
+              {opponentSearchQuery.trim().length > 0 && (
+                <Pressable
+                  style={[styles.pickerItem, { backgroundColor: Colors[colorScheme].surface }]}
+                  onPress={() => {
+                    setFormData(prev => ({ ...prev, opponent: opponentSearchQuery.trim() }));
+                    setOpponentTeamId(null);
+                    if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
+                    setShowOpponentPicker(false);
+                    setOpponentSearchQuery('');
+                    setOpponentSearchResults([]);
+                  }}
+                >
+                  <View style={styles.pickerItemContent}>
+                    <MaterialIcons
+                      name="add-circle-outline"
+                      size={20}
+                      color={Colors[colorScheme].tint}
+                    />
+                    <Text
+                      style={[
+                        styles.pickerItemText,
+                        { color: Colors[colorScheme].tint, marginLeft: 8 },
+                      ]}
+                    >
+                      Add manually: "{opponentSearchQuery.trim()}"
+                    </Text>
+                  </View>
+                </Pressable>
+              )}
+
               {/* Search results */}
               {opponentSearchResults.map(team => (
                 <Pressable
@@ -1109,42 +1142,11 @@ export default function AddGameModal({
               {opponentSearchResults.length === 0 && !opponentSearching && (
                 <View style={styles.emptyState}>
                   <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
-                    {opponentSearchQuery.length < 2
+                    {opponentSearchQuery.trim().length < 2
                       ? 'Start typing to search all teams'
-                      : 'No matches. Tap below to add this name manually.'}
+                      : 'No matching teams — use "Add manually" above.'}
                   </Text>
                 </View>
-              )}
-
-              {/* Add manually — always pinned at bottom when query exists */}
-              {opponentSearchQuery.length > 0 && (
-                <Pressable
-                  style={[styles.pickerItem, { backgroundColor: Colors[colorScheme].surface }]}
-                  onPress={() => {
-                    setFormData(prev => ({ ...prev, opponent: opponentSearchQuery }));
-                    setOpponentTeamId(null);
-                    if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
-                    setShowOpponentPicker(false);
-                    setOpponentSearchQuery('');
-                    setOpponentSearchResults([]);
-                  }}
-                >
-                  <View style={styles.pickerItemContent}>
-                    <MaterialIcons
-                      name="add-circle-outline"
-                      size={20}
-                      color={Colors[colorScheme].tint}
-                    />
-                    <Text
-                      style={[
-                        styles.pickerItemText,
-                        { color: Colors[colorScheme].tint, marginLeft: 8 },
-                      ]}
-                    >
-                      Add manually: "{opponentSearchQuery}"
-                    </Text>
-                  </View>
-                </Pressable>
               )}
             </ScrollView>
           </View>
