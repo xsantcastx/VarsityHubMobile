@@ -21,4 +21,12 @@ export interface EventMapProps {
   dataLoaded?: boolean;
   /** When provided, renders a refresh control button that re-runs the parent's data load (e.g. so games added mid-event appear without leaving the map). */
   onRefresh?: () => void;
+  /** Hide the "center on user" (navigate) control button. Owner note 8: the map's
+   *  middle button is replaced by the dates tracker on the Nearby Games page. */
+  hideCenterOnUser?: boolean;
+  /** When provided, renders a calendar/dates-tracker control button (in place of
+   *  the removed center-on-user button) that opens the parent's date picker. */
+  onCalendarPress?: () => void;
+  /** Highlights the calendar control when a specific date is being viewed. */
+  calendarActive?: boolean;
 }

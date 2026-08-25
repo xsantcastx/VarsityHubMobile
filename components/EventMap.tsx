@@ -37,6 +37,9 @@ export default function EventMap({
   showUserLocation = true,
   dataLoaded = true,
   onRefresh,
+  hideCenterOnUser = false,
+  onCalendarPress,
+  calendarActive = false,
 }: EventMapProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const mapRef = useRef<MapView>(null);
@@ -348,8 +351,33 @@ export default function EventMap({
           </TouchableOpacity>
         )}
 
+        {/* Dates-tracker Button — owner note 8: replaces the middle
+            "center on user" button on the Nearby Games page. Opens the parent's
+            date picker so users can view past days' games/events. */}
+        {onCalendarPress && (
+          <TouchableOpacity
+            style={[
+              styles.controlButton,
+              {
+                backgroundColor: calendarActive
+                  ? Colors[colorScheme].tint
+                  : Colors[colorScheme].background,
+              },
+            ]}
+            onPress={onCalendarPress}
+            accessibilityRole="button"
+            accessibilityLabel="Pick a date to view past games"
+          >
+            <Ionicons
+              name="calendar-outline"
+              size={24}
+              color={calendarActive ? '#FFFFFF' : Colors[colorScheme].tint}
+            />
+          </TouchableOpacity>
+        )}
+
         {/* Center on User Button */}
-        {showUserLocation && userLocation && (
+        {!hideCenterOnUser && showUserLocation && userLocation && (
           <TouchableOpacity
             style={[styles.controlButton, { backgroundColor: Colors[colorScheme].background }]}
             onPress={centerOnUser}
