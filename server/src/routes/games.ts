@@ -1256,28 +1256,30 @@ gamesRouter.get(
         }
       }
 
-      // v1.0.2: map_view=true restricts to "games this week" (today through +7 days).
-      // Test note: once a game is in the past it should drop off the map. Map should only
-      // reflect games the week of in real time. This filter is opt-in so list views still work as before.
+      // map_view=true restricts to the rolling map window (today through +14 days).
+      // Widened from +7 to +14 (2026-08) so the map and feed cover the same 2-week
+      // window and stay in sync (mirror of utils/feedGameQueries.ts FEED_UPCOMING_WINDOW_MS).
+      // Test note: once a game is in the past it should drop off the map. This filter is
+      // opt-in so list views still work as before.
       const isMapView = req.query.map_view === 'true' || req.query.map_view === '1';
       if (isMapView) {
         const now = new Date();
-        const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
         const liveLookback = new Date(now.getTime() - 18 * 60 * 60 * 1000);
-        // Regular games are current-week only — a game drops off the map once
-        // it's in the past (by design). Marquee/teamless events (festivals) also
-        // stay pinned during their live window (started within 18h), so an
+        // Regular games are limited to the next two weeks — a game drops off the
+        // map once it's in the past (by design). Marquee/teamless events (festivals)
+        // also stay pinned during their live window (started within 18h), so an
         // all-day fest happening right now doesn't slide off the map at its
         // start time. Matched on null team columns so it holds regardless of
         // whether the map query flags teamless.
         if (!whereClause.AND) whereClause.AND = [];
         whereClause.AND.push({
           OR: [
-            { date: { gte: now, lte: weekFromNow } },
+            { date: { gte: now, lte: twoWeeksFromNow } },
             {
               home_team_id: null,
               away_team_id: null,
-              date: { gte: liveLookback, lte: weekFromNow },
+              date: { gte: liveLookback, lte: twoWeeksFromNow },
             },
           ],
         });
