@@ -2170,6 +2170,17 @@ teamsRouter.put(
     }
     if (parsed.data.organization_id !== undefined) {
       const targetOrganizationId = parsed.data.organization_id;
+      // Owner rule (note 6): once a team belongs to an organization it is LOCKED
+      // to that org and cannot be moved to a different one. Only a first-time
+      // assignment (team currently has no org) or a same-org no-op is allowed.
+      // This deliberately disables cross-org team transfer per the owner's rule.
+      if (team.organization_id != null && targetOrganizationId !== team.organization_id) {
+        return res.status(403).json({
+          error: 'TEAM_ORG_LOCKED',
+          message: 'This team is locked to its organization and cannot be moved to another one.',
+          code: 'TEAM_ORG_LOCKED',
+        });
+      }
       const targetOrg = await prisma.organization.findUnique({
         where: { id: targetOrganizationId },
         select: { id: true },
