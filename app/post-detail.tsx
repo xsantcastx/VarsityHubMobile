@@ -1412,7 +1412,7 @@ export default function PostDetailScreen() {
               )}
               <View style={styles.authorDetails}>
                 <Text style={[styles.authorName, { color: Colors[colorScheme].text }]}>
-                  {postData.author?.display_name || postData.author?.username || 'Anonymous'}
+                  {postData.author?.username ? `@${postData.author.username}` : 'Anonymous'}
                 </Text>
                 <Text style={[styles.postTime, { color: Colors[colorScheme].tabIconDefault }]}>
                   {timeAgo(postData.created_at)}
@@ -1651,11 +1651,7 @@ export default function PostDetailScreen() {
                         <Text
                           style={[styles.commentAuthorName, { color: Colors[colorScheme].text }]}
                         >
-                          {c.author?.username
-                            ? `@${c.author.username}`
-                            : c.author?.display_name
-                              ? `@${c.author.display_name}`
-                              : 'User'}
+                          {c.author?.username ? `@${c.author.username}` : 'User'}
                         </Text>
                         {c.created_at && (
                           <Text
@@ -1674,9 +1670,7 @@ export default function PostDetailScreen() {
                           onPress={() =>
                             setReplyingToComment({
                               id: String(c.id),
-                              authorName: c.author?.username
-                                ? `@${c.author.username}`
-                                : c.author?.display_name || 'User',
+                              authorName: c.author?.username ? `@${c.author.username}` : 'User',
                             })
                           }
                         >

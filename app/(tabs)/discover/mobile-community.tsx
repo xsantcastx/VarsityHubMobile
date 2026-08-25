@@ -49,11 +49,10 @@ const isInternalId = (s: string) =>
   (/^[0-9a-z]{8,}$/.test(s) && !/[aeiou]{2,}/i.test(s)); // Random ID (no vowel pairs = not a real name)
 
 const safeDisplayName = (user: any): string => {
-  // Prefer username as the primary identifier (what the user chose during signup)
+  // Owner rule (note 5): a user is recognized ONLY by their username — never a
+  // real name / display_name / email. No display_name fallback.
   const uname = user?.username;
   if (uname && !isInternalId(uname)) return uname;
-  const name = user?.display_name;
-  if (name && !isInternalId(name)) return name;
   return 'User';
 };
 
