@@ -374,6 +374,7 @@ One writer per domain object; the client only ever reads.
 - **Approval state** — server DB only, recorded in `AdminActivityLog` (`server/src/lib/adminActivityLogger.ts`). **Verify:** approval never read from component props; IDOR self-action blocked (`coach-approval.test.ts`, `*-approval-race.test.ts`).
 - **Org/team membership & role** — server DB only; re-fetched on protected-screen nav. **Verify:** protected screen refetches, not a cached client flag; `team-membership-authorization.test.ts`, `organization-data-access-invariants.test.ts`.
 - **Payment status** — Stripe/Apple webhook confirmed; the `payment-success` screen verifies via API, never trusts query params. **Verify:** success path calls the verify endpoint; `payments-finalization.test.ts`.
+- **Refund / reject / cancellation preserve financial consistency** — a refund, a rejected ad/booking, or a cancelled subscription reverses exactly the charge it maps to, idempotently, and in one transaction: never an entitlement left without a matching payment, nor a charge whose effect isn't reversed. Refund/cancel handlers (`routes/payments.ts`, `routes/ads.ts`) are the sole writers of the reversal. **Verify:** replaying a refund/cancel is a no-op, and it updates entitlement + records the reversal atomically — covered by / added to `payments-invariants` and `ad-state-invariants`.
 
 ### Architecture & Validation Standards — [ENG]
 
@@ -386,14 +387,17 @@ One writer per domain object; the client only ever reads.
 - **Errors use the envelope** — no raw `res.status().json()`; async handlers wrapped in `asyncHandler`. **Verify:** `npm run verify:error-envelope`, `npm run verify:async-handlers`.
 - **All `findMany` carry a `take`.** **Verify:** `unbounded-queries.test.ts`.
 - **Every screen renders loading, error, success, and empty states.** **Verify:** each of the four is reachable in the component.
+- **Forms block double-submit** — a submit / pay / create / destructive action disables its control (or guards on an in-flight flag) until the request settles, and exposes an actionable recovery state on failure; a second tap during flight must issue no second request. **Verify:** the primary action is `disabled` while `isLoading`/`isSubmitting`/`saving` (pattern: `app/report-abuse.tsx`, `app/feed.tsx`); a payment/create action can never fire twice from one screen.
 - **Every deep link validates params** — fails closed for privileged actions, graceful for public nav. **Verify:** missing/malformed param test per route.
 - **Every admin action is auditable** (actor/target/action/timestamp). **Verify:** `AdminActivityLog` row asserted in a test.
 
 ### Observability & Rollback — [ENG]
 
 - **Structured logging:** user/payment/auth failures log with a `[context]` prefix; exceptions go to Sentry, never raw stacks into the DB (see `dataExportWorker.ts` error-category pattern). **Verify:** grep for the `[context]` prefix on new catch blocks.
+- **Correlation IDs on payment/auth flows** — every request carries an `x-request-id` (honored from the client/Railway header or minted per request), threaded through the logs and echoed on the response, so a payment or auth failure is reconstructable end-to-end from one id (not just the `[context]` tag). **Verify:** `server/src/middleware/logging.ts` sets `req.requestId` + the `x-request-id` response header, and payment/auth log lines are prefixed `[${requestId}]`; a new payment/auth flow does not log under a bare context with no id.
 - **Admin auditability:** every privileged mutation writes `AdminActivityLog`. **Verify:** asserted in a test.
 - **Migrations auto-apply:** `start.sh` runs `prisma migrate deploy` on every Railway deploy — any committed migration hits prod automatically. **Verify:** schema change PRs include migration status + an explicit rollback note (forward-fix or down-migration).
+- **Every change has a safe revert path** — a risky behavior change ships behind a feature flag (an env-var flag like `FEST_RECAP_PINNED`, flipped + OTA to revert) OR with a documented forward-fix / down-migration; never a change whose only undo is a new store binary. Flags default to the safe state. **Verify:** the PR names the revert path (which flag to flip, or which migration reverses it), and any new flag's default is the safer behavior.
 - **No in-process shared state** — coordinate cross-replica via Redis (rate-limit DB 1, BullMQ DB 0, cache DB 2, locks, socket adapter); startup-once work via `runClusterOnce`. **Verify:** new shared state goes through Redis, not module globals (breaks at `numReplicas>1`).
 
 ### Per-System Audit Playbook — [AUDIT]
@@ -433,10 +437,11 @@ Apply the per-feature loop (map → trace data flow → enumerate gates → chec
 - [ ] Prisma schema indexed columns have matching migration SQL
 - [ ] Security fix includes before/after exploit reproduction
 - [ ] Schema change includes migration status, client refresh, and rollback note
+- [ ] Release candidate passes real-device smoke (not just simulator): auth sign-in, one payment/ad purchase, messaging send+receive, and light+dark mode
 
 ### Deck-friendly commandments (the short version)
 
-Thin routes, logic one layer down · Backend validation is law, frontend is guidance · No client-controlled security-critical state · One source of truth per domain object · Every protected action checks auth/role/plan/ownership server-side · Every async flow is idempotent · No silent failures and no fallback that changes security posture · No duplicate logic across routes/features · Every screen handles loading/error/success/empty · Every deep link fails gracefully and safely · Every admin action is auditable · Coordinate cross-replica via Redis, never in-process · Every release change is testable and reversible.
+Thin routes, logic one layer down · Backend validation is law, frontend is guidance · No client-controlled security-critical state · One source of truth per domain object · Every protected action checks auth/role/plan/ownership server-side · Every async flow is idempotent · No silent failures and no fallback that changes security posture · No duplicate logic across routes/features · Every screen handles loading/error/success/empty · Every deep link fails gracefully and safely · Every admin action is auditable · Forms block double-submit · Payment/auth flows carry a correlation id · Refunds and cancellations reverse exactly and idempotently · Coordinate cross-replica via Redis, never in-process · Every release change is testable and reversible.
 
 ## Working Style
 
