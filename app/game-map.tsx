@@ -80,6 +80,9 @@ function GameMapScreen() {
       if (dayScoped) {
         eventsQuery.set('from', dayStart!.toISOString());
         eventsQuery.set('to', dayEnd!.toISOString());
+        // Past-day view: ask for media_post_count so we can hide events nobody
+        // posted media to (a past event with no media is a dead-end page).
+        eventsQuery.set('with_post_count', '1');
       } else {
         // Default live view: the rolling map window (now → +14d). `map_view`
         // makes the server enforce the window and lift the event cap for the
@@ -183,13 +186,16 @@ function GameMapScreen() {
         // A game-linked event duplicates its game's pin — show the fixture once.
         .filter((e: any) => !e.game_id || !gameMarkerIds.has(String(e.game_id)))
         // Default view: past events drop off immediately (live map). Day-scoped
-        // view: show that day's events instead. NOTE (owner note 8, rule 5): past
-        // events with zero posts should be hidden here — that needs a post_count
-        // on the events response (server change, staged separately) before it can
-        // be enforced client-side.
+        // view: show that day's events instead.
         .filter((e: any) =>
           dayScoped ? isSameCalendarDay(e.date, selectedDate as Date) : shouldShowEventOnMap(e.date)
         )
+        // Owner note 8, rule 5 (now enforced): in the day-scoped (past) view,
+        // hide events nobody posted media to — a past event with zero media is a
+        // dead-end page. `media_post_count` comes from the `with_post_count=1`
+        // fetch above; only sent for day-scoped views, so the default (future)
+        // map is unaffected (upcoming events legitimately have no posts yet).
+        .filter((e: any) => !dayScoped || (e.media_post_count ?? 0) > 0)
         .filter(hasValidCoords)
         .map((event: any) => {
           const coords = resolveCoords(event)!;

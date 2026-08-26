@@ -653,7 +653,38 @@ eventsRouter.get(
       if (take) events = events.slice(0, take);
     }
 
-    res.json(events.map(event => serializeEvent(event, { includeGame: true })));
+    // Optional media-post count. The map's day-scoped (past) view uses it to
+    // hide events nobody posted media to — a past event with zero media is a
+    // dead-end page (no recap, and per the geofence rule you can't post to it
+    // afterwards unless you posted while there). Gated behind a param so the hot
+    // list paths don't pay for the extra aggregate; future views never need it.
+    const wantPostCount =
+      req.query.with_post_count === 'true' || req.query.with_post_count === '1';
+    let mediaCountByEvent: Map<string, number> | null = null;
+    if (wantPostCount && events.length) {
+      const grouped = await prisma.post.groupBy({
+        by: ['event_id'],
+        where: {
+          event_id: { in: events.map((e: any) => e.id) },
+          media_url: { not: null },
+          deleted_at: null,
+        },
+        _count: { _all: true },
+      });
+      mediaCountByEvent = new Map(
+        grouped.map(g => [g.event_id as string, g._count._all])
+      );
+    }
+
+    res.json(
+      events.map(event => {
+        const serialized = serializeEvent(event, { includeGame: true });
+        if (mediaCountByEvent) {
+          (serialized as any).media_post_count = mediaCountByEvent.get(event.id) ?? 0;
+        }
+        return serialized;
+      })
+    );
   })
 );
 
