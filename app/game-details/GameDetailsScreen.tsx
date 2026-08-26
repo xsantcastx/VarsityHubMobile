@@ -2145,10 +2145,31 @@ const GameDetailsScreen = () => {
       ) : (
         <LinearGradient
           colors={PLACEHOLDER_GRADIENT}
-          style={styles.bannerImage}
+          style={[
+            styles.bannerImage,
+            { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 10 },
+          ]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-        />
+        >
+          {/* Never a blank banner: an event with no photo, cover image, or
+              team matchup still gets a branded placeholder (icon + title) so
+              the page reads as intentional rather than broken. */}
+          <Ionicons name="calendar-outline" size={44} color="rgba(255,255,255,0.92)" />
+          {!!vm?.title && (
+            <Text
+              numberOfLines={2}
+              style={{
+                color: 'rgba(255,255,255,0.95)',
+                fontSize: 18,
+                fontWeight: '700',
+                textAlign: 'center',
+              }}
+            >
+              {vm.title}
+            </Text>
+          )}
+        </LinearGradient>
       );
 
     return (

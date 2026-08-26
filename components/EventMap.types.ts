@@ -29,4 +29,7 @@ export interface EventMapProps {
   onCalendarPress?: () => void;
   /** Highlights the calendar control when a specific date is being viewed. */
   calendarActive?: boolean;
+  /** Start on a wide (country-wide) view instead of auto-zooming to the user.
+   *  The map still fits to the loaded pins; "center on me" becomes a button. */
+  startWide?: boolean;
 }

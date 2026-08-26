@@ -275,9 +275,9 @@ describe('GET /highlights?v2=1&sort=top — country FJ', () => {
  * to newest-first for viewers with no coords.) These pin the location-
  * independent, engagement-only ranking.
  */
-describe('GET /highlights?v2=1&sort=trending — engagement-only, app-wide (country PE)', () => {
-  // Stamford CT — a viewer location that sits on top of quietOldNearPost, so if
-  // proximity leaked back in these assertions would flip.
+describe('GET /highlights?v2=1&sort=trending — engagement-dominant with a bounded locality lift (country PE)', () => {
+  // Stamford CT — a viewer location that sits on top of quietOldNearPost, so the
+  // locality lift is observable while engagement must still dominate.
   const VIEWER = { lat: 41.09, lng: -73.52 };
   let authorId: string;
   let viralPost: string; // Los Angeles (far from VIEWER), 900 upvotes -> #1
@@ -300,11 +300,15 @@ describe('GET /highlights?v2=1&sort=trending — engagement-only, app-wide (coun
         createdDaysAgo: 1,
       })
     ).id;
+    // Both quiet posts sit in the SAME recency band (4d and 5d are both in the
+    // ≤7-day tier) so recency is equal and LOCATION is the only differentiator —
+    // that isolates the bounded lift. The far one is slightly newer so that,
+    // WITHOUT coords (lift off), it wins the recency tiebreak.
     quietOldNearPost = (
-      await createPost(authorId, 'PE', { upvotes: 0, lat: 41.1, lng: -73.53, createdDaysAgo: 2 })
+      await createPost(authorId, 'PE', { upvotes: 0, lat: 41.1, lng: -73.53, createdDaysAgo: 5 })
     ).id;
     quietNewPost = (
-      await createPost(authorId, 'PE', { upvotes: 0, lat: 34.05, lng: -118.24, createdDaysAgo: 0 })
+      await createPost(authorId, 'PE', { upvotes: 0, lat: 34.05, lng: -118.24, createdDaysAgo: 4 })
     ).id;
     cleanup.push(viralPost, quietOldNearPost, quietNewPost);
   });
@@ -314,35 +318,37 @@ describe('GET /highlights?v2=1&sort=trending — engagement-only, app-wide (coun
     await prisma.user.delete({ where: { id: authorId } }).catch(() => {});
   });
 
-  it('a viral post leads even when it is far and the viewer sends coords', async () => {
+  it('a viral far post still leads and a nearby quiet post is never crowned #1 (engagement dominates the lift)', async () => {
+    // The exact failure that got the old proximity term removed: a nearby
+    // 0-engagement post winning #1. The bounded multiplicative lift can't do
+    // that — a distant viral post outranks it easily.
     const res = await request(app).get(
       `/highlights?v2=1&country=PE&sort=trending&lat=${VIEWER.lat}&lng=${VIEWER.lng}`
     );
     expect(res.status).toBe(200);
     const ids = res.body.items.map((p: any) => p.id);
     expect(ids[0]).toBe(viralPost);
+    expect(ids.indexOf(quietOldNearPost)).toBeGreaterThan(0); // never #1
   });
 
-  it('location is ignored — the newer far post outranks the older near post under viewer coords', async () => {
-    // Under the old proximity/blend rule the near post would get a boost and
-    // could win; with proximity removed, recency decides and the far post wins.
+  it('a nearby post gets a bounded lift over a comparably-quiet far post (the blend)', async () => {
+    // Both quiet posts have 0 engagement; with the viewer's coords the NEAR one
+    // is lifted above the far one even though the far one is newer.
     const res = await request(app).get(
       `/highlights?v2=1&country=PE&sort=trending&lat=${VIEWER.lat}&lng=${VIEWER.lng}`
     );
     const ids = res.body.items.map((p: any) => p.id);
-    expect(ids.indexOf(quietNewPost)).toBeLessThan(ids.indexOf(quietOldNearPost));
+    expect(ids.indexOf(quietOldNearPost)).toBeLessThan(ids.indexOf(quietNewPost));
   });
 
-  it('the order is identical with and without viewer coords (location-independent)', async () => {
-    const withCoords = await request(app).get(
-      `/highlights?v2=1&country=PE&sort=trending&lat=${VIEWER.lat}&lng=${VIEWER.lng}`
-    );
-    const noCoords = await request(app).get('/highlights?v2=1&country=PE&sort=trending');
-    expect(withCoords.status).toBe(200);
-    expect(noCoords.status).toBe(200);
-    const idsWith = withCoords.body.items.map((p: any) => p.id);
-    const idsNo = noCoords.body.items.map((p: any) => p.id);
-    expect(idsWith).toEqual(idsNo);
+  it('the lift is a no-op without coords — recency decides between equally-quiet posts', async () => {
+    // No viewer coords → no lift → the two 0-engagement posts order by recency,
+    // so the newer far post wins (the pre-blend behavior, preserved). This is
+    // the graceful-degradation half of the blend contract.
+    const res = await request(app).get('/highlights?v2=1&country=PE&sort=trending');
+    expect(res.status).toBe(200);
+    const ids = res.body.items.map((p: any) => p.id);
+    expect(ids.indexOf(quietNewPost)).toBeLessThan(ids.indexOf(quietOldNearPost));
   });
 
   it('never an empty tab when the viewer has no location — a viral post still leads', async () => {
