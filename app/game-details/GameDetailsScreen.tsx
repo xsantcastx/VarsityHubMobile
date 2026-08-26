@@ -59,7 +59,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getApiBaseUrl } from '../../api/http';
+import { getApiBaseUrl } from '../../apiclient/http';
 import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports

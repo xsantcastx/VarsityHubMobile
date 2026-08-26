@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MatchBanner from '../app/components/MatchBanner';
 import ImageEditor from './ImageEditor';
 import LocationPicker from './LocationPicker';
-import { getApiBaseUrl } from '../api/http';
+import { getApiBaseUrl } from '../apiclient/http';
 
 interface AddGameModalProps {
   visible: boolean;

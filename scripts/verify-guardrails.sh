@@ -13,12 +13,12 @@ echo "Checking regression guardrails..."
 if command -v rg >/dev/null 2>&1; then
   conflict_files="$(rg -l "^<<<<<<< |^>>>>>>> |^=======$" \
     --glob '*.ts' --glob '*.tsx' --glob '*.js' --glob '*.jsx' \
-    app components hooks utils api context constants lib shared server/src \
+    app components hooks utils apiclient context constants lib shared server/src \
     2>/dev/null || true)"
 else
   conflict_files="$(grep -rl "<<<<<<< \|>>>>>>> \|^=======$" \
     --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
-    app components hooks utils api context constants lib shared server/src \
+    app components hooks utils apiclient context constants lib shared server/src \
     2>/dev/null || true)"
 fi
 if [ -n "$conflict_files" ]; then
@@ -63,7 +63,7 @@ check_no_matches \
 check_no_matches \
   "user label fallback bypasses utils/userDisplay.ts" \
   "display_name\\s*\\|\\|\\s*username|display_name\\s*\\|\\|\\s*email|username\\s*\\|\\|\\s*email" \
-  app components hooks api utils \
+  app components hooks apiclient utils \
   --glob '!utils/userDisplay.ts' \
   --glob '!**/__tests__/**'
 

@@ -27,7 +27,7 @@
     "fix:deps": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/ensure-is-arrayish.js",
     "lint": "expo lint",
     "format:check": "bash scripts/format-check-changed.sh",
-    "format:check:all": "npx prettier --check \"app/**/*.{ts,tsx,js,jsx}\" \"components/**/*.{ts,tsx,js,jsx}\" \"hooks/**/*.{ts,tsx,js,jsx}\" \"utils/**/*.{ts,tsx,js,jsx}\" \"api/**/*.{ts,tsx,js,jsx}\" \"context/**/*.{ts,tsx,js,jsx}\" \"constants/**/*.{ts,tsx,js,jsx}\" \"server/src/**/*.{ts,tsx,js,jsx}\" \"*.{js,json,md}\" \"docs/**/*.md\"",
+    "format:check:all": "npx prettier --check \"app/**/*.{ts,tsx,js,jsx}\" \"components/**/*.{ts,tsx,js,jsx}\" \"hooks/**/*.{ts,tsx,js,jsx}\" \"utils/**/*.{ts,tsx,js,jsx}\" \"apiclient/**/*.{ts,tsx,js,jsx}\" \"context/**/*.{ts,tsx,js,jsx}\" \"constants/**/*.{ts,tsx,js,jsx}\" \"server/src/**/*.{ts,tsx,js,jsx}\" \"*.{js,json,md}\" \"docs/**/*.md\"",
     "lint:strict": "expo lint --fix && npm run typecheck",
     "doctor": "npx expo-doctor",
     "coach:uat:baseline": "bash scripts/run-coach-uat-baseline.sh",
@@ -70,7 +70,7 @@
     "server:db:studio": "cd server && npx prisma studio",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
-    "test:regressions:client": "jest --runInBand utils/__tests__/notificationPresentation.test.ts utils/__tests__/userDisplay.test.ts api/__tests__/upload-routing.test.ts components/__tests__/EventMap.test.ts app/game-details/__tests__/GameVerticalFeedScreen.nav.test.tsx __tests__/onboarding-step2-media.test.tsx app/__tests__/route-integrity.test.ts utils/__tests__/coachApprovalFlow.test.ts 'app/\\(tabs\\)/__tests__/team-hub.test.tsx' app/__tests__/navigation-guards.test.ts",
+    "test:regressions:client": "jest --runInBand utils/__tests__/notificationPresentation.test.ts utils/__tests__/userDisplay.test.ts apiclient/__tests__/upload-routing.test.ts components/__tests__/EventMap.test.ts app/game-details/__tests__/GameVerticalFeedScreen.nav.test.tsx __tests__/onboarding-step2-media.test.tsx app/__tests__/route-integrity.test.ts utils/__tests__/coachApprovalFlow.test.ts 'app/\\(tabs\\)/__tests__/team-hub.test.tsx' app/__tests__/navigation-guards.test.ts",
     "test:regressions:server": "npm --prefix server test -- --runInBand src/__tests__/requireOnboarded-bypass.test.ts src/__tests__/middleware-coverage.test.ts src/__tests__/geofencing-post-grace-window.test.ts src/__tests__/games-cache-invalidation.test.ts src/__tests__/games-approval-race.test.ts src/__tests__/users-follow-cache-invalidation.test.ts src/__tests__/apple-notification-dedup.test.ts src/__tests__/ad-approval-race.test.ts src/__tests__/team-invite-race-guards.test.ts",
     "ci:retry": "node scripts/run-with-retry.js",
     "test:repeat": "node scripts/repeat-command.js",
@@ -89,7 +89,7 @@
     "test:coverage": "jest --coverage --runInBand",
     "stash:apply": "bash scripts/safe-stash-apply.sh",
     "check:conflicts": "rg -l \"^<<<<<<< |^>>>>>>> |^=======$\" --glob \"*.ts\" --glob \"*.tsx\" --glob \"*.js\" app components hooks utils api context constants lib shared server/src 2>/dev/null && echo \"Conflicts found!\" || echo \"No conflicts found.\"",
-    "format": "npx prettier --write \"app/**/*.{ts,tsx,js,jsx}\" \"components/**/*.{ts,tsx,js,jsx}\" \"hooks/**/*.{ts,tsx,js,jsx}\" \"utils/**/*.{ts,tsx,js,jsx}\" \"api/**/*.{ts,tsx,js,jsx}\" \"context/**/*.{ts,tsx,js,jsx}\" \"constants/**/*.{ts,tsx,js,jsx}\" \"__tests__/**/*.{ts,tsx}\" \"server/src/**/*.{ts,tsx,js,jsx}\" \"*.{js,json,md}\" \"docs/**/*.md\"",
+    "format": "npx prettier --write \"app/**/*.{ts,tsx,js,jsx}\" \"components/**/*.{ts,tsx,js,jsx}\" \"hooks/**/*.{ts,tsx,js,jsx}\" \"utils/**/*.{ts,tsx,js,jsx}\" \"apiclient/**/*.{ts,tsx,js,jsx}\" \"context/**/*.{ts,tsx,js,jsx}\" \"constants/**/*.{ts,tsx,js,jsx}\" \"__tests__/**/*.{ts,tsx}\" \"server/src/**/*.{ts,tsx,js,jsx}\" \"*.{js,json,md}\" \"docs/**/*.md\"",
     "audit:duplication": "npx --yes jscpd@3.5.10 --config .jscpd.json"
   },
   "dependencies": {

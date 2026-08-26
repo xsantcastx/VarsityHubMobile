@@ -2,7 +2,7 @@
 // Handles both development and production environments
 
 import { getConfig } from '@/config/env';
-import { getApiBaseUrl } from '../api/http';
+import { getApiBaseUrl } from '../apiclient/http';
 
 const appConfig = getConfig();
 export const API_BASE_URL = getApiBaseUrl();
