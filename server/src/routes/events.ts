@@ -403,7 +403,14 @@ const serializeEvent = (
 eventsRouter.get(
   '/',
   asyncHandler(async (req, res) => {
-    const status = String(req.query.status || '').trim();
+    // status must be a real EventStatus enum value. An unknown value (e.g. a
+    // client sending ?status=upcoming — a date concept, not a status) would reach
+    // prisma.event.findMany and throw PrismaClientValidationError → 500 (Sentry
+    // VARSITYHUB-3W). Ignore unknown values and fall through to the default
+    // non-cancelled filter rather than crashing a public list endpoint.
+    const EVENT_STATUS_VALUES = ['draft', 'approved', 'rejected', 'cancelled'];
+    const statusRaw = String(req.query.status || '').trim();
+    const status = EVENT_STATUS_VALUES.includes(statusRaw) ? statusRaw : '';
     const includeCancelled = String(req.query.include_cancelled || '').toLowerCase() === 'true';
     const approvalStatus = String(req.query.approval_status || '').trim();
     const eventType = String(req.query.event_type || '').trim();
