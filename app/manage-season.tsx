@@ -1808,6 +1808,20 @@ function ManageSeasonScreen() {
                 </Pressable>
               </View>
 
+              {/* Sample-data notice — live standings are not yet wired to real games */}
+              <View
+                style={[styles.playoffInfo, { backgroundColor: Colors[colorScheme].tint + '15' }]}
+              >
+                <Ionicons
+                  name="information-circle-outline"
+                  size={16}
+                  color={Colors[colorScheme].tint}
+                />
+                <Text style={[styles.playoffInfoText, { color: Colors[colorScheme].mutedText }]}>
+                  Sample standings shown for preview. Live league standings are coming soon.
+                </Text>
+              </View>
+
               {/* Standings Table Header */}
               <View
                 style={[styles.standingsHeader, { borderBottomColor: Colors[colorScheme].border }]}
@@ -1988,6 +2002,20 @@ function ManageSeasonScreen() {
                 <Pressable onPress={onRefresh}>
                   <Ionicons name="trophy-outline" size={20} color={Colors[colorScheme].tint} />
                 </Pressable>
+              </View>
+
+              {/* Sample-data notice — the bracket below is a preview, not real results */}
+              <View
+                style={[styles.playoffInfo, { backgroundColor: Colors[colorScheme].tint + '15' }]}
+              >
+                <Ionicons
+                  name="information-circle-outline"
+                  size={16}
+                  color={Colors[colorScheme].tint}
+                />
+                <Text style={[styles.playoffInfoText, { color: Colors[colorScheme].mutedText }]}>
+                  Sample bracket shown for preview. Live playoffs are coming soon.
+                </Text>
               </View>
 
               {/* Playoff Info */}

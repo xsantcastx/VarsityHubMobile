@@ -218,11 +218,10 @@ function FavoritesScreen() {
             <Text style={[styles.cardTitle, { color: palette.text }]} numberOfLines={2}>
               {item.caption || 'Saved highlight'}
             </Text>
-            {item.author?.display_name ? (
-              <Text style={[styles.cardMeta, { color: palette.mutedText }]} numberOfLines={1}>
-                by {item.author.display_name}
-              </Text>
-            ) : null}
+            {/* Owner rule (note 5): identity is username-only. The favorites
+                author payload carries no username (only display_name), so the
+                "by …" attribution is omitted rather than leak a real name.
+                Add username to the favorites author API to restore it as @handle. */}
             <View style={styles.cardStats}>
               <View style={styles.statRow}>
                 <MaterialIcons name="arrow-upward" size={14} color={palette.mutedText} />

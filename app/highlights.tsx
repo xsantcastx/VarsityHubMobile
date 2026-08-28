@@ -39,7 +39,7 @@ try {
   /* native module not available */
 }
 // @ts-ignore legacy export shape
-import { Event, Highlights, Organization, Post, Search, Team, User } from '@/api/entities';
+import { Event, Highlights, Organization, Post, Report, Search, Team, User } from '@/api/entities';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
@@ -201,6 +201,7 @@ const HighlightCard = ({
   onAuthorPress,
   colorScheme,
   onUpvote,
+  onReport,
   trendingRanked = false,
 }: {
   item: HighlightItem;
@@ -213,6 +214,7 @@ const HighlightCard = ({
   onAuthorPress?: (authorId: string) => void;
   colorScheme: 'light' | 'dark';
   onUpvote?: (item: HighlightItem) => void;
+  onReport?: (item: HighlightItem) => void;
   // True only when the Trending list is led by a post that actually carries
   // engagement — i.e. the score-based ranking is meaningful. Gates the medal
   // badges so #1 always genuinely means "top-ranked", never just "first of a
@@ -245,6 +247,8 @@ const HighlightCard = ({
         { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
       ]}
       onPress={() => onPress(item)}
+      onLongPress={onReport ? () => onReport(item) : undefined}
+      delayLongPress={400}
     >
       <View style={styles.cardContainer}>
         {/* Media Section */}
@@ -861,6 +865,51 @@ function HighlightsScreen() {
     [patchHighlight, user, router]
   );
 
+  // Report a highlight (T&S: every media surface must offer report). Long-press
+  // a card to open this. Mirrors the post-detail report flow — same reasons,
+  // same idempotent feedback (already-reported / cannot-report-own).
+  const handleReport = useCallback((item: HighlightItem) => {
+    if (!item?.id) return;
+    const reasons = [
+      { text: 'Harassment / Bullying', value: 'harassment' },
+      { text: 'Copyright infringement', value: 'copyright' },
+      { text: 'Broadcast footage', value: 'copyright' },
+      { text: 'Unauthorized use of my likeness', value: 'impersonation' },
+      { text: 'Inappropriate content', value: 'nudity' },
+      { text: 'Spam', value: 'spam' },
+      { text: 'Cancel', value: '' },
+    ];
+    Alert.alert(
+      'Report Highlight',
+      'Select a reason:',
+      reasons.map(r => ({
+        text: r.text,
+        style: r.value === '' ? ('cancel' as const) : ('default' as const),
+        onPress: r.value
+          ? async () => {
+              try {
+                await Report.create({ target_type: 'post', target_id: item.id, reason: r.value });
+                Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+              } catch (error: any) {
+                if (error?.status === 409) {
+                  Alert.alert('Already Reported', 'You have already reported this post.');
+                } else if (error?.status === 400 && error?.data?.error?.includes('own')) {
+                  Alert.alert('Cannot Report', 'You cannot report your own content.');
+                } else {
+                  Alert.alert(
+                    'Error',
+                    error?.data?.error ||
+                      error?.message ||
+                      'Failed to submit report. Please try again.'
+                  );
+                }
+              }
+            }
+          : undefined,
+      }))
+    );
+  }, []);
+
   // The Trending medals are meaningful only when the score-ranked list is
   // actually led by an engaged post. If the top item has zero engagement,
   // nothing is genuinely trending (order is just recency), so we suppress the
@@ -885,6 +934,7 @@ function HighlightsScreen() {
         onAuthorPress={handleAuthorPress}
         colorScheme={colorScheme}
         onUpvote={handleUpvote}
+        onReport={handleReport}
         trendingRanked={trendingRanked}
       />
     </View>
@@ -1028,10 +1078,10 @@ function HighlightsScreen() {
                     borderBottomWidth: 1,
                     borderBottomColor: Colors[colorScheme].border,
                   }}
-                  onPress={() => setSearchQuery(user.display_name || user.username || user.email)}
+                  onPress={() => setSearchQuery(user.username || '')}
                 >
                   <Text style={{ color: Colors[colorScheme].text }}>
-                    👤 {user.display_name || user.username || user.email}
+                    👤 @{user.username || 'user'}
                   </Text>
                 </Pressable>
               ))}
@@ -1216,15 +1266,7 @@ function HighlightsScreen() {
                     }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>
-                      {user.display_name}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.searchResultSubtitle,
-                        { color: Colors[colorScheme].tabIconDefault },
-                      ]}
-                    >
-                      @{user.username || user.email}
+                      @{user.username || 'user'}
                     </Text>
                   </Pressable>
                 ))}
@@ -1286,6 +1328,7 @@ function HighlightsScreen() {
                     onAuthorPress={handleAuthorPress}
                     colorScheme={colorScheme}
                     onUpvote={handleUpvote}
+                    onReport={handleReport}
                   />
                 ))}
               </View>

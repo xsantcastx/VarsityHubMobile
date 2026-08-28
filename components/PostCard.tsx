@@ -262,7 +262,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                           { color: Colors[colorScheme].background },
                         ]}
                       >
-                        {(author?.display_name || author?.username || '?').charAt(0).toUpperCase()}
+                        {(author?.username || '?').charAt(0).toUpperCase()}
                       </Text>
                     </View>
                   )}
@@ -271,7 +271,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                   numberOfLines={1}
                   style={[styles.authorName, { color: Colors[colorScheme].text }]}
                 >
-                  {author?.username ? `@${author.username}` : author?.display_name || 'User'}
+                  {author?.username ? `@${author.username}` : 'User'}
                 </Text>
               </Pressable>
               {currentUser && (

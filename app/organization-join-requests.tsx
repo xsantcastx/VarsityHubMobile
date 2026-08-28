@@ -138,7 +138,7 @@ function OrganizationJoinRequestsScreen() {
         organization_id: r.organization_id,
         organization_name: orgName,
         requester_id: r.user_id,
-        requester_name: r.user?.display_name || r.user?.username || 'Coach',
+        requester_name: r.user?.username || 'Coach',
         message: r.message || '',
         status: r.status === 'denied' ? 'rejected' : r.status,
         created_at: r.created_at,

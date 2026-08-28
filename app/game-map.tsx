@@ -2,70 +2,117 @@ import EventMap, { EventMapData } from '@/components/EventMap';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as Location from 'expo-location';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { safeGoBack } from '@/utils/navigation';
-import { shouldShowEventOnMap } from '@/utils/mapEventFilters';
+import { MAP_WINDOW_DAYS, shouldShowEventOnMap } from '@/utils/mapEventFilters';
 import SportFilterBar from '@/components/SportFilterBar';
 import { normalizeSportSlug } from '@/constants/sports';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 // SafeAreaView removed — native header handles safe area
 // @ts-ignore
 import { Game } from '@/api/entities';
 import { httpGet } from '@/api/http';
 
+/** True when an ISO date string falls on the same calendar day as `day`. */
+function isSameCalendarDay(dateStr: string | null | undefined, day: Date): boolean {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return false;
+  return (
+    d.getFullYear() === day.getFullYear() &&
+    d.getMonth() === day.getMonth() &&
+    d.getDate() === day.getDate()
+  );
+}
+
 function GameMapScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ lat?: string; lng?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
 
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<EventMapData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
+  // Owner note 8: dates tracker. `selectedDate === null` is the default live/nearby
+  // view (today + upcoming). A non-null value scopes the map to that single past
+  // day so users can browse previous games/events (active 7-day window).
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  // Full-calendar picker: a chip at the end of the quick 7-day strip opens a
+  // real date picker so the user can jump to ANY past day (owner: "when a user
+  // is selecting recent dates and hits the end, [add] a calendar button").
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [pickerDate, setPickerDate] = useState<Date>(new Date());
 
   const loadGames = useCallback(async () => {
     setLoading(true);
     try {
-      // Get user location from params or current location
-      let lat = params.lat ? parseFloat(params.lat) : null;
-      let lng = params.lng ? parseFloat(params.lng) : null;
+      // The map is a NATIONAL view (owner: "start wide to show events across the
+      // country"). We no longer geo-filter the fetch to a radius — every
+      // in-window game/event is fetched and clustered client-side by zoom. The
+      // viewer's own location (blue dot + "center on me" button) is resolved
+      // independently inside EventMap, so no GPS wait is needed here.
 
-      if (!lat || !lng) {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          // GPS can hang indefinitely indoors or in a crowd — race it against
-          // a hard timeout so this fetch (and the "Loading nearby games..."
-          // overlay it drives) never gets stuck. On timeout we just fetch
-          // without a location filter instead of blocking the whole screen.
-          const location = await Promise.race([
-            Location.getCurrentPositionAsync({}),
-            new Promise<null>(resolve => setTimeout(() => resolve(null), 6000)),
-          ]);
-          if (location) {
-            lat = location.coords.latitude;
-            lng = location.coords.longitude;
-          }
-        }
-      }
+      // Dates tracker (owner note 8): when a past day is picked, scope the fetch
+      // to that calendar day (dropping mapView, which is future-only server-side)
+      // so previous games/events surface. Default (null) keeps the live view.
+      const dayScoped = selectedDate != null;
+      const dayStart = dayScoped ? new Date(selectedDate as Date) : null;
+      dayStart?.setHours(0, 0, 0, 0);
+      const dayEnd = dayScoped ? new Date(selectedDate as Date) : null;
+      dayEnd?.setHours(23, 59, 59, 999);
 
-      // Fetch games and events; when user has location, filter to nearby (radius 50mi)
       const eventsQuery = new URLSearchParams();
       eventsQuery.set('approval_status', 'approved');
-      if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
-        eventsQuery.set('lat', String(lat));
-        eventsQuery.set('lng', String(lng));
-        eventsQuery.set('radius', '50');
+      eventsQuery.set('sort', 'date');
+      if (dayScoped) {
+        eventsQuery.set('from', dayStart!.toISOString());
+        eventsQuery.set('to', dayEnd!.toISOString());
+        // Past-day view: ask for media_post_count so we can hide events nobody
+        // posted media to (a past event with no media is a dead-end page).
+        eventsQuery.set('with_post_count', '1');
+      } else {
+        // Default live view: the rolling map window (now → +14d). `map_view`
+        // makes the server enforce the window and lift the event cap for the
+        // national view; from/to is a belt-and-braces bound for any server that
+        // predates map_view on /events. sort=date is ascending, so `from` is
+        // required — otherwise the oldest events fill the cap and get dropped
+        // client-side; with it, the SOONEST events win. shouldShowEventOnMap
+        // re-bounds client-side as a third layer.
+        const nowMs = Date.now();
+        eventsQuery.set('map_view', 'true');
+        eventsQuery.set('from', new Date(nowMs).toISOString());
+        eventsQuery.set(
+          'to',
+          new Date(nowMs + MAP_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString()
+        );
+        eventsQuery.set('limit', '300');
       }
       const [gamesResponse, eventsResponse] = await Promise.all([
-        // v1.0.2: mapView restricts to games this week — past games drop off the map in real time.
+        // National fetch: mapView restricts games to the rolling window
+        // (future-only, +14d) server-side; a day-scoped view passes explicit
+        // from/to so a past day resolves. No lat/lng → the whole country.
         Game.list(
           'date',
-          lat != null && lng != null
-            ? { lat, lng, limit: 50, mapView: true }
-            : { limit: 50, mapView: true }
+          dayScoped
+            ? {
+                limit: 100,
+                dateFrom: dayStart!.toISOString(),
+                dateTo: dayEnd!.toISOString(),
+              }
+            : { limit: 100, mapView: true }
         ).catch((error: any) => {
           if (__DEV__) console.error('[game-map] Failed to fetch games:', error);
           return { items: [] };
@@ -115,7 +162,9 @@ function GameMapScreen() {
       // a tappable pin that routed to the dead-end "This event has ended" page.
       const gameMarkers: EventMapData[] = gamesList
         .filter(hasValidCoords)
-        .filter((g: any) => shouldShowEventOnMap(g.date))
+        .filter((g: any) =>
+          dayScoped ? isSameCalendarDay(g.date, selectedDate as Date) : shouldShowEventOnMap(g.date)
+        )
         .map((game: any) => {
           const coords = resolveCoords(game)!;
           return {
@@ -136,9 +185,17 @@ function GameMapScreen() {
         .filter((e: any) => e.status !== 'cancelled')
         // A game-linked event duplicates its game's pin — show the fixture once.
         .filter((e: any) => !e.game_id || !gameMarkerIds.has(String(e.game_id)))
-        // Feed/list views intentionally keep recent past events visible for recap.
-        // The map should not: past events should drop off immediately.
-        .filter((e: any) => shouldShowEventOnMap(e.date))
+        // Default view: past events drop off immediately (live map). Day-scoped
+        // view: show that day's events instead.
+        .filter((e: any) =>
+          dayScoped ? isSameCalendarDay(e.date, selectedDate as Date) : shouldShowEventOnMap(e.date)
+        )
+        // Owner note 8, rule 5 (now enforced): in the day-scoped (past) view,
+        // hide events nobody posted media to — a past event with zero media is a
+        // dead-end page. `media_post_count` comes from the `with_post_count=1`
+        // fetch above; only sent for day-scoped views, so the default (future)
+        // map is unaffected (upcoming events legitimately have no posts yet).
+        .filter((e: any) => !dayScoped || (e.media_post_count ?? 0) > 0)
         .filter(hasValidCoords)
         .map((event: any) => {
           const coords = resolveCoords(event)!;
@@ -177,7 +234,7 @@ function GameMapScreen() {
     } finally {
       setLoading(false);
     }
-  }, [params.lat, params.lng]);
+  }, [selectedDate]);
 
   useEffect(() => {
     void loadGames();
@@ -205,6 +262,29 @@ function GameMapScreen() {
     () => (selectedSport ? events.filter(e => e.sport === selectedSport) : events),
     [events, selectedSport]
   );
+
+  // Dates tracker options: Today (live default) + the previous 7 days (active
+  // 7-day window). "Today" maps to null so it restores the default nearby view.
+  const dateOptions = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const opts: { key: string; label: string; date: Date | null }[] = [];
+    for (let i = 0; i <= 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      opts.push({
+        key: i === 0 ? 'today' : d.toISOString().slice(0, 10),
+        label:
+          i === 0
+            ? 'Today'
+            : i === 1
+              ? 'Yesterday'
+              : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        date: i === 0 ? null : d,
+      });
+    }
+    return opts;
+  }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -239,7 +319,180 @@ function GameMapScreen() {
           showUserLocation={true}
           dataLoaded={!loading}
           onRefresh={!loading && !error ? loadGames : undefined}
+          startWide
+          onCalendarPress={() => setShowDatePicker(v => !v)}
+          calendarActive={selectedDate != null}
         />
+
+        {/* Dates tracker (owner note 8): a compact date picker — not a full
+            calendar — toggled by the map's calendar control. Picking a past day
+            scopes the map to that day's games/events; "Today" restores live. */}
+        {showDatePicker && (
+          <View style={styles.datePickerBar} pointerEvents="box-none">
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.datePickerContent}
+            >
+              {dateOptions.map(opt => {
+                const active =
+                  opt.date == null
+                    ? selectedDate == null
+                    : selectedDate != null &&
+                      isSameCalendarDay(selectedDate.toISOString(), opt.date);
+                return (
+                  <Pressable
+                    key={opt.key}
+                    onPress={() => setSelectedDate(opt.date)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    style={[
+                      styles.dateChip,
+                      {
+                        backgroundColor: active
+                          ? Colors[colorScheme].tint
+                          : Colors[colorScheme].background,
+                        borderColor: active ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dateChipText,
+                        { color: active ? '#FFFFFF' : Colors[colorScheme].text },
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+
+              {/* Calendar chip at the end of the strip — jump to ANY past day
+                  beyond the quick 7-day chips. Shows the picked date when the
+                  active selection is a custom (off-strip) day. */}
+              {(() => {
+                const customActive =
+                  selectedDate != null &&
+                  !dateOptions.some(
+                    o => o.date != null && isSameCalendarDay(selectedDate.toISOString(), o.date)
+                  );
+                return (
+                  <Pressable
+                    onPress={() => {
+                      setPickerDate(selectedDate ?? new Date());
+                      setShowCalendar(true);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Pick a date from the calendar"
+                    style={[
+                      styles.dateChip,
+                      styles.calendarChip,
+                      {
+                        backgroundColor: customActive
+                          ? Colors[colorScheme].tint
+                          : Colors[colorScheme].background,
+                        borderColor: customActive
+                          ? Colors[colorScheme].tint
+                          : Colors[colorScheme].border,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="event"
+                      size={15}
+                      color={customActive ? '#FFFFFF' : Colors[colorScheme].text}
+                    />
+                    <Text
+                      style={[
+                        styles.dateChipText,
+                        { color: customActive ? '#FFFFFF' : Colors[colorScheme].text },
+                      ]}
+                    >
+                      {customActive
+                        ? selectedDate!.toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                          })
+                        : 'Pick date'}
+                    </Text>
+                  </Pressable>
+                );
+              })()}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Full calendar picker, opened by the "Pick date" chip. iOS shows a
+            bottom-sheet spinner (confirm on Done); Android shows the native
+            dialog (commits on select). Past-only to match the recent-dates strip. */}
+        {Platform.OS === 'ios' ? (
+          <Modal
+            visible={showCalendar}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowCalendar(false)}
+          >
+            <Pressable style={styles.calendarBackdrop} onPress={() => setShowCalendar(false)}>
+              <View
+                style={[styles.calendarSheet, { backgroundColor: Colors[colorScheme].background }]}
+                onStartShouldSetResponder={() => true}
+              >
+                <View
+                  style={[styles.calendarHeader, { borderBottomColor: Colors[colorScheme].border }]}
+                >
+                  <Pressable onPress={() => setShowCalendar(false)}>
+                    <Text style={[styles.calendarAction, { color: Colors[colorScheme].mutedText }]}>
+                      Cancel
+                    </Text>
+                  </Pressable>
+                  <Text style={[styles.calendarTitle, { color: Colors[colorScheme].text }]}>
+                    Pick a date
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      setSelectedDate(
+                        new Date(
+                          pickerDate.getFullYear(),
+                          pickerDate.getMonth(),
+                          pickerDate.getDate()
+                        )
+                      );
+                      setShowCalendar(false);
+                    }}
+                  >
+                    <Text style={[styles.calendarAction, { color: Colors[colorScheme].tint }]}>
+                      Done
+                    </Text>
+                  </Pressable>
+                </View>
+                <DateTimePicker
+                  value={pickerDate}
+                  mode="date"
+                  display="spinner"
+                  maximumDate={new Date()}
+                  onChange={(_e, d) => {
+                    if (d) setPickerDate(d);
+                  }}
+                  textColor={Colors[colorScheme].text}
+                />
+              </View>
+            </Pressable>
+          </Modal>
+        ) : (
+          showCalendar && (
+            <DateTimePicker
+              value={pickerDate}
+              mode="date"
+              display="default"
+              maximumDate={new Date()}
+              onChange={(_e, d) => {
+                setShowCalendar(false);
+                if (d) setSelectedDate(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+              }}
+            />
+          )
+        )}
 
         {/* Discreet sport filter — sits on the count-badge row, right of it. */}
         {!loading && !error && presentSports.length > 1 && (
@@ -310,6 +563,60 @@ const styles = StyleSheet.create({
     right: 12,
     height: 34,
     justifyContent: 'center',
+  },
+  // Dates-tracker strip — sits just below the search box / sport-filter row.
+  datePickerBar: {
+    position: 'absolute',
+    top: 116,
+    left: 0,
+    right: 0,
+  },
+  datePickerContent: {
+    paddingHorizontal: 12,
+    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  dateChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  calendarChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  calendarBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  calendarSheet: {
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingBottom: 28,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  calendarTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  calendarAction: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   loadingOverlay: {
     position: 'absolute',

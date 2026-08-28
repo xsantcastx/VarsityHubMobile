@@ -1,61 +1,51 @@
-# Ignore mobile app files - only deploy server
-/app
-/assets
-/components
-/constants
-/context
-/hooks
-/locales
-/screenshots
-/scripts
-/src
-/tools
-/UserStories
-/utils
+# Railway build-context filter (applies to `railway up` AND git-triggered deploys).
+#
+# IMPORTANT: server/Dockerfile has a web-builder stage that runs `npm ci`
+# (its postinstall executes ./scripts/*.js and ./tools/*.js) and then
+# `expo export --platform web` (which needs the FULL app source: App.tsx,
+# app.json, metro/babel/tsconfig, app/, api/, components/, assets/, *.tsx …).
+# Excluding any of those makes the Dockerfile COPY steps fail with
+# `"/scripts": not found` etc. So this file must ONLY exclude things the
+# web export and the server build genuinely don't need. When in doubt, keep it.
+
+# Dependencies — reinstalled by `npm ci` inside the image
+node_modules
+/server/node_modules
+.expo
+*.expo
+
+# Native app projects — not used by the web export or the server build
 /android
 /ios
-/api
+
+# Tests, CI reports, and scratch output
 /coverage
-/dist
-/docs
 /playwright-report
 /test-results
 /tests
 /__tests__
 /overnight-results
 /overnight-logs-*
+
+# Docs and heavy non-build assets
+/docs
+/screenshots
+/UserStories
 /uploads
-/.backend
+
+# Tooling / editor / VCS metadata
+/.git
+/.github
+/.husky
 /.claude
 /.cursor
 /.devcontainer
 /.docs
-/.git
-/.github
-/.husky
 /.maestro
 /.vercel
 /.vscode
 /.xcode
-*.tsx
-*.expo
-node_modules
-/server/node_modules
-.expo
-package.json
-package-lock.json
+
+# One-off artifacts
 deploy.tar.gz
 changes.pdf
-# Keep server package manifests for backend builds
-!server/package.json
-!server/package-lock.json
-!server/prisma/
-App.tsx
-app.json
-babel.config.js
-metro.config.js
-tsconfig.json
-!server/tsconfig.json
-expo-env.d.ts
-*.md
-!server/

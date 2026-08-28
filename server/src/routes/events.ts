@@ -418,10 +418,16 @@ eventsRouter.get(
             .filter(Boolean)
             .slice(0, 50)
         : [];
+    // The national map view (map_view=true) fetches every in-window event across
+    // the country and clusters client-side, so it needs a higher cap than the
+    // default list surfaces. Still bounded — never an unbounded scan.
+    const isMapView = req.query.map_view === 'true' || req.query.map_view === '1';
+    const limitCap = isMapView ? 300 : 100;
     const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
-    // v1.0.2 pass 12: default to 100 when no limit is supplied so the query is always bounded.
+    // v1.0.2 pass 12: default to the cap when no limit is supplied so the query is always bounded.
     // Previous `undefined` fallback let callers omit `limit` and get an unbounded scan on Event.
-    const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
+    const take =
+      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, limitCap) : limitCap;
     const dateFrom = typeof req.query.from === 'string' ? new Date(req.query.from) : null;
     const dateTo = typeof req.query.to === 'string' ? new Date(req.query.to) : null;
     const proOnly =
@@ -535,7 +541,16 @@ eventsRouter.get(
     // v1.0.2: auto-archive window is 3 days after event date (was "hide anything past").
     // Events remain visible in listings for 72h after they happen (post-game photos, recap)
     // and drop off after. `include_past=true` still returns everything for admin/team views.
-    if (
+    if (isMapView) {
+      // Server-authoritative map window: now → +14 days, mirroring the games
+      // map_view window (routes/games.ts `twoWeeksFromNow`) so the events and
+      // games on the map cover the same rolling 2 weeks. This is the source of
+      // truth — the client also sends from/to and re-filters, but a caller can
+      // never widen the map past the window from here.
+      const now = new Date();
+      const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      where.date = { gte: now, lte: twoWeeksFromNow };
+    } else if (
       (dateFrom && !Number.isNaN(dateFrom.getTime())) ||
       (dateTo && !Number.isNaN(dateTo.getTime()))
     ) {
@@ -638,7 +653,38 @@ eventsRouter.get(
       if (take) events = events.slice(0, take);
     }
 
-    res.json(events.map(event => serializeEvent(event, { includeGame: true })));
+    // Optional media-post count. The map's day-scoped (past) view uses it to
+    // hide events nobody posted media to — a past event with zero media is a
+    // dead-end page (no recap, and per the geofence rule you can't post to it
+    // afterwards unless you posted while there). Gated behind a param so the hot
+    // list paths don't pay for the extra aggregate; future views never need it.
+    const wantPostCount =
+      req.query.with_post_count === 'true' || req.query.with_post_count === '1';
+    let mediaCountByEvent: Map<string, number> | null = null;
+    if (wantPostCount && events.length) {
+      const grouped = await prisma.post.groupBy({
+        by: ['event_id'],
+        where: {
+          event_id: { in: events.map((e: any) => e.id) },
+          media_url: { not: null },
+          deleted_at: null,
+        },
+        _count: { _all: true },
+      });
+      mediaCountByEvent = new Map(
+        grouped.map(g => [g.event_id as string, g._count._all])
+      );
+    }
+
+    res.json(
+      events.map(event => {
+        const serialized = serializeEvent(event, { includeGame: true });
+        if (mediaCountByEvent) {
+          (serialized as any).media_post_count = mediaCountByEvent.get(event.id) ?? 0;
+        }
+        return serialized;
+      })
+    );
   })
 );
 

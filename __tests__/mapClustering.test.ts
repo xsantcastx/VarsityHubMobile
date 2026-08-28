@@ -4,7 +4,13 @@
  * individual. Regression guard for components/EventMap.tsx clustering.
  */
 import { describe, expect, it } from '@jest/globals';
-import { clusterByCoordinate, DEFAULT_CLUSTER_PRECISION } from '@/utils/mapClustering';
+import {
+  clusterByCoordinate,
+  clusterByRegion,
+  clusterCentroid,
+  clusterSpanDegrees,
+  DEFAULT_CLUSTER_PRECISION,
+} from '@/utils/mapClustering';
 
 const at = (id: string, latitude: number, longitude: number) => ({ id, latitude, longitude });
 
@@ -64,5 +70,67 @@ describe('clusterByCoordinate', () => {
 
   it('default precision is 4 decimals', () => {
     expect(DEFAULT_CLUSTER_PRECISION).toBe(4);
+  });
+});
+
+describe('clusterByRegion (zoom-aware)', () => {
+  // Continental-USA viewport (what the national default opens on).
+  const national = { latitudeDelta: 50, longitudeDelta: 50 };
+  // A city-block viewport.
+  const zoomedIn = { latitudeDelta: 0.02, longitudeDelta: 0.02 };
+
+  it('merges spread-out cities into one cluster when zoomed out nationally', () => {
+    // NYC / Boston / Philly are >100mi apart but tiny against a 50° viewport,
+    // so at national zoom they collapse into a single Northeast cluster.
+    const clusters = clusterByRegion(
+      [
+        at('nyc', 40.7128, -74.006),
+        at('boston', 42.3601, -71.0589),
+        at('philly', 39.9526, -75.1652),
+      ],
+      national
+    );
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0]).toHaveLength(3);
+  });
+
+  it('splits those same cities into separate pins when zoomed in', () => {
+    const clusters = clusterByRegion(
+      [
+        at('nyc', 40.7128, -74.006),
+        at('boston', 42.3601, -71.0589),
+        at('philly', 39.9526, -75.1652),
+      ],
+      zoomedIn
+    );
+    expect(clusters).toHaveLength(3);
+  });
+
+  it('always merges markers at an identical coordinate, at any zoom (venue case)', () => {
+    const fest = Array.from({ length: 5 }, (_, i) => at(`day-${i + 1}`, 40.7128, -74.006));
+    expect(clusterByRegion(fest, national)[0]).toHaveLength(5);
+    expect(clusterByRegion(fest, zoomedIn)[0]).toHaveLength(5);
+  });
+
+  it('falls back to exact-coordinate grouping for a missing/degenerate region', () => {
+    const markers = [at('a', 40.7128, -74.006), at('b', 42.3601, -71.0589)];
+    expect(clusterByRegion(markers, null)).toHaveLength(2);
+    expect(clusterByRegion(markers, { latitudeDelta: 0, longitudeDelta: 0 })).toHaveLength(2);
+  });
+});
+
+describe('clusterCentroid / clusterSpanDegrees', () => {
+  it('centroid is the average point of the group', () => {
+    const c = clusterCentroid([at('a', 40, -74), at('b', 42, -76)]);
+    expect(c).toEqual({ latitude: 41, longitude: -75 });
+  });
+
+  it('centroid is null for a coordinate-less group', () => {
+    expect(clusterCentroid([{ id: 'x', latitude: null, longitude: null }])).toBeNull();
+  });
+
+  it('span is ~0 for co-located markers and large for spread ones', () => {
+    expect(clusterSpanDegrees([at('a', 40.7128, -74.006), at('b', 40.7128, -74.006)])).toBe(0);
+    expect(clusterSpanDegrees([at('a', 40, -74), at('b', 43, -71)])).toBeCloseTo(3, 5);
   });
 });

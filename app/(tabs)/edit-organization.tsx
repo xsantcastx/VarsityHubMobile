@@ -553,7 +553,7 @@ export default function EditOrganizationScreen() {
                 }
                 renderItem={({ item }: { item: any }) => {
                   const uid = item?.user?.id || item?.user_id;
-                  const displayName = item?.user?.display_name || item?.user?.username || 'Member';
+                  const displayName = item?.user?.username || 'Member';
                   return (
                     <Pressable
                       style={[styles.memberRow, { borderColor: theme.border }]}

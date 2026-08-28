@@ -126,6 +126,7 @@
     "expo-dev-client": "~6.0.21",
     "expo-device": "~8.0.9",
     "expo-document-picker": "~14.0.7",
+    "expo-file-system": "~19.0.23",
     "expo-font": "~14.0.12",
     "expo-haptics": "~15.0.7",
     "expo-image": "~3.0.8",
@@ -278,6 +279,6 @@
     "shell-quote": "^1.9.0",
     "fast-uri": "^4.1.2",
     "socket.io-parser": "^4.2.7",
-    "image-size": "^2.0.2"
+    "image-size": "^1.2.1"
   }
 }

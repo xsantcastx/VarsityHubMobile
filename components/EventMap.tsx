@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { getMapProvider } from '@/utils/maps';
-import { clusterByCoordinate } from '@/utils/mapClustering';
+import { clusterByRegion, clusterCentroid, clusterSpanDegrees } from '@/utils/mapClustering';
 
 import { EventMapData, EventMapProps } from './EventMap.types';
 
@@ -37,6 +37,10 @@ export default function EventMap({
   showUserLocation = true,
   dataLoaded = true,
   onRefresh,
+  hideCenterOnUser = false,
+  onCalendarPress,
+  calendarActive = false,
+  startWide = false,
 }: EventMapProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const mapRef = useRef<MapView>(null);
@@ -57,6 +61,11 @@ export default function EventMap({
     latitudeDelta: 50, // Wide view to show entire USA
     longitudeDelta: 50,
   };
+
+  // Current viewport — drives zoom-aware clustering (clusterByRegion). Updated
+  // on every settle in onRegionChangeComplete. The map is uncontrolled
+  // (initialRegion), so setting this never moves the map → no feedback loop.
+  const [region, setRegion] = useState<Region>(defaultRegion);
 
   // Request location permissions and get user location
   useEffect(() => {
@@ -107,8 +116,11 @@ export default function EventMap({
           } else {
             setUserLocation(location);
 
-            // Auto-center on user location if no specific region was requested
-            if (!initialRegion) {
+            // Auto-center on user location if no specific region was requested.
+            // `startWide` opts out: the national map opens wide and fits to its
+            // pins instead of snapping to the viewer (owner: "start wide to show
+            // events across the country"). "Center on me" stays a button.
+            if (!initialRegion && !startWide) {
               setTimeout(() => {
                 mapRef.current?.animateToRegion(
                   {
@@ -140,7 +152,7 @@ export default function EventMap({
     return () => {
       cancelled = true;
     };
-  }, [showUserLocation, initialRegion]);
+  }, [showUserLocation, initialRegion, startWide]);
 
   // Search filter — applied before the coordinate filter so it also thins out
   // the cluster groups (a search match inside a cluster surfaces on its own).
@@ -167,8 +179,8 @@ export default function EventMap({
   // picker. Pure JS (no native clustering module) → OTA-safe. Pinned by
   // __tests__/mapClustering.test.ts.
   const clusters: EventMapData[][] = useMemo(
-    () => clusterByCoordinate(eventsWithCoordinates),
-    [eventsWithCoordinates]
+    () => clusterByRegion(eventsWithCoordinates, region),
+    [eventsWithCoordinates, region]
   );
 
   // Center map on all events
@@ -202,6 +214,27 @@ export default function EventMap({
     const timer = setTimeout(() => fitToEvents(), 500);
     return () => clearTimeout(timer);
   }, [eventsWithCoordinates, dataLoaded, fitToEvents, loading]);
+
+  // Tapping a numbered cluster: a co-located group (same point — zooming can't
+  // separate them) opens the picker so every event is reachable; a spatial
+  // group (spread across a region at national zoom) zooms in to fit its bounds,
+  // which re-clusters at the tighter zoom and splits it into smaller pins.
+  const CO_LOCATED_SPAN_DEG = 0.002; // ~200m
+  const handleClusterPress = (group: EventMapData[]) => {
+    captureBreadcrumb('Map cluster pressed', 'map.navigation', { cluster_size: group.length });
+    if (clusterSpanDegrees(group) < CO_LOCATED_SPAN_DEG) {
+      setSelectedCluster(group);
+      return;
+    }
+    isUserInteractionRef.current = true;
+    mapRef.current?.fitToCoordinates(
+      group.map(g => ({ latitude: g.latitude!, longitude: g.longitude! })),
+      { edgePadding: { top: 80, right: 80, bottom: 80, left: 80 }, animated: true }
+    );
+    setTimeout(() => {
+      isUserInteractionRef.current = false;
+    }, 1100);
+  };
 
   // Center map on user location
   const centerOnUser = () => {
@@ -279,29 +312,29 @@ export default function EventMap({
         zoomEnabled={true}
         pitchEnabled={true}
         rotateEnabled={true}
-        onRegionChangeComplete={() => {
-          // Only track region changes if needed for future features
-          // Don't update state to avoid re-render loop
+        onRegionChangeComplete={(r: Region) => {
+          // Track the settled viewport so clustering is zoom-aware (zoom out →
+          // pins merge, zoom in → they split). Safe: the map is uncontrolled
+          // (initialRegion), so this state never drives it back → no loop.
+          setRegion(r);
         }}
       >
         {clusters.map(group => {
           const lead = group[0];
-          const coordinate = { latitude: lead.latitude!, longitude: lead.longitude! };
 
-          // Multiple events at the same point → one numbered cluster pin. Tapping
-          // it opens a picker so every co-located event is reachable (zooming
-          // can't separate markers that share an exact coordinate).
+          // Numbered cluster pin for a group. Sits at the group's centroid so a
+          // spatial cluster (many venues across a region at national zoom) reads
+          // as centered on its members, not on an arbitrary first marker.
           if (group.length > 1) {
+            const centroid = clusterCentroid(group) ?? {
+              latitude: lead.latitude!,
+              longitude: lead.longitude!,
+            };
             return (
               <Marker
-                key={`cluster-${coordinate.latitude},${coordinate.longitude}`}
-                coordinate={coordinate}
-                onPress={() => {
-                  captureBreadcrumb('Map cluster pressed', 'map.navigation', {
-                    cluster_size: group.length,
-                  });
-                  setSelectedCluster(group);
-                }}
+                key={`cluster-${centroid.latitude.toFixed(4)},${centroid.longitude.toFixed(4)}`}
+                coordinate={centroid}
+                onPress={() => handleClusterPress(group)}
               >
                 <View style={[styles.clusterPin, { backgroundColor: Colors[colorScheme].tint }]}>
                   <Text style={styles.clusterPinText}>{group.length}</Text>
@@ -313,7 +346,7 @@ export default function EventMap({
           return (
             <Marker
               key={lead.id}
-              coordinate={coordinate}
+              coordinate={{ latitude: lead.latitude!, longitude: lead.longitude! }}
               pinColor={getMarkerColor(lead.type)}
               // v1.0.3: single-tap takes the user straight to the detail. The previous
               // two-tap flow (callout preview → details) was rejected as "two pages."
@@ -348,8 +381,33 @@ export default function EventMap({
           </TouchableOpacity>
         )}
 
+        {/* Dates-tracker Button — owner note 8: replaces the middle
+            "center on user" button on the Nearby Games page. Opens the parent's
+            date picker so users can view past days' games/events. */}
+        {onCalendarPress && (
+          <TouchableOpacity
+            style={[
+              styles.controlButton,
+              {
+                backgroundColor: calendarActive
+                  ? Colors[colorScheme].tint
+                  : Colors[colorScheme].background,
+              },
+            ]}
+            onPress={onCalendarPress}
+            accessibilityRole="button"
+            accessibilityLabel="Pick a date to view past games"
+          >
+            <Ionicons
+              name="calendar-outline"
+              size={24}
+              color={calendarActive ? '#FFFFFF' : Colors[colorScheme].tint}
+            />
+          </TouchableOpacity>
+        )}
+
         {/* Center on User Button */}
-        {showUserLocation && userLocation && (
+        {!hideCenterOnUser && showUserLocation && userLocation && (
           <TouchableOpacity
             style={[styles.controlButton, { backgroundColor: Colors[colorScheme].background }]}
             onPress={centerOnUser}

@@ -136,7 +136,7 @@ const selectChatMembers = (membersData: any[]): TeamMember[] =>
     user: m.user
       ? {
           id: String(m.user.id),
-          display_name: m.user.display_name || m.user.name,
+          display_name: m.user.username || 'Member',
           email: m.user.email,
           avatar_url: m.user.avatar_url,
         }
@@ -1366,7 +1366,7 @@ export default function TeamChatScreen() {
         {showAvatar && !isCurrentUser && (
           <View style={[styles.avatar, { backgroundColor: Colors[colorScheme].tint }]}>
             <Text style={styles.avatarText}>
-              {item.author.display_name.charAt(0).toUpperCase()}
+              {(item.author.username || 'M').charAt(0).toUpperCase()}
             </Text>
           </View>
         )}
@@ -1382,7 +1382,7 @@ export default function TeamChatScreen() {
           {showAvatar && !isCurrentUser && (
             <View style={styles.messageHeader}>
               <Text style={[styles.authorName, { color: Colors[colorScheme].text }]}>
-                {item.author.display_name}
+                {item.author.username ? `@${item.author.username}` : 'Member'}
               </Text>
               <Text style={[styles.authorRole, { color: Colors[colorScheme].mutedText }]}>
                 {item.author.role}
@@ -1396,7 +1396,7 @@ export default function TeamChatScreen() {
           {replyMessage && (
             <View style={[styles.replyContainer, { borderColor: Colors[colorScheme].border }]}>
               <Text style={[styles.replyAuthor, { color: Colors[colorScheme].tint }]}>
-                {replyMessage.author.display_name}
+                {replyMessage.author.username ? `@${replyMessage.author.username}` : 'Member'}
               </Text>
               <Text
                 style={[styles.replyText, { color: Colors[colorScheme].mutedText }]}
@@ -2094,7 +2094,8 @@ export default function TeamChatScreen() {
               >
                 <View style={styles.replyingToContent}>
                   <Text style={[styles.replyingToLabel, { color: Colors[colorScheme].tint }]}>
-                    Replying to {replyingTo.author.display_name}
+                    Replying to{' '}
+                    {replyingTo.author.username ? `@${replyingTo.author.username}` : 'Member'}
                   </Text>
                   <Text
                     style={[styles.replyingToText, { color: Colors[colorScheme].mutedText }]}
@@ -2130,7 +2131,7 @@ export default function TeamChatScreen() {
                   onChangeText={handleTextChange}
                   placeholder={
                     replyingTo
-                      ? `Reply to ${replyingTo.author.display_name}...`
+                      ? `Reply to ${replyingTo.author.username ? '@' + replyingTo.author.username : 'member'}...`
                       : 'Type a message...'
                   }
                   placeholderTextColor={Colors[colorScheme].mutedText}

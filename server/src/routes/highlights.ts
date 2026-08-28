@@ -105,12 +105,25 @@ const scoreHighlightPost = (
  * followed-author term — Trending is a public, app-wide popularity feed, not a
  * for-you or near-you feed.
  */
-const scoreTrendingPost = (p: any): number =>
-  (p.upvotes_count || 0) * 2 +
-  (p._count?.comments || 0) * 3 +
-  (p._count?.bookmarks || 0) * 1.5 +
-  recencyBoost(p.created_at) +
-  engagementBoost(p.upvotes_count, p._count?.comments || 0);
+/** Locality lift for Trending (owner, 2026-08: "blend locality into Trending").
+ *  A BOUNDED, MULTIPLICATIVE lift on the engagement score for posts near the
+ *  viewer — so nearby moments rise among comparably-engaged posts, but a nearby
+ *  zero-engagement post (score ≈ base floor) can never out-rank a genuinely
+ *  popular distant one (the exact failure that got the old proximity term
+ *  removed on 2026-07-20). Multiplicative, not additive, so the lift scales with
+ *  earned engagement rather than handing every local post a flat bonus. */
+const TRENDING_LOCAL_LIFT = 1.2;
+
+const scoreTrendingPost = (p: any, isLocal: (p: any) => boolean = () => false): number => {
+  const base =
+    (p.upvotes_count || 0) * 2 +
+    (p._count?.comments || 0) * 3 +
+    (p._count?.bookmarks || 0) * 1.5 +
+    recencyBoost(p.created_at) +
+    engagementBoost(p.upvotes_count, p._count?.comments || 0);
+  // Degrades to a no-op when the viewer sent no coords (isLocal() → false).
+  return isLocal(p) ? base * TRENDING_LOCAL_LIFT : base;
+};
 
 // GET /highlights?zip=90210&country=US&lat=..&lng=..&limit=20
 highlightsRouter.get(
@@ -215,13 +228,16 @@ highlightsRouter.get(
             .slice(0, TOP_LIMIT);
         }
         if (sort === 'trending') {
-          // Product rule (owner, 2026-07-20): Trending ranks the WHOLE app's
-          // recent posts by ENGAGEMENT — location does not matter. Highlights
-          // covers every user in the app, so there is no proximity term and no
-          // per-viewer narrowing; the same popular posts trend for everyone.
-          // (Superseded the earlier proximity rules, which crowned nearby
-          // 0-engagement posts #1 and degraded to newest-first for viewers with
-          // no coords — indistinguishable from Recent.)
+          // Product rule (owner, 2026-08): Trending ranks the WHOLE app's recent
+          // posts by ENGAGEMENT, with a BOUNDED locality lift so nearby moments
+          // rise among comparably-engaged posts (a grassroots local highlight
+          // isn't buried under large-market virality). Engagement still
+          // dominates — the lift is multiplicative on the engagement score
+          // (scoreTrendingPost + TRENDING_LOCAL_LIFT), so it can't crown a nearby
+          // 0-engagement post, and it's a no-op for viewers who sent no coords
+          // (the two failures behind the 2026-07-20 location-free rule this
+          // supersedes). The pool is still app-wide; only the SCORE is blended.
+          const isLocalTrending = buildIsLocal(lat, lng);
           const TRENDING_WINDOW_DAYS = 14;
           const trendingSince = new Date(Date.now() - TRENDING_WINDOW_DAYS * 864e5);
           let pool = await prisma.post.findMany({
@@ -243,7 +259,7 @@ highlightsRouter.get(
           }
 
           items = pool
-            .map((p: any) => ({ post: p, score: scoreTrendingPost(p) }))
+            .map((p: any) => ({ post: p, score: scoreTrendingPost(p, isLocalTrending) }))
             .sort(
               (a, b) =>
                 b.score - a.score ||

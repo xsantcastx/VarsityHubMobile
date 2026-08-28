@@ -79,7 +79,8 @@ const selectRosterMembers = (list: any[]): TeamMember[] =>
     user: {
       id: String(m.user?.id || ''),
       email: m.user?.email || '',
-      display_name: m.user?.display_name || m.user?.email || 'Unknown',
+      // Owner rule (note 5): username-only identity — never real name/email.
+      display_name: m.user?.username || 'Unknown',
       avatar_url: m.user?.avatar_url || undefined,
       username: m.user?.username || undefined,
       is_parent: m.user?.is_parent || false,

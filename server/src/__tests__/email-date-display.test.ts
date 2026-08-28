@@ -16,6 +16,16 @@ describe('email templates receive pre-formatted dates', () => {
     expect(email).toMatch(/changed_at_display: formatEventTime\(/);
   });
 
+  it('rsvp-confirmed email sends a timezone-aware event_date_display', () => {
+    // The SendGrid RSVP template must print {{event_date_display}}, never a
+    // formatDate helper on the raw event_date (that rendered raw tokens like
+    // "EEEE, August d 'at' 11:30 a" in prod — 2026-08-28). Keep this field
+    // populated by formatEventTime so the template has a ready-to-show string.
+    expect(email).toMatch(
+      /event_date_display: formatEventTime\(params\.eventDate, params\.timezone\)\.combined/
+    );
+  });
+
   it('event-updated email sends a timezone-aware new_date_display', () => {
     expect(email).toMatch(
       /new_date_display: params\.newDate\s*\?\s*formatEventTime\(params\.newDate, params\.timezone\)/
