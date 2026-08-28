@@ -204,6 +204,16 @@ export function initSentry() {
         if (customContext.path === '/me' && exceptionValue === 'Unauthorized') {
           return null;
         }
+        // User-initiated cancellation of the native Apple sign-in prompt is not an
+        // error. useAppleAuth throws a plain Error('User canceled Apple sign-in');
+        // the screen catch-guards handle most callers, but a context-less capture
+        // can still reach Sentry (VARSITYHUB-3Z). Drop the known-benign cancel.
+        if (
+          typeof exceptionValue === 'string' &&
+          /cancell?ed apple sign-in/i.test(exceptionValue)
+        ) {
+          return null;
+        }
         // Client transport failures are noisy and usually user/network/transient
         // conditions rather than actionable product bugs.
         if (isTransientClientTransportError(originalException)) {
