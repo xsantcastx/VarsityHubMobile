@@ -1237,7 +1237,7 @@ export async function sendEventRsvpConfirmedEmail(params: {
     {
       ...getCommonTemplateData(),
       subject,
-      attendee_name: params.attendeeName || 'You',
+      attendee_name: params.attendeeName || 'there',
       event_title: params.eventTitle,
       event_date: params.eventDate.toISOString(),
       // Pre-formatted, timezone-aware date so the SendGrid template renders a
@@ -1274,7 +1274,7 @@ export async function sendEventSubmissionReceivedEmail(params: {
     {
       ...getCommonTemplateData(),
       subject,
-      submitter_name: params.submitterName || 'You',
+      submitter_name: params.submitterName || 'there',
       event_title: params.eventTitle,
       needs_approval: params.needsApproval,
     },
@@ -1307,7 +1307,7 @@ export async function sendEventUpdatedEmail(params: {
     {
       ...getCommonTemplateData(),
       subject,
-      attendee_name: params.attendeeName || 'You',
+      attendee_name: params.attendeeName || 'there',
       event_title: params.eventTitle,
       changes: params.changes,
       new_date: params.newDate ? params.newDate.toISOString() : null,
@@ -1344,7 +1344,7 @@ export async function sendContentRemovedEmail(params: {
     {
       ...getCommonTemplateData(),
       subject,
-      author_name: params.authorName || 'You',
+      author_name: params.authorName || 'there',
       content_type: params.contentType,
       reason: params.reason || 'Violation of community guidelines',
       support_email: CUSTOMER_SERVICE_EMAIL,
@@ -1381,7 +1381,7 @@ export async function sendReportStatusEmail(params: {
     {
       ...getCommonTemplateData(),
       subject,
-      reporter_name: params.reporterName || 'You',
+      reporter_name: params.reporterName || 'there',
       status: params.status,
       resolution_note: params.resolutionNote || '',
     },
