@@ -1,0 +1,21 @@
+diff --git a/node_modules/react-native-maps/ios/AirMaps/AIRMap.m b/node_modules/react-native-maps/ios/AirMaps/AIRMap.m
+index 07a4638..ddf3eb7 100644
+--- a/node_modules/react-native-maps/ios/AirMaps/AIRMap.m
++++ b/node_modules/react-native-maps/ios/AirMaps/AIRMap.m
+@@ -104,6 +104,16 @@ -(void)addSubview:(UIView *)view {
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wobjc-missing-super-calls"
+ - (void)insertReactSubview:(id<RCTComponent>)subview atIndex:(NSInteger)atIndex {
++    // patch(varsityhub): under the New Architecture, react-native-maps runs through
++    // the legacy view-manager interop (RCTLegacyViewManagerInteropComponentView) and
++    // can hand us a nil subview during a Fabric mounting transaction. Inserting nil
++    // into _reactSubviews below aborts the app with NSInvalidArgumentException
++    // (-[__NSArrayM insertObject:atIndex:]: object cannot be nil) — the map/feed
++    // crash seen in Sentry (VARSITYHUB-3T). A nil child has nothing to mount, so
++    // skipping it is safe.
++    if (subview == nil) {
++        return;
++    }
+     // Our desired API is to pass up markers/overlays as children to the mapview component.
+     // This is where we intercept them and do the appropriate underlying mapview action.
+     if ([subview isKindOfClass:[AIRMapMarker class]]) {
