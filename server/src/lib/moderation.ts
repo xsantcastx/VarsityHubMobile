@@ -211,7 +211,12 @@ async function applyLadderRung(
       data: { banned_until: until, ban_reason: reason, session_epoch: { increment: 1 } },
     });
   }
-  await prisma.refreshToken.deleteMany({ where: { user_id: userId } }).catch(() => {});
+  await prisma.refreshToken.deleteMany({ where: { user_id: userId } }).catch(err => {
+    console.warn('[moderation] failed to delete refresh tokens after enforcement', {
+      user_id: userId,
+      reason: (err as Error)?.message || String(err),
+    });
+  });
 }
 
 /**
@@ -393,7 +398,12 @@ export async function suspendUser(params: {
   });
   // Drop refresh tokens too so they can't mint new access tokens during
   // the suspension window.
-  await prisma.refreshToken.deleteMany({ where: { user_id: userId } }).catch(() => {});
+  await prisma.refreshToken.deleteMany({ where: { user_id: userId } }).catch(err => {
+    console.warn('[moderation] failed to delete refresh tokens after suspension', {
+      user_id: userId,
+      reason: (err as Error)?.message || String(err),
+    });
+  });
 
   await issueWarning({
     userId,

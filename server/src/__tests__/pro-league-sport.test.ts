@@ -7,6 +7,11 @@ describe('proLeagueToSport', () => {
     expect(proLeagueToSport('wnba')).toBe('basketball');
     expect(proLeagueToSport('mlb')).toBe('baseball');
     expect(proLeagueToSport('wwe')).toBe('wrestling');
+    expect(proLeagueToSport('ncaaf')).toBe('football');
+    expect(proLeagueToSport('ncaamb')).toBe('basketball');
+    expect(proLeagueToSport('ncaawb')).toBe('basketball');
+    expect(proLeagueToSport('ncaabaseball')).toBe('baseball');
+    expect(proLeagueToSport('ncaamhockey')).toBe('ice_hockey');
   });
 
   it('returns null for absent input', () => {

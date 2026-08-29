@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import {
   calculateDistance,
+  getPostPostingWindowState,
   isWithinGeofence,
   verifyEventPostingPermission,
 } from '../lib/geofencing.js';
@@ -165,8 +166,18 @@ testNotificationsRouter.post(
       // Get event details for context
       const event = await prisma.event.findUnique({
         where: { id: event_id },
-        select: { title: true, location: true, latitude: true, longitude: true, date: true },
+        select: {
+          title: true,
+          location: true,
+          latitude: true,
+          longitude: true,
+          date: true,
+          live_window_hours_after_start: true,
+        },
       });
+      const postingWindowState = event?.date
+        ? getPostPostingWindowState(event.date, new Date(), event.live_window_hours_after_start)
+        : null;
 
       await logAdminActivityFromReq(
         req,
@@ -187,9 +198,8 @@ testNotificationsRouter.post(
           event_coords: { lat: event?.latitude, lng: event?.longitude },
           your_coords: { lat, lng },
         },
-        posting_window_open: event?.date
-          ? new Date() >= new Date(new Date(event.date).getTime() - 24 * 60 * 60 * 1000)
-          : null,
+        posting_window_state: postingWindowState,
+        posting_window_open: postingWindowState ? postingWindowState === 'live' : null,
       });
     } catch (error: any) {
       res.status(500).json({ error: 'Internal server error' });

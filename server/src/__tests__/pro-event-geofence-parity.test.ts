@@ -83,15 +83,13 @@ describe('pro event / geofence parity', () => {
     expect(isWithinGeofence(34.5, -118.9, v.latitude!, v.longitude!)).toBe(false);
   });
 
-  it('opens the live window 1h before tip and closes it on the league bound', () => {
+  it('opens the live window 2h before tip and closes it on the platform bound', () => {
     const v = resolved();
 
-    const beforeOpen = new Date(tipoff.getTime() - 90 * 60 * 1000);
-    const justOpen = new Date(tipoff.getTime() - 30 * 60 * 1000);
-    const during = new Date(tipoff.getTime() + 60 * 60 * 1000);
-    const afterClose = new Date(
-      tipoff.getTime() + (v.live_window_hours_after_start + 1) * 3600_000
-    );
+    const beforeOpen = new Date(tipoff.getTime() - 2 * 60 * 60 * 1000 - 1);
+    const justOpen = new Date(tipoff.getTime() - 2 * 60 * 60 * 1000);
+    const during = new Date(tipoff.getTime() + 30 * 60 * 1000);
+    const afterClose = new Date(tipoff.getTime() + v.live_window_hours_after_start * 3600_000 + 1);
 
     expect(getPostPostingWindowState(v.date, beforeOpen, v.live_window_hours_after_start)).toBe(
       'before_open'
@@ -100,10 +98,8 @@ describe('pro event / geofence parity', () => {
       'live'
     );
     expect(getPostPostingWindowState(v.date, during, v.live_window_hours_after_start)).toBe('live');
-    // Past the live cutoff it becomes 'grace' — open only to users who already
-    // earned an unlock, which is the same rule school events follow.
     expect(getPostPostingWindowState(v.date, afterClose, v.live_window_hours_after_start)).toBe(
-      'grace'
+      'closed'
     );
   });
 

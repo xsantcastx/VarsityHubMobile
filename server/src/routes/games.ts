@@ -48,6 +48,8 @@ import {
   voteLimiter,
 } from '../middleware/rateLimiters.js';
 import {
+  ALLOWED_LIVE_WINDOW_HOURS_AFTER_START,
+  ALL_DAY_LIVE_WINDOW_HOURS_AFTER_START,
   serializeLiveWindow,
   verifyStoryPostingPermission,
   viewerHasPostedOnEntity,
@@ -366,9 +368,8 @@ const makeCreateStoryHandler = ({ prisma: p }: StoryDeps) =>
 
         // Only device-origin GPS may satisfy the venue geofence (anti-spoof:
         // zip-derived coords must never count). Pass null otherwise and let
-        // verifyStoryPostingPermission decide — a first story still requires
-        // device location at the venue, but users holding a 7-day posting
-        // unlock (already posted to this event page) may post without it.
+        // verifyStoryPostingPermission decide. Stories require device location
+        // at the venue during the event posting window.
         const lat = hasDeviceOriginLocation ? (location?.lat ?? null) : null;
         const lng = hasDeviceOriginLocation ? (location?.lng ?? null) : null;
 
@@ -502,7 +503,15 @@ const GAME_COACH_EDITABLE_FIELDS: string[] = [
   'watch_location_place_id',
   'destination',
   'event_type',
+  'live_window_hours_after_start',
 ];
+
+const liveWindowSchema = z
+  .number()
+  .int()
+  .refine(value => ALLOWED_LIVE_WINDOW_HOURS_AFTER_START.includes(value as any), {
+    message: 'live_window_hours_after_start must be 4 for standard or 12 for all-day events',
+  });
 
 async function invalidateGamesListCache(): Promise<void> {
   await cacheDelPattern('games:*');
@@ -1263,10 +1272,12 @@ gamesRouter.get(
       if (isMapView) {
         const now = new Date();
         const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        const liveLookback = new Date(now.getTime() - 18 * 60 * 60 * 1000);
+        const liveLookback = new Date(
+          now.getTime() - ALL_DAY_LIVE_WINDOW_HOURS_AFTER_START * 60 * 60 * 1000
+        );
         // Regular games are current-week only — a game drops off the map once
         // it's in the past (by design). Marquee/teamless events (festivals) also
-        // stay pinned during their live window (started within 18h), so an
+        // also stay pinned during their live window (started within 12h), so an
         // all-day fest happening right now doesn't slide off the map at its
         // start time. Matched on null team columns so it holds regardless of
         // whether the map query flags teamless.
@@ -1284,13 +1295,14 @@ gamesRouter.get(
       }
 
       // Marquee/teamless events (festivals, watch parties) stay on the feed for
-      // their full live window — up to 18h after start — instead of dropping off
-      // after the client's short (2h) live lookback. So an all-day fest that
-      // started earlier today keeps surfacing while it's live. List views only
-      // (not the map, which is intentionally current-week only).
+      // their full live window — up to 12h after start — instead of dropping off
+      // after a shorter default lookback. So an all-day fest that started
+      // earlier today keeps surfacing while it's live.
       const isTeamlessQuery = req.query.teamless === 'true' || req.query.teamless === '1';
       if (!isMapView && isTeamlessQuery && (whereClause.date as any)?.gte) {
-        const liveLookback = new Date(Date.now() - 18 * 60 * 60 * 1000);
+        const liveLookback = new Date(
+          Date.now() - ALL_DAY_LIVE_WINDOW_HOURS_AFTER_START * 60 * 60 * 1000
+        );
         if (new Date((whereClause.date as any).gte).getTime() > liveLookback.getTime()) {
           (whereClause.date as any).gte = liveLookback;
         }
@@ -1544,6 +1556,7 @@ gamesRouter.post(
       venue_lat: z.number().optional(),
       venue_lng: z.number().optional(),
       is_neutral: z.boolean().optional(),
+      live_window_hours_after_start: liveWindowSchema.optional(),
     });
 
     const parsed = schema.safeParse(req.body || {});
@@ -1667,6 +1680,12 @@ gamesRouter.post(
       isCoach = approvalDecision.isCoach;
       managedTeamId = approvalDecision.managedTeamId;
 
+      if (parsed.data.live_window_hours_after_start !== undefined && !approvalDecision.isCoach) {
+        return sendError(res, 403, 'Only team staff or admins can set an all-day posting window.', {
+          code: 'LIVE_WINDOW_STAFF_ONLY',
+        });
+      }
+
       // Verify the caller's managed team's org is admin-approved (coach path only)
       if (isCoach && !isAdmin && managedTeamId) {
         const team = await prisma.team.findUnique({
@@ -1749,6 +1768,7 @@ gamesRouter.post(
           creator_id: req.user!.id,
           creator_role: isCoach ? 'coach' : 'fan',
           event_type: parsed.data.event_type || 'game',
+          live_window_hours_after_start: parsed.data.live_window_hours_after_start ?? null,
           capacity: null,
         } as any,
       });
@@ -1918,6 +1938,7 @@ const bulkGameSchema = z.object({
     ])
     .optional(),
   is_neutral: z.boolean().optional(),
+  live_window_hours_after_start: liveWindowSchema.optional(),
 });
 gamesRouter.post(
   '/bulk',
@@ -1950,6 +1971,15 @@ gamesRouter.post(
           deriveGameApproval(userId, g.home_team_id, g.away_team_id, isAdmin, canManageTeamScoped)
         )
       );
+      const unauthorizedLiveWindowIndex = parsed.data.games.findIndex(
+        (g, i) => g.live_window_hours_after_start !== undefined && !decisionByIndex[i].isCoach
+      );
+      if (unauthorizedLiveWindowIndex >= 0) {
+        return sendError(res, 403, 'Only team staff or admins can set an all-day posting window.', {
+          code: 'LIVE_WINDOW_STAFF_ONLY',
+          details: { index: unauthorizedLiveWindowIndex },
+        });
+      }
       const opponentTeamIdByIndex = decisionByIndex.map(d => d.opponentApprovalTeamId);
 
       // All-or-nothing: one failure rolls back the whole batch.
@@ -1995,6 +2025,7 @@ gamesRouter.post(
               creator_id: userId,
               creator_role: decision.isCoach ? 'coach' : 'fan',
               event_type: g.event_type ?? 'game',
+              live_window_hours_after_start: g.live_window_hours_after_start ?? null,
               capacity: null,
             } as any,
           });
@@ -2032,7 +2063,13 @@ gamesRouter.post(
                   'Game request awaiting your approval',
                   `A coach proposed "${row.title}" against your team.`,
                   { type: 'game_opponent_approval_requested', game_id: row.id }
-                ).catch(() => {});
+                ).catch(err => {
+                  console.warn('[games/bulk] opponent approval push failed', {
+                    game_id: row.id,
+                    user_id: uid,
+                    reason: (err as Error)?.message || String(err),
+                  });
+                });
               }
             }
           } catch (err) {
@@ -2456,10 +2493,8 @@ gamesRouter.get(
         isPast,
         event: serializeEvent(event),
         // Ship the computed posting-window bounds (starts_at/live_from/live_until)
-        // just like GET /games does — the event page reads these to gate story
-        // posting and the "Add Story" button. Without them the client falls back
-        // to date+3h, which closed Fanatics Fest days (18h window) ~3h in and
-        // wrongly reported "event has ended" while the server still accepted posts.
+        // just like GET /games does. The event page reads these to gate story
+        // posting and the "Add Story" button from the same server rule.
         ...serializeLiveWindow(event?.date ?? gameData.date, event?.live_window_hours_after_start),
         home_score: gameData.home_score ?? null,
         away_score: gameData.away_score ?? null,
@@ -3039,6 +3074,7 @@ gamesRouter.put(
       venue_lat: z.number().min(-90).max(90).optional().nullable(),
       venue_lng: z.number().min(-180).max(180).optional().nullable(),
       is_neutral: z.boolean().optional(),
+      live_window_hours_after_start: liveWindowSchema.optional(),
     });
 
     const parsed = schema.safeParse(req.body || {});
@@ -3085,6 +3121,12 @@ gamesRouter.put(
       }
 
       const d = parsed.data;
+
+      if (d.live_window_hours_after_start !== undefined && !isCoach && !isAdmin) {
+        return sendError(res, 403, 'Only team staff or admins can change the posting window.', {
+          code: 'LIVE_WINDOW_STAFF_ONLY',
+        });
+      }
 
       // Approved-game edit allowlist (mirrors events.ts COACH_EDITABLE_FIELDS).
       // Once a game is approved, a non-admin editor (creator or coach) may only
@@ -3179,11 +3221,17 @@ gamesRouter.put(
         updateData.opponent_approval_team_id = reDecision.opponentApprovalTeamId;
       }
 
-      const updated = await (prisma.game.update as any)({
-        where: { id },
-        data: updateData,
-        include: { events: { orderBy: { date: 'asc' }, take: 1 } },
-      });
+      const updated =
+        Object.keys(updateData).length > 0
+          ? await (prisma.game.update as any)({
+              where: { id },
+              data: updateData,
+              include: { events: { orderBy: { date: 'asc' }, take: 1 } },
+            })
+          : await (prisma.game.findUnique as any)({
+              where: { id },
+              include: { events: { orderBy: { date: 'asc' }, take: 1 } },
+            });
 
       // Keep the associated Event in sync when date/title/location change
       const event = (updated as any).events?.[0];
@@ -3192,6 +3240,9 @@ gamesRouter.put(
         if (d.date !== undefined) eventUpdate.date = new Date(d.date);
         if (d.title !== undefined) eventUpdate.title = d.title;
         if (d.location !== undefined) eventUpdate.location = d.location;
+        if (d.live_window_hours_after_start !== undefined) {
+          eventUpdate.live_window_hours_after_start = d.live_window_hours_after_start;
+        }
         if (Object.keys(eventUpdate).length > 0) {
           await prisma.event.update({ where: { id: event.id }, data: eventUpdate });
         }
@@ -3467,7 +3518,13 @@ gamesRouter.post(
             'Game confirmed!',
             `Your opponent confirmed "${game.title}" — it's now live.`,
             { type: 'game_opponent_approved', game_id: id }
-          ).catch(() => {});
+          ).catch(err => {
+            console.warn('[games] opponent approval push failed', {
+              game_id: id,
+              user_id: game.created_by_id,
+              reason: (err as Error)?.message || String(err),
+            });
+          });
         } else {
           await prisma.notification.create({
             data: {
@@ -3482,7 +3539,13 @@ gamesRouter.post(
             'Game declined',
             `Your opponent declined "${game.title}".${parsed.data.reason ? ` Reason: ${parsed.data.reason}` : ''}`,
             { type: 'game_opponent_declined', game_id: id }
-          ).catch(() => {});
+          ).catch(err => {
+            console.warn('[games] opponent decline push failed', {
+              game_id: id,
+              user_id: game.created_by_id,
+              reason: (err as Error)?.message || String(err),
+            });
+          });
         }
       } catch (notifErr) {
         console.warn('[games] opponent-approval decision notification failed:', notifErr);

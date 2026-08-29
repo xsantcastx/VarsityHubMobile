@@ -931,6 +931,9 @@ function CommunityDiscoverScreen() {
         if (data.appearance) {
           gamePayload.appearance = data.appearance;
         }
+        if (data.live_window_hours_after_start) {
+          gamePayload.live_window_hours_after_start = data.live_window_hours_after_start;
+        }
 
         // Validate required fields before API call
         if (!gamePayload.title || gamePayload.title.trim().length === 0) {

@@ -1289,7 +1289,12 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
                 overbooked_dates: e.dates,
                 refund_failed: true,
               },
-            }).catch(() => {});
+            }).catch(err => {
+              captureException(err instanceof Error ? err : new Error(String(err)), {
+                context: 'slot_full_missing_payment_intent_status_update_failed',
+                sessionId: session.id,
+              });
+            });
             throw new Error('SLOT_FULL_REFUND_MISSING_PAYMENT_INTENT');
           }
         } catch (refundErr: any) {
@@ -1303,7 +1308,12 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
               overbooked_dates: e.dates,
               refund_failed: true,
             },
-          }).catch(() => {});
+          }).catch(err => {
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+              context: 'slot_full_refund_failed_status_update_failed',
+              sessionId: session.id,
+            });
+          });
           throw refundErr;
         }
         return;
@@ -1443,8 +1453,13 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
           try {
             const stripe = await getStripe();
             await stripe.subscriptions.cancel(String(oldSubId));
-          } catch {
-            // Ignore old subscription cancel failures after entitlement is active.
+          } catch (err) {
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+              context: 'old_subscription_cancel_failed_after_membership_activation',
+              sessionId: session.id,
+              userId,
+              oldSubId: String(oldSubId),
+            });
           }
         }
 
@@ -1453,7 +1468,14 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
           fallbackEmail,
           plan,
           totalCents,
-        }).catch(() => {});
+        }).catch(err => {
+          captureException(err instanceof Error ? err : new Error(String(err)), {
+            context: 'subscription_receipt_email_failed',
+            sessionId: session.id,
+            userId,
+            plan,
+          });
+        });
       } catch (err) {
         captureException(err as Error, {
           context: 'finalize_membership_from_session',
@@ -1481,7 +1503,14 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
     if (!redeemed) {
       await updateTransactionStatus(session.id, 'NEEDS_REVIEW', {
         metadata: { promo_redemption_failed: true, promo_code: code, needs_review: true },
-      }).catch(() => {});
+      }).catch(err => {
+        captureException(err instanceof Error ? err : new Error(String(err)), {
+          context: 'promo_redemption_review_status_update_failed',
+          sessionId: session.id,
+          userId,
+          promoCode: code,
+        });
+      });
     }
   }
 }

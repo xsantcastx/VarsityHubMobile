@@ -159,14 +159,19 @@ enum EventApprovalStatus {
 // Pro Sports Enums
 // ===========================
 
-// Professional leagues whose schedules VarsityHub surfaces as fan-postable
-// event pages. See docs/superpowers/specs/2026-07-23-pro-sports-events-design.md.
+// Pro/college leagues whose schedules VarsityHub surfaces as fan-postable
+// event pages. Historical model/table names remain Pro* for compatibility.
 enum ProLeague {
   nfl
   nba
   wnba
   mlb
   wwe
+  ncaaf
+  ncaamb
+  ncaawb
+  ncaabaseball
+  ncaamhockey
 }
 
 // ===========================
@@ -586,8 +591,7 @@ model Post {
 
   // Direct event link. Posts attach to an event either via this column (event
   // pages that have no linked game) or via game_id (events backed by a game).
-  // Required for the open-ended post-event upload window to work on event-only
-  // pages — the grace check looks for a prior live-window post by event_id OR game_id.
+  // Required for event-only pages and symmetric event/game reads.
   event_id String?
   event    Event?  @relation(fields: [event_id], references: [id], onDelete: SetNull)
 
@@ -721,11 +725,9 @@ model Event {
   // matches, so nobody can post (acceptable for this rare state).
   exclusive_poster_id String?
 
-  // Owner rule (2026-07-15): the default geofenced live post window is -1h →
-  // +3h around event start. All-day festivals (Fanatics Fest) override the
-  // hours-after-start bound per event (18 for the fest days). Null = default
-  // (3h). Only the after-start bound is overridable; the window always opens
-  // 1 hour before start.
+  // Event posting window: opens 2 hours before event start. Null/default =
+  // standard, closing 4 hours after start. Coaches may choose an all-day 12h
+  // window. Route validation only accepts 4 or 12.
   live_window_hours_after_start Int?
 
   game             Game?                   @relation(fields: [game_id], references: [id], onDelete: SetNull)
@@ -750,13 +752,10 @@ model Event {
   @@index([pro_away_team_id, date])
 }
 
-// Durable "was there" ledger for location-based event posting (owner rule,
-// 2026-07-15 Fanatics Fest punch list): a user's FIRST geofence-passing post
-// or story to an event page writes a row here; for 7 days after unlocked_at
-// they may keep uploading to that event page without re-passing the geofence.
-// A dedicated table (not a Post/Story lookup) because Story rows expire and
-// are deleted after 24h, and users can delete their posts — the proof of
-// presence must outlive the content that earned it.
+// Durable "was there" ledger for location-based event posting. A successful
+// geofenced live-window regular post records one row; after the live window
+// closes, that row grants the same user regular post access for 7 days. Stories
+// do not honor this ledger.
 model EventPostingUnlock {
   user_id     String
   event_id    String

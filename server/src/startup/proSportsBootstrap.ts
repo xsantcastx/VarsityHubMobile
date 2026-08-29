@@ -129,7 +129,17 @@ export async function runProSportsBootstrap(): Promise<void> {
     const windowDays = getProScheduleWindowDays();
     const from = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
     const to = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000);
-    for (const league of ['nfl', 'mlb', 'nba', 'wnba'] as ProLeague[]) {
+    for (const league of [
+      'nfl',
+      'mlb',
+      'nba',
+      'wnba',
+      'ncaaf',
+      'ncaamb',
+      'ncaawb',
+      'ncaabaseball',
+      'ncaamhockey',
+    ] as ProLeague[]) {
       try {
         const s = await ingestLeague(espn, league, from, to);
         console.log(

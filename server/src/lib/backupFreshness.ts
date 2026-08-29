@@ -171,7 +171,15 @@ export async function checkBackupFreshness(
 
     return { configured: true, ...evaluateFreshness(perTable, maxDriftPct) };
   } finally {
-    await primary.$disconnect().catch(() => {});
-    await backup.$disconnect().catch(() => {});
+    await primary.$disconnect().catch(err => {
+      console.warn('[backup-freshness] failed to disconnect primary client', {
+        reason: (err as Error)?.message || String(err),
+      });
+    });
+    await backup.$disconnect().catch(err => {
+      console.warn('[backup-freshness] failed to disconnect backup client', {
+        reason: (err as Error)?.message || String(err),
+      });
+    });
   }
 }

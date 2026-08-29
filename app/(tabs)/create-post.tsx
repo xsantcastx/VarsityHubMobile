@@ -44,7 +44,6 @@ import {
   markEventPostingNoticeSeen,
   shouldShowEventPostingNotice,
 } from '@/utils/eventPostingNotice';
-import { hasLocalEventPostingUnlock, recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
 import { getLiveBounds, isGameOver } from '@/utils/liveWindow';
 import { prepareVideoForUpload, uploadTimeoutMsForSize } from '@/utils/compressVideo';
 import {
@@ -622,24 +621,6 @@ function CreatePostScreen() {
     typeof suggestedGame?.description === 'string' &&
     suggestedGame.description.includes(DEMO_MATCHUP_TAG);
 
-  // First-post-unlocks-7-days (owner rule 2026-07-15): once this user posted
-  // to the selected event page, the client preflight must not re-block them —
-  // the server admits unlocked users without location. UX-only; server is law.
-  const [hasPostingUnlock, setHasPostingUnlock] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    if (!selectedGameId) {
-      setHasPostingUnlock(false);
-      return;
-    }
-    hasLocalEventPostingUnlock([selectedGameId]).then(unlocked => {
-      if (!cancelled) setHasPostingUnlock(unlocked);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedGameId]);
-
   // Proactive geofence + time window check when a game is selected
   const geofenceWarning = useMemo(() => {
     if (!suggestedGame || !selectedGameId) return null;
@@ -647,25 +628,21 @@ function CreatePostScreen() {
     // warning — server's [DEMO_MATCHUP] carve-out already bypasses geofence
     // and posting-window checks for these Game rows only.
     if (isDemoMatchupGame) return null;
-    // Already posted here within the last week — the server won't re-geofence,
-    // so don't warn.
-    if (hasPostingUnlock) return null;
     // Posting window (server rule in server/src/lib/geofencing.ts): the
-    // geofenced live window opens 1h before start and closes
-    // `live_window_hours_after_start` after (default 3; fest day events run
-    // 18h). The server ships the computed bounds on the payload — this used to
-    // re-derive them from the game's own date with a hardcoded 3h, which both
-    // ignored the override and read a date that can disagree with the event's.
+    // geofenced live window opens 2 hours before start and closes
+    // `live_window_hours_after_start` after (standard 4h; all-day 12h). The
+    // server ships the computed bounds on the payload instead of making the
+    // client re-derive them from a game row that can disagree with its event.
     const bounds = getLiveBounds(suggestedGame);
     if (!bounds) return null;
 
     const now = Date.now();
     if (now < bounds.liveFrom) {
       const openDate = new Date(bounds.liveFrom);
-      return `Posting opens ${openDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (1 hour before start). You can still draft your post now.`;
+      return `Posting opens ${openDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (2 hours before start). You can still draft your post now.`;
     }
     if (now > bounds.liveUntil) {
-      return 'This event has ended. If you posted here while it was live you can keep posting for a week from anywhere.';
+      return 'This event posting window has closed.';
     }
 
     // Check distance (3km = ~1.86 miles) if both user and venue coords are available
@@ -687,7 +664,7 @@ function CreatePostScreen() {
       const distKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       if (distKm > 3) {
         const distMi = (distKm * 0.621371).toFixed(1);
-        return `You're ${distMi} mi from the venue. Your first post to an event needs to be from within 3 km of the venue.`;
+        return `You're ${distMi} mi from the venue. Event posts need to be from within 3 km of the venue during the posting window.`;
       }
     }
     return null;
@@ -695,7 +672,6 @@ function CreatePostScreen() {
     suggestedGame,
     selectedGameId,
     isDemoMatchupGame,
-    hasPostingUnlock,
     locationReady,
     location?.latitude,
     location?.longitude,
@@ -734,21 +710,12 @@ function CreatePostScreen() {
     const isRealGame = Boolean(selectedGameId);
     const gameHasCoords =
       typeof suggestedGame?.latitude === 'number' || typeof suggestedGame?.venue_lat === 'number';
-    // H3 (2026-07-14): past the live cutoff the server may still allow posting
-    // — unlocked users post from anywhere. Don't hard-block on location then —
-    // defer to the server, which returns a clear reason if they don't qualify.
-    // Same for users holding a local posting unlock (owner rule 2026-07-15:
-    // first post geofenced, then a week without re-passing). The cutoff comes
-    // from the server's computed bounds; it used to be a hardcoded +3h, which
-    // dropped the location gate 15 hours early on an 18h fest event.
-    const isPostEventGrace = isGameOver(suggestedGame);
     if (
       isRealGame &&
       gameHasCoords &&
       !locationReady &&
       !isDemoMatchupGame &&
-      !isPostEventGrace &&
-      !hasPostingUnlock
+      !isGameOver(suggestedGame)
     ) {
       if (!permissionGranted) {
         // Try the in-app OS prompt first. If location was never requested
@@ -943,11 +910,6 @@ function CreatePostScreen() {
       await Post.create(payload);
       clearPostCache();
       if (__DEV__) console.warn('[CreatePost] Post created successfully!');
-      if (selectedGameId) {
-        // Mirror the server's posting unlock locally so preflight prompts
-        // don't re-block this user on their next upload to this event page.
-        void recordEventPostingUnlock([selectedGameId]);
-      }
       analytics.track(ANALYTICS_EVENTS.POST_CREATED, { type: picked?.type || 'text' });
       try {
         await settings.setJson(settings.SETTINGS_KEYS.POST_DRAFT, null);
@@ -1096,6 +1058,64 @@ function CreatePostScreen() {
     : postType === 'highlight'
       ? 'Share Highlight'
       : 'Post';
+
+  // Web guard: posting is camera/capture-first and the web app can't drive the
+  // native camera, so the upload screen rendered blank on web (owner report).
+  // Show a clear message instead of a dead screen, and point users to the app.
+  if (Platform.OS === 'web') {
+    return (
+      <SafeAreaView
+        style={[
+          styles.container,
+          {
+            backgroundColor: Colors[colorScheme].background,
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 32,
+            gap: 12,
+          },
+        ]}
+      >
+        <Stack.Screen options={{ headerShown: false }} />
+        <Ionicons name="camera-outline" size={52} color={Colors[colorScheme].mutedText} />
+        <Text
+          style={{
+            color: Colors[colorScheme].text,
+            fontSize: 20,
+            fontWeight: '800',
+            textAlign: 'center',
+          }}
+        >
+          Camera not available on web
+        </Text>
+        <Text
+          style={{
+            color: Colors[colorScheme].mutedText,
+            fontSize: 15,
+            lineHeight: 21,
+            textAlign: 'center',
+          }}
+        >
+          Sorry — posting with the camera isn&apos;t available on the web app. Please use the
+          VarsityHub mobile app to capture and share.
+        </Text>
+        <Pressable
+          onPress={() => safeGoBack(router)}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          style={{
+            marginTop: 8,
+            paddingHorizontal: 24,
+            paddingVertical: 12,
+            borderRadius: 12,
+            backgroundColor: Colors[colorScheme].tint,
+          }}
+        >
+          <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>Go back</Text>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
 
   // Hard guard: never render the composer for a signed-out user. The useEffect
   // above redirects guests to /create, but that runs AFTER the first render —

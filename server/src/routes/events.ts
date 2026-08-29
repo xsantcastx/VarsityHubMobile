@@ -17,8 +17,13 @@ import { debugLog } from '../lib/debugLog.js';
 import { sendError } from '../lib/http/sendError.js';
 import { geoBoundingBox, getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { proLeagueToSport } from '../lib/proSchedule/leagueSport.js';
+import { NCAA_LEAGUES } from '../lib/proSchedule/types.js';
 import { geocodeLocation } from '../lib/geocoding.js';
-import { serializeLiveWindow, viewerHasPostedOnEntity } from '../lib/geofencing.js';
+import {
+  ALLOWED_LIVE_WINDOW_HOURS_AFTER_START,
+  serializeLiveWindow,
+  viewerHasPostedOnEntity,
+} from '../lib/geofencing.js';
 import {
   cancelGameReminders,
   rescheduleGameRemindersForEvent,
@@ -53,7 +58,13 @@ registerIdValidation(eventsRouter);
  *  raise if/when production traces show a real ceiling. */
 const RSVP_FANOUT_LIMIT = 50_000;
 const RSVP_FANOUT_BATCH = 200;
-const PRO_LEAGUES = ['nfl', 'nba', 'wnba', 'mlb', 'wwe'] as const;
+const PRO_LEAGUES = ['nfl', 'nba', 'wnba', 'mlb', 'wwe', ...NCAA_LEAGUES] as const;
+const liveWindowSchema = z
+  .number()
+  .int()
+  .refine(value => ALLOWED_LIVE_WINDOW_HOURS_AFTER_START.includes(value as any), {
+    message: 'live_window_hours_after_start must be 4 for standard or 12 for all-day events',
+  });
 const encodeEventRsvpCursor = (row: { created_at: Date | string; id: string }) => {
   const createdAt =
     row.created_at instanceof Date
@@ -424,8 +435,7 @@ eventsRouter.get(
     const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
     const dateFrom = typeof req.query.from === 'string' ? new Date(req.query.from) : null;
     const dateTo = typeof req.query.to === 'string' ? new Date(req.query.to) : null;
-    const proOnly =
-      String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
+    const proOnly = String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
     const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
     const proLeagueRaw =
       typeof req.query.pro_league === 'string' ? req.query.pro_league.trim().toLowerCase() : '';
@@ -1243,6 +1253,7 @@ const createEventSchema = z.object({
   contact_info: z.string().trim().optional(),
   banner_url: z.string().optional(),
   cover_image_url: z.string().optional(),
+  live_window_hours_after_start: liveWindowSchema.optional(),
   game_id: z.string().optional(),
   home_team_id: z.string().optional(),
   team_id: z.string().optional(), // Alias for home_team_id — frontend may send either
@@ -1334,6 +1345,14 @@ eventsRouter.post(
       }
     }
 
+    if (data.live_window_hours_after_start !== undefined && !autoApprove) {
+      return res.status(403).json({
+        error: 'Permission denied',
+        code: 'LIVE_WINDOW_STAFF_ONLY',
+        message: 'Only team staff or admins can set an all-day posting window.',
+      });
+    }
+
     // Use capacity if provided, otherwise max_attendees (for backward compatibility)
     const capacity = data.max_attendees ?? null;
 
@@ -1407,6 +1426,7 @@ eventsRouter.post(
             max_attendees: data.max_attendees, // Keep for backward compatibility
             contact_info: data.contact_info || data.requested_email,
             banner_url: data.banner_url ?? data.cover_image_url,
+            live_window_hours_after_start: data.live_window_hours_after_start ?? null,
             game_id: data.game_id,
             team_id: data.home_team_id || null,
             creator_id: userId,
@@ -1666,6 +1686,7 @@ const updateEventSchema = z.object({
   contact_info: z.string().optional(),
   banner_url: z.string().optional(),
   cover_image_url: z.string().optional(),
+  live_window_hours_after_start: liveWindowSchema.optional(),
   // Opponent (updates linked Game when event has game_id)
   opponent: z.string().trim().optional(), // Alias for away_team_name (manual opponent name)
   away_team_id: z.string().trim().nullable().optional(),
@@ -1679,6 +1700,7 @@ const COACH_EDITABLE_FIELDS = [
   'longitude',
   'description',
   'banner_url',
+  'live_window_hours_after_start',
   'opponent',
   'away_team_id',
   'away_team_name',
@@ -1760,6 +1782,14 @@ eventsRouter.patch(
       }
     }
 
+    if (data.live_window_hours_after_start !== undefined && !canManageLinkedTeam && !isAdmin) {
+      return res.status(403).json({
+        error: 'Permission denied',
+        code: 'LIVE_WINDOW_STAFF_ONLY',
+        message: 'Only team staff or admins can change the posting window.',
+      });
+    }
+
     if (data.date) {
       const eventDate = new Date(data.date);
       const now = new Date();
@@ -1805,6 +1835,9 @@ eventsRouter.patch(
     }
     if (data.contact_info !== undefined) updateData.contact_info = data.contact_info;
     if (data.banner_url !== undefined) updateData.banner_url = data.banner_url;
+    if (data.live_window_hours_after_start !== undefined) {
+      updateData.live_window_hours_after_start = data.live_window_hours_after_start;
+    }
 
     const updated = await prisma.event.update({
       where: { id: eventId },
@@ -1829,7 +1862,8 @@ eventsRouter.patch(
         data.opponent !== undefined ||
         data.date !== undefined ||
         data.location !== undefined ||
-        data.title !== undefined)
+        data.title !== undefined ||
+        data.live_window_hours_after_start !== undefined)
     ) {
       const gameUpdate: any = {};
       if (data.away_team_id !== undefined) gameUpdate.away_team_id = data.away_team_id || null;

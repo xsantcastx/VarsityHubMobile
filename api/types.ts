@@ -91,6 +91,7 @@ export interface CreateGamePayload {
   venue_lat?: number;
   venue_lng?: number;
   is_neutral?: boolean;
+  live_window_hours_after_start?: 1 | 12;
 }
 
 export interface UpdateGamePayload extends Omit<Partial<CreateGamePayload>, 'location'> {
@@ -162,6 +163,7 @@ export interface CreateEventPayload {
   max_attendees?: number;
   contact_info?: string;
   team_id?: string;
+  live_window_hours_after_start?: 1 | 12;
 }
 
 export interface UpdateEventPayload extends Partial<CreateEventPayload> {}

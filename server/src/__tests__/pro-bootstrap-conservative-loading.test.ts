@@ -86,6 +86,6 @@ describe('runProSportsBootstrap conservative loading', () => {
     expect(mockTeamCreateMany).toHaveBeenCalledTimes(1);
     expect(mockTeamUpdate).not.toHaveBeenCalled();
     expect(mockIngestFixtures).toHaveBeenCalledTimes(1);
-    expect(mockIngestLeague).toHaveBeenCalledTimes(4);
+    expect(mockIngestLeague).toHaveBeenCalledTimes(9);
   });
 });

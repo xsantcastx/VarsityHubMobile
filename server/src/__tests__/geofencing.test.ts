@@ -156,39 +156,31 @@ describe('Geofencing Utilities', () => {
   });
 
   describe('isPostingWindowOpen', () => {
-    // Logic: windowOpenTime = eventTime - 24 hours
-    // Returns: now >= windowOpenTime
-    // So if event is 25 hours away: windowOpenTime = now + 1h, now >= now+1h = false
-    // If event is 23 hours away: windowOpenTime = now - 1h, now >= now-1h = true
-
-    it('should return false when event is more than 24 hours away', () => {
+    it('should return false before the 90-minute pre-event opening', () => {
       const now = new Date();
-      const eventDate = new Date(now.getTime() + 25 * 60 * 60 * 1000); // 25 hours from now
+      const eventDate = new Date(now.getTime() + 91 * 60 * 1000);
 
       const isOpen = isPostingWindowOpen(eventDate);
 
-      // Window opens exactly 24 hours before, so 25 hours before is still closed
       expect(isOpen).toBe(false);
     });
 
-    it('should return true when event is less than 24 hours away', () => {
+    it('should return true during the standard posting window', () => {
       const now = new Date();
-      const eventDate = new Date(now.getTime() + 12 * 60 * 60 * 1000); // 12 hours from now
+      const eventDate = new Date(now.getTime() + 30 * 60 * 1000);
 
       const isOpen = isPostingWindowOpen(eventDate);
 
-      // Window opened 12 hours ago (24h - 12h = 12h before now), so posting is open
       expect(isOpen).toBe(true);
     });
 
-    it('should return true when event is in the past', () => {
+    it('should return false after the standard posting window closes', () => {
       const now = new Date();
-      const eventDate = new Date(now.getTime() - 1 * 60 * 60 * 1000); // 1 hour ago
+      const eventDate = new Date(now.getTime() - 60 * 60 * 1000 - 1);
 
       const isOpen = isPostingWindowOpen(eventDate);
 
-      // Past events: windowOpenTime was in the past, so now >= past = true
-      expect(isOpen).toBe(true);
+      expect(isOpen).toBe(false);
     });
   });
 });

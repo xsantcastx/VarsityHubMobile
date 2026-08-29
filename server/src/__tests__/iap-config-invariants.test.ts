@@ -8,10 +8,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  WEEKDAY_BLOCK_PRICE_CENTS,
-  WEEKEND_BLOCK_PRICE_CENTS,
-} from '../utils/adPricing.js';
+import { WEEKDAY_BLOCK_PRICE_CENTS, WEEKEND_BLOCK_PRICE_CENTS } from '../utils/adPricing.js';
 
 const SERVER_ROOT = process.cwd();
 const REPO_ROOT = join(SERVER_ROOT, '..');

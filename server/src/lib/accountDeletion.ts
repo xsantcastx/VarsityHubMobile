@@ -419,7 +419,12 @@ export async function softDeleteUserAccount(userId: string): Promise<{
     });
   }
 
-  await invalidateMeCacheForUser(userId).catch(() => {});
+  await invalidateMeCacheForUser(userId).catch(err => {
+    console.warn('[account-deletion] failed to invalidate deleted user cache', {
+      user_id: userId,
+      reason: (err as Error)?.message || String(err),
+    });
+  });
 
   // Destroy the user's stored media now that the DB state is committed.
   // Handles BOTH storage backends — Cloudinary assets and R2 objects (media

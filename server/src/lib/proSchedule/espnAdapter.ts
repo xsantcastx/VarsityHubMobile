@@ -1,14 +1,15 @@
 import type { ProLeague } from '@prisma/client';
 import { geocodeVenue, type GeocodeFn } from './geocodeVenue.js';
 import { resolveProTeamRef } from './resolveProTeamRef.js';
-import type { ProFixture, ProScheduleAdapter } from './types.js';
+import type { ProFixture, ProScheduleAdapter, ProviderTeam } from './types.js';
+import { isNcaaLeague } from './types.js';
 
 /**
  * ESPN public scoreboard adapter.
  *
- * Covers the four league sports ESPN serves (NFL/NBA/WNBA/MLB) via one
- * date-range call per league. WWE is a touring promotion ESPN does not carry —
- * it is intentionally excluded and needs its own source.
+ * Covers ESPN-backed pro and major NCAA league sports via one date-range call
+ * per league. WWE is a touring promotion ESPN does not carry — it is
+ * intentionally excluded and needs its own source.
  *
  * ESPN provides no venue coordinates. For a HOME game that is fine —
  * resolveFixture falls back to the home team's seeded stadium. But a
@@ -23,11 +24,25 @@ const ESPN_PATH: Partial<Record<ProLeague, string>> = {
   nba: 'basketball/nba',
   wnba: 'basketball/wnba',
   mlb: 'baseball/mlb',
+  ncaaf: 'football/college-football',
+  ncaamb: 'basketball/mens-college-basketball',
+  ncaawb: 'basketball/womens-college-basketball',
+  ncaabaseball: 'baseball/college-baseball',
+  ncaamhockey: 'hockey/mens-college-hockey',
 };
 
 export const ESPN_LEAGUES = Object.keys(ESPN_PATH) as ProLeague[];
 
-type EspnCompetitor = { homeAway: 'home' | 'away'; team?: { displayName?: string } };
+type EspnTeam = {
+  id?: string;
+  displayName?: string;
+  shortDisplayName?: string;
+  abbreviation?: string;
+  location?: string;
+  name?: string;
+  color?: string;
+};
+type EspnCompetitor = { homeAway: 'home' | 'away'; team?: EspnTeam };
 type EspnEvent = {
   id: string;
   date: string;
@@ -54,6 +69,38 @@ function mapStatus(name?: string): ProFixture['status'] {
   return 'scheduled';
 }
 
+function normalizeColor(color?: string): string | null {
+  if (!color) return null;
+  const trimmed = color.trim().replace(/^#/, '');
+  return /^[0-9a-f]{6}$/i.test(trimmed) ? `#${trimmed}` : null;
+}
+
+function ncaaTeamRef(league: ProLeague, team?: EspnTeam | null): string | null {
+  if (!team?.id) return null;
+  return `${league}:espn-${team.id}`;
+}
+
+function providerTeam(league: ProLeague, team?: EspnTeam | null): ProviderTeam | null {
+  const externalRef = ncaaTeamRef(league, team);
+  if (!externalRef || !team?.displayName) return null;
+  return {
+    external_ref: externalRef,
+    name: team.displayName,
+    short_name: team.shortDisplayName || team.name || team.displayName,
+    abbreviation: team.abbreviation ?? null,
+    city: team.location ?? null,
+    state: null,
+    conference: null,
+    division: null,
+    venue_name: null,
+    venue_address: null,
+    venue_lat: null,
+    venue_lng: null,
+    timezone: null,
+    primary_color: normalizeColor(team.color),
+  };
+}
+
 /** UTC yyyymmdd for ESPN's `dates=START-END` range param. */
 function yyyymmdd(d: Date): string {
   return d.toISOString().slice(0, 10).replace(/-/g, '');
@@ -76,10 +123,13 @@ export function parseScoreboard(
     if (Number.isNaN(startsAt.getTime())) continue;
     if (startsAt < from || startsAt > to) continue;
 
-    const home = comp.competitors?.find(c => c.homeAway === 'home')?.team?.displayName ?? null;
-    const away = comp.competitors?.find(c => c.homeAway === 'away')?.team?.displayName ?? null;
-    const homeRef = resolveProTeamRef(league, home);
-    const awayRef = resolveProTeamRef(league, away);
+    const homeTeam = comp.competitors?.find(c => c.homeAway === 'home')?.team ?? null;
+    const awayTeam = comp.competitors?.find(c => c.homeAway === 'away')?.team ?? null;
+    const home = homeTeam?.displayName ?? null;
+    const away = awayTeam?.displayName ?? null;
+    const collegeLeague = isNcaaLeague(league);
+    const homeRef = collegeLeague ? ncaaTeamRef(league, homeTeam) : resolveProTeamRef(league, home);
+    const awayRef = collegeLeague ? ncaaTeamRef(league, awayTeam) : resolveProTeamRef(league, away);
 
     const venueName = comp.venue?.fullName ?? null;
     const addr = comp.venue?.address ?? {};
@@ -95,9 +145,8 @@ export function parseScoreboard(
     const country = (addr.country ?? '').trim();
     const DOMESTIC = new Set(['usa', 'us', 'united states']);
     const isNeutral = country.length > 0 && !DOMESTIC.has(country.toLowerCase());
-    const geocodeQuery = isNeutral
-      ? [venueName, addr.city, addr.state, country].filter(Boolean).join(', ')
-      : null;
+    const venueQuery = [venueName, addr.city, addr.state, country].filter(Boolean).join(', ');
+    const geocodeQuery = collegeLeague || isNeutral ? venueQuery : null;
 
     out.push({
       external_ref: `${league}:${e.id}`,
@@ -105,11 +154,14 @@ export function parseScoreboard(
       starts_at: startsAt,
       home_team_ref: homeRef,
       away_team_ref: awayRef,
+      home_team: collegeLeague ? providerTeam(league, homeTeam) : null,
+      away_team: collegeLeague ? providerTeam(league, awayTeam) : null,
       title: null, // resolveFixture derives "Away at Home" from short names
       venue_name: venueName,
+      venue_address: venueQuery || null,
       venue_lat: null,
       venue_lng: null,
-      venue_is_neutral: isNeutral,
+      venue_is_neutral: collegeLeague || isNeutral,
       status: mapStatus(comp.status?.type?.name),
       _geocodeQuery: geocodeQuery,
     });

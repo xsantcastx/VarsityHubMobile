@@ -21,7 +21,6 @@ import {
   getEventPresentationPhase,
   isEventPastEndOfDay,
 } from '@/utils/eventPresentation';
-import { hasLocalEventPostingUnlock, recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
 import { buildEventScrapbookPlan, eventScrapbookSeed } from '@/utils/eventPostGrid';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { isPostingWindowOpen, type LiveWindowFields } from '@/utils/liveWindow';
@@ -184,12 +183,9 @@ const canAddStory = (
   if (!eventIso) return true;
 
   // Mirrors the server's `isStoryPostingWindowOpen` (geofencing.ts): stories
-  // are LIVE-ONLY (owner rule, 2026-07-16 — "USERS CANT UPLOAD TO STORIES
-  // AFTER THEY HAVE LEFT THE GAME", "do not get the same 7 days after the
-  // fact"). This used to run from the event's UTC midnight through +48h.
-  // Prefer the server-computed bounds when the payload carries them so the
-  // per-event override (fest days run 18h) is honored; otherwise fall back to
-  // the server's default window off the event date.
+  // and posts use the same strict event posting window. Prefer the
+  // server-computed bounds when the payload carries them; otherwise fall back
+  // to the server's default window off the event date.
   return isPostingWindowOpen({ ...(liveWindow ?? {}), date: eventIso });
 };
 
@@ -1144,18 +1140,7 @@ const GameDetailsScreen = () => {
     // them regardless of distance.
     const vmDescription = typeof vm.description === 'string' ? vm.description : '';
     const isDemoMatchup = vmDescription.includes(DEMO_MATCHUP_TAG);
-    // First-post-unlocks-7-days (owner rule 2026-07-15): a user who already
-    // posted/storied to this event page may keep uploading without re-passing
-    // the geofence — skip the client preflight blocks and let the server
-    // (which holds the authoritative unlock ledger) decide.
-    const hasPostingUnlock = await hasLocalEventPostingUnlock([vm.gameId, vm.eventId]);
-    if (
-      !isDemoMatchup &&
-      !isAdminUser &&
-      !hasPostingUnlock &&
-      location?.latitude &&
-      location?.longitude
-    ) {
+    if (!isDemoMatchup && !isAdminUser && location?.latitude && location?.longitude) {
       const venueLat = vm.venueLat;
       const venueLng = vm.venueLng;
       if (typeof venueLat === 'number' && typeof venueLng === 'number') {
@@ -1170,7 +1155,7 @@ const GameDetailsScreen = () => {
           const distMi = (distKm * 0.621371).toFixed(1);
           Alert.alert(
             'Too Far From Venue',
-            `You're ${distMi} mi away. Stories require you to be within 3 km of the venue.`,
+            `You're ${distMi} mi away. Stories need to be uploaded from within 3 km of the venue during the posting window.`,
             [{ text: 'OK' }]
           );
           return;
@@ -1198,14 +1183,10 @@ const GameDetailsScreen = () => {
     if (!permissionGranted || (Platform.OS === 'android' && needsPreciseAccuracy)) {
       const granted = await requestPermission();
       if (!granted) {
-        // If the game has a linked event and it's not a demo, location is REQUIRED
-        // by the server for a FIRST story. Block early to avoid wasting a
-        // Cloudinary upload — unless the user already holds a posting unlock,
-        // in which case the server accepts stories without location.
-        if (hasEvent && !isDemoMatchup && !isAdminUser && !hasPostingUnlock) {
+        if (hasEvent && !isDemoMatchup && !isAdminUser) {
           Alert.alert(
             'Location Required',
-            'Location access is required to post stories at live events. Enable it in Settings to continue.',
+            'Location access is required to post stories at live events.',
             [
               { text: 'Cancel', style: 'cancel' },
               { text: 'Open Settings', onPress: () => Linking.openSettings() },
@@ -1337,9 +1318,6 @@ const GameDetailsScreen = () => {
           };
         }
         await Game.addStory(gameId, storyPayload);
-        // Mirror the server's posting unlock locally so preflight prompts
-        // don't re-block this user on their next upload to this event page.
-        void recordEventPostingUnlock([gameId, vm.eventId]);
         analytics.track(ANALYTICS_EVENTS.STORY_ADDED, { game_id: gameId });
         try {
           await loadGameById(gameId);
@@ -1488,8 +1466,6 @@ const GameDetailsScreen = () => {
           };
         }
         await Game.addStory(gameId, storyPayload);
-        // Mirror the server's posting unlock locally (see handleAddStory).
-        void recordEventPostingUnlock([gameId, vm.eventId]);
         analytics.track(ANALYTICS_EVENTS.STORY_ADDED, { game_id: gameId });
         try {
           await loadGameById(gameId);

@@ -1211,7 +1211,13 @@ usersRouter.post(
           .deleteMany({
             where: { follower_id: followerId, following_id: currentUserId },
           })
-          .catch(() => {});
+          .catch(err => {
+            console.warn('[users] failed to clean stale follow request for deleted follower', {
+              follower_id: followerId,
+              following_id: currentUserId,
+              reason: (err as Error)?.message || String(err),
+            });
+          });
         return res.status(404).json({ error: 'Follower account no longer exists.' });
       }
 
