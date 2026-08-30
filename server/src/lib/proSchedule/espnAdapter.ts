@@ -75,6 +75,12 @@ function normalizeColor(color?: string): string | null {
   return /^[0-9a-f]{6}$/i.test(trimmed) ? `#${trimmed}` : null;
 }
 
+function varchar(value: string | null | undefined, max: number): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return trimmed.length > max ? trimmed.slice(0, max) : trimmed;
+}
+
 function ncaaTeamRef(league: ProLeague, team?: EspnTeam | null): string | null {
   if (!team?.id) return null;
   return `${league}:espn-${team.id}`;
@@ -85,10 +91,10 @@ function providerTeam(league: ProLeague, team?: EspnTeam | null): ProviderTeam |
   if (!externalRef || !team?.displayName) return null;
   return {
     external_ref: externalRef,
-    name: team.displayName,
-    short_name: team.shortDisplayName || team.name || team.displayName,
-    abbreviation: team.abbreviation ?? null,
-    city: team.location ?? null,
+    name: varchar(team.displayName, 120) ?? externalRef,
+    short_name: varchar(team.shortDisplayName || team.name || team.displayName, 60) ?? externalRef,
+    abbreviation: varchar(team.abbreviation, 8),
+    city: varchar(team.location, 100),
     state: null,
     conference: null,
     division: null,
@@ -177,10 +183,17 @@ export function espnAdapter(geocode: GeocodeFn = geocodeVenue): EspnAdapter {
     async fetchFixtures(league: ProLeague, from: Date, to: Date): Promise<ProFixture[]> {
       const path = ESPN_PATH[league];
       if (!path) return []; // e.g. WWE — not served by ESPN
-      const url =
+      const rangedUrl =
         `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard` +
         `?dates=${yyyymmdd(from)}-${yyyymmdd(to)}&limit=1000`;
-      const res = await fetch(url);
+      let res = await fetch(rangedUrl);
+      let url = rangedUrl;
+      if (!res.ok && (league === 'ncaamb' || league === 'ncaawb')) {
+        // ESPN's college basketball site API returns 404 for some preseason
+        // date ranges while the undated scoreboard returns the next slate.
+        url = `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard?limit=1000`;
+        res = await fetch(url);
+      }
       if (!res.ok) throw new Error(`[espn] ${res.status} for ${league} (${url})`);
       const parsed = parseScoreboard(league, await res.json(), from, to);
 

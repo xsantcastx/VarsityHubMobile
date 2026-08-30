@@ -128,7 +128,7 @@ export async function runProSportsBootstrap(): Promise<void> {
     const espn = espnAdapter();
     const windowDays = getProScheduleWindowDays();
     const from = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-    const to = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000);
+    const defaultTo = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000);
     for (const league of [
       'nfl',
       'mlb',
@@ -141,7 +141,11 @@ export async function runProSportsBootstrap(): Promise<void> {
       'ncaamhockey',
     ] as ProLeague[]) {
       try {
-        const s = await ingestLeague(espn, league, from, to);
+        const collegeSeasonTo =
+          league === 'ncaamb' || league === 'ncaawb' || league === 'ncaamhockey'
+            ? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+            : defaultTo;
+        const s = await ingestLeague(espn, league, from, collegeSeasonTo);
         console.log(
           `[pro-bootstrap] ${league} ingest: created=${s.created} updated=${s.updated} skipped=${s.skipped}`
         );
