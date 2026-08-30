@@ -105,15 +105,15 @@ function summarizeKeys(value: unknown): string[] {
   return Object.keys(value as Record<string, unknown>).sort();
 }
 
-function reportShapeDrift(endpoint: string, result: z.SafeParseError<unknown>, payload: unknown) {
+function reportShapeDrift(endpoint: string, error: z.ZodError, payload: unknown) {
   captureException(new Error(`Event response schema drift at ${endpoint}`), {
     tags: {
       context: 'response_shape_drift',
       entity: 'event',
       endpoint,
     },
-    issue_count: result.error.issues.length,
-    issues: result.error.issues.slice(0, 8).map(issue => ({
+    issue_count: error.issues.length,
+    issues: error.issues.slice(0, 8).map(issue => ({
       path: issue.path.join('.'),
       message: issue.message,
       code: issue.code,
@@ -124,16 +124,20 @@ function reportShapeDrift(endpoint: string, result: z.SafeParseError<unknown>, p
 
 export function validateEvent(endpoint: string, payload: unknown): EventResponse {
   const result = eventSchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as EventResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as EventResponse;
+  }
+  return result.data;
 }
 
 export function validateEventArray(endpoint: string, payload: unknown): EventArrayResponse {
   const result = eventArraySchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as EventArrayResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as EventArrayResponse;
+  }
+  return result.data;
 }
 
 export function validateEventSummaryArray(
@@ -141,14 +145,18 @@ export function validateEventSummaryArray(
   payload: unknown
 ): EventSummaryArrayResponse {
   const result = eventSummaryArraySchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as EventSummaryArrayResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as EventSummaryArrayResponse;
+  }
+  return result.data;
 }
 
 export function validateEventRsvpArray(endpoint: string, payload: unknown): EventRsvpArrayResponse {
   const result = eventRsvpArraySchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as EventRsvpArrayResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as EventRsvpArrayResponse;
+  }
+  return result.data;
 }

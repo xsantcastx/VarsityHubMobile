@@ -127,15 +127,15 @@ function summarizeKeys(value: unknown): string[] {
   return Object.keys(value as Record<string, unknown>).sort();
 }
 
-function reportShapeDrift(endpoint: string, result: z.SafeParseError<unknown>, payload: unknown) {
+function reportShapeDrift(endpoint: string, error: z.ZodError, payload: unknown) {
   captureException(new Error(`Team response schema drift at ${endpoint}`), {
     tags: {
       context: 'response_shape_drift',
       entity: 'team',
       endpoint,
     },
-    issue_count: result.error.issues.length,
-    issues: result.error.issues.slice(0, 8).map(issue => ({
+    issue_count: error.issues.length,
+    issues: error.issues.slice(0, 8).map(issue => ({
       path: issue.path.join('.'),
       message: issue.message,
       code: issue.code,
@@ -146,16 +146,20 @@ function reportShapeDrift(endpoint: string, result: z.SafeParseError<unknown>, p
 
 export function validateTeam(endpoint: string, payload: unknown): TeamResponse {
   const result = teamSchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as TeamResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as TeamResponse;
+  }
+  return result.data;
 }
 
 export function validateTeamArray(endpoint: string, payload: unknown): TeamArrayResponse {
   const result = teamArraySchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as TeamArrayResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as TeamArrayResponse;
+  }
+  return result.data;
 }
 
 export function validateFollowedTeamArray(
@@ -163,9 +167,11 @@ export function validateFollowedTeamArray(
   payload: unknown
 ): FollowedTeamArrayResponse {
   const result = followedTeamArraySchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as FollowedTeamArrayResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as FollowedTeamArrayResponse;
+  }
+  return result.data;
 }
 
 export function validateTeamAdminSummary(
@@ -173,9 +179,11 @@ export function validateTeamAdminSummary(
   payload: unknown
 ): TeamAdminSummaryResponse {
   const result = teamAdminSummarySchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as TeamAdminSummaryResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as TeamAdminSummaryResponse;
+  }
+  return result.data;
 }
 
 export function validateTeamScreenSummary(
@@ -183,7 +191,9 @@ export function validateTeamScreenSummary(
   payload: unknown
 ): TeamScreenSummaryResponse {
   const result = teamScreenSummarySchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as TeamScreenSummaryResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as TeamScreenSummaryResponse;
+  }
+  return result.data;
 }

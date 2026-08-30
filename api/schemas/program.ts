@@ -56,15 +56,15 @@ function summarizeKeys(value: unknown): string[] {
   return Object.keys(value as Record<string, unknown>).sort();
 }
 
-function reportShapeDrift(endpoint: string, result: z.SafeParseError<unknown>, payload: unknown) {
+function reportShapeDrift(endpoint: string, error: z.ZodError, payload: unknown) {
   captureException(new Error(`Program response schema drift at ${endpoint}`), {
     tags: {
       context: 'response_shape_drift',
       entity: 'program',
       endpoint,
     },
-    issue_count: result.error.issues.length,
-    issues: result.error.issues.slice(0, 8).map(issue => ({
+    issue_count: error.issues.length,
+    issues: error.issues.slice(0, 8).map(issue => ({
       path: issue.path.join('.'),
       message: issue.message,
       code: issue.code,
@@ -78,7 +78,9 @@ export function validateProgramScreenSummary(
   payload: unknown
 ): ProgramScreenSummaryResponse {
   const result = programScreenSummarySchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as ProgramScreenSummaryResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as ProgramScreenSummaryResponse;
+  }
+  return result.data;
 }
