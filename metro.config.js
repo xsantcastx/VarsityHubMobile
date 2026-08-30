@@ -18,6 +18,7 @@ config.transformer = {
 config.resolver = {
   ...config.resolver,
   sourceExts: [...(config.resolver.sourceExts || []), 'jsx', 'js', 'ts', 'tsx'],
+  unstable_enablePackageExports: false,
   // Add resolver alias for shims
   alias: {
     ...config.resolver.alias,
@@ -59,14 +60,32 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (platform === 'web' && moduleName === 'react-native-iap') {
     return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/react-native-iap.js') };
   }
+  if (platform === 'web' && moduleName === '@react-native-community/datetimepicker') {
+    return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/datetimepicker.js') };
+  }
+  if (
+    platform === 'web' &&
+    (moduleName === '@expo/vector-icons' ||
+      moduleName === '@expo/vector-icons/MaterialIcons' ||
+      moduleName === '@expo/vector-icons/Ionicons')
+  ) {
+    return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/expo-vector-icons.js') };
+  }
   if (originalResolveRequest) {
-    return originalResolveRequest(context, moduleName, platform);
+    try {
+      return originalResolveRequest(context, moduleName, platform);
+    } catch (error) {
+      return context.resolveRequest(context, moduleName, platform);
+    }
   }
   return context.resolveRequest(context, moduleName, platform);
 };
 
 // Ensure shims directory is included in the watch folders
-config.watchFolders = [...config.watchFolders, path.resolve(__dirname, 'shims')];
+config.watchFolders = [
+  ...config.watchFolders,
+  path.resolve(__dirname, 'shims'),
+];
 
 // Ensure Fast Refresh watch options are optimal
 config.watchFolders = [...new Set(config.watchFolders)]; // Remove duplicates
