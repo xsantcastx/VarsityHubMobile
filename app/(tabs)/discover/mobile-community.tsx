@@ -87,7 +87,7 @@ type ZipDirectoryEntry = { zip: string; count: number };
 const ZIP_REGEX = /\b\d{5}\b/g;
 const DISCOVER_NCAA_LEAGUES = ['ncaaf', 'ncaamb', 'ncaawb', 'ncaabaseball', 'ncaamhockey'] as const;
 const DISCOVER_EVENT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
-const DISCOVER_EVENT_LOOKAHEAD_MS = 45 * 24 * 60 * 60 * 1000;
+const DISCOVER_EVENT_LOOKAHEAD_MS = 14 * 24 * 60 * 60 * 1000;
 
 const normalizeMapEvent = (event: any): GameItem | null => {
   if (!event || typeof event.id !== 'string') return null;

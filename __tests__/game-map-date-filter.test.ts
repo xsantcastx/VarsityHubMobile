@@ -7,6 +7,12 @@ describe('shouldShowEventOnMap', () => {
     expect(shouldShowEventOnMap('2026-04-22T12:00:01.000Z', now)).toBe(true);
   });
 
+  it('drops events more than two weeks in the future', () => {
+    expect(shouldShowEventOnMap('2026-05-06T12:00:00.000Z', now)).toBe(true);
+    expect(shouldShowEventOnMap('2026-05-06T12:00:01.000Z', now)).toBe(false);
+    expect(shouldShowEventOnMap('2026-06-22T12:00:00.000Z', now)).toBe(false);
+  });
+
   it('drops past events from the map', () => {
     expect(shouldShowEventOnMap('2026-04-22T11:59:59.000Z', now)).toBe(false);
   });
