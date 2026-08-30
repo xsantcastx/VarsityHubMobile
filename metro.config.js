@@ -39,6 +39,23 @@ config.resolver.extraNodeModules = {
 // Shim native-only modules on web so Metro doesn't try to bundle them
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (
+    platform === 'web' &&
+    moduleName.startsWith('./exports/') &&
+    context.originModulePath.endsWith(
+      path.join('node_modules', 'react-native-web', 'dist', 'index.js')
+    )
+  ) {
+    return {
+      type: 'sourceFile',
+      filePath: path.resolve(
+        __dirname,
+        'node_modules/react-native-web/dist',
+        moduleName,
+        'index.js'
+      ),
+    };
+  }
   if (moduleName === 'split-on-first') {
     return {
       type: 'sourceFile',
