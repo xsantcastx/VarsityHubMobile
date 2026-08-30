@@ -528,7 +528,7 @@ export const Event = {
       team_ids?: string[];
       following?: boolean;
       pro_only?: boolean;
-      pro_league?: 'nfl' | 'nba' | 'wnba' | 'mlb' | 'wwe';
+      pro_league?: string;
       event_only?: boolean;
       from?: string;
       to?: string;

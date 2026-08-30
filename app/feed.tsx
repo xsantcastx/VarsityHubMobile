@@ -84,7 +84,7 @@ type GameItem = {
   venue_photo?: { url: string; credit: string } | null;
   pro_home_color?: string | null;
   pro_away_color?: string | null;
-  pro_league?: 'nfl' | 'nba' | 'wnba' | 'mlb' | 'wwe' | null;
+  pro_league?: string | null;
   starts_at?: string | null;
   live_from?: string | null;
   live_until?: string | null;
@@ -159,6 +159,7 @@ const normalizeProFeedEvents = (
 };
 
 const PRO_SPOTLIGHT_LEAGUES: ReadonlyArray<NonNullable<GameItem['pro_league']>> = ['wwe', 'nfl'];
+const NCAA_FEED_LEAGUES = ['ncaaf', 'ncaamb', 'ncaawb', 'ncaabaseball', 'ncaamhockey'] as const;
 
 function getFeedEntityKey(item: GameItem): string {
   const eventId = typeof item.event_id === 'string' && item.event_id ? item.event_id : null;
@@ -843,6 +844,7 @@ export default function FeedScreen() {
           proPastData,
           proWweUpcomingData,
           proNflUpcomingData,
+          ...ncaaUpcomingData
         ] = await Promise.all([
           queryClient
             .fetchQuery({
@@ -980,6 +982,33 @@ export default function FeedScreen() {
               if (__DEV__) console.warn('[Feed] Failed to load NFL upcoming events:', err);
               return null;
             }),
+          ...NCAA_FEED_LEAGUES.map(league =>
+            queryClient
+              .fetchQuery({
+                queryKey: [
+                  'feed-pro-events-upcoming-ncaa',
+                  league,
+                  queryPlan.upcoming.options.dateFrom,
+                ],
+                queryFn: () =>
+                  Event.filter(
+                    {
+                      event_type: 'game',
+                      pro_only: true,
+                      pro_league: league,
+                      event_only: true,
+                      from: queryPlan.upcoming.options.dateFrom,
+                      to: proLookaheadTo,
+                    },
+                    'date',
+                    100
+                  ),
+              })
+              .catch((err: any) => {
+                if (__DEV__) console.warn(`[Feed] Failed to load ${league} upcoming events:`, err);
+                return null;
+              })
+          ),
         ]);
 
         const upcomingPage = normalizeGamesPage(upcomingData);
@@ -1005,8 +1034,14 @@ export default function FeedScreen() {
           gameRows,
           normalizeProFeedEvents(proNflUpcomingData, 'nfl')
         );
+        const ncaaRows = ncaaUpcomingData.flatMap((eventsData, index) =>
+          filterProEventsAlreadyRepresentedByGames(
+            gameRows,
+            normalizeProFeedEvents(eventsData, NCAA_FEED_LEAGUES[index])
+          )
+        );
         let normalizedGames = dedupeFeedEntities(
-          mergeFeedGames(gameRows, proPastRows, proUpcomingRows, proWweRows, proNflRows)
+          mergeFeedGames(gameRows, proPastRows, proUpcomingRows, proWweRows, proNflRows, ncaaRows)
         );
 
         // If no games exist, seed sample games as real DB records (stories/polls work)
