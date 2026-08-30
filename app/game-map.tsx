@@ -11,21 +11,26 @@ import SportFilterBar from '@/components/SportFilterBar';
 import { normalizeSportSlug } from '@/constants/sports';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Calendar } from 'react-native-calendars';
 // SafeAreaView removed — native header handles safe area
 // @ts-ignore
 import { Game } from '@/api/entities';
 import { httpGet } from '@/api/http';
 
-/** True when an ISO date string falls on the same calendar day as `day`. */
-function isSameCalendarDay(dateStr: string | null | undefined, day: Date): boolean {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return false;
-  return (
-    d.getFullYear() === day.getFullYear() &&
-    d.getMonth() === day.getMonth() &&
-    d.getDate() === day.getDate()
-  );
+const MAP_NCAA_LEAGUES = ['ncaaf', 'ncaamb', 'ncaawb', 'ncaabaseball', 'ncaamhockey'] as const;
+const MAP_EVENT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+const MAP_EVENT_LOOKAHEAD_MS = 45 * 24 * 60 * 60 * 1000;
+
+function dedupeMapEvents(items: EventMapData[]): EventMapData[] {
+  const seen = new Set<string>();
+  const deduped: EventMapData[] = [];
+  items.forEach(item => {
+    const key = `${item.type || 'event'}:${item.id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    deduped.push(item);
+  });
+  return deduped;
 }
 
 function GameMapScreen() {
@@ -35,13 +40,11 @@ function GameMapScreen() {
 
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<EventMapData[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<EventMapData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
-  // Owner note 8: dates tracker. `selectedDate === null` is the default live/nearby
-  // view (today + upcoming). A non-null value scopes the map to that single past
-  // day so users can browse previous games/events (active 7-day window).
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(true);
+  const [selectedDate, setSelectedDate] = useState('');
 
   const loadGames = useCallback(async () => {
     setLoading(true);
@@ -68,57 +71,60 @@ function GameMapScreen() {
         }
       }
 
-      // Dates tracker (owner note 8): when a past day is picked, scope the fetch
-      // to that calendar day (dropping mapView, which is future-only server-side)
-      // so previous games/events surface. Default (null) keeps the live nearby view.
-      const dayScoped = selectedDate != null;
-      const dayStart = dayScoped ? new Date(selectedDate as Date) : null;
-      dayStart?.setHours(0, 0, 0, 0);
-      const dayEnd = dayScoped ? new Date(selectedDate as Date) : null;
-      dayEnd?.setHours(23, 59, 59, 999);
+      const nowMs = Date.now();
+      const dateFrom = new Date(nowMs - MAP_EVENT_LOOKBACK_MS).toISOString();
+      const dateTo = new Date(nowMs + MAP_EVENT_LOOKAHEAD_MS).toISOString();
 
-      // Fetch games and events; when user has location, filter to nearby (radius 50mi)
-      const eventsQuery = new URLSearchParams();
-      eventsQuery.set('approval_status', 'approved');
-      if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
-        eventsQuery.set('lat', String(lat));
-        eventsQuery.set('lng', String(lng));
-        eventsQuery.set('radius', '50');
-      }
-      if (dayScoped) {
-        eventsQuery.set('from', dayStart!.toISOString());
-        eventsQuery.set('to', dayEnd!.toISOString());
-      }
-      const nearOpts = lat != null && lng != null ? { lat, lng } : {};
-      const [gamesResponse, eventsResponse] = await Promise.all([
-        // Default view: mapView restricts to the rolling window (future-only). A
-        // day-scoped view instead passes an explicit from/to so past days resolve.
+      const buildEventsQuery = (league?: string) => {
+        const query = new URLSearchParams();
+        query.set('approval_status', 'approved');
+        query.set('event_type', 'game');
+        query.set('pro_only', 'true');
+        query.set('event_only', 'true');
+        query.set('from', dateFrom);
+        query.set('to', dateTo);
+        query.set('sort', 'date');
+        query.set('limit', '100');
+        if (league) query.set('pro_league', league);
+        if (!league && lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+          query.set('lat', String(lat));
+          query.set('lng', String(lng));
+          query.set('radius', '50');
+        }
+        return query;
+      };
+
+      // Fetch games and event-only fixtures. NCAA gets dedicated queries so
+      // dense MLB/NFL slates cannot push college games out of the map/calendar.
+      const [gamesResponse, eventsResponse, ...ncaaEventResponses] = await Promise.all([
+        // v1.0.2: mapView restricts to games this week — past games drop off the map in real time.
         Game.list(
           'date',
-          dayScoped
-            ? {
-                ...nearOpts,
-                limit: 100,
-                dateFrom: dayStart!.toISOString(),
-                dateTo: dayEnd!.toISOString(),
-              }
-            : { ...nearOpts, limit: 50, mapView: true }
+          lat != null && lng != null
+            ? { lat, lng, limit: 100, dateFrom, dateTo }
+            : { limit: 100, dateFrom, dateTo }
         ).catch((error: any) => {
           if (__DEV__) console.error('[game-map] Failed to fetch games:', error);
           return { items: [] };
         }),
-        httpGet('/events?' + eventsQuery.toString()).catch(error => {
+        httpGet('/events?' + buildEventsQuery().toString()).catch(error => {
           if (__DEV__) console.error('[game-map] Failed to fetch events:', error);
           return [];
         }),
+        ...MAP_NCAA_LEAGUES.map(league =>
+          httpGet('/events?' + buildEventsQuery(league).toString()).catch(error => {
+            if (__DEV__) console.error(`[game-map] Failed to fetch ${league} events:`, error);
+            return [];
+          })
+        ),
       ]);
 
       const gamesList = Array.isArray(gamesResponse)
         ? gamesResponse
         : gamesResponse?.games || gamesResponse?.items || [];
-      const eventsList = Array.isArray(eventsResponse)
-        ? eventsResponse
-        : eventsResponse?.items || [];
+      const eventsList = [eventsResponse, ...ncaaEventResponses].flatMap(response =>
+        Array.isArray(response) ? response : response?.items || []
+      );
 
       // Helper: resolve the best available lat/lng for a game or event.
       // Games can store coordinates in multiple fields depending on how
@@ -150,57 +156,54 @@ function GameMapScreen() {
       // v1.0.3: past games must drop off the map immediately, same as events.
       // Previously only events were date-filtered, so a past game remained as
       // a tappable pin that routed to the dead-end "This event has ended" page.
-      const gameMarkers: EventMapData[] = gamesList
-        .filter(hasValidCoords)
-        .filter((g: any) =>
-          dayScoped ? isSameCalendarDay(g.date, selectedDate as Date) : shouldShowEventOnMap(g.date)
-        )
-        .map((game: any) => {
-          const coords = resolveCoords(game)!;
-          return {
-            id: game.id,
-            title: game.title || 'Game',
-            date: game.date || new Date().toISOString(),
-            location: game.location || game.venue_address,
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            type: 'game' as const,
-            sport: normalizeSportSlug(game.sport),
-          };
-        });
+      const gameItems: EventMapData[] = gamesList.map((game: any) => {
+        const coords = resolveCoords(game);
+        return {
+          id: game.id,
+          title: game.title || 'Game',
+          date: game.date || new Date().toISOString(),
+          location: game.location || game.venue_address,
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+          type: 'game' as const,
+          sport: normalizeSportSlug(game.sport),
+        };
+      });
 
-      // Transform events to EventMapData format (never show cancelled events on map)
-      const gameMarkerIds = new Set(gameMarkers.map(g => String(g.id)));
-      const eventMarkers: EventMapData[] = eventsList
+      const gameMarkers = gameItems.filter(
+        (g: any) => hasValidCoords(g) && shouldShowEventOnMap(g.date)
+      );
+
+      const eventItems: EventMapData[] = eventsList
         .filter((e: any) => e.status !== 'cancelled')
-        // A game-linked event duplicates its game's pin — show the fixture once.
-        .filter((e: any) => !e.game_id || !gameMarkerIds.has(String(e.game_id)))
-        // Default view: past events drop off immediately (live map). Day-scoped
-        // view: show that day's events instead. NOTE (owner note 8, rule 5): past
-        // events with zero posts should be hidden here — that needs a post_count
-        // on the events response (server change, staged separately) before it can
-        // be enforced client-side.
-        .filter((e: any) =>
-          dayScoped ? isSameCalendarDay(e.date, selectedDate as Date) : shouldShowEventOnMap(e.date)
-        )
-        .filter(hasValidCoords)
         .map((event: any) => {
-          const coords = resolveCoords(event)!;
+          const coords = resolveCoords(event);
           return {
             id: event.id,
             title: event.title || 'Event',
             date: event.date || new Date().toISOString(),
             location: event.location,
-            latitude: coords.latitude,
-            longitude: coords.longitude,
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
             type: 'event' as const,
             sport: normalizeSportSlug(event.sport),
           };
         });
 
+      // Transform events to EventMapData format (never show cancelled events on map)
+      const gameMarkerIds = new Set(gameMarkers.map(g => String(g.id)));
+      const eventMarkers: EventMapData[] = eventItems
+        // A game-linked event duplicates its game's pin — show the fixture once.
+        .filter((e: any) => !e.game_id || !gameMarkerIds.has(String(e.game_id)))
+        // Feed/list views intentionally keep recent past events visible for recap.
+        // The map should not: past events should drop off immediately.
+        .filter((e: any) => shouldShowEventOnMap(e.date))
+        .filter(hasValidCoords);
+
       // Combine games and events
-      const allMarkers = [...gameMarkers, ...eventMarkers];
+      const allMarkers = dedupeMapEvents([...gameMarkers, ...eventMarkers]);
       setEvents(allMarkers);
+      setCalendarEvents(dedupeMapEvents([...gameItems, ...eventItems]));
 
       // Log for debugging
       const totalItems = gamesList.length + eventsList.length;
@@ -221,7 +224,7 @@ function GameMapScreen() {
     } finally {
       setLoading(false);
     }
-  }, [params.lat, params.lng, selectedDate]);
+  }, [params.lat, params.lng]);
 
   useEffect(() => {
     void loadGames();
@@ -250,28 +253,33 @@ function GameMapScreen() {
     [events, selectedSport]
   );
 
-  // Dates tracker options: Today (live default) + the previous 7 days (active
-  // 7-day window). "Today" maps to null so it restores the default nearby view.
-  const dateOptions = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const opts: { key: string; label: string; date: Date | null }[] = [];
-    for (let i = 0; i <= 7; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      opts.push({
-        key: i === 0 ? 'today' : d.toISOString().slice(0, 10),
-        label:
-          i === 0
-            ? 'Today'
-            : i === 1
-              ? 'Yesterday'
-              : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-        date: i === 0 ? null : d,
-      });
+  const calendarMarkedDates = useMemo(() => {
+    const marked: Record<string, any> = {};
+    calendarEvents.forEach(event => {
+      if (!event.date) return;
+      const d = new Date(event.date);
+      if (isNaN(d.getTime())) return;
+      const key = d.toISOString().split('T')[0];
+      marked[key] = { marked: true, dotColor: Colors[colorScheme].tint };
+    });
+    if (selectedDate) {
+      marked[selectedDate] = {
+        ...marked[selectedDate],
+        selected: true,
+        selectedColor: Colors[colorScheme].tint,
+      };
     }
-    return opts;
-  }, []);
+    return marked;
+  }, [calendarEvents, selectedDate, colorScheme]);
+
+  const selectedDateEvents = useMemo(() => {
+    if (!selectedDate) return [];
+    return calendarEvents.filter(event => {
+      if (!event.date) return false;
+      const d = new Date(event.date);
+      return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === selectedDate;
+    });
+  }, [calendarEvents, selectedDate]);
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -306,57 +314,7 @@ function GameMapScreen() {
           showUserLocation={true}
           dataLoaded={!loading}
           onRefresh={!loading && !error ? loadGames : undefined}
-          hideCenterOnUser
-          onCalendarPress={() => setShowDatePicker(v => !v)}
-          calendarActive={selectedDate != null}
         />
-
-        {/* Dates tracker (owner note 8): a compact date picker — not a full
-            calendar — toggled by the map's calendar control. Picking a past day
-            scopes the map to that day's games/events; "Today" restores live. */}
-        {showDatePicker && (
-          <View style={styles.datePickerBar} pointerEvents="box-none">
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.datePickerContent}
-            >
-              {dateOptions.map(opt => {
-                const active =
-                  opt.date == null
-                    ? selectedDate == null
-                    : selectedDate != null &&
-                      isSameCalendarDay(selectedDate.toISOString(), opt.date);
-                return (
-                  <Pressable
-                    key={opt.key}
-                    onPress={() => setSelectedDate(opt.date)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    style={[
-                      styles.dateChip,
-                      {
-                        backgroundColor: active
-                          ? Colors[colorScheme].tint
-                          : Colors[colorScheme].background,
-                        borderColor: active ? Colors[colorScheme].tint : Colors[colorScheme].border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.dateChipText,
-                        { color: active ? '#FFFFFF' : Colors[colorScheme].text },
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
 
         {/* Discreet sport filter — sits on the count-badge row, right of it. */}
         {!loading && !error && presentSports.length > 1 && (
@@ -366,6 +324,94 @@ function GameMapScreen() {
               selected={selectedSport}
               onSelect={setSelectedSport}
             />
+          </View>
+        )}
+
+        {!loading && !error && (
+          <View style={[styles.calendarPanel, { backgroundColor: Colors[colorScheme].card }]}>
+            <Pressable
+              onPress={() => setCalendarOpen(open => !open)}
+              style={styles.calendarToggle}
+              accessibilityRole="button"
+              accessibilityLabel={calendarOpen ? 'Hide map calendar' : 'Show map calendar'}
+            >
+              <MaterialIcons name="calendar-month" size={22} color={Colors[colorScheme].tint} />
+              <Text style={[styles.calendarToggleText, { color: Colors[colorScheme].text }]}>
+                Calendar
+              </Text>
+              <MaterialIcons
+                name={calendarOpen ? 'expand-less' : 'expand-more'}
+                size={22}
+                color={Colors[colorScheme].mutedText}
+              />
+            </Pressable>
+            {calendarOpen ? (
+              <>
+                <Calendar
+                  key={`map-calendar-${colorScheme}`}
+                  onDayPress={day => setSelectedDate(day.dateString)}
+                  markedDates={calendarMarkedDates}
+                  style={styles.calendar}
+                  theme={{
+                    calendarBackground: Colors[colorScheme].card,
+                    textSectionTitleColor: Colors[colorScheme].mutedText,
+                    selectedDayBackgroundColor: Colors[colorScheme].tint,
+                    selectedDayTextColor: '#FFFFFF',
+                    todayTextColor: Colors[colorScheme].tint,
+                    dayTextColor: Colors[colorScheme].text,
+                    textDisabledColor: Colors[colorScheme].mutedText,
+                    arrowColor: Colors[colorScheme].tint,
+                    monthTextColor: Colors[colorScheme].text,
+                    textDayFontWeight: '500',
+                    textMonthFontWeight: '800',
+                    textDayHeaderFontWeight: '600',
+                    textDayFontSize: 14,
+                  }}
+                />
+                {selectedDate ? (
+                  <ScrollView style={styles.selectedDateList}>
+                    {selectedDateEvents.slice(0, 16).map(event => (
+                      <Pressable
+                        key={`${event.type}-${event.id}`}
+                        onPress={() => handleEventPress(event.id, event.type)}
+                        style={[
+                          styles.selectedDateRow,
+                          { borderTopColor: Colors[colorScheme].border },
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open ${event.title}`}
+                      >
+                        <Text
+                          style={[styles.selectedDateTitle, { color: Colors[colorScheme].text }]}
+                          numberOfLines={1}
+                        >
+                          {event.title}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.selectedDateMeta,
+                            { color: Colors[colorScheme].mutedText },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {[
+                            event.date
+                              ? new Date(event.date).toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                })
+                              : null,
+                            event.location,
+                          ]
+                            .filter(Boolean)
+                            .join(' • ')}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                ) : null}
+              </>
+            ) : null}
           </View>
         )}
 
@@ -428,28 +474,51 @@ const styles = StyleSheet.create({
     height: 34,
     justifyContent: 'center',
   },
-  // Dates-tracker strip — sits just below the search box / sport-filter row.
-  datePickerBar: {
+  calendarPanel: {
     position: 'absolute',
-    top: 116,
-    left: 0,
-    right: 0,
+    left: 12,
+    right: 12,
+    bottom: 20,
+    maxHeight: '58%',
+    borderRadius: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
-  datePickerContent: {
+  calendarToggle: {
+    minHeight: 44,
     paddingHorizontal: 12,
-    gap: 8,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  dateChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1,
+  calendarToggleText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '800',
   },
-  dateChipText: {
-    fontSize: 13,
+  calendar: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(148, 163, 184, 0.35)',
+  },
+  selectedDateList: {
+    maxHeight: 150,
+  },
+  selectedDateRow: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  selectedDateTitle: {
+    fontSize: 14,
     fontWeight: '700',
+  },
+  selectedDateMeta: {
+    marginTop: 2,
+    fontSize: 12,
   },
   loadingOverlay: {
     position: 'absolute',
