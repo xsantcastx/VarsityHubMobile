@@ -4,7 +4,6 @@
  */
 
 import sanitizeHtml from 'sanitize-html';
-
 /** Strip all HTML tags, returning plain text. Safe for storage. */
 export function stripHtml(html: string | null | undefined): string {
   if (html == null || typeof html !== 'string') return '';

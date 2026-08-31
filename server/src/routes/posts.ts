@@ -731,7 +731,7 @@ const createPostSchema = z
   );
 
 import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo.js';
-import { verifyEventPostingPermission } from '../lib/geofencing.js';
+import { grantEventPostingUnlock, verifyEventPostingPermission } from '../lib/geofencing.js';
 import { notifyMentions } from '../lib/mentionNotifications.js';
 import { notifyCommentReply, notifyPostInteraction } from '../lib/notifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
@@ -877,6 +877,7 @@ postsRouter.post(
     // Event id derived from the game's primary event during the geofencing
     // lookup below — reused when denormalizing the link so we don't re-query.
     let derivedEventIdFromGame: string | null = null;
+    let shouldGrantEventPostingUnlock = false;
     if (eventId || gameId) {
       // Check geofencing for real events or games (games have associated events)
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -934,10 +935,8 @@ postsRouter.post(
       } else if (targetEventId) {
         // Only device-origin GPS may satisfy the venue geofence (anti-spoof:
         // zip-derived coords must never count). Pass null otherwise and let
-        // verifyEventPostingPermission decide: a FIRST post still requires
-        // real location at the venue, but users holding a 7-day posting
-        // unlock (already posted/storied to this event page) post from
-        // anywhere, during the event and through the post-event grace window.
+        // verifyEventPostingPermission decide. Normal posts require real
+        // device location at the venue during the event posting window.
         const deviceLat = hasDeviceOriginLocation ? loc.lat : null;
         const deviceLng = hasDeviceOriginLocation ? loc.lng : null;
         const verification = await verifyEventPostingPermission(
@@ -956,6 +955,7 @@ postsRouter.post(
         debugLog(
           `✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} km away)`
         );
+        shouldGrantEventPostingUnlock = true;
       } else if (gameId) {
         // Game exists but has no associated event — no location data to verify against.
         // Block normal posting when geofencing cannot be enforced.
@@ -1044,6 +1044,12 @@ postsRouter.post(
         lng: typeof lng === 'number' ? lng : undefined,
       },
     });
+
+    if (shouldGrantEventPostingUnlock && finalEventId) {
+      void grantEventPostingUnlock(req.user.id, finalEventId, post.created_at).catch(err =>
+        console.warn('[posts] Failed to grant event posting unlock:', err)
+      );
+    }
 
     // Mention notifications (parse @username from content)
     const contentForMentions = data.content?.trim() ?? '';

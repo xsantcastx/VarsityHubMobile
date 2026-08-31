@@ -8,14 +8,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * per event only — a fan who posts thirteen times must not read the same notice
  * thirteen times.
  *
- * Mirrors the storage pattern of `eventPostingUnlock.ts` (AsyncStorage,
- * versioned key prefix, failures swallowed), with one deliberate difference:
- * the key includes the user id. The unlock mirror is keyed by page id alone, so
- * switching accounts on a shared device reads the previous user's state —
- * harmless there, since the server re-checks every upload, but here the local
- * record IS the only source of truth for "have you seen this?", so it has to be
- * per-user or the second account on a device would silently never be told the
- * rules.
+ * AsyncStorage, versioned key prefix, failures swallowed. The key includes the
+ * user id because this local record is the only source of truth for "have you
+ * seen this?", so a second account on a shared device should still see it once.
  *
  * Purely local by design: this is a UX nicety, not a gate. Losing it (new
  * device, reinstall, cleared storage) re-shows the notice once, which is the
@@ -51,7 +46,10 @@ export async function shouldShowEventPostingNotice(
       if (await AsyncStorage.getItem(keyFor(userId, pageId))) return false;
     }
     return true;
-  } catch {
+  } catch (err) {
+    if (__DEV__) {
+      console.warn('[event-posting-notice] failed to read notice state:', err);
+    }
     return false;
   }
 }
@@ -64,7 +62,10 @@ export async function markEventPostingNoticeSeen(userId: PageId, ids: PageId[]):
     validIds(ids).map(async pageId => {
       try {
         await AsyncStorage.setItem(keyFor(userId, pageId), now);
-      } catch {
+      } catch (err) {
+        if (__DEV__) {
+          console.warn('[event-posting-notice] failed to write notice state:', err);
+        }
         // Non-critical UX bookkeeping — never surface storage failures.
       }
     })

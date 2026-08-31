@@ -76,11 +76,66 @@ type GameItem = {
   longitude?: number | null;
   cover_image_url?: string;
   banner_url?: string | null;
+  event_id?: string | null;
+  game_id?: string | null;
+  source_type?: 'game' | 'event';
+  pro_league?: string | null;
 };
 
 type ZipDirectoryEntry = { zip: string; count: number };
 
 const ZIP_REGEX = /\b\d{5}\b/g;
+const DISCOVER_NCAA_LEAGUES = ['ncaaf', 'ncaamb', 'ncaawb', 'ncaabaseball', 'ncaamhockey'] as const;
+const DISCOVER_EVENT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+const DISCOVER_EVENT_LOOKAHEAD_MS = 14 * 24 * 60 * 60 * 1000;
+
+const normalizeMapEvent = (event: any): GameItem | null => {
+  if (!event || typeof event.id !== 'string') return null;
+  return {
+    id: String(event.game_id || event.id),
+    title: event.title || event.game?.title || 'Game',
+    date: event.date || event.game?.date || undefined,
+    location: event.location || event.game?.location || undefined,
+    latitude:
+      typeof event.latitude === 'number'
+        ? event.latitude
+        : typeof event.game?.latitude === 'number'
+          ? event.game.latitude
+          : null,
+    longitude:
+      typeof event.longitude === 'number'
+        ? event.longitude
+        : typeof event.game?.longitude === 'number'
+          ? event.game.longitude
+          : null,
+    cover_image_url: event.game?.cover_image_url || event.cover_image_url || undefined,
+    banner_url: event.banner_url || null,
+    event_id: event.id,
+    game_id: event.game_id || null,
+    source_type: event.game_id ? 'game' : 'event',
+    pro_league: event.pro_league || null,
+  };
+};
+
+const mergeDiscoverEvents = (...groups: GameItem[][]): GameItem[] => {
+  const seen = new Set<string>();
+  const merged: GameItem[] = [];
+  for (const group of groups) {
+    for (const item of group) {
+      const key = item.event_id ? `event:${item.event_id}` : `game:${item.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(item);
+    }
+  }
+  return merged.sort((a, b) => {
+    const at = a.date ? new Date(a.date).getTime() : NaN;
+    const bt = b.date ? new Date(b.date).getTime() : NaN;
+    if (!Number.isFinite(at)) return 1;
+    if (!Number.isFinite(bt)) return -1;
+    return at - bt;
+  });
+};
 
 const buildZipDirectory = (items: GameItem[]): ZipDirectoryEntry[] => {
   const counts = new Map<string, number>();
@@ -369,16 +424,43 @@ function CommunityDiscoverScreen() {
     enabled: interactionsDone,
     queryFn: async (): Promise<GameItem[]> => {
       const snapshot: any = await getAuthSnapshot(checkAuth, user).catch(() => null);
-      const raw = await Game.list('-date');
+      const nowMs = Date.now();
+      const dateFrom = new Date(nowMs - DISCOVER_EVENT_LOOKBACK_MS).toISOString();
+      const dateTo = new Date(nowMs + DISCOVER_EVENT_LOOKAHEAD_MS).toISOString();
+      const [raw, proEvents, ...ncaaEvents] = await Promise.all([
+        Game.list('date', { dateFrom, dateTo, limit: 100 }),
+        Event.filter(
+          {
+            event_type: 'game',
+            pro_only: true,
+            event_only: true,
+            from: dateFrom,
+            to: dateTo,
+          },
+          'date',
+          100
+        ).catch(() => []),
+        ...DISCOVER_NCAA_LEAGUES.map(league =>
+          Event.filter(
+            {
+              event_type: 'game',
+              pro_only: true,
+              pro_league: league,
+              event_only: true,
+              from: dateFrom,
+              to: dateTo,
+            },
+            'date',
+            100
+          ).catch(() => [])
+        ),
+      ]);
       let normalizedGames = Array.isArray(raw) ? raw : raw?.games || raw?.items || [];
-
-      // Filter out past events by default
-      const now = new Date();
-      normalizedGames = normalizedGames.filter((g: any) => {
-        if (!g.date) return true; // Keep games without dates
-        const gameDate = new Date(g.date);
-        return !isNaN(gameDate.getTime()) && gameDate >= now;
-      });
+      const eventRows = [proEvents, ...ncaaEvents]
+        .flat()
+        .map(normalizeMapEvent)
+        .filter((event): event is GameItem => Boolean(event));
+      normalizedGames = mergeDiscoverEvents(normalizedGames, eventRows);
 
       const zip = snapshot?.preferences?.zip_code
         ? String(snapshot.preferences.zip_code).trim()
@@ -931,6 +1013,9 @@ function CommunityDiscoverScreen() {
         if (data.appearance) {
           gamePayload.appearance = data.appearance;
         }
+        if (data.live_window_hours_after_start) {
+          gamePayload.live_window_hours_after_start = data.live_window_hours_after_start;
+        }
 
         // Validate required fields before API call
         if (!gamePayload.title || gamePayload.title.trim().length === 0) {
@@ -1048,6 +1133,100 @@ function CommunityDiscoverScreen() {
     }
     setViewMode(newMode);
   }, [viewMode, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings]);
+
+  const calendarMarkedDates = useMemo(() => {
+    const marked: Record<string, any> = {};
+    const markDate = (dateVal: any) => {
+      if (!dateVal) return;
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return;
+      const dateKey = d.toISOString().split('T')[0];
+      if (!marked[dateKey]) {
+        marked[dateKey] = { marked: true, dotColor: Colors[colorScheme].tint };
+      }
+    };
+    games.forEach(game => markDate(game.date));
+    followedGames.forEach(game => markDate(game.date));
+    followedEvents.forEach(event => markDate(event.date));
+    if (selectedDate) {
+      marked[selectedDate] = {
+        ...marked[selectedDate],
+        selected: true,
+        selectedColor: Colors[colorScheme].tint,
+      };
+    }
+    return marked;
+  }, [games, followedGames, followedEvents, selectedDate, colorScheme]);
+
+  const getSelectedDateGames = useCallback(() => {
+    if (!selectedDate) return [];
+    return mergeDiscoverEvents(games, followedGames).filter(game => {
+      if (!game.date) return false;
+      const d = new Date(game.date);
+      return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === selectedDate;
+    });
+  }, [games, followedGames, selectedDate]);
+
+  const getSelectedDateEvents = useCallback(() => {
+    if (!selectedDate) return [];
+    return followedEvents.filter(event => {
+      if (!event.date) return false;
+      const d = new Date(event.date);
+      return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === selectedDate;
+    });
+  }, [followedEvents, selectedDate]);
+
+  const renderCalendar = () => (
+    <View
+      style={[
+        styles.calendarSection,
+        {
+          backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
+          borderColor: colorScheme === 'light' ? '#E5E7EB' : Colors[colorScheme].border,
+        },
+      ]}
+    >
+      <Calendar
+        key={`calendar-${colorScheme}`}
+        onDayPress={day => {
+          setSelectedDate(day.dateString);
+        }}
+        markedDates={calendarMarkedDates}
+        style={{
+          backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
+        }}
+        theme={{
+          backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
+          calendarBackground: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
+          textSectionTitleColor: Colors[colorScheme].mutedText,
+          selectedDayBackgroundColor: Colors[colorScheme].tint,
+          selectedDayTextColor: '#FFFFFF',
+          todayTextColor: Colors[colorScheme].tint,
+          dayTextColor: Colors[colorScheme].text,
+          textDisabledColor: colorScheme === 'light' ? '#9CA3AF' : Colors[colorScheme].mutedText,
+          arrowColor: colorScheme === 'light' ? '#111827' : Colors[colorScheme].tint, // audit: intentional
+          monthTextColor: Colors[colorScheme].text,
+          textDayFontWeight: '500',
+          textMonthFontWeight: '800',
+          textDayHeaderFontWeight: '600',
+          textDayFontSize: 15,
+          // @ts-ignore - headerStyle not in TS types but supported by react-native-calendars
+          'stylesheet.calendar.header': {
+            header: {
+              backgroundColor: colorScheme === 'light' ? '#F9FAFB' : Colors[colorScheme].background,
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingHorizontal: 10,
+              paddingVertical: 10,
+              borderBottomWidth: colorScheme === 'light' ? 1 : 0,
+              borderBottomColor: '#E5E7EB',
+            },
+          },
+        }}
+      />
+    </View>
+  );
 
   const ListHeader = (
     <View>
@@ -1756,81 +1935,7 @@ function CommunityDiscoverScreen() {
       ) : null}
 
       {/* Calendar - Right below search */}
-      <View
-        style={[
-          styles.calendarSection,
-          {
-            backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-            borderColor: colorScheme === 'light' ? '#E5E7EB' : Colors[colorScheme].border,
-          },
-        ]}
-      >
-        <Calendar
-          key={`calendar-${colorScheme}`}
-          onDayPress={day => {
-            setSelectedDate(day.dateString);
-          }}
-          markedDates={useMemo(() => {
-            const marked: Record<string, any> = {};
-            const now = new Date();
-            // Mark only future dates with events (followed games + standalone events)
-            const markFuture = (dateVal: any) => {
-              if (!dateVal) return;
-              const d = new Date(dateVal);
-              if (isNaN(d.getTime()) || d < now) return;
-              const dateKey = d.toISOString().split('T')[0];
-              if (!marked[dateKey]) {
-                marked[dateKey] = { marked: true, dotColor: Colors[colorScheme].tint };
-              }
-            };
-            followedGames.forEach(game => markFuture(game.date));
-            followedEvents.forEach(event => markFuture(event.date));
-            // Highlight selected date
-            if (selectedDate) {
-              marked[selectedDate] = {
-                ...marked[selectedDate],
-                selected: true,
-                selectedColor: Colors[colorScheme].tint,
-              };
-            }
-            return marked;
-          }, [followedGames, followedEvents, selectedDate, colorScheme])}
-          style={{
-            backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-          }}
-          theme={{
-            backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-            calendarBackground:
-              colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-            textSectionTitleColor: Colors[colorScheme].mutedText,
-            selectedDayBackgroundColor: Colors[colorScheme].tint,
-            selectedDayTextColor: '#FFFFFF',
-            todayTextColor: Colors[colorScheme].tint,
-            dayTextColor: Colors[colorScheme].text,
-            textDisabledColor: colorScheme === 'light' ? '#9CA3AF' : Colors[colorScheme].mutedText,
-            arrowColor: colorScheme === 'light' ? '#111827' : Colors[colorScheme].tint, // audit: intentional
-            monthTextColor: Colors[colorScheme].text,
-            textDayFontWeight: '500',
-            textMonthFontWeight: '800',
-            textDayHeaderFontWeight: '600',
-            textDayFontSize: 15,
-            // @ts-ignore - headerStyle not in TS types but supported by react-native-calendars
-            'stylesheet.calendar.header': {
-              header: {
-                backgroundColor:
-                  colorScheme === 'light' ? '#F9FAFB' : Colors[colorScheme].background,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                paddingHorizontal: 10,
-                paddingVertical: 10,
-                borderBottomWidth: colorScheme === 'light' ? 1 : 0,
-                borderBottomColor: '#E5E7EB',
-              },
-            },
-          }}
-        />
-      </View>
+      {renderCalendar()}
 
       {followedGames.length === 0 &&
       followedEvents.length === 0 &&
@@ -1845,15 +1950,8 @@ function CommunityDiscoverScreen() {
       {/* Games on Selected Date */}
       {selectedDate &&
         (() => {
-          const onSelectedDate = (dateVal: any) => {
-            if (!dateVal) return false;
-            const d = new Date(dateVal);
-            // Only show future items on the selected date
-            if (isNaN(d.getTime()) || d < new Date()) return false;
-            return d.toISOString().split('T')[0] === selectedDate;
-          };
-          const gamesOnDate = followedGames.filter(g => onSelectedDate(g.date));
-          const eventsOnDate = followedEvents.filter(e => onSelectedDate(e.date));
+          const gamesOnDate = getSelectedDateGames();
+          const eventsOnDate = getSelectedDateEvents();
 
           if (gamesOnDate.length === 0 && eventsOnDate.length === 0) return null;
 
@@ -1894,7 +1992,11 @@ function CommunityDiscoverScreen() {
                       },
                     ]}
                     onPress={() =>
-                      void router.push({ pathname: '/game/[id]', params: { id: String(game.id) } })
+                      void router.push(
+                        game.source_type === 'event'
+                          ? buildEventDetailRoute(game.event_id || game.id, game.game_id)
+                          : { pathname: '/game/[id]', params: { id: String(game.id) } }
+                      )
                     }
                     accessibilityRole="button"
                     accessibilityLabel={`${game.title || (labels ? `${labels.teamA} vs ${labels.teamB}` : 'Game')} at ${time}`}
@@ -2766,9 +2868,113 @@ function CommunityDiscoverScreen() {
               </View>
             </View>
 
+            {renderCalendar()}
+
+            {selectedDate
+              ? (() => {
+                  const gamesOnDate = getSelectedDateGames();
+                  const eventsOnDate = getSelectedDateEvents();
+                  if (gamesOnDate.length === 0 && eventsOnDate.length === 0) return null;
+
+                  return (
+                    <View
+                      style={[
+                        styles.selectedDateSection,
+                        {
+                          backgroundColor: Colors[colorScheme].surface,
+                          borderColor: Colors[colorScheme].border,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.selectedDateTitle, { color: Colors[colorScheme].text }]}>
+                        Events on{' '}
+                        {new Date(selectedDate).toLocaleDateString('en-US', {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </Text>
+                      {[...gamesOnDate, ...eventsOnDate].slice(0, 12).map((item: any) => {
+                        const time = item.date
+                          ? new Date(item.date).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })
+                          : 'TBD';
+                        const title = item.title || 'Event';
+                        return (
+                          <Pressable
+                            key={`${item.source_type || 'event'}-${item.event_id || item.id}`}
+                            style={[
+                              styles.dateGameCard,
+                              {
+                                backgroundColor: Colors[colorScheme].background,
+                                borderColor: Colors[colorScheme].border,
+                              },
+                            ]}
+                            onPress={() =>
+                              void router.push(
+                                item.source_type === 'event' || item.event_id
+                                  ? buildEventDetailRoute(item.event_id || item.id, item.game_id)
+                                  : { pathname: '/game/[id]', params: { id: String(item.id) } }
+                              )
+                            }
+                            accessibilityRole="button"
+                            accessibilityLabel={`${title} at ${time}`}
+                          >
+                            <View style={styles.dateGameTime}>
+                              <MaterialIcons
+                                name="event"
+                                size={16}
+                                color={Colors[colorScheme].tint}
+                              />
+                              <Text
+                                style={[
+                                  styles.dateGameTimeText,
+                                  { color: Colors[colorScheme].tint },
+                                ]}
+                              >
+                                {time}
+                              </Text>
+                            </View>
+                            <Text
+                              style={[styles.dateGameTitle, { color: Colors[colorScheme].text }]}
+                              numberOfLines={1}
+                            >
+                              {title}
+                            </Text>
+                            {item.location ? (
+                              <View style={styles.dateGameLocation}>
+                                <MaterialIcons
+                                  name="location-on"
+                                  size={14}
+                                  color={Colors[colorScheme].mutedText}
+                                />
+                                <Text
+                                  style={[
+                                    styles.dateGameLocationText,
+                                    { color: Colors[colorScheme].mutedText },
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {item.location}
+                                </Text>
+                              </View>
+                            ) : null}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  );
+                })()
+              : null}
+
             {/* Full Map View */}
             {(() => {
-              // Filter to upcoming games with coordinates only
+              // Filter to upcoming events with coordinates only. The calendar
+              // above keeps the recent-past upload path available; pins stay
+              // current/upcoming so the map itself does not fill with expired
+              // venues.
               const nowMs = Date.now();
               const allGamesWithCoords = games.filter(g => {
                 if (typeof g.latitude !== 'number' || typeof g.longitude !== 'number') return false;
@@ -2787,10 +2993,19 @@ function CommunityDiscoverScreen() {
                       location: String(game.location || ''),
                       latitude: Number(game.latitude as number),
                       longitude: Number(game.longitude as number),
-                      type: 'game',
+                      type: game.source_type === 'event' ? 'event' : 'game',
                     })
                   )}
-                  onEventPress={eventId => {
+                  onEventPress={(eventId, eventType) => {
+                    if (eventType === 'event') {
+                      const event = games.find(
+                        item => item.event_id === eventId || item.id === eventId
+                      );
+                      router.push(
+                        buildEventDetailRoute(event?.event_id || eventId, event?.game_id)
+                      );
+                      return;
+                    }
                     router.push({ pathname: '/game/[id]', params: { id: eventId } });
                   }}
                   showUserLocation={true}
@@ -2815,7 +3030,11 @@ function CommunityDiscoverScreen() {
                   },
                 ]}
                 onPress={() =>
-                  void router.push({ pathname: '/game/[id]', params: { id: String(item.id) } })
+                  void router.push(
+                    item.source_type === 'event' || item.event_id
+                      ? buildEventDetailRoute(item.event_id || item.id, item.game_id)
+                      : { pathname: '/game/[id]', params: { id: String(item.id) } }
+                  )
                 }
                 accessibilityRole="button"
                 accessibilityLabel={`View game: ${item.title ? String(item.title) : 'Game'}${item.location ? `, ${String(item.location)}` : ''}`}

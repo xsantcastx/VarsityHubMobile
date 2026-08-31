@@ -35,9 +35,8 @@ describe('eventPostingNotice', () => {
   it('is per-user: a second account on the same device is still told the rules', async () => {
     await markEventPostingNoticeSeen('u1', ['game-1']);
 
-    // The unlock mirror is keyed by page id alone, so it would answer "seen"
-    // here. Seen-state is the only source of truth for the notice, so it must
-    // be keyed per user or u2 would silently never read it.
+    // Seen-state is the only source of truth for the notice, so it must be
+    // keyed per user or u2 would silently never read it.
     expect(await shouldShowEventPostingNotice('u2', ['game-1'])).toBe(true);
   });
 

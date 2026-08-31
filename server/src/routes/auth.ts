@@ -6,6 +6,7 @@ import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
+import { getBearerToken, revokeAccessToken } from '../lib/accessTokenRevocation.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
 import { debugLog } from '../lib/debugLog.js';
@@ -1191,6 +1192,15 @@ authRouter.post(
 authRouter.post(
   '/logout',
   asyncHandler(async (req, res) => {
+    const bearerToken = getBearerToken(req.header('Authorization'));
+    if (bearerToken) {
+      await revokeAccessToken(bearerToken).catch((err: unknown) => {
+        captureException(err instanceof Error ? err : new Error(String(err)), {
+          context: 'logout_access_token_revoke_failed',
+        });
+      });
+    }
+
     const { refresh_token } = req.body || {};
     if (refresh_token && typeof refresh_token === 'string') {
       // Look up the row by whichever index matches the token shape — v2

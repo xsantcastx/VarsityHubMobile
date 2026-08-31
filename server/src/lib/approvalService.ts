@@ -664,7 +664,10 @@ export async function approveCoach(
   });
 
   if (raced) {
-    return { error: 'User approval status changed before this action completed', status: 409 as const };
+    return {
+      error: 'User approval status changed before this action completed',
+      status: 409 as const,
+    };
   }
 
   await invalidateMeCacheForUser(userId);

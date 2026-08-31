@@ -215,18 +215,23 @@ describe('resolveFixture', () => {
 
   describe('live posting window', () => {
     it.each([
-      ['nfl', 5],
+      ['nfl', 4],
       ['mlb', 4],
       ['wwe', 4],
-      ['nba', 3],
-      ['wnba', 3],
+      ['nba', 4],
+      ['wnba', 4],
+      ['ncaaf', 4],
+      ['ncaamb', 4],
+      ['ncaawb', 4],
+      ['ncaabaseball', 4],
+      ['ncaamhockey', 4],
     ] as const)('sets %s to +%ih after start', (league, hours) => {
       expect(LIVE_WINDOW_HOURS_BY_LEAGUE[league]).toBe(hours);
     });
 
     it('stamps the league window onto the resolved event', () => {
       const r = resolveFixture(fixture(), teams);
-      if (r.ok) expect(r.value.live_window_hours_after_start).toBe(3);
+      if (r.ok) expect(r.value.live_window_hours_after_start).toBe(4);
     });
   });
 

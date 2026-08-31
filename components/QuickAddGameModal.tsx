@@ -56,6 +56,7 @@ interface QuickAddGameModalProps {
     appearance?: string;
     status?: string;
     location?: string | null;
+    live_window_hours_after_start?: 1 | 12 | null;
   };
 }
 
@@ -99,6 +100,7 @@ export interface QuickGameData {
   awayVenueLat?: number; // Away game venue latitude
   awayVenueLng?: number; // Away game venue longitude
   mapsUrl?: string; // Google Maps URL for the venue
+  live_window_hours_after_start?: 1 | 12;
 }
 
 export interface BuildQuickGameDataParams {
@@ -127,6 +129,7 @@ export interface BuildQuickGameDataParams {
   awayVenue?: string;
   awayVenueLat?: number;
   awayVenueLng?: number;
+  liveWindowHoursAfterStart?: 1 | 12;
 }
 
 export function buildQuickGameData({
@@ -155,6 +158,7 @@ export function buildQuickGameData({
   awayVenue,
   awayVenueLat,
   awayVenueLng,
+  liveWindowHoursAfterStart,
 }: BuildQuickGameDataParams): QuickGameData {
   const trimmedCurrentTeam = isCompetitive ? currentTeam.trim() : eventTitle.trim();
   const trimmedOpponent = isCompetitive ? opponent.trim() : '';
@@ -189,6 +193,7 @@ export function buildQuickGameData({
     awayVenue: trimmedAwayVenue || undefined,
     awayVenueLat,
     awayVenueLng,
+    live_window_hours_after_start: liveWindowHoursAfterStart,
     mapsUrl:
       gameType === 'away' && typeof awayVenueLat === 'number' && typeof awayVenueLng === 'number'
         ? `https://maps.google.com/?q=${awayVenueLat},${awayVenueLng}`
@@ -315,6 +320,7 @@ export default function QuickAddGameModal({
   const [eventType, setEventType] = useState<EventType>(getDefaultEventType(userRole));
   const [eventTitle, setEventTitle] = useState(''); // For non-competitive events
   const [eventDescription, setEventDescription] = useState(''); // Event description
+  const [liveWindowHoursAfterStart, setLiveWindowHoursAfterStart] = useState<1 | 12>(1);
 
   // Event type-specific fields
   const [donationGoal, setDonationGoal] = useState('');
@@ -365,6 +371,7 @@ export default function QuickAddGameModal({
       setGameType(initialData.type || 'home');
       setBannerUrl(initialData.banner_url || null);
       setAppearance((initialData.appearance as AppearancePreset) || 'classic');
+      setLiveWindowHoursAfterStart(initialData.live_window_hours_after_start === 12 ? 12 : 1);
       if (initialData.location) {
         if ((initialData.type || 'home') === 'home') {
           setHomeVenue(initialData.location);
@@ -404,6 +411,7 @@ export default function QuickAddGameModal({
       setGameType('home');
       setBannerUrl(null);
       setAppearance('classic');
+      setLiveWindowHoursAfterStart(1);
       setSelectedDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
       setSelectedTime(new Date(new Date().setHours(19, 0, 0, 0)));
       setErrors({});
@@ -637,6 +645,7 @@ export default function QuickAddGameModal({
       awayVenue,
       awayVenueLat,
       awayVenueLng,
+      liveWindowHoursAfterStart,
     });
 
     // If we already have a banner uploaded, include it. Otherwise attempt to capture & upload.
@@ -711,6 +720,7 @@ export default function QuickAddGameModal({
     setWatchLocation('');
     setDestination('');
     setHomeVenueLocked(true);
+    setLiveWindowHoursAfterStart(1);
   };
 
   const handleClose = () => {
@@ -1246,6 +1256,86 @@ export default function QuickAddGameModal({
                 </Pressable>
               </View>
             </View>
+
+            {userRole === 'coach' && (
+              <View style={styles.formSection}>
+                <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
+                  Posting Window
+                </Text>
+                <View style={styles.gameTypeContainer}>
+                  <Pressable
+                    style={[
+                      styles.gameTypeButton,
+                      {
+                        backgroundColor:
+                          liveWindowHoursAfterStart === 1
+                            ? Colors[colorScheme].tint
+                            : Colors[colorScheme].surface,
+                        borderColor:
+                          liveWindowHoursAfterStart === 1
+                            ? Colors[colorScheme].tint
+                            : Colors[colorScheme].border,
+                      },
+                    ]}
+                    onPress={() => setLiveWindowHoursAfterStart(1)}
+                  >
+                    <Ionicons
+                      name="timer-outline"
+                      size={16}
+                      color={liveWindowHoursAfterStart === 1 ? '#fff' : Colors[colorScheme].text}
+                    />
+                    <Text
+                      style={[
+                        styles.gameTypeText,
+                        {
+                          color:
+                            liveWindowHoursAfterStart === 1 ? '#fff' : Colors[colorScheme].text,
+                        },
+                      ]}
+                    >
+                      Standard
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.gameTypeButton,
+                      {
+                        backgroundColor:
+                          liveWindowHoursAfterStart === 12
+                            ? Colors[colorScheme].tint
+                            : Colors[colorScheme].surface,
+                        borderColor:
+                          liveWindowHoursAfterStart === 12
+                            ? Colors[colorScheme].tint
+                            : Colors[colorScheme].border,
+                      },
+                    ]}
+                    onPress={() => setLiveWindowHoursAfterStart(12)}
+                  >
+                    <Ionicons
+                      name="sunny-outline"
+                      size={16}
+                      color={liveWindowHoursAfterStart === 12 ? '#fff' : Colors[colorScheme].text}
+                    />
+                    <Text
+                      style={[
+                        styles.gameTypeText,
+                        {
+                          color:
+                            liveWindowHoursAfterStart === 12 ? '#fff' : Colors[colorScheme].text,
+                        },
+                      ]}
+                    >
+                      All Day
+                    </Text>
+                  </Pressable>
+                </View>
+                <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+                  Standard closes 1 hour after start. All Day closes 12 hours after start.
+                </Text>
+              </View>
+            )}
 
             {/* Game Type - Only show if competitive */}
             {isCompetitive &&

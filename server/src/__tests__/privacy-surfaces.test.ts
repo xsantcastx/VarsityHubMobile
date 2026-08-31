@@ -10,6 +10,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildPrivateTeamPostVisibilityWhere } from '../lib/privacyUtils';
 
 const read = (...p: string[]) => readFileSync(join(process.cwd(), 'src', ...p), 'utf8');
 
@@ -40,10 +41,34 @@ describe('3b nearby search excludes unapproved orgs', () => {
 });
 
 describe('3c private-team posts excluded from feeds', () => {
+  it('shared post visibility clause preserves null-team posts while excluding private teams', () => {
+    expect(buildPrivateTeamPostVisibilityWhere([])).toBeNull();
+    expect(buildPrivateTeamPostVisibilityWhere(['team-private'])).toEqual({
+      OR: [{ team_id: null }, { team_id: { notIn: ['team-private'] } }],
+    });
+  });
+
   it('highlights, posts, and feed bundle all call getExcludedPrivateTeamIds', () => {
     expect(read('routes', 'highlights.ts')).toMatch(/getExcludedPrivateTeamIds/);
     expect(read('routes', 'posts.ts')).toMatch(/getExcludedPrivateTeamIds/);
     expect(read('routes', 'feed.ts')).toMatch(/getExcludedPrivateTeamIds/);
+  });
+  it('post-bearing profile and search surfaces use the shared private-team post clause', () => {
+    expect(read('routes', 'search.ts')).toMatch(/buildPrivateTeamPostVisibilityWhere/);
+    const usersSrc = read('routes', 'users.ts');
+    expect(usersSrc).toMatch(/buildPrivateTeamPostVisibilityWhere/);
+    expect(usersSrc).toMatch(/isTeamHiddenFromViewer/);
+  });
+  it('private-team exclusion list is cached and invalidated from team writes', () => {
+    const privacySrc = read('lib', 'privacyUtils.ts');
+    expect(privacySrc).toMatch(/privacy:private_team_ids/);
+    expect(privacySrc).toMatch(/PRIVATE_TEAM_IDS_CACHE_TTL_S/);
+    expect(privacySrc).toMatch(/invalidatePrivateTeamIdsCache/);
+
+    const teamsSrc = read('routes', 'teams.ts');
+    expect(teamsSrc).toMatch(/invalidatePrivateTeamIdsCache/);
+    expect(teamsSrc).toMatch(/parsed\.data\.is_private !== undefined/);
+    expect(teamsSrc).toMatch(/data: \{ status: 'archived' \}/);
   });
   it('posts ?team_id= path respects team privacy', () => {
     const src = read('routes', 'posts.ts');

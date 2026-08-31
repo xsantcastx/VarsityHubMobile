@@ -7,7 +7,12 @@ import {
   TOURING_LEAGUES,
   type ProTeamVenue,
 } from './resolveFixture.js';
-import type { ProFixture, ProScheduleAdapter } from './types.js';
+import {
+  isNcaaLeague,
+  type ProFixture,
+  type ProScheduleAdapter,
+  type ProviderTeam,
+} from './types.js';
 
 /**
  * Upserts normalized fixtures into Event rows.
@@ -84,6 +89,35 @@ async function loadTeams(league: ProLeague): Promise<Map<string, ProTeamVenue>> 
   return new Map(teams.map(t => [t.external_ref, t]));
 }
 
+function fixtureProviderTeams(fixtures: ProFixture[]): ProviderTeam[] {
+  const byRef = new Map<string, ProviderTeam>();
+  for (const fixture of fixtures) {
+    for (const team of [fixture.home_team, fixture.away_team]) {
+      if (team?.external_ref) byRef.set(team.external_ref, team);
+    }
+  }
+  return [...byRef.values()];
+}
+
+async function upsertProviderTeams(league: ProLeague, fixtures: ProFixture[], dryRun: boolean) {
+  if (!isNcaaLeague(league)) return;
+  const teams = fixtureProviderTeams(fixtures);
+  if (teams.length === 0) return;
+  if (dryRun) {
+    console.log(`[proScheduleIngest] ${league}: would upsert ${teams.length} provider team row(s)`);
+    return;
+  }
+
+  for (const team of teams) {
+    const { external_ref, ...data } = team;
+    await prisma.proTeam.upsert({
+      where: { external_ref },
+      create: { external_ref, league, ...data },
+      update: data,
+    });
+  }
+}
+
 export async function ingestFixtures(
   league: ProLeague,
   fixtures: ProFixture[],
@@ -100,7 +134,13 @@ export async function ingestFixtures(
 
   if (fixtures.length === 0) return stats;
 
+  await upsertProviderTeams(league, fixtures, !!options.dryRun);
   const teamsByRef = await loadTeams(league);
+  if (options.dryRun && isNcaaLeague(league)) {
+    for (const team of fixtureProviderTeams(fixtures)) {
+      teamsByRef.set(team.external_ref, { id: team.external_ref, ...team });
+    }
+  }
 
   const refs = fixtures.map(f => f.external_ref);
   const existing = await prisma.event.findMany({

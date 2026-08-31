@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { isAccessTokenRevoked } from '../lib/accessTokenRevocation.js';
 import { verifyJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { setUserContext, clearUserContext } from '../lib/sentry.js';
@@ -42,7 +43,7 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
     return next();
   }
   const token = header.slice('Bearer '.length).trim();
-  const payload = verifyJwt<{ id: string; iat?: number; se?: number }>(token);
+  const payload = verifyJwt<{ id: string; iat?: number; se?: number; jti?: string }>(token);
   if (!payload) {
     // AUTH-6: Log invalid/expired token attempts for security monitoring
     console.warn('[auth] Invalid or expired token presented', {
@@ -51,6 +52,11 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
       method: req.method,
       tokenLength: token.length,
     });
+    clearUserContext();
+    return next();
+  }
+
+  if (await isAccessTokenRevoked(payload.jti)) {
     clearUserContext();
     return next();
   }
@@ -100,23 +106,19 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
     // Banned or suspended users get explicit 403 with reason
     if (user.banned) {
       clearUserContext();
-      return _res
-        .status(403)
-        .json({
-          error: 'Your account has been banned.',
-          code: 'ACCOUNT_BANNED',
-          ban_reason: (user as any).ban_reason || undefined,
-        });
+      return _res.status(403).json({
+        error: 'Your account has been banned.',
+        code: 'ACCOUNT_BANNED',
+        ban_reason: (user as any).ban_reason || undefined,
+      });
     }
     if (user.banned_until && new Date(user.banned_until) > new Date()) {
       clearUserContext();
-      return _res
-        .status(403)
-        .json({
-          error: 'Your account is temporarily suspended.',
-          code: 'ACCOUNT_SUSPENDED',
-          banned_until: user.banned_until,
-        });
+      return _res.status(403).json({
+        error: 'Your account is temporarily suspended.',
+        code: 'ACCOUNT_SUSPENDED',
+        banned_until: user.banned_until,
+      });
     }
 
     // Reject tokens issued before the last password change

@@ -506,9 +506,35 @@ export async function rescheduleGameRemindersForEvent(eventId: string): Promise<
     select: { user_id: true },
     take: 5000,
   });
+  const failures: Array<{ user_id: string; step: 'cancel' | 'schedule'; reason: string }> = [];
   for (const { user_id } of rsvps) {
-    await cancelGameReminders(eventId, user_id).catch(() => {});
-    await scheduleGameReminders(eventId, user_id).catch(() => {});
+    try {
+      await cancelGameReminders(eventId, user_id);
+    } catch (err) {
+      failures.push({
+        user_id,
+        step: 'cancel',
+        reason: (err as Error)?.message || String(err),
+      });
+    }
+    try {
+      await scheduleGameReminders(eventId, user_id);
+    } catch (err) {
+      failures.push({
+        user_id,
+        step: 'schedule',
+        reason: (err as Error)?.message || String(err),
+      });
+    }
+  }
+  if (failures.length > 0) {
+    console.warn('[notifications] reminder reschedule had failures', {
+      event_id: eventId,
+      rsvp_count: rsvps.length,
+      failure_count: failures.length,
+      failures: failures.slice(0, 25),
+      truncated: failures.length > 25,
+    });
   }
 }
 

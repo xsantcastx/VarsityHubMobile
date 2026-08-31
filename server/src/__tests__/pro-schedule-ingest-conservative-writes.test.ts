@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 const mockTeamFindMany = jest.fn();
+const mockTeamUpsert = jest.fn();
 const mockEventFindMany = jest.fn();
 const mockEventCreateMany = jest.fn();
 const mockEventCreate = jest.fn();
@@ -10,6 +11,7 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
   prisma: {
     proTeam: {
       findMany: mockTeamFindMany,
+      upsert: mockTeamUpsert,
     },
     event: {
       findMany: mockEventFindMany,
@@ -25,6 +27,7 @@ const { ingestFixtures } = await import('../lib/proSchedule/ingest.js');
 describe('ingestFixtures conservative writes', () => {
   beforeEach(() => {
     mockTeamFindMany.mockReset();
+    mockTeamUpsert.mockReset();
     mockEventFindMany.mockReset();
     mockEventCreateMany.mockReset();
     mockEventCreate.mockReset();
@@ -69,7 +72,7 @@ describe('ingestFixtures conservative writes', () => {
         longitude: -112.2,
         pro_home_team_id: 'team-1',
         pro_away_team_id: 'team-2',
-        live_window_hours_after_start: 5,
+        live_window_hours_after_start: 4,
         status: 'approved',
       },
     ]);
@@ -136,5 +139,88 @@ describe('ingestFixtures conservative writes', () => {
     expect(stats.skipped).toBe(0);
     expect(mockEventCreateMany).toHaveBeenCalledTimes(1);
     expect(mockEventCreate).not.toHaveBeenCalled();
+  });
+
+  it('upserts provider NCAA teams before resolving college fixtures', async () => {
+    mockTeamFindMany.mockResolvedValueOnce([
+      {
+        id: 'ncaaf:espn-1',
+        external_ref: 'ncaaf:espn-1',
+        name: 'Home University',
+        short_name: 'Home',
+        venue_name: null,
+        venue_address: null,
+        venue_lat: null,
+        venue_lng: null,
+        timezone: null,
+      },
+      {
+        id: 'ncaaf:espn-2',
+        external_ref: 'ncaaf:espn-2',
+        name: 'Away University',
+        short_name: 'Away',
+        venue_name: null,
+        venue_address: null,
+        venue_lat: null,
+        venue_lng: null,
+        timezone: null,
+      },
+    ]);
+    mockTeamUpsert.mockResolvedValue({});
+    mockEventFindMany.mockResolvedValue([]);
+    mockEventCreateMany.mockResolvedValue({ count: 1 });
+
+    const stats = await ingestFixtures('ncaaf', [
+      {
+        external_ref: 'ncaaf:game-1',
+        league: 'ncaaf',
+        starts_at: new Date('2026-09-09T00:00:00.000Z'),
+        home_team_ref: 'ncaaf:espn-1',
+        away_team_ref: 'ncaaf:espn-2',
+        home_team: {
+          external_ref: 'ncaaf:espn-1',
+          name: 'Home University',
+          short_name: 'Home',
+          abbreviation: 'HOM',
+          city: 'Home',
+          state: null,
+          conference: null,
+          division: null,
+          venue_name: null,
+          venue_address: null,
+          venue_lat: null,
+          venue_lng: null,
+          timezone: null,
+          primary_color: '#112233',
+        },
+        away_team: {
+          external_ref: 'ncaaf:espn-2',
+          name: 'Away University',
+          short_name: 'Away',
+          abbreviation: 'AWY',
+          city: 'Away',
+          state: null,
+          conference: null,
+          division: null,
+          venue_name: null,
+          venue_address: null,
+          venue_lat: null,
+          venue_lng: null,
+          timezone: null,
+          primary_color: '#445566',
+        },
+        venue_name: 'College Stadium',
+        venue_address: 'College Stadium, Home, ST',
+        venue_lat: 35.1,
+        venue_lng: -80.2,
+        venue_is_neutral: true,
+        status: 'scheduled',
+      },
+    ]);
+
+    expect(mockTeamUpsert).toHaveBeenCalledTimes(2);
+    expect(stats.created).toBe(1);
+    expect(stats.skipped).toBe(0);
+    expect(mockEventCreateMany).toHaveBeenCalledTimes(1);
   });
 });

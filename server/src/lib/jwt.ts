@@ -49,7 +49,11 @@ export function signJwt(
  * a forced revocation event (password change, ban, account deletion).
  */
 export function signAccessTokenForSession(userId: string, sessionEpoch: number): string {
-  return signJwt({ id: userId, se: sessionEpoch });
+  return signJwt({
+    id: userId,
+    se: sessionEpoch,
+    jti: crypto.randomBytes(16).toString('hex'),
+  });
 }
 
 export function verifyJwt<T = Record<string, unknown>>(token: string): T | null {

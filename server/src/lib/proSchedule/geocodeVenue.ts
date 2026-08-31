@@ -2,11 +2,14 @@
  * Best-effort venue geocoding for touring events (WWE), where every show is at a
  * different arena and the feed carries no coordinates.
  *
- * Uses OpenStreetMap Nominatim (free, no key). Results are cached per process so
- * a repeated venue in one run costs one request. On any failure it returns null
- * — the caller leaves coords null and resolveFixture quarantines that event
- * rather than guessing a location. Never throws.
+ * Uses the app's Google Maps geocoder first (same provider as user-created map
+ * events), then OpenStreetMap Nominatim as a no-key fallback. Results are cached
+ * per process so a repeated venue in one run costs one request. On any failure
+ * it returns null — the caller leaves coords null and resolveFixture quarantines
+ * that event rather than guessing a location. Never throws.
  */
+
+import { geocodeLocation } from '../geocoding.js';
 
 export type LatLng = { lat: number; lng: number };
 export type GeocodeFn = (query: string) => Promise<LatLng | null>;
@@ -19,6 +22,13 @@ export async function geocodeVenue(query: string): Promise<LatLng | null> {
   if (cache.has(key)) return cache.get(key)!;
 
   try {
+    const google = await geocodeLocation(query);
+    if (google) {
+      const result: LatLng = { lat: google.latitude, lng: google.longitude };
+      cache.set(key, result);
+      return result;
+    }
+
     const url =
       'https://nominatim.openstreetmap.org/search?' +
       new URLSearchParams({ q: query, format: 'json', limit: '1' }).toString();

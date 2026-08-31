@@ -1,15 +1,12 @@
 /**
  * The live posting window is a SERVER rule (server/src/lib/geofencing.ts): it
- * opens 1h before the event starts and closes `live_window_hours_after_start`
- * hours after (default 3, per-event override — the Fanatics Fest day events run
- * 18h so fans can post all day).
+ * opens 2 hours before the event starts and closes
+ * `live_window_hours_after_start` hours after (standard 4, all-day 12).
  *
  * The app used to re-derive this from a game's own `date` with a hardcoded
  * cutoff — 2h in feed.tsx, 3h in create-post.tsx — and had no way to learn
- * about an override. At Fanatics Fest 2026 Day 1 that meant the event stopped
- * being LIVE in the app at 4:00 PM ET and dropped out of the feed entirely,
- * while the server happily accepted posts until 7:00 AM. It also read the
- * game's date, which can disagree with its event's.
+ * about an override. It also read the game's date, which can disagree with its
+ * event's.
  *
  * `GET /games` now ships the computed `starts_at`/`live_from`/`live_until`
  * bounds. Use them. Only fall back to a local guess for a payload old enough to
@@ -17,13 +14,12 @@
  */
 
 /** Matches REGULAR_POST_OPEN_BEFORE_MS in server/src/lib/geofencing.ts. */
-const OPEN_BEFORE_MS = 60 * 60 * 1000;
+const OPEN_BEFORE_MS = 2 * 60 * 60 * 1000;
 /**
  * Only for payloads predating the server-computed bounds. Mirrors the server's
- * DEFAULT_LIVE_WINDOW_HOURS_AFTER_START (3h) rather than the old 2h feed
- * constant, which matched nothing on the server.
+ * DEFAULT_LIVE_WINDOW_HOURS_AFTER_START (4h).
  */
-const FALLBACK_WINDOW_AFTER_MS = 3 * 60 * 60 * 1000;
+const FALLBACK_WINDOW_AFTER_MS = 4 * 60 * 60 * 1000;
 
 export interface LiveWindowFields {
   date?: string | Date | null;
@@ -70,7 +66,7 @@ export function isGameLive(game: LiveWindowFields | null | undefined, now = Date
 }
 
 /**
- * Geofenced posting is open (opens an hour before start, unlike the LIVE
+ * Geofenced posting is open (opens 2 hours before start, unlike the LIVE
  * badge). A user at the venue can post during this window.
  */
 export function isPostingWindowOpen(
@@ -137,13 +133,13 @@ export function isAtVenue(
 }
 
 /**
- * The owner rule (2026-07-16): "If an event is live and the user is at the
- * location it should basically be pinned on the feed page."
+ * The owner rule: if an event is available for posting and the user is at the
+ * location, it should be pinned on the feed page.
  */
 export function shouldPinToFeed(
   game: (LiveWindowFields & VenueFields) | null | undefined,
   viewer: { latitude?: number | null; longitude?: number | null } | null | undefined,
   now = Date.now()
 ): boolean {
-  return isGameLive(game, now) && isAtVenue(game, viewer);
+  return isPostingWindowOpen(game, now) && isAtVenue(game, viewer);
 }

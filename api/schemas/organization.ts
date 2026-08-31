@@ -150,15 +150,15 @@ function summarizeKeys(value: unknown): string[] {
   return Object.keys(value as Record<string, unknown>).sort();
 }
 
-function reportShapeDrift(endpoint: string, result: z.SafeParseError<unknown>, payload: unknown) {
+function reportShapeDrift(endpoint: string, error: z.ZodError, payload: unknown) {
   captureException(new Error(`Organization response schema drift at ${endpoint}`), {
     tags: {
       context: 'response_shape_drift',
       entity: 'organization',
       endpoint,
     },
-    issue_count: result.error.issues.length,
-    issues: result.error.issues.slice(0, 8).map(issue => ({
+    issue_count: error.issues.length,
+    issues: error.issues.slice(0, 8).map(issue => ({
       path: issue.path.join('.'),
       message: issue.message,
       code: issue.code,
@@ -169,9 +169,11 @@ function reportShapeDrift(endpoint: string, result: z.SafeParseError<unknown>, p
 
 export function validateOrganization(endpoint: string, payload: unknown): OrganizationResponse {
   const result = organizationSchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as OrganizationResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as OrganizationResponse;
+  }
+  return result.data;
 }
 
 export function validateOrganizationArray(
@@ -179,9 +181,11 @@ export function validateOrganizationArray(
   payload: unknown
 ): OrganizationArrayResponse {
   const result = organizationArraySchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as OrganizationArrayResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as OrganizationArrayResponse;
+  }
+  return result.data;
 }
 
 export function validateOrganizationAdminSummary(
@@ -189,9 +193,11 @@ export function validateOrganizationAdminSummary(
   payload: unknown
 ): OrganizationAdminSummaryResponse {
   const result = organizationAdminSummarySchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as OrganizationAdminSummaryResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as OrganizationAdminSummaryResponse;
+  }
+  return result.data;
 }
 
 export function validateOrganizationReviewSummaryArray(
@@ -199,7 +205,9 @@ export function validateOrganizationReviewSummaryArray(
   payload: unknown
 ): OrganizationReviewSummaryArrayResponse {
   const result = organizationReviewSummaryArraySchema.safeParse(payload);
-  if (result.success) return result.data;
-  reportShapeDrift(endpoint, result, payload);
-  return payload as OrganizationReviewSummaryArrayResponse;
+  if (!result.success) {
+    reportShapeDrift(endpoint, result.error, payload);
+    return payload as OrganizationReviewSummaryArrayResponse;
+  }
+  return result.data;
 }

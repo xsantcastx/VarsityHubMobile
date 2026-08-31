@@ -797,7 +797,13 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
           );
           await updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
             stripePaymentIntentId: pi.id,
-          }).catch(() => {});
+          }).catch(err => {
+            console.error('[webhook] failed to mark malformed ad payment for review', {
+              adId,
+              piId: pi.id,
+              reason: (err as Error)?.message || String(err),
+            });
+          });
         }
         if (piDates.length > 0) {
           try {
@@ -3510,7 +3516,14 @@ paymentsRouter.get(
                   event_type: 'success_page_finalize',
                 },
               })
-              .catch(() => {}); // Ignore duplicate key
+              .catch(err => {
+                if ((err as any)?.code !== 'P2002') {
+                  console.warn('[payments] failed to record success-page finalization', {
+                    session_id: sessionId,
+                    reason: (err as Error)?.message || String(err),
+                  });
+                }
+              });
           }
         }
       } catch (e) {

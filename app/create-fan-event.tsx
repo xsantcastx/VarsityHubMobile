@@ -111,6 +111,7 @@ type GameCreatePayload = {
   away_team: string;
   home_team_id?: string;
   away_team_id?: string;
+  live_window_hours_after_start?: 1 | 12;
 };
 
 type EventCreatePayload = {
@@ -125,6 +126,7 @@ type EventCreatePayload = {
   cover_image_url: string;
   appearance: AppearancePreset;
   home_team_id?: string;
+  live_window_hours_after_start?: 1 | 12;
 };
 
 function CreateFanEventScreen() {
@@ -207,6 +209,7 @@ function CreateFanEventScreen() {
   const [date, setDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [liveWindowHoursAfterStart, setLiveWindowHoursAfterStart] = useState<1 | 12>(1);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const bannerCaptureRef = useRef<ViewShot | null>(null);
@@ -604,6 +607,7 @@ function CreateFanEventScreen() {
           appearance,
           home_team: homeTeamName,
           away_team: awayTeamName,
+          live_window_hours_after_start: liveWindowHoursAfterStart,
         };
 
         if (gameType === 'home' && selectedTeamId) {
@@ -630,6 +634,7 @@ function CreateFanEventScreen() {
           banner_url: finalBannerUrl,
           cover_image_url: finalBannerUrl,
           appearance,
+          live_window_hours_after_start: isCoach ? liveWindowHoursAfterStart : undefined,
         };
 
         // Tie event to the selected team
@@ -1281,6 +1286,79 @@ function CreateFanEventScreen() {
           />
         )}
 
+        {isCoach && (
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Posting Window</Text>
+            <View style={styles.gameTypeRow}>
+              <Pressable
+                style={[
+                  styles.gameTypeButton,
+                  {
+                    backgroundColor:
+                      liveWindowHoursAfterStart === 1
+                        ? Colors[colorScheme].tint
+                        : Colors[colorScheme].card,
+                    borderColor:
+                      liveWindowHoursAfterStart === 1
+                        ? Colors[colorScheme].tint
+                        : Colors[colorScheme].border,
+                  },
+                ]}
+                onPress={() => setLiveWindowHoursAfterStart(1)}
+              >
+                <MaterialIcons
+                  name="timer"
+                  size={18}
+                  color={liveWindowHoursAfterStart === 1 ? '#fff' : Colors[colorScheme].text}
+                />
+                <Text
+                  style={[
+                    styles.gameTypeText,
+                    { color: liveWindowHoursAfterStart === 1 ? '#fff' : Colors[colorScheme].text },
+                  ]}
+                >
+                  Standard
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.gameTypeButton,
+                  {
+                    backgroundColor:
+                      liveWindowHoursAfterStart === 12
+                        ? Colors[colorScheme].tint
+                        : Colors[colorScheme].card,
+                    borderColor:
+                      liveWindowHoursAfterStart === 12
+                        ? Colors[colorScheme].tint
+                        : Colors[colorScheme].border,
+                  },
+                ]}
+                onPress={() => setLiveWindowHoursAfterStart(12)}
+              >
+                <MaterialIcons
+                  name="wb-sunny"
+                  size={18}
+                  color={liveWindowHoursAfterStart === 12 ? '#fff' : Colors[colorScheme].text}
+                />
+                <Text
+                  style={[
+                    styles.gameTypeText,
+                    {
+                      color: liveWindowHoursAfterStart === 12 ? '#fff' : Colors[colorScheme].text,
+                    },
+                  ]}
+                >
+                  All Day
+                </Text>
+              </Pressable>
+            </View>
+            <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+              Standard closes 1 hour after start. All Day closes 12 hours after start.
+            </Text>
+          </View>
+        )}
+
         {/* Location with Google Maps Autocomplete */}
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Location *</Text>
@@ -1669,6 +1747,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
+  },
+  helperText: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 8,
   },
   typeGrid: {
     flexDirection: 'row',

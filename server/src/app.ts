@@ -35,6 +35,7 @@ import { ogRouter } from './routes/og.js';
 import { authRouter } from './routes/auth.js';
 import { consentRouter, handleConsentResend } from './routes/consent.js';
 import { dataExportRouter } from './routes/dataExport.js';
+import { eventDiscoveryRouter } from './routes/eventDiscovery.js';
 import { eventsRouter } from './routes/events.js';
 import { feedRouter } from './routes/feed.js';
 import { followsRouter } from './routes/follows.js';
@@ -275,7 +276,12 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
 
 // Stripe + SendGrid webhooks must be registered before body parsing so we can
 // verify signatures over the exact raw bytes.
-const rawBodyPaths = ['/payments/webhook', '/webhooks/sendgrid'];
+const rawBodyPaths = [
+  '/payments/webhook',
+  '/v1/payments/webhook',
+  '/webhooks/sendgrid',
+  '/v1/webhooks/sendgrid',
+];
 rawBodyPaths.forEach(path => {
   app.use(path, express.raw({ type: 'application/json', limit: '5mb' }));
 });
@@ -418,6 +424,7 @@ function mountApiRoutes(parent: any) {
   parent.use('/games', gamesRouter);
   parent.use('/posts', postsRouter);
   parent.use('/notifications', noStore, notificationsRouter);
+  parent.use('/event-discovery', eventDiscoveryRouter);
   parent.use('/events', eventsRouter);
   parent.use('/feed', noStore, feedRouter);
   parent.use('/messages', noStore, messagesRouter);

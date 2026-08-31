@@ -8,6 +8,7 @@ import { loadPostInteractionSets, serializeFeedPost } from '../lib/feedPostSeria
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import { prisma } from '../lib/prisma.js';
 import {
+  buildPrivateTeamPostVisibilityWhere,
   getBlockedUserIds,
   getExcludedPrivateAuthorIds,
   getExcludedPrivateTeamIds,
@@ -261,10 +262,8 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
   const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
   const privacyWhere: any = {};
   if (allExcluded.length) privacyWhere.author_id = { notIn: allExcluded };
-  if (excludedTeamIds.length) {
-    // notIn alone would drop null-team posts (NOT IN is NULL for NULL).
-    privacyWhere.OR = [{ team_id: null }, { team_id: { notIn: excludedTeamIds } }];
-  }
+  const privateTeamPostWhere = buildPrivateTeamPostVisibilityWhere(excludedTeamIds);
+  if (privateTeamPostWhere) privacyWhere.OR = privateTeamPostWhere.OR;
 
   // Run nationalTop and pool concurrently — dedup in JS after both resolve.
   const [nationalTopRaw, poolRaw] = await Promise.all([

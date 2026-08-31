@@ -170,8 +170,18 @@ describe('resolveFixture neutral-site safety', () => {
 });
 
 describe('espnAdapter coverage', () => {
-  it('serves the four ESPN league sports, not WWE', () => {
-    expect(ESPN_LEAGUES.sort()).toEqual(['mlb', 'nba', 'nfl', 'wnba']);
+  it('serves pro and major NCAA ESPN league sports, not WWE', () => {
+    expect(ESPN_LEAGUES.sort()).toEqual([
+      'mlb',
+      'nba',
+      'ncaabaseball',
+      'ncaaf',
+      'ncaamb',
+      'ncaamhockey',
+      'ncaawb',
+      'nfl',
+      'wnba',
+    ]);
     expect(ESPN_LEAGUES).not.toContain('wwe');
   });
 
@@ -204,6 +214,69 @@ describe('espnAdapter coverage', () => {
     expect(parsed).toHaveLength(1);
     expect(parsed[0].home_team_ref).toBe('nfl:kansas-city-chiefs');
     expect(parsed[0].away_team_ref).toBe('nfl:chicago-bears');
+  });
+
+  it('uses ESPN team ids and fixture venue geocoding for NCAA events', () => {
+    const sample = {
+      events: [
+        {
+          id: '401752669',
+          date: '2026-08-29T16:00:00Z',
+          competitions: [
+            {
+              venue: {
+                fullName: 'Aviva Stadium',
+                address: { city: 'Dublin', country: 'Ireland' },
+              },
+              status: { type: { name: 'STATUS_SCHEDULED' } },
+              competitors: [
+                {
+                  homeAway: 'home',
+                  team: {
+                    id: '2628',
+                    displayName: 'TCU Horned Frogs',
+                    shortDisplayName: 'TCU',
+                    abbreviation: 'TCU',
+                    location: 'TCU',
+                    name: 'Horned Frogs',
+                    color: '4d1979',
+                  },
+                },
+                {
+                  homeAway: 'away',
+                  team: {
+                    id: '239',
+                    displayName: 'North Carolina Tar Heels',
+                    shortDisplayName: 'North Carolina',
+                    abbreviation: 'UNC',
+                    location: 'North Carolina',
+                    name: 'Tar Heels',
+                    color: '7bafd4',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const parsed = adapter.__parseScoreboard!(
+      'ncaaf',
+      sample,
+      new Date('2026-08-01T00:00:00Z'),
+      new Date('2026-08-31T23:59:59Z')
+    );
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].external_ref).toBe('ncaaf:401752669');
+    expect(parsed[0].home_team_ref).toBe('ncaaf:espn-2628');
+    expect(parsed[0].away_team_ref).toBe('ncaaf:espn-239');
+    expect(parsed[0].home_team?.name).toBe('TCU Horned Frogs');
+    expect(parsed[0].away_team?.abbreviation).toBe('UNC');
+    expect(parsed[0].venue_address).toBe('Aviva Stadium, Dublin, Ireland');
+    expect(parsed[0].venue_is_neutral).toBe(true);
+    expect(parsed[0]._geocodeQuery).toBe('Aviva Stadium, Dublin, Ireland');
   });
 });
 

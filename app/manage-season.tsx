@@ -917,6 +917,9 @@ function ManageSeasonScreen() {
         // Map to backend field - use `appearance` or `banner_style` depending on API
         gamePayload.appearance = gameData.appearance;
       }
+      if (gameData.live_window_hours_after_start) {
+        gamePayload.live_window_hours_after_start = gameData.live_window_hours_after_start;
+      }
 
       // Save to backend API (create or update)
       const savedGame = isEditing
@@ -2353,6 +2356,7 @@ function ManageSeasonScreen() {
                 banner_url: editingGame.banner_url,
                 status: editingGame.status,
                 location: editingGame.location,
+                live_window_hours_after_start: (editingGame as any).live_window_hours_after_start,
               }
             : undefined
         }
