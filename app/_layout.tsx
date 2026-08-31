@@ -84,27 +84,6 @@ if (Platform.OS === 'web' && __DEV__) {
     .catch(error => devLog('Testing monitor failed to start', error));
 }
 
-if (Platform.OS === 'web' && __DEV__ && !(globalThis as any).__VH_WEB_WARNING_FILTER_INSTALLED__) {
-  (globalThis as any).__VH_WEB_WARNING_FILTER_INSTALLED__ = true;
-  const suppressedMessages = [
-    'Animated: `useNativeDriver` is not supported because the native animated module is missing.',
-  ];
-  const filterConsole = (method: 'warn' | 'error') => {
-    // eslint-disable-next-line no-console -- intentional wrapper for targeted warning suppression
-    const original = console[method].bind(console);
-    // eslint-disable-next-line no-console -- intentional wrapper for targeted warning suppression
-    console[method] = (...args: unknown[]) => {
-      const firstArg = typeof args[0] === 'string' ? args[0] : '';
-      if (suppressedMessages.some(message => firstArg.includes(message))) {
-        return;
-      }
-      original(...args);
-    };
-  };
-  filterConsole('warn');
-  filterConsole('error');
-}
-
 function VerificationGateHost() {
   const { user, pendingVerificationEmail, checkAuth } = useAuth();
   const gate = useVerificationGate({
