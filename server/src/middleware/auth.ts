@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { isAccessTokenRevoked } from '../lib/accessTokenRevocation.js';
 import { verifyJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { setUserContext, clearUserContext } from '../lib/sentry.js';
@@ -42,7 +43,7 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
     return next();
   }
   const token = header.slice('Bearer '.length).trim();
-  const payload = verifyJwt<{ id: string; iat?: number; se?: number }>(token);
+  const payload = verifyJwt<{ id: string; iat?: number; se?: number; jti?: string }>(token);
   if (!payload) {
     // AUTH-6: Log invalid/expired token attempts for security monitoring
     console.warn('[auth] Invalid or expired token presented', {
@@ -51,6 +52,11 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
       method: req.method,
       tokenLength: token.length,
     });
+    clearUserContext();
+    return next();
+  }
+
+  if (await isAccessTokenRevoked(payload.jti)) {
     clearUserContext();
     return next();
   }

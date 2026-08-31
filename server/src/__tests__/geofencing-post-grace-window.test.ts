@@ -333,11 +333,33 @@ describe('strict event posting window and geofence', () => {
   });
 
   describe('additive designated-poster grant', () => {
-    it('keeps the explicit designated-poster admin grant independent from attendee access', async () => {
+    it('allows explicit designated-poster access only while the 7-day unlock is active', async () => {
       jest.setSystemTime(new Date(EVENT_DATE.getTime() + 2 * 60 * 60 * 1000));
       mockDesignatedFindUnique.mockResolvedValue({ user_id: 'nicon' });
+      mockUnlockFindUnique.mockResolvedValue({ unlocked_at: new Date(EVENT_DATE) });
 
       const result = await verifyEventPostingPermission('event-1', 'nicon', null, null);
+
+      expect(result.allowed).toBe(true);
+    });
+
+    it('does not let a designated-poster row become permanent access by itself', async () => {
+      jest.setSystemTime(new Date(EVENT_DATE.getTime() + 5 * 60 * 60 * 1000));
+      mockDesignatedFindUnique.mockResolvedValue({ user_id: 'nicon' });
+      mockUnlockFindUnique.mockResolvedValue(null);
+
+      const result = await verifyEventPostingPermission('event-1', 'nicon', null, null);
+
+      expect(result.allowed).toBe(false);
+      expect(result.code).toBe('POSTING_WINDOW_CLOSED');
+    });
+
+    it('allows designated-poster story uploads during the active 7-day grant', async () => {
+      jest.setSystemTime(new Date(EVENT_DATE.getTime() + 5 * 60 * 60 * 1000));
+      mockDesignatedFindUnique.mockResolvedValue({ user_id: 'nicon' });
+      mockUnlockFindUnique.mockResolvedValue({ unlocked_at: new Date(EVENT_DATE) });
+
+      const result = await verifyStoryPostingPermission('event-1', 'nicon', null, null, null);
 
       expect(result.allowed).toBe(true);
     });

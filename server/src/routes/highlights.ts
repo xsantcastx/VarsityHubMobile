@@ -4,6 +4,7 @@ import { sendError } from '../lib/http/sendError.js';
 import { prisma } from '../lib/prisma.js';
 import { getInteractionSets, withInteractions } from '../lib/postEnrichment.js';
 import {
+  buildPrivateTeamPostVisibilityWhere,
   getBlockedUserIds,
   getExcludedPrivateAuthorIds,
   getExcludedPrivateTeamIds,
@@ -145,11 +146,8 @@ highlightsRouter.get(
       const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
       const privacyWhere: any = {};
       if (allExcluded.length) privacyWhere.author_id = { notIn: allExcluded };
-      if (excludedTeamIds.length) {
-        // team_id: { notIn } alone would also drop null-team posts (NOT IN is
-        // NULL for NULL) — explicitly keep non-team posts.
-        privacyWhere.OR = [{ team_id: null }, { team_id: { notIn: excludedTeamIds } }];
-      }
+      const privateTeamPostWhere = buildPrivateTeamPostVisibilityWhere(excludedTeamIds);
+      if (privateTeamPostWhere) privacyWhere.OR = privateTeamPostWhere.OR;
 
       // Per-tab sorted mode (v2 only): each mode runs its own correctly-shaped
       // query instead of deriving all tabs from one trending-shaped pool.

@@ -9,7 +9,8 @@
  *   after start (3h expected event time + 1h after). Coaches may choose an
  *   all-day 12-hour window.
  * - A user who posts while physically at the event gets 7 days of regular
- *   event-page post access. Stories still require the live window + geofence.
+ *   event-page post access. Stories still require the live window + geofence
+ *   unless the user also has an explicit designated-poster grant for that event.
  * - Sample events/games (IDs starting with "sample-") bypass all geofencing checks
  *
  * This maintains authenticity and prevents users from different states from trolling games.
@@ -359,14 +360,12 @@ async function loadPostingEvent(eventId: string) {
 }
 
 /**
- * Additive designated-poster allowlist (owner rule, 2026-07-19 Fanatics Fest):
- * a user granted here may post AND upload stories to the event page at any
- * time, from anywhere — bypassing the live window and the venue geofence —
- * WITHOUT blocking any other user (normal attendees keep the standard rules).
- * This is the post-event "give a specific person continued access for
- * marketing/continuity" grant. Contrast `exclusive_poster_id`, which is
- * single-user and blocks everyone else. Grant/revoke via
- * `server/scripts/set-event-designated-poster.ts`.
+ * Additive designated-poster marker. By itself this does not grant permanent
+ * upload rights; it must be paired with an active EventPostingUnlock row. That
+ * keeps one-off admin access inside the same 7-day cap as attendee access while
+ * still allowing explicitly designated users to add stories during that grant.
+ * Contrast `exclusive_poster_id`, which is single-user and blocks everyone else.
+ * Grant/revoke via `server/scripts/set-event-designated-poster.ts`.
  */
 export async function isDesignatedEventPoster(userId: string, eventId: string): Promise<boolean> {
   const row = await prisma.eventDesignatedPoster.findUnique({
@@ -486,8 +485,11 @@ export async function verifyStoryPostingPermission(
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
-  // Additive designated-poster grant covers stories at any time.
-  if (await isDesignatedEventPoster(userId, event.id)) {
+  // Explicit designated-poster + active unlock grants temporary story access.
+  if (
+    (await isDesignatedEventPoster(userId, event.id)) &&
+    (await hasActiveEventPostingUnlock(userId, event))
+  ) {
     return { allowed: true };
   }
 
@@ -585,11 +587,13 @@ export async function verifyEventPostingPermission(
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
-  // Additive designated-poster grant (see isDesignatedEventPoster): allowlisted
-  // users post from anywhere at any time. Checked before the exclusive lock so
-  // a grant always admits, and before the window/geofence so it survives event
-  // close — all without affecting any other user.
-  if (await isDesignatedEventPoster(userId, event.id)) {
+  // Explicit designated-poster + active unlock grants temporary post access.
+  // The plain designated row is only a marker; it does not create a permanent
+  // geofence/window bypass.
+  if (
+    (await isDesignatedEventPoster(userId, event.id)) &&
+    (await hasActiveEventPostingUnlock(userId, event))
+  ) {
     return { allowed: true };
   }
 

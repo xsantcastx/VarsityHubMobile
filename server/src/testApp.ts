@@ -30,6 +30,7 @@ import { groupChatsRouter } from './routes/group-chats.js';
 import { adminReportsRouter } from './routes/adminReports.js';
 import { searchRouter } from './routes/search.js';
 import { dataExportRouter } from './routes/dataExport.js';
+import { eventDiscoveryRouter } from './routes/eventDiscovery.js';
 import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';
 import { publicSiteRouter } from './routes/publicSite.js';
 
@@ -62,6 +63,7 @@ function mountApiRoutes(parent: any) {
   // keeps tests exercising the real mount order.
   parent.use('/admin/reports', adminReportsRouter);
   parent.use('/admin', adminRouter);
+  parent.use('/event-discovery', eventDiscoveryRouter);
   parent.use('/events', eventsRouter);
   parent.use('/feed', feedRouter);
   parent.use('/follows', followsRouter);

@@ -22,12 +22,13 @@ describeDb('Session epoch enforcement', () => {
   let prisma: any;
   let signJwt: any;
   let signAccessTokenForSession: any;
+  let verifyJwt: any;
 
   let userId = '';
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
-    ({ signJwt, signAccessTokenForSession } = await import('../lib/jwt.js'));
+    ({ signJwt, signAccessTokenForSession, verifyJwt } = await import('../lib/jwt.js'));
 
     const hash = await bcrypt.hash(PASSWORD, 10);
     const user = await prisma.user.create({
@@ -54,6 +55,15 @@ describeDb('Session epoch enforcement', () => {
     const token = signAccessTokenForSession(userId, 1);
     const res = await request(app).get('/me').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
+  });
+
+  it('signs new access tokens with a revocable jti claim', async () => {
+    const token = signAccessTokenForSession(userId, 1);
+    const payload = verifyJwt<{ id: string; se: number; jti?: string }>(token);
+    expect(payload?.id).toBe(userId);
+    expect(payload?.se).toBe(1);
+    expect(typeof payload?.jti).toBe('string');
+    expect(payload?.jti).toHaveLength(32);
   });
 
   it('rejects a token with a stale session epoch', async () => {
