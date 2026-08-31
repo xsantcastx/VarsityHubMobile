@@ -2644,7 +2644,7 @@ const GameDetailsScreen = () => {
           />
         }
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: feedY } } }], {
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
           listener: handleScroll,
         })}
         scrollEventThrottle={16}
