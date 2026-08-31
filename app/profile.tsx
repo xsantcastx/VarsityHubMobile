@@ -281,8 +281,17 @@ export default function ProfileScreen() {
   // profile user + sort. Only the ACTIVE tab is enabled (lazy, like the old
   // per-tab refresh), and a previously-visited tab renders instantly from
   // cache when switched back to.
+  const isViewingOtherProfile = !!viewingUserId && viewingUserId !== currentUserId;
+  const isRestrictedProfile =
+    isViewingOtherProfile &&
+    ((me as any)?.profile_restricted === true ||
+      ((me as any)?.profile_private === true &&
+        !(me as any)?._count &&
+        (me as any)?.posts_count == null));
   const profileUserId =
-    me?.id && String(me.id) !== 'undefined' && String(me.id) !== 'null' ? String(me.id) : null;
+    !isRestrictedProfile && me?.id && String(me.id) !== 'undefined' && String(me.id) !== 'null'
+      ? String(me.id)
+      : null;
 
   const postsQuery = useInfiniteQuery({
     queryKey: ['profile-posts', profileUserId, sort],
@@ -850,7 +859,19 @@ export default function ProfileScreen() {
                     onPress: async () => {
                       try {
                         await User.block(viewingUserId);
-                        Alert.alert('Blocked', 'This user has been blocked.');
+                        queryClient.removeQueries({ queryKey: ['public-user', viewingUserId] });
+                        queryClient.removeQueries({ queryKey: ['profile-posts', viewingUserId] });
+                        queryClient.removeQueries({ queryKey: ['profile-replies', viewingUserId] });
+                        queryClient.removeQueries({ queryKey: ['profile-upvotes', viewingUserId] });
+                        queryClient.invalidateQueries({ queryKey: ['feed'] });
+                        queryClient.invalidateQueries({ queryKey: ['discover-personalization'] });
+                        queryClient.invalidateQueries({ queryKey: ['discover-suggested-people'] });
+                        setViewerOpen(false);
+                        setMe(null);
+                        setIsFollowing(false);
+                        Alert.alert('Blocked', 'This user has been blocked.', [
+                          { text: 'OK', onPress: () => safeGoBack(router, '/(tabs)/discover') },
+                        ]);
                       } catch (e: any) {
                         Alert.alert('Error', toUserMessage(e, 'Failed to block user'));
                       }
@@ -1195,7 +1216,9 @@ export default function ProfileScreen() {
 
   const renderEmptyPosts = () => (
     <View style={styles.emptyContainer}>
-      <Text style={[styles.emptyTitle, { color: theme.text }]}>No posts yet</Text>
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>
+        {isRestrictedProfile ? 'Private profile' : 'No posts yet'}
+      </Text>
       <Text
         style={[
           styles.emptySubtitle,
@@ -1204,35 +1227,45 @@ export default function ProfileScreen() {
           },
         ]}
       >
-        Share your first moment with the community!
+        {isRestrictedProfile
+          ? 'Follow request approval is required to view this profile.'
+          : isViewingOtherProfile
+            ? 'This profile has not shared any posts yet.'
+            : 'Share your first moment with the community!'}
       </Text>
-      <Pressable
-        onPress={() => void router.push('/create')}
-        style={({ pressed }) => [
-          styles.createPostButton,
-          {
-            backgroundColor: theme.tint,
-            borderColor: theme.tint,
-            opacity: pressed ? 0.9 : 1,
-          },
-        ]}
-      >
-        <Text style={[styles.createPostButtonText, { color: '#FFFFFF', fontWeight: '700' }]}>
-          Create Your First Post
-        </Text>
-      </Pressable>
+      {!isViewingOtherProfile && !isRestrictedProfile ? (
+        <Pressable
+          onPress={() => void router.push('/create')}
+          style={({ pressed }) => [
+            styles.createPostButton,
+            {
+              backgroundColor: theme.tint,
+              borderColor: theme.tint,
+              opacity: pressed ? 0.9 : 1,
+            },
+          ]}
+        >
+          <Text style={[styles.createPostButtonText, { color: '#FFFFFF', fontWeight: '700' }]}>
+            Create Your First Post
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 
   const renderEmptyReplies = () => (
     <View style={styles.emptyContainer}>
-      <Text style={[styles.emptyTitle, { color: theme.text }]}>No replies yet</Text>
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>
+        {isRestrictedProfile ? 'Private profile' : 'No replies yet'}
+      </Text>
     </View>
   );
 
   const renderEmptyUpvotes = () => (
     <View style={styles.emptyContainer}>
-      <Text style={[styles.emptyTitle, { color: theme.text }]}>No upvotes yet</Text>
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>
+        {isRestrictedProfile ? 'Private profile' : 'No upvotes yet'}
+      </Text>
     </View>
   );
 
@@ -1856,13 +1889,9 @@ export default function ProfileScreen() {
               showHeader
               initialPosts={viewerItems}
               startIndex={viewerIndex}
-              title={
-                activeTab === 'posts'
-                  ? 'Your posts'
-                  : activeTab === 'replies'
-                    ? 'Your replies'
-                    : 'Your upvotes'
-              }
+              title={`${isViewingOtherProfile ? displayUsername : 'Your'} ${
+                activeTab === 'posts' ? 'posts' : activeTab === 'replies' ? 'replies' : 'upvotes'
+              }`}
             />
           ) : null}
         </View>

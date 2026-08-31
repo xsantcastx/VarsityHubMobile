@@ -179,6 +179,11 @@ function CreatePostScreen() {
     if (authLoading) return;
     if (!user) {
       router.replace('/create');
+      return;
+    }
+    if (!(user as any)?.email_verified) {
+      // nav-safe: auth gate -> email verification
+      router.replace('/verify-identity?method=email');
     }
   }, [authLoading, router, user]);
 
@@ -770,6 +775,12 @@ function CreatePostScreen() {
   };
 
   const confirmPost = async () => {
+    if (!(user as any)?.email_verified) {
+      // nav-safe: auth gate -> email verification
+      router.replace('/verify-identity?method=email');
+      return;
+    }
+
     if (__DEV__) console.warn('[CreatePost] confirmPost called');
     if (__DEV__)
       console.warn(

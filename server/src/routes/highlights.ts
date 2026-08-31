@@ -9,6 +9,7 @@ import {
   getExcludedPrivateAuthorIds,
   getExcludedPrivateTeamIds,
   getRequestBlockedCache,
+  mergeAndWhere,
 } from '../lib/privacyUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -146,8 +147,7 @@ highlightsRouter.get(
       const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
       const privacyWhere: any = {};
       if (allExcluded.length) privacyWhere.author_id = { notIn: allExcluded };
-      const privateTeamPostWhere = buildPrivateTeamPostVisibilityWhere(excludedTeamIds);
-      if (privateTeamPostWhere) privacyWhere.OR = privateTeamPostWhere.OR;
+      mergeAndWhere(privacyWhere, buildPrivateTeamPostVisibilityWhere(excludedTeamIds));
 
       // Per-tab sorted mode (v2 only): each mode runs its own correctly-shaped
       // query instead of deriving all tabs from one trending-shaped pool.

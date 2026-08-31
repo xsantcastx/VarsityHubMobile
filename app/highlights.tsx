@@ -435,6 +435,7 @@ const HighlightCard = ({
                     item.caption || (sanitizeTitle(item.title) ?? undefined)
                   );
                   await Share.share(buildNativeSharePayload(link.shareMessage, link.webUrl));
+                  void Post.share(String(item.id)).catch(() => {});
                 } catch {
                   try {
                     const mod = await import('expo-clipboard').catch(() => null);

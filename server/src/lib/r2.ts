@@ -88,12 +88,23 @@ const MIME_EXTENSION: Record<string, string> = {
 };
 
 const ALLOWED_MIME = new Set(Object.keys(MIME_EXTENSION));
+const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_VIDEO_UPLOAD_BYTES = 150 * 1024 * 1024;
 
 export interface R2PresignResult {
   uploadUrl: string;
   key: string;
   publicUrl: string | null;
   expiresIn: number;
+  contentLength: number;
+  maxBytes: number;
+}
+
+export function getR2MaxBytesForContentType(contentType: string): number {
+  const normalized = contentType.trim().toLowerCase();
+  if (normalized.startsWith('image/')) return MAX_IMAGE_UPLOAD_BYTES;
+  if (normalized.startsWith('video/')) return MAX_VIDEO_UPLOAD_BYTES;
+  return 0;
 }
 
 /**
@@ -104,6 +115,7 @@ export interface R2PresignResult {
  */
 export async function createR2UploadTicket(opts: {
   contentType: string;
+  contentLength: number;
   expiresIn?: number;
 }): Promise<R2PresignResult | null> {
   if (!isR2Configured()) return null;
@@ -111,6 +123,14 @@ export async function createR2UploadTicket(opts: {
   const contentType = opts.contentType.toLowerCase();
   if (!ALLOWED_MIME.has(contentType)) {
     throw new Error(`Unsupported content type for R2 upload: ${contentType}`);
+  }
+  const contentLength = Number(opts.contentLength);
+  const maxBytes = getR2MaxBytesForContentType(contentType);
+  if (!Number.isFinite(contentLength) || !Number.isInteger(contentLength) || contentLength <= 0) {
+    throw new Error('content_length must be a positive integer');
+  }
+  if (contentLength > maxBytes) {
+    throw new Error(`File size exceeds R2 upload limit of ${maxBytes} bytes`);
   }
   const ext = MIME_EXTENSION[contentType];
   const id = crypto.randomBytes(16).toString('hex');
@@ -121,18 +141,19 @@ export async function createR2UploadTicket(opts: {
     Bucket: env('R2_BUCKET'),
     Key: key,
     ContentType: contentType,
+    ContentLength: contentLength,
   });
-  // Force content-type into the signed headers — the presigner does not by
-  // default, which would let a client claim image/jpeg then PUT anything.
+  // Force content-type and content-length into the signed headers. The client
+  // must PUT the same MIME type and byte count the server already approved.
   const uploadUrl = await getSignedUrl(getClient(), command, {
     expiresIn,
-    signableHeaders: new Set(['content-type', 'host']),
+    signableHeaders: new Set(['content-length', 'content-type', 'host']),
   });
 
   const publicBase = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');
   const publicUrl = publicBase ? `${publicBase}/${key}` : null;
 
-  return { uploadUrl, key, publicUrl, expiresIn };
+  return { uploadUrl, key, publicUrl, expiresIn, contentLength, maxBytes };
 }
 
 /**

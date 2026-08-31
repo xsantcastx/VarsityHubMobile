@@ -29,7 +29,10 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import {
   buildPrivateTeamPostVisibilityWhere,
+  getBlockedUserIds,
+  getExcludedPrivateAuthorIds,
   getExcludedPrivateTeamIds,
+  getRequestBlockedCache,
   invalidateBlockedIdsCache,
   isTeamHiddenFromViewer,
 } from '../lib/privacyUtils.js';
@@ -693,6 +696,30 @@ usersRouter.get(
       }
       let list = Object.values(merged);
 
+      const isAdmin = currentUserId ? await getIsAdmin(req as any) : false;
+      const [privateAuthorIds, blockedAuthorIds, excludedTeamIds] = await Promise.all([
+        getExcludedPrivateAuthorIds(currentUserId),
+        getBlockedUserIds(currentUserId, getRequestBlockedCache(req)),
+        isAdmin ? Promise.resolve([]) : getExcludedPrivateTeamIds(currentUserId),
+      ]);
+      const excludedAuthorIds = [...new Set([...privateAuthorIds, ...blockedAuthorIds])];
+      const privateTeamPostWhere = buildPrivateTeamPostVisibilityWhere(excludedTeamIds);
+
+      if (list.length > 0) {
+        const visiblePosts = await prisma.post.findMany({
+          where: {
+            id: { in: list.map(i => i.post_id) },
+            deleted_at: null,
+            ...(excludedAuthorIds.length ? { author_id: { notIn: excludedAuthorIds } } : {}),
+            ...(privateTeamPostWhere ? { AND: [privateTeamPostWhere] } : {}),
+          },
+          select: { id: true },
+          take: Math.max(list.length, 1),
+        });
+        const visiblePostIds = new Set(visiblePosts.map(post => post.id));
+        list = list.filter(item => visiblePostIds.has(item.post_id));
+      }
+
       // Sorting
       if (sort === 'most_upvoted') {
         const likeCounts = await prisma.post.findMany({
@@ -728,15 +755,12 @@ usersRouter.get(
       const nextCursor = next ? `${next.ts.toISOString()}::${next.post_id}` : null;
 
       const postIds = page.map(i => i.post_id);
-      const isAdmin = currentUserId ? await getIsAdmin(req as any) : false;
-      const privateTeamPostWhere = buildPrivateTeamPostVisibilityWhere(
-        isAdmin ? [] : await getExcludedPrivateTeamIds(currentUserId)
-      );
       const posts = postIds.length
         ? await prisma.post.findMany({
             where: {
               id: { in: postIds },
               deleted_at: null,
+              ...(excludedAuthorIds.length ? { author_id: { notIn: excludedAuthorIds } } : {}),
               ...(privateTeamPostWhere ? { AND: [privateTeamPostWhere] } : {}),
             },
             // mapPostForPayload serializes author.username — without selecting it here
@@ -1371,6 +1395,11 @@ usersRouter.get(
       excludeIds.add(b.blocker_id);
       excludeIds.add(b.blocked_id);
     }
+    const privateAuthorIds = await getExcludedPrivateAuthorIds(currentUserId);
+    for (const id of privateAuthorIds) excludeIds.add(id);
+
+    const adultCutoff = new Date();
+    adultCutoff.setFullYear(adultCutoff.getFullYear() - 18);
 
     // Get IDs of people the current user follows, to find mutual connections
     const myFollowingIds = alreadyFollowing.map(f => f.following_id);
@@ -1383,6 +1412,7 @@ usersRouter.get(
         onboarding_completed: true,
         banned: false,
         deleted_at: null,
+        OR: [{ date_of_birth: null }, { date_of_birth: { lte: adultCutoff } }],
       },
       select: {
         ...publicUserSelect,
@@ -1447,9 +1477,16 @@ usersRouter.get(
     if (hidden) return res.json({ items: [], nextCursor: null });
     const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50));
     const cursor = (req.query.cursor as string | undefined) || undefined;
+    const blockedIds = currentUserId
+      ? await getBlockedUserIds(currentUserId, getRequestBlockedCache(req))
+      : [];
 
     const follows = await prisma.follows.findMany({
-      where: { following_id: id, status: 'accepted' },
+      where: {
+        following_id: id,
+        status: 'accepted',
+        ...(blockedIds.length ? { follower_id: { notIn: blockedIds } } : {}),
+      },
       take: limit + 1,
       cursor: cursor
         ? { follower_id_following_id: { follower_id: cursor, following_id: id } }
@@ -1509,9 +1546,16 @@ usersRouter.get(
     if (hidden) return res.json({ items: [], nextCursor: null });
     const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50));
     const cursor = (req.query.cursor as string | undefined) || undefined;
+    const blockedIds = currentUserId
+      ? await getBlockedUserIds(currentUserId, getRequestBlockedCache(req))
+      : [];
 
     const follows = await prisma.follows.findMany({
-      where: { follower_id: id, status: 'accepted' },
+      where: {
+        follower_id: id,
+        status: 'accepted',
+        ...(blockedIds.length ? { following_id: { notIn: blockedIds } } : {}),
+      },
       take: limit + 1,
       cursor: cursor
         ? { follower_id_following_id: { follower_id: id, following_id: cursor } }
@@ -1732,6 +1776,8 @@ usersRouter.get(
           display_name: user.display_name,
           avatar_url: user.avatar_url,
           profile_private,
+          profile_restricted: true,
+          profile_restricted_reason: 'blocked',
           is_following: false,
           follow_status: null,
         });
@@ -1745,6 +1791,8 @@ usersRouter.get(
         display_name: user.display_name,
         avatar_url: user.avatar_url,
         profile_private: true,
+        profile_restricted: true,
+        profile_restricted_reason: 'private',
         is_following: false,
         follow_status: viewerFollowStatus,
       });

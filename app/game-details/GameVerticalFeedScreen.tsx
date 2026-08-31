@@ -1303,6 +1303,7 @@ function GameVerticalFeedScreen({
       try {
         const localUri = await getCachedShareableVideoUri(post);
         await Share.share({ url: localUri });
+        void Post.share(post.id).catch(() => {});
         return;
       } catch (error) {
         if (__DEV__) {
@@ -1314,7 +1315,11 @@ function GameVerticalFeedScreen({
       }
     }
     const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
-    Share.share(buildNativeSharePayload(shareLink.shareMessage, shareLink.webUrl)).catch(() => {});
+    Share.share(buildNativeSharePayload(shareLink.shareMessage, shareLink.webUrl))
+      .then(() => {
+        void Post.share(post.id).catch(() => {});
+      })
+      .catch(() => {});
   }, []);
 
   const handleCopyLink = useCallback(async (post: FeedPost) => {

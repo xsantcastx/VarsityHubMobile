@@ -339,22 +339,30 @@ interface R2UploadTicket {
   key: string;
   publicUrl: string | null;
   expiresIn: number;
+  contentLength: number;
+  maxBytes: number;
 }
 
 async function getR2UploadTicket(
   baseUrl: string,
-  contentType: string
+  contentType: string,
+  contentLength: number
 ): Promise<R2UploadTicket | null> {
   if (Date.now() - _r2UnavailableAt < R2_UNAVAILABLE_TTL_MS) return null;
   const token = await getAccessTokenForRequest({ allowRefresh: true });
   if (!token) return null;
+  if (!Number.isFinite(contentLength) || contentLength <= 0) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SIG_FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(
-      `${baseUrl}/uploads/r2-presign?content_type=${encodeURIComponent(contentType)}`,
-      { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
-    );
+    const params = new URLSearchParams({
+      content_type: contentType,
+      content_length: String(Math.round(contentLength)),
+    });
+    const res = await fetch(`${baseUrl}/uploads/r2-presign?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    });
     if (res.status === 503) {
       // R2 not provisioned server-side — remember and stop asking for a while.
       _r2UnavailableAt = Date.now();
@@ -371,6 +379,17 @@ async function getR2UploadTicket(
     return null;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+async function getLocalFileSize(uri: string): Promise<number | null> {
+  if (!uri.startsWith('file://')) return null;
+  try {
+    const info = await FileSystem.getInfoAsync(uri, { size: true } as any);
+    if (!info.exists || typeof (info as any).size !== 'number') return null;
+    return (info as any).size;
+  } catch {
+    return null;
   }
 }
 
@@ -392,7 +411,10 @@ async function uploadDirectToR2(
     {
       httpMethod: 'PUT',
       uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-      headers: { 'Content-Type': mimeType },
+      headers: {
+        'Content-Type': mimeType,
+        'Content-Length': String(ticket.contentLength),
+      },
     },
     options?.onProgress
       ? progress => {
@@ -445,7 +467,9 @@ async function tryUploadToR2(
   mimeType: string,
   options?: UploadOptions
 ): Promise<{ url: string; type: string; mime: string; provider: 'r2' } | null> {
-  const ticket = await getR2UploadTicket(baseUrl, mimeType);
+  const contentLength = await getLocalFileSize(uri);
+  if (!contentLength) return null;
+  const ticket = await getR2UploadTicket(baseUrl, mimeType, contentLength);
   if (!ticket) return null;
   try {
     if (__DEV__) console.log('[upload] Using direct R2 upload:', ticket.key);

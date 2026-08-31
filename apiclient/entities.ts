@@ -1126,6 +1126,8 @@ export const Feed = {
       posts_limit?: number;
       highlights_limit?: number;
       ads_limit?: number;
+      posts_cursor?: string;
+      posts_followed_teams_cursor?: string;
     } = {}
   ) => {
     const q: string[] = [];
@@ -1138,6 +1140,11 @@ export const Feed = {
     if (params.highlights_limit)
       q.push('highlights_limit=' + encodeURIComponent(String(params.highlights_limit)));
     if (params.ads_limit) q.push('ads_limit=' + encodeURIComponent(String(params.ads_limit)));
+    if (params.posts_cursor) q.push('posts_cursor=' + encodeURIComponent(params.posts_cursor));
+    if (params.posts_followed_teams_cursor)
+      q.push(
+        'posts_followed_teams_cursor=' + encodeURIComponent(params.posts_followed_teams_cursor)
+      );
     return httpGet('/feed/bundle' + (q.length ? '?' + q.join('&') : ''));
   },
 };

@@ -11,7 +11,7 @@ const teamInvitesRoute = read('server/src/routes/team-invites.ts');
 const approvalsScreen = read('app/(tabs)/event-approvals.tsx');
 const teamRoute = read('server/src/routes/teams.ts');
 const settingsScreen = read('app/settings/index.tsx');
-const apiTypes = read('api/types.ts');
+const apiTypes = read('apiclient/types.ts');
 const onboardingContext = read('context/OnboardingContext.tsx');
 
 describe('authorized-user contracts', () => {

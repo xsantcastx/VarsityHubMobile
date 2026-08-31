@@ -27,6 +27,11 @@ import {
   sendPushNotification,
 } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
+import {
+  buildPrivateTeamEventVisibilityWhere,
+  getExcludedPrivateTeamIds,
+  mergeAndWhere,
+} from '../lib/privacyUtils.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { mustSucceed } from '../lib/sideEffect.js';
@@ -456,6 +461,12 @@ eventsRouter.get(
           { game: { is: { date: { lt: new Date() } } } },
         ],
       });
+      mergeAndWhere(
+        where,
+        buildPrivateTeamEventVisibilityWhere(
+          await getExcludedPrivateTeamIds((req as any).user?.id ?? null)
+        )
+      );
     }
     if (eventType) where.event_type = eventType;
     if (eventOnly) where.game_id = null;

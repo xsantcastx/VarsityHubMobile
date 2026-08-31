@@ -32,7 +32,7 @@ describe('entity client screen contract', () => {
     const subscriptionPaywall = read('app', 'subscription-paywall.tsx');
     const manageSubscription = read('app', 'settings', 'manage-subscription.tsx');
     const paymentSuccess = read('app', 'payment-success.tsx');
-    const entities = read('api', 'entities.ts');
+    const entities = read('apiclient', 'entities.ts');
 
     expect(entities).toContain('mine: () =>');
     expect(entities).toContain(
@@ -91,5 +91,16 @@ describe('entity client screen contract', () => {
 
     expect(paymentSuccess).toContain('await Advertisement.get(adId)');
     expect(paymentSuccess).not.toContain('httpGet(`/ads/${adId}`)');
+  });
+
+  it('keeps feed bundle cursor params available for social section pagination', () => {
+    const entities = read('apiclient', 'entities.ts');
+
+    expect(entities).toContain('posts_cursor?: string');
+    expect(entities).toContain('posts_followed_teams_cursor?: string');
+    expect(entities).toContain("q.push('posts_cursor=' + encodeURIComponent(params.posts_cursor))");
+    expect(entities).toContain(
+      "'posts_followed_teams_cursor=' + encodeURIComponent(params.posts_followed_teams_cursor)"
+    );
   });
 });

@@ -53,10 +53,12 @@ jest.mock('@/hooks/useDeviceLocation', () => ({
 }));
 
 const mockGameList = jest.fn();
+const mockEventFilter = jest.fn();
 const mockTrendingPage = jest.fn();
 jest.mock('@/api/entities', () => ({
   __esModule: true,
   Game: { list: (...args: any[]) => mockGameList(...args), create: jest.fn() },
+  Event: { filter: (...args: any[]) => mockEventFilter(...args) },
   Post: {
     trendingPage: (...args: any[]) => mockTrendingPage(...args),
     listPage: jest.fn().mockResolvedValue({ items: [] }),
@@ -104,6 +106,7 @@ const sampleGame = {
 
 beforeEach(() => {
   mockGameList.mockReset().mockResolvedValue([sampleGame]);
+  mockEventFilter.mockReset().mockResolvedValue([]);
   mockTrendingPage.mockReset().mockResolvedValue({ items: [] });
 });
 
@@ -116,7 +119,13 @@ describe('MobileCommunityScreen (react-query render smoke)', () => {
     );
     // Queries are gated behind InteractionManager.runAfterInteractions.
     jest.runOnlyPendingTimers();
-    await waitFor(() => expect(mockGameList).toHaveBeenCalledWith('-date'));
+    await waitFor(() =>
+      expect(mockGameList).toHaveBeenCalledWith(
+        'date',
+        expect.objectContaining({ dateFrom: expect.any(String), limit: 100 })
+      )
+    );
+    await waitFor(() => expect(mockEventFilter).toHaveBeenCalled());
     await waitFor(() => expect(mockTrendingPage).toHaveBeenCalled());
     expect(await screen.findByText('Tigers vs Sharks')).toBeTruthy();
   });

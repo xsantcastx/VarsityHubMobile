@@ -7,9 +7,9 @@
  * contract so a future refactor can't silently break it.
  *
  * Wiring diagram:
- *   api/http.ts -----------------+
+ *   apiclient/http.ts -----------+
  *                                |
- *   api/upload.ts ---> emitSessionExpired('reason')
+ *   apiclient/upload.ts ---> emitSessionExpired('reason')
  *                                |
  *                                v
  *                      utils/sessionEvents.ts  (in-memory event bus)
@@ -29,8 +29,8 @@ const ROOT = join(process.cwd());
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 const sessionEvents = read('utils/sessionEvents.ts');
-const httpLayer = read('api/http.ts');
-const uploadLayer = read('api/upload.ts');
+const httpLayer = read('apiclient/http.ts');
+const uploadLayer = read('apiclient/upload.ts');
 const authProvider = read('context/AuthProvider.tsx');
 const uploadErrorAlert = read('utils/uploadErrorAlert.ts');
 const adminDashboard = read('app/admin-dashboard.tsx');
@@ -68,7 +68,7 @@ describe('session-expired event bus — client wiring invariants', () => {
     });
   });
 
-  describe('api/http.ts — emits session-expired in the right spots', () => {
+  describe('apiclient/http.ts — emits session-expired in the right spots', () => {
     it('imports emitSessionExpired from utils/sessionEvents', () => {
       expect(httpLayer).toMatch(/from\s+['"]@\/utils\/sessionEvents['"]/);
       expect(httpLayer).toMatch(/emitSessionExpired/);
@@ -102,7 +102,7 @@ describe('session-expired event bus — client wiring invariants', () => {
     });
   });
 
-  describe('api/upload.ts — same session-expired contract for upload paths', () => {
+  describe('apiclient/upload.ts — same session-expired contract for upload paths', () => {
     it('imports emitSessionExpired', () => {
       expect(uploadLayer).toMatch(/emitSessionExpired/);
     });
@@ -140,7 +140,7 @@ describe('session-expired event bus — client wiring invariants', () => {
     });
 
     it('exempts session-expiry from the routing-loop guard so the terminal redirect always fires', () => {
-      // The wedge: api/http.ts returns `new Promise(() => {})` on a dead session
+      // The wedge: apiclient/http.ts returns `new Promise(() => {})` on a dead session
       // (the anti-Alert-stacking design pinned above). That hang is only safe if
       // the AuthProvider redirect actually unmounts the screen. The routing-loop
       // guard could `return false` without navigating — and the unauthenticated

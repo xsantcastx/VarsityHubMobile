@@ -103,9 +103,25 @@ type FeedItem =
   | { _t: 'section_header'; title: string; key: string }
   | { _t: 'followed_post'; data: any; idx: number }
   | { _t: 'followed_empty'; section: 'people' | 'teams' }
+  | { _t: 'followed_load_more'; section: 'people' | 'teams' }
   | { _t: 'followed_teams_post'; data: any; idx: number }
   | { _t: 'past_game'; data: GameItem; idx: number }
   | { _t: 'footer' };
+
+type FeedBundleParams = {
+  country?: string;
+  date?: string;
+  zip?: string;
+  lat?: number;
+  lng?: number;
+  posts_limit?: number;
+  highlights_limit?: number;
+  ads_limit?: number;
+  posts_cursor?: string;
+  posts_followed_teams_cursor?: string;
+};
+
+const SOCIAL_POSTS_PAGE_SIZE = 20;
 
 // Feed fetch plan: upcoming (live + future, ascending) and the recent-past
 // recap are SEPARATE queries with separate page budgets. A single ascending
@@ -630,13 +646,18 @@ export default function FeedScreen() {
   } | null>(null);
   const [locationPromptDismissed, setLocationPromptDismissed] = useState(false);
   const [followedPosts, setFollowedPosts] = useState<any[]>([]);
+  const [followedPostsCursor, setFollowedPostsCursor] = useState<string | null>(null);
+  const [loadingMoreFollowedPosts, setLoadingMoreFollowedPosts] = useState(false);
   const [followedFeedMeta, setFollowedFeedMeta] = useState<{ following_count: number } | undefined>(
     undefined
   );
   const [followedTeamsPosts, setFollowedTeamsPosts] = useState<any[]>([]);
+  const [followedTeamsPostsCursor, setFollowedTeamsPostsCursor] = useState<string | null>(null);
+  const [loadingMoreFollowedTeamsPosts, setLoadingMoreFollowedTeamsPosts] = useState(false);
   const [followedTeamsFeedMeta, setFollowedTeamsFeedMeta] = useState<
     { followed_teams_count: number } | undefined
   >(undefined);
+  const [socialFeedWarning, setSocialFeedWarning] = useState<string | null>(null);
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const rsvpSummariesRef = useRef<Record<string, { going: boolean; count: number }>>({});
@@ -667,6 +688,7 @@ export default function FeedScreen() {
   // anchor the cursor was minted against — recomputing it mid-pagination
   // shifts the where-clause under the cursor.
   const feedQueryPlanRef = useRef<FeedGameQueryPlan | null>(null);
+  const feedBundleParamsRef = useRef<FeedBundleParams | null>(null);
   const hasFocusedOnceRef = useRef(false);
   const LOAD_COOLDOWN_MS = 30_000;
 
@@ -1121,24 +1143,36 @@ export default function FeedScreen() {
               followed_feed_meta: undefined,
               followed_teams_feed_meta: undefined,
             };
+            const bundleParams: FeedBundleParams = {
+              country: countryCode,
+              date: todayISO,
+              zip: userZip,
+              lat: deviceLat,
+              lng: deviceLng,
+              posts_limit: SOCIAL_POSTS_PAGE_SIZE,
+              highlights_limit: 20,
+              ads_limit: 2,
+            };
 
             const bundle = user
-              ? await Feed.bundle({
-                  country: countryCode,
-                  date: todayISO,
-                  zip: userZip,
-                  lat: deviceLat,
-                  lng: deviceLng,
-                  posts_limit: 20,
-                  highlights_limit: 20,
-                  ads_limit: 2,
-                }).catch(err => {
+              ? await Feed.bundle(bundleParams).catch(err => {
                   if (__DEV__) console.warn('[feed] Bundle load failed:', err);
                   return null;
                 })
               : null;
 
             if (!isCurrentRequest()) return;
+            feedBundleParamsRef.current = user ? bundleParams : null;
+            const bundleErrors = Array.isArray((bundle as any)?.errors)
+              ? ((bundle as any).errors as any[])
+              : [];
+            setSocialFeedWarning(
+              user && !bundle
+                ? 'Some feed sections could not load. Pull to refresh or try again.'
+                : bundleErrors.length
+                  ? 'Some feed sections could not load. Pull to refresh or try again.'
+                  : null
+            );
 
             const followedPage = bundle?.posts ?? emptyPage;
             const followedTeamsPage = bundle?.posts_followed_teams ?? emptyPage;
@@ -1162,10 +1196,12 @@ export default function FeedScreen() {
             }
 
             setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
+            setFollowedPostsCursor(followedPage?.nextCursor ?? null);
             setFollowedFeedMeta(followedPage?.followed_feed_meta);
             setFollowedTeamsPosts(
               Array.isArray(followedTeamsPage?.items) ? followedTeamsPage.items : []
             );
+            setFollowedTeamsPostsCursor(followedTeamsPage?.nextCursor ?? null);
             setFollowedTeamsFeedMeta(followedTeamsPage?.followed_teams_feed_meta);
             setUnreadNotifCount(
               typeof bundle?.unread_notifications === 'number' ? bundle.unread_notifications : 0
@@ -1214,9 +1250,12 @@ export default function FeedScreen() {
         setHighlightPreview(null);
         setSponsoredAds([]);
         setFollowedPosts([]);
+        setFollowedPostsCursor(null);
         setFollowedFeedMeta(undefined);
         setFollowedTeamsPosts([]);
+        setFollowedTeamsPostsCursor(null);
         setFollowedTeamsFeedMeta(undefined);
+        setSocialFeedWarning(null);
       } finally {
         if (!silent && isCurrentRequest()) setLoading(false);
         if (isCurrentRequest()) {
@@ -1261,6 +1300,71 @@ export default function FeedScreen() {
       setLoadingMore(false);
     }
   }, [loadingMore, hasMoreGames, gamesCursor]);
+
+  const loadMoreSocialPosts = useCallback(
+    async (section: 'people' | 'teams') => {
+      const isPeople = section === 'people';
+      const cursor = isPeople ? followedPostsCursor : followedTeamsPostsCursor;
+      const isLoading = isPeople ? loadingMoreFollowedPosts : loadingMoreFollowedTeamsPosts;
+      if (!me || !cursor || isLoading) return;
+
+      if (isPeople) setLoadingMoreFollowedPosts(true);
+      else setLoadingMoreFollowedTeamsPosts(true);
+
+      try {
+        const params: FeedBundleParams = {
+          ...(feedBundleParamsRef.current ?? {}),
+          posts_limit: SOCIAL_POSTS_PAGE_SIZE,
+          highlights_limit: 1,
+          ads_limit: 1,
+          ...(isPeople ? { posts_cursor: cursor } : { posts_followed_teams_cursor: cursor }),
+        };
+        const bundle = await Feed.bundle(params);
+        const bundleErrors = Array.isArray((bundle as any)?.errors)
+          ? ((bundle as any).errors as any[])
+          : [];
+        setSocialFeedWarning(
+          bundleErrors.length
+            ? 'Some feed sections could not load. Pull to refresh or try again.'
+            : null
+        );
+
+        if (isPeople) {
+          const page = bundle?.posts;
+          const nextItems = Array.isArray(page?.items) ? page.items : [];
+          setFollowedPosts(prev => {
+            const seen = new Set(prev.map((post: any) => String(post.id)));
+            return [...prev, ...nextItems.filter((post: any) => !seen.has(String(post.id)))];
+          });
+          setFollowedPostsCursor(page?.nextCursor ?? null);
+          if (page?.followed_feed_meta) setFollowedFeedMeta(page.followed_feed_meta);
+        } else {
+          const page = bundle?.posts_followed_teams;
+          const nextItems = Array.isArray(page?.items) ? page.items : [];
+          setFollowedTeamsPosts(prev => {
+            const seen = new Set(prev.map((post: any) => String(post.id)));
+            return [...prev, ...nextItems.filter((post: any) => !seen.has(String(post.id)))];
+          });
+          setFollowedTeamsPostsCursor(page?.nextCursor ?? null);
+          if (page?.followed_teams_feed_meta)
+            setFollowedTeamsFeedMeta(page.followed_teams_feed_meta);
+        }
+      } catch (err) {
+        if (__DEV__) console.warn('[feed] Failed to load more social posts:', err);
+        setSocialFeedWarning('Unable to load more posts right now.');
+      } finally {
+        if (isPeople) setLoadingMoreFollowedPosts(false);
+        else setLoadingMoreFollowedTeamsPosts(false);
+      }
+    },
+    [
+      me,
+      followedPostsCursor,
+      followedTeamsPostsCursor,
+      loadingMoreFollowedPosts,
+      loadingMoreFollowedTeamsPosts,
+    ]
+  );
 
   useEffect(() => {
     void (async () => {
@@ -1631,6 +1735,9 @@ export default function FeedScreen() {
         followedPosts.forEach((post: any, idx: number) => {
           items.push({ _t: 'followed_post', data: post, idx });
         });
+        if (followedPostsCursor) {
+          items.push({ _t: 'followed_load_more', section: 'people' });
+        }
       } else {
         items.push({ _t: 'followed_empty', section: 'people' });
       }
@@ -1647,6 +1754,9 @@ export default function FeedScreen() {
         followedTeamsPosts.forEach((post: any, idx: number) => {
           items.push({ _t: 'followed_teams_post', data: post, idx });
         });
+        if (followedTeamsPostsCursor) {
+          items.push({ _t: 'followed_load_more', section: 'teams' });
+        }
       } else {
         items.push({ _t: 'followed_empty', section: 'teams' });
       }
@@ -1675,7 +1785,9 @@ export default function FeedScreen() {
     spotlightProEvents,
     upcomingWithAds,
     followedPosts,
+    followedPostsCursor,
     followedTeamsPosts,
+    followedTeamsPostsCursor,
     pastEvents,
   ]);
 
@@ -2228,6 +2340,43 @@ export default function FeedScreen() {
           );
         }
 
+        case 'followed_load_more': {
+          const isPeople = item.section === 'people';
+          const isLoading = isPeople ? loadingMoreFollowedPosts : loadingMoreFollowedTeamsPosts;
+          return (
+            <View style={styles.socialLoadMoreWrap}>
+              <Pressable
+                testID={isPeople ? 'feed-load-more-followed-posts' : 'feed-load-more-team-posts'}
+                onPress={() => void loadMoreSocialPosts(item.section)}
+                disabled={isLoading}
+                style={[
+                  styles.socialLoadMoreButton,
+                  {
+                    borderColor: Colors[colorScheme].border,
+                    backgroundColor: Colors[colorScheme].card,
+                    opacity: isLoading ? 0.65 : 1,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isPeople ? 'Load more posts from people you follow' : 'Load more team posts'
+                }
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+                ) : (
+                  <>
+                    <MaterialIcons name="expand-more" size={20} color={Colors[colorScheme].tint} />
+                    <Text style={[styles.socialLoadMoreText, { color: Colors[colorScheme].tint }]}>
+                      Load more
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          );
+        }
+
         case 'followed_teams_post': {
           const post = item.data;
           const team = post.team || {};
@@ -2428,6 +2577,9 @@ export default function FeedScreen() {
       followedFeedMeta,
       followedTeamsFeedMeta,
       setFollowedPosts,
+      loadingMoreFollowedPosts,
+      loadingMoreFollowedTeamsPosts,
+      loadMoreSocialPosts,
     ]
   );
 
@@ -2486,6 +2638,33 @@ export default function FeedScreen() {
           )}
         </View>
       )}
+
+      {!error && socialFeedWarning ? (
+        <View
+          testID="feed-bundle-warning"
+          style={[
+            styles.feedWarning,
+            {
+              backgroundColor: colorScheme === 'dark' ? '#422006' : '#FFFBEB',
+              borderColor: colorScheme === 'dark' ? '#92400E' : '#F59E0B',
+            },
+          ]}
+        >
+          <MaterialIcons
+            name="error-outline"
+            size={18}
+            color={colorScheme === 'dark' ? '#FBBF24' : '#B45309'}
+          />
+          <Text
+            style={[
+              styles.feedWarningText,
+              { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
+            ]}
+          >
+            {socialFeedWarning}
+          </Text>
+        </View>
+      ) : null}
 
       <View
         style={[styles.mapsButton, { backgroundColor: '#0A84FF' }]}
@@ -3295,6 +3474,37 @@ const styles = StyleSheet.create({
   },
   adInviteSubtitle: { fontSize: 13, lineHeight: 18 },
   loadingMore: { paddingVertical: 16, alignItems: 'center' },
+  socialLoadMoreWrap: {
+    paddingHorizontal: 16,
+    paddingBottom: 18,
+    alignItems: 'center',
+  },
+  socialLoadMoreButton: {
+    minHeight: 42,
+    minWidth: 148,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  socialLoadMoreText: { fontSize: 14, fontWeight: '700' },
+  feedWarning: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  feedWarningText: { flex: 1, fontSize: 13, fontWeight: '600', lineHeight: 18 },
   sectionTitle: { fontWeight: '800', marginBottom: 8 },
   zipSuggestionList: {
     marginTop: 6,

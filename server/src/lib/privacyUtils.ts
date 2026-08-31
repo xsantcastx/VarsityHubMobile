@@ -164,15 +164,84 @@ export async function getExcludedPrivateTeamIds(viewerId: string | null): Promis
   return privateTeamIds.filter(teamId => !allowedTeamIds.has(teamId));
 }
 
+const buildGameTeamVisibilityAnd = (excludedTeamIds: string[]): Prisma.GameWhereInput[] => [
+  { OR: [{ home_team_id: null }, { home_team_id: { notIn: excludedTeamIds } }] },
+  { OR: [{ away_team_id: null }, { away_team_id: { notIn: excludedTeamIds } }] },
+];
+
 /**
- * Prisma post visibility clause for posts attached to private teams.
- * Keep null-team posts explicitly; SQL NOT IN does not match NULL rows.
+ * Prisma post visibility clause for posts attached to private teams directly,
+ * through a linked game, or through a linked event. Keep null relations
+ * explicitly; SQL NOT IN does not match NULL rows.
  */
 export function buildPrivateTeamPostVisibilityWhere(
   excludedTeamIds: string[]
 ): Prisma.PostWhereInput | null {
   if (excludedTeamIds.length === 0) return null;
-  return { OR: [{ team_id: null }, { team_id: { notIn: excludedTeamIds } }] };
+  return {
+    AND: [
+      { OR: [{ team_id: null }, { team_id: { notIn: excludedTeamIds } }] },
+      {
+        OR: [
+          { game_id: null },
+          {
+            game: {
+              AND: buildGameTeamVisibilityAnd(excludedTeamIds),
+            },
+          },
+        ],
+      },
+      {
+        OR: [
+          { event_id: null },
+          {
+            event: {
+              is: buildPrivateTeamEventVisibilityWhere(excludedTeamIds) ?? undefined,
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export function buildPrivateTeamGameVisibilityWhere(
+  excludedTeamIds: string[]
+): Prisma.GameWhereInput | null {
+  if (excludedTeamIds.length === 0) return null;
+  return {
+    AND: buildGameTeamVisibilityAnd(excludedTeamIds),
+  };
+}
+
+export function buildPrivateTeamEventVisibilityWhere(
+  excludedTeamIds: string[]
+): Prisma.EventWhereInput | null {
+  if (excludedTeamIds.length === 0) return null;
+  return {
+    AND: [
+      { OR: [{ team_id: null }, { team_id: { notIn: excludedTeamIds } }] },
+      {
+        OR: [
+          { game_id: null },
+          {
+            game: {
+              is: {
+                AND: buildGameTeamVisibilityAnd(excludedTeamIds),
+              },
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export function mergeAndWhere<T extends { AND?: unknown }>(where: T, clause: object | null): T {
+  if (!clause) return where;
+  const existingAnd = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
+  where.AND = [...existingAnd, clause];
+  return where;
 }
 
 /**
@@ -312,6 +381,54 @@ export async function isAuthorHiddenFromViewer(
   });
 
   return !rel;
+}
+
+export async function getPostVisibilityFilters(
+  viewerId: string | null,
+  options: { includePrivateAuthors?: boolean; includePrivateTeams?: boolean } = {}
+): Promise<{
+  excludedAuthorIds: string[];
+  excludedTeamIds: string[];
+  authorWhere: Prisma.PostWhereInput | null;
+  privateTeamWhere: Prisma.PostWhereInput | null;
+}> {
+  const [privateAuthorIds, blockedIds, privateTeamIds] = await Promise.all([
+    options.includePrivateAuthors ? Promise.resolve([]) : getExcludedPrivateAuthorIds(viewerId),
+    getBlockedUserIds(viewerId),
+    options.includePrivateTeams ? Promise.resolve([]) : getExcludedPrivateTeamIds(viewerId),
+  ]);
+  const excludedAuthorIds = [...new Set([...privateAuthorIds, ...blockedIds])];
+  return {
+    excludedAuthorIds,
+    excludedTeamIds: privateTeamIds,
+    authorWhere: excludedAuthorIds.length ? { author_id: { notIn: excludedAuthorIds } } : null,
+    privateTeamWhere: buildPrivateTeamPostVisibilityWhere(privateTeamIds),
+  };
+}
+
+export async function isPostHiddenFromViewer(
+  post: {
+    author_id?: string | null;
+    team_id?: string | null;
+    game?: { home_team_id?: string | null; away_team_id?: string | null } | null;
+  },
+  viewerId: string | null,
+  cache?: BlockedCache
+): Promise<boolean> {
+  if (post.author_id) {
+    if (await isAuthorHiddenFromViewer(post.author_id, viewerId)) return true;
+    const blockedIds = await getBlockedUserIds(viewerId, cache);
+    if (blockedIds.includes(post.author_id)) return true;
+  }
+
+  const teamIds = [post.team_id, post.game?.home_team_id, post.game?.away_team_id].filter(
+    (id): id is string => typeof id === 'string' && id.length > 0
+  );
+  for (const teamId of [...new Set(teamIds)]) {
+    if (await isTeamHiddenFromViewer(teamId, viewerId)) return true;
+  }
+
+  return false;
 }
 
 /**

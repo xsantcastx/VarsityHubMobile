@@ -10,7 +10,11 @@
 import { describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildPrivateTeamPostVisibilityWhere } from '../lib/privacyUtils';
+import {
+  buildPrivateTeamEventVisibilityWhere,
+  buildPrivateTeamGameVisibilityWhere,
+  buildPrivateTeamPostVisibilityWhere,
+} from '../lib/privacyUtils';
 
 const read = (...p: string[]) => readFileSync(join(process.cwd(), 'src', ...p), 'utf8');
 
@@ -44,7 +48,90 @@ describe('3c private-team posts excluded from feeds', () => {
   it('shared post visibility clause preserves null-team posts while excluding private teams', () => {
     expect(buildPrivateTeamPostVisibilityWhere([])).toBeNull();
     expect(buildPrivateTeamPostVisibilityWhere(['team-private'])).toEqual({
-      OR: [{ team_id: null }, { team_id: { notIn: ['team-private'] } }],
+      AND: [
+        { OR: [{ team_id: null }, { team_id: { notIn: ['team-private'] } }] },
+        {
+          OR: [
+            { game_id: null },
+            {
+              game: {
+                AND: [
+                  { OR: [{ home_team_id: null }, { home_team_id: { notIn: ['team-private'] } }] },
+                  { OR: [{ away_team_id: null }, { away_team_id: { notIn: ['team-private'] } }] },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          OR: [
+            { event_id: null },
+            {
+              event: {
+                is: {
+                  AND: [
+                    { OR: [{ team_id: null }, { team_id: { notIn: ['team-private'] } }] },
+                    {
+                      OR: [
+                        { game_id: null },
+                        {
+                          game: {
+                            is: {
+                              AND: [
+                                {
+                                  OR: [
+                                    { home_team_id: null },
+                                    { home_team_id: { notIn: ['team-private'] } },
+                                  ],
+                                },
+                                {
+                                  OR: [
+                                    { away_team_id: null },
+                                    { away_team_id: { notIn: ['team-private'] } },
+                                  ],
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('shared game/event clauses exclude both direct and game-backed private teams', () => {
+    expect(buildPrivateTeamGameVisibilityWhere(['team-private'])).toEqual({
+      AND: [
+        { OR: [{ home_team_id: null }, { home_team_id: { notIn: ['team-private'] } }] },
+        { OR: [{ away_team_id: null }, { away_team_id: { notIn: ['team-private'] } }] },
+      ],
+    });
+    expect(buildPrivateTeamEventVisibilityWhere(['team-private'])).toEqual({
+      AND: [
+        { OR: [{ team_id: null }, { team_id: { notIn: ['team-private'] } }] },
+        {
+          OR: [
+            { game_id: null },
+            {
+              game: {
+                is: {
+                  AND: [
+                    { OR: [{ home_team_id: null }, { home_team_id: { notIn: ['team-private'] } }] },
+                    { OR: [{ away_team_id: null }, { away_team_id: { notIn: ['team-private'] } }] },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      ],
     });
   });
 
@@ -58,6 +145,13 @@ describe('3c private-team posts excluded from feeds', () => {
     const usersSrc = read('routes', 'users.ts');
     expect(usersSrc).toMatch(/buildPrivateTeamPostVisibilityWhere/);
     expect(usersSrc).toMatch(/isTeamHiddenFromViewer/);
+  });
+  it('search and game list surfaces apply private-team game/event clauses', () => {
+    const searchSrc = read('routes', 'search.ts');
+    expect(searchSrc).toMatch(/buildPrivateTeamGameVisibilityWhere/);
+    expect(searchSrc).toMatch(/buildPrivateTeamEventVisibilityWhere/);
+    expect(read('routes', 'games.ts')).toMatch(/buildPrivateTeamGameVisibilityWhere/);
+    expect(read('routes', 'events.ts')).toMatch(/buildPrivateTeamEventVisibilityWhere/);
   });
   it('private-team exclusion list is cached and invalidated from team writes', () => {
     const privacySrc = read('lib', 'privacyUtils.ts');

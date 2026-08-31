@@ -661,41 +661,14 @@ function CommunityDiscoverScreen() {
 
       const fetchPeople = async (): Promise<any[]> => {
         try {
-          const school = snapshot?.preferences?.school || snapshot?.school || null;
-          const league = snapshot?.preferences?.league || snapshot?.league || null;
-          const zipQ = snapshot?.preferences?.zip_code
-            ? String(snapshot.preferences.zip_code).trim()
-            : '';
-          if (school || league) {
-            const q = String(school || league);
-            try {
-              const members = await Team.allMembers(q);
-              const arr = Array.isArray(members)
-                ? members
-                : Array.isArray((members as any)?.items)
-                  ? (members as any).items
-                  : [];
-              return arr.slice(0, 20);
-            } catch {
-              if (zipQ) {
-                const users = await User.listAll(zipQ, 30);
-                const arr = Array.isArray(users)
-                  ? users
-                  : Array.isArray((users as any)?.items)
-                    ? (users as any).items
-                    : [];
-                return arr.slice(0, 20);
-              }
-            }
-          } else if (zipQ) {
-            const users = await User.listAll(zipQ, 30);
-            const arr = Array.isArray(users)
-              ? users
-              : Array.isArray((users as any)?.items)
-                ? (users as any).items
-                : [];
-            return arr.slice(0, 20);
-          }
+          if (!snapshot?.id) return [];
+          const suggested = await User.suggested(20);
+          const arr = Array.isArray(suggested)
+            ? suggested
+            : Array.isArray((suggested as any)?.items)
+              ? (suggested as any).items
+              : [];
+          return arr.slice(0, 20);
         } catch (peopleError) {
           if (__DEV__) console.warn('Discover load: nearby people failed', peopleError);
         }
@@ -750,7 +723,10 @@ function CommunityDiscoverScreen() {
   );
 
   // Suggested users load non-blocking, mirroring the old fire-and-forget .then()
-  const suggestedQueryKey = ['discover-suggested-people'];
+  const suggestedQueryKey = useMemo(
+    () => ['discover-suggested-people', user?.id ?? 'guest'],
+    [user?.id]
+  );
   const { data: suggestedData, refetch: refetchSuggested } = useQuery({
     queryKey: suggestedQueryKey,
     enabled: interactionsDone,
@@ -766,11 +742,9 @@ function CommunityDiscoverScreen() {
   const suggestedPeople = suggestedData ?? [];
   const patchSuggestedPeople = useCallback(
     (mapPeople: (people: any[]) => any[]) => {
-      queryClient.setQueryData(['discover-suggested-people'], (old: any) =>
-        old ? mapPeople(old) : old
-      );
+      queryClient.setQueryData(suggestedQueryKey, (old: any) => (old ? mapPeople(old) : old));
     },
-    [queryClient]
+    [queryClient, suggestedQueryKey]
   );
 
   // Full-screen skeleton until both primary queries have data (isPending only —

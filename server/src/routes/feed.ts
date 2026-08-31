@@ -13,6 +13,7 @@ import {
   getExcludedPrivateAuthorIds,
   getExcludedPrivateTeamIds,
   getRequestBlockedCache,
+  mergeAndWhere,
 } from '../lib/privacyUtils.js';
 import { captureException } from '../lib/sentry.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -85,7 +86,7 @@ async function getFollowedPostsPage(
   if (mode === 'followed') {
     // Preload followed author IDs in one indexed query, then use IN — avoids
     // Prisma's correlated EXISTS subquery which scans per post row.
-    const [followRows, excludedIds, blockedIds] = await Promise.all([
+    const [followRows, excludedIds, blockedIds, excludedTeamIds] = await Promise.all([
       prisma.follows.findMany({
         where: { follower_id: currentUserId, status: 'accepted' },
         select: { following_id: true },
@@ -93,6 +94,7 @@ async function getFollowedPostsPage(
       }),
       getExcludedPrivateAuthorIds(currentUserId),
       getBlockedUserIds(currentUserId, getRequestBlockedCache(req)),
+      getExcludedPrivateTeamIds(currentUserId),
     ]);
 
     const followedAuthorIds = followRows.map(r => r.following_id);
@@ -102,15 +104,14 @@ async function getFollowedPostsPage(
     // anyone who follows nobody sees a permanently empty Feed (671d87d3).
     const authorPool = [...new Set([currentUserId, ...followedAuthorIds])];
     const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
-    const allowedAuthorIds = allExcluded.length
-      ? authorPool.filter(id => !allExcluded.includes(id))
-      : authorPool;
 
-    where.OR = [{ author_id: { in: allowedAuthorIds } }, { type: 'admin_broadcast' }];
+    where.OR = [{ author_id: { in: authorPool } }, { type: 'admin_broadcast' }];
+    if (allExcluded.length) where.author_id = { notIn: allExcluded };
+    mergeAndWhere(where, buildPrivateTeamPostVisibilityWhere(excludedTeamIds));
   } else {
     // Preload followed team IDs, then resolve game IDs for those teams — all
     // indexed lookups. Replaces three layers of nested EXISTS subqueries.
-    const [teamFollowRows, excludedIds, blockedIds] = await Promise.all([
+    const [teamFollowRows, excludedIds, blockedIds, excludedTeamIds] = await Promise.all([
       prisma.teamFollow.findMany({
         where: { user_id: currentUserId },
         select: { team_id: true },
@@ -118,6 +119,7 @@ async function getFollowedPostsPage(
       }),
       getExcludedPrivateAuthorIds(currentUserId),
       getBlockedUserIds(currentUserId, getRequestBlockedCache(req)),
+      getExcludedPrivateTeamIds(currentUserId),
     ]);
 
     const followedTeamIds = teamFollowRows.map(r => r.team_id);
@@ -159,19 +161,14 @@ async function getFollowedPostsPage(
     const followedGameIds = followedGameRows.map(g => g.id);
 
     const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
-    const authorIdFilter = allExcluded.length ? { notIn: allExcluded } : undefined;
 
     where.OR = [
-      ...(authorIdFilter
-        ? [{ team_id: { in: followedTeamIds }, author_id: authorIdFilter }]
-        : [{ team_id: { in: followedTeamIds } }]),
-      ...(followedGameIds.length
-        ? authorIdFilter
-          ? [{ game_id: { in: followedGameIds }, author_id: authorIdFilter }]
-          : [{ game_id: { in: followedGameIds } }]
-        : []),
+      { team_id: { in: followedTeamIds } },
+      ...(followedGameIds.length ? [{ game_id: { in: followedGameIds } }] : []),
       { type: 'admin_broadcast' },
     ];
+    if (allExcluded.length) where.author_id = { notIn: allExcluded };
+    mergeAndWhere(where, buildPrivateTeamPostVisibilityWhere(excludedTeamIds));
   }
 
   const query: any = {
@@ -262,8 +259,7 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
   const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
   const privacyWhere: any = {};
   if (allExcluded.length) privacyWhere.author_id = { notIn: allExcluded };
-  const privateTeamPostWhere = buildPrivateTeamPostVisibilityWhere(excludedTeamIds);
-  if (privateTeamPostWhere) privacyWhere.OR = privateTeamPostWhere.OR;
+  mergeAndWhere(privacyWhere, buildPrivateTeamPostVisibilityWhere(excludedTeamIds));
 
   // Run nationalTop and pool concurrently — dedup in JS after both resolve.
   const [nationalTopRaw, poolRaw] = await Promise.all([
@@ -579,6 +575,7 @@ feedRouter.get(
         'unread_notifications',
         'unread_messages',
       ] as const;
+      const errors: Array<{ slice: (typeof sliceNames)[number]; code: string }> = [];
       for (let i = 0; i < settled.length; i++) {
         const r = settled[i];
         if (r.status === 'rejected') {
@@ -589,6 +586,7 @@ feedRouter.get(
             slice: sliceNames[i],
             user_id: req.user?.id,
           });
+          errors.push({ slice: sliceNames[i], code: 'SLICE_FAILED' });
         }
       }
 
@@ -605,6 +603,7 @@ feedRouter.get(
         ads: pick(3, ADS_FALLBACK),
         unread_notifications: pick(4, 0),
         unread_messages: pick(5, 0),
+        errors,
       });
     } catch (error: any) {
       console.error('[feed] GET /bundle error:', error);

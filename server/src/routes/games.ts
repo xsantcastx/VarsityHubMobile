@@ -20,9 +20,12 @@ import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
 import {
+  buildPrivateTeamGameVisibilityWhere,
   getBlockedUserIds,
   getExcludedPrivateAuthorIds,
+  getExcludedPrivateTeamIds,
   getRequestBlockedCache,
+  mergeAndWhere,
 } from '../lib/privacyUtils.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
@@ -1147,6 +1150,13 @@ gamesRouter.get(
       // on THEIR team's calendar correctly still shows there.
       if (whereClause.approval_status === 'approved') {
         whereClause.opponent_approval_status = { in: ['not_required', 'approved'] };
+      }
+
+      if (!wantsNonApproved) {
+        const privateTeamWhere = buildPrivateTeamGameVisibilityWhere(
+          await getExcludedPrivateTeamIds(authedReq.user?.id ?? null)
+        );
+        mergeAndWhere(whereClause, privateTeamWhere);
       }
 
       // Scope non-approved games to the coach's managed teams/orgs (prevent data leak).
