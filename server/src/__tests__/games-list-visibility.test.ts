@@ -96,9 +96,17 @@ jest.unstable_mockModule('../middleware/rateLimiters.js', () => {
 });
 
 jest.unstable_mockModule('../lib/privacyUtils.js', () => ({
+  buildPrivateTeamGameVisibilityWhere: jest.fn(() => null),
   getExcludedPrivateAuthorIds: jest.fn(async () => []),
+  getExcludedPrivateTeamIds: jest.fn(async () => []),
   getBlockedUserIds: jest.fn(async () => []),
   getRequestBlockedCache: jest.fn(() => new Map()),
+  mergeAndWhere: jest.fn((where: any, clause: any) => {
+    if (!clause) return where;
+    where.AND = where.AND || [];
+    where.AND.push(clause);
+    return where;
+  }),
 }));
 
 jest.unstable_mockModule('../lib/notifications.js', () => ({
@@ -166,6 +174,13 @@ describe('GET /games approval-status visibility', () => {
 
     const where = lastFindManyWhere();
     expect(where.approval_status).toBe('approved');
+  });
+
+  it('show_all=true bypasses the signed-in viewer zip proximity fallback', async () => {
+    mockUserFindUnique.mockClear();
+    await request(app).get('/games?show_all=true').expect(200);
+
+    expect(mockUserFindUnique).not.toHaveBeenCalled();
   });
 });
 

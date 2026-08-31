@@ -38,8 +38,7 @@ export function isGamePubliclyVisible(record: {
 }): boolean {
   if (record.approval_status !== 'approved') return false;
   const opponentBlocksPublic =
-    record.opponent_approval_status === 'pending' ||
-    record.opponent_approval_status === 'declined';
+    record.opponent_approval_status === 'pending' || record.opponent_approval_status === 'declined';
   if (!opponentBlocksPublic) return true;
   const gameDate = record.date
     ? record.date instanceof Date

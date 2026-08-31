@@ -99,10 +99,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
 };
 
 // Ensure shims directory is included in the watch folders
-config.watchFolders = [
-  ...config.watchFolders,
-  path.resolve(__dirname, 'shims'),
-];
+config.watchFolders = [...config.watchFolders, path.resolve(__dirname, 'shims')];
 
 // Ensure Fast Refresh watch options are optimal
 config.watchFolders = [...new Set(config.watchFolders)]; // Remove duplicates

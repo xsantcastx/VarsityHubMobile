@@ -30,4 +30,11 @@ describe('feed route contracts', () => {
     expect(routeSource).toContain('feed-bundle-warning');
     expect(routeSource).toContain('Some feed sections could not load');
   });
+
+  it('covers VarsityHub-wide games and event-only pages, not only local/pro fixtures', () => {
+    expect(routeSource).toContain('buildFeedGameQueries(Date.now())');
+    expect(routeSource).toContain('feed-varsityhub-events-upcoming');
+    expect(routeSource).toContain('feed-varsityhub-events-past');
+    expect(routeSource).toContain('event_only: true');
+  });
 });

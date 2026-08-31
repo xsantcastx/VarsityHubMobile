@@ -59,6 +59,7 @@ const sampleMember = {
   user: {
     id: 'user1',
     display_name: 'Casey Coach',
+    username: 'caseyc',
     email: 'casey@example.com',
     avatar_url: null,
   },
@@ -80,6 +81,6 @@ describe('TeamChatScreen (react-query render smoke)', () => {
     await waitFor(() => expect(mockMembers).toHaveBeenCalledWith('t1'));
     // Roster lives on the Members tab.
     fireEvent.press(await screen.findByText(/Members/));
-    expect(await screen.findByText('Casey Coach')).toBeTruthy();
+    expect(await screen.findByText('caseyc')).toBeTruthy();
   });
 });

@@ -7,7 +7,7 @@ const readRepo = (rel: string) => readFileSync(join(repoRoot, rel), 'utf8');
 const readServer = (rel: string) => readFileSync(join(process.cwd(), rel), 'utf8');
 
 const usersRoute = readServer('src/routes/users.ts');
-const entities = readRepo('api/entities.ts');
+const entities = readRepo('apiclient/entities.ts');
 const adminUsersScreen = readRepo('app/admin-users.tsx');
 const adminTeamsScreen = readRepo('app/admin-teams.tsx');
 

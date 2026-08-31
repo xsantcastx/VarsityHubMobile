@@ -195,7 +195,7 @@ describe('sport program endpoints', () => {
     await prisma.organization.delete({ where: { id: otherOrg.id } }).catch(() => {});
   });
 
-  it('org transfer without program_id clears the stale program link', async () => {
+  it('blocks org transfer for organization-locked teams before changing program links', async () => {
     const prog = await prisma.sportProgram.findFirst({
       where: { organization_id: orgId, sport: 'soccer' },
     });
@@ -227,14 +227,15 @@ describe('sport program endpoints', () => {
       .put(`/teams/${team.id}`)
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({ organization_id: transferOrg.id });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('TEAM_ORG_LOCKED');
 
     const moved = await prisma.team.findUnique({
       where: { id: team.id },
       select: { organization_id: true, program_id: true },
     });
-    expect(moved.organization_id).toBe(transferOrg.id);
-    expect(moved.program_id).toBeNull();
+    expect(moved.organization_id).toBe(orgId);
+    expect(moved.program_id).toBe(prog.id);
 
     await prisma.team.delete({ where: { id: team.id } }).catch(() => {});
     await prisma.organizationMembership

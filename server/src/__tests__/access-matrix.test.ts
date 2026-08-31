@@ -607,7 +607,7 @@ describe('Access Matrix — Full Feature Scan', () => {
             title: `AccessTest Fan Event ${ts}`,
             date: futureDate,
             location: 'Test Stadium',
-            event_type: 'game',
+            event_type: 'other',
           }),
         request(fullApp)
           .post('/events')
@@ -616,7 +616,7 @@ describe('Access Matrix — Full Feature Scan', () => {
             title: `AccessTest Rookie Event ${ts}`,
             date: futureDate,
             location: 'Test Stadium',
-            event_type: 'game',
+            event_type: 'other',
             home_team_id: rookieTeamId,
           }),
         request(fullApp)
@@ -626,7 +626,7 @@ describe('Access Matrix — Full Feature Scan', () => {
             title: `AccessTest Veteran Event ${ts}`,
             date: futureDate,
             location: 'Test Stadium',
-            event_type: 'game',
+            event_type: 'other',
             home_team_id: veteranTeamId,
           }),
       ]);

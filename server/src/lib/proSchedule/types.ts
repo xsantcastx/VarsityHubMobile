@@ -53,6 +53,7 @@ export type ProFixture = {
 
 export type ProviderTeam = {
   external_ref: string;
+  league: ProLeague;
   name: string;
   short_name: string;
   abbreviation: string | null;

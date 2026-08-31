@@ -95,7 +95,7 @@ describe('MessageThreadScreen', () => {
     await waitFor(() => expect(mockThreadByConversation).toHaveBeenCalledWith('c1', 100));
     await waitFor(() => expect(mockMarkReadByConversation).toHaveBeenCalledWith('c1'));
 
-    expect(await screen.findByText('Alex Coach')).toBeTruthy();
+    expect(await screen.findByText('@alexc')).toBeTruthy();
     expect(screen.getByText('Tap to view profile')).toBeTruthy();
     expect(await screen.findByText('See you at the game!')).toBeTruthy();
     expect(await screen.findByText('Jul 6')).toBeTruthy();

@@ -12,6 +12,7 @@ import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
 import { getTeamState } from '../lib/teamState.js';
+import { invalidatePrivateTeamIdsCache } from '../lib/privacyUtils.js';
 
 let prisma: any;
 let signJwt: any;
@@ -973,6 +974,7 @@ describe('API Team Endpoints', () => {
         },
         select: { id: true },
       });
+      invalidatePrivateTeamIdsCache();
       await prisma.teamMembership.create({
         data: {
           team_id: team.id,
@@ -1014,6 +1016,7 @@ describe('API Team Endpoints', () => {
       await prisma.teamFollow.deleteMany({ where: { team_id: team.id } }).catch(() => {});
       await prisma.teamMembership.deleteMany({ where: { team_id: team.id } }).catch(() => {});
       await prisma.team.delete({ where: { id: team.id } }).catch(() => {});
+      invalidatePrivateTeamIdsCache();
       await prisma.user.delete({ where: { id: privateOwner.id } }).catch(() => {});
     });
   });

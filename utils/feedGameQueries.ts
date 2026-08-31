@@ -56,6 +56,7 @@ type GameListOptions = {
   teamless?: boolean;
   lat?: number;
   lng?: number;
+  showAll?: boolean;
 };
 
 export type FeedViewerCoords = { lat: number; lng: number };
@@ -76,14 +77,14 @@ export function buildFeedGameQueries(
   const liveFrom = new Date(nowMs - FEED_LIVE_LOOKBACK_MS).toISOString();
   const upcomingTo = new Date(nowMs + FEED_UPCOMING_WINDOW_MS).toISOString();
   const nowIso = new Date(nowMs).toISOString();
-  // Viewer coords make the server select nearest-first instead of the N
-  // soonest games nationwide. When absent, the server falls back to the
-  // signed-in viewer's zip preference — so omitting lat/lng is still correct.
-  const near = coords ? { lat: coords.lat, lng: coords.lng } : {};
+  // Feed is a VarsityHub-wide surface. Map/Discover handle local browsing; Feed
+  // bypasses device/profile-zip proximity so every team's public games can
+  // compete in the same timeline.
+  const scope = coords ? { lat: coords.lat, lng: coords.lng } : { showAll: true };
   return {
     upcoming: {
       sort: 'date',
-      options: { limit: 30, dateFrom: liveFrom, dateTo: upcomingTo, ...near },
+      options: { limit: 30, dateFrom: liveFrom, dateTo: upcomingTo, ...scope },
     },
     past: {
       sort: '-date',
@@ -91,12 +92,12 @@ export function buildFeedGameQueries(
         limit: 30,
         dateFrom: new Date(nowMs - FEED_PAST_WINDOW_MS).toISOString(),
         dateTo: nowIso,
-        ...near,
+        ...scope,
       },
     },
     marquee: {
       sort: 'date',
-      options: { limit: 10, dateFrom: liveFrom, dateTo: upcomingTo, teamless: true, ...near },
+      options: { limit: 10, dateFrom: liveFrom, dateTo: upcomingTo, teamless: true, ...scope },
     },
   };
 }

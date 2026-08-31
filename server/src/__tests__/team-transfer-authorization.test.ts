@@ -107,14 +107,14 @@ describe('Team transfer authorization boundaries', () => {
       .catch(() => {});
   });
 
-  it('blocks moving a team into a target org when requester is only a non-admin member there', async () => {
+  it('blocks moving an organization-locked team into another organization', async () => {
     const res = await request(app)
       .put(`/teams/${teamId}`)
       .set('Authorization', `Bearer ${moverToken}`)
       .send({ organization_id: targetOrgId });
 
     expect(res.status).toBe(403);
-    expect(res.body?.error).toBe('ORGANIZATION_ADMIN_REQUIRED');
+    expect(res.body?.error).toBe('TEAM_ORG_LOCKED');
 
     const refreshed = await prisma.team.findUnique({
       where: { id: teamId },

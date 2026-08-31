@@ -22,10 +22,7 @@ import sanitizeHtml from 'sanitize-html';
  * entities to be decoded. If `allowedTags` is ever widened, revisit this.
  */
 function decodeStrippedEntities(text: string): string {
-  return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
+  return text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }
 
 /** Strip all HTML tags, returning plain text. Safe for storage. */

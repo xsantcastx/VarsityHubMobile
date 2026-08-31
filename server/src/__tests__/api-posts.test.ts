@@ -644,7 +644,7 @@ describeDb('Posts API Endpoints', () => {
           .send({
             content: 'Posting uploaded media to a standalone event page',
             type: 'highlight',
-            media_url: 'https://res.cloudinary.com/varsityhub/image/upload/test-event-media.jpg',
+            media_url: 'https://varsityhub.app/uploads/test-event-media.jpg',
             event_id: event.id,
             location: {
               lat: 40.7128,

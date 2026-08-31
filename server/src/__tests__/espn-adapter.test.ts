@@ -59,6 +59,68 @@ describe('espnAdapter parser', () => {
     expect(parsed[0].home_team_ref).toBe('wnba:atlanta-dream');
     expect(parsed[0].away_team_ref).toBeNull();
   });
+
+  it('carries NCAA provider teams and venue geocode queries for ingest', () => {
+    const ncaa = {
+      events: [
+        {
+          id: '401864494',
+          date: '2026-08-29T19:00Z',
+          competitions: [
+            {
+              venue: {
+                fullName: 'Los Angeles Memorial Coliseum',
+                address: { city: 'Los Angeles', state: 'CA', country: 'USA' },
+              },
+              status: { type: { name: 'STATUS_SCHEDULED' } },
+              competitors: [
+                {
+                  homeAway: 'home',
+                  team: {
+                    id: '30',
+                    displayName: 'USC Trojans',
+                    shortDisplayName: 'Trojans',
+                    abbreviation: 'USC',
+                    location: 'USC',
+                    color: '990000',
+                  },
+                },
+                {
+                  homeAway: 'away',
+                  team: {
+                    id: '23',
+                    displayName: 'San José State Spartans',
+                    shortDisplayName: 'Spartans',
+                    abbreviation: 'SJSU',
+                    location: 'San José State',
+                    color: '0055a2',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const [parsed] = adapter.__parseScoreboard!(
+      'ncaaf',
+      ncaa,
+      new Date('2026-08-01T00:00:00.000Z'),
+      new Date('2026-09-30T00:00:00.000Z')
+    );
+
+    expect(parsed.home_team_ref).toBe('ncaaf:espn-30');
+    expect(parsed.away_team_ref).toBe('ncaaf:espn-23');
+    expect(parsed.home_team).toMatchObject({
+      external_ref: 'ncaaf:espn-30',
+      name: 'USC Trojans',
+      short_name: 'Trojans',
+      primary_color: '#990000',
+    });
+    expect(parsed.venue_address).toBe('Los Angeles, CA, USA');
+    expect(parsed._geocodeQuery).toBe('Los Angeles Memorial Coliseum, Los Angeles, CA, USA');
+  });
 });
 
 describe('neutral-site detection', () => {

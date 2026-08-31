@@ -1054,6 +1054,7 @@ gamesRouter.get(
       const lngRaw = Number.parseFloat(String(req.query.lng ?? ''));
       let viewerLat: number | null = Number.isFinite(latRaw) ? latRaw : null;
       let viewerLng: number | null = Number.isFinite(lngRaw) ? lngRaw : null;
+      const showAll = String(req.query.show_all || '').toLowerCase() === 'true';
       const dateFromRaw = req.query.from ? new Date(String(req.query.from)) : null;
       const dateToRaw = req.query.to ? new Date(String(req.query.to)) : null;
 
@@ -1315,6 +1316,7 @@ gamesRouter.get(
       // and the followed-teams calendar (following) stay strictly date-ordered.
       if (
         viewerLat === null &&
+        !showAll &&
         authedReq.user?.id &&
         !teamIdFilter &&
         !following &&

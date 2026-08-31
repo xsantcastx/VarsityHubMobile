@@ -92,7 +92,7 @@ it('falls back to preference country when reverse geocoding fails', async () => 
     .set('Authorization', `Bearer ${token}`)
     .send({
       content: 'geocode-down post',
-      media_url: 'https://res.cloudinary.com/test/image/upload/x.jpg',
+      media_url: 'https://varsityhub.app/uploads/x.jpg',
       location: { lat: 40.7, lng: -74.0 },
     });
   expect(res.status).toBeLessThan(300);
@@ -113,7 +113,7 @@ it('defaults to US when the user has no preference country and reverse geocoding
     .set('Authorization', `Bearer ${token}`)
     .send({
       content: 'geocode-down post, no pref country',
-      media_url: 'https://res.cloudinary.com/test/image/upload/x.jpg',
+      media_url: 'https://varsityhub.app/uploads/x.jpg',
       location: { lat: 34.0, lng: -118.4, source: 'device' },
     });
   expect(res.status).toBeLessThan(300);
@@ -131,7 +131,7 @@ it('defaults to US when the user has no preference country and no location at al
   const token = signJwt({ id: userNoLocationId });
   const res = await request(app).post('/posts').set('Authorization', `Bearer ${token}`).send({
     content: 'no location at all post',
-    media_url: 'https://res.cloudinary.com/test/image/upload/x.jpg',
+    media_url: 'https://varsityhub.app/uploads/x.jpg',
   });
   expect(res.status).toBeLessThan(300);
   const postId = res.body?.id ?? res.body?.post?.id ?? null;

@@ -69,10 +69,13 @@ describe('buildFeedGameQueries', () => {
     expect(q.marquee.options.lng).toBe(-74.01);
   });
 
-  it('omits lat/lng entirely when no coords are available (server zip fallback owns it)', () => {
+  it('requests a global feed when no coords are passed, bypassing profile-zip proximity', () => {
     const q = buildFeedGameQueries(now);
     expect(q.upcoming.options.lat).toBeUndefined();
     expect(q.upcoming.options.lng).toBeUndefined();
+    expect(q.upcoming.options.showAll).toBe(true);
+    expect(q.past.options.showAll).toBe(true);
+    expect(q.marquee.options.showAll).toBe(true);
   });
 });
 

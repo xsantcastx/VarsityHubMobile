@@ -91,6 +91,7 @@ function providerTeam(league: ProLeague, team?: EspnTeam | null): ProviderTeam |
   if (!externalRef || !team?.displayName) return null;
   return {
     external_ref: externalRef,
+    league,
     name: varchar(team.displayName, 120) ?? externalRef,
     short_name: varchar(team.shortDisplayName || team.name || team.displayName, 60) ?? externalRef,
     abbreviation: varchar(team.abbreviation, 8),
@@ -151,9 +152,16 @@ export function parseScoreboard(
     const country = (addr.country ?? '').trim();
     const DOMESTIC = new Set(['usa', 'us', 'united states']);
     const isNeutral = country.length > 0 && !DOMESTIC.has(country.toLowerCase());
-    const geocodeQuery = isNeutral
-      ? [venueName, addr.city, addr.state, country].filter(Boolean).join(', ')
-      : null;
+    // Pro leagues have seeded home venues, so ordinary domestic games can
+    // inherit the home team's geofence. NCAA teams are provider-created and do
+    // not have seeded stadium coordinates, so their fixture venue must be
+    // geocoded before ingest can publish the event.
+    const shouldGeocodeVenue = isNeutral || collegeLeague;
+    const venueAddress = [addr.city, addr.state, country].filter(Boolean).join(', ') || null;
+    const geocodeQuery =
+      shouldGeocodeVenue && venueName
+        ? [venueName, addr.city, addr.state, country].filter(Boolean).join(', ')
+        : null;
 
     out.push({
       external_ref: `${league}:${e.id}`,
@@ -165,6 +173,7 @@ export function parseScoreboard(
       away_team: collegeLeague ? providerTeam(league, awayTeam) : null,
       title: null, // resolveFixture derives "Away at Home" from short names
       venue_name: venueName,
+      venue_address: venueAddress,
       venue_lat: null,
       venue_lng: null,
       venue_is_neutral: isNeutral,

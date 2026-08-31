@@ -7,7 +7,7 @@ import {
   TOURING_LEAGUES,
   type ProTeamVenue,
 } from './resolveFixture.js';
-import type { ProFixture, ProScheduleAdapter } from './types.js';
+import type { ProFixture, ProScheduleAdapter, ProviderTeam } from './types.js';
 
 /**
  * Upserts normalized fixtures into Event rows.
@@ -50,6 +50,26 @@ type ExistingEventSnapshot = {
   status: EventStatus;
 };
 
+type ProviderTeamSnapshot = {
+  id: string;
+  external_ref: string;
+  league: ProLeague;
+  name: string;
+  short_name: string;
+  abbreviation: string | null;
+  city: string | null;
+  state: string | null;
+  conference: string | null;
+  division: string | null;
+  venue_name: string | null;
+  venue_address: string | null;
+  venue_lat: number | null;
+  venue_lng: number | null;
+  timezone: string | null;
+  primary_color: string | null;
+  active: boolean;
+};
+
 function hasProviderFieldChanges(existing: ExistingEventSnapshot, next: ResolvedFixture): boolean {
   return (
     existing.title !== next.title ||
@@ -84,6 +104,83 @@ async function loadTeams(league: ProLeague): Promise<Map<string, ProTeamVenue>> 
   return new Map(teams.map(t => [t.external_ref, t]));
 }
 
+function hasProviderTeamChanges(existing: ProviderTeamSnapshot, next: ProviderTeam): boolean {
+  return (
+    existing.league !== next.league ||
+    existing.name !== next.name ||
+    existing.short_name !== next.short_name ||
+    existing.abbreviation !== next.abbreviation ||
+    existing.city !== next.city ||
+    existing.state !== next.state ||
+    existing.conference !== next.conference ||
+    existing.division !== next.division ||
+    existing.venue_name !== next.venue_name ||
+    existing.venue_address !== next.venue_address ||
+    existing.venue_lat !== next.venue_lat ||
+    existing.venue_lng !== next.venue_lng ||
+    existing.timezone !== next.timezone ||
+    existing.primary_color !== next.primary_color ||
+    existing.active !== true
+  );
+}
+
+async function ensureProviderTeams(fixtures: ProFixture[], options: IngestOptions): Promise<void> {
+  if (options.dryRun) return;
+
+  const incomingByRef = new Map<string, ProviderTeam>();
+  for (const fixture of fixtures) {
+    for (const team of [fixture.home_team, fixture.away_team]) {
+      if (!team?.external_ref) continue;
+      incomingByRef.set(team.external_ref, team);
+    }
+  }
+
+  const incoming = [...incomingByRef.values()];
+  if (incoming.length === 0) return;
+
+  const existing = await prisma.proTeam.findMany({
+    where: { external_ref: { in: incoming.map(team => team.external_ref) } },
+    select: {
+      id: true,
+      external_ref: true,
+      league: true,
+      name: true,
+      short_name: true,
+      abbreviation: true,
+      city: true,
+      state: true,
+      conference: true,
+      division: true,
+      venue_name: true,
+      venue_address: true,
+      venue_lat: true,
+      venue_lng: true,
+      timezone: true,
+      primary_color: true,
+      active: true,
+    },
+    take: Math.min(incoming.length, 10000),
+  });
+  const existingByRef = new Map(existing.map(team => [team.external_ref, team]));
+
+  const toCreate = incoming.filter(team => !existingByRef.has(team.external_ref));
+  if (toCreate.length > 0) {
+    await prisma.proTeam.createMany({
+      data: toCreate.map(team => ({ ...team, active: true })),
+      skipDuplicates: true,
+    });
+  }
+
+  for (const team of incoming) {
+    const current = existingByRef.get(team.external_ref);
+    if (!current || !hasProviderTeamChanges(current, team)) continue;
+    await prisma.proTeam.update({
+      where: { external_ref: team.external_ref },
+      data: { ...team, active: true },
+    });
+  }
+}
+
 export async function ingestFixtures(
   league: ProLeague,
   fixtures: ProFixture[],
@@ -100,6 +197,7 @@ export async function ingestFixtures(
 
   if (fixtures.length === 0) return stats;
 
+  await ensureProviderTeams(fixtures, options);
   const teamsByRef = await loadTeams(league);
 
   const refs = fixtures.map(f => f.external_ref);

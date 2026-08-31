@@ -240,6 +240,7 @@ export const Game = {
       mapView?: boolean; // v1.0.2: restricts server-side to games this week only
       teamless?: boolean; // curated/marquee events with no real team matchup
       following?: boolean; // Discover calendar: scope to viewer's followed teams
+      showAll?: boolean; // Bypass device/profile-zip proximity for global surfaces
     }
   ) => {
     const params: string[] = [];
@@ -262,6 +263,7 @@ export const Game = {
     if (options?.mapView) params.push('map_view=true');
     if (options?.teamless) params.push('teamless=true');
     if (options?.following) params.push('following=true');
+    if (options?.showAll) params.push('show_all=true');
     const qs = params.length ? `?${params.join('&')}` : '';
     return httpGet('/games' + qs, {}, 15000, 2);
   },

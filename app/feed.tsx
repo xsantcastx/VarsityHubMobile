@@ -145,7 +145,7 @@ const normalizeGamesPage = (gamesData: any): { games: GameItem[]; cursor: string
   };
 };
 
-const normalizeProFeedEvents = (
+const normalizeFeedEvents = (
   eventsData: any,
   fallbackLeague?: NonNullable<GameItem['pro_league']>
 ): GameItem[] => {
@@ -850,7 +850,7 @@ export default function FeedScreen() {
         // Upcoming and the past recap are separate queries with separate page
         // budgets (see utils/feedGameQueries.ts); the upcoming query is the
         // primary one — it owns the pagination cursor and the error state.
-        const queryPlan = buildFeedGameQueries(Date.now(), viewerCoords);
+        const queryPlan = buildFeedGameQueries(Date.now());
         const proLookaheadTo = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString();
         feedQueryPlanRef.current = queryPlan;
         // The three queries are independent — run them concurrently (sequential
@@ -864,6 +864,8 @@ export default function FeedScreen() {
           marqueeGamesData,
           proUpcomingData,
           proPastData,
+          varsityhubUpcomingEventsData,
+          varsityhubPastEventsData,
           proWweUpcomingData,
           proNflUpcomingData,
           ...ncaaUpcomingData
@@ -964,6 +966,50 @@ export default function FeedScreen() {
             }),
           queryClient
             .fetchQuery({
+              queryKey: [
+                'feed-varsityhub-events-upcoming',
+                queryPlan.upcoming.options.dateFrom,
+                queryPlan.upcoming.options.dateTo ?? null,
+              ],
+              queryFn: () =>
+                Event.filter(
+                  {
+                    event_only: true,
+                    from: queryPlan.upcoming.options.dateFrom,
+                    to: queryPlan.upcoming.options.dateTo,
+                  },
+                  'date',
+                  100
+                ),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load VarsityHub upcoming events:', err);
+              return null;
+            }),
+          queryClient
+            .fetchQuery({
+              queryKey: [
+                'feed-varsityhub-events-past',
+                queryPlan.past.options.dateFrom,
+                queryPlan.past.options.dateTo ?? null,
+              ],
+              queryFn: () =>
+                Event.filter(
+                  {
+                    event_only: true,
+                    from: queryPlan.past.options.dateFrom,
+                    to: queryPlan.past.options.dateTo,
+                  },
+                  '-date',
+                  100
+                ),
+            })
+            .catch((err: any) => {
+              if (__DEV__) console.warn('[Feed] Failed to load VarsityHub past events:', err);
+              return null;
+            }),
+          queryClient
+            .fetchQuery({
               queryKey: ['feed-pro-events-upcoming-wwe', queryPlan.upcoming.options.dateFrom],
               queryFn: () =>
                 Event.filter(
@@ -1042,28 +1088,45 @@ export default function FeedScreen() {
         ];
         const proPastRows = filterProEventsAlreadyRepresentedByGames(
           gameRows,
-          normalizeProFeedEvents(proPastData)
+          normalizeFeedEvents(proPastData)
         );
         const proUpcomingRows = filterProEventsAlreadyRepresentedByGames(
           gameRows,
-          normalizeProFeedEvents(proUpcomingData)
+          normalizeFeedEvents(proUpcomingData)
+        );
+        const varsityhubEventRows = filterProEventsAlreadyRepresentedByGames(
+          gameRows,
+          normalizeFeedEvents(varsityhubUpcomingEventsData)
+        );
+        const varsityhubPastEventRows = filterProEventsAlreadyRepresentedByGames(
+          gameRows,
+          normalizeFeedEvents(varsityhubPastEventsData)
         );
         const proWweRows = filterProEventsAlreadyRepresentedByGames(
           gameRows,
-          normalizeProFeedEvents(proWweUpcomingData, 'wwe')
+          normalizeFeedEvents(proWweUpcomingData, 'wwe')
         );
         const proNflRows = filterProEventsAlreadyRepresentedByGames(
           gameRows,
-          normalizeProFeedEvents(proNflUpcomingData, 'nfl')
+          normalizeFeedEvents(proNflUpcomingData, 'nfl')
         );
         const ncaaRows = ncaaUpcomingData.flatMap((eventsData, index) =>
           filterProEventsAlreadyRepresentedByGames(
             gameRows,
-            normalizeProFeedEvents(eventsData, NCAA_FEED_LEAGUES[index])
+            normalizeFeedEvents(eventsData, NCAA_FEED_LEAGUES[index])
           )
         );
         let normalizedGames = dedupeFeedEntities(
-          mergeFeedGames(gameRows, proPastRows, proUpcomingRows, proWweRows, proNflRows, ncaaRows)
+          mergeFeedGames(
+            gameRows,
+            proPastRows,
+            proUpcomingRows,
+            varsityhubEventRows,
+            varsityhubPastEventRows,
+            proWweRows,
+            proNflRows,
+            ncaaRows
+          )
         );
 
         // If no games exist, seed sample games as real DB records (stories/polls work)
