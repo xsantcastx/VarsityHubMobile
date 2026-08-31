@@ -107,7 +107,7 @@ describe('event discovery contract', () => {
         where: expect.objectContaining({
           date: {
             gte: now,
-            lte: new Date('2026-09-14T12:00:00.000Z'),
+            lte: new Date('2026-09-05T12:00:00.000Z'),
           },
         }),
       })
@@ -118,14 +118,14 @@ describe('event discovery contract', () => {
           game_id: null,
           date: {
             gte: now,
-            lte: new Date('2026-09-14T12:00:00.000Z'),
+            lte: new Date('2026-09-05T12:00:00.000Z'),
           },
         }),
       })
     );
   });
 
-  it('clamps caller-supplied map windows to the two-week server policy', async () => {
+  it('clamps caller-supplied map windows to the five-day server policy', async () => {
     const now = new Date('2026-08-31T12:00:00.000Z');
     const db: any = {
       game: { findMany: jest.fn(async () => []) },
@@ -146,7 +146,7 @@ describe('event discovery contract', () => {
         where: expect.objectContaining({
           date: {
             gte: now,
-            lte: new Date('2026-09-14T12:00:00.000Z'),
+            lte: new Date('2026-09-05T12:00:00.000Z'),
           },
         }),
       })

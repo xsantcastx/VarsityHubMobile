@@ -19,7 +19,7 @@ export type EventDiscoveryParams = {
   now?: Date;
 };
 
-const MAP_LOOKAHEAD_MS = 14 * 24 * 60 * 60 * 1000;
+const MAP_LOOKAHEAD_MS = 5 * 24 * 60 * 60 * 1000;
 const FEED_PAST_LOOKBACK_MS = 12 * 60 * 60 * 1000;
 const MAX_DISCOVERY_RANGE_MS = MAP_LOOKAHEAD_MS;
 const DEFAULT_LIMIT = 100;
