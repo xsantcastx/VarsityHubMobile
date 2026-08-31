@@ -3,6 +3,7 @@
 FROM node:20-bookworm-slim AS web-builder
 
 WORKDIR /web
+ARG EXPORT_WEB=0
 
 RUN apt-get update \
   && apt-get upgrade -y \
@@ -26,7 +27,11 @@ RUN npm ci
 COPY . .
 
 ENV CI=1
-RUN npx expo export --platform web
+RUN if [ "$EXPORT_WEB" = "1" ]; then \
+      npx expo export --platform web; \
+    else \
+      mkdir -p dist; \
+    fi
 
 FROM node:20-bookworm-slim
 
