@@ -99,7 +99,7 @@ function buildCapabilities(
   const overrideAllowed = activeDesignatedGrant || isExclusivePoster;
   const canPostWithoutFreshGeofence = overrideAllowed || hasActiveUnlock;
   const windowLive = state === 'live';
-  const closedCode = state === 'before_open' ? 'POSTING_WINDOW_CLOSED' : 'POSTING_WINDOW_CLOSED';
+  const closedCode = 'POSTING_WINDOW_CLOSED';
   const liveNeedsLocationCode = 'LOCATION_REQUIRED';
 
   return {

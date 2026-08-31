@@ -76,7 +76,7 @@ describe('event discovery contract', () => {
       game_id: 'game-1',
       map_visibility: { visible: true },
       posting_capabilities: {
-        window_state: 'before_open',
+        window_state: 'live',
         geofence_radius_km: 3,
       },
     });

@@ -421,10 +421,7 @@ async function loadPostingEvent(eventId: string) {
  * Contrast `exclusive_poster_id`, which is single-user and blocks everyone else.
  * Grant/revoke via `server/scripts/set-event-designated-poster.ts`.
  */
-export async function isDesignatedEventPoster(
-  userId: string,
-  eventId: string
-): Promise<boolean> {
+export async function isDesignatedEventPoster(userId: string, eventId: string): Promise<boolean> {
   const row = await prisma.eventDesignatedPoster.findUnique({
     where: { event_id_user_id: { event_id: eventId, user_id: userId } },
     select: { user_id: true },

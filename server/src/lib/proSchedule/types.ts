@@ -49,6 +49,18 @@ export type ProFixture = {
   status: 'scheduled' | 'postponed' | 'cancelled';
 };
 
+export const NCAA_LEAGUES = [
+  'ncaaf',
+  'ncaamb',
+  'ncaawb',
+  'ncaabaseball',
+  'ncaamhockey',
+] as const satisfies readonly ProLeague[];
+
+export function isNcaaLeague(league: ProLeague): boolean {
+  return (NCAA_LEAGUES as readonly ProLeague[]).includes(league);
+}
+
 export type ProScheduleAdapter = {
   /** Provider name, for logs. */
   readonly name: string;
@@ -77,4 +89,9 @@ export const LIVE_WINDOW_HOURS_BY_LEAGUE: Record<ProLeague, number> = {
   wwe: 4,
   nba: 3,
   wnba: 3,
+  ncaaf: 4,
+  ncaamb: 4,
+  ncaawb: 4,
+  ncaabaseball: 4,
+  ncaamhockey: 4,
 };

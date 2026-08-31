@@ -615,7 +615,12 @@ describe('first-post-unlocks-7-days posting rule', () => {
       // standing at the venue. Additive means they follow the normal rules.
       mockDesignatedFindUnique.mockResolvedValue(null); // this user is not on the list
 
-      const result = await verifyEventPostingPermission('event-1', 'someone-else', VENUE.lat, VENUE.lon);
+      const result = await verifyEventPostingPermission(
+        'event-1',
+        'someone-else',
+        VENUE.lat,
+        VENUE.lon
+      );
 
       expect(result.allowed).toBe(true);
     });
@@ -624,7 +629,12 @@ describe('first-post-unlocks-7-days posting rule', () => {
       LONG_AFTER_CLOSE();
       mockDesignatedFindUnique.mockResolvedValue(null);
 
-      const result = await verifyEventPostingPermission('event-1', 'random', FAR_AWAY.lat, FAR_AWAY.lon);
+      const result = await verifyEventPostingPermission(
+        'event-1',
+        'random',
+        FAR_AWAY.lat,
+        FAR_AWAY.lon
+      );
 
       expect(result.allowed).toBe(false);
       expect(result.code).toBe('POSTING_WINDOW_CLOSED');
