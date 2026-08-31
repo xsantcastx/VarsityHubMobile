@@ -76,6 +76,15 @@ export const NCAA_LEAGUES = [
   'ncaamhockey',
 ] as const satisfies readonly ProLeague[];
 
+export const PRO_SCHEDULE_LEAGUES = [
+  'nfl',
+  'nba',
+  'wnba',
+  'mlb',
+  'wwe',
+  ...NCAA_LEAGUES,
+] as const satisfies readonly ProLeague[];
+
 export function isNcaaLeague(league: ProLeague): boolean {
   return (NCAA_LEAGUES as readonly ProLeague[]).includes(league);
 }

@@ -257,7 +257,7 @@ function DraggableSticker({
         style={[styles.removeBtn, removeBtnBg && { backgroundColor: removeBtnBg }]}
         onPress={onRemove}
       >
-        <Text style={{ fontSize: 12, color: removeBtnColor || '#000' }}>✕</Text>
+        <Text style={[{ fontSize: 12 }, removeBtnColor && { color: removeBtnColor }]}>✕</Text>
       </Pressable>
     </View>
   );

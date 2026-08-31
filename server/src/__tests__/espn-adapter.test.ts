@@ -170,8 +170,18 @@ describe('resolveFixture neutral-site safety', () => {
 });
 
 describe('espnAdapter coverage', () => {
-  it('serves the four ESPN league sports, not WWE', () => {
-    expect(ESPN_LEAGUES.sort()).toEqual(['mlb', 'nba', 'nfl', 'wnba']);
+  it('serves ESPN league sports including NCAA, not WWE', () => {
+    expect(ESPN_LEAGUES.sort()).toEqual([
+      'mlb',
+      'nba',
+      'ncaabaseball',
+      'ncaaf',
+      'ncaamb',
+      'ncaamhockey',
+      'ncaawb',
+      'nfl',
+      'wnba',
+    ]);
     expect(ESPN_LEAGUES).not.toContain('wwe');
   });
 

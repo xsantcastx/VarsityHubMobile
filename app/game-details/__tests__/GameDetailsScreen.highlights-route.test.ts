@@ -9,7 +9,11 @@ const source = readFileSync(
 
 describe('GameDetailsScreen highlights route contract', () => {
   it('creates highlights from the game details composer entrypoint', () => {
-    expect(source).toContain("params: { gameId: String(targetGameId), type: 'highlight' },");
+    expect(source).toContain("pathname: '/create-post'");
+    expect(source).toContain('gameId: String(vm.gameId)');
+    expect(source).toContain('eventId: String(vm.eventId)');
+    expect(source).toContain("{ eventId: String(vm?.eventId), type: 'highlight' }");
+    expect(source).not.toContain("params: { gameId: String(targetGameId), type: 'highlight' },");
   });
 
   // REGRESSION GUARD: TAGGING a post `type: 'highlight'` on creation is fine —

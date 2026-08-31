@@ -34,6 +34,7 @@ import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -308,6 +309,7 @@ const GameDetailsScreen = () => {
   const [preciseBannerDismissed, setPreciseBannerDismissed] = useState(false);
   const showTopFabRef = useRef(false);
   const currentUserIdRef = useRef<string | null>(null);
+  const hasCompletedInitialLoadRef = useRef(false);
   const headerTranslateY = useMemo(
     () =>
       feedY.interpolate({
@@ -1240,6 +1242,28 @@ const GameDetailsScreen = () => {
       }
     }
 
+    if (
+      hasEvent &&
+      !isDemoMatchup &&
+      !isAdminUser &&
+      !hasPostingUnlock &&
+      (typeof location?.latitude !== 'number' || typeof location?.longitude !== 'number')
+    ) {
+      const granted = permissionGranted ? true : await requestPermission();
+      if (
+        !granted ||
+        typeof location?.latitude !== 'number' ||
+        typeof location?.longitude !== 'number'
+      ) {
+        Alert.alert(
+          'Location Not Ready',
+          'Event stories require current device location within 3 km of the venue. Wait a moment and try again.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+
     try {
       setStoryBusy(true);
       const pickerOptions: ImagePicker.ImagePickerOptions = {
@@ -1616,6 +1640,7 @@ const GameDetailsScreen = () => {
       } finally {
         // eslint-disable-next-line no-console
         if (__DEV__) console.log('[GameDetails] load() — finally: clearing loading state');
+        hasCompletedInitialLoadRef.current = true;
         if (isRefresh) setRefreshing(false);
         else setLoading(false);
       }
@@ -1632,6 +1657,14 @@ const GameDetailsScreen = () => {
     analytics.track(ANALYTICS_EVENTS.EVENT_PAGE_VIEWED, { gameId: id, eventId });
     return () => task.cancel();
   }, [eventId, id, load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasCompletedInitialLoadRef.current) return undefined;
+      void load(true);
+      return undefined;
+    }, [load])
+  );
 
   // Reset per-event UI state immediately when navigating to a different event
   useEffect(() => {
@@ -1795,9 +1828,8 @@ const GameDetailsScreen = () => {
         return applyVoteSelection(prev, team);
       });
 
-      // Use gameId if available, otherwise fall back to eventId for event-only pages
-      const voteId = vm?.gameId || vm?.eventId;
-      if (!voteId) return; // Safety check
+      const voteId = vm?.gameId;
+      if (!voteId) return; // Competitive polls are keyed by Game.id, never Event.id.
 
       setVoteBusy(true);
       try {
@@ -2769,8 +2801,8 @@ const GameDetailsScreen = () => {
                   <Pressable
                     style={styles.addPostButton}
                     onPress={() => {
-                      const targetGameId = vm?.gameId || vm?.eventId;
-                      if (!targetGameId) {
+                      const targetId = vm?.gameId || vm?.eventId;
+                      if (!targetId) {
                         Alert.alert('Create Post', 'Reload this event before creating a post.');
                         return;
                       }
@@ -2789,7 +2821,13 @@ const GameDetailsScreen = () => {
                       // show up in the game highlight surfaces and filters.
                       void router.push({
                         pathname: '/create-post',
-                        params: { gameId: String(targetGameId), type: 'highlight' },
+                        params: vm?.gameId
+                          ? {
+                              gameId: String(vm.gameId),
+                              ...(vm.eventId ? { eventId: String(vm.eventId) } : {}),
+                              type: 'highlight',
+                            }
+                          : { eventId: String(vm?.eventId), type: 'highlight' },
                       } as any);
                     }}
                   >
