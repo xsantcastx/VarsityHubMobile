@@ -4,7 +4,11 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { searchLimiter } from '../middleware/rateLimiters.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { getExcludedPrivateAuthorIds, getExcludedPrivateTeamIds } from '../lib/privacyUtils.js';
+import {
+  buildPrivateTeamPostVisibilityWhere,
+  getExcludedPrivateAuthorIds,
+  getExcludedPrivateTeamIds,
+} from '../lib/privacyUtils.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { captureMessage } from '../lib/sentry.js';
 import { highlightPostSelect } from '../lib/highlightPostSelect.js';
@@ -118,6 +122,7 @@ searchRouter.get(
     // by name/location across all dates (past, present, upcoming) — see the
     // per-model where clauses below.
     const dateWindow = parseDateQuery(q);
+    const privateTeamPostWhere = buildPrivateTeamPostVisibilityWhere(privateTeamExcludeIds);
 
     const [users, teams, organizations, games, events, posts] = await Promise.all([
       prisma.user.findMany({
@@ -296,6 +301,7 @@ searchRouter.get(
           deleted_at: null,
           media_url: { not: null },
           ...(userExcludeIds.length > 0 ? { author_id: { notIn: userExcludeIds } } : {}),
+          ...(privateTeamPostWhere ? { AND: [privateTeamPostWhere] } : {}),
           OR: [
             { title: { contains: q, mode: 'insensitive' } },
             { content: { contains: q, mode: 'insensitive' } },

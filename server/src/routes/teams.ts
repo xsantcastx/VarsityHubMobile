@@ -15,7 +15,11 @@ import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { SERVER_ROOKIE_PROGRAM_LIMIT } from '../lib/planDefinitions.js';
 import { getAuthorizedUsersPerTeam, planSupportsExtracurricular } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
-import { getExcludedPrivateTeamIds, isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
+import {
+  getExcludedPrivateTeamIds,
+  invalidatePrivateTeamIdsCache,
+  isTeamHiddenFromViewer,
+} from '../lib/privacyUtils.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
@@ -2071,6 +2075,7 @@ teamsRouter.post(
     if ('status' in result) {
       return res.status(result.status).json(result.body);
     }
+    invalidatePrivateTeamIdsCache();
 
     return res.status(201).json(result.team);
   })
@@ -2332,6 +2337,13 @@ teamsRouter.put(
           },
         },
       });
+      if (
+        parsed.data.is_private !== undefined ||
+        parsed.data.organization_id !== undefined ||
+        parsed.data.program_id !== undefined
+      ) {
+        invalidatePrivateTeamIdsCache();
+      }
       debugLog('[Teams PUT] Update successful');
       // The team just gained (or switched to) a program_id. Fan out that
       // program's existing followers to this team so its posts reach them.
@@ -2422,6 +2434,7 @@ teamsRouter.delete(
           select: { id: true },
         }),
       ]);
+      invalidatePrivateTeamIdsCache();
 
       return res.json({ ok: true, archived: true, message: 'Team archived successfully' });
     } catch (err: any) {

@@ -547,20 +547,22 @@ describe('first-post-unlocks-7-days posting rule', () => {
     });
   });
 
-  // Additive designated-poster grant (owner rule, 2026-07-19 Fanatics Fest):
-  // a user allowlisted for an event may post AND upload stories at any time,
-  // from anywhere — bypassing the live window and the venue geofence — WITHOUT
-  // affecting any other user. This is the post-event "give a specific person
-  // continued access for marketing/continuity" grant. Contrast the single-user
-  // exclusive_poster_id lock, which blocks everyone else.
+  // Additive designated-poster marker (owner rule, 2026-07-19 Fanatics Fest):
+  // paired with an active EventPostingUnlock row, it lets one user post and
+  // upload stories from anywhere for the same capped 7-day grant, without
+  // affecting any other user. Contrast exclusive_poster_id, which blocks
+  // everyone else.
   describe('additive designated-poster grant', () => {
     const AT_VENUE_LIVE = () => jest.setSystemTime(new Date(EVENT_DATE.getTime() + 30 * 60 * 1000));
+    const AFTER_LIVE_WITHIN_GRACE = () =>
+      jest.setSystemTime(new Date(EVENT_DATE.getTime() + 5 * 60 * 60 * 1000));
     const LONG_AFTER_CLOSE = () =>
       jest.setSystemTime(new Date(GRACE_END.getTime() + 24 * 60 * 60 * 1000));
 
-    it('lets a designated poster post from anywhere after the event has fully closed', async () => {
-      LONG_AFTER_CLOSE();
+    it('allows explicit designated-poster access only while the 7-day unlock is active', async () => {
+      AFTER_LIVE_WITHIN_GRACE();
       mockDesignatedFindUnique.mockResolvedValue({ user_id: 'nicon' });
+      mockUnlockFindUnique.mockResolvedValue({ unlocked_at: new Date(EVENT_DATE) });
 
       const result = await verifyEventPostingPermission('event-1', 'nicon', null, null);
 
@@ -571,11 +573,38 @@ describe('first-post-unlocks-7-days posting rule', () => {
       });
     });
 
-    it('lets a designated poster upload a STORY from anywhere after the event has closed (closes the story gap)', async () => {
-      LONG_AFTER_CLOSE();
+    it('does not let a designated-poster row become permanent access by itself', async () => {
+      AFTER_LIVE_WITHIN_GRACE();
       mockDesignatedFindUnique.mockResolvedValue({ user_id: 'nicon' });
+      mockUnlockFindUnique.mockResolvedValue(null);
+
+      const result = await verifyEventPostingPermission('event-1', 'nicon', null, null);
+
+      expect(result.allowed).toBe(false);
+      expect(result.code).toBe('POSTING_WINDOW_CLOSED');
+    });
+
+    it('allows designated-poster story uploads during the active 7-day grant', async () => {
+      AFTER_LIVE_WITHIN_GRACE();
+      mockDesignatedFindUnique.mockResolvedValue({ user_id: 'nicon' });
+      mockUnlockFindUnique.mockResolvedValue({ unlocked_at: new Date(EVENT_DATE) });
 
       const result = await verifyStoryPostingPermission('event-1', 'nicon', null, null, null);
+
+      expect(result.allowed).toBe(true);
+    });
+
+    it('does not block other attendees during the live window', async () => {
+      AT_VENUE_LIVE();
+      mockDesignatedFindUnique.mockResolvedValue(null);
+
+      const result = await verifyStoryPostingPermission(
+        'event-1',
+        'someone-else',
+        VENUE.lat,
+        VENUE.lon,
+        null
+      );
 
       expect(result.allowed).toBe(true);
     });

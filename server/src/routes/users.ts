@@ -27,7 +27,12 @@ import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { invalidateBlockedIdsCache } from '../lib/privacyUtils.js';
+import {
+  buildPrivateTeamPostVisibilityWhere,
+  getExcludedPrivateTeamIds,
+  invalidateBlockedIdsCache,
+  isTeamHiddenFromViewer,
+} from '../lib/privacyUtils.js';
 import { isReservedUsername } from '../lib/reservedUsernames.js';
 
 export const usersRouter = Router();
@@ -548,8 +553,16 @@ usersRouter.get(
       const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
 
       const orderBy = sortParamToOrder(sort);
+      const isAdmin = currentUserId ? await getIsAdmin(req as any) : false;
+      const privateTeamPostWhere = buildPrivateTeamPostVisibilityWhere(
+        isAdmin ? [] : await getExcludedPrivateTeamIds(currentUserId)
+      );
       const query: any = {
-        where: { author_id: id, deleted_at: null },
+        where: {
+          author_id: id,
+          deleted_at: null,
+          ...(privateTeamPostWhere ? { AND: [privateTeamPostWhere] } : {}),
+        },
         take: limit + 1,
         orderBy,
         include: {
@@ -576,10 +589,12 @@ usersRouter.get(
               prisma.postUpvote.findMany({
                 where: { user_id: currentUserId, post_id: { in: postIds } },
                 select: { post_id: true },
+                take: postIds.length,
               }),
               prisma.postBookmark.findMany({
                 where: { user_id: currentUserId, post_id: { in: postIds } },
                 select: { post_id: true },
+                take: postIds.length,
               }),
             ])
           : [[], []];
@@ -591,7 +606,7 @@ usersRouter.get(
         has_bookmarked: bmSet.has(p.id),
       }));
       const [postsCount, likesCount, commentsCount, savesCount] = await Promise.all([
-        prisma.post.count({ where: { author_id: id, deleted_at: null } }),
+        prisma.post.count({ where: query.where }),
         prisma.postUpvote.count({ where: { user_id: id } }),
         prisma.comment.count({ where: { author_id: id } as any }),
         prisma.postBookmark.count({ where: { user_id: id } }),
@@ -713,9 +728,17 @@ usersRouter.get(
       const nextCursor = next ? `${next.ts.toISOString()}::${next.post_id}` : null;
 
       const postIds = page.map(i => i.post_id);
+      const isAdmin = currentUserId ? await getIsAdmin(req as any) : false;
+      const privateTeamPostWhere = buildPrivateTeamPostVisibilityWhere(
+        isAdmin ? [] : await getExcludedPrivateTeamIds(currentUserId)
+      );
       const posts = postIds.length
         ? await prisma.post.findMany({
-            where: { id: { in: postIds }, deleted_at: null },
+            where: {
+              id: { in: postIds },
+              deleted_at: null,
+              ...(privateTeamPostWhere ? { AND: [privateTeamPostWhere] } : {}),
+            },
             // mapPostForPayload serializes author.username — without selecting it here
             // every interaction post rendered as "Anonymous" in the vertical viewer.
             include: {
@@ -739,7 +762,13 @@ usersRouter.get(
       // round trips (~65ms each — the API is us-west2 while Postgres is
       // us-east4) for work that has no ordering requirement.
       const [postCount, likeCount, commentCount, saveCount] = await Promise.all([
-        prisma.post.count({ where: { author_id: id, deleted_at: null } }),
+        prisma.post.count({
+          where: {
+            author_id: id,
+            deleted_at: null,
+            ...(privateTeamPostWhere ? { AND: [privateTeamPostWhere] } : {}),
+          },
+        }),
         prisma.postUpvote.count({ where: { user_id: id } }),
         prisma.comment.count({ where: { author_id: id } as any }),
         prisma.postBookmark.count({ where: { user_id: id } }),
@@ -800,7 +829,21 @@ usersRouter.get(
         return s ?? e ?? null;
       };
 
-      const teams = memberships.map(m => {
+      const isAdmin = currentUserId ? await getIsAdmin(req as any) : false;
+      const visibleMemberships = isAdmin
+        ? memberships
+        : (
+            await Promise.all(
+              memberships.map(async membership => {
+                const teamId = (membership as any).team?.id;
+                if (!teamId) return null;
+                if (await isTeamHiddenFromViewer(teamId, currentUserId)) return null;
+                return membership;
+              })
+            )
+          ).filter((membership): membership is (typeof memberships)[number] => Boolean(membership));
+
+      const teams = visibleMemberships.map(m => {
         const t = (m as any).team;
         return {
           id: t.id,

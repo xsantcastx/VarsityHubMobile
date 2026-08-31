@@ -1,4 +1,4 @@
-import { MembershipStatus } from '@prisma/client';
+import { MembershipStatus, type Prisma } from '@prisma/client';
 import { prisma } from './prisma.js';
 import { getTeamState } from './teamState.js';
 import { cacheGet, cacheSet, cacheDel } from './cache.js';
@@ -6,15 +6,27 @@ import { cacheGet, cacheSet, cacheDel } from './cache.js';
 // Cache TTLs (seconds for Redis, milliseconds for in-process fallback)
 const PRIVATE_IDS_CACHE_TTL_S = 60;
 const BLOCKED_IDS_CACHE_TTL_S = 30;
+const PRIVATE_TEAM_IDS_CACHE_TTL_S = 60;
 const PRIVATE_IDS_CACHE_TTL_MS = PRIVATE_IDS_CACHE_TTL_S * 1000;
+const PRIVATE_TEAM_IDS_CACHE_TTL_MS = PRIVATE_TEAM_IDS_CACHE_TTL_S * 1000;
 
 // In-process fallback for when Redis is unavailable (single-instance dev/cold start)
 let _privateIdsCache: { ids: string[]; expires: number } | null = null;
+let _privateTeamIdsCache: {
+  teams: Array<{ id: string; organization_id: string | null }>;
+  expires: number;
+} | null = null;
 
 /** Invalidate the private-IDs cache (call when a user toggles profile_private). */
 export function invalidatePrivateIdsCache(): void {
   _privateIdsCache = null;
   void cacheDel('privacy:private_ids');
+}
+
+/** Invalidate the private-team cache (call when team privacy/status/org changes). */
+export function invalidatePrivateTeamIdsCache(): void {
+  _privateTeamIdsCache = null;
+  void cacheDel('privacy:private_team_ids');
 }
 
 /**
@@ -75,11 +87,27 @@ export async function getExcludedPrivateAuthorIds(viewerId: string | null): Prom
  * viewer. Team members, team followers, and org admins are allowed through.
  */
 export async function getExcludedPrivateTeamIds(viewerId: string | null): Promise<string[]> {
-  const privateTeams = await prisma.team.findMany({
-    where: { is_private: true, status: 'active' },
-    select: { id: true, organization_id: true },
-    take: 50000,
-  });
+  let privateTeams: Array<{ id: string; organization_id: string | null }>;
+
+  const cached = await cacheGet<Array<{ id: string; organization_id: string | null }>>(
+    'privacy:private_team_ids'
+  );
+  if (cached) {
+    privateTeams = cached;
+  } else if (_privateTeamIdsCache && Date.now() < _privateTeamIdsCache.expires) {
+    privateTeams = _privateTeamIdsCache.teams;
+  } else {
+    privateTeams = await prisma.team.findMany({
+      where: { is_private: true, status: 'active' },
+      select: { id: true, organization_id: true },
+      take: 50000,
+    });
+    _privateTeamIdsCache = {
+      teams: privateTeams,
+      expires: Date.now() + PRIVATE_TEAM_IDS_CACHE_TTL_MS,
+    };
+    void cacheSet('privacy:private_team_ids', privateTeams, PRIVATE_TEAM_IDS_CACHE_TTL_S);
+  }
 
   if (privateTeams.length === 0) return [];
   const privateTeamIds = privateTeams.map(team => team.id);
@@ -128,12 +156,23 @@ export async function getExcludedPrivateTeamIds(viewerId: string | null): Promis
   ]);
   const allowedOrgIds = new Set(orgMemberships.map(row => row.organization_id));
   for (const team of privateTeams) {
-    if (allowedOrgIds.has(team.organization_id)) {
+    if (team.organization_id && allowedOrgIds.has(team.organization_id)) {
       allowedTeamIds.add(team.id);
     }
   }
 
   return privateTeamIds.filter(teamId => !allowedTeamIds.has(teamId));
+}
+
+/**
+ * Prisma post visibility clause for posts attached to private teams.
+ * Keep null-team posts explicitly; SQL NOT IN does not match NULL rows.
+ */
+export function buildPrivateTeamPostVisibilityWhere(
+  excludedTeamIds: string[]
+): Prisma.PostWhereInput | null {
+  if (excludedTeamIds.length === 0) return null;
+  return { OR: [{ team_id: null }, { team_id: { notIn: excludedTeamIds } }] };
 }
 
 /**

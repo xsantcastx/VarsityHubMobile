@@ -7,6 +7,8 @@ cd "$ROOT_DIR"
 
 echo "Checking regression guardrails..."
 
+npm run audit:structural-duplicates
+
 # ── Conflict marker guard ─────────────────────────────────────────────────────
 # Catches git merge/stash conflict markers left in source files before commit.
 # Uses rg if available, falls back to grep.
