@@ -1,10 +1,10 @@
 /**
- * Grant or revoke a user's 7-day regular post access to an event page.
+ * Grant or revoke a user's 7-day manual access to an event page.
  *
  * This writes EventPostingUnlock, the durable attendance/access ledger used by
- * verifyEventPostingPermission after the live posting window closes. It does
- * not grant story access: stories still require the event live window and venue
- * geofence unless the user is separately added as a designated poster.
+ * verifyEventPostingPermission after the live posting window closes. It also
+ * writes EventDesignatedPoster, which pairs with the unlock ledger so the same
+ * user can upload stories for the same capped 7-day window.
  *
  * Dry-run by default:
  *   DATABASE_URL=... npx tsx server/scripts/one-off/grant-event-post-access.ts \
@@ -20,7 +20,8 @@
  *   --event <id>             target event id
  *   --event-title <text>     resolve by title substring; aborts if ambiguous
  *   --unlocked-at <ISO8601>  ledger anchor, default now; access lasts 7 days
- *   --clear                  revoke the ledger row
+ *   --by <@username|email>   optional grantor recorded on designated marker
+ *   --clear                  revoke both access rows
  *   --dry-run                print plan only
  *   --yes                    required to write
  */
@@ -72,6 +73,19 @@ async function resolveUser() {
   return matches[0];
 }
 
+async function resolveUserByUsernameOrEmail(userArg: string) {
+  const needle = userArg.replace(/^@/, '').trim();
+  return prisma.user.findFirst({
+    where: {
+      OR: [
+        { username: { equals: needle, mode: 'insensitive' } },
+        { email: { equals: needle, mode: 'insensitive' } },
+      ],
+    },
+    select: { id: true, username: true, display_name: true, email: true },
+  });
+}
+
 async function resolveEvent() {
   const eventId = arg('event');
   const eventTitle = arg('event-title');
@@ -113,30 +127,45 @@ async function main() {
   const [user, event] = await Promise.all([resolveUser(), resolveEvent()]);
   const clear = has('clear');
   const apply = has('yes') && !has('dry-run');
+  const byArg = arg('by');
   const unlockedAtRaw = arg('unlocked-at');
   const unlockedAt = unlockedAtRaw ? new Date(unlockedAtRaw) : new Date();
   if (Number.isNaN(unlockedAt.getTime())) {
     throw new Error(`Invalid --unlocked-at value: ${unlockedAtRaw}`);
   }
   const expiresAt = new Date(unlockedAt.getTime() + ACCESS_DURATION_MS);
+  const granter = byArg ? await resolveUserByUsernameOrEmail(byArg) : null;
+  if (byArg && !granter) throw new Error(`--by user not found: ${byArg}`);
 
   const existing = await prisma.eventPostingUnlock.findUnique({
     where: { user_id_event_id: { user_id: user.id, event_id: event.id } },
     select: { unlocked_at: true },
   });
+  const existingDesignated = await prisma.eventDesignatedPoster.findUnique({
+    where: { event_id_user_id: { event_id: event.id, user_id: user.id } },
+    select: { created_at: true, created_by: true },
+  });
 
   console.log('Grant event post access');
-  console.log(`Action     : ${clear ? 'REVOKE' : 'GRANT'} 7-day regular post access`);
+  console.log(`Action     : ${clear ? 'REVOKE' : 'GRANT'} 7-day post + story access`);
   console.log(`User       : @${user.username ?? '-'} ${user.display_name ?? ''} (${user.id})`);
+  if (granter) console.log(`Granted by : @${granter.username ?? granter.id} (${granter.id})`);
   console.log(`Event      : ${event.title} (${event.id})`);
   console.log(`Event date : ${event.date.toISOString()}`);
   console.log(`Location   : ${event.location ?? '-'}`);
   console.log(`Game id    : ${event.game_id ?? '-'}`);
-  console.log(`Existing   : ${existing ? existing.unlocked_at.toISOString() : 'none'}`);
+  console.log(`Unlock row : ${existing ? existing.unlocked_at.toISOString() : 'none'}`);
+  console.log(
+    `Story mark : ${
+      existingDesignated
+        ? `${existingDesignated.created_at.toISOString()} created_by=${existingDesignated.created_by ?? '-'}`
+        : 'none'
+    }`
+  );
   if (!clear) {
     console.log(`Unlock at  : ${unlockedAt.toISOString()}`);
     console.log(`Expires    : ${expiresAt.toISOString()}`);
-    console.log('Stories    : not granted by this script');
+    console.log('Stories    : granted for the same 7-day window');
   }
 
   if (!apply) {
@@ -145,18 +174,30 @@ async function main() {
   }
 
   if (clear) {
-    await prisma.eventPostingUnlock.deleteMany({
-      where: { user_id: user.id, event_id: event.id },
-    });
+    await prisma.$transaction([
+      prisma.eventPostingUnlock.deleteMany({
+        where: { user_id: user.id, event_id: event.id },
+      }),
+      prisma.eventDesignatedPoster.deleteMany({
+        where: { event_id: event.id, user_id: user.id },
+      }),
+    ]);
     console.log('\nRevoked.');
     return;
   }
 
-  await prisma.eventPostingUnlock.upsert({
-    where: { user_id_event_id: { user_id: user.id, event_id: event.id } },
-    create: { user_id: user.id, event_id: event.id, unlocked_at: unlockedAt },
-    update: { unlocked_at: unlockedAt },
-  });
+  await prisma.$transaction([
+    prisma.eventPostingUnlock.upsert({
+      where: { user_id_event_id: { user_id: user.id, event_id: event.id } },
+      create: { user_id: user.id, event_id: event.id, unlocked_at: unlockedAt },
+      update: { unlocked_at: unlockedAt },
+    }),
+    prisma.eventDesignatedPoster.upsert({
+      where: { event_id_user_id: { event_id: event.id, user_id: user.id } },
+      create: { event_id: event.id, user_id: user.id, created_by: granter?.id ?? null },
+      update: {},
+    }),
+  ]);
   console.log('\nGranted.');
 }
 

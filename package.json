@@ -58,6 +58,7 @@
     "audit:pre-release": "bash scripts/pre-release-audit.sh",
     "audit:navigation": "bash scripts/audit-navigation.sh",
     "audit:navigation:fail": "bash scripts/audit-navigation.sh --fail",
+    "audit:structural-duplicates": "node scripts/check-structural-duplicates.js",
     "dev:rebuild": "bash scripts/ensure-latest-dev-client.sh",
     "verify:version": "bash scripts/verify-latest-version.sh",
     "submit:ios": "eas submit --platform ios --profile production",
