@@ -5,8 +5,9 @@
  * - The geofence is strict for a user's FIRST upload to an event page: they
  *   must be within 3km of the venue with device-origin coordinates. That first
  *   pass writes an EventPostingUnlock row; for the next 7 days they may keep
- *   uploading (stories AND posts) to that same event page without re-passing
- *   the geofence.
+ *   uploading regular posts to that same event page without re-passing the
+ *   geofence. Stories still require the live window + geofence unless the user
+ *   also has an active designated-poster unlock for that event.
  * - Regular Posts + Story Posts: the geofenced live window has NO early cutoff
  *   (owner rule 2026-08-28) — posting is open any time up to the live cutoff, so
  *   a fan who shows up early is never blocked. It closes

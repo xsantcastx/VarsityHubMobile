@@ -20,6 +20,8 @@ export type ProFixture = {
    */
   home_team_ref: string | null;
   away_team_ref: string | null;
+  home_team?: ProviderTeam | null;
+  away_team?: ProviderTeam | null;
 
   /**
    * Display title. Optional for two-team fixtures (derived as "Away at Home");
@@ -47,6 +49,23 @@ export type ProFixture = {
   venue_is_neutral?: boolean;
 
   status: 'scheduled' | 'postponed' | 'cancelled';
+};
+
+export type ProviderTeam = {
+  external_ref: string;
+  name: string;
+  short_name: string;
+  abbreviation: string | null;
+  city: string | null;
+  state: string | null;
+  conference: string | null;
+  division: string | null;
+  venue_name: string | null;
+  venue_address: string | null;
+  venue_lat: number | null;
+  venue_lng: number | null;
+  timezone: string | null;
+  primary_color: string | null;
 };
 
 export const NCAA_LEAGUES = [
