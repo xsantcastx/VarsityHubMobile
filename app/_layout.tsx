@@ -87,7 +87,6 @@ if (Platform.OS === 'web' && __DEV__) {
 if (Platform.OS === 'web' && __DEV__ && !(globalThis as any).__VH_WEB_WARNING_FILTER_INSTALLED__) {
   (globalThis as any).__VH_WEB_WARNING_FILTER_INSTALLED__ = true;
   const suppressedMessages = [
-    'props.pointerEvents is deprecated. Use style.pointerEvents',
     'Animated: `useNativeDriver` is not supported because the native animated module is missing.',
   ];
   const filterConsole = (method: 'warn' | 'error') => {
@@ -262,7 +261,6 @@ function RootLayout() {
       LogBox.ignoreLogs([
         '"shadow*" style props are deprecated',
         '"textShadow*" style props are deprecated',
-        'props.pointerEvents is deprecated. Use style.pointerEvents',
       ]);
     }
   }, []);

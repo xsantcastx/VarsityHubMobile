@@ -569,10 +569,9 @@ function TeamScreen() {
         {/* Dark scrim at the bottom of the header for text readability */}
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.55)']}
-          style={styles.headerGradient}
+          style={[styles.headerGradient, { pointerEvents: 'none' }]}
           start={{ x: 0, y: 0.3 }}
           end={{ x: 0, y: 1 }}
-          pointerEvents="none"
         />
 
         {/* Back Button - Top Left */}

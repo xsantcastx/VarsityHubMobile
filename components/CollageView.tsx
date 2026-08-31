@@ -177,9 +177,9 @@ const CollageView: React.FC<Props> = memo(({ collage, style }) => {
                         cachePolicy="memory-disk"
                       />
                       <View
-                        pointerEvents="none"
                         style={{
                           ...StyleSheet.absoluteFillObject,
+                          pointerEvents: 'none',
                           transform: [
                             { scale: clamp(f.media?.scale ?? 1, 0.1, 8) },
                             { translateX: f.media?.translateX ?? 0 },

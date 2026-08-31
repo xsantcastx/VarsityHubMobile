@@ -339,7 +339,7 @@ export default function QuickAddGameModal({
   );
   const renderLockedSection = (content: ReactNode) =>
     isLiveEventEdit ? (
-      <View pointerEvents="none" style={styles.lockedSection} testID="live-edit-locked">
+      <View style={[styles.lockedSection, { pointerEvents: 'none' }]} testID="live-edit-locked">
         {content}
       </View>
     ) : (

@@ -2043,7 +2043,7 @@ const GameDetailsScreen = () => {
             )}
           </Animated.View>
 
-          <View style={styles.voteTouchLayer} pointerEvents={pressDisabled ? 'none' : 'auto'}>
+          <View style={[styles.voteTouchLayer, { pointerEvents: pressDisabled ? 'none' : 'auto' }]}>
             <Pressable
               style={styles.voteTouchHalf}
               disabled={pressDisabled}
@@ -2193,13 +2193,12 @@ const GameDetailsScreen = () => {
         />
         {/* Shade the banner less when this is a hero image so logos are visible */}
         <LinearGradient
-          pointerEvents="none"
           colors={
             isHero
               ? ['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.35)']
               : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']
           }
-          style={styles.bannerShade}
+          style={[styles.bannerShade, { pointerEvents: 'none' }]}
         />
 
         <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
@@ -2615,11 +2614,11 @@ const GameDetailsScreen = () => {
       <Stack.Screen options={{ headerShown: false }} />
 
       <Animated.View
-        pointerEvents="box-none"
         style={[
           styles.headerWrap,
           {
             top: insets.top,
+            pointerEvents: 'box-none',
             transform: [{ translateY: headerTranslateY }],
             opacity: headerOpacity,
           },

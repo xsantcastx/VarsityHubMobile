@@ -22,6 +22,7 @@
     "web:playwright:ci": "cross-env CI=1 NODE_OPTIONS=--max-old-space-size=8192 RCT_METRO_PORT=8081 EXPO_PUBLIC_API_URL=http://localhost:4000 EXPO_PUBLIC_FORCE_REMOTE_API=0 EXPO_PUBLIC_NODE_ENV=development expo start --web --port 8081",
     "start:ci": "cross-env CI=1 expo start --port 19001",
     "web:ci": "cross-env CI=1 expo start --web --port 9500",
+    "web:export:check": "bash scripts/check-web-export-warnings.sh",
     "android:ci": "cross-env CI=1 expo start --android --port 19002",
     "postinstall": "node ./scripts/apply-patches.js && node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/patches/patch-router-sitemap.js && node ./tools/ensure-is-arrayish.js && node ./tools/patches/patch-minimatch-brace-expansion.js && node ./tools/patches/patch-logbox-button.js && node ./tools/patches/patch-expo-updates-bouncycastle.js && node ./scripts/patch-lottie-ios.js && node ./scripts/ensure-server-prisma-client.js",
     "fix:deps": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/ensure-is-arrayish.js",

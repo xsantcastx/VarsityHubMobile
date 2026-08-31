@@ -115,9 +115,9 @@ export default function ImageEditor({ visible, imageUri, onSave, onClose }: Prop
                   backgroundColor:
                     (filters.find(f => f.id === filter) as any)?.overlay || 'transparent',
                   height: CANVAS_HEIGHT,
+                  pointerEvents: 'none',
                 },
               ]}
-              pointerEvents="none"
             />
 
             {/* Stickers */}

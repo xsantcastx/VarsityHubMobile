@@ -655,8 +655,7 @@ function MyAdsScreen() {
 
       {showSuccess && (
         <Animated.View
-          style={[styles.successOverlay, { opacity: successOpacity }]}
-          pointerEvents="none"
+          style={[styles.successOverlay, { opacity: successOpacity, pointerEvents: 'none' }]}
         >
           <View style={styles.successBadge}>
             <Text style={[styles.successCheck, { color: Colors[colorScheme].text }]}>✓</Text>

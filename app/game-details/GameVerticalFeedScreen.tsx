@@ -524,8 +524,10 @@ const FeedCard = memo(
         </Pressable>
 
         <View
-          pointerEvents="box-none"
-          style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}
+          style={[
+            styles.captionOverlay,
+            { paddingBottom: Math.max(insets.bottom + 12, 36), pointerEvents: 'box-none' },
+          ]}
         >
           <Pressable
             onPress={post.author?.id ? onOpenAuthorProfile : undefined}
@@ -554,8 +556,10 @@ const FeedCard = memo(
             onOpenAuthorProfile handler). Icons/labels were shrunk and the rail
             was dropped toward the bottom edge for the same reason. */}
         <View
-          pointerEvents="box-none"
-          style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}
+          style={[
+            styles.rail,
+            { paddingBottom: Math.max(insets.bottom + 12, 36), pointerEvents: 'box-none' },
+          ]}
         >
           <Pressable onPress={onToggleUpvote} style={styles.railBtn}>
             <Ionicons
@@ -1555,8 +1559,10 @@ function GameVerticalFeedScreen({
 
   return (
     <View
-      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
-      pointerEvents="box-none"
+      style={[
+        styles.container,
+        { backgroundColor: Colors[colorScheme].background, pointerEvents: 'box-none' },
+      ]}
       onLayout={onViewportLayout}
     >
       <LinearGradient
@@ -1565,8 +1571,7 @@ function GameVerticalFeedScreen({
             ? ['#0b1120', '#020617']
             : [Colors[colorScheme].surface, Colors[colorScheme].background]
         }
-        style={styles.backdrop}
-        pointerEvents="none"
+        style={[styles.backdrop, { pointerEvents: 'none' }]}
       />
       <FlatList
         ref={flatListRef as any}
@@ -1630,8 +1635,7 @@ function GameVerticalFeedScreen({
 
       {showHeader && !usingInitial ? (
         <View
-          pointerEvents="box-none"
-          style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}
+          style={[styles.titleOverlay, { paddingTop: insets.top + 12, pointerEvents: 'box-none' }]}
         >
           <Pressable style={styles.backBtn} onPress={handleBack}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
@@ -1645,8 +1649,7 @@ function GameVerticalFeedScreen({
         </View>
       ) : usingInitial ? (
         <View
-          pointerEvents="box-none"
-          style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}
+          style={[styles.titleOverlay, { paddingTop: insets.top + 12, pointerEvents: 'box-none' }]}
         >
           <Pressable style={styles.backBtn} onPress={handleBack}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
@@ -1674,9 +1677,9 @@ function GameVerticalFeedScreen({
               {
                 maxHeight: viewport.height * 0.75,
                 backgroundColor: Colors[colorScheme].background,
+                pointerEvents: 'box-none',
               },
             ]}
-            pointerEvents="box-none"
           >
             <View style={[styles.commentHeader, { backgroundColor: Colors[colorScheme].surface }]}>
               <Text style={[styles.commentTitle, { color: Colors[colorScheme].text }]}>

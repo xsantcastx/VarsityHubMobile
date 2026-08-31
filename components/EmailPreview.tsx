@@ -72,7 +72,7 @@ export default function EmailPreview() {
       <ThemedView
         style={{ marginTop: 12, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12 }}
       >
-        <View pointerEvents="none">
+        <View style={{ pointerEvents: 'none' }}>
           {/* Render HTML minimally by showing text. In-app rendering engines may vary. */}
           <ThemedText type="default">{previewHTML}</ThemedText>
         </View>

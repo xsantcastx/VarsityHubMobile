@@ -52,8 +52,8 @@ export function WebThemeToggle() {
           borderColor:
             colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.08)',
         },
+        { pointerEvents: 'box-none' },
       ]}
-      pointerEvents="box-none"
     >
       <Pressable
         accessibilityRole="button"

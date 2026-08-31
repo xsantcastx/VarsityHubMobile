@@ -554,8 +554,7 @@ const FeedGameCard = memo(function FeedGameCard({
             ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']
             : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']
         }
-        style={styles.gridShade}
-        pointerEvents="none"
+        style={[styles.gridShade, { pointerEvents: 'none' }]}
       />
       <View style={styles.gridContent}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -2473,8 +2472,7 @@ export default function FeedScreen() {
                 )}
                 <LinearGradient
                   colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']}
-                  style={styles.gridShade}
-                  pointerEvents="none"
+                  style={[styles.gridShade, { pointerEvents: 'none' }]}
                 />
                 <View style={styles.gridContent}>
                   <View

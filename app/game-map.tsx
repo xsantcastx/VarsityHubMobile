@@ -330,7 +330,7 @@ function GameMapScreen() {
 
         {/* Discreet sport filter — sits on the count-badge row, right of it. */}
         {!loading && !error && presentSports.length > 1 && (
-          <View style={styles.sportFilter} pointerEvents="box-none">
+          <View style={[styles.sportFilter, { pointerEvents: 'box-none' }]}>
             <SportFilterBar
               sports={presentSports}
               selected={selectedSport}

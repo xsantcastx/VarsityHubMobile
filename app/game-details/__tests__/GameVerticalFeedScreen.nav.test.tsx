@@ -42,7 +42,7 @@ describe('GameVerticalFeedScreen rail actions', () => {
     expect(source).toMatch(/captionOverlay:\s*\{[\s\S]*zIndex:\s*20/);
     expect(source).toMatch(/rail:\s*\{[\s\S]*zIndex:\s*20/);
     expect(source).toMatch(/titleOverlay:\s*\{[\s\S]*zIndex:\s*30/);
-    expect(source).toContain('pointerEvents="box-none"');
+    expect(source).toContain("pointerEvents: 'box-none'");
   });
 
   it('closes modal-backed viewers before pushing a new route', () => {
