@@ -19,6 +19,8 @@ export interface EventMapProps {
   showUserLocation?: boolean;
   /** Set to true once the parent has finished loading its data. The empty state is suppressed until then. */
   dataLoaded?: boolean;
+  /** Show the user dot without automatically zooming the first render into the user's exact location. */
+  preventAutoCenterOnUser?: boolean;
   /** When provided, renders a refresh control button that re-runs the parent's data load (e.g. so games added mid-event appear without leaving the map). */
   onRefresh?: () => void;
   /** Hide the "center on user" (navigate) control button. Owner note 8: the map's

@@ -36,6 +36,7 @@ export default function EventMap({
   initialRegion,
   showUserLocation = true,
   dataLoaded = true,
+  preventAutoCenterOnUser = false,
   onRefresh,
   hideCenterOnUser = false,
   onCalendarPress,
@@ -111,7 +112,7 @@ export default function EventMap({
             setUserLocation(location);
 
             // Auto-center on user location if no specific region was requested
-            if (!initialRegion) {
+            if (!initialRegion && !preventAutoCenterOnUser) {
               setTimeout(() => {
                 mapRef.current?.animateToRegion(
                   {
@@ -143,7 +144,7 @@ export default function EventMap({
     return () => {
       cancelled = true;
     };
-  }, [showUserLocation, initialRegion]);
+  }, [showUserLocation, initialRegion, preventAutoCenterOnUser]);
 
   // Search filter — applied before the coordinate filter so it also thins out
   // the cluster groups (a search match inside a cluster surfaces on its own).

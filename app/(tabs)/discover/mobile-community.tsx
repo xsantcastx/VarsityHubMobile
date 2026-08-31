@@ -39,7 +39,6 @@ import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolveMediaType } from '@/utils/media';
 import { getCoachAccessState, getCoachFinishSetupRoute } from '@/utils/roleChecks';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
-import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 
 // Guard against internal IDs (cuid / UUID) being leaked as display text
@@ -87,6 +86,7 @@ const ZIP_REGEX = /\b\d{5}\b/g;
 const DISCOVER_NCAA_LEAGUES = ['ncaaf', 'ncaamb', 'ncaawb', 'ncaabaseball', 'ncaamhockey'] as const;
 const DISCOVER_EVENT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 const DISCOVER_EVENT_LOOKAHEAD_MS = 14 * 24 * 60 * 60 * 1000;
+const DISCOVER_CALENDAR_DAYS = 7;
 
 const normalizeMapEvent = (event: any): GameItem | null => {
   if (!event || typeof event.id !== 'string') return null;
@@ -543,6 +543,79 @@ function CommunityDiscoverScreen() {
     },
   });
   const followedEvents = useMemo(() => followedEventsData ?? [], [followedEventsData]);
+
+  const { data: managedCalendarData } = useQuery({
+    queryKey: ['discover-managed-calendar', user?.id ?? 'guest'],
+    enabled: interactionsDone && !!user,
+    queryFn: async (): Promise<{ games: GameItem[]; events: any[] }> => {
+      const managed = await Team.managed().catch(() => []);
+      const teams = Array.isArray(managed)
+        ? managed
+        : Array.isArray((managed as any)?.items)
+          ? (managed as any).items
+          : [];
+      const teamIds = teams.map((team: any) => String(team?.id || '')).filter(Boolean);
+      if (teamIds.length === 0) return { games: [], events: [] };
+
+      const now = Date.now();
+      const dateFrom = new Date(now - DISCOVER_EVENT_LOOKBACK_MS).toISOString();
+      const dateTo = new Date(now + DISCOVER_EVENT_LOOKAHEAD_MS).toISOString();
+      const gameGroups = await Promise.all(
+        teamIds.slice(0, 25).map((teamId: string) =>
+          Game.list('date', {
+            teamId,
+            showPending: true,
+            dateFrom,
+            dateTo,
+            limit: 100,
+          }).catch(() => [])
+        )
+      );
+      const eventRaw = await Event.filter(
+        {
+          team_ids: teamIds.slice(0, 100),
+          from: dateFrom,
+          to: dateTo,
+        },
+        'date',
+        100
+      ).catch(() => []);
+      const managedGames = gameGroups.flatMap((raw: any) =>
+        Array.isArray(raw) ? raw : raw?.games || raw?.items || []
+      );
+      const managedEvents = (Array.isArray(eventRaw) ? eventRaw : []).filter((event: any) => {
+        if (event.game_id) return false;
+        if (!event.date) return false;
+        const d = new Date(event.date);
+        return !isNaN(d.getTime());
+      });
+      return {
+        games: mergeDiscoverEvents(managedGames),
+        events: managedEvents,
+      };
+    },
+  });
+  const managedCalendarGames = useMemo(
+    () => managedCalendarData?.games ?? [],
+    [managedCalendarData]
+  );
+  const managedCalendarEvents = useMemo(
+    () => managedCalendarData?.events ?? [],
+    [managedCalendarData]
+  );
+  const calendarGames = useMemo(
+    () => mergeDiscoverEvents(followedGames, managedCalendarGames),
+    [followedGames, managedCalendarGames]
+  );
+  const calendarEvents = useMemo(() => {
+    const seen = new Set<string>();
+    return [...followedEvents, ...managedCalendarEvents].filter((event: any) => {
+      const id = String(event?.id || '');
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, [followedEvents, managedCalendarEvents]);
 
   const personalizationQueryKey = ['discover-personalization', user?.id ?? 'guest'];
   const {
@@ -1130,47 +1203,50 @@ function CommunityDiscoverScreen() {
     setViewMode(newMode);
   }, [viewMode, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings]);
 
-  const calendarMarkedDates = useMemo(() => {
-    const marked: Record<string, any> = {};
-    const markDate = (dateVal: any) => {
-      if (!dateVal) return;
-      const d = new Date(dateVal);
-      if (isNaN(d.getTime())) return;
-      const dateKey = d.toISOString().split('T')[0];
-      if (!marked[dateKey]) {
-        marked[dateKey] = { marked: true, dotColor: Colors[colorScheme].tint };
-      }
-    };
-    games.forEach(game => markDate(game.date));
-    followedGames.forEach(game => markDate(game.date));
-    followedEvents.forEach(event => markDate(event.date));
-    if (selectedDate) {
-      marked[selectedDate] = {
-        ...marked[selectedDate],
-        selected: true,
-        selectedColor: Colors[colorScheme].tint,
+  const calendarDays = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Array.from({ length: DISCOVER_CALENDAR_DAYS }, (_, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() - (DISCOVER_CALENDAR_DAYS - 1 - index));
+      const dateString = date.toISOString().split('T')[0];
+      const count =
+        calendarGames.filter(game => {
+          if (!game.date) return false;
+          const d = new Date(game.date);
+          return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === dateString;
+        }).length +
+        calendarEvents.filter(event => {
+          if (!event.date) return false;
+          const d = new Date(event.date);
+          return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === dateString;
+        }).length;
+      return {
+        dateString,
+        day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        label: date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
+        count,
       };
-    }
-    return marked;
-  }, [games, followedGames, followedEvents, selectedDate, colorScheme]);
+    });
+  }, [calendarEvents, calendarGames]);
 
   const getSelectedDateGames = useCallback(() => {
     if (!selectedDate) return [];
-    return mergeDiscoverEvents(games, followedGames).filter(game => {
+    return calendarGames.filter(game => {
       if (!game.date) return false;
       const d = new Date(game.date);
       return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === selectedDate;
     });
-  }, [games, followedGames, selectedDate]);
+  }, [calendarGames, selectedDate]);
 
   const getSelectedDateEvents = useCallback(() => {
     if (!selectedDate) return [];
-    return followedEvents.filter(event => {
+    return calendarEvents.filter(event => {
       if (!event.date) return false;
       const d = new Date(event.date);
       return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === selectedDate;
     });
-  }, [followedEvents, selectedDate]);
+  }, [calendarEvents, selectedDate]);
 
   const renderCalendar = () => (
     <View
@@ -1182,45 +1258,55 @@ function CommunityDiscoverScreen() {
         },
       ]}
     >
-      <Calendar
-        key={`calendar-${colorScheme}`}
-        onDayPress={day => {
-          setSelectedDate(day.dateString);
-        }}
-        markedDates={calendarMarkedDates}
-        style={{
-          backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-        }}
-        theme={{
-          backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-          calendarBackground: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-          textSectionTitleColor: Colors[colorScheme].mutedText,
-          selectedDayBackgroundColor: Colors[colorScheme].tint,
-          selectedDayTextColor: '#FFFFFF',
-          todayTextColor: Colors[colorScheme].tint,
-          dayTextColor: Colors[colorScheme].text,
-          textDisabledColor: colorScheme === 'light' ? '#9CA3AF' : Colors[colorScheme].mutedText,
-          arrowColor: colorScheme === 'light' ? '#111827' : Colors[colorScheme].tint, // audit: intentional
-          monthTextColor: Colors[colorScheme].text,
-          textDayFontWeight: '500',
-          textMonthFontWeight: '800',
-          textDayHeaderFontWeight: '600',
-          textDayFontSize: 15,
-          // @ts-ignore - headerStyle not in TS types but supported by react-native-calendars
-          'stylesheet.calendar.header': {
-            header: {
-              backgroundColor: colorScheme === 'light' ? '#F9FAFB' : Colors[colorScheme].background,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              paddingHorizontal: 10,
-              paddingVertical: 10,
-              borderBottomWidth: colorScheme === 'light' ? 1 : 0,
-              borderBottomColor: '#E5E7EB',
-            },
-          },
-        }}
-      />
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.calendarStrip}
+      >
+        {calendarDays.map(day => {
+          const active = selectedDate === day.dateString;
+          return (
+            <Pressable
+              key={day.dateString}
+              onPress={() => setSelectedDate(active ? '' : day.dateString)}
+              style={[
+                styles.calendarDay,
+                {
+                  backgroundColor: active ? Colors[colorScheme].tint : Colors[colorScheme].surface,
+                  borderColor: active ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`${day.day} ${day.label}, ${day.count} events from followed or managed teams`}
+            >
+              <Text
+                style={[
+                  styles.calendarDayName,
+                  { color: active ? '#FFFFFF' : Colors[colorScheme].mutedText },
+                ]}
+              >
+                {day.day}
+              </Text>
+              <Text
+                style={[
+                  styles.calendarDayDate,
+                  { color: active ? '#FFFFFF' : Colors[colorScheme].text },
+                ]}
+              >
+                {day.label}
+              </Text>
+              {day.count > 0 ? (
+                <View
+                  style={[
+                    styles.calendarDayDot,
+                    { backgroundColor: active ? '#FFFFFF' : Colors[colorScheme].tint },
+                  ]}
+                />
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 
@@ -2918,6 +3004,7 @@ function CommunityDiscoverScreen() {
                     router.push({ pathname: '/game/[id]', params: { id: eventId } });
                   }}
                   showUserLocation={true}
+                  preventAutoCenterOnUser
                 />
               );
             })()}
@@ -3080,11 +3167,37 @@ const styles = StyleSheet.create({
   browseOrgsText: { flex: 1, fontWeight: '600', fontSize: 15 },
   error: { marginBottom: 8 },
   calendarSection: {
-    marginBottom: 16,
-    borderRadius: 12,
-    overflow: 'hidden',
-    padding: 4,
+    marginBottom: 12,
+    borderRadius: 8,
+    paddingVertical: 8,
     borderWidth: 1,
+  },
+  calendarStrip: {
+    paddingHorizontal: 8,
+    gap: 8,
+  },
+  calendarDay: {
+    width: 58,
+    height: 64,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarDayName: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  calendarDayDate: {
+    marginTop: 2,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  calendarDayDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    marginTop: 4,
   },
   searchBox: {
     flexDirection: 'row',

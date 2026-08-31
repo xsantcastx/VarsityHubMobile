@@ -11,7 +11,6 @@ import SportFilterBar from '@/components/SportFilterBar';
 import { normalizeSportSlug } from '@/constants/sports';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Calendar } from 'react-native-calendars';
 // SafeAreaView removed — native header handles safe area
 // @ts-ignore
 import { Game } from '@/api/entities';
@@ -20,6 +19,12 @@ import { httpGet } from '@/api/http';
 const MAP_NCAA_LEAGUES = ['ncaaf', 'ncaamb', 'ncaawb', 'ncaabaseball', 'ncaamhockey'] as const;
 const MAP_EVENT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 const MAP_EVENT_LOOKAHEAD_MS = 5 * 24 * 60 * 60 * 1000;
+const USA_WIDE_REGION = {
+  latitude: 39.8,
+  longitude: -98.5,
+  latitudeDelta: 50,
+  longitudeDelta: 50,
+};
 
 function dedupeMapEvents(items: EventMapData[]): EventMapData[] {
   const seen = new Set<string>();
@@ -43,7 +48,7 @@ function GameMapScreen() {
   const [calendarEvents, setCalendarEvents] = useState<EventMapData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
-  const [calendarOpen, setCalendarOpen] = useState(true);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
 
   const loadGames = useCallback(async () => {
@@ -253,24 +258,26 @@ function GameMapScreen() {
     [events, selectedSport]
   );
 
-  const calendarMarkedDates = useMemo(() => {
-    const marked: Record<string, any> = {};
-    calendarEvents.forEach(event => {
-      if (!event.date) return;
-      const d = new Date(event.date);
-      if (isNaN(d.getTime())) return;
-      const key = d.toISOString().split('T')[0];
-      marked[key] = { marked: true, dotColor: Colors[colorScheme].tint };
-    });
-    if (selectedDate) {
-      marked[selectedDate] = {
-        ...marked[selectedDate],
-        selected: true,
-        selectedColor: Colors[colorScheme].tint,
+  const recentDateButtons = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() - (6 - index));
+      const dateString = date.toISOString().split('T')[0];
+      const count = calendarEvents.filter(event => {
+        if (!event.date) return false;
+        const d = new Date(event.date);
+        return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === dateString;
+      }).length;
+      return {
+        dateString,
+        day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        label: date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
+        count,
       };
-    }
-    return marked;
-  }, [calendarEvents, selectedDate, colorScheme]);
+    });
+  }, [calendarEvents]);
 
   const selectedDateEvents = useMemo(() => {
     if (!selectedDate) return [];
@@ -311,8 +318,13 @@ function GameMapScreen() {
         <EventMap
           events={visibleEvents}
           onEventPress={handleEventPress}
+          initialRegion={USA_WIDE_REGION}
           showUserLocation={true}
           dataLoaded={!loading}
+          preventAutoCenterOnUser
+          hideCenterOnUser
+          onCalendarPress={() => setCalendarOpen(open => !open)}
+          calendarActive={calendarOpen || Boolean(selectedDate)}
           onRefresh={!loading && !error ? loadGames : undefined}
         />
 
@@ -327,90 +339,101 @@ function GameMapScreen() {
           </View>
         )}
 
-        {!loading && !error && (
-          <View style={[styles.calendarPanel, { backgroundColor: Colors[colorScheme].card }]}>
-            <Pressable
-              onPress={() => setCalendarOpen(open => !open)}
-              style={styles.calendarToggle}
-              accessibilityRole="button"
-              accessibilityLabel={calendarOpen ? 'Hide map calendar' : 'Show map calendar'}
+        {!loading && !error && calendarOpen && (
+          <View style={[styles.dateStripPanel, { backgroundColor: Colors[colorScheme].card }]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateStripContent}
             >
-              <MaterialIcons name="calendar-month" size={22} color={Colors[colorScheme].tint} />
-              <Text style={[styles.calendarToggleText, { color: Colors[colorScheme].text }]}>
-                Calendar
-              </Text>
-              <MaterialIcons
-                name={calendarOpen ? 'expand-less' : 'expand-more'}
-                size={22}
-                color={Colors[colorScheme].mutedText}
-              />
-            </Pressable>
-            {calendarOpen ? (
-              <>
-                <Calendar
-                  key={`map-calendar-${colorScheme}`}
-                  onDayPress={day => setSelectedDate(day.dateString)}
-                  markedDates={calendarMarkedDates}
-                  style={styles.calendar}
-                  theme={{
-                    calendarBackground: Colors[colorScheme].card,
-                    textSectionTitleColor: Colors[colorScheme].mutedText,
-                    selectedDayBackgroundColor: Colors[colorScheme].tint,
-                    selectedDayTextColor: '#FFFFFF',
-                    todayTextColor: Colors[colorScheme].tint,
-                    dayTextColor: Colors[colorScheme].text,
-                    textDisabledColor: Colors[colorScheme].mutedText,
-                    arrowColor: Colors[colorScheme].tint,
-                    monthTextColor: Colors[colorScheme].text,
-                    textDayFontWeight: '500',
-                    textMonthFontWeight: '800',
-                    textDayHeaderFontWeight: '600',
-                    textDayFontSize: 14,
-                  }}
-                />
-                {selectedDate ? (
-                  <ScrollView style={styles.selectedDateList}>
-                    {selectedDateEvents.slice(0, 16).map(event => (
-                      <Pressable
-                        key={`${event.type}-${event.id}`}
-                        onPress={() => handleEventPress(event.id, event.type)}
+              {recentDateButtons.map(day => {
+                const selected = selectedDate === day.dateString;
+                return (
+                  <Pressable
+                    key={day.dateString}
+                    onPress={() => setSelectedDate(selected ? '' : day.dateString)}
+                    style={[
+                      styles.datePill,
+                      {
+                        backgroundColor: selected
+                          ? Colors[colorScheme].tint
+                          : Colors[colorScheme].background,
+                        borderColor: selected
+                          ? Colors[colorScheme].tint
+                          : Colors[colorScheme].border,
+                      },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${day.day} ${day.label}, ${day.count} events`}
+                  >
+                    <Text
+                      style={[
+                        styles.datePillDay,
+                        { color: selected ? '#FFFFFF' : Colors[colorScheme].mutedText },
+                      ]}
+                    >
+                      {day.day}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.datePillDate,
+                        { color: selected ? '#FFFFFF' : Colors[colorScheme].text },
+                      ]}
+                    >
+                      {day.label}
+                    </Text>
+                    {day.count > 0 ? (
+                      <View
                         style={[
-                          styles.selectedDateRow,
-                          { borderTopColor: Colors[colorScheme].border },
+                          styles.datePillDot,
+                          { backgroundColor: selected ? '#FFFFFF' : Colors[colorScheme].tint },
                         ]}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Open ${event.title}`}
+                      />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            {calendarOpen ? (
+              selectedDate ? (
+                <ScrollView style={styles.selectedDateList}>
+                  {selectedDateEvents.slice(0, 10).map(event => (
+                    <Pressable
+                      key={`${event.type}-${event.id}`}
+                      onPress={() => handleEventPress(event.id, event.type)}
+                      style={[
+                        styles.selectedDateRow,
+                        { borderTopColor: Colors[colorScheme].border },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${event.title}`}
+                    >
+                      <Text
+                        style={[styles.selectedDateTitle, { color: Colors[colorScheme].text }]}
+                        numberOfLines={1}
                       >
-                        <Text
-                          style={[styles.selectedDateTitle, { color: Colors[colorScheme].text }]}
-                          numberOfLines={1}
-                        >
-                          {event.title}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.selectedDateMeta,
-                            { color: Colors[colorScheme].mutedText },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {[
-                            event.date
-                              ? new Date(event.date).toLocaleTimeString('en-US', {
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                })
-                              : null,
-                            event.location,
-                          ]
-                            .filter(Boolean)
-                            .join(' • ')}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                ) : null}
-              </>
+                        {event.title}
+                      </Text>
+                      <Text
+                        style={[styles.selectedDateMeta, { color: Colors[colorScheme].mutedText }]}
+                        numberOfLines={1}
+                      >
+                        {[
+                          event.date
+                            ? new Date(event.date).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                              })
+                            : null,
+                          event.location,
+                        ]
+                          .filter(Boolean)
+                          .join(' • ')}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              ) : null
             ) : null}
           </View>
         )}
@@ -474,12 +497,12 @@ const styles = StyleSheet.create({
     height: 34,
     justifyContent: 'center',
   },
-  calendarPanel: {
+  dateStripPanel: {
     position: 'absolute',
     left: 12,
     right: 12,
-    bottom: 20,
-    maxHeight: '58%',
+    top: 116,
+    maxHeight: 230,
     borderRadius: 8,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -488,24 +511,41 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
-  calendarToggle: {
-    minHeight: 44,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+  dateStripContent: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
     gap: 8,
   },
-  calendarToggleText: {
-    flex: 1,
-    fontSize: 15,
+  datePill: {
+    width: 58,
+    height: 64,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  datePillDay: {
+    width: '100%',
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  datePillDate: {
+    width: '100%',
+    textAlign: 'center',
+    fontSize: 14,
     fontWeight: '800',
   },
-  calendar: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(148, 163, 184, 0.35)',
+  datePillDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    marginTop: 2,
   },
   selectedDateList: {
-    maxHeight: 150,
+    maxHeight: 140,
   },
   selectedDateRow: {
     paddingHorizontal: 12,
