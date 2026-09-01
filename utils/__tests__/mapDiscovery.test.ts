@@ -1,4 +1,4 @@
-import { buildMapDiscoveryPath, toMapEvents, buildUpcomingDateButtons } from '../mapDiscovery';
+import { buildMapDiscoveryPath, toMapEvents, buildRecentDateButtons } from '../mapDiscovery';
 import type { EventCard } from '@/api/schemas/eventCard';
 
 describe('buildMapDiscoveryPath', () => {
@@ -82,6 +82,38 @@ describe('toMapEvents', () => {
     expect(eventOnly?.type).toBe('event');
   });
 
+  it('keeps NCAA event-only cards with coordinates as map markers', () => {
+    const events = toMapEvents(
+      [
+        {
+          id: 'ncaa-1',
+          source_type: 'event',
+          event_id: 'ncaa-1',
+          game_id: null,
+          title: 'UMass at Rutgers',
+          date: '2026-09-03T22:00:00.000Z',
+          location: 'SHI Stadium',
+          latitude: 40.5136111,
+          longitude: -74.4652778,
+          sport: 'football',
+          pro_league: 'ncaaf',
+        },
+      ],
+      now
+    );
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        id: 'ncaa-1',
+        title: 'UMass at Rutgers',
+        type: 'event',
+        sport: 'football',
+        latitude: 40.5136111,
+        longitude: -74.4652778,
+      }),
+    ]);
+  });
+
   it('drops items without coordinates', () => {
     const events = toMapEvents(items, now);
     expect(events.some(e => e.id === 'no-coords')).toBe(false);
@@ -116,7 +148,7 @@ describe('toMapEvents', () => {
   });
 });
 
-describe('buildUpcomingDateButtons', () => {
+describe('buildRecentDateButtons', () => {
   const now = new Date('2026-09-01T12:00:00.000Z');
 
   // Mirror the production key derivation so assertions are timezone-independent
@@ -128,22 +160,21 @@ describe('buildUpcomingDateButtons', () => {
     return d.toISOString().split('T')[0];
   };
 
-  it('starts today and goes forward, never into the past', () => {
-    const buttons = buildUpcomingDateButtons([], now, 7);
+  it('ends today and shows the last 7 days', () => {
+    const buttons = buildRecentDateButtons([], now, 7);
     expect(buttons).toHaveLength(7);
-    expect(buttons[0].dateString).toBe(keyForOffset(0)); // today
-    expect(buttons[6].dateString).toBe(keyForOffset(6)); // +6 days
-    // Strictly forward: every day is today or later, and strictly increasing.
-    expect(buttons.every(b => b.dateString >= keyForOffset(0))).toBe(true);
+    expect(buttons[0].dateString).toBe(keyForOffset(-6));
+    expect(buttons[6].dateString).toBe(keyForOffset(0)); // today
+    expect(buttons.every(b => b.dateString <= keyForOffset(0))).toBe(true);
     for (let i = 1; i < buttons.length; i++) {
       expect(buttons[i].dateString > buttons[i - 1].dateString).toBe(true);
     }
   });
 
-  it('counts events that fall on each upcoming day', () => {
+  it('counts events that fall on each recent day', () => {
     // Anchor each event to a button's own day + midday so the mapping holds in
     // any timezone the runner uses.
-    const buttons0 = buildUpcomingDateButtons([], now, 7);
+    const buttons0 = buildRecentDateButtons([], now, 7);
     const events = [
       {
         id: 'a',
@@ -164,7 +195,7 @@ describe('buildUpcomingDateButtons', () => {
         type: 'event' as const,
       },
     ];
-    const buttons = buildUpcomingDateButtons(events, now, 7);
+    const buttons = buildRecentDateButtons(events, now, 7);
     expect(buttons[0].count).toBe(2);
     expect(buttons[2].count).toBe(1);
     expect(buttons[1].count).toBe(0);

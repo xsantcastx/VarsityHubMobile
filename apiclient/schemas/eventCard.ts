@@ -24,6 +24,19 @@ const mapVisibilitySchema = z
   })
   .passthrough();
 
+const venuePhotoSchema = z
+  .union([
+    z.string(),
+    z
+      .object({
+        url: z.string(),
+        credit: z.string().nullable().optional(),
+      })
+      .passthrough(),
+  ])
+  .nullable()
+  .optional();
+
 export const eventCardSchema = z
   .object({
     // Identity
@@ -41,7 +54,7 @@ export const eventCardSchema = z
     pro_home_color: z.string().nullable().optional(),
     pro_away_color: z.string().nullable().optional(),
     pro_league: z.string().nullable().optional(),
-    venue_photo: z.string().nullable().optional(),
+    venue_photo: venuePhotoSchema,
     // Location
     latitude: z.number().nullable().optional(),
     longitude: z.number().nullable().optional(),

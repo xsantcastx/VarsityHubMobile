@@ -12,15 +12,17 @@ export interface UseProfileOrganizationsResult {
  * Doesn't block profile rendering
  */
 export function useProfileOrganizations(
-  userId: string | null | undefined
+  userId: string | null | undefined,
+  enabled: boolean = true
 ): UseProfileOrganizationsResult {
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const requestInFlight = useRef(false);
 
   useEffect(() => {
-    if (!userId) {
+    if (!enabled || !userId) {
       setOrganizations([]);
+      setLoading(false);
       return;
     }
 
@@ -126,7 +128,7 @@ export function useProfileOrganizations(
       abortController.abort();
       requestInFlight.current = false;
     };
-  }, [userId]);
+  }, [enabled, userId]);
 
   return {
     organizations,

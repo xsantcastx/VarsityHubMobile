@@ -45,7 +45,7 @@ afterAll(() => {
 });
 // Use fake timers for all tests in this file
 
-import { Game } from '@/api/entities';
+import { Event, Game } from '@/api/entities';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import GameDetailsScreen from '../GameDetailsScreen';
 // Disable setInterval and setTimeout in tests to prevent polling loops
@@ -201,20 +201,25 @@ jest.mock('@/api/entities', () => ({
   },
   Post: {
     feedForGame: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
+    getByEvent: jest.fn().mockResolvedValue({ items: [] }),
   },
   Event: {
     get: jest.fn().mockResolvedValue({
       id: 'event-1',
-      title: 'Event',
+      title: 'UMass at Rutgers',
       date: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       location: 'Test Field',
       banner_url: null,
       cover_image_url: null,
       capacity: 100,
       attendees_count: 0,
+      event_type: 'game',
     }),
     rsvp: jest.fn(),
     rsvpStatus: jest.fn().mockResolvedValue({ count: 0, capacity: 100, going: false }),
+    votesSummary: jest.fn(),
+    castVote: jest.fn(),
+    clearVote: jest.fn(),
   },
   Team: {
     list: jest.fn().mockResolvedValue([]),
@@ -313,5 +318,30 @@ describe('GameDetailsScreen voting UI', () => {
     await waitFor(() => {
       expect(Game.clearVote).toHaveBeenCalledWith('game-1');
     });
+  });
+
+  it('casts a persistent vote on event-only competitive pages', async () => {
+    mockParams = { id: 'event-1', eventId: 'event-1' };
+    (Event.votesSummary as jest.Mock).mockResolvedValue({ teamA: 0, teamB: 0, userVote: null });
+    (Event.castVote as jest.Mock).mockResolvedValue({ teamA: 1, teamB: 0, userVote: 'A' });
+
+    const screen = render(<GameDetailsScreen />);
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+      await Promise.resolve();
+    });
+
+    const voteAButton = await screen.findByLabelText('Vote for UMass');
+
+    fireEvent.press(voteAButton);
+    await act(async () => {
+      jest.runAllTimers();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(Event.castVote).toHaveBeenCalledWith('event-1', 'A');
+    });
+    expect(Game.castVote).not.toHaveBeenCalledWith('event-1', 'A');
   });
 });

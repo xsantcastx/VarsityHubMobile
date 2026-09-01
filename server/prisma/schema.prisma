@@ -335,6 +335,7 @@ model User {
   postUpvotes      PostUpvote[]
   postBookmarks    PostBookmark[]
   gameVotes        GameVote[]
+  eventVotes       EventVote[]
   pollVotes        PollVote[]
 
   // Blocking
@@ -733,11 +734,12 @@ model Event {
   // 1 hour before start.
   live_window_hours_after_start Int?
 
-  game             Game?                   @relation(fields: [game_id], references: [id], onDelete: SetNull)
-  creator          User?                   @relation(fields: [creator_id], references: [id], onDelete: SetNull)
-  rsvps            EventRsvp[]
-  posts            Post[]
-  postingUnlocks   EventPostingUnlock[]
+  game              Game?                   @relation(fields: [game_id], references: [id], onDelete: SetNull)
+  creator           User?                   @relation(fields: [creator_id], references: [id], onDelete: SetNull)
+  rsvps             EventRsvp[]
+  posts             Post[]
+  votes             EventVote[]
+  postingUnlocks    EventPostingUnlock[]
   designatedPosters EventDesignatedPoster[]
 
   @@index([date])
@@ -1070,6 +1072,21 @@ model GameVote {
   @@index([game_id, team])
 }
 
+model EventVote {
+  id         String   @id @default(cuid())
+  event_id   String
+  user_id    String
+  team       String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, user_id])
+  @@index([event_id, team])
+}
+
 model Story {
   id String @id @default(cuid())
 
@@ -1207,39 +1224,39 @@ model SportProgram {
   logo_url        String?
   created_at      DateTime @default(now())
 
-  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Restrict)
-  teams        Team[]
-  followers    ProgramFollow[]
-  fanned_out_team_follows TeamFollow[] @relation("TeamFollowViaProgram")
+  organization            Organization    @relation(fields: [organization_id], references: [id], onDelete: Restrict)
+  teams                   Team[]
+  followers               ProgramFollow[]
+  fanned_out_team_follows TeamFollow[]    @relation("TeamFollowViaProgram")
 
   @@unique([organization_id, sport])
   @@index([organization_id])
 }
 
 model Team {
-  id                       String     @id @default(cuid())
-  name                     String     @db.VarChar(100)
-  description              String?    @db.VarChar(1000)
+  id                       String      @id @default(cuid())
+  name                     String      @db.VarChar(100)
+  description              String?     @db.VarChar(1000)
   // Logo and optional avatar URL for backward compatibility with front-end
   logo_url                 String?
   avatar_url               String?
-  sport                    String?    @db.VarChar(100)
-  club_type                String     @default("sport") // "sport" or "extracurricular"
-  extracurricular_category String?    @db.VarChar(100) // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
-  season                   String?    @db.VarChar(50) // "Fall" | "Spring" | "Winter" | "Summer"
+  sport                    String?     @db.VarChar(100)
+  club_type                String      @default("sport") // "sport" or "extracurricular"
+  extracurricular_category String?     @db.VarChar(100) // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
+  season                   String?     @db.VarChar(50) // "Fall" | "Spring" | "Winter" | "Summer"
   level                    TeamLevel?
   gender                   TeamGender?
   program_id               String?
-  primary_color            String?    @db.VarChar(20) // hex color for team branding
+  primary_color            String?     @db.VarChar(20) // hex color for team branding
   season_start             DateTime?
   season_end               DateTime?
   organization_id          String
-  status                   TeamStatus @default(active)
+  status                   TeamStatus  @default(active)
   // When true, the team is hidden from public search and discover. Only team
   // members, followers, and org admins (owner/manager) can list the roster
   // or pull the full profile. Set via the team-update endpoint by team staff
   // or org admins.
-  is_private               Boolean    @default(false)
+  is_private               Boolean     @default(false)
 
   // Venue information
   venue_place_id   String?   @db.VarChar(255)

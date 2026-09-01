@@ -44,6 +44,11 @@ describe('Game poll eligibility', () => {
           OR: [{ user_id: userId }, { game: { created_by_id: userId } }],
         },
       });
+      await prisma.eventVote.deleteMany({
+        where: {
+          OR: [{ user_id: userId }, { event: { creator_id: userId } }],
+        },
+      });
       await prisma.event.deleteMany({ where: { creator_id: userId } }).catch(() => {});
       await prisma.game.deleteMany({ where: { created_by_id: userId } }).catch(() => {});
       await prisma.user.deleteMany({ where: { id: userId } }).catch(() => {});
@@ -128,6 +133,45 @@ describe('Game poll eligibility', () => {
     expect(res.body?.[competitive.id]?.teamA).toBe(1);
     expect(res.body?.[competitive.id]?.userVote).toBe('A');
     expect(res.body?.[fundraiser.id]).toBeUndefined();
+  });
+
+  it('supports persistent polls for event-only competitive fixtures', async () => {
+    const event = await prisma.event.create({
+      data: {
+        title: `NCAA Poll ${ts}`,
+        date: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        location: 'Stadium',
+        event_type: 'game',
+        approval_status: 'approved',
+        status: 'approved',
+        creator_id: userId,
+      },
+    });
+
+    await request(app)
+      .get(`/events/${event.id}/votes/summary`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(res => {
+        expect(res.body).toMatchObject({ teamA: 0, teamB: 0, total: 0, userVote: null });
+      });
+
+    await request(app)
+      .post(`/events/${event.id}/votes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ team: 'A' })
+      .expect(200)
+      .expect(res => {
+        expect(res.body).toMatchObject({ teamA: 1, teamB: 0, total: 1, userVote: 'A' });
+      });
+
+    await request(app)
+      .delete(`/events/${event.id}/votes`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(res => {
+        expect(res.body).toMatchObject({ teamA: 0, teamB: 0, total: 0, userVote: null });
+      });
   });
 
   it('rejects post polls outside competitive game contexts', async () => {

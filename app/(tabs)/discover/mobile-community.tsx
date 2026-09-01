@@ -30,6 +30,7 @@ import { Event, Game, Organization, Post, Search, Team, User } from '@/api/entit
 import { httpGet } from '@/api/http';
 import { validateEventCards } from '@/api/schemas/eventCard';
 import { buildUpcomingCalendarDays, splitCalendarCards } from '@/utils/discoverCalendar';
+import { buildMapDiscoveryPath, toMapEvents } from '@/utils/mapDiscovery';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
@@ -90,6 +91,12 @@ const DISCOVER_NCAA_LEAGUES = ['ncaaf', 'ncaamb', 'ncaawb', 'ncaabaseball', 'nca
 const DISCOVER_EVENT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 const DISCOVER_EVENT_LOOKAHEAD_MS = 14 * 24 * 60 * 60 * 1000;
 const DISCOVER_CALENDAR_DAYS = 7;
+const USA_WIDE_REGION = {
+  latitude: 39.8,
+  longitude: -98.5,
+  latitudeDelta: 50,
+  longitudeDelta: 50,
+};
 
 const normalizeMapEvent = (event: any): GameItem | null => {
   if (!event || typeof event.id !== 'string') return null;
@@ -493,6 +500,22 @@ function CommunityDiscoverScreen() {
   });
   const games = useMemo(() => gamesData ?? [], [gamesData]);
   const zipDirectory = useMemo(() => buildZipDirectory(games), [games]);
+
+  const {
+    data: mapEventsData,
+    isPending: mapEventsPending,
+    refetch: refetchMapEvents,
+  } = useQuery({
+    queryKey: ['discover-map-events', user?.id ?? 'guest'],
+    enabled: interactionsDone,
+    queryFn: async (): Promise<EventMapData[]> => {
+      const res: unknown = await httpGet(buildMapDiscoveryPath(300));
+      const cards = validateEventCards('/event-discovery?surface=map', res);
+      return toMapEvents(cards, new Date());
+    },
+  });
+  const mapEvents = useMemo(() => mapEventsData ?? [], [mapEventsData]);
+
   // Error card only when the games list never loaded — a failed background
   // refetch keeps the cached list visible.
   const error = (() => {
@@ -659,8 +682,13 @@ function CommunityDiscoverScreen() {
 
   const refreshAll = useCallback(async () => {
     // refetch() resolves (never throws); failed refreshes keep cached data.
-    await Promise.all([refetchGames(), refetchPersonalization(), refetchSuggested()]);
-  }, [refetchGames, refetchPersonalization, refetchSuggested]);
+    await Promise.all([
+      refetchGames(),
+      refetchPersonalization(),
+      refetchSuggested(),
+      refetchMapEvents(),
+    ]);
+  }, [refetchGames, refetchPersonalization, refetchSuggested, refetchMapEvents]);
 
   // Debounced unified search (users, teams, organizations, games, events)
   useEffect(() => {
@@ -1572,7 +1600,10 @@ function CommunityDiscoverScreen() {
                         if (next) await Team.follow(t.id);
                         else await Team.unfollow(t.id);
                         void queryClient.invalidateQueries({
-                          queryKey: ['discover-followed-games', user?.id ?? 'guest'],
+                          queryKey: ['discover-following-calendar', user?.id ?? 'guest'],
+                        });
+                        void queryClient.invalidateQueries({
+                          queryKey: ['discover-games', user?.id ?? 'guest'],
                         });
                       } catch {
                         setUnifiedSearchResults(prev =>
@@ -2723,45 +2754,21 @@ function CommunityDiscoverScreen() {
 
             {/* Full Map View */}
             {(() => {
-              // Filter to upcoming events with coordinates only. Map view is a
-              // map, not a calendar — the followed/managed calendar lives in
-              // list view. Pins stay current/upcoming so the map itself does not
-              // fill with expired venues.
-              const nowMs = Date.now();
-              const allGamesWithCoords = games.filter(g => {
-                if (typeof g.latitude !== 'number' || typeof g.longitude !== 'number') return false;
-                if (!g.date) return true; // keep undated games
-                const d = new Date(g.date);
-                return !isNaN(d.getTime()) && d.getTime() >= nowMs;
-              });
-
               return (
                 <EventMap
-                  events={allGamesWithCoords.map(
-                    (game): EventMapData => ({
-                      id: String(game.id),
-                      title: String(game.title || 'Game'),
-                      date: String(game.date || new Date().toISOString()),
-                      location: String(game.location || ''),
-                      latitude: Number(game.latitude as number),
-                      longitude: Number(game.longitude as number),
-                      type: game.source_type === 'event' ? 'event' : 'game',
-                    })
-                  )}
+                  events={mapEvents}
                   onEventPress={(eventId, eventType) => {
                     if (eventType === 'event') {
-                      const event = games.find(
-                        item => item.event_id === eventId || item.id === eventId
-                      );
-                      router.push(
-                        buildEventDetailRoute(event?.event_id || eventId, event?.game_id)
-                      );
+                      router.push(buildEventDetailRoute(eventId));
                       return;
                     }
                     router.push({ pathname: '/game/[id]', params: { id: eventId } });
                   }}
+                  initialRegion={USA_WIDE_REGION}
                   showUserLocation={true}
                   preventAutoCenterOnUser
+                  dataLoaded={!mapEventsPending}
+                  autoFitPins={false}
                 />
               );
             })()}

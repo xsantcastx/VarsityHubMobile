@@ -45,7 +45,10 @@ const SERVER_EVENT_ITEM = {
   pro_home_color: '#123456',
   pro_away_color: null,
   pro_league: 'ncaamb',
-  venue_photo: null,
+  venue_photo: {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Arena.jpg',
+    credit: 'Venue photographer / Wikimedia Commons',
+  },
   map_visibility: {
     visible: true,
     reason_code: null,
@@ -73,6 +76,15 @@ describe('eventCardSchema', () => {
     const withExtra = { ...SERVER_EVENT_ITEM, brand_new_server_field: 'x', location: null };
     const parsed = eventCardSchema.safeParse(withExtra);
     expect(parsed.success).toBe(true);
+  });
+
+  it('accepts legacy string venue_photo values', () => {
+    expect(
+      eventCardSchema.safeParse({
+        ...SERVER_EVENT_ITEM,
+        venue_photo: 'https://example.com/venue.jpg',
+      }).success
+    ).toBe(true);
   });
 });
 

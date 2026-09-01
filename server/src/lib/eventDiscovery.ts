@@ -195,7 +195,17 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
 
   const dateWhere = { gte: from, lte: to };
   const queryLimit = Math.min(limit * 2, MAX_LIMIT);
+  const followingTeamIdList = followingTeamIds ? [...followingTeamIds] : [];
   const managedTeamIdList = managedTeamIds ? [...managedTeamIds] : [];
+  const followingGameTeamScope =
+    scope === 'following'
+      ? {
+          OR: [
+            { home_team_id: { in: followingTeamIdList } },
+            { away_team_id: { in: followingTeamIdList } },
+          ],
+        }
+      : null;
   const managedGameScope =
     scope === 'following' && managedTeamIdList.length > 0
       ? {
@@ -210,12 +220,17 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
     scope === 'following'
       ? {
           date: dateWhere,
-          OR: [
+          AND: [
+            followingGameTeamScope,
             {
-              approval_status: 'approved',
-              opponent_approval_status: { in: ['not_required', 'approved'] },
+              OR: [
+                {
+                  approval_status: 'approved',
+                  opponent_approval_status: { in: ['not_required', 'approved'] },
+                },
+                ...(managedGameScope ? [managedGameScope] : []),
+              ],
             },
-            ...(managedGameScope ? [managedGameScope] : []),
           ],
         }
       : {
@@ -248,6 +263,7 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
         status: { not: 'cancelled' },
         game_id: null,
         date: dateWhere,
+        ...(scope === 'following' ? { team_id: { in: followingTeamIdList } } : {}),
         // Map surface: a PAST event page only earns a map pin if it has at least one
         // media post (photo/video) — a past event with nothing to show is noise.
         // Upcoming/today events are always shown. (Feed/all surfaces unaffected.)

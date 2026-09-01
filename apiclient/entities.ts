@@ -563,6 +563,10 @@ export const Event = {
   },
   get: (id: string) =>
     httpGet('/events/' + encodeURIComponent(id)).then(data => validateEvent('events.get', data)),
+  votesSummary: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/votes/summary`),
+  castVote: (id: string, team: 'A' | 'B') =>
+    httpPost(`/events/${encodeURIComponent(id)}/votes`, { team }),
+  clearVote: (id: string) => httpDelete(`/events/${encodeURIComponent(id)}/votes`),
   update: (id: string, data: UpdateEventPayload) =>
     httpPatch('/events/' + encodeURIComponent(id), data),
   approve: (id: string) => httpPut(`/events/${encodeURIComponent(id)}/approve`, {}),

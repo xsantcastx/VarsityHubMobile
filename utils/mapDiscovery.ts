@@ -19,8 +19,8 @@ import { shouldShowEventOnMap } from '@/utils/mapEventFilters';
 
 const DEFAULT_MAP_LIMIT = 200;
 
-/** The upcoming-days strip shown by the feed-map calendar button. */
-export interface UpcomingDateButton {
+/** The compact day strip shown by the feed-map calendar button. */
+export interface MapDateButton {
   dateString: string;
   day: string;
   label: string;
@@ -80,21 +80,17 @@ export function toMapEvents(
   return out;
 }
 
-/**
- * Build the feed-map calendar strip as UPCOMING days (today going forward) —
- * the map shows what's still to come, so its date picker must look forward, not
- * back. Each button carries the count of provided events falling on that day.
- */
-export function buildUpcomingDateButtons(
+/** Build the feed-map calendar strip as the last N days, ending today. */
+export function buildRecentDateButtons(
   events: Array<{ date?: string | null }>,
   now: Date = new Date(),
   days: number = 7
-): UpcomingDateButton[] {
+): MapDateButton[] {
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
   return Array.from({ length: days }, (_, index) => {
     const date = new Date(start);
-    date.setDate(start.getDate() + index);
+    date.setDate(start.getDate() - (days - 1 - index));
     const dateString = toDateKey(date);
     const count = events.filter(event => {
       if (!event.date) return false;

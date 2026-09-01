@@ -450,7 +450,7 @@ const GameDetailsScreen = () => {
 
     if ((!home || !away) && title) {
       const parts = title
-        .split(/\s+vs\.?\s+/i)
+        .split(/\s+(?:vs\.?|at)\s+/i)
         .map(part => part.trim())
         .filter(Boolean);
       if (!home && parts[0]) home = parts[0];
@@ -512,8 +512,8 @@ const GameDetailsScreen = () => {
   }, [vm?.date, nowTs]);
 
   const canShowVoteSection = useMemo(
-    () => canShowGamePoll({ gameId: vm?.gameId, eventType: vm?.eventType }),
-    [vm?.eventType, vm?.gameId]
+    () => canShowGamePoll({ gameId: vm?.gameId, eventId: vm?.eventId, eventType: vm?.eventType }),
+    [vm?.eventId, vm?.eventType, vm?.gameId]
   );
 
   // Keep event-page interactions active through the end of the event day.
@@ -597,7 +597,7 @@ const GameDetailsScreen = () => {
     const title = (vm?.title || '').replace(/\s+/g, ' ').trim();
     if (title) {
       const parts = title
-        .split(/\s+vs\.?\s+/i)
+        .split(/\s+(?:vs\.?|at)\s+/i)
         .map(part => part.trim())
         .filter(Boolean);
       if (parts.length >= 2) {
@@ -1561,21 +1561,25 @@ const GameDetailsScreen = () => {
   ]);
 
   const _refreshVotes = useCallback(async () => {
-    if (!canShowVoteSection || !vm?.gameId) {
+    const voteId = vm?.gameId ?? vm?.eventId;
+    if (!canShowVoteSection || !voteId) {
       setVoteSummary(null);
       return;
     }
     try {
-      const res: any = await retryWithBackoff(() => Game.votesSummary(vm.gameId!), {
-        maxRetries: 2,
-        initialDelayMs: 800,
-        maxDelayMs: 4000,
-      });
+      const res: any = await retryWithBackoff(
+        () => (vm?.gameId ? Game.votesSummary(voteId) : Event.votesSummary(voteId)),
+        {
+          maxRetries: 2,
+          initialDelayMs: 800,
+          maxDelayMs: 4000,
+        }
+      );
       setVoteSummary(parseVoteSummary(res));
     } catch (err) {
       if (__DEV__) console.warn('Failed to load game votes', err);
     }
-  }, [canShowVoteSection, vm?.gameId]);
+  }, [canShowVoteSection, vm?.eventId, vm?.gameId]);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -1657,12 +1661,12 @@ const GameDetailsScreen = () => {
     setSeenStories({}); // Reset seen-story badges for fresh event
   }, [id, eventId]);
 
-  // Fetch vote summary for this event once vm.gameId is available
+  // Fetch vote summary once a competitive game/event id is available.
   useEffect(() => {
-    if (vm?.gameId) {
+    if (vm?.gameId || vm?.eventId) {
       void _refreshVotes();
     }
-  }, [vm?.gameId, _refreshVotes]);
+  }, [vm?.eventId, vm?.gameId, _refreshVotes]);
 
   useEffect(() => {
     const total = _voteSummary?.total ?? 0;
@@ -1813,16 +1817,19 @@ const GameDetailsScreen = () => {
         return applyVoteSelection(prev, team);
       });
 
-      const voteId = vm?.gameId;
-      if (!voteId) return; // Competitive polls are keyed by Game.id, never Event.id.
+      const voteId = vm?.gameId ?? vm?.eventId;
+      if (!voteId) return;
 
       setVoteBusy(true);
       try {
-        const res: any = await retryWithBackoff(() => Game.castVote(voteId, team), {
-          maxRetries: 2,
-          initialDelayMs: 800,
-          maxDelayMs: 4000,
-        });
+        const res: any = await retryWithBackoff(
+          () => (vm?.gameId ? Game.castVote(voteId, team) : Event.castVote(voteId, team)),
+          {
+            maxRetries: 2,
+            initialDelayMs: 800,
+            maxDelayMs: 4000,
+          }
+        );
         // The response from the server is the latest truth
         setVoteSummary(parseVoteSummary(res));
         // We can also refresh votes as a secondary measure if needed
@@ -1840,7 +1847,7 @@ const GameDetailsScreen = () => {
         setVoteBusy(false);
       }
     },
-    [isVoteOpen, authUser, vm?.gameId]
+    [isVoteOpen, authUser, vm?.eventId, vm?.gameId]
   );
 
   const handleClearVote = useCallback(async () => {
@@ -1848,27 +1855,22 @@ const GameDetailsScreen = () => {
     const currentVoteSummary = _voteSummary;
     if (!currentVoteSummary?.userVote) return;
 
-    // Event-only pages (no gameId) only update local state
-    const isEventOnly = !vm?.gameId && vm?.eventId;
-
     const rollback: VoteSummary = { ...currentVoteSummary };
     setVoteSummary(applyClearVote(currentVoteSummary));
 
-    // For event-only pages, just update local state and don't call API
-    if (isEventOnly) {
-      setVoteBusy(false);
-      return;
-    }
-
-    if (!vm?.gameId) return; // Safety check
+    const voteId = vm?.gameId ?? vm?.eventId;
+    if (!voteId) return;
 
     setVoteBusy(true);
     try {
-      const res: any = await retryWithBackoff(() => Game.clearVote(vm.gameId!), {
-        maxRetries: 2,
-        initialDelayMs: 800,
-        maxDelayMs: 4000,
-      });
+      const res: any = await retryWithBackoff(
+        () => (vm?.gameId ? Game.clearVote(voteId) : Event.clearVote(voteId)),
+        {
+          maxRetries: 2,
+          initialDelayMs: 800,
+          maxDelayMs: 4000,
+        }
+      );
       setVoteSummary(parseVoteSummary(res));
     } catch (err: any) {
       if (rollback) setVoteSummary(rollback);

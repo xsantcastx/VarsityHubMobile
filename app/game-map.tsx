@@ -20,7 +20,7 @@ import {
 // SafeAreaView removed — native header handles safe area
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { httpGet } from '@/api/http';
-import { buildMapDiscoveryPath, buildUpcomingDateButtons, toMapEvents } from '@/utils/mapDiscovery';
+import { buildMapDiscoveryPath, buildRecentDateButtons, toMapEvents } from '@/utils/mapDiscovery';
 import { validateEventCards } from '@/api/schemas/eventCard';
 
 const USA_WIDE_REGION = {
@@ -102,22 +102,15 @@ function GameMapScreen() {
     [events]
   );
 
-  // Tapping a date chip filters the MAP to that day (no list). A forward chip lives
-  // inside the already-loaded window, so it filters client-side with no refetch.
-  const selectForwardDate = useCallback((dateString: string) => {
-    setPastDayMarkers(null);
-    setSelectedDate(prev => (prev === dateString ? '' : dateString));
-  }, []);
-
   const clearDate = useCallback(() => {
     setSelectedDate('');
     setPastDayMarkers(null);
   }, []);
 
-  // The trailing calendar button reaches ANY earlier day (back to VarsityHub's
-  // start). Past days sit outside the 5-day map window, so they need their own
-  // fetch; the server only returns past event pages that carry a media post.
-  const selectPastDate = useCallback(async (picked: Date) => {
+  // Date chips are the last 7 days. Each day fetches its own map markers because
+  // past days sit outside the default public map window; the server only returns
+  // past event pages that carry a media post.
+  const selectMapDate = useCallback(async (picked: Date) => {
     const start = new Date(
       Date.UTC(picked.getFullYear(), picked.getMonth(), picked.getDate(), 0, 0, 0, 0)
     );
@@ -141,9 +134,9 @@ function GameMapScreen() {
     }
   }, []);
 
-  // Upcoming days (today forward) as quick chips. Logic lives in utils/mapDiscovery.
+  // Last 7 days as quick chips. Logic lives in utils/mapDiscovery.
   const recentDateButtons = useMemo(
-    () => buildUpcomingDateButtons(calendarEvents, new Date(), 7),
+    () => buildRecentDateButtons(calendarEvents, new Date(), 7),
     [calendarEvents]
   );
 
@@ -228,7 +221,14 @@ function GameMapScreen() {
                 return (
                   <Pressable
                     key={day.dateString}
-                    onPress={() => selectForwardDate(day.dateString)}
+                    onPress={() => {
+                      if (selected) {
+                        clearDate();
+                        return;
+                      }
+                      const [year, month, dayOfMonth] = day.dateString.split('-').map(Number);
+                      void selectMapDate(new Date(year, month - 1, dayOfMonth));
+                    }}
                     style={[
                       styles.dateChip,
                       {
@@ -329,7 +329,7 @@ function GameMapScreen() {
                     <Pressable
                       onPress={() => {
                         setShowPicker(false);
-                        void selectPastDate(pickerDate);
+                        void selectMapDate(pickerDate);
                       }}
                     >
                       <Text style={[styles.pickerDone, { color: Colors[colorScheme].tint }]}>
@@ -356,7 +356,7 @@ function GameMapScreen() {
               maximumDate={new Date()}
               onChange={(_, d) => {
                 setShowPicker(false);
-                if (d) void selectPastDate(d);
+                if (d) void selectMapDate(d);
               }}
             />
           ))}

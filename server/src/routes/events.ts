@@ -43,7 +43,7 @@ import {
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js';
+import { eventCreationLimiter, rsvpLimiter, voteLimiter } from '../middleware/rateLimiters.js';
 import { getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
@@ -84,6 +84,57 @@ const buildCreatedAtIdCursorWhere = (cursor: { createdAt: Date; id: string } | n
       id: { lt: cursor.id },
     },
   ];
+};
+
+const isCompetitivePollEventType = (eventType?: string | null) => {
+  if (!eventType) return true;
+  return String(eventType).trim().toLowerCase() === 'game';
+};
+
+const getEventPollEligibility = async (eventId: string) => {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, event_type: true, game_id: true },
+  });
+  if (!event) return { ok: false as const, status: 404, body: { error: 'Not found' } };
+  if (event.game_id) {
+    return {
+      ok: false as const,
+      status: 409,
+      body: {
+        error: 'Game-backed events vote through the linked game.',
+        code: 'POLL_USES_GAME',
+        game_id: event.game_id,
+      },
+    };
+  }
+  if (!isCompetitivePollEventType(event.event_type)) {
+    return {
+      ok: false as const,
+      status: 409,
+      body: {
+        error: 'Polls are only available for competitive games.',
+        code: 'POLL_NOT_AVAILABLE',
+      },
+    };
+  }
+  return { ok: true as const, event };
+};
+
+const summarizeEventVotes = async (eventId: string, userId?: string | null) => {
+  const [teamA, teamB, mine] = await Promise.all([
+    prisma.eventVote.count({ where: { event_id: eventId, team: 'A' } }),
+    prisma.eventVote.count({ where: { event_id: eventId, team: 'B' } }),
+    userId
+      ? prisma.eventVote.findUnique({
+          where: { event_id_user_id: { event_id: eventId, user_id: userId } },
+        })
+      : Promise.resolve(null),
+  ]);
+  const total = teamA + teamB;
+  const pctA = total ? Math.round((teamA / total) * 100) : 0;
+  const pctB = total ? 100 - pctA : 0;
+  return { teamA, teamB, total, pctA, pctB, userVote: mine?.team ?? null };
 };
 
 /**
@@ -1215,6 +1266,79 @@ eventsRouter.post(
     const count = await prisma.eventRsvp.count({ where: { event_id: id } });
     const capacity = event.capacity ?? event.max_attendees;
     return res.json({ going: desired, attending: desired, count, capacity: capacity ?? null });
+  })
+);
+
+eventsRouter.get(
+  '/:id/votes/summary',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      const eventId = String(req.params.id);
+      const eligibility = await getEventPollEligibility(eventId);
+      if (!eligibility.ok) {
+        return res.status(eligibility.status).json(eligibility.body);
+      }
+      const summary = await summarizeEventVotes(eventId, req.user?.id);
+      return res.json(summary);
+    } catch (err) {
+      console.error('[events] votes-summary-single error:', err);
+      return sendError(res, 500, 'Internal server error');
+    }
+  })
+);
+
+eventsRouter.post(
+  '/:id/votes',
+  requireAuth as any,
+  voteLimiter,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return sendError(res, 401, 'Unauthorized');
+      const eventId = String(req.params.id);
+      const eligibility = await getEventPollEligibility(eventId);
+      if (!eligibility.ok) {
+        return res.status(eligibility.status).json(eligibility.body);
+      }
+      const teamInput = String(req.body?.team ?? '')
+        .trim()
+        .toUpperCase();
+      if (teamInput !== 'A' && teamInput !== 'B') {
+        return sendError(res, 400, 'Invalid team option');
+      }
+
+      await prisma.eventVote.upsert({
+        where: { event_id_user_id: { event_id: eventId, user_id: req.user.id } },
+        update: { team: teamInput },
+        create: { event_id: eventId, user_id: req.user.id, team: teamInput },
+      });
+
+      const summary = await summarizeEventVotes(eventId, req.user.id);
+      return res.json(summary);
+    } catch (err) {
+      console.error('[events] cast-vote error:', err);
+      return sendError(res, 500, 'Internal server error');
+    }
+  })
+);
+
+eventsRouter.delete(
+  '/:id/votes',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return sendError(res, 401, 'Unauthorized');
+      const eventId = String(req.params.id);
+      const eligibility = await getEventPollEligibility(eventId);
+      if (!eligibility.ok) {
+        return res.status(eligibility.status).json(eligibility.body);
+      }
+      await prisma.eventVote.deleteMany({ where: { event_id: eventId, user_id: req.user.id } });
+      const summary = await summarizeEventVotes(eventId, req.user.id);
+      return res.json(summary);
+    } catch (err) {
+      console.error('[events] delete-vote error:', err);
+      return sendError(res, 500, 'Internal server error');
+    }
   })
 );
 

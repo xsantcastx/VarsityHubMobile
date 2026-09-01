@@ -93,6 +93,34 @@ describe('event discovery — following scope', () => {
     expect(new Date(result.meta.from).getTime()).toBe(now.getTime());
   });
 
+  it('pushes followed-team scope into game and event queries instead of filtering after take', async () => {
+    const db = makeDb('team-X');
+    await listEventDiscoveryItems(db, {
+      scope: 'following',
+      viewerId: 'viewer-1',
+      now,
+    });
+
+    expect(db.game.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([
+            {
+              OR: [{ home_team_id: { in: ['team-X'] } }, { away_team_id: { in: ['team-X'] } }],
+            },
+          ]),
+        }),
+      })
+    );
+    expect(db.event.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          team_id: { in: ['team-X'] },
+        }),
+      })
+    );
+  });
+
   it('returns empty items for a null viewer, without throwing', async () => {
     const result = await listEventDiscoveryItems(makeDb('team-X'), {
       scope: 'following',

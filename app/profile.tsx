@@ -561,7 +561,10 @@ export default function ProfileScreen() {
 
   // Load organizations separately to avoid blocking profile render
   useEffect(() => {
-    if (!me?.id) return;
+    if (!me?.id || isViewingOtherProfile) {
+      setOrganizations([]);
+      return;
+    }
 
     const loadOrganizations = async () => {
       try {
@@ -623,7 +626,7 @@ export default function ProfileScreen() {
     };
 
     void loadOrganizations();
-  }, [me?.id]);
+  }, [isViewingOtherProfile, me?.id]);
 
   // Clear any stale profile error when switching tabs (the tab queries
   // themselves fetch lazily via their `enabled` gates; sort changes refetch
