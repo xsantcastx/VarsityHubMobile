@@ -436,8 +436,37 @@ function CommunityDiscoverScreen() {
       const nowMs = Date.now();
       const dateFrom = new Date(nowMs - DISCOVER_EVENT_LOOKBACK_MS).toISOString();
       const dateTo = new Date(nowMs + DISCOVER_EVENT_LOOKAHEAD_MS).toISOString();
-      const [raw, proEvents, ...ncaaEvents] = await Promise.all([
-        Game.list('date', { dateFrom, dateTo, limit: 100 }),
+      const raw = await Game.list('date', { dateFrom, dateTo, limit: 100 });
+      let normalizedGames = Array.isArray(raw) ? raw : raw?.games || raw?.items || [];
+
+      const zip = snapshot?.preferences?.zip_code
+        ? String(snapshot.preferences.zip_code).trim()
+        : '';
+      const prioritizeByZip = (items: GameItem[]) => {
+        if (!zip) return items;
+        // Normalize zip code (remove dashes, spaces)
+        const normalizedZip = zip.replace(/[-\s]/g, '').toLowerCase();
+        const withZip: GameItem[] = [];
+        const withoutZip: GameItem[] = [];
+        items.forEach((g: GameItem) => {
+          const hay =
+            `${(g as any)?.location || ''} ${(g as any)?.address || ''} ${(g as any)?.city || ''}`.toLowerCase();
+          // Extract zip codes from location string and check if any match
+          const zipMatches = hay.match(/\b\d{5}(?:-\d{4})?\b/g);
+          const hasMatchingZip = zipMatches?.some(z =>
+            z.replace(/[-\s]/g, '').startsWith(normalizedZip.slice(0, 5))
+          );
+          if (hasMatchingZip || hay.includes(normalizedZip)) {
+            withZip.push(g);
+          } else {
+            withoutZip.push(g);
+          }
+        });
+        return [...withZip, ...withoutZip];
+      };
+      normalizedGames = prioritizeByZip(normalizedGames);
+
+      void Promise.all([
         Event.filter(
           {
             event_type: 'game',
@@ -463,38 +492,16 @@ function CommunityDiscoverScreen() {
             100
           ).catch(() => [])
         ),
-      ]);
-      let normalizedGames = Array.isArray(raw) ? raw : raw?.games || raw?.items || [];
-      const eventRows = [proEvents, ...ncaaEvents]
-        .flat()
-        .map(normalizeMapEvent)
-        .filter((event): event is GameItem => Boolean(event));
-      normalizedGames = mergeDiscoverEvents(normalizedGames, eventRows);
-
-      const zip = snapshot?.preferences?.zip_code
-        ? String(snapshot.preferences.zip_code).trim()
-        : '';
-      if (zip) {
-        // Normalize zip code (remove dashes, spaces)
-        const normalizedZip = zip.replace(/[-\s]/g, '').toLowerCase();
-        const withZip: GameItem[] = [];
-        const withoutZip: GameItem[] = [];
-        normalizedGames.forEach((g: GameItem) => {
-          const hay =
-            `${(g as any)?.location || ''} ${(g as any)?.address || ''} ${(g as any)?.city || ''}`.toLowerCase();
-          // Extract zip codes from location string and check if any match
-          const zipMatches = hay.match(/\b\d{5}(?:-\d{4})?\b/g);
-          const hasMatchingZip = zipMatches?.some(z =>
-            z.replace(/[-\s]/g, '').startsWith(normalizedZip.slice(0, 5))
-          );
-          if (hasMatchingZip || hay.includes(normalizedZip)) {
-            withZip.push(g);
-          } else {
-            withoutZip.push(g);
-          }
-        });
-        normalizedGames = [...withZip, ...withoutZip];
-      }
+      ]).then(([proEvents, ...ncaaEvents]) => {
+        const eventRows = [proEvents, ...ncaaEvents]
+          .flat()
+          .map(normalizeMapEvent)
+          .filter((event): event is GameItem => Boolean(event));
+        if (eventRows.length === 0) return;
+        queryClient.setQueryData(['discover-games', user?.id ?? 'guest'], (old: GameItem[] = []) =>
+          prioritizeByZip(mergeDiscoverEvents(old, eventRows))
+        );
+      });
       return normalizedGames;
     },
   });
@@ -507,7 +514,7 @@ function CommunityDiscoverScreen() {
     refetch: refetchMapEvents,
   } = useQuery({
     queryKey: ['discover-map-events', user?.id ?? 'guest'],
-    enabled: interactionsDone,
+    enabled: interactionsDone && viewMode === 'map',
     queryFn: async (): Promise<EventMapData[]> => {
       const res: unknown = await httpGet(buildMapDiscoveryPath(300));
       const cards = validateEventCards('/event-discovery?surface=map', res);
@@ -686,9 +693,9 @@ function CommunityDiscoverScreen() {
       refetchGames(),
       refetchPersonalization(),
       refetchSuggested(),
-      refetchMapEvents(),
+      ...(viewMode === 'map' ? [refetchMapEvents()] : []),
     ]);
-  }, [refetchGames, refetchPersonalization, refetchSuggested, refetchMapEvents]);
+  }, [refetchGames, refetchPersonalization, refetchSuggested, refetchMapEvents, viewMode]);
 
   // Debounced unified search (users, teams, organizations, games, events)
   useEffect(() => {
@@ -2883,19 +2890,17 @@ function CommunityDiscoverScreen() {
           />
         )}
 
-        <Modal
-          visible={viewerOpen}
-          animationType="slide"
-          onRequestClose={() => setViewerOpen(false)}
-        >
-          <GameVerticalFeedScreen
-            onClose={() => setViewerOpen(false)}
-            initialPosts={viewerPosts}
-            startIndex={viewerIndex}
-            title={tab === 'following' ? 'Following' : 'Discover'}
-            showHeader
-          />
-        </Modal>
+        {viewerOpen ? (
+          <Modal visible animationType="slide" onRequestClose={() => setViewerOpen(false)}>
+            <GameVerticalFeedScreen
+              onClose={() => setViewerOpen(false)}
+              initialPosts={viewerPosts}
+              startIndex={viewerIndex}
+              title={tab === 'following' ? 'Following' : 'Discover'}
+              showHeader
+            />
+          </Modal>
+        ) : null}
 
         <QuickAddGameModal
           visible={createEventModalOpen}

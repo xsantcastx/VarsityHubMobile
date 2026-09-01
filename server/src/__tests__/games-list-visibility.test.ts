@@ -182,6 +182,21 @@ describe('GET /games approval-status visibility', () => {
 
     expect(mockUserFindUnique).not.toHaveBeenCalled();
   });
+
+  it('organization_id scopes approved games in one query and bypasses zip proximity', async () => {
+    mockUserFindUnique.mockClear();
+    const orgId = 'org-coach-tools';
+
+    await request(app).get(`/games?organization_id=${orgId}&sort=date&show_all=true`).expect(200);
+
+    const where = lastFindManyWhere();
+    expect(where.approval_status).toBe('approved');
+    expect(where.AND).toContainEqual({
+      OR: [{ homeTeam: { organization_id: orgId } }, { awayTeam: { organization_id: orgId } }],
+    });
+    expect(mockGameFindMany).toHaveBeenCalledTimes(1);
+    expect(mockUserFindUnique).not.toHaveBeenCalled();
+  });
 });
 
 describe('GET /games?following=true (followed-teams calendar)', () => {

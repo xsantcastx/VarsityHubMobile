@@ -201,23 +201,23 @@ export default function OrganizationScreen() {
 
       let orgGames: GameItem[] = [];
       try {
-        // Scope server-side by each team's ID (matches home_team_id OR
-        // away_team_id), then merge + dedupe. Replaces the old unbounded
-        // Game.list('-date') + fragile name-substring match, which pulled the
-        // whole games table and mis-matched teams whose names are substrings of
-        // others (e.g. "Eagles" also matched "Golden Eagles" / "Eagles JV").
-        const perTeamGames = await Promise.all(
-          orgTeams.map(t =>
-            Game.list('-date', { teamId: t.id, limit: 100 })
-              .then((res: any) => (Array.isArray(res) ? res : res?.games || res?.items || []))
-              .catch(() => [])
-          )
-        );
-        const dedupedById = new Map<string, any>();
-        for (const list of perTeamGames) {
-          for (const g of list) dedupedById.set(String(g.id), g);
-        }
-        orgGames = Array.from(dedupedById.values())
+        // One org-scoped request replaces the old per-team fan-out. Large
+        // schools were issuing one /games call for every team just to render
+        // the first 10 upcoming rows on the org page.
+        const gamesResponse = await Game.list('date', {
+          organizationId: orgId as string,
+          dateFrom: new Date().toISOString(),
+          limit: 100,
+          showAll: true,
+        });
+        const orgGameRows = Array.isArray(gamesResponse)
+          ? gamesResponse
+          : Array.isArray((gamesResponse as any)?.games)
+            ? (gamesResponse as any).games
+            : Array.isArray((gamesResponse as any)?.items)
+              ? (gamesResponse as any).items
+              : [];
+        orgGames = orgGameRows
           .map((g: any) => ({
             id: String(g.id),
             date: g.date,

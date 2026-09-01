@@ -1878,14 +1878,14 @@ export default function ProfileScreen() {
         </Pressable>
       </Modal>
 
-      <Modal
-        visible={viewerOpen}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={() => setViewerOpen(false)}
-      >
-        <View style={[styles.verticalFeedModal, { backgroundColor: theme.background }]}>
-          {viewerOpen ? (
+      {viewerOpen ? (
+        <Modal
+          visible
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={() => setViewerOpen(false)}
+        >
+          <View style={[styles.verticalFeedModal, { backgroundColor: theme.background }]}>
             <GameVerticalFeedScreen
               onClose={() => setViewerOpen(false)}
               showHeader
@@ -1895,9 +1895,9 @@ export default function ProfileScreen() {
                 activeTab === 'posts' ? 'posts' : activeTab === 'replies' ? 'replies' : 'upvotes'
               }`}
             />
-          ) : null}
-        </View>
-      </Modal>
+          </View>
+        </Modal>
+      ) : null}
     </SafeAreaView>
   );
 }

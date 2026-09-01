@@ -237,6 +237,7 @@ export const Game = {
       approvalStatus?: 'pending' | 'approved' | 'rejected';
       showPending?: boolean;
       teamId?: string;
+      organizationId?: string;
       mapView?: boolean; // v1.0.2: restricts server-side to games this week only
       teamless?: boolean; // curated/marquee events with no real team matchup
       following?: boolean; // Discover calendar: scope to viewer's followed teams
@@ -260,6 +261,8 @@ export const Game = {
       params.push(`approval_status=${encodeURIComponent(options.approvalStatus)}`);
     if (options?.showPending) params.push('show_pending=true');
     if (options?.teamId) params.push(`team_id=${encodeURIComponent(options.teamId)}`);
+    if (options?.organizationId)
+      params.push(`organization_id=${encodeURIComponent(options.organizationId)}`);
     if (options?.mapView) params.push('map_view=true');
     if (options?.teamless) params.push('teamless=true');
     if (options?.following) params.push('following=true');

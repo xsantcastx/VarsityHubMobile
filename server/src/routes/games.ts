@@ -1222,6 +1222,25 @@ gamesRouter.get(
         });
       }
 
+      // Organization page needs a single bounded calendar query. Without this
+      // filter the client had to issue one /games request per team, which made
+      // coach org pages scale linearly with the number of teams.
+      const organizationIdFilter =
+        typeof req.query.organization_id === 'string'
+          ? req.query.organization_id.trim()
+          : typeof req.query.org_id === 'string'
+            ? req.query.org_id.trim()
+            : null;
+      if (organizationIdFilter) {
+        if (!whereClause.AND) whereClause.AND = [];
+        whereClause.AND.push({
+          OR: [
+            { homeTeam: { organization_id: organizationIdFilter } },
+            { awayTeam: { organization_id: organizationIdFilter } },
+          ],
+        });
+      }
+
       // teamless=true: curated/marquee events (festivals, one-off watch parties)
       // created without a real team matchup. Used by the feed to fetch these
       // separately so they can't be paginated out by a flood of routine
@@ -1319,6 +1338,7 @@ gamesRouter.get(
         !showAll &&
         authedReq.user?.id &&
         !teamIdFilter &&
+        !organizationIdFilter &&
         !following &&
         !wantsNonApproved
       ) {

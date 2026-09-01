@@ -1526,23 +1526,25 @@ function TeamScreen() {
         />
       )}
 
-      <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
-        <GameVerticalFeedScreen
-          onClose={() => setViewerOpen(false)}
-          showHeader
-          initialPosts={viewerItems}
-          startIndex={viewerIndex}
-          title={
-            activeTab === 'posts'
-              ? 'Team posts'
-              : activeTab === 'replies'
-                ? 'Team replies'
-                : activeTab === 'upvotes'
-                  ? 'Team upvotes'
-                  : 'Team events'
-          }
-        />
-      </Modal>
+      {viewerOpen ? (
+        <Modal visible animationType="slide" onRequestClose={() => setViewerOpen(false)}>
+          <GameVerticalFeedScreen
+            onClose={() => setViewerOpen(false)}
+            showHeader
+            initialPosts={viewerItems}
+            startIndex={viewerIndex}
+            title={
+              activeTab === 'posts'
+                ? 'Team posts'
+                : activeTab === 'replies'
+                  ? 'Team replies'
+                  : activeTab === 'upvotes'
+                    ? 'Team upvotes'
+                    : 'Team events'
+            }
+          />
+        </Modal>
+      ) : null}
     </SafeAreaView>
   );
 }

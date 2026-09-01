@@ -852,23 +852,9 @@ export default function FeedScreen() {
         const queryPlan = buildFeedGameQueries(Date.now());
         const proLookaheadTo = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString();
         feedQueryPlanRef.current = queryPlan;
-        // The three queries are independent — run them concurrently (sequential
-        // awaits cost ~1.2s extra per load at ~600ms per request). Past recap +
-        // curated/marquee events (no real team matchup — e.g. Fanatics Fest)
-        // are best effort: a failure just means that section is empty this
-        // load, never blocks or errors the main games list.
-        const [
-          upcomingData,
-          pastGamesData,
-          marqueeGamesData,
-          proUpcomingData,
-          proPastData,
-          varsityhubUpcomingEventsData,
-          varsityhubPastEventsData,
-          proWweUpcomingData,
-          proNflUpcomingData,
-          ...ncaaUpcomingData
-        ] = await Promise.all([
+        // First paint waits only for the core game pages. Pro/NCAA/event-only
+        // rows are useful enrichment, but they should not hold the feed spinner.
+        const [upcomingData, pastGamesData, marqueeGamesData] = await Promise.all([
           queryClient
             .fetchQuery({
               queryKey: [
@@ -919,163 +905,6 @@ export default function FeedScreen() {
               if (__DEV__) console.warn('[Feed] Failed to load marquee games:', err);
               return null;
             }),
-          queryClient
-            .fetchQuery({
-              queryKey: ['feed-pro-events-upcoming', queryPlan.upcoming.options.dateFrom],
-              queryFn: () =>
-                Event.filter(
-                  {
-                    event_type: 'game',
-                    pro_only: true,
-                    event_only: true,
-                    from: queryPlan.upcoming.options.dateFrom,
-                    to: proLookaheadTo,
-                  },
-                  'date',
-                  80
-                ),
-            })
-            .catch((err: any) => {
-              if (__DEV__) console.warn('[Feed] Failed to load pro upcoming events:', err);
-              return null;
-            }),
-          queryClient
-            .fetchQuery({
-              queryKey: [
-                'feed-pro-events-past',
-                queryPlan.past.options.dateFrom,
-                queryPlan.past.options.dateTo ?? null,
-              ],
-              queryFn: () =>
-                Event.filter(
-                  {
-                    event_type: 'game',
-                    pro_only: true,
-                    event_only: true,
-                    from: queryPlan.past.options.dateFrom,
-                    to: queryPlan.past.options.dateTo,
-                  },
-                  '-date',
-                  30
-                ),
-            })
-            .catch((err: any) => {
-              if (__DEV__) console.warn('[Feed] Failed to load pro past events:', err);
-              return null;
-            }),
-          queryClient
-            .fetchQuery({
-              queryKey: [
-                'feed-varsityhub-events-upcoming',
-                queryPlan.upcoming.options.dateFrom,
-                queryPlan.upcoming.options.dateTo ?? null,
-              ],
-              queryFn: () =>
-                Event.filter(
-                  {
-                    event_only: true,
-                    from: queryPlan.upcoming.options.dateFrom,
-                    to: queryPlan.upcoming.options.dateTo,
-                  },
-                  'date',
-                  100
-                ),
-            })
-            .catch((err: any) => {
-              if (__DEV__) console.warn('[Feed] Failed to load VarsityHub upcoming events:', err);
-              return null;
-            }),
-          queryClient
-            .fetchQuery({
-              queryKey: [
-                'feed-varsityhub-events-past',
-                queryPlan.past.options.dateFrom,
-                queryPlan.past.options.dateTo ?? null,
-              ],
-              queryFn: () =>
-                Event.filter(
-                  {
-                    event_only: true,
-                    from: queryPlan.past.options.dateFrom,
-                    to: queryPlan.past.options.dateTo,
-                  },
-                  '-date',
-                  100
-                ),
-            })
-            .catch((err: any) => {
-              if (__DEV__) console.warn('[Feed] Failed to load VarsityHub past events:', err);
-              return null;
-            }),
-          queryClient
-            .fetchQuery({
-              queryKey: ['feed-pro-events-upcoming-wwe', queryPlan.upcoming.options.dateFrom],
-              queryFn: () =>
-                Event.filter(
-                  {
-                    event_type: 'game',
-                    pro_only: true,
-                    pro_league: 'wwe',
-                    event_only: true,
-                    from: queryPlan.upcoming.options.dateFrom,
-                    to: proLookaheadTo,
-                  },
-                  'date',
-                  20
-                ),
-            })
-            .catch((err: any) => {
-              if (__DEV__) console.warn('[Feed] Failed to load WWE upcoming events:', err);
-              return null;
-            }),
-          queryClient
-            .fetchQuery({
-              queryKey: ['feed-pro-events-upcoming-nfl', queryPlan.upcoming.options.dateFrom],
-              queryFn: () =>
-                Event.filter(
-                  {
-                    event_type: 'game',
-                    pro_only: true,
-                    pro_league: 'nfl',
-                    event_only: true,
-                    from: queryPlan.upcoming.options.dateFrom,
-                    to: proLookaheadTo,
-                  },
-                  'date',
-                  20
-                ),
-            })
-            .catch((err: any) => {
-              if (__DEV__) console.warn('[Feed] Failed to load NFL upcoming events:', err);
-              return null;
-            }),
-          ...NCAA_FEED_LEAGUES.map(league =>
-            queryClient
-              .fetchQuery({
-                queryKey: [
-                  'feed-pro-events-upcoming-ncaa',
-                  league,
-                  queryPlan.upcoming.options.dateFrom,
-                ],
-                queryFn: () =>
-                  Event.filter(
-                    {
-                      event_type: 'game',
-                      pro_only: true,
-                      pro_league: league,
-                      event_only: true,
-                      from: queryPlan.upcoming.options.dateFrom,
-                      to: proLookaheadTo,
-                    },
-                    'date',
-                    100
-                  ),
-              })
-              .catch((err: any) => {
-                if (__DEV__) console.warn(`[Feed] Failed to load ${league} upcoming events:`, err);
-                return null;
-              })
-          ),
         ]);
 
         const upcomingPage = normalizeGamesPage(upcomingData);
@@ -1085,48 +914,7 @@ export default function FeedScreen() {
           ...upcomingPage.games,
           ...normalizeGamesPage(marqueeGamesData).games,
         ];
-        const proPastRows = filterProEventsAlreadyRepresentedByGames(
-          gameRows,
-          normalizeFeedEvents(proPastData)
-        );
-        const proUpcomingRows = filterProEventsAlreadyRepresentedByGames(
-          gameRows,
-          normalizeFeedEvents(proUpcomingData)
-        );
-        const varsityhubEventRows = filterProEventsAlreadyRepresentedByGames(
-          gameRows,
-          normalizeFeedEvents(varsityhubUpcomingEventsData)
-        );
-        const varsityhubPastEventRows = filterProEventsAlreadyRepresentedByGames(
-          gameRows,
-          normalizeFeedEvents(varsityhubPastEventsData)
-        );
-        const proWweRows = filterProEventsAlreadyRepresentedByGames(
-          gameRows,
-          normalizeFeedEvents(proWweUpcomingData, 'wwe')
-        );
-        const proNflRows = filterProEventsAlreadyRepresentedByGames(
-          gameRows,
-          normalizeFeedEvents(proNflUpcomingData, 'nfl')
-        );
-        const ncaaRows = ncaaUpcomingData.flatMap((eventsData, index) =>
-          filterProEventsAlreadyRepresentedByGames(
-            gameRows,
-            normalizeFeedEvents(eventsData, NCAA_FEED_LEAGUES[index])
-          )
-        );
-        let normalizedGames = dedupeFeedEntities(
-          mergeFeedGames(
-            gameRows,
-            proPastRows,
-            proUpcomingRows,
-            varsityhubEventRows,
-            varsityhubPastEventRows,
-            proWweRows,
-            proNflRows,
-            ncaaRows
-          )
-        );
+        let normalizedGames = dedupeFeedEntities(mergeFeedGames(gameRows));
 
         // If no games exist, seed sample games as real DB records (stories/polls work)
         if ((!normalizedGames || normalizedGames.length === 0) && upcomingData !== null) {
@@ -1155,6 +943,225 @@ export default function FeedScreen() {
           setHasMoreGames(!!cursor);
           if (!silent) setLoading(false);
         }
+
+        void (async () => {
+          try {
+            const [
+              proUpcomingData,
+              proPastData,
+              varsityhubUpcomingEventsData,
+              varsityhubPastEventsData,
+              proWweUpcomingData,
+              proNflUpcomingData,
+              ...ncaaUpcomingData
+            ] = await Promise.all([
+              queryClient
+                .fetchQuery({
+                  queryKey: ['feed-pro-events-upcoming', queryPlan.upcoming.options.dateFrom],
+                  queryFn: () =>
+                    Event.filter(
+                      {
+                        event_type: 'game',
+                        pro_only: true,
+                        event_only: true,
+                        from: queryPlan.upcoming.options.dateFrom,
+                        to: proLookaheadTo,
+                      },
+                      'date',
+                      80
+                    ),
+                })
+                .catch((err: any) => {
+                  if (__DEV__) console.warn('[Feed] Failed to load pro upcoming events:', err);
+                  return null;
+                }),
+              queryClient
+                .fetchQuery({
+                  queryKey: [
+                    'feed-pro-events-past',
+                    queryPlan.past.options.dateFrom,
+                    queryPlan.past.options.dateTo ?? null,
+                  ],
+                  queryFn: () =>
+                    Event.filter(
+                      {
+                        event_type: 'game',
+                        pro_only: true,
+                        event_only: true,
+                        from: queryPlan.past.options.dateFrom,
+                        to: queryPlan.past.options.dateTo,
+                      },
+                      '-date',
+                      30
+                    ),
+                })
+                .catch((err: any) => {
+                  if (__DEV__) console.warn('[Feed] Failed to load pro past events:', err);
+                  return null;
+                }),
+              queryClient
+                .fetchQuery({
+                  queryKey: [
+                    'feed-varsityhub-events-upcoming',
+                    queryPlan.upcoming.options.dateFrom,
+                    queryPlan.upcoming.options.dateTo ?? null,
+                  ],
+                  queryFn: () =>
+                    Event.filter(
+                      {
+                        event_only: true,
+                        from: queryPlan.upcoming.options.dateFrom,
+                        to: queryPlan.upcoming.options.dateTo,
+                      },
+                      'date',
+                      100
+                    ),
+                })
+                .catch((err: any) => {
+                  if (__DEV__)
+                    console.warn('[Feed] Failed to load VarsityHub upcoming events:', err);
+                  return null;
+                }),
+              queryClient
+                .fetchQuery({
+                  queryKey: [
+                    'feed-varsityhub-events-past',
+                    queryPlan.past.options.dateFrom,
+                    queryPlan.past.options.dateTo ?? null,
+                  ],
+                  queryFn: () =>
+                    Event.filter(
+                      {
+                        event_only: true,
+                        from: queryPlan.past.options.dateFrom,
+                        to: queryPlan.past.options.dateTo,
+                      },
+                      '-date',
+                      100
+                    ),
+                })
+                .catch((err: any) => {
+                  if (__DEV__) console.warn('[Feed] Failed to load VarsityHub past events:', err);
+                  return null;
+                }),
+              queryClient
+                .fetchQuery({
+                  queryKey: ['feed-pro-events-upcoming-wwe', queryPlan.upcoming.options.dateFrom],
+                  queryFn: () =>
+                    Event.filter(
+                      {
+                        event_type: 'game',
+                        pro_only: true,
+                        pro_league: 'wwe',
+                        event_only: true,
+                        from: queryPlan.upcoming.options.dateFrom,
+                        to: proLookaheadTo,
+                      },
+                      'date',
+                      20
+                    ),
+                })
+                .catch((err: any) => {
+                  if (__DEV__) console.warn('[Feed] Failed to load WWE upcoming events:', err);
+                  return null;
+                }),
+              queryClient
+                .fetchQuery({
+                  queryKey: ['feed-pro-events-upcoming-nfl', queryPlan.upcoming.options.dateFrom],
+                  queryFn: () =>
+                    Event.filter(
+                      {
+                        event_type: 'game',
+                        pro_only: true,
+                        pro_league: 'nfl',
+                        event_only: true,
+                        from: queryPlan.upcoming.options.dateFrom,
+                        to: proLookaheadTo,
+                      },
+                      'date',
+                      20
+                    ),
+                })
+                .catch((err: any) => {
+                  if (__DEV__) console.warn('[Feed] Failed to load NFL upcoming events:', err);
+                  return null;
+                }),
+              ...NCAA_FEED_LEAGUES.map(league =>
+                queryClient
+                  .fetchQuery({
+                    queryKey: [
+                      'feed-pro-events-upcoming-ncaa',
+                      league,
+                      queryPlan.upcoming.options.dateFrom,
+                    ],
+                    queryFn: () =>
+                      Event.filter(
+                        {
+                          event_type: 'game',
+                          pro_only: true,
+                          pro_league: league,
+                          event_only: true,
+                          from: queryPlan.upcoming.options.dateFrom,
+                          to: proLookaheadTo,
+                        },
+                        'date',
+                        100
+                      ),
+                  })
+                  .catch((err: any) => {
+                    if (__DEV__)
+                      console.warn(`[Feed] Failed to load ${league} upcoming events:`, err);
+                    return null;
+                  })
+              ),
+            ]);
+
+            if (!isCurrentRequest()) return;
+            const proPastRows = filterProEventsAlreadyRepresentedByGames(
+              gameRows,
+              normalizeFeedEvents(proPastData)
+            );
+            const proUpcomingRows = filterProEventsAlreadyRepresentedByGames(
+              gameRows,
+              normalizeFeedEvents(proUpcomingData)
+            );
+            const varsityhubEventRows = filterProEventsAlreadyRepresentedByGames(
+              gameRows,
+              normalizeFeedEvents(varsityhubUpcomingEventsData)
+            );
+            const varsityhubPastEventRows = filterProEventsAlreadyRepresentedByGames(
+              gameRows,
+              normalizeFeedEvents(varsityhubPastEventsData)
+            );
+            const proWweRows = filterProEventsAlreadyRepresentedByGames(
+              gameRows,
+              normalizeFeedEvents(proWweUpcomingData, 'wwe')
+            );
+            const proNflRows = filterProEventsAlreadyRepresentedByGames(
+              gameRows,
+              normalizeFeedEvents(proNflUpcomingData, 'nfl')
+            );
+            const ncaaRows = ncaaUpcomingData.flatMap((eventsData, index) =>
+              filterProEventsAlreadyRepresentedByGames(
+                gameRows,
+                normalizeFeedEvents(eventsData, NCAA_FEED_LEAGUES[index])
+              )
+            );
+            const enrichmentRows = [
+              proPastRows,
+              proUpcomingRows,
+              varsityhubEventRows,
+              varsityhubPastEventRows,
+              proWweRows,
+              proNflRows,
+              ncaaRows,
+            ];
+            if (!enrichmentRows.some(rows => rows.length > 0)) return;
+            setGames(prev => dedupeFeedEntities(mergeFeedGames(prev, ...enrichmentRows)));
+          } catch (enrichmentErr) {
+            if (__DEV__) console.warn('[Feed] Event enrichment failed:', enrichmentErr);
+          }
+        })();
 
         void (async () => {
           try {
@@ -3120,25 +3127,25 @@ export default function FeedScreen() {
         </View>
       </Modal>
 
-      <Modal
-        visible={verticalFeedModalVisible}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={closeVerticalFeed}
-      >
-        <View
-          style={[styles.verticalFeedModal, { backgroundColor: Colors[colorScheme].background }]}
+      {verticalFeedModalVisible ? (
+        <Modal
+          visible
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={closeVerticalFeed}
         >
-          {verticalFeedModalVisible ? (
+          <View
+            style={[styles.verticalFeedModal, { backgroundColor: Colors[colorScheme].background }]}
+          >
             <GameVerticalFeedScreen
               key={activeVerticalFeedGameId || 'all-highlights'}
               gameId={activeVerticalFeedGameId}
               onClose={closeVerticalFeed}
               countryCode={userCountryCode}
             />
-          ) : null}
-        </View>
-      </Modal>
+          </View>
+        </Modal>
+      ) : null}
     </View>
   );
 }
