@@ -28,6 +28,7 @@ const staticAasa = JSON.parse(read('public/.well-known/apple-app-site-associatio
 const serverWellKnown = read('server/src/routes/well-known.ts');
 const deployScript = read('scripts/deploy-web-static.sh');
 const linksSource = read('utils/links.ts');
+const generatedExpoConfig = require(path.join(__dirname, '..', 'app.config.js'))({ config: {} });
 
 /** Resource path → the guest-browseable web screen humans must land on. */
 const RESOURCE_WEB_FALLBACKS: Record<string, string> = {
@@ -153,6 +154,28 @@ describe('Android intent filters cover the same URL space on both hosts', () => 
 
   it('handles /join and /share on both hosts', () => {
     for (const host of ['varsityhub.app', 'www.varsityhub.app']) {
+      for (const prefix of ['/join', '/share']) {
+        expect(data.some(d => d.host === host && d.pathPrefix === prefix)).toBe(true);
+      }
+    }
+  });
+});
+
+describe('dynamic Expo config Android intent filters cover the same URL space', () => {
+  const data: Array<{ host: string; pathPrefix: string }> =
+    generatedExpoConfig.android.intentFilters[0].data;
+
+  it.each(Object.keys(RESOURCE_WEB_FALLBACKS))(
+    'handles /%s on generated config hosts',
+    resource => {
+      for (const host of ['varsityhub.app', 'www.varsityhub.app', 'app.varsityhub.app']) {
+        expect(data.some(d => d.host === host && d.pathPrefix === `/${resource}`)).toBe(true);
+      }
+    }
+  );
+
+  it('handles /join and /share on generated config hosts', () => {
+    for (const host of ['varsityhub.app', 'www.varsityhub.app', 'app.varsityhub.app']) {
       for (const prefix of ['/join', '/share']) {
         expect(data.some(d => d.host === host && d.pathPrefix === prefix)).toBe(true);
       }

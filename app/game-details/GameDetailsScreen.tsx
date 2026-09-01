@@ -1840,28 +1840,19 @@ const GameDetailsScreen = () => {
         setVoteBusy(false);
       }
     },
-    [isVoteOpen, authUser, vm?.eventId, vm?.gameId]
+    [isVoteOpen, authUser, vm?.gameId]
   );
 
   const handleClearVote = useCallback(async () => {
     if (!isVoteOpen) return;
+    const currentVoteSummary = _voteSummary;
+    if (!currentVoteSummary?.userVote) return;
+
     // Event-only pages (no gameId) only update local state
     const isEventOnly = !vm?.gameId && vm?.eventId;
 
-    let rollback: VoteSummary | null = null;
-    let hasVoteToClear = false;
-    setVoteSummary(prev => {
-      // Early return if there's no vote to clear
-      if (!prev?.userVote) {
-        return prev;
-      }
-      hasVoteToClear = true;
-      rollback = { ...prev };
-      return applyClearVote(prev);
-    });
-
-    // Early return if there's no vote to clear - prevents unnecessary API calls
-    if (!hasVoteToClear) return;
+    const rollback: VoteSummary = { ...currentVoteSummary };
+    setVoteSummary(applyClearVote(currentVoteSummary));
 
     // For event-only pages, just update local state and don't call API
     if (isEventOnly) {
@@ -1890,7 +1881,7 @@ const GameDetailsScreen = () => {
     } finally {
       setVoteBusy(false);
     }
-  }, [isVoteOpen, vm?.eventId, vm?.gameId]);
+  }, [_voteSummary, isVoteOpen, vm?.eventId, vm?.gameId]);
 
   const renderStoriesCarousel = () => {
     const mediaItems = (vm?.media ?? []).map(m => ({

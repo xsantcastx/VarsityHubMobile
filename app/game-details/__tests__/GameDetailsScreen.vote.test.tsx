@@ -66,9 +66,37 @@ jest.mock('expo-router', () => ({
 
 jest.mock('@react-navigation/native', () => ({
   useFocusEffect: (cb: any) => {
-    // Only call the callback once, do not set up intervals
-    cb();
+    const React = require('react');
+    React.useEffect(() => cb(), []);
   },
+}));
+
+jest.mock('react-native-gesture-handler', () => {
+  const chain: any = {};
+  chain.onUpdate = jest.fn(() => chain);
+  chain.onEnd = jest.fn(() => chain);
+  chain.runOnJS = jest.fn(() => chain);
+  return {
+    Gesture: {
+      Pinch: jest.fn(() => chain),
+      Pan: jest.fn(() => chain),
+      Tap: jest.fn(() => chain),
+      Simultaneous: jest.fn(() => chain),
+    },
+    GestureDetector: ({ children }: any) => children,
+  };
+});
+
+jest.mock('react-native-reanimated', () => ({
+  default: {
+    View: 'Animated.View',
+    Image: 'Animated.Image',
+  },
+  useAnimatedStyle: jest.fn(factory => factory()),
+  useSharedValue: jest.fn(value => ({ value })),
+  withSpring: jest.fn(value => value),
+  withTiming: jest.fn(value => value),
+  runOnJS: jest.fn(fn => fn),
 }));
 
 jest.mock('expo-image', () => {
@@ -130,7 +158,7 @@ jest.mock('@/hooks/useThemeColor', () => ({
 }));
 
 jest.mock('@/context/AuthProvider', () => ({
-  useAuth: () => ({ user: null }),
+  useAuth: () => ({ user: { id: 'viewer-1' } }),
 }));
 
 jest.mock('@/utils/retryWithBackoff', () => ({
@@ -232,11 +260,12 @@ describe('GameDetailsScreen voting UI', () => {
     jest.clearAllMocks();
   });
 
-  it.skip('casts a vote when pressing team A', async () => {
+  it('casts a vote when pressing team A', async () => {
     // First call: before voting, Second call: after voting
     (Game.votesSummary as jest.Mock)
       .mockResolvedValueOnce({ teamA: 0, teamB: 0, userVote: null })
       .mockResolvedValueOnce({ teamA: 1, teamB: 0, userVote: 'A' });
+    (Game.castVote as jest.Mock).mockResolvedValue({ teamA: 1, teamB: 0, userVote: 'A' });
 
     if (__DEV__) console.log('Rendering GameDetailsScreen');
     const screen = render(<GameDetailsScreen />);
@@ -259,11 +288,9 @@ describe('GameDetailsScreen voting UI', () => {
     });
   });
 
-  it.skip('clears a vote on long press when already selected', async () => {
-    // First call: before clearing, Second call: after clearing
-    (Game.votesSummary as jest.Mock)
-      .mockResolvedValueOnce({ teamA: 1, teamB: 0, userVote: 'A' })
-      .mockResolvedValueOnce({ teamA: 0, teamB: 0, userVote: null });
+  it('clears a vote on long press when already selected', async () => {
+    (Game.votesSummary as jest.Mock).mockResolvedValue({ teamA: 1, teamB: 0, userVote: 'A' });
+    (Game.clearVote as jest.Mock).mockResolvedValue({ teamA: 0, teamB: 0, userVote: null });
 
     if (__DEV__) console.log('Rendering GameDetailsScreen');
     const screen = render(<GameDetailsScreen />);
@@ -273,11 +300,14 @@ describe('GameDetailsScreen voting UI', () => {
       await Promise.resolve();
     });
 
-    const voteAButton = await screen.findByLabelText('Vote for Home');
+    await screen.findByText(/Your pick: Home/);
+    const voteAButton = screen
+      .UNSAFE_getAllByProps({ accessibilityLabel: 'Vote for Home' })
+      .find(node => typeof node.props.onLongPress === 'function');
 
-    fireEvent(voteAButton, 'longPress');
     await act(async () => {
-      jest.runAllTimers();
+      expect(voteAButton?.props.onLongPress).toEqual(expect.any(Function));
+      voteAButton!.props.onLongPress();
       await Promise.resolve();
     });
     await waitFor(() => {
