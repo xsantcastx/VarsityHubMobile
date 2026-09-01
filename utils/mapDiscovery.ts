@@ -48,13 +48,18 @@ function toDateKey(date: Date): string {
  * `type` (so routing via the screen's `handleEventPress` stays correct: 'event'
  * → event detail, 'game' → game detail), and `id` is the routing id the server
  * already resolved (game id for games, event id for standalone events). Items
- * without coordinates or that are no longer upcoming are dropped, matching the
- * existing map rule that past pins must fall off immediately.
+ * without coordinates are dropped for map pins. Default map loads are still
+ * future-windowed client-side as a defensive guard; selected-date loads pass
+ * `includePast` because the server already scoped that explicit day and applies
+ * the media-post rule for older event pages.
  */
 export function toMapEvents(
   items: EventCard[] | null | undefined,
   now: Date = new Date(),
-  { requireCoords = true }: { requireCoords?: boolean } = {}
+  {
+    requireCoords = true,
+    includePast = false,
+  }: { requireCoords?: boolean; includePast?: boolean } = {}
 ): EventMapData[] {
   if (!Array.isArray(items)) return [];
   const out: EventMapData[] = [];
@@ -65,7 +70,7 @@ export function toMapEvents(
     // Map pins need coordinates; the calendar dataset (requireCoords: false)
     // keeps every upcoming event page even without a location.
     if (requireCoords && !hasCoords) continue;
-    if (!shouldShowEventOnMap(item.date ?? undefined, now)) continue;
+    if (!includePast && !shouldShowEventOnMap(item.date ?? undefined, now)) continue;
     out.push({
       id: String(item.id),
       title: item.title || (item.source_type === 'game' ? 'Game' : 'Event'),

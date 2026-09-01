@@ -125,7 +125,7 @@ function GameMapScreen() {
       )}&to=${encodeURIComponent(end.toISOString())}&limit=200`;
       const res: unknown = await httpGet(path);
       const items = validateEventCards('/event-discovery?surface=map', res);
-      setPastDayMarkers(toMapEvents(items, new Date()));
+      setPastDayMarkers(toMapEvents(items, new Date(), { includePast: true }));
     } catch (err) {
       if (__DEV__) console.error('[game-map] past-day load failed:', err);
       setPastDayMarkers([]);

@@ -146,6 +146,36 @@ describe('toMapEvents', () => {
     const events = toMapEvents(withPast, now);
     expect(events.some(e => e.id === 'past-game')).toBe(false);
   });
+
+  it('keeps server-scoped past events for an explicit selected map date', () => {
+    const pastDayCards: EventCard[] = [
+      {
+        id: 'cmsgoxrtw007bf6nioxe8yllz',
+        source_type: 'event',
+        event_id: 'cmsgoxrtw007bf6nioxe8yllz',
+        game_id: null,
+        title: 'Giants at Jets',
+        date: '2026-08-28T23:30:00.000Z',
+        location: 'MetLife Stadium',
+        latitude: 40.8135,
+        longitude: -74.0745,
+        sport: 'football',
+      },
+    ];
+
+    const events = toMapEvents(pastDayCards, now, { includePast: true });
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        id: 'cmsgoxrtw007bf6nioxe8yllz',
+        title: 'Giants at Jets',
+        type: 'event',
+        sport: 'football',
+        latitude: 40.8135,
+        longitude: -74.0745,
+      }),
+    ]);
+  });
 });
 
 describe('buildRecentDateButtons', () => {
