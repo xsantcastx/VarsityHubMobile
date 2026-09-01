@@ -30,6 +30,13 @@ eventDiscoveryRouter.get(
       return sendError(res, 400, 'Invalid scope');
     }
 
+    const typeRaw = req.query.type != null ? String(req.query.type).trim().toLowerCase() : null;
+    if (typeRaw && !['game', 'event'].includes(typeRaw)) {
+      return sendError(res, 400, 'Invalid type');
+    }
+    const sportRaw =
+      typeof req.query.sport === 'string' && req.query.sport.trim() ? req.query.sport.trim() : null;
+
     const from = parseDateParam(req.query.from);
     const to = parseDateParam(req.query.to);
     if (req.query.from && !from) return sendError(res, 400, 'Invalid from');
@@ -43,6 +50,8 @@ eventDiscoveryRouter.get(
     const payload = await listEventDiscoveryItems(prisma, {
       surface: surfaceRaw as 'feed' | 'map' | 'all',
       scope: scopeRaw as 'public' | 'following',
+      sport: sportRaw,
+      type: typeRaw ? (typeRaw as 'game' | 'event') : undefined,
       from,
       to,
       limit,

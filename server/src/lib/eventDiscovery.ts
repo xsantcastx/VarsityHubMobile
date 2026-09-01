@@ -5,6 +5,7 @@ import {
   type SerializeCtx,
 } from './eventCardSerializer.js';
 import { getViewerTeamScope } from './viewerTeamScope.js';
+import { normalizeSportToSlug } from './sportsTaxonomy.js';
 
 type Db = PrismaClient;
 type DiscoverySurface = 'feed' | 'map' | 'all';
@@ -13,6 +14,8 @@ type DiscoveryScope = 'public' | 'following';
 export type EventDiscoveryParams = {
   surface?: DiscoverySurface;
   scope?: DiscoveryScope;
+  sport?: string | null;
+  type?: 'game' | 'event';
   from?: Date | null;
   to?: Date | null;
   limit?: number;
@@ -261,11 +264,27 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
     return at - bt;
   });
 
+  // Optional card-level filters. Applied post-serialization on the card's own
+  // fields (same basis the map filters on client-side). Note: filtering after
+  // the queryLimit fetch means a very selective filter can return fewer than
+  // `limit` even when more matches exist beyond the fetch window — acceptable
+  // for a filter. When neither is supplied the result is unchanged.
+  const wantType = params.type ?? null;
+  const wantSport = params.sport ? normalizeSportToSlug(params.sport) : null;
+  const filtered =
+    wantType || wantSport
+      ? merged.filter(item => {
+          if (wantType && item.source_type !== wantType) return false;
+          if (wantSport && normalizeSportToSlug(item.sport) !== wantSport) return false;
+          return true;
+        })
+      : merged;
+
   return {
     items:
       surface === 'map'
-        ? merged.filter(item => item.map_visibility.visible).slice(0, limit)
-        : merged.slice(0, limit),
+        ? filtered.filter(item => item.map_visibility.visible).slice(0, limit)
+        : filtered.slice(0, limit),
     meta: {
       surface,
       from: from.toISOString(),
