@@ -80,6 +80,8 @@ export function toMapEvents(
       longitude: hasCoords ? lng : undefined,
       type: item.source_type === 'game' ? 'game' : 'event',
       sport: normalizeSportSlug(item.sport),
+      pro_home_color: item.pro_home_color ?? null,
+      pro_away_color: item.pro_away_color ?? null,
     });
   }
   return out;

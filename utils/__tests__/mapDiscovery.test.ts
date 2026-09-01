@@ -114,6 +114,33 @@ describe('toMapEvents', () => {
     ]);
   });
 
+  it('carries accent colors through to map markers', () => {
+    const events = toMapEvents(
+      [
+        {
+          id: 'pro-1',
+          source_type: 'event',
+          event_id: 'pro-1',
+          game_id: null,
+          title: 'Seahawks at Broncos',
+          date: '2026-09-03T22:00:00.000Z',
+          location: 'Empower Field',
+          latitude: 39.7439,
+          longitude: -105.0201,
+          sport: 'football',
+          pro_home_color: '#FB4F14',
+          pro_away_color: '#002244',
+        },
+      ],
+      now
+    );
+
+    expect(events[0]).toMatchObject({
+      pro_home_color: '#FB4F14',
+      pro_away_color: '#002244',
+    });
+  });
+
   it('drops items without coordinates', () => {
     const events = toMapEvents(items, now);
     expect(events.some(e => e.id === 'no-coords')).toBe(false);

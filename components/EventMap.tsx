@@ -30,6 +30,68 @@ import { EventMapData, EventMapProps } from './EventMap.types';
 
 export type { EventMapData, EventMapProps } from './EventMap.types';
 
+const SPORT_MARKER_COLORS: Record<string, string> = {
+  football: '#2563EB',
+  basketball: '#EA580C',
+  baseball: '#16A34A',
+  softball: '#84CC16',
+  soccer: '#059669',
+  ice_hockey: '#0891B2',
+  field_hockey: '#0D9488',
+  lacrosse: '#7C3AED',
+  volleyball: '#DB2777',
+  wrestling: '#B45309',
+  tennis: '#65A30D',
+  golf: '#15803D',
+  track_field: '#DC2626',
+  cross_country: '#9333EA',
+  swimming: '#0284C7',
+  cheerleading: '#E11D48',
+  dance: '#C026D3',
+  gymnastics: '#BE123C',
+  crew: '#0F766E',
+  esports: '#4F46E5',
+};
+
+function isHexColor(value?: string | null): value is string {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim());
+}
+
+export function resolveMarkerColor(
+  event: Pick<
+    EventMapData,
+    'marker_color' | 'pro_home_color' | 'pro_away_color' | 'sport' | 'type'
+  >,
+  fallback: string
+): string {
+  if (isHexColor(event.marker_color)) return event.marker_color;
+  if (isHexColor(event.pro_home_color)) return event.pro_home_color;
+  if (isHexColor(event.pro_away_color)) return event.pro_away_color;
+  if (event.sport && SPORT_MARKER_COLORS[event.sport]) return SPORT_MARKER_COLORS[event.sport];
+  switch (event.type) {
+    case 'game':
+      return '#FF6B6B';
+    case 'event':
+      return '#4ECDC4';
+    case 'post':
+      return '#95E1D3';
+    default:
+      return fallback;
+  }
+}
+
+function formatPreviewDate(date?: string | null): string | null {
+  if (!date) return null;
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 export default function EventMap({
   events,
   onEventPress,
@@ -51,6 +113,7 @@ export default function EventMap({
   const [showEmptyState, setShowEmptyState] = useState(true);
   // The events sharing one map point when a cluster pin is tapped (picker list).
   const [selectedCluster, setSelectedCluster] = useState<EventMapData[] | null>(null);
+  const [selectedMarker, setSelectedMarker] = useState<EventMapData | null>(null);
   const isUserInteractionRef = useRef(false);
   // Search box — filters the visible pins/clusters by title substring (case-insensitive).
   const [searchQuery, setSearchQuery] = useState('');
@@ -236,19 +299,8 @@ export default function EventMap({
     }, 1100);
   };
 
-  // Get marker color based on event type
-  const getMarkerColor = (type?: string) => {
-    switch (type) {
-      case 'game':
-        return '#FF6B6B'; // Red for games
-      case 'event':
-        return '#4ECDC4'; // Teal for events
-      case 'post':
-        return '#95E1D3'; // Light teal for posts
-      default:
-        return Colors[colorScheme].tint;
-    }
-  };
+  const getMarkerColor = (event: EventMapData) =>
+    resolveMarkerColor(event, Colors[colorScheme].tint);
 
   const openEventFromMarker = (eventId: string, eventType?: 'game' | 'event' | 'post') => {
     const now = Date.now();
@@ -320,16 +372,13 @@ export default function EventMap({
             <Marker
               key={lead.id}
               coordinate={coordinate}
-              pinColor={getMarkerColor(lead.type)}
-              // v1.0.3: single-tap takes the user straight to the detail. The previous
-              // two-tap flow (callout preview → details) was rejected as "two pages."
-              // Keep onCalloutPress as a belt-and-braces fallback in case the native
-              // callout still surfaces on some platforms.
+              pinColor={getMarkerColor(lead)}
               onPress={() => {
                 captureBreadcrumb('Map marker pressed', 'map.navigation', {
                   event_type: lead.type || 'unknown',
                 });
-                openEventFromMarker(lead.id, lead.type);
+                setSelectedCluster(null);
+                setSelectedMarker(lead);
               }}
               onCalloutPress={() => {
                 captureBreadcrumb('Map marker callout pressed', 'map.navigation', {
@@ -437,12 +486,29 @@ export default function EventMap({
       {eventsWithCoordinates.length > 0 && (
         <View style={[styles.legend, { backgroundColor: Colors[colorScheme].background }]}>
           <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: getMarkerColor('game') }]} />
+            <View
+              style={[
+                styles.legendDot,
+                { backgroundColor: resolveMarkerColor({ type: 'game' }, Colors[colorScheme].tint) },
+              ]}
+            />
             <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>Game</Text>
           </View>
           <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: getMarkerColor('event') }]} />
-            <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>Event</Text>
+            <View
+              style={[
+                styles.legendDot,
+                {
+                  backgroundColor: resolveMarkerColor(
+                    { sport: 'football' },
+                    Colors[colorScheme].tint
+                  ),
+                },
+              ]}
+            />
+            <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>
+              Sport/team
+            </Text>
           </View>
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: Colors[colorScheme].tint }]} />
@@ -484,6 +550,46 @@ export default function EventMap({
         </View>
       )}
 
+      {selectedMarker ? (
+        <View style={styles.markerPreviewWrap} pointerEvents="box-none">
+          <TouchableOpacity
+            testID="map-marker-preview"
+            activeOpacity={0.92}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${selectedMarker.title || 'event'} details`}
+            onPress={() => openEventFromMarker(selectedMarker.id, selectedMarker.type)}
+            style={[
+              styles.markerPreview,
+              {
+                backgroundColor: Colors[colorScheme].background,
+                borderColor: getMarkerColor(selectedMarker),
+              },
+            ]}
+          >
+            <View
+              style={[styles.previewAccent, { backgroundColor: getMarkerColor(selectedMarker) }]}
+            />
+            <View style={styles.previewText}>
+              <Text
+                style={[styles.previewTitle, { color: Colors[colorScheme].text }]}
+                numberOfLines={1}
+              >
+                {selectedMarker.title || (selectedMarker.type === 'game' ? 'Game' : 'Event')}
+              </Text>
+              <Text
+                style={[styles.previewMeta, { color: Colors[colorScheme].mutedText }]}
+                numberOfLines={1}
+              >
+                {[formatPreviewDate(selectedMarker.date), selectedMarker.location]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {/* Cluster picker — tapping a numbered cluster pin lists the co-located events */}
       <Modal
         visible={!!selectedCluster}
@@ -513,9 +619,7 @@ export default function EventMap({
                     openEventFromMarker(item.id, item.type);
                   }}
                 >
-                  <View
-                    style={[styles.clusterDot, { backgroundColor: getMarkerColor(item.type) }]}
-                  />
+                  <View style={[styles.clusterDot, { backgroundColor: getMarkerColor(item) }]} />
                   <View style={styles.clusterRowText}>
                     <Text
                       style={[styles.clusterRowTitle, { color: Colors[colorScheme].text }]}
@@ -704,6 +808,46 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   legendLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  markerPreviewWrap: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 92,
+    alignItems: 'center',
+  },
+  markerPreview: {
+    width: '100%',
+    maxWidth: 520,
+    minHeight: 64,
+    borderRadius: 12,
+    borderWidth: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  previewAccent: {
+    width: 6,
+    alignSelf: 'stretch',
+  },
+  previewText: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  previewTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  previewMeta: {
+    marginTop: 3,
     fontSize: 12,
     fontWeight: '500',
   },

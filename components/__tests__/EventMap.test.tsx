@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
-import EventMap from '../EventMap';
+import EventMap, { resolveMarkerColor } from '../EventMap';
 import type { EventMapProps } from '../EventMap.types';
 
 const flushPromises = () => new Promise<void>(resolve => setImmediate(resolve));
@@ -94,21 +94,27 @@ describe('EventMap', () => {
     expect(markers.length).toBe(1);
   });
 
-  it('fires onEventPress with event id on single pin tap (no callout step)', async () => {
+  it('shows a marker preview first, then opens details from the preview', async () => {
     const onEventPress = jest.fn();
-    const { findByTestId } = render(<EventMap {...baseProps({ onEventPress })} />);
+    const { findByTestId, findByText } = render(<EventMap {...baseProps({ onEventPress })} />);
     const marker = await findByTestId('Marker');
     fireEvent.press(marker);
+
+    expect(onEventPress).not.toHaveBeenCalled();
+    expect(await findByText('Test Event')).toBeTruthy();
+
+    fireEvent.press(await findByTestId('map-marker-preview'));
     expect(onEventPress).toHaveBeenCalledWith('1', undefined);
   });
 
-  it('dedupes marker press + callout press so one tap cannot open two pages', async () => {
+  it('dedupes preview press + native callout press so one tap cannot open two pages', async () => {
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(1100);
     const onEventPress = jest.fn();
     const { findByTestId } = render(<EventMap {...baseProps({ onEventPress })} />);
     const marker = await findByTestId('Marker');
 
     fireEvent.press(marker);
+    fireEvent.press(await findByTestId('map-marker-preview'));
     fireEvent(marker, 'onCalloutPress');
 
     expect(onEventPress).toHaveBeenCalledTimes(1);
@@ -119,5 +125,13 @@ describe('EventMap', () => {
     const { findByText } = render(<EventMap {...baseProps({ events: [] })} />);
     const empty = await findByText(/no games with locations yet/i);
     expect(empty).toBeTruthy();
+  });
+
+  it('prefers marker/team colors, then sport colors, then type colors', () => {
+    expect(resolveMarkerColor({ marker_color: '#111111' }, '#000000')).toBe('#111111');
+    expect(resolveMarkerColor({ pro_home_color: '#222222' }, '#000000')).toBe('#222222');
+    expect(resolveMarkerColor({ pro_away_color: '#333333' }, '#000000')).toBe('#333333');
+    expect(resolveMarkerColor({ sport: 'football' }, '#000000')).toBe('#2563EB');
+    expect(resolveMarkerColor({ type: 'event' }, '#000000')).toBe('#4ECDC4');
   });
 });
