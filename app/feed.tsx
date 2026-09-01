@@ -2730,25 +2730,12 @@ export default function FeedScreen() {
       <View
         style={[styles.mapsButton, { backgroundColor: '#0A84FF' }]}
         onStartShouldSetResponder={() => true}
-        onResponderRelease={async () => {
-          try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status === 'granted') {
-              const location = await Location.getCurrentPositionAsync({});
-              router.push({
-                pathname: '/game-map',
-                params: {
-                  lat: location.coords.latitude.toString(),
-                  lng: location.coords.longitude.toString(),
-                },
-              });
-            } else {
-              router.push('/game-map');
-            }
-          } catch (error) {
-            if (__DEV__) console.error('Error getting location:', error);
-            router.push('/game-map');
-          }
+        onResponderRelease={() => {
+          // game-map ignores lat/lng params now (it shows ALL public events via
+          // /event-discovery?surface=map, no location gating), so the old GPS
+          // permission + getCurrentPositionAsync round-trip was pure dead weight
+          // that slowed opening the most important page. Navigate directly.
+          router.push('/game-map');
         }}
         accessibilityRole="button"
         accessibilityLabel="View nearby games on map"
