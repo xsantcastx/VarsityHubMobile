@@ -30,6 +30,19 @@ describe('GameDetailsScreen post route contract', () => {
     expect(postActionSource).not.toContain("type: 'highlight'");
   });
 
+  it('does not render standalone event posts as stories', () => {
+    const virtualEventStart = source.indexOf('const loadVirtualFromEvent = useCallback');
+    const virtualEventEnd = source.indexOf('const handleAddStory = useCallback', virtualEventStart);
+    const virtualEventSource = source.slice(virtualEventStart, virtualEventEnd);
+
+    expect(virtualEventStart).toBeGreaterThan(-1);
+    expect(virtualEventEnd).toBeGreaterThan(virtualEventStart);
+    expect(virtualEventSource).toContain('Post.getByEvent(eventIdValue)');
+    expect(virtualEventSource).toContain('return { ...prev, posts: items };');
+    expect(virtualEventSource).not.toContain('media: items');
+    expect(virtualEventSource).not.toContain('return { ...prev, posts: items, media }');
+  });
+
   // REGRESSION GUARD: event pages show all event posts, not just legacy
   // `highlight` rows. A type-filtered query silently hides normal uploads
   // and legacy null-type rows. The game feed must fetch via feedForGame with
