@@ -27,6 +27,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, Game, Organization, Post, Search, Team, User } from '@/api/entities';
+import { httpGet } from '@/api/http';
+import { validateEventCards } from '@/api/schemas/eventCard';
+import { splitCalendarCards } from '@/utils/discoverCalendar';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
@@ -501,121 +504,24 @@ function CommunityDiscoverScreen() {
       : 'Unable to load events right now. Pull to refresh to retry.';
   })();
 
-  const { data: followedGamesData, isPending: followedGamesPending } = useQuery({
-    queryKey: ['discover-followed-games', user?.id ?? 'guest'],
+  // Discover's calendar = the viewer's followed + managed teams, served as
+  // canonical event cards by the single /event-discovery?scope=following
+  // endpoint (future-only, unbounded window). Replaces the former three queries
+  // (followed games, followed events, managed-team games/events).
+  const { data: followingCalendarData, isPending: followingCalendarPending } = useQuery({
+    queryKey: ['discover-following-calendar', user?.id ?? 'guest'],
     enabled: interactionsDone,
-    queryFn: async (): Promise<GameItem[]> => {
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-      const raw = await Game.list('date', {
-        following: true,
-        dateFrom: startOfToday.toISOString(),
-        limit: 100,
-      });
-      const list = Array.isArray(raw) ? raw : raw?.games || raw?.items || [];
-      // Upcoming only — drop anything already past (parity with calendar dots)
-      const now = new Date();
-      return list.filter((g: any) => {
-        if (!g.date) return false;
-        const d = new Date(g.date);
-        return !isNaN(d.getTime()) && d >= now;
-      });
+    queryFn: async () => {
+      const res: unknown = await httpGet('/event-discovery?scope=following');
+      const cards = validateEventCards('/event-discovery?scope=following', res);
+      return splitCalendarCards(cards);
     },
   });
-  const followedGames = useMemo(() => followedGamesData ?? [], [followedGamesData]);
-
-  // Standalone events (practices, meetings, fundraisers) for the teams the
-  // viewer follows — the game-backed ones already arrive via followedGames, so
-  // we keep only events with no linked game to avoid duplicate calendar rows.
-  const { data: followedEventsData, isPending: followedEventsPending } = useQuery({
-    queryKey: ['discover-followed-events', user?.id ?? 'guest'],
-    enabled: interactionsDone,
-    queryFn: async (): Promise<any[]> => {
-      const raw = await Event.filter({ following: true }, 'date', 100);
-      const list = Array.isArray(raw) ? raw : [];
-      const now = new Date();
-      return list.filter((e: any) => {
-        if (e.game_id) return false;
-        if (!e.date) return false;
-        const d = new Date(e.date);
-        return !isNaN(d.getTime()) && d >= now;
-      });
-    },
-  });
-  const followedEvents = useMemo(() => followedEventsData ?? [], [followedEventsData]);
-
-  const { data: managedCalendarData } = useQuery({
-    queryKey: ['discover-managed-calendar', user?.id ?? 'guest'],
-    enabled: interactionsDone && !!user,
-    queryFn: async (): Promise<{ games: GameItem[]; events: any[] }> => {
-      const managed = await Team.managed().catch(() => []);
-      const teams = Array.isArray(managed)
-        ? managed
-        : Array.isArray((managed as any)?.items)
-          ? (managed as any).items
-          : [];
-      const teamIds = teams.map((team: any) => String(team?.id || '')).filter(Boolean);
-      if (teamIds.length === 0) return { games: [], events: [] };
-
-      const now = Date.now();
-      const dateFrom = new Date(now - DISCOVER_EVENT_LOOKBACK_MS).toISOString();
-      const dateTo = new Date(now + DISCOVER_EVENT_LOOKAHEAD_MS).toISOString();
-      const gameGroups = await Promise.all(
-        teamIds.slice(0, 25).map((teamId: string) =>
-          Game.list('date', {
-            teamId,
-            showPending: true,
-            dateFrom,
-            dateTo,
-            limit: 100,
-          }).catch(() => [])
-        )
-      );
-      const eventRaw = await Event.filter(
-        {
-          team_ids: teamIds.slice(0, 100),
-          from: dateFrom,
-          to: dateTo,
-        },
-        'date',
-        100
-      ).catch(() => []);
-      const managedGames = gameGroups.flatMap((raw: any) =>
-        Array.isArray(raw) ? raw : raw?.games || raw?.items || []
-      );
-      const managedEvents = (Array.isArray(eventRaw) ? eventRaw : []).filter((event: any) => {
-        if (event.game_id) return false;
-        if (!event.date) return false;
-        const d = new Date(event.date);
-        return !isNaN(d.getTime());
-      });
-      return {
-        games: mergeDiscoverEvents(managedGames),
-        events: managedEvents,
-      };
-    },
-  });
-  const managedCalendarGames = useMemo(
-    () => managedCalendarData?.games ?? [],
-    [managedCalendarData]
+  const calendarGames = useMemo(() => followingCalendarData?.games ?? [], [followingCalendarData]);
+  const calendarEvents = useMemo(
+    () => followingCalendarData?.events ?? [],
+    [followingCalendarData]
   );
-  const managedCalendarEvents = useMemo(
-    () => managedCalendarData?.events ?? [],
-    [managedCalendarData]
-  );
-  const calendarGames = useMemo(
-    () => mergeDiscoverEvents(followedGames, managedCalendarGames),
-    [followedGames, managedCalendarGames]
-  );
-  const calendarEvents = useMemo(() => {
-    const seen = new Set<string>();
-    return [...followedEvents, ...managedCalendarEvents].filter((event: any) => {
-      const id = String(event?.id || '');
-      if (!id || seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
-  }, [followedEvents, managedCalendarEvents]);
 
   const personalizationQueryKey = ['discover-personalization', user?.id ?? 'guest'];
   const {
@@ -1993,10 +1899,7 @@ function CommunityDiscoverScreen() {
       {/* Calendar - Right below search */}
       {renderCalendar()}
 
-      {followedGames.length === 0 &&
-      followedEvents.length === 0 &&
-      !followedGamesPending &&
-      !followedEventsPending ? (
+      {calendarGames.length === 0 && calendarEvents.length === 0 && !followingCalendarPending ? (
         <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>
           You&apos;re not following any teams yet — search above to find and follow teams, and their
           games and events show up here.
@@ -2030,7 +1933,6 @@ function CommunityDiscoverScreen() {
                 })}
               </Text>
               {gamesOnDate.map(game => {
-                const labels = deriveTeamLabels(game);
                 const time = game.date
                   ? new Date(game.date).toLocaleTimeString('en-US', {
                       hour: 'numeric',
@@ -2055,7 +1957,7 @@ function CommunityDiscoverScreen() {
                       )
                     }
                     accessibilityRole="button"
-                    accessibilityLabel={`${game.title || (labels ? `${labels.teamA} vs ${labels.teamB}` : 'Game')} at ${time}`}
+                    accessibilityLabel={`${game.title} at ${time}`}
                   >
                     <View style={styles.dateGameTime}>
                       <MaterialIcons
@@ -2071,7 +1973,7 @@ function CommunityDiscoverScreen() {
                       style={[styles.dateGameTitle, { color: Colors[colorScheme].text }]}
                       numberOfLines={1}
                     >
-                      {game.title || (labels ? `${labels.teamA} vs ${labels.teamB}` : 'Game')}
+                      {game.title}
                     </Text>
                     {game.location && (
                       <View style={styles.dateGameLocation}>
