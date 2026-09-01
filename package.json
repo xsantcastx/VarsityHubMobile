@@ -186,7 +186,7 @@
     "eslint": "^8.57.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^4.6.2",
-    "eslint-plugin-react-native": "^4.0.0",
+    "eslint-plugin-react-native": "^5.0.0",
     "jest-expo": "~54.0.16",
     "patch-package": "^8.0.1",
     "prettier": "^3.8.3",
