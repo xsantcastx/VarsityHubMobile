@@ -4,12 +4,15 @@ import {
   serializeEventCard,
   type SerializeCtx,
 } from './eventCardSerializer.js';
+import { getViewerTeamScope } from './viewerTeamScope.js';
 
 type Db = PrismaClient;
 type DiscoverySurface = 'feed' | 'map' | 'all';
+type DiscoveryScope = 'public' | 'following';
 
 export type EventDiscoveryParams = {
   surface?: DiscoverySurface;
+  scope?: DiscoveryScope;
   from?: Date | null;
   to?: Date | null;
   limit?: number;
@@ -20,6 +23,9 @@ export type EventDiscoveryParams = {
 const MAP_LOOKAHEAD_MS = 5 * 24 * 60 * 60 * 1000;
 const FEED_PAST_LOOKBACK_MS = 12 * 60 * 60 * 1000;
 const MAX_DISCOVERY_RANGE_MS = MAP_LOOKAHEAD_MS;
+// Following scope is a personal calendar of the viewer's teams — future-only and
+// effectively unbounded, NOT the public 5-day map/feed clamp.
+const FOLLOWING_LOOKAHEAD_MS = 365 * 24 * 60 * 60 * 1000;
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 300;
 
@@ -141,14 +147,42 @@ async function loadExcludedPrivateTeamIds(
 export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryParams) {
   const now = params.now ?? new Date();
   const surface = params.surface ?? 'all';
-  const defaults = defaultWindow(surface, now);
-  const { from, to } = clampWindow(
-    surface,
-    params.from ?? defaults.from,
-    params.to ?? defaults.to,
-    now
-  );
+  const scope = params.scope ?? 'public';
   const limit = Math.max(1, Math.min(params.limit ?? DEFAULT_LIMIT, MAX_LIMIT));
+
+  let from: Date;
+  let to: Date;
+  if (scope === 'following') {
+    from = now;
+    to = new Date(now.getTime() + FOLLOWING_LOOKAHEAD_MS);
+  } else {
+    const defaults = defaultWindow(surface, now);
+    ({ from, to } = clampWindow(
+      surface,
+      params.from ?? defaults.from,
+      params.to ?? defaults.to,
+      now
+    ));
+  }
+
+  // Following scope: the viewer's followed/managed teams only. Resolve the set
+  // up front; an empty set (or no viewer) means there is nothing to show.
+  const followingTeamIds =
+    scope === 'following' ? await getViewerTeamScope(db, params.viewerId) : null;
+  if (scope === 'following' && (!followingTeamIds || followingTeamIds.size === 0)) {
+    return {
+      items: [],
+      meta: {
+        surface,
+        from: from.toISOString(),
+        to: to.toISOString(),
+        limit,
+        sources: { games: 0, events: 0 },
+        filtered: { private_team_items: 0 },
+      },
+    };
+  }
+
   const dateWhere = { gte: from, lte: to };
   const queryLimit = Math.min(limit * 2, MAX_LIMIT);
 
@@ -198,15 +232,27 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
   );
   const visibleEvents = events.filter((event: any) => !teamIsHidden(event.team_id));
 
+  // Following scope narrows to games/events belonging to the viewer's teams.
+  const inFollowScope = (teamId: string | null | undefined) =>
+    !followingTeamIds || (!!teamId && followingTeamIds.has(teamId));
+  const scopedGames = followingTeamIds
+    ? visibleGames.filter(
+        (game: any) => inFollowScope(game.home_team_id) || inFollowScope(game.away_team_id)
+      )
+    : visibleGames;
+  const scopedEvents = followingTeamIds
+    ? visibleEvents.filter((event: any) => inFollowScope(event.team_id))
+    : visibleEvents;
+
   const eventIds = [
-    ...visibleGames.map((game: any) => game.events?.[0]?.id).filter(Boolean),
-    ...visibleEvents.map((event: any) => event.id),
+    ...scopedGames.map((game: any) => game.events?.[0]?.id).filter(Boolean),
+    ...scopedEvents.map((event: any) => event.id),
   ] as string[];
   const viewerState = await loadViewerState(db, params.viewerId, eventIds, now);
 
   const ctx: SerializeCtx = { now, from, to, viewerState };
-  const gameItems = visibleGames.map((game: any) => serializeGameCard(game, ctx));
-  const eventItems = visibleEvents.map((event: any) => serializeEventCard(event, ctx));
+  const gameItems = scopedGames.map((game: any) => serializeGameCard(game, ctx));
+  const eventItems = scopedEvents.map((event: any) => serializeEventCard(event, ctx));
 
   const merged = [...gameItems, ...eventItems].sort((a, b) => {
     if (a.feed_priority !== b.feed_priority) return a.feed_priority - b.feed_priority;

@@ -23,6 +23,13 @@ eventDiscoveryRouter.get(
       return sendError(res, 400, 'Invalid surface');
     }
 
+    const scopeRaw = String(req.query.scope ?? 'public')
+      .trim()
+      .toLowerCase();
+    if (!['public', 'following'].includes(scopeRaw)) {
+      return sendError(res, 400, 'Invalid scope');
+    }
+
     const from = parseDateParam(req.query.from);
     const to = parseDateParam(req.query.to);
     if (req.query.from && !from) return sendError(res, 400, 'Invalid from');
@@ -35,6 +42,7 @@ eventDiscoveryRouter.get(
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : undefined;
     const payload = await listEventDiscoveryItems(prisma, {
       surface: surfaceRaw as 'feed' | 'map' | 'all',
+      scope: scopeRaw as 'public' | 'following',
       from,
       to,
       limit,
