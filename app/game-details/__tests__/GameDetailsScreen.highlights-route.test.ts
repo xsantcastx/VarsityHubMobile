@@ -17,6 +17,19 @@ describe('GameDetailsScreen post route contract', () => {
     expect(source).not.toContain("params: { gameId: String(targetGameId), type: 'highlight' },");
   });
 
+  it('keeps story writes out of the Posts action', () => {
+    const postActionStart = source.indexOf("Alert.alert('Create Post'");
+    const postActionEnd = source.indexOf('</Pressable>', postActionStart);
+    const postActionSource = source.slice(postActionStart, postActionEnd);
+
+    expect(postActionStart).toBeGreaterThan(-1);
+    expect(postActionEnd).toBeGreaterThan(postActionStart);
+    expect(postActionSource).toContain("pathname: '/create-post'");
+    expect(postActionSource).toContain("type: 'post'");
+    expect(postActionSource).not.toContain('Game.addStory');
+    expect(postActionSource).not.toContain("type: 'highlight'");
+  });
+
   // REGRESSION GUARD: event pages show all event posts, not just legacy
   // `highlight` rows. A type-filtered query silently hides normal uploads
   // and legacy null-type rows. The game feed must fetch via feedForGame with
